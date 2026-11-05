@@ -2576,13 +2576,15 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
 };
 
 /** The applicability gate `graveyardExileCandidates` declines on — ONE
- *  predicate for gate and generator. Only the as-enters "exile any number of
- *  <filter> cards from your graveyard" leg (CR 614.12a, Sutured Ghoul) is a
- *  search node here: a Recall-style `choose-graveyard-card` stays on the
+ *  predicate for gate and generator. Only the as-enters graveyard picks are
+ *  search nodes here: "exile any number of <filter> cards from your graveyard"
+ *  (CR 614.12a, Sutured Ghoul) and "enter as a copy of a card in a graveyard"
+ *  (CR 707.2, on this shape only with a graveyard source). A Recall-style `choose-graveyard-card` stays on the
  *  greedy value-max default in `brain.ts` (ADR 0018). */
 function graveyardExileIsSearchable(choice: PendingChoice): boolean {
     return (
-        choice.asEntersKind === "exileFromGraveyard" &&
+        (choice.asEntersKind === "exileFromGraveyard" ||
+            choice.asEntersKind === "copy") &&
         getPendingChoiceMax(choice.count) > 0
     );
 }
@@ -2604,10 +2606,7 @@ function graveyardExileIsSearchable(choice: PendingChoice): boolean {
  *  the prompt carries, narrowed to the chooser's graveyard. */
 const graveyardExileCandidates: ChoiceCandidateGenerator = (state, choice) => {
     if (!graveyardExileIsSearchable(choice)) return [];
-    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
-    const allow = new Set(choice.candidateIds ?? []);
-    const pool = owner.graveyard
-        .filter((c) => allow.has(c.id))
+    const pool = eligibleZonePickCards(state, choice)
         .map((card) => ({
             card,
             identity: stableCardIdentity(card),

@@ -9,6 +9,7 @@ import {
 } from "@convex/cards/modalDfc";
 import { isSplitCard, splitSideOfDefinitionId } from "@convex/cards/splitCard";
 import { parentIdOfTwin } from "@convex/cards/twinId";
+import { copyExceptName } from "@convex/cards/cardNames";
 import { isMeldCard } from "@convex/cards/meld";
 import {
     getArtCropImageUrl,
@@ -591,7 +592,12 @@ export function buildPreviewBody(
         bodyAbilities.keywords.length > 0 ||
         bodyAbilities.activated.length > 0 ||
         bodyAbilities.triggered.length > 0;
-    const displayName = def?.name ?? fallbackName ?? defId;
+    // CR 707.9b — a copy's "except its name is X" names the object it shows.
+    const displayName =
+        (cardInstance ? copyExceptName(cardInstance) : undefined) ??
+        def?.name ??
+        fallbackName ??
+        defId;
     // An instance-level pin — the printing a player chose for the card (ADR
     // 0140 §6), or a copy token's own frame (CR 707.9) — wins over the
     // definition's art, exactly as it does on the board (`card-image.tsx`), so

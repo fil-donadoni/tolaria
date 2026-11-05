@@ -1,4 +1,5 @@
 import { getDefinition } from "@convex/cards";
+import { copyExceptName } from "@convex/cards/cardNames";
 import type { CardInstance } from "~/types/game";
 
 /**
@@ -56,7 +57,8 @@ function matchesBandQuality(c: CardInstance, quality: BandQuality): boolean {
     if (quality.kind === "legendary") {
         return def.supertypes?.includes("Legendary") ?? false;
     }
-    return def.name === quality.name;
+    // CR 707.9b — a copy's "except its name is X" is its name.
+    return (copyExceptName(c) ?? def.name) === quality.name;
 }
 
 /** Mirror of `isLegalBandComposition` (CR 702.22c / 702.22j). */

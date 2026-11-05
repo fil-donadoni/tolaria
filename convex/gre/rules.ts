@@ -67,6 +67,7 @@ import { boardManaUnits, producesUncostedMana } from "./manaAvailability";
 import type { ManaReplacementView, ManaTapOption } from "./constants";
 import { foldHybridGenericLegs, hybridGenericPipCount } from "./hybridGeneric";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
+import { copyExceptName } from "../cards/cardNames";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -3562,8 +3563,10 @@ export function passesCastPhaseRestriction(
         const nameClash = state.players.some((p) =>
             p.battlefield.some(
                 (perm) =>
-                    tryGetDefinition((perm.card as { id?: string }).id ?? "")
-                        ?.name === def.name
+                    (copyExceptName(perm) ??
+                        tryGetDefinition(
+                            (perm.card as { id?: string }).id ?? ""
+                        )?.name) === def.name
             )
         );
         if (nameClash) return false;

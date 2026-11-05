@@ -123,6 +123,7 @@ export function copyExceptOf(
         return all.length > 0 ? all : undefined;
     };
     const merged: CopyExcept = {
+        name: opts.name ?? inherited?.name,
         basePower: opts.basePower ?? inherited?.basePower,
         baseToughness: opts.baseToughness ?? inherited?.baseToughness,
         colorOverride:

@@ -14,7 +14,7 @@ import {
     getPermanentManaValueCost,
     tryGetDefinition,
 } from "../cards";
-import { objectHasChosenName } from "../cards/cardNames";
+import { copyExceptName, objectHasChosenName } from "../cards/cardNames";
 import {
     declaresGraveyardStaticEffect,
     declaresLayer7StaticEffect,
@@ -227,6 +227,11 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         // CR 201.2 — card name from the (possibly copied / tokenized) card
         // definition. An embedded name on the instance's card reference wins
         // (copy effects), else look the printed name up via the registry.
+        // CR 707.9b — a copy effect's "except its name is X" comes first.
+        const excepted = copyExceptName(
+            card as { faceDown?: boolean; copyExcept?: { name?: string } }
+        );
+        if (excepted !== undefined) return excepted;
         const embedded = (card.card as { name?: string }).name;
         if (embedded) return embedded;
         const cardId = (card.card as { id?: string }).id;

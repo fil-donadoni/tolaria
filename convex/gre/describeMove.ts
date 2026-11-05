@@ -11,6 +11,7 @@ import type { GameState } from "./state";
 import type { Move } from "./moves";
 import type { TargetSelection } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { copyExceptName } from "../cards/cardNames";
 import { playLandFaceDefinition } from "./modalLandPlay";
 
 type Named = { id: string; card: Record<string, unknown> };
@@ -18,6 +19,11 @@ type Named = { id: string; card: Record<string, unknown> };
 /** Best-effort card name for an instance/stack item, mirroring rules.ts: prefer
  *  an inlined `name` (legacy fixtures), else the registry, else the instance id. */
 function cardName(obj: Named): string {
+    // CR 707.9b — a copy's "except its name is X" is its name.
+    const excepted = copyExceptName(
+        obj as { faceDown?: boolean; copyExcept?: { name?: string } }
+    );
+    if (excepted) return excepted;
     const inlined = (obj.card as { name?: string }).name;
     if (inlined) return inlined;
     const id = (obj.card as { id?: string }).id;

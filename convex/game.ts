@@ -4,6 +4,7 @@ import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser } from "./auth";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
+import { copyExceptName } from "./cards/cardNames";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 
 import {
@@ -11378,7 +11379,7 @@ function deselectAttacker(
     // flag makes, so the client's guard and this refusal cannot disagree.
     if (isRequiredAttacker(card, state)) {
         throw new Error(
-            `${getDefinition(card.card.id as string).name} must attack this combat if able`
+            `${copyExceptName(card) ?? getDefinition(card.card.id as string).name} must attack this combat if able`
         );
     }
     combat.attackerIds.splice(idx, 1);
