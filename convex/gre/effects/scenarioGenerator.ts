@@ -244,6 +244,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "attacks-unblocked": () => true,
     // CR 708.8 — the source was turned face up where it stands.
     "turned-face-up": () => true,
+    // CR 701.27a — the source turned over where it stands, no zone change.
+    transforms: () => true,
     // CR 603.8 — the source is on the battlefield with the power that triggers.
     "power-reached": () => true,
     // CR 716.2a — the level is gained by this permanent's own bar resolving.

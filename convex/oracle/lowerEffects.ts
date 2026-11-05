@@ -3628,6 +3628,41 @@ function lowerSentenceBody(
             if (!player.ok) return player;
             const bind = walk.nextBind("picked");
             const { filter, phrase } = sentence;
+            const optional = sentence.route === "discard-then-draw";
+            const discard: EffectOp = {
+                op: "discard",
+                player: player.value,
+                cards: { ref: bind },
+            };
+            const routed: EffectOp[] =
+                sentence.route === "discard"
+                    ? [discard]
+                    : sentence.route === "exile"
+                      ? [
+                            {
+                                op: "moveZone",
+                                cards: { ref: bind },
+                                player: player.value,
+                                from: "hand",
+                                to: "exile",
+                            },
+                        ]
+                      : // CR 608.2c — "If you do": no card chosen, no discard
+                        // and no draw.
+                        [
+                            {
+                                op: "if",
+                                predicate: { picksNonEmpty: { ref: bind } },
+                                then: [
+                                    discard,
+                                    {
+                                        op: "draw",
+                                        player: player.value,
+                                        count: 1,
+                                    },
+                                ],
+                            },
+                        ];
             return lowered([
                 { op: "reveal", player: player.value, zone: "hand" },
                 {
@@ -3637,23 +3672,11 @@ function lowerSentenceBody(
                     zoneOwnerId: player.value,
                     zone: "hand",
                     ...(Object.keys(filter).length === 0 ? {} : { filter }),
-                    count: 1,
-                    prompt: `Choose ${phrase} from that player's hand.`,
+                    count: optional ? { min: 0, max: 1 } : 1,
+                    prompt: `${optional ? "You may choose" : "Choose"} ${phrase} from that player's hand.`,
                     bind,
                 },
-                sentence.route === "discard"
-                    ? {
-                          op: "discard",
-                          player: player.value,
-                          cards: { ref: bind },
-                      }
-                    : {
-                          op: "moveZone",
-                          cards: { ref: bind },
-                          player: player.value,
-                          from: "hand",
-                          to: "exile",
-                      },
+                ...routed,
             ]);
         }
         case "loot": {

@@ -143,13 +143,12 @@ describe("transform layout refusals (fail-closed)", () => {
         expect(reasonsOf(GARGOYLE)).toEqual([TRANSFORM_BACK_COLOR_REASON]);
     });
 
-    it("refuses a back face that compiles to a trigger a CardBackFace cannot hold", () => {
+    it("refuses a back face that compiles to a static effect a CardBackFace cannot hold", () => {
         const card = withBack(withBackColors(GARGOYLE, []), {
-            oracleText:
-                "Flying\nWhenever this creature attacks, you gain 1 life.",
+            oracleText: "Creatures you control get +1/+1.",
         });
         expect(reasonsOf(card)).toEqual([
-            "transform back face carries compiledTriggeredAbilities, which a CardBackFace cannot hold",
+            "transform back face carries compiledStaticEffects, which a CardBackFace cannot hold",
         ]);
     });
 
