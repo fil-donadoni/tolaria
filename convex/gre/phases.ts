@@ -109,6 +109,7 @@ import {
     placeTriggersOnStack,
 } from "./triggers";
 import { buildEpicCopyTrigger } from "./epic";
+import { isUntilNextTurnAttackWatch } from "./attackWatch";
 import {
     hasAnyLegalBlock,
     getRequiredAttackerIds,
@@ -3872,7 +3873,7 @@ function advanceTurn(state: GameState): void {
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
-                t.timing !== "until-next-turn-creature-attacks-you" ||
+                !isUntilNextTurnAttackWatch(t.timing) ||
                 t.controller !== state.activePlayerId
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;

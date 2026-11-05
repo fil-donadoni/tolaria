@@ -25,6 +25,7 @@
 
 import type {
     CardDefinition,
+    DelayedTriggerTiming,
     EffectChoiceKind,
     EffectOp,
     EffectValue,
@@ -37,6 +38,7 @@ import {
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
+import { UNTIL_NEXT_TURN_ATTACK_WATCHES } from "../attackWatch";
 import { activationConditionErrors } from "../activationPrecondition";
 import {
     CREATURE_SUBTYPES,
@@ -3878,6 +3880,11 @@ function isForEachSelector(value: unknown): boolean {
     if (s.set === "exiledWithSource") {
         return Object.keys(s).length === 1;
     }
+    // `eventAttackers` (issue #8166) — exactly `{ set }`; whether the event is
+    // in scope is the ordered ref pass's question.
+    if (s.set === "eventAttackers") {
+        return Object.keys(s).length === 1;
+    }
     // `times` (issue #1368) — exactly `{ set, count }`: N repetitions, the
     // count an `EffectValue` (its refs are checked by the ordered ref pass).
     if (s.set === "times") {
@@ -4116,6 +4123,11 @@ const DELAYED_TIMINGS = new Set([
     // Rejects both `targetPlayer` and `watch`, same shape as
     // "this-turn-creature-blocks".
     "until-next-turn-creature-attacks-you",
+    // Its batch twin on the attacking side (CR 508.3b, issue #8166): one firing
+    // per declaration naming the creatures that attack a player, read by
+    // `forEach { set: "eventAttackers" }` (Garruk, Curse Breaker's −4). Rejects
+    // both `targetPlayer` and `watch`.
+    "until-next-turn-creatures-attack-your-opponents",
     // Instance unblocked-attack watch (CR 603.7a / 509.1h) — fires on the
     // WATCHED permanent's ATTACKER_UNBLOCKED event ("This turn, when target
     // creature you control attacks and isn't blocked, …", Delif's Cone /
@@ -8969,6 +8981,22 @@ function checkOpListRefs(
         if (entry.op === "forEach" && Array.isArray(entry.effects)) {
             const bodyScope = new Map(declared);
             const select = entry.select as Record<string, unknown> | null;
+            // CR 508.3b — "those creatures" names the attackers of the firing
+            // declaration, so that declaration must be the only event in scope
+            // (never a delayed body whose event is gone, nor an "attacks or
+            // blocks" head that may fire on a block).
+            if (
+                select?.set === "eventAttackers" &&
+                (eventScope.inDelayedBody ||
+                    eventScope.eventTypes === undefined ||
+                    !eventScope.eventTypes.every(
+                        (t) => t === "ATTACKERS_DECLARED"
+                    ))
+            ) {
+                errors.push(
+                    `${at}: { set: "eventAttackers" } reads the firing ATTACKERS_DECLARED, which is not the event in scope here`
+                );
+            }
             // issue #1368 — a `times` member is an iteration index, not an
             // object or a player: `$each` stays undeclared, so a body reading
             // it is rejected as an undefined binding.
@@ -9056,19 +9084,22 @@ function checkOpListRefs(
             // BLOCKERS_CONFIRMED pair and threads that event the same way.
             // "this-turn-watched-creature-deals-combat-damage"
             // is the fourth: it fires per combat DAMAGE_DEALT event.
+            const isAttackWatchBody =
+                UNTIL_NEXT_TURN_ATTACK_WATCHES[
+                    entry.timing as DelayedTriggerTiming
+                ] !== undefined;
             const eventBody =
                 entry.timing === "this-turn-creature-blocks" ||
                 entry.timing === "becomes-blocked-by" ||
-                entry.timing === "until-next-turn-creature-attacks-you" ||
+                isAttackWatchBody ||
                 entry.timing ===
                     "this-turn-watched-creature-deals-combat-damage";
-            const liveEventType =
-                entry.timing === "until-next-turn-creature-attacks-you"
-                    ? "ATTACKERS_DECLARED"
-                    : entry.timing ===
-                        "this-turn-watched-creature-deals-combat-damage"
-                      ? "DAMAGE_DEALT"
-                      : "BLOCKERS_CONFIRMED";
+            const liveEventType = isAttackWatchBody
+                ? "ATTACKERS_DECLARED"
+                : entry.timing ===
+                    "this-turn-watched-creature-deals-combat-damage"
+                  ? "DAMAGE_DEALT"
+                  : "BLOCKERS_CONFIRMED";
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
