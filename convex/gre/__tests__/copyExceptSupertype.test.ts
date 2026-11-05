@@ -19,6 +19,8 @@ import {
     tryGetDefinition,
     withTemporaryDefinition,
 } from "../../cards";
+import { ATTACK_RESTRICTION_CTX } from "../../cards/attackRestrictions";
+import { CAST_RESTRICTION_CTX } from "../../cards/castRestrictions";
 import { controlsLandWithSupertype } from "../../cards/landwalkNegation";
 import { matchesBandQuality } from "../banding";
 import {
@@ -36,7 +38,7 @@ import { applyCopy, presentedDefId } from "../copy";
 import { validateEffectScript } from "../effects/validate";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { advancePhase } from "../phases";
-import { checkLegendRuleSBA } from "../sba";
+import { checkLegendRuleSBA, checkWorldRuleSBA } from "../sba";
 import { compactState, expandState } from "../serialize";
 import {
     raiseTriggerTargetSelection,
@@ -304,6 +306,35 @@ describe("copy exception: supertype as a copiable value (CR 707.9b, issue #8167)
             // "Bands with other legendary creatures" (CR 702.22c).
             expect(matchesBandQuality(copy, { kind: "legendary" })).toBe(true);
         });
+    });
+
+    it("answers the static-effect contexts' supertype question", () => {
+        withProbe(() => {
+            const copy = find(copyOf("lotus"), "absorber");
+            expect(ATTACK_RESTRICTION_CTX.hasSupertype(copy, "Legendary")).toBe(
+                true
+            );
+            expect(CAST_RESTRICTION_CTX.hasSupertype(copy, "Legendary")).toBe(
+                true
+            );
+        });
+    });
+
+    it("subjects a copy made a world permanent to the world rule (CR 704.5k)", () => {
+        const world = (id: string) =>
+            makeInstance(LOTUS, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                copyExcept: { additionalSupertypes: ["World"] },
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [world("w1"), world("w2")] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(checkWorldRuleSBA(state)).toBe(true);
     });
 
     it("is excluded by a nonlegendary target requirement", () => {

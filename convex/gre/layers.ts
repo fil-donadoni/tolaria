@@ -370,14 +370,15 @@ const LAYER_7_SUBLAYER_ORDER: Record<ContinuousEffectSublayer, number> = {
 /** CR 707.9d — true when a copy effect's "except" clause (`CopyExcept`) names
  *  this object's base power and toughness, so the copied definition's P/T CDA
  *  is not part of it. A face-down object shows no clause (CR 708.2). */
-function copyOverridesPTCDA(source: {
-    faceDown?: boolean;
-    copyExcept?: { basePower?: number; baseToughness?: number };
-}): boolean {
+function copyOverridesPTCDA(source: PermanentView): boolean {
+    const copy = source as {
+        faceDown?: boolean;
+        copyExcept?: { basePower?: number; baseToughness?: number };
+    };
     return (
-        !source.faceDown &&
-        source.copyExcept?.basePower !== undefined &&
-        source.copyExcept.baseToughness !== undefined
+        !copy.faceDown &&
+        copy.copyExcept?.basePower !== undefined &&
+        copy.copyExcept.baseToughness !== undefined
     );
 }
 

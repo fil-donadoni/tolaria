@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import { matchesPermanentFilter, toMatchablePermanent } from "../card-utils";
+import { canFormBand } from "../banding";
 import { buildPreviewBody } from "../preview-body";
 import type { CardInstance } from "~/types/game";
 import { projectPublicState } from "@convex/gameProjections";
@@ -113,6 +114,18 @@ describe("copy exception supertype on the client (CR 707.9b, issue #8167)", () =
             expect(buildPreviewBody(LOTUS, card).typeLine).toContain(
                 "Legendary"
             );
+        });
+    });
+
+    it("makes the copy a member of a legendary band (CR 702.22c)", () => {
+        withTemporaryDefinition(PROBE, () => {
+            const card = copied();
+            const bander: CardInstance = {
+                ...card,
+                id: "bander",
+                staticAbilities: ["bands with other:legendary"],
+            };
+            expect(canFormBand([bander, card])).toBe(true);
         });
     });
 
