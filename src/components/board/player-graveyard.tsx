@@ -55,6 +55,7 @@ export default function PlayerGraveyard({
         allPlayers,
         cannotActivateAbilitiesThisTurn,
         continuousEffects,
+        emblems,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
@@ -150,7 +151,8 @@ export default function PlayerGraveyard({
         cannotActivateAbilitiesThisTurn,
         undefined,
         undefined,
-        continuousEffects
+        continuousEffects,
+        emblems
     );
     const actionableIds =
         player.id === playerId && !isGraveyardChoice && !isGraveyardTarget
