@@ -25,6 +25,13 @@
             "needsSetup": false
         }
     ],
+    "Animate Dead": [
+        {
+            "label": "reanimation: Animate Dead takes the opponent's Griselbrand over its own Bears",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Armageddon": [
         {
             "label": "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands",
@@ -272,6 +279,13 @@
             "needsSetup": false
         }
     ],
+    "Entomb": [
+        {
+            "label": "tutor: casts Entomb with a reanimation spell in hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Etched Oracle": [
         {
             "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",
@@ -326,7 +340,19 @@
             "needsSetup": false
         }
     ],
+    "Force of Will": [
+        {
+            "label": "counterspell: Force of Will pitches against a lethal Lightning Bolt",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Forest": [
+        {
+            "label": "Fastbond: plays the extra land with life to spare",
+            "tier": "must",
+            "needsSetup": false
+        },
         {
             "label": "positive-control: plays its only land on an empty board",
             "tier": "must",
@@ -347,6 +373,13 @@
             "needsSetup": false
         }
     ],
+    "Goblin Bombardment": [
+        {
+            "label": "sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Grapeshot": [
         {
             "label": "storm: Grapeshot is lethal because the search counts the spell cast before it",
@@ -357,6 +390,20 @@
     "Gray Ogre": [
         {
             "label": "source of your choice: shields itself from the attacking red creature, not the first red one listed",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Green Sun's Zenith": [
+        {
+            "label": "X spell: Green Sun's Zenith finds the Bears at X = 2",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Griselbrand": [
+        {
+            "label": "tutor: Entomb bins the fatty, not the Bears",
             "tier": "must",
             "needsSetup": true
         }
@@ -494,6 +541,25 @@
             "needsSetup": false
         }
     ],
+    "Jace, the Mind Sculptor": [
+        {
+            "label": "loyalty: Jace bounces the attacker that would kill him",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "loyalty: Jace brainstorms with no attacker",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Library of Alexandria": [
+        {
+            "label": "land: Library of Alexandria draws at seven cards",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Lightning Bolt": [
         {
             "label": "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
@@ -542,11 +608,32 @@
             "needsSetup": false
         }
     ],
+    "Mana Crypt": [
+        {
+            "label": "fast mana: casts Mana Crypt for the Serra Angel it enables",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Mana Drain": [
+        {
+            "label": "counterspell: Mana Drain counters the Craw Wurm",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Mana Leak": [
         {
             "label": "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Mana Vault": [
+        {
+            "label": "fast mana: casts Mana Vault for the Craw Wurm it pays for this turn",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Meddling Mage": [
@@ -573,6 +660,11 @@
             "label": "wish: brings the sorcery in from outside the game rather than declining",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "X spell: Mind Twist for all it can at a full hand",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Mishra's Factory": [
@@ -601,11 +693,39 @@
             "needsSetup": true
         }
     ],
+    "Mox Diamond": [
+        {
+            "label": "fast mana: casts Mox Diamond with a spare land past its drop",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Natural Order": [
+        {
+            "label": "tutor: Natural Order sacrifices the Elves for the Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Nightscape Familiar": [
         {
             "label": "regeneration shield: Nightscape Familiar regenerates against lethal burn",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Oath of Druids": [
+        {
+            "label": "symmetric: casts Oath of Druids when it feeds the Bot",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Oko, Thief of Crowns": [
+        {
+            "label": "loyalty: Oko elks the opposing Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Phlage, Titan of Fire's Fury": [
@@ -667,6 +787,13 @@
             "needsSetup": false
         }
     ],
+    "Ragavan, Nimble Pilferer": [
+        {
+            "label": "attack: Ragavan attacks an empty board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Raging Kavu": [
         {
             "label": "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn",
@@ -684,6 +811,20 @@
     "Ravenous Rats": [
         {
             "label": "opponent's choice: casts Ravenous Rats into a two-card hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Reanimate": [
+        {
+            "label": "reanimation: Reanimate takes the target its life can pay for",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Recurring Nightmare": [
+        {
+            "label": "reanimation: Recurring Nightmare swaps the Bears for Griselbrand",
             "tier": "must",
             "needsSetup": false
         }
@@ -758,9 +899,19 @@
     ],
     "Serra Angel": [
         {
+            "label": "fast mana: sacrifices Black Lotus for the Serra Angel it pays for",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "free put: the second chooser still puts its creature in after the opponent's bigger one",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "life as mana: Bolas's Citadel plays the top card with life to spare",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Shatter": [
@@ -777,6 +928,27 @@
             "needsSetup": false
         }
     ],
+    "Shivan Dragon": [
+        {
+            "label": "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Show and Tell": [
+        {
+            "label": "cheat into play: casts Show and Tell with Griselbrand in hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Skullclamp": [
+        {
+            "label": "equipment: Skullclamp equips the 1-toughness creature and draws",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Skyclave Apparition": [
         {
             "label": "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
@@ -784,9 +956,30 @@
             "needsSetup": false
         }
     ],
+    "Smuggler's Copter": [
+        {
+            "label": "vehicle: crews Smuggler's Copter with the summoning-sick spare",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Snapcaster Mage": [
         {
             "label": "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Sneak Attack": [
+        {
+            "label": "cheat into play: activates Sneak Attack at the beginning of combat",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Sol Ring": [
+        {
+            "label": "fast mana: Sol Ring before the other one-mana play",
             "tier": "must",
             "needsSetup": false
         }
@@ -874,6 +1067,13 @@
             "needsSetup": true
         }
     ],
+    "Swords to Plowshares": [
+        {
+            "label": "removal: Swords to Plowshares takes the greater threat",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Sylvan Safekeeper": [
         {
             "label": "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
@@ -900,6 +1100,20 @@
             "needsSetup": true
         }
     ],
+    "Teferi, Time Raveler": [
+        {
+            "label": "loyalty: Teferi bounces the opposing Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Tendrils of Agony": [
+        {
+            "label": "storm: casts Tendrils of Agony when the count is lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Terror": [
         {
             "label": "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)",
@@ -924,6 +1138,13 @@
             "needsSetup": false
         }
     ],
+    "The One Ring": [
+        {
+            "label": "protection: casts The One Ring under lethal pressure",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Thought Scour": [
         {
             "label": "known top: digs with a cantrip because it knows the Bolt is there",
@@ -931,9 +1152,37 @@
             "needsSetup": true
         }
     ],
+    "Thoughtseize": [
+        {
+            "label": "strip: casts Thoughtseize at a castable Shivan Dragon",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Time Walk": [
+        {
+            "label": "extra turn: casts Time Walk with attackers on board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Timetwister": [
+        {
+            "label": "symmetric: casts Timetwister on an empty hand against seven",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
     "Tinker": [
         {
             "label": "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Toxic Deluge": [
+        {
+            "label": "life X: Toxic Deluge pays exactly what the sweep needs",
             "tier": "must",
             "needsSetup": false
         }
@@ -948,6 +1197,27 @@
     "Triangle of War": [
         {
             "label": "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Umezawa's Jitte": [
+        {
+            "label": "equipment: Umezawa's Jitte spends a counter to win the combat",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Underworld Breach": [
+        {
+            "label": "escape: casts Underworld Breach with a burn spell to escape at lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Upheaval": [
+        {
+            "label": "reset: casts Upheaval against a lost board",
             "tier": "must",
             "needsSetup": false
         }
@@ -1006,6 +1276,20 @@
         {
             "label": "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
             "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Wrenn and Six": [
+        {
+            "label": "loyalty: Wrenn and Six returns the Strip Mine",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Yawgmoth's Will": [
+        {
+            "label": "graveyard: casts Yawgmoth's Will on a full graveyard",
+            "tier": "must",
             "needsSetup": false
         }
     ],

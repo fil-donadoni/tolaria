@@ -316,9 +316,9 @@ export function heuristicChoicePrior(
     // (`zoneOwnerId` — the Deep-Cavern Bat / Elite Spellbinder strip) carries a
     // `materialGivenUp` hint measuring the OPPONENT's card, and reading it here
     // would subtract their loss from the decider's prior: exiling their best
-    // card would open LAST. Those picks keep the flat `NEUTRAL_PRIOR` they have
-    // always had; signing them correctly is a preference change owing its own
-    // blade pair, drafted in the findings drawer.
+    // card would open LAST. Those picks keep the flat `NEUTRAL_PRIOR`; the
+    // generator orders them best first and drops the far weaker ones instead
+    // (`handPickCandidates`, issue #8271).
     if (
         choice.kind === "choose-hand-card" &&
         (choice.zoneOwnerId ?? choice.playerId) === choice.playerId

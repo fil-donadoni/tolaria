@@ -97,6 +97,15 @@ export type MoveMatcher = {
      *  permanent whose ability is activated, which is the card the plan reads
      *  as tapping. */
     taps?: string[];
+    /** CR 107.3 (issue #8271) — the X a `cast-spell` / `activate-ability` move
+     *  announces, exactly. Its own field because X is the whole decision on an
+     *  X spell: without it, "the least X that sweeps" fell to a `predicate`,
+     *  which the verdict derivation cannot read. */
+    x?: number;
+    /** CR 602.1 (issue #8271) — the activated ability's id on an
+     *  `activate-ability` move, for a permanent with several: a planeswalker's
+     *  loyalty abilities, a land's mana and draw abilities. */
+    ability?: string;
 };
 
 /**
