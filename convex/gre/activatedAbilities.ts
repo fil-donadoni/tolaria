@@ -6,6 +6,22 @@ import { tryGetDefinition } from "../cards";
 import { latestTimestamp, outrankedBy } from "./continuousEffects";
 import type { CardInstanceState } from "./state/declarations";
 
+/** Whether activating `ability` of `perm` would be a no-op: it animates its own
+ *  source, and the source already IS an animated creature (crewing a crewed
+ *  Vehicle, CR 611.1's one animation at a time). An animated permanent a later
+ *  type change took the creature type from is NOT one: a new activation makes
+ *  it a creature again (CR 613.7, issue #7212). */
+export function isAnimatedCreature(
+    ability: ActivatedAbility,
+    perm: CardInstanceState
+): boolean {
+    return (
+        ability.animatesSelf === true &&
+        perm.animation !== undefined &&
+        perm.types.includes("Creature")
+    );
+}
+
 /** One entry of a permanent's POST-LAYER activated-ability set: the ability
  *  template plus, when the ability was GRANTED to this permanent by another
  *  card (CR 113.1), the granting card's definition id. */
