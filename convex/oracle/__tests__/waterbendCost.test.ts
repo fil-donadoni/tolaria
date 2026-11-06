@@ -42,17 +42,24 @@ describe("Waterbend cost — golden (CR 701.67a)", () => {
         expect(lowered.value).toEqual(waterbendCost(3));
     });
 
-    it("Aang's Iceberg line: Waterbend {3} on an enchantment is read", () => {
+    it("North Pole Patrol: the whole row compiles ready with the waterbend ability", () => {
         const outcome = compileCard(
             oracleCard({
-                name: "Aang's Iceberg",
-                manaCost: "{2}{W}",
-                typeLine: "Enchantment",
+                name: "North Pole Patrol",
+                manaCost: "{2}{U}",
+                typeLine: "Creature — Human Soldier Ally",
                 oracleText:
-                    "Waterbend {3}: Sacrifice this enchantment. If you do, scry 2.",
+                    "{T}: Untap another target permanent you control.\nWaterbend {3}, {T}: Tap target creature an opponent controls. (While paying a waterbend cost, you can tap your artifacts and creatures to help. Each one pays for {1}.)",
+                power: "2",
+                toughness: "3",
             })
         );
-        expect(JSON.stringify(outcome)).toContain("substitutesGeneric");
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "ready") return;
+        expect(outcome.definition.activatedAbilities?.[1]?.cost).toEqual({
+            ...waterbendCost(3),
+            tap: true,
+        });
     });
 
     it("North Pole Patrol: Waterbend {3}, {T} on a creature keeps both legs", () => {
