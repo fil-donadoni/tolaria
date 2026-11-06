@@ -2983,6 +2983,59 @@ describe("validateEffectScript — linked exile pile (CR 607.2a, issue #5200)", 
     });
 });
 
+describe("validateEffectScript — moveZone untilSourceLeaves (CR 610.3b)", () => {
+    const pick: EffectOp = {
+        op: "choice",
+        kind: "choose-hand-card",
+        player: "controller",
+        zone: "hand",
+        count: { min: 0, max: 1 },
+        prompt: "Choose a card.",
+        bind: "$taken",
+    };
+    const cardsMove = {
+        op: "moveZone",
+        cards: { ref: "$taken" },
+        player: "controller",
+        from: "hand",
+        to: "exile",
+        linkToSource: true,
+        untilSourceLeaves: true,
+    };
+    const errorsFor = (op: unknown) =>
+        validateEffectScript(host({ effects: [pick, op as EffectOp] }));
+
+    it("accepts the declaration on a linked `cards` exile", () => {
+        expect(errorsFor(cardsMove)).toEqual([]);
+    });
+
+    it.each([
+        ["without linkToSource", { linkToSource: undefined }],
+        [
+            "with a destination other than exile",
+            { to: "graveyard", linkToSource: undefined },
+        ],
+        ["as a non-boolean", { untilSourceLeaves: "yes" }],
+    ])("rejects it %s", (_label, change) => {
+        const op = JSON.parse(JSON.stringify({ ...cardsMove, ...change }));
+        expect(errorsFor(op).length).toBeGreaterThan(0);
+    });
+
+    it("rejects it on the `target` shape", () => {
+        const op = {
+            op: "moveZone",
+            target: { target: 0 },
+            to: "exile",
+            linkToSource: true,
+            untilSourceLeaves: true,
+        };
+        const errors = validateEffectScript(
+            host({ effects: [op as EffectOp] })
+        );
+        expect(errors.join("\n")).toContain("untilSourceLeaves");
+    });
+});
+
 describe("validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872)", () => {
     const innocentBloodShape: EffectOp = {
         op: "forEach",

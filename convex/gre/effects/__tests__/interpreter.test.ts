@@ -33639,6 +33639,50 @@ describe("moveZone: cards-shape linkToSource flag (CR 400.7 / 607, issue #1947)"
         expect(state.players[0].exile[0].exiledBySourceId).toBeUndefined();
     });
 
+    it("untilSourceLeaves: a spell resolving as its own source has not left, so the card still moves (CR 610.3a)", () => {
+        const id = registerScript("test-op-movezone-until-spell", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card to exile.",
+                bind: "$found",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$found" },
+                player: "controller",
+                from: "library",
+                to: "exile",
+                linkToSource: true,
+                untilSourceLeaves: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        const sourceInstanceId = state.stack[0].id;
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+        });
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["a"]);
+        expect(state.players[0].exile[0].exiledBySourceId).toBe(
+            sourceInstanceId
+        );
+    });
+
     it("the link survives the wire projection and a serializer round trip", () => {
         const id = registerScript("test-op-movezone-link-wire", [
             {
