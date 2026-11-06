@@ -4356,6 +4356,11 @@
         },
         {
             "kind": "migration",
+            "key": "chapter",
+            "issue": 8377
+        },
+        {
+            "kind": "migration",
             "key": "class-level-bar + triggered",
             "issue": 8145
         },
