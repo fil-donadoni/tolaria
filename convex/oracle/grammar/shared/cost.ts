@@ -32,6 +32,7 @@ import type {
     ManaCost,
     PermanentFilter,
 } from "../../../cards/types";
+import { DISCARD_HAND_COUNT } from "../../../gre/constants";
 import { readManaCost } from "../../manaCost";
 import {
     fail,
@@ -173,11 +174,6 @@ const PAY_LIFE = /^Pay (\d+) life$/;
 const LOYALTY_SYMBOL = /^(?:([+-])(\d+)|0)$/;
 const DISCARD_X = /^Discard X cards$/;
 const DISCARD_HAND = /^Discard your hand$/;
-/** CR 701.9a / 118.3 — "Discard your hand" rides the `discardAtRandom` cost
- *  with a count above any reachable hand size: the payer clamps to the hand,
- *  so every card is discarded and the random order is moot. The encoding the
- *  catalogue's hand-written Lion's Eye Diamond already uses. */
-const DISCARD_HAND_COUNT = 99;
 const DISCARD_RANDOM = /^Discard (\S+) cards? at random$/;
 const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
 const ADD_COUNTER = /^Put (\S+) (\S+) counters? on (.+)$/;

@@ -23412,14 +23412,26 @@ export function discardCardsAtRandom(
     // CR 101.2 (issue #2607) — a barred discard picks nothing at random
     // either (no PRNG draw for a discard that cannot happen).
     if (discardBarred(state, playerId, origin)) return [];
+    // CR 601.2a — a spell being cast is on the stack while its costs are paid,
+    // though the engine keeps the card in hand until the cast commits: a mana
+    // ability's discard cost never reaches it.
+    const castingId =
+        state.pendingCast?.playerId === playerId
+            ? state.pendingCast.cardInstanceId
+            : undefined;
+    const discardable = (): CardInstanceState[] =>
+        castingId === undefined
+            ? player.hand
+            : player.hand.filter((c) => c.id !== castingId);
     // CR 701.8a — when a type is required (Rag Man: "a creature card at
     // random"), the random pick is drawn only from the matching subset.
     const candidateId = (): string | undefined => {
         if (requireType === undefined) {
-            if (player.hand.length === 0) return undefined;
-            return player.hand[randomInt(state, player.hand.length)].id;
+            const hand = discardable();
+            if (hand.length === 0) return undefined;
+            return hand[randomInt(state, hand.length)].id;
         }
-        const matching = player.hand.filter((c) => {
+        const matching = discardable().filter((c) => {
             const cardId = (c.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             // CR 113.6c — a card that is a creature card only while off the
@@ -23430,7 +23442,7 @@ export function discardCardsAtRandom(
         if (matching.length === 0) return undefined;
         return matching[randomInt(state, matching.length)].id;
     };
-    const picks = Math.min(amount, player.hand.length);
+    const picks = Math.min(amount, discardable().length);
     const discardedIds: string[] = [];
     for (let i = 0; i < picks; i++) {
         const cardId = candidateId();

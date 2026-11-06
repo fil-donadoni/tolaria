@@ -78,6 +78,9 @@ export type ManaUnits = ReadonlyArray<ReadonlySet<Color>>;
 export type ManaSpellContext = {
     types: readonly string[];
     supertypes: readonly string[];
+    /** `handDiscardCostsNothing` for this cast: the census then counts a "Discard
+     *  your hand" mana ability, as `planManaPayment` does. */
+    handDiscardFree?: boolean;
 };
 
 /** A both-players battlefield view, as `getManaTapOptionsDetailed` wants it. */
@@ -213,6 +216,7 @@ function producibleManaUnitsWithDebt(
         {
             requireTap: true,
             boardScan,
+            admitHandDiscard: spell?.handDiscardFree,
         },
         undefined,
         replacements
