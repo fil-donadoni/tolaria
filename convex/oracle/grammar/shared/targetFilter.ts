@@ -55,6 +55,7 @@ import type {
     EffectCardFilter,
     EffectChoiceSuperlative,
     PermanentFilter,
+    TypeOrSubtypeFilter,
     TargetRequirement,
 } from "../../../cards/types";
 import {
@@ -92,6 +93,11 @@ export interface DescriptorIR {
     readonly anyTarget?: true;
     readonly types?: readonly CardType[];
     readonly subtypes?: readonly string[];
+    /** A noun or-list mixing card types and subtypes ("creature or Vehicle"):
+     *  a union, in place of `types` and `subtypes`, which the consumers AND.
+     *  Only `targetDescriptorRule` reads one, and it lowers only to a
+     *  `TargetRequirement`; every other reader refuses the list. */
+    readonly typeOrSubtype?: TypeOrSubtypeFilter;
     /** CR 205.3m (issue #3721) — "of that type" / "of the chosen type": the
      *  subtype is not printed, it is whatever a `Choose a creature type.`
      *  sentence EARLIER IN THE SAME line picked. Kept as a marker rather than
@@ -261,6 +267,7 @@ export interface DescriptorState {
      *  read as a wider OR). */
     typeAdjectivesDisjunctive?: true;
     subtypes: string[];
+    typeOrSubtype?: TypeOrSubtypeFilter;
     /** issue #3721 — see `DescriptorIR.chosenType`. */
     chosenType?: true;
     supertypes: CardSupertype[];
@@ -723,7 +730,8 @@ function lastKeywordQualifier(
  */
 function readNoun(
     tokens: readonly string[],
-    into: DescriptorState
+    into: DescriptorState,
+    admitsTypeOrSubtype = false
 ): string | null {
     let phrase = tokens.join(" ");
     // CR 205.3 — "Forest or Plains card": a subtype or-list sharing ONE
@@ -851,8 +859,17 @@ function readNoun(
         into.subtypes.push(...subtypes);
         return null;
     }
+    if (subtypes.length > 0) {
+        if (!admitsTypeOrSubtype)
+            return `"${phrase}" mixes card types and subtypes in one or-list`;
+        // "Goblin creature or Vehicle": no card prints it, and the adjective's
+        // reach over the list is not something a union can say.
+        if (into.subtypes.length > 0)
+            return "a subtype adjective before a mixed or-list";
+        into.typeOrSubtype = { types: dedupe(types), subtypes };
+        return null;
+    }
     into.types = dedupe(types);
-    into.subtypes.push(...subtypes);
     return null;
 }
 
@@ -891,7 +908,7 @@ export interface DescriptorReaders {
 /** The vocabulary this grammar actually ships. */
 export const DESCRIPTOR_READERS: DescriptorReaders = {
     adjective: readAdjective,
-    noun: readNoun,
+    noun: (tokens, into) => readNoun(tokens, into),
 };
 
 /**
@@ -1091,6 +1108,18 @@ export const descriptorRule: Rule<DescriptorIR> = subGrammar(
     descriptorRuleWith(DESCRIPTOR_READERS)
 );
 
+/** The descriptor rule at the head of a TARGET, the one place a mixed or-list
+ *  has a meaning: `targetRequirementFromDescriptor` lowers it to a union. Every
+ *  other reader goes through `descriptorRule`, which refuses the list, because
+ *  none of their shapes can say it (fail-closed, ADR 0105 § 2). */
+export const targetDescriptorRule: Rule<DescriptorIR> = subGrammar(
+    DESCRIPTOR,
+    descriptorRuleWith({
+        adjective: readAdjective,
+        noun: (tokens, into) => readNoun(tokens, into, true),
+    })
+);
+
 function finish(
     state: DescriptorState,
     span: string
@@ -1125,6 +1154,8 @@ function finish(
     if (state.subtypes.length > 0 && state.chosenType === true)
         return fail("a chosen type beside a printed one", span);
     if (state.subtypes.length > 0) out.subtypes = state.subtypes;
+    if (state.typeOrSubtype !== undefined)
+        out.typeOrSubtype = state.typeOrSubtype;
     if (state.chosenType === true) out.chosenType = true;
     if (state.supertypes.length > 0) out.supertypes = state.supertypes;
     if (state.excludeTypes.length > 0) out.excludeTypes = state.excludeTypes;
@@ -1269,11 +1300,20 @@ export function targetRequirementFromDescriptor(
         return fail("a permanent descriptor cannot name a graveyard", "zone");
     // CR 205.3 — a bare subtype noun names no card type, so the requirement's
     // mandatory `type` is inferred from the subtype's own list.
+    const union = descriptor.typeOrSubtype;
+    const unionSubtypeTypes = impliedTypes(union?.subtypes);
+    if (union !== undefined && unionSubtypeTypes === undefined)
+        return fail(
+            "a mixed or-list names a subtype of no permanent type it can widen to",
+            union.subtypes.join(" ")
+        );
     const types =
-        descriptor.types ??
-        (descriptor.card === true
-            ? undefined
-            : impliedTypes(descriptor.subtypes));
+        union !== undefined
+            ? dedupe([...union.types, ...unionSubtypeTypes!])
+            : (descriptor.types ??
+              (descriptor.card === true
+                  ? undefined
+                  : impliedTypes(descriptor.subtypes)));
     if ((types === undefined || types.length === 0) && descriptor.card !== true)
         return fail("descriptor names no card type", "type");
     // CR 115.2 — "target card in a graveyard" names no card type at all;
@@ -1289,6 +1329,11 @@ export function targetRequirementFromDescriptor(
     };
     if (descriptor.subtypes)
         requirement.subtypeFilter = [...descriptor.subtypes];
+    if (union !== undefined)
+        requirement.typeOrSubtypeFilter = {
+            types: [...union.types],
+            subtypes: [...union.subtypes],
+        };
     if (descriptor.supertypes)
         requirement.supertypeFilter = [...descriptor.supertypes];
     if (descriptor.excludeSupertypes)
@@ -2065,14 +2110,17 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
             } as TargetRequirement);
         for (const [head, count] of OPTIONAL_COUNT_HEADS) {
             if (!span.startsWith(head)) continue;
-            const descriptor = descriptorRule.run(span.slice(head.length), ctx);
+            const descriptor = targetDescriptorRule.run(
+                span.slice(head.length),
+                ctx
+            );
             if (!descriptor.ok) return descriptor;
             return targetRequirementFromDescriptor(descriptor.value, count);
         }
         for (const [head, count] of OPTIONAL_COUNT_HEADS) {
             const other = otherHead(head);
             if (!span.startsWith(other)) continue;
-            const descriptor = descriptorRule.run(
+            const descriptor = targetDescriptorRule.run(
                 span.slice(other.length),
                 ctx
             );
@@ -2086,7 +2134,7 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
         }
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);
-        const descriptor = descriptorRule.run(
+        const descriptor = targetDescriptorRule.run(
             span.slice("target ".length),
             ctx
         );
@@ -2137,7 +2185,10 @@ export const dividedTargetsRule: Rule<TargetRequirement> = subGrammar(
                 return ok({ type: "any", count } as TargetRequirement);
             const head = `${phrase} target `;
             if (!span.startsWith(head)) continue;
-            const descriptor = descriptorRule.run(span.slice(head.length), ctx);
+            const descriptor = targetDescriptorRule.run(
+                span.slice(head.length),
+                ctx
+            );
             if (!descriptor.ok) return descriptor;
             return targetRequirementFromDescriptor(descriptor.value, count);
         }

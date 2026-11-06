@@ -51,6 +51,7 @@ import type {
     Color,
     CombatRole,
     TargetRequirement,
+    TypeOrSubtypeFilter,
 } from "../cards/types";
 import type {
     CardInstanceState,
@@ -592,6 +593,30 @@ const subtypeFilterDescriptor = defineFilter<string[]>({
             value.some((s) => card.subtypes.includes(s))
                 ? null
                 : `Target must be ${value.join(" or ")}`,
+    },
+});
+
+/** The one reading of a type-or-subtype union ("creature or Vehicle"): the
+ *  target filter below and the enchant clause (`hostMatchesEnchantRestriction`,
+ *  `gre/state.ts`) both ask this, so what an Aura may target and what it may
+ *  stay on cannot disagree (CR 702.5a). */
+export function matchesTypeOrSubtype(
+    card: Pick<CardInstanceState, "types" | "subtypes">,
+    filter: TypeOrSubtypeFilter
+): boolean {
+    return (
+        filter.types.some((t) => card.types.includes(t)) ||
+        filter.subtypes.some((s) => card.subtypes.includes(s))
+    );
+}
+
+const typeOrSubtypeFilterDescriptor = defineFilter<TypeOrSubtypeFilter>({
+    lower: (req) => req.typeOrSubtypeFilter,
+    checks: {
+        permanent: (card, value) =>
+            matchesTypeOrSubtype(card, value)
+                ? null
+                : `Target must be ${[...value.types, ...value.subtypes].join(" or ")}`,
     },
 });
 
@@ -1512,6 +1537,7 @@ const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
 export const PERMANENT_FILTER_KEYS = [
     "controller",
     "subtypeFilter",
+    "typeOrSubtypeFilter",
     "supertypeFilter",
     "excludeSubtypes",
     "excludeSupertypes",
@@ -1588,6 +1614,8 @@ export type PlayerOnlyFilterKey = (typeof PLAYER_ONLY_FILTER_KEYS)[number];
 export const REGISTRY = {
     controller: controllerFilter as FilterDescriptor<unknown>,
     subtypeFilter: subtypeFilterDescriptor as FilterDescriptor<unknown>,
+    typeOrSubtypeFilter:
+        typeOrSubtypeFilterDescriptor as FilterDescriptor<unknown>,
     supertypeFilter: supertypeFilterDescriptor as FilterDescriptor<unknown>,
     excludeSubtypes: excludeSubtypesDescriptor as FilterDescriptor<unknown>,
     excludeSupertypes: excludeSupertypesDescriptor as FilterDescriptor<unknown>,
@@ -1648,6 +1676,7 @@ export const REGISTRY = {
 export type PermanentFilterValues = Partial<{
     controller: TargetRequirement["controller"];
     subtypeFilter: string[];
+    typeOrSubtypeFilter: TypeOrSubtypeFilter;
     supertypeFilter: string[];
     excludeSubtypes: string[];
     excludeSupertypes: string[];

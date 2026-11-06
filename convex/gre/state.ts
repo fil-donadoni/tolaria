@@ -202,6 +202,7 @@ import {
     checkCardTargetFilters,
     lowerCardFilters,
     lowerPermanentFilters,
+    matchesTypeOrSubtype,
     lowerPlayerFilters,
     lowerSpellOnlyFilters,
     requirementAdmitsSpellTarget,
@@ -1327,6 +1328,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     colorFilter: true,
     colorFilterAny: true,
     subtypeFilter: true,
+    typeOrSubtypeFilter: true,
     supertypeFilter: true,
     excludeSubtypes: true,
     excludeSupertypes: true,
@@ -5535,7 +5537,13 @@ export function resolveEnchantRestriction(
             continue;
         types.push(t);
     }
-    clauses.push({ types, players });
+    clauses.push({
+        types,
+        players,
+        ...(req.typeOrSubtypeFilter
+            ? { typeOrSubtype: req.typeOrSubtypeFilter }
+            : {}),
+    });
     return clauses;
 }
 
@@ -5549,7 +5557,9 @@ export function resolveEnchantRestriction(
  *    (Control Magic enchants creatures, Steal Artifact enchants artifacts);
  *  - CR 303.4's specific-object condition — when the clause names ONE object
  *    (`hostId`, only ever a runtime grant: "enchant creature put onto the
- *    battlefield with Necromancy"), no other permanent qualifies.
+ *    battlefield with Necromancy"), no other permanent qualifies;
+ *  - a printed type-or-subtype union ("enchant creature or Vehicle"), which
+ *    narrows the clause's card types exactly as it narrows the target's.
  *
  *  An object with NO enchant ability at all has no legal host. A
  *  `players`-only clause matches no permanent by construction (empty
@@ -5562,6 +5572,12 @@ export function hostMatchesEnchantRestriction(
     if (clauses.length === 0) return false;
     return clauses.every((clause) => {
         if (clause.hostId !== undefined && clause.hostId !== host.id) {
+            return false;
+        }
+        if (
+            clause.typeOrSubtype !== undefined &&
+            !matchesTypeOrSubtype(host, clause.typeOrSubtype)
+        ) {
             return false;
         }
         return (clause.types ?? []).some((t) => host.types.includes(t));
@@ -12999,6 +13015,9 @@ export function requestCopyRetargetOn(
         ...(req.zone ? { zone: req.zone } : {}),
         ...(req.controller ? { controller: req.controller } : {}),
         ...(subtypeFilter ? { subtypeFilter } : {}),
+        ...(req.typeOrSubtypeFilter
+            ? { typeOrSubtypeFilter: req.typeOrSubtypeFilter }
+            : {}),
         ...(supertypeFilter ? { supertypeFilter } : {}),
         ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
         ...(req.toughnessFilter
@@ -18766,6 +18785,9 @@ export function buildSpellContext(
                     ? { controller: requirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(requirement.typeOrSubtypeFilter
+                    ? { typeOrSubtypeFilter: requirement.typeOrSubtypeFilter }
+                    : {}),
                 ...(supertypeFilter ? { supertypeFilter } : {}),
                 ...(requirement.powerFilter
                     ? { powerFilter: requirement.powerFilter }

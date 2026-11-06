@@ -682,6 +682,16 @@ export type Rarity = "common" | "uncommon" | "rare" | "mythic";
  *  OFFERED host set and the ENFORCED host set cannot diverge. The granted
  *  clause is battlefield-scoped (CR 400.7): an object off the battlefield
  *  carries only its printed one, at both sites. */
+/** A printed or-list mixing card types and subtypes ("creature or Vehicle"): an
+ *  object qualifies through EITHER axis. Not expressible as `type` plus
+ *  `subtypeFilter`, which every consumer conjoins: a Vehicle that is not crewed
+ *  is an artifact and no creature (CR 301.7). The single predicate is
+ *  `matchesTypeOrSubtype` (`convex/gre/targetFilters.ts`). */
+export interface TypeOrSubtypeFilter {
+    types: CardType[];
+    subtypes: string[];
+}
+
 export interface EnchantRestriction {
     /** Card types, ANY of which a PERMANENT host must have (CR 702.5a — "The
      *  enchant ability restricts what an Aura spell can target and what an
@@ -701,6 +711,10 @@ export interface EnchantRestriction {
      *  the object it names doesn't exist until the effect that grants the
      *  restriction resolves. */
     hostId?: string;
+    /** A host must ALSO match this union (CR 702.5a), read off a printed
+     *  `targetRequirement.typeOrSubtypeFilter`: "enchant creature or Vehicle"
+     *  has to stay on a host that stops being a creature but is a Vehicle. */
+    typeOrSubtype?: TypeOrSubtypeFilter;
 }
 
 /** A target-count bound read off the game state AT ANNOUNCEMENT (CR 601.2c /
@@ -807,6 +821,11 @@ export interface TargetRequirement {
      *  or Stone Rain ("target land" with no extra subtype constraint — that
      *  case omits this field). Ignored for player / spell / graveyard targets. */
     subtypeFilter?: string | string[];
+    /** Restricts legal permanent targets to a union of card types and subtypes
+     *  ("target creature or Vehicle"). `type` still names every card type a
+     *  candidate can have (`["Creature", "Artifact"]`) and this narrows it, so
+     *  no site that reads `type` needs to know about the union. */
+    typeOrSubtypeFilter?: TypeOrSubtypeFilter;
     /** Restricts legal permanent targets to those that have ALL of these
      *  supertypes (CR 205.4a). Read against the LIVE supertype status so
      *  Melting / Arcum's Weathervane mutations are honored. Used by Avalanche
