@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
 import { resolveDeckCardMeta } from "../cards";
+import { create as userDecksCreate } from "../userDecks";
 import { createGame, createSoloGame, joinGame, joinGameByCode } from "../game";
 import { assertDeckAdmitted } from "../gameSeats";
 import { createManualGame, createManualSoloGame } from "../gameManual";
@@ -287,11 +288,12 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
         cardName: "Lightning Bolt",
     };
 
-    // A finished Sealed Event Alice sat in, with its Seat payload.
-    const finishedEvent = (_id: string): InMemoryRow => ({
+    // A Sealed Event Alice sat in, started so `userDecks.create` accepts a
+    // deck; the test finishes it afterwards (a deck outlives its Event).
+    const event = (_id: string): InMemoryRow => ({
         _id,
         type: "sealed",
-        status: "finished",
+        status: "started",
         packSlots: ["lea"],
         seats: [{ seatIndex: 0, userId: ALICE, displayName: "Alice" }],
     });
@@ -301,10 +303,10 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
         seatIndex: 0,
         pool: [POOL_BOLT, POOL_BOLT],
     });
-    const limitedDeck = (eventId: string) => ({
-        id: `deck-${eventId}`,
+    const deckBody = (eventId: string) => ({
         name: `Deck of ${eventId}`,
         format: "limited",
+        colors: ["R"],
         cards: [
             BOLT,
             ...Array.from({ length: 39 }, () => ({
@@ -316,23 +318,48 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
         limitedEventId: eventId,
         limitedSeatId: "0",
     });
-    const world = () =>
-        makeInMemoryDb(
+
+    /** Alice saves one Limited deck per Event, both Events then finish. The
+     *  returned payloads are what the Match setup sends: the inline deck plus
+     *  the `userDeckId` of the row it stands for. */
+    async function world(identitySubject: string) {
+        const db = makeInMemoryDb(
             {
                 users: users(),
-                limitedEvents: [finishedEvent("ev-1"), finishedEvent("ev-2")],
+                limitedEvents: [event("ev-1"), event("ev-2")],
                 limitedSeats: [seat("ev-1"), seat("ev-2")],
             },
             { identitySubject: ALICE }
         );
+        const decks = [];
+        for (const eventId of ["ev-1", "ev-2"]) {
+            const userDeckId = await run(
+                userDecksCreate,
+                db.ctx,
+                deckBody(eventId)
+            );
+            decks.push({ ...deckBody(eventId), id: eventId, userDeckId });
+        }
+        for (const e of db.tables.limitedEvents) e.status = "finished";
+        const ctx = {
+            ...db.ctx,
+            auth: {
+                getUserIdentity: async () => ({
+                    subject: identitySubject,
+                    tokenIdentifier: `test|${identitySubject}`,
+                }),
+            },
+        } as unknown as MutationCtx;
+        return { db, ctx, decks };
+    }
 
     for (const vsAi of [false, true]) {
         it(`createSoloGame${vsAi ? " vs the Bot" : ""} seats both, one from each Event`, async () => {
-            const db = world();
-            await run(createSoloGame, db.ctx, {
+            const { db, ctx, decks } = await world(ALICE);
+            await run(createSoloGame, ctx, {
                 name: "t",
-                deck: limitedDeck("ev-1"),
-                deck2: limitedDeck("ev-2"),
+                deck: decks[0],
+                deck2: decks[1],
                 vsAi,
                 matchFormat: "freeform",
             });
@@ -341,7 +368,6 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
             expect(
                 (match.players as { id: string }[]).map((p) => p.id)
             ).toEqual([`${ALICE}-p1`, `${ALICE}-p2`]);
-            // Each seat holds its own Event's deck copy: 40 main, 1 side.
             expect(
                 db.tables.matchDecks!.map((d: any) => [
                     d.playerId,
@@ -355,23 +381,17 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
         });
     }
 
-    it("refuses a Limited deck whose Seat the caller does not occupy", async () => {
-        const db = makeInMemoryDb(
-            {
-                users: users(),
-                limitedEvents: [finishedEvent("ev-1"), finishedEvent("ev-2")],
-                limitedSeats: [seat("ev-1"), seat("ev-2")],
-            },
-            { identitySubject: BOB }
-        );
-        await rejection(() =>
-            run(createSoloGame, db.ctx, {
+    it("refuses a Limited deck whose row the caller does not own", async () => {
+        const { db, ctx, decks } = await world(BOB);
+        const message = await rejection(() =>
+            run(createSoloGame, ctx, {
                 name: "t",
-                deck: limitedDeck("ev-1"),
-                deck2: limitedDeck("ev-2"),
+                deck: decks[0],
+                deck2: decks[1],
                 matchFormat: "freeform",
             })
         );
+        expect(message).toMatch(/do not own/);
         expect(db.tables.matches ?? []).toHaveLength(0);
     });
 });
