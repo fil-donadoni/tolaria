@@ -115,6 +115,73 @@ describe("useDeckWorkspace — a failed save", () => {
         });
     });
 
+    it("`discard` beats a write in flight: its failure does not restore the edit", async () => {
+        let fail: (error: Error) => void = () => {};
+        const save = vi
+            .fn<DeckSaveSink>()
+            .mockImplementationOnce(
+                () => new Promise((_, reject) => (fail = reject))
+            );
+        const workspace = mount(save);
+        addCard(workspace, "Bolt");
+        let inFlight!: Promise<unknown>;
+        act(() => {
+            inFlight = workspace.current.flush().catch(() => null);
+        });
+        act(() => {
+            workspace.current.discard();
+        });
+        await act(async () => {
+            fail(new Error("refused"));
+            await inFlight;
+            await workspace.current.flush();
+        });
+        expect(save).toHaveBeenCalledTimes(1);
+        expect(workspace.current.saveError).toBeNull();
+    });
+
+    it("a sink that throws synchronously keeps the edit too", async () => {
+        const failure = new Error("no identity");
+        const save = vi
+            .fn<DeckSaveSink>()
+            .mockImplementationOnce(() => {
+                throw failure;
+            })
+            .mockResolvedValue("deck-1");
+        const workspace = mount(save);
+        addCard(workspace, "Bolt");
+        await act(async () => {
+            await expect(workspace.current.flush()).rejects.toBe(failure);
+        });
+        expect(workspace.current.saveError).toBe(failure);
+        await act(async () => {
+            await workspace.current.flush();
+        });
+        expect(savedNames(save, 1)).toEqual(["Bolt"]);
+    });
+
+    it("unmounting retries the edit once, without an unhandled rejection", async () => {
+        const save = vi.fn<DeckSaveSink>().mockRejectedValue(new Error("no"));
+        const { result, unmount } = renderHook(() =>
+            useDeckWorkspace({
+                initial: () => EMPTY,
+                initialIdentity: "deck-1",
+                save,
+            })
+        );
+        addCard(result, "Bolt");
+        await act(async () => {
+            await result.current.flush().catch(() => null);
+        });
+        const unhandled = vi.fn();
+        process.on("unhandledRejection", unhandled);
+        unmount();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        process.off("unhandledRejection", unhandled);
+        expect(save).toHaveBeenCalledTimes(2);
+        expect(unhandled).not.toHaveBeenCalled();
+    });
+
     it("`discard` drops the edit, clears the error and returns the identity", async () => {
         const save = vi.fn<DeckSaveSink>().mockRejectedValue(new Error("no"));
         const workspace = mount(save);

@@ -72,6 +72,9 @@ export function useDeckWorkspace({
     const pendingRef = useRef<WorkingDeck | null>(null);
     const timerRef = useRef<number | null>(null);
     const inflightRef = useRef<Promise<unknown> | null>(null);
+    // Bumped by `discard`: a write already in flight cannot be cancelled, but if
+    // it fails, the edit it carried was refused by the player and must not return.
+    const discardCountRef = useRef(0);
     // The sink is read at flush time through a ref rather than captured in
     // `flush`'s dependencies. A wrapper hands a fresh closure on most renders
     // (it closes over the deck's mutation hooks); if that closure were a
@@ -105,15 +108,18 @@ export function useDeckWorkspace({
         if (!pending) return identityRef.current;
         pendingRef.current = null;
         setSaving(true);
-        const promise = saveRef.current(pending, identityRef.current);
-        inflightRef.current = promise;
+        const discardCount = discardCountRef.current;
         try {
+            const promise = saveRef.current(pending, identityRef.current);
+            inflightRef.current = promise;
             identityRef.current = await promise;
             setSaveError(null);
         } catch (error) {
-            // A newer edit already holds the whole deck, so it wins.
-            pendingRef.current ??= pending;
-            setSaveError(error);
+            if (discardCount === discardCountRef.current) {
+                // A newer edit already holds the whole deck, so it wins.
+                pendingRef.current ??= pending;
+                setSaveError(error);
+            }
             throw error;
         } finally {
             inflightRef.current = null;
@@ -124,6 +130,7 @@ export function useDeckWorkspace({
 
     const discard = useCallback((): string | null => {
         clearTimer();
+        discardCountRef.current += 1;
         pendingRef.current = null;
         setSaveError(null);
         return identityRef.current;
@@ -158,7 +165,9 @@ export function useDeckWorkspace({
 
     useEffect(() => {
         return () => {
-            void flush();
+            // Nobody is left to tell: the write that failed first has already
+            // reached the player and the global error handler.
+            flush().catch(() => {});
         };
     }, [flush]);
 
