@@ -6,6 +6,7 @@
 import { defineCard } from "../../types";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import { opponentsCantCastDuringYourTurn } from "../../tokenStaticEffects";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 const JENNIFER_WALTERS_ID = "61237530-ad49-469c-a952-67c92315708e";
 
@@ -122,4 +123,67 @@ export const jenniferWaltersTheSensationalSheHulk = defineCard(() => ({
             },
         ],
     },
+}));
+
+// Absorbing Man — {1}{G}{U} Legendary Creature — Human Villain, 4/4 (Vintage
+// Cube, issue #8175). "Vigilance. At the beginning of your first main phase,
+// until your next turn, Absorbing Man becomes a copy of up to one target
+// artifact, non-Aura enchantment, or land, except his name is Absorbing Man,
+// he's a legendary 4/4 Human Villain creature in addition to his other types,
+// and he has vigilance."
+//
+// Pure Effect Script on the `becomeCopy` Op (issue #8167 built every piece):
+//   - "up to one target" is `count: { min: 0, max: 1 }` — announcing none
+//     leaves Absorbing Man as he is (CR 601.2c, 603.3d);
+//   - "until your next turn" is the `untap` boundary of the controller
+//     (CR 500.4), so the copy ends as their next untap step begins;
+//   - the exceptions are copiable values (CR 707.9b): the name, the Legendary
+//     supertype, the 4/4 base P/T, the Creature type and the Human Villain
+//     subtypes ride on `except`; vigilance is `additionalStaticAbilities`.
+//
+// hand-tail: Until your next turn, {self} becomes a copy of up to one target (#8175)
+export const absorbingMan = defineCard(() => ({
+    id: "7114ef87-53ff-43e9-864c-9faa455d86ef",
+    name: "Absorbing Man",
+    rarity: "rare",
+    oracleText:
+        "Vigilance\nAt the beginning of your first main phase, until your next turn, Absorbing Man becomes a copy of up to one target artifact, non-Aura enchantment, or land, except his name is Absorbing Man, he's a legendary 4/4 Human Villain creature in addition to his other types, and he has vigilance.",
+    manaCost: { X: 1, G: 1, U: 1 },
+    supertypes: ["Legendary"],
+    types: ["Creature"],
+    subtypes: ["Human", "Villain"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["vigilance"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "absorbing-man-copy",
+            oracleText:
+                "At the beginning of your first main phase, until your next turn, Absorbing Man becomes a copy of up to one target artifact, non-Aura enchantment, or land, except his name is Absorbing Man, he's a legendary 4/4 Human Villain creature in addition to his other types, and he has vigilance.",
+            phase: "PRECOMBAT_MAIN",
+            scope: "your",
+            targetRequirement: {
+                type: ["Artifact", "Enchantment", "Land"],
+                excludeSubtypes: "Aura",
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                {
+                    op: "becomeCopy",
+                    target: { ref: "$source" },
+                    source: { target: 0 },
+                    duration: { phase: "untap", player: "controller" },
+                    except: {
+                        name: "Absorbing Man",
+                        additionalSupertypes: ["Legendary"],
+                        basePower: 4,
+                        baseToughness: 4,
+                        additionalTypes: ["Creature"],
+                        additionalSubtypes: ["Human", "Villain"],
+                        additionalStaticAbilities: ["vigilance"],
+                    },
+                },
+            ],
+        }),
+    ],
 }));

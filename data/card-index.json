@@ -252,6 +252,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Absorbing Man",
+        "scryfallId": "7114ef87-53ff-43e9-864c-9faa455d86ef",
+        "oracleId": "ec8e310f-e871-498f-8d80-c3617c5e1433",
+        "firstSet": "msh",
+        "firstPrintId": "7114ef87-53ff-43e9-864c-9faa455d86ef",
+        "firstPrintSet": "msh"
+    },
+    {
         "name": "Abu Ja'far",
         "scryfallId": "0e9ad288-d164-44a6-96ec-4185a1587f1a",
         "oracleId": "a2404d88-0621-49ae-9908-052c23a96ac6",
