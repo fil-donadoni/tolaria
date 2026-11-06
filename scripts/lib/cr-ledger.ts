@@ -1,5 +1,5 @@
 /**
- * The CR citation ledger (ADR 0133, issue #3674) — pure over its inputs.
+ * The CR citation ledger (ADR 0133) — pure over its inputs.
  *
  * `check-cr-citations.ts` proves a cited id EXISTS; the keyword scan and the
  * targeted scans prove, for a few known shapes, that it means what the line
@@ -16,7 +16,7 @@
  *   - `id`      — the cited rule id;
  *   - `line`    — the NORMALIZED text of the PHYSICAL line the id sits on
  *                 (whitespace collapsed, trimmed) — for a citation wrapped
- *                 across two comment lines (`cr-lines.ts`, issue #2514), the
+ *                 across two comment lines (`cr-lines.ts`), the
  *                 line carrying the id, not the joined text the scans read.
  *                 Never a file or a line number: moving the comment keeps its
  *                 entry, EDITING it reopens the citation — on purpose, because
@@ -51,7 +51,7 @@
  *   - `grown`      — a `baseline` entry the base branch's ledger does not have.
  *     The baseline SHRINKS by default: nothing enters unchecked under that
  *     status, and `confirm` never writes it. The one licensed growth is a
- *     TOKENIZER WIDENING (issue #3697): when the diff changes what counts as
+ *     TOKENIZER WIDENING: when the diff changes what counts as
  *     a citation, the citations the new tokenizer sees on the MERGE-BASE tree
  *     that the merge-base ledger lacks are what the widening uncovered — they
  *     predate the branch and were invisible, not unchecked. `cr:ledger widen`
