@@ -2098,6 +2098,13 @@ export function applyMoveForSearch(
                 ) {
                     break;
                 }
+                // CR 603.3c / 603.3d — a trigger this cast put on the stack is
+                // still being announced (its mode, its targets), so it is not
+                // resolvable yet: resolving it here would leave a mode choice
+                // naming a stack item that is gone. A storm copy's optional
+                // `copy-retarget` window is not an announcement, and drains.
+                if ((next.pendingChoices?.length ?? 0) > 0) break;
+                if (next.pendingTarget?.kind === "trigger") break;
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
