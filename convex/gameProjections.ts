@@ -595,8 +595,9 @@ function projectLibrary(
     topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>
 ): PublicLibrary {
     // The placement records, the two contiguous runs and the CR 401.5 index-0
-    // carve-out are derived by `knownLibraryIndices` — ONE authority, shared with `determinize`, so
-    // the bot's search can never pin a position this projection did not grant
+    // carve-out are derived by `knownLibraryIndices` — ONE authority, shared
+    // with `determinize`, so the bot's search can never pin a position this
+    // projection did not grant
     // (issue #1524).
     const known: KnownLibraryCard[] = knownLibraryIndices(
         library,
