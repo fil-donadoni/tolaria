@@ -115,6 +115,12 @@ export default function AttackManaTaxBanner({
                             className="flex-1"
                         >
                             Auto-tap
+                            <span
+                                aria-hidden="true"
+                                className="ml-2 hidden text-xs opacity-70 md:inline"
+                            >
+                                [A]
+                            </span>
                         </Button>
                         <Button
                             type="button"
