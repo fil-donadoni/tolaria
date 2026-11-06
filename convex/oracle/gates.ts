@@ -53,6 +53,7 @@
  * `__tests__/wireProjection.test.ts`, where the registry IS available.
  */
 
+import { buildChapterTrigger } from "../cards/abilities/sagas";
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { expandCascade } from "../cards/abilities/cascade";
 import { buildLevelBarAbility } from "../cards/abilities/classLevels";
@@ -223,6 +224,11 @@ function collectScripts(
                 sourceOf(compiledTriggerSourceOnBattlefield(head))
             );
         }
+    }
+    // CR 714.4 — a Saga is not sacrificed while a chapter ability it is the
+    // source of is on the stack, so the source is there at resolution.
+    for (const chapter of definition.chapterAbilities ?? []) {
+        push(chapter.effects, {}, sourceOf(true));
     }
     return scripts;
 }
@@ -560,6 +566,16 @@ export function runGates(input: GateInput): GateResult {
                 ability.event
             )
         ),
+        // CR 714.2b — a chapter's body is an ability script like any other; the
+        // trigger it becomes at the seam is what the validator reads.
+        ...(definition.chapterAbilities ?? []).flatMap((chapter) => {
+            const ability = buildChapterTrigger(chapter);
+            return validateAbilityEffectScript(
+                ability,
+                definition.name,
+                ability.event
+            );
+        }),
     ];
     for (const error of errors) {
         reasons.push({ kind: "validate-effect-script", detail: error });

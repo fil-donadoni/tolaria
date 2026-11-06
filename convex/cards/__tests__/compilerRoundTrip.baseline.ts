@@ -544,7 +544,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Heroism",
     "High Tide",
     "Hipparion",
-    "History of Benalia",
     "Hobble",
     "Hogaak, Arisen Necropolis",
     "Hollow Trees",
