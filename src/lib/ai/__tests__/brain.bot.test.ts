@@ -687,6 +687,7 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
                 landsInPlay: 1,
                 landsInHand: 1,
                 producibleColors: [], // a single untapped Plains still develops mana
+                landDropOpen: true,
             })
         );
         expect(picks).toEqual(["serra"]);
@@ -698,7 +699,12 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
         const picks = chooseResolution(
             discard(
                 [spell("castable", 3, ["R"]), spell("uncastable", 3, ["U"])],
-                { landsInPlay: 2, landsInHand: 0, producibleColors: ["R"] }
+                {
+                    landsInPlay: 2,
+                    landsInHand: 0,
+                    producibleColors: ["R"],
+                    landDropOpen: true,
+                }
             )
         );
         expect(picks).toEqual(["uncastable"]);
@@ -710,6 +716,7 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
                 landsInPlay: 3,
                 landsInHand: 0,
                 producibleColors: ["R"],
+                landDropOpen: true,
             })
         );
         expect(picks).toEqual(["pricey"]);
@@ -722,6 +729,7 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
                 landsInPlay: LAND_LIGHT_LANDS_IN_PLAY,
                 landsInHand: 1,
                 producibleColors: ["R"],
+                landDropOpen: true,
             })
         );
         expect(picks).toEqual(["bolt"]);
@@ -737,6 +745,7 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
                     landsInPlay: LAND_LIGHT_LANDS_IN_PLAY + 2,
                     landsInHand: 2,
                     producibleColors: ["R"],
+                    landDropOpen: true,
                 }
             )
         );
@@ -751,6 +760,7 @@ describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
                 landsInPlay: LAND_LIGHT_LANDS_IN_PLAY + 2,
                 landsInHand: 1,
                 producibleColors: ["R"],
+                landDropOpen: true,
             })
         );
         expect(picks).toEqual(["usable"]);

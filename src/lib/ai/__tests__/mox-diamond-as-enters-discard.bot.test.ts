@@ -68,11 +68,16 @@ function battlefieldLand(id: string): CardInstanceState {
 /** Mox Diamond entering under the BOT's control (the non-cast route parks it
  *  identically to the cast one — same ADR 0100 D1 chokepoint), with
  *  `landsInHand` lands in hand and `landsInPlay` lands already in play. */
-function moxEntering(landsInHand: number, landsInPlay: number): GameState {
+function moxEntering(
+    landsInHand: number,
+    landsInPlay: number,
+    landsPlayedThisTurn = 0
+): GameState {
     const state = makeState({
         players: [
             makePlayer("p1"),
             makePlayer(BOT, {
+                landsPlayedThisTurn,
                 hand: Array.from({ length: landsInHand }, (_, i) =>
                     handLand(`hand-land-${i}`)
                 ),
@@ -146,6 +151,15 @@ describe("bot answers Mox Diamond's as-enters discard (CR 614.1a, issue #2389)",
 
     it("pays with ONE spare land once the board is mana-developed (the land-flood case)", () => {
         const state = moxEntering(1, 4);
+        const ids = picks(rungTwo(state));
+        expect(ids).toEqual(["hand-land-0"]);
+
+        submit(state, ids);
+        expect(botBattlefieldIds(state)).toContain("mox");
+    });
+
+    it("pays with ONE spare land past its drop, even land-light (CR 305.2, issue #8296)", () => {
+        const state = moxEntering(1, 1, 1);
         const ids = picks(rungTwo(state));
         expect(ids).toEqual(["hand-land-0"]);
 
