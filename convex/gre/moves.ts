@@ -212,6 +212,8 @@ import {
     finiteManaCounterLeg,
     finiteManaUsesRemaining,
     manaGateBattlefields,
+    handDiscardCostsNothing,
+    isHandDiscardManaCost,
     manaValue,
     manaTapOptionSpendsUnplannedResource,
     manaTapSpendsFiniteUse,
@@ -1298,6 +1300,13 @@ export function planManaPayment(
      *  False on every pre-existing call site, and then every costed branch
      *  below is dead and this planner is the one it has always been. */
     const preferCosted = costedOptionPolicy === "spend";
+    /** Whether a "Discard your hand" mana ability is a source of this plan: the
+     *  twin of the census's `handDiscardFree`, so the gate and the plan agree.
+     *  Only a cast has a spell off the hand; an activation or morph plan keeps
+     *  the pre-existing answer, and under-admitting is always safe. */
+    const handDiscardFree =
+        cast !== undefined &&
+        handDiscardCostsNothing(player, cast.cardInstanceId);
 
     /** CR 106.6 / 601.2g (issue #3359) — what this mana is about to be spent
      *  on, in the SAME shape `autoTapForPayment` (`convex/game.ts`) builds for
@@ -1456,7 +1465,8 @@ export function planManaPayment(
             perm,
             player.id,
             boardBattlefields,
-            state
+            state,
+            handDiscardFree
         );
         // CR 302.1 / 302.6 (issue #2420) — summoning sickness restricts only
         // a {T}/{Q}-in-cost ability, never a source's activation in general.
@@ -1649,6 +1659,17 @@ export function planManaPayment(
                                   // payment really produces.
                                   ...(produces ? { produces } : {}),
                               };
+                } else if (isHandDiscardManaCost(ability.cost)) {
+                    // A plain entry, because that is how the server executes
+                    // it: `tapSourceIntoPayment` resolves the index against the
+                    // unified option list, sacrifices the source and discards
+                    // the hand. Only `handDiscardFree` reaches this branch, so
+                    // the discard names nothing but the card being cast, which
+                    // the payer leaves alone.
+                    realisation = plainTapOption(
+                        manaChoiceIndex,
+                        explicitYield(opt.mana)
+                    );
                 } else {
                     const generic = pureGenericManaSubCost(
                         ability.cost.mana ?? {}

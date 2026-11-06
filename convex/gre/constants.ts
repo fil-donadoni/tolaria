@@ -1776,6 +1776,44 @@ export function isAutoPayableManaAbilityCost(
     return !!cost.mana && pureGenericManaSubCost(cost.mana) !== null;
 }
 
+/** CR 701.9a / 118.3 — "Discard your hand" rides the `discardAtRandom` cost with
+ *  a count above any reachable hand size: the payer clamps to the hand, so every
+ *  card is discarded and the random order is moot. */
+export const DISCARD_HAND_COUNT = 99;
+
+/** The one cost shape {@link isHandDiscardManaCost} admits, over the cost's own
+ *  keys: a leg added to `ActivatedAbility["cost"]` later stays out until someone
+ *  reviews it here. */
+const HAND_DISCARD_MANA_COST_LEGS: ReadonlySet<string> = new Set([
+    "sacrifice",
+    "discardAtRandom",
+]);
+
+/** Is this mana ability's WHOLE cost "Discard your hand, Sacrifice this"?
+ *  Paying it spends the source and the hand and nothing else, and the hand part
+ *  costs nothing once {@link handDiscardCostsNothing} says so — which is the
+ *  only condition an automatic plan may reach for it under. */
+export function isHandDiscardManaCost(cost: ActivatedAbility["cost"]): boolean {
+    if (cost.sacrifice !== true) return false;
+    if ((cost.discardAtRandom ?? 0) < DISCARD_HAND_COUNT) return false;
+    for (const [leg, value] of Object.entries(cost)) {
+        if (value === undefined || value === false) continue;
+        if (!HAND_DISCARD_MANA_COST_LEGS.has(leg)) return false;
+    }
+    return true;
+}
+
+/** CR 601.2a / 601.2g — mana abilities are activated with the spell already on
+ *  the stack, so a hand holding only the card being cast discards nothing. The
+ *  engine keeps that card in hand until the cast commits, which is why the
+ *  question names it. */
+export function handDiscardCostsNothing(
+    player: { hand: readonly { id: string }[] },
+    castCardId: string
+): boolean {
+    return player.hand.every((c) => c.id === castCardId);
+}
+
 /** CR 602.1 / 118.3 / 118.5 (issue #3455) — does this activation cost carry a
  *  FILTERED GIVE-UP leg: "Sacrifice a creature" / "Sacrifice a Goblin" /
  *  "Discard a card"? Both legs name a FILTER rather than the source itself, so
@@ -2272,6 +2310,7 @@ export function manaTapSacrificesSource(
         battlefields,
         {
             requireTap: true,
+            admitHandDiscard: true,
         }
     );
     // A plan with no index taps a single-option source (`manaTapNeedsChoice`),
@@ -2303,7 +2342,14 @@ export function getManaTapOptionsDetailed(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    opts?: { requireTap?: boolean; boardScan?: ManaBoardScan },
+    opts?: {
+        requireTap?: boolean;
+        boardScan?: ManaBoardScan;
+        /** Under `requireTap`, also admit {@link isHandDiscardManaCost}. Set by
+         *  a plan for a cast whose hand it will not cost anything, and by the
+         *  readers that resolve an index such a plan already named. */
+        admitHandDiscard?: boolean;
+    },
     /** CR 613 (PRD #2064 S6) — the Continuous Effects Registry, for the layer-7
      *  read behind a board-conditional `manaAmount`. See `manaLayerView`. */
     continuousEffects?: readonly ContinuousEffect[],
@@ -2357,9 +2403,18 @@ export function getManaTapOptionsDetailed(
             // allow-list. It still never auto-commits a sacrifice-only source
             // (discarding the hand to LED is a strategic choice, never an
             // auto-payment) or any other resource-spending leg (life, loyalty,
-            // counters, discard, exile, …).
+            // counters, discard, exile, …) — short of `admitHandDiscard`, the
+            // cast that has no hand left to lose to it.
             if (requireTap) {
-                if (!isAutoPayableManaAbilityCost(ability.cost)) continue;
+                if (
+                    !isAutoPayableManaAbilityCost(ability.cost) &&
+                    !(
+                        opts?.admitHandDiscard &&
+                        isHandDiscardManaCost(ability.cost)
+                    )
+                ) {
+                    continue;
+                }
             } else if (
                 !ability.cost.tap &&
                 !ability.cost.sacrifice &&
@@ -3289,7 +3344,8 @@ export function getActivatedManaAbility(
  *  those pass `requireTap: true` so the AUTO-tap planner can never commit a
  *  sacrifice-only source on the player's behalf — auto-sacrificing a token, or
  *  discarding a hand to Lion's Eye Diamond, is a decision the planner has no
- *  standing to make. */
+ *  standing to make. `admitHandDiscard` is the one exception: a cast with no
+ *  other card left in hand has nothing to decide about. */
 export function manaAbilityPaidWithoutTapping(
     card: CardInstanceState,
     state?: TriggerStateView
