@@ -3,7 +3,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { DECK_CREATION_FORMATS, FORMAT_RULES } from "@convex/formats";
-import { isDeckCreationFormat } from "@convex/formatAdmission";
 import FormatSelect from "../format-select";
 
 describe("FormatSelect (ADR 0036)", () => {
@@ -35,12 +34,6 @@ describe("FormatSelect (ADR 0036)", () => {
         );
         expect(values).toContain("freeform");
         expect(values).not.toContain("limited");
-    });
-
-    it("the `/decks/create` seed admits a creation Format, never Limited", () => {
-        expect(isDeckCreationFormat("premodern")).toBe(true);
-        expect(isDeckCreationFormat("limited")).toBe(false);
-        expect(isDeckCreationFormat("unknown")).toBe(false);
     });
 
     it("still labels an existing Limited deck read-only", () => {

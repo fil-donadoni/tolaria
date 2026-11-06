@@ -47,7 +47,12 @@ import {
     type DeckSaveSink,
 } from "~/components/deckbuilder/useDeckWorkspace";
 import { useBanlistOverride } from "~/hooks/useBanlistOverride";
-import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
+import {
+    DECK_CREATION_FORMATS,
+    FORMAT_RULES,
+    type FormatId,
+    validateDeck,
+} from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
     type DeckBuilderKind,
@@ -270,7 +275,11 @@ export default function DeckBuilder({
                       }
                     : {
                           name: nextDeckName(initialDeckList),
-                          format: defaultFormat,
+                          // The lobby filter can browse Limited decks and carry
+                          // that seed here, but only an Event can create one.
+                          format: DECK_CREATION_FORMATS.includes(defaultFormat)
+                              ? defaultFormat
+                              : DEFAULT_FORMAT,
                           cards: [],
                           sideboard: [],
                           featuredCardId: undefined,

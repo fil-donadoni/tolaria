@@ -134,6 +134,32 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
+describe("a new deck seeded with the lobby's Format filter", () => {
+    const renderSeeded = (defaultFormat: "limited" | "premodern") =>
+        render(
+            <DeckBuilder
+                kind="user"
+                mode="create"
+                defaultFormat={defaultFormat}
+                initialDeck={null}
+                initialIdentity={null}
+                initialDeckList={[]}
+                sinks={sinks as never}
+                onClose={() => {}}
+            />
+        );
+    const formatOf = (rendered: ReturnType<typeof renderSeeded>) =>
+        (rendered.getByLabelText("Deck format") as HTMLSelectElement).value;
+
+    it("keeps a Format the builder can create", () => {
+        expect(formatOf(renderSeeded("premodern"))).toBe("premodern");
+    });
+
+    it("falls back to Freeform from Limited, which only an Event can create", () => {
+        expect(formatOf(renderSeeded("limited"))).toBe("freeform");
+    });
+});
+
 describe("a save the server refuses", () => {
     function renderEditedDeck() {
         const onClose = vi.fn();
