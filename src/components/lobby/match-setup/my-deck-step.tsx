@@ -8,10 +8,12 @@ export default function MyDeckStep({
     setup,
     decks,
     onChange,
+    onLoadMoreArchived,
 }: {
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
     onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
+    onLoadMoreArchived?: () => void;
 }) {
     const matchFormat = effectiveMatchFormat(setup);
     // Unreachable through the rail: every branch answers the Match Format
@@ -24,6 +26,7 @@ export default function MyDeckStep({
             selectedId={setup.myDeckId}
             onSelect={(myDeckId) => onChange({ myDeckId })}
             onImported={(deck) => onChange({ myDeckId: deck.presetId }, deck)}
+            onLoadMoreArchived={onLoadMoreArchived}
         />
     );
 }

@@ -8,7 +8,11 @@
 // to one Format.
 import { FORMAT_IDS, type FormatId } from "@convex/formats";
 import { limitedOriginLabel } from "@convex/limited/limitedOrigin";
-import { filterDecksAdmittedBy, type LobbyDeck } from "./deckTypes";
+import {
+    filterDecksAdmittedBy,
+    isArchivedDeck,
+    type LobbyDeck,
+} from "./deckTypes";
 
 /** The Freeform grid's Format select: every Format, or one. */
 export type DeckGridFormat = "all" | FormatId;
@@ -33,6 +37,8 @@ export interface DeckGridEntry {
 export interface DeckGrid {
     mine: DeckGridEntry[];
     presets: DeckGridEntry[];
+    /** Other players' decks, offered to an admin only (issue #8411). */
+    archived: DeckGridEntry[];
 }
 
 /**
@@ -144,7 +150,7 @@ export function groupByLimitedOrigin(
 
 /**
  * The grid for one Match Format: admitted decks matching the search, split
- * into the player's own and the presets (story 31). `format` narrows by Deck
+ * into the player's own, the presets (story 31) and an admin's archived decks. `format` narrows by Deck
  * Format only under a Freeform Match Format (and `origin` under Limited) — every other Match Format admits
  * a single Format, so a narrower select would have nothing to choose.
  */
@@ -155,7 +161,7 @@ export function deckGrid(
     format: DeckGridFormat = "all",
     origin: DeckGridOrigin = "all"
 ): DeckGrid {
-    const grid: DeckGrid = { mine: [], presets: [] };
+    const grid: DeckGrid = { mine: [], presets: [], archived: [] };
     for (const deck of filterDecksAdmittedBy(decks, matchFormat)) {
         if (matchFormat === "freeform" && format !== "all") {
             if (deck.format !== format) continue;
@@ -172,7 +178,12 @@ export function deckGrid(
             matchedCard: hit.matchedCard,
             selectable: deck.isLegal,
         };
-        (deck.kind === "user" ? grid.mine : grid.presets).push(entry);
+        (isArchivedDeck(deck)
+            ? grid.archived
+            : deck.kind === "user"
+              ? grid.mine
+              : grid.presets
+        ).push(entry);
     }
     return grid;
 }

@@ -64,6 +64,11 @@ vi.mock("convex/react", () => ({
         args === "skip" ? undefined : queries[fn.path],
     useMutation: (fn: { path: string }) =>
         mutations[fn.path] ?? vi.fn().mockResolvedValue(null),
+    usePaginatedQuery: () => ({
+        results: [],
+        status: "Exhausted",
+        loadMore: vi.fn(),
+    }),
 }));
 
 vi.mock("~/hooks/useCurrentUser", () => ({

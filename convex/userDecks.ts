@@ -136,6 +136,21 @@ async function withDerivedLegality(
  *  deck (print rows + Deck Pool), so the client cannot ask for the world. */
 export const ARCHIVE_MAX_PAGE_SIZE = 25;
 
+/** Reads each owner's nickname once however many of their decks a page holds. */
+function ownerNicknames(ctx: QueryCtx) {
+    const owners = new Map<Id<"users">, Promise<string>>();
+    return (userId: Id<"users">): Promise<string> => {
+        let nickname = owners.get(userId);
+        if (!nickname) {
+            nickname = ctx.db
+                .get(userId)
+                .then((owner) => owner?.nickname ?? "Unknown");
+            owners.set(userId, nickname);
+        }
+        return nickname;
+    };
+}
+
 /**
  * Each Limited Origin that holds decks, with its count; `origin: null` is the
  * unclassified group (a limited deck with no origin). Reads the
@@ -195,13 +210,9 @@ export const listLimitedOriginDecksAdmin = query({
                 ),
             });
         const banlists = await loadBanlistOverridesByFormat(ctx);
-        const owners = new Map<Id<"users">, string>();
+        const ownerNickname = ownerNicknames(ctx);
         const decks = await Promise.all(
             page.page.map(async (row) => {
-                if (!owners.has(row.userId)) {
-                    const owner = await ctx.db.get(row.userId);
-                    owners.set(row.userId, owner?.nickname ?? "Unknown");
-                }
                 const { isLegal, reasons } = await withDerivedLegality(
                     ctx,
                     row,
@@ -210,7 +221,7 @@ export const listLimitedOriginDecksAdmin = query({
                 return {
                     _id: row._id,
                     name: row.name,
-                    ownerNickname: owners.get(row.userId)!,
+                    ownerNickname: await ownerNickname(row.userId),
                     cardCount: row.cards.length,
                     sideboardCount: row.sideboard?.length ?? 0,
                     isLegal,
@@ -218,6 +229,44 @@ export const listLimitedOriginDecksAdmin = query({
                     createdAt: row._creationTime,
                 };
             })
+        );
+        return { ...page, page: decks };
+    },
+});
+
+/**
+ * One page of OTHER players' Limited decks as the Match setup seats them (issue
+ * #8411): whole rows with owner and legality, the shape `listMine` gives the
+ * caller's own. The caller's decks are already in the grid, so a page may come
+ * back short of its size. `createSoloGame` re-checks admin and takes the deck
+ * from the row: this list offers, it never authorises.
+ */
+export const listSeatableLimitedDecksAdmin = query({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, args) => {
+        const admin = await assertIsAdmin(ctx);
+        const page = await ctx.db
+            .query("userDecks")
+            .withIndex("by_format_limitedOrigin", (q) =>
+                q.eq("format", "limited")
+            )
+            .order("desc")
+            .paginate({
+                ...args.paginationOpts,
+                numItems: Math.min(
+                    args.paginationOpts.numItems,
+                    ARCHIVE_MAX_PAGE_SIZE
+                ),
+            });
+        const banlists = await loadBanlistOverridesByFormat(ctx);
+        const ownerNickname = ownerNicknames(ctx);
+        const decks = await Promise.all(
+            page.page
+                .filter((row) => row.userId !== admin._id)
+                .map(async (row) => ({
+                    ...(await withDerivedLegality(ctx, row, banlists)),
+                    ownerNickname: await ownerNickname(row.userId),
+                }))
         );
         return { ...page, page: decks };
     },

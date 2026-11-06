@@ -9,9 +9,11 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useStartMatch } from "~/hooks/useStartMatch";
 import { useStartMatchPrefetch } from "~/hooks/useStartMatchPrefetch";
 import { useUserDecks } from "~/hooks/useUserDecks";
+import { useArchivedLobbyDecks } from "~/hooks/useArchivedLobbyDecks";
 import { toPresetLobbyDeck, type LobbyDeck } from "~/lib/deckTypes";
 import {
     applyChange,
+    archivedDecksOffered,
     loadSetup,
     reconcileSetup,
     saveSetup,
@@ -35,13 +37,20 @@ export default function MatchSetupFlow() {
     const [stored, setStored] = useState<MatchSetup>(loadSetup);
     const { start, busy, error } = useStartMatch();
     useStartMatchPrefetch();
+    // Other players' decks: an admin's, and only where `createSoloGame` seats
+    // them (issue #8411). A non-admin never subscribes; the server refuses
+    // both the list and the seat regardless.
+    const archived = useArchivedLobbyDecks(
+        user?.isAdmin === true && archivedDecksOffered(stored)
+    );
 
     const decks = useMemo<LobbyDeck[]>(
         () => [
             ...(userDecks ?? []),
             ...(presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
+            ...archived.decks,
         ],
-        [userDecks, presetDecks]
+        [userDecks, presetDecks, archived.decks]
     );
 
     if (
@@ -79,6 +88,7 @@ export default function MatchSetupFlow() {
                 decks={decks}
                 tables={openGames}
                 onChange={update}
+                onLoadMoreArchived={archived.loadMore}
                 canStart={request !== null && !activeGame}
                 busy={busy}
                 error={error}

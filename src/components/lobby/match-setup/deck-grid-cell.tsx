@@ -25,6 +25,11 @@ export default function DeckGridCell({
                 selected={selected}
                 onSelect={onSelect}
             />
+            {deck.kind === "user" && deck.ownerNickname && (
+                <span className="truncate px-1 text-[11px] text-text-muted">
+                    Owner: {deck.ownerNickname}
+                </span>
+            )}
             {matchedCard && (
                 <span className="truncate px-1 text-[11px] text-accent">
                     Contains {matchedCard}
