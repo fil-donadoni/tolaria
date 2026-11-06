@@ -37,6 +37,7 @@ const AURA_ID = "test-vehicle-aura";
 const CREW_ID = "test-vehicle-aura-crew";
 const FIVE_POWER_ID = "test-five-power";
 const LAND_CREATURE_ID = "test-land-creature";
+const EQUIPMENT_CREATURE_ID = "test-equipment-creature";
 const PRINTED_VEHICLE_ID = "test-printed-vehicle";
 
 registerTokenDefinition({
@@ -67,6 +68,16 @@ registerTokenDefinition({
     subtypes: ["Forest", "Dryad"],
     power: 1,
     toughness: 1,
+});
+registerTokenDefinition({
+    id: EQUIPMENT_CREATURE_ID,
+    name: "Test Equipment Creature",
+    rarity: "common",
+    manaCost: {},
+    types: ["Artifact", "Creature"],
+    subtypes: ["Equipment", "Cat"],
+    power: 2,
+    toughness: 2,
 });
 registerTokenDefinition(
     makeVehicle({
@@ -162,6 +173,30 @@ describe("Enchanted permanent is a Vehicle artifact with crew N (issue #7212)", 
         expect(host.types).toEqual(["Artifact"]);
     });
 
+    it("CR 205.1a — crewed, a creature host has its creature types back, for as long as it is a creature", () => {
+        const { state, host } = board(grizzlyBears().id);
+        crew(state);
+        expect(host.subtypes).toEqual(["Bear", "Vehicle"]);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(host.subtypes).toEqual(["Vehicle"]);
+    });
+
+    it("CR 205.1a — crewed, a land creature has its creature types back and not its land types", () => {
+        const { state, host } = board(LAND_CREATURE_ID);
+        crew(state);
+        expect(host.types).toEqual(["Artifact", "Creature"]);
+        expect(host.subtypes).toEqual(["Dryad", "Vehicle"]);
+    });
+
+    it("CR 205.1a — the set replaces the artifact types: an Equipment stops being one, crewed or not", () => {
+        const { state, host } = board(EQUIPMENT_CREATURE_ID);
+        expect(host.subtypes).toEqual(["Vehicle"]);
+        crew(state);
+        expect(host.subtypes).toEqual(["Cat", "Vehicle"]);
+    });
+
     it("CR 613.7 — the Aura arriving on a crewed Vehicle removes the creature type, and crewing again restores it", () => {
         const { state, host, aura } = board(PRINTED_VEHICLE_ID);
         removePermanentTo(state, aura.id, "graveyard");
@@ -250,6 +285,17 @@ describe("Enchanted permanent is a Vehicle artifact with crew N (issue #7212)", 
         expect(host.subtypes).toEqual(["Vehicle"]);
         expect(host.staticAbilities).toContain("crew 5");
         expect(host.grantedActivatedAbilities?.[0]?.abilityId).toBe(CREW_ID);
+    });
+
+    it("wire format — the client sees a crewed host's creature types return", () => {
+        const { state } = board(grizzlyBears().id);
+        crew(state);
+        const view = projectPublicState(state, 1, "p1");
+        const host = view.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "host")!;
+        expect(host.types).toEqual(["Artifact", "Creature"]);
+        expect(host.subtypes).toEqual(["Bear", "Vehicle"]);
     });
 });
 

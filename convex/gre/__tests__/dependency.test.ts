@@ -31,6 +31,7 @@ import { compareContinuousEffects } from "../continuousEffects";
 import type { ContinuousEffect } from "../continuousEffects";
 import type {
     CardDefinition,
+    CardType,
     PermanentView,
     StaticEffect,
 } from "../../cards/types";
@@ -344,6 +345,95 @@ describe("CR 613.8a/b — the dependency cases", () => {
             }
         });
     }
+
+    // CR 205.1a — removing Land takes the land's Forest with it, which changes
+    // what Life and Limb applies to. So it waits for the removal at either
+    // timestamp, and never sees a Forest.
+    for (const removalFirst of [true, false]) {
+        it(`Life and Limb waits for a card-type removal that takes its Forest away (removal ${removalFirst ? "first" : "second"})`, () => {
+            const remover: CardDefinition = {
+                ...flight(),
+                id: "test-land-type-remover",
+                staticEffects: [
+                    {
+                        kind: "type-remove",
+                        applies: AURA_AFFECTS_HOST,
+                        types: ["Land"],
+                    },
+                ],
+            };
+            withTemporaryDefinition(remover, () => {
+                const forest = makeInstance(tropicalIsland().id, {
+                    id: "forest",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const aura = makeInstance(remover.id, {
+                    id: "aura",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "forest",
+                });
+                const lal = makeInstance(lifeAndLimb().id, {
+                    id: "lal",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const state = boardWith(
+                    [forest, aura, lal],
+                    removalFirst ? [aura, lal] : [lal, aura]
+                );
+                const derived = deriveLayers2to5(view(state), asView(forest));
+                expect(derived.types).toEqual([]);
+                expect(derived.subtypes).toEqual([]);
+            });
+        });
+    }
+
+    it("a card-type removal creates no dependency for a read of another type's subtypes", () => {
+        const reader = lifeAndLimb();
+        const entry = (
+            id: string,
+            effect: StaticEffect,
+            effectIndex: number
+        ): {
+            entry: ContinuousEffect;
+            template: DependencyTemplate;
+        } => ({
+            entry: {
+                id,
+                layer: 4,
+                timestamp: 0,
+                expiry: { kind: "source", sourceId: id },
+                affected: { kind: "predicate" },
+                payload: {
+                    kind: "template",
+                    sourceCardId: reader.id,
+                    effectIndex,
+                },
+                characteristicDefining: false,
+            },
+            template: {
+                source: asView(makeInstance(reader.id, { id })),
+                effect,
+            },
+        });
+        const dependsOnRemovalOf = (types: CardType[]): boolean => {
+            const read = entry("read", reader.staticEffects![0], 0);
+            const removal = entry(
+                "removal",
+                { kind: "type-remove", applies: AURA_AFFECTS_HOST, types },
+                1
+            );
+            return continuousEffectDependsOn(read.entry, removal.entry, {
+                template: (e) =>
+                    e.id === "read" ? read.template : removal.template,
+                ctx: STATIC_EFFECT_CTX,
+            });
+        };
+        expect(dependsOnRemovalOf(["Land"])).toBe(true);
+        expect(dependsOnRemovalOf(["Planeswalker"])).toBe(false);
+    });
 
     // The false positive a FAMILY-level read set would invent, and the reason
     // `reads` narrows to values. Urborg depends on Life and Limb — the

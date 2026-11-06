@@ -174,8 +174,10 @@ type ModeFixture = {
      *  The tree still holds the spell, the greedy sandbox has resolved it, so
      *  the two type lines differ by moment, not by executor: every OTHER
      *  characteristic is compared for equality, and each side's type line is
-     *  asserted on its own. */
+     *  asserted on its own, subtypes included (CR 205.1a: the removed type takes
+     *  its creature types). */
     permanentTypes?: readonly string[];
+    permanentSubtypes?: readonly string[];
 };
 
 /** `Record<CastMode, …>` is the point: a mode added to the union cannot compile
@@ -250,6 +252,7 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.impended).toBe(true);
         },
         permanentTypes: ["Enchantment"],
+        permanentSubtypes: [],
     },
     // CR 702.74a — the marker `evokeTrigger` reads to sacrifice the permanent
     // as it enters. NOT enumerated today (the Bot is never offered an evoke
@@ -502,14 +505,21 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
                 );
             } else if (fixture.permanentTypes) {
                 const greedyMarkers = modeMarkersOf(subjectAfter(greedy));
-                expect({ ...treeMarkers, types: [] }).toEqual({
+                expect({ ...treeMarkers, types: [], subtypes: [] }).toEqual({
                     ...greedyMarkers,
                     types: [],
+                    subtypes: [],
                 });
                 expect(treeMarkers.types).toEqual(
                     [...fixtureDef(fixture).types].sort()
                 );
+                expect(treeMarkers.subtypes).toEqual(
+                    [...(fixtureDef(fixture).subtypes ?? [])].sort()
+                );
                 expect(greedyMarkers.types).toEqual(fixture.permanentTypes);
+                expect(greedyMarkers.subtypes).toEqual(
+                    fixture.permanentSubtypes
+                );
             } else {
                 expect(treeMarkers).toEqual(
                     modeMarkersOf(subjectAfter(greedy))

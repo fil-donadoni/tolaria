@@ -19,10 +19,14 @@ import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent, PermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { chosenColorOf, LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
+import type { CardType } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import {
+    ARTIFACT_SUBTYPES,
     CREATURE_SUBTYPES,
+    ENCHANTMENT_SUBTYPES,
     LAND_SUBTYPES,
+    SPELL_SUBTYPES,
 } from "../oracle/grammar/shared/subtypes";
 import {
     NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
@@ -498,6 +502,79 @@ export function applyCreatureTypeReplacement(
         ...currentSubtypes.filter((s) => !CREATURE_SUBTYPES.has(s)),
         ...newCreatureTypes,
     ];
+}
+
+/** CR 205.1a — the artifact-type twin of {@link applyCreatureTypeReplacement}:
+ *  every artifact type (CR 205.3g) is replaced by `newArtifactTypes`; every other
+ *  subtype survives, for {@link withoutSubtypesOfRemovedTypes} to judge.
+ *
+ *  Callers gate on the set's DECLARED family (`family: "artifact"`, "is a Vehicle
+ *  artifact"). */
+export function applyArtifactTypeReplacement(
+    currentSubtypes: readonly string[],
+    newArtifactTypes: readonly string[]
+): string[] {
+    return [
+        ...currentSubtypes.filter((s) => !ARTIFACT_SUBTYPES.has(s)),
+        ...newArtifactTypes,
+    ];
+}
+
+/** CR 205.3j — the planeswalker types. Here rather than beside the other tables
+ *  in `oracle/grammar/shared/subtypes.ts`: no Grammar Rule reads one, and that
+ *  module is part of the compiler hash. Checked against the vendored CR by
+ *  `scripts/__tests__/oracle-subtypes.test.ts`. */
+export const PLANESWALKER_TYPES: ReadonlySet<string> = new Set(
+    (
+        "Ajani,Aminatou,Angrath,Arlinn,Ashiok,Bahamut,Basri,Bolas,Calix,Chandra," +
+        "Comet,Dack,Dakkon,Daretti,Davriel,Dellian,Dihada,Domri,Dovin,Ellywick," +
+        "Elminster,Elspeth,Estrid,Freyalise,Garruk,Gideon,Grist,Guff,Huatli,Jace," +
+        "Jared,Jaya,Jeska,Kaito,Karn,Kasmina,Kaya,Kiora,Koth,Liliana,Lolth,Lukka," +
+        "Minsc,Mordenkainen,Nahiri,Narset,Niko,Nissa,Nixilis,Oko,Quintorius,Ral," +
+        "Rowan,Saheeli,Samut,Sarkhan,Serra,Sivitri,Sorin,Szat,Tamiyo,Tasha,Teferi," +
+        "Teyo,Tezzeret,Tibalt,Tyvar,Ugin,Urza,Venser,Vivien,Vraska,Vronos,Will," +
+        "Windgrace,Wrenn,Xenagos,Yanggu,Yanling,Zariel"
+    ).split(",")
+);
+
+/** CR 205.3c — the subtypes correlated with each card type. Creature and Kindred
+ *  share theirs (CR 205.3m), as Instant and Sorcery do (CR 205.3k); the battle
+ *  types are CR 205.3q's. */
+const SUBTYPES_OF_CARD_TYPE: Record<CardType, ReadonlySet<string>> = {
+    Artifact: ARTIFACT_SUBTYPES,
+    Battle: new Set(["Siege"]),
+    Creature: CREATURE_SUBTYPES,
+    Enchantment: ENCHANTMENT_SUBTYPES,
+    Instant: SPELL_SUBTYPES,
+    Kindred: CREATURE_SUBTYPES,
+    Land: LAND_SUBTYPES,
+    Planeswalker: PLANESWALKER_TYPES,
+    Sorcery: SPELL_SUBTYPES,
+};
+
+/** CR 205.3c — is `subtype` correlated with the card type `type`? */
+export function isSubtypeOfCardType(type: CardType, subtype: string): boolean {
+    return SUBTYPES_OF_CARD_TYPE[type].has(subtype);
+}
+
+/** CR 205.1a — "If an object's card type is removed, the subtypes correlated
+ *  with that card type will remain if they are also the subtypes of a card type
+ *  the object currently has; otherwise, they are also removed for the entire time
+ *  the object's card type is removed."
+ *
+ *  A removed type that has come back is in `currentTypes`, so its subtypes stay.
+ *  A subtype no removed type claims stays too: nothing here judges a line no
+ *  effect took a card type from. */
+export function withoutSubtypesOfRemovedTypes(
+    subtypes: readonly string[],
+    removedTypes: readonly CardType[],
+    currentTypes: readonly CardType[]
+): string[] {
+    return subtypes.filter(
+        (subtype) =>
+            currentTypes.some((type) => isSubtypeOfCardType(type, subtype)) ||
+            !removedTypes.some((type) => isSubtypeOfCardType(type, subtype))
+    );
 }
 
 /** Whether a card can be cast at **instant speed** (CR 601.3a / 702.8) — an
