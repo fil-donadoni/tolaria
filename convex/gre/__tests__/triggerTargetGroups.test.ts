@@ -106,17 +106,14 @@ describe("trigger target groups — announcement (CR 603.3d, CR 601.2c)", () => 
     });
 
     it("CR 608.2b — the primary group's filters are not applied to a later group's target at resolution", () => {
-        const state = board([], ["a", "b"]);
+        const state = board(["mine"], ["theirs"]);
         withGroups(
-            { type: "player", count: 1, controller: "opponent" },
-            [CREATURE],
+            { type: "Creature", count: 1, controller: "you" },
+            [{ type: "Creature", count: 1, controller: "opponent" }],
             () => {
                 raiseTriggerTargetSelection(state);
-                pick(state, "a");
                 resolveTopOfStack(state);
-                expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
-                    "b",
-                ]);
+                expect(state.players[1].battlefield).toEqual([]);
             }
         );
     });
