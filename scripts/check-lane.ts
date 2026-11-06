@@ -1225,6 +1225,15 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/cards\/sets\/|convex\/cubes\/vintageCubeNames\.ts$|data\/pick-ratings\/vintage-cube\.json$|scripts\/check-cube-ratings\.ts$|scripts\/lib\/(compiler-gap-markers|divergence-markers)\.ts$)/,
         lacks: "no changed path under convex/cards/sets/**, the Vintage Cube list, its Pick Rating file or the guard's readers — no cube card and no rating moved",
     },
+    // Issue #8348: a Bot test pinning float noise reds only after a refit, on the
+    // base. Admitted by a changed bot test, run with the weights nudged.
+    // 7.4 s on one file, 2026-11-06, the transform cache off; 0 with no such file.
+    {
+        id: "check:weight-noise",
+        diffOnly: true,
+        admits: /\.bot\.test\.ts$/,
+        lacks: "no changed bot-node test — a test already on the base is health's",
+    },
     {
         id: "check:test-hygiene",
         admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/|^data\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,

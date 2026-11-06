@@ -34,6 +34,7 @@
         "check:targets": "bun scripts/check-targets.ts",
         "check:cube-ratings": "bun scripts/check-cube-ratings.ts",
         "check:test-hygiene": "bun scripts/check-test-hygiene.ts",
+        "check:weight-noise": "bun scripts/check-weight-noise.ts",
         "backlog:triage": "bun scripts/backlog-triage.ts",
         "bot:reach": "bun scripts/gate.ts job 'bun scripts/target-bot-reach.ts'",
         "blade:audit-census": "bun scripts/blade-audit-census.ts",
