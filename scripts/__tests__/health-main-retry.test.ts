@@ -720,6 +720,15 @@ describe("a retry runs each project under the config declaring it", () => {
         expect(out.result.signal).toBe("SIGKILL");
     });
 
+    it("a retry whose worker died stays a crash, with no signal on the exit", async () => {
+        const f = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, "Error: Worker exited unexpectedly\n"),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(failLines(out.result.output).length).toBe(0);
+    });
+
     it("refuses a project no chain script runs", () => {
         const decision = retryDecision("test", failOf("ladder"));
         expect(decision).toEqual({
