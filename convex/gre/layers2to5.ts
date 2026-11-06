@@ -69,10 +69,12 @@ import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { colorGrantColors, staticEffectFunctionsFrom } from "../cards/types";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import {
+    applyArtifactTypeReplacement,
     applyCreatureTypeReplacement,
     applyLandTypeReplacement,
     isSpellStackItem,
     sameOrder,
+    withoutSubtypesOfRemovedTypes,
 } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
 import type { DependencyTemplate } from "./dependency";
@@ -93,6 +95,7 @@ import type {
     Color,
     PermanentView,
     StaticEffect,
+    SubtypeSetFamily,
     TextChange,
     ZoneScopedStaticEffect,
 } from "../cards/types";
@@ -926,7 +929,7 @@ type Layer2to5Action =
           add?: readonly string[];
           set?: readonly string[];
           /** CR 205.1a (issue #3809) — see `ContinuousEffect`'s payload. */
-          family?: "creature";
+          family?: SubtypeSetFamily;
       }
     | {
           kind: "supertype-change";
@@ -1039,9 +1042,12 @@ function resolveAction(
                 : effect.applies!(target, source, STATIC_EFFECT_CTX)
                   ? effect.subtypes!
                   : null;
-            return computed === null
-                ? undefined
-                : { kind: "subtype-change", set: computed };
+            if (computed === null) return undefined;
+            return {
+                kind: "subtype-change",
+                set: computed,
+                ...(effect.family ? { family: effect.family } : {}),
+            };
         }
         case "supertype-set":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
@@ -1302,9 +1308,14 @@ export function deriveLayers2to5(
                     result.subtypes =
                         action.family === "creature"
                             ? applyCreatureTypeReplacement(result.subtypes, set)
-                            : result.types.includes("Land")
-                              ? applyLandTypeReplacement(result.subtypes, set)
-                              : set;
+                            : action.family === "artifact"
+                              ? applyArtifactTypeReplacement(
+                                    result.subtypes,
+                                    set
+                                )
+                              : result.types.includes("Land")
+                                ? applyLandTypeReplacement(result.subtypes, set)
+                                : set;
                     result.grantedSubtypes.push({
                         subtypes: [...action.set],
                         sourceId: attribution,
@@ -1373,7 +1384,25 @@ export function deriveLayers2to5(
         working = viewOf(instance, result);
     }
 
+    result.subtypes = correlatedSubtypes(result);
     return result;
+}
+
+/** CR 205.1a — the running subtype line, less the subtypes of a card type some
+ *  effect took away and none has given back.
+ *
+ *  Judged from the running `types` and never at the removal itself: `subtypes`
+ *  stays the unfiltered line through the walk, so a card type returning at a later
+ *  timestamp brings its subtypes back ("for the entire time the object's card type
+ *  is removed"). Every read of the walk goes through here, so a predicate no more
+ *  sees a removed subtype than the output does. */
+function correlatedSubtypes(result: Layers2to5Derivation): string[] {
+    if (result.suppressedTypes.length === 0) return result.subtypes;
+    return withoutSubtypesOfRemovedTypes(
+        result.subtypes,
+        result.suppressedTypes.map((row) => row.type as CardType),
+        result.types
+    );
 }
 
 /** The view a predicate is evaluated against, built from the running answer.
@@ -1393,7 +1422,7 @@ function viewOf(
         ...(instance as unknown as PermanentView),
         controllerId: result.controllerId,
         types: result.types,
-        subtypes: result.subtypes,
+        subtypes: correlatedSubtypes(result),
         // The three provenance rows a PREDICATE reads back off the working view
         // (`hasSupertypeLive`, `getEffectiveColors`). They are no longer
         // instance fields, so they ride the synthetic view alone — which is

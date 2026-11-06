@@ -149,8 +149,9 @@ describe("Impending — entry, and the not-a-creature window (CR 702.176a, 613.1
         const overlord = onBattlefield(state)!;
         expect(overlord.counters?.time).toBe(5);
         expect(overlord.types).toEqual(["Enchantment"]);
-        // It keeps its subtypes and every ability: only the type is removed.
-        expect(overlord.subtypes).toEqual(["Avatar", "Horror"]);
+        // CR 205.1a — Avatar and Horror are correlated with the removed type;
+        // Enchantment claims neither. It keeps every ability.
+        expect(overlord.subtypes).toEqual([]);
         expect(
             getDefinition(OVERLORD).triggeredAbilities?.map((t) => t.id)
         ).toContain("overlord-of-the-balemurk-trigger");

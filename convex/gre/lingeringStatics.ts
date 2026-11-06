@@ -260,9 +260,12 @@ function inlinePayloadFor(
                 : effect.applies!(target, source, STATIC_EFFECT_CTX)
                   ? (effect.subtypes ?? null)
                   : null;
-            return computed === null
-                ? undefined
-                : { kind: "subtype-change", set: [...computed] };
+            if (computed === null) return undefined;
+            return {
+                kind: "subtype-change",
+                set: [...computed],
+                ...(effect.family ? { family: effect.family } : {}),
+            };
         }
         case "supertype-set":
             return effect.applies(target, source, STATIC_EFFECT_CTX)

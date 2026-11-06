@@ -30,6 +30,7 @@ import { compactState, expandState } from "../serialize";
 import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import { titaniasSong } from "../../cards/sets/atq/green.cards";
 import { solRing } from "../../cards/sets/lea/colorless.cards";
+import { lionSash } from "../../cards/sets/neo/white.cards";
 
 /** The Song and one Sol Ring on p1's battlefield, animated. */
 function withSong(): {
@@ -244,6 +245,41 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         expect(state.continuousEffects ?? []).toHaveLength(0);
         beginApplyingStaticEffects(state, song);
         expect(state.continuousEffects ?? []).toHaveLength(0);
+    });
+
+    it("CR 205.1a — a lingering subtype set still replaces only the family it declares", () => {
+        const def: CardDefinition = {
+            ...titaniasSong(),
+            id: "test-lingering-subtype-family",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: (target) => target.id === "sash-1",
+                    subtypes: ["Vehicle"],
+                    family: "artifact",
+                    lingersAfterSourceLeaves: { phase: "end-of-turn" },
+                },
+            ],
+        };
+        withTemporaryDefinition(def, () => {
+            const state = makeState();
+            const source = makeInstance(def.id, {
+                id: "source-1",
+                controllerId: "p1",
+                zone: "battlefield",
+            });
+            const sash = makeInstance(lionSash().id, {
+                id: "sash-1",
+                controllerId: "p1",
+                zone: "battlefield",
+            });
+            state.players[0].battlefield.push(source, sash);
+            beginApplyingStaticEffects(state, source);
+            expect(sash.subtypes).toEqual(["Cat", "Vehicle"]);
+
+            removePermanentTo(state, "source-1", "graveyard");
+            expect(sash.subtypes).toEqual(["Cat", "Vehicle"]);
+        });
     });
 
     it("wire format: the lingering animation survives projectPublicState", () => {
