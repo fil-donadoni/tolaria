@@ -237,6 +237,7 @@ export function deckPayload(d: LobbyDeck): {
     format: FormatId;
     cards: DeckCard[];
     sideboard: DeckCard[];
+    userDeckId?: Id<"userDecks">;
     limitedEventId?: string;
     limitedSeatId?: string;
 } {
@@ -248,10 +249,12 @@ export function deckPayload(d: LobbyDeck): {
         // Snapshotted into the Match deck copy (PRD #387). Empty for legacy
         // decks; the Match owns this list for sideboarding.
         sideboard: d.sideboard ?? [],
-        // Limited Event + Seat reference (ADR 0054/0055, issue #1109/#1111) —
-        // `assertDeckLegal`'s injected `ResolvePool` reads these two at game
-        // start. Absent on every non-Limited deck (a preset never carries
-        // them either).
+        // The row this payload stands for (ADR 0106 §4, issue #2815): game
+        // start reads a Limited deck's Pool from it and refuses a Limited
+        // payload without it. A preset has no row.
+        userDeckId: d.kind === "user" ? d.userDeckId : undefined,
+        // Limited Event + Seat provenance (ADR 0106 §5) — the event-bound
+        // mutations read them. Absent on every non-Limited deck.
         limitedEventId: d.limitedEventId,
         limitedSeatId: d.limitedSeatId,
     };

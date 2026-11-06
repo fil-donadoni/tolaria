@@ -77,7 +77,10 @@ type TwoHumanEvent = ReturnType<typeof buildTwoHumanEvent>;
 
 /** A legal 40-card Limited deck for `seatIndex`, built entirely from that
  *  seat's own Pool — identical shape to `limitedChallenge.test.ts`. */
-function deckForSeat(event: TwoHumanEvent, seatIndex: number): GateDeck {
+function deckForSeat(
+    event: TwoHumanEvent,
+    seatIndex: number
+): GateDeck & { userDeckId: string } {
     const seat = event.seats.find((s) => s.seatIndex === seatIndex)!;
     const nonBasic = seat.pool!.filter(
         (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
@@ -100,6 +103,7 @@ function deckForSeat(event: TwoHumanEvent, seatIndex: number): GateDeck {
         sideboard: nonBasic
             .slice(30)
             .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+        userDeckId: `userdeck-${seatIndex}`,
         limitedEventId: event._id,
         limitedSeatId: String(seatIndex),
     };
@@ -132,6 +136,25 @@ function makeStubCtx(event: TwoHumanEvent, callerUserId: string) {
         ["alice", { _id: "alice", nickname: "Alice" }],
         ["bob", { _id: "bob", nickname: "Bob" }],
     ]);
+    // Each seat's saved deck + Deck Pool (ADR 0106), what a payload's
+    // `userDeckId` points at.
+    for (const seat of event.seats) {
+        const deckId = `userdeck-${seat.seatIndex}`;
+        docs.set(deckId, {
+            _id: deckId,
+            __table: "userDecks",
+            userId: seat.userId,
+            format: "limited",
+            limitedEventId: event._id,
+            limitedSeatId: String(seat.seatIndex),
+        });
+        docs.set(`pool-${deckId}`, {
+            _id: `pool-${deckId}`,
+            __table: "limitedDeckPools",
+            deckId,
+            pool: seat.pool,
+        });
+    }
     let nextId = 0;
     const ctx = {
         auth: {

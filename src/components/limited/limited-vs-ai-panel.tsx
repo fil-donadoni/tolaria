@@ -18,9 +18,9 @@ import LimitedOpponentTile from "./limited-opponent-tile";
  *  deck against the table's", PRD #1107 problem statement). Reuses the
  *  existing vsAi seat model UNCHANGED (`createSoloGame({ deck, deck2,
  *  vsAi: true })`, ADR 0001) — the bot's deck is tagged `format: "freeform"`
- *  on the wire because it isn't owned by ANY user's own Limited Event Seat
- *  (the ownership gate `loadLimitedPoolResolver` enforces for a `"limited"`
- *  deck would reject it outright); Freeform's validator is a permissive
+ *  on the wire because it is no saved deck of the caller's (the ownership gate
+ *  `loadLimitedPoolResolver` enforces for a `"limited"` deck would reject it
+ *  outright); Freeform's validator is a permissive
  *  no-op, so the ALREADY-legal-by-construction Auto-Built decklist (issue
  *  #1115's own property test proves this against its seat's Pool) starts
  *  cleanly with zero changes to `convex/game.ts`. */

@@ -149,6 +149,7 @@ interface DeckPayload {
     format: string;
     cards: { cardId: string; cardName: string }[];
     sideboard: { cardId: string; cardName: string }[];
+    userDeckId: string;
     limitedEventId: string;
     limitedSeatId: string;
 }
@@ -157,6 +158,42 @@ interface Fixture {
     event: Row;
     deckForSeat: (seatIndex: number) => DeckPayload;
     seeds: Row[];
+}
+
+const userDeckIdFor = (eventId: string, seatIndex: number) =>
+    `userdeck-${eventId}-${seatIndex}`;
+
+/** Each human seat's saved deck + Deck Pool (ADR 0106): what `userDeckId` in a
+ *  payload points at, and the only Pool game start reads. */
+function deckRowSeeds(
+    eventId: string,
+    seats: readonly {
+        seatIndex: number;
+        userId?: string;
+        pool?: readonly unknown[];
+    }[]
+): Row[] {
+    return seats
+        .filter((seat) => seat.userId !== undefined)
+        .flatMap((seat) => {
+            const deckId = userDeckIdFor(eventId, seat.seatIndex);
+            return [
+                {
+                    _id: deckId,
+                    __table: "userDecks",
+                    userId: seat.userId,
+                    format: "limited",
+                    limitedEventId: eventId,
+                    limitedSeatId: String(seat.seatIndex),
+                },
+                {
+                    _id: `pool-${deckId}`,
+                    __table: "limitedDeckPools",
+                    deckId,
+                    pool: seat.pool,
+                },
+            ];
+        });
 }
 
 /** A 2-seat LEA Sealed event in `playing`, round 1 paired seat 0 vs seat 1.
@@ -232,6 +269,7 @@ function playingEvent(opts: {
             sideboard: nonBasic
                 .slice(30)
                 .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            userDeckId: userDeckIdFor(opts.eventId, seatIndex),
             limitedEventId: opts.eventId,
             limitedSeatId: String(seatIndex),
         };
@@ -241,6 +279,7 @@ function playingEvent(opts: {
         event,
         { _id: "alice", __table: "users", nickname: "Alice" },
         { _id: "bob", __table: "users", nickname: "Bob" },
+        ...deckRowSeeds(opts.eventId, seats),
     ];
     return { event, deckForSeat, seeds };
 }
@@ -312,6 +351,7 @@ async function playingEventViaSaveSeats(opts: {
             sideboard: nonBasic
                 .slice(30)
                 .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            userDeckId: userDeckIdFor(opts.eventId, seatIndex),
             limitedEventId: opts.eventId,
             limitedSeatId: String(seatIndex),
         };
@@ -346,6 +386,7 @@ async function playingEventViaSaveSeats(opts: {
         event,
         { _id: "alice", __table: "users", nickname: "Alice" },
         { _id: "bob", __table: "users", nickname: "Bob" },
+        ...deckRowSeeds(opts.eventId, seats),
     ];
     const stub = makeCtx("alice", seeds);
 
@@ -435,6 +476,7 @@ function fourHumanEvent(opts: { eventId: string; seed: number }): Fixture {
             sideboard: nonBasic
                 .slice(30)
                 .map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+            userDeckId: userDeckIdFor(opts.eventId, seatIndex),
             limitedEventId: opts.eventId,
             limitedSeatId: String(seatIndex),
         };
@@ -446,6 +488,7 @@ function fourHumanEvent(opts: { eventId: string; seed: number }): Fixture {
         { _id: "bob", __table: "users", nickname: "Bob" },
         { _id: "carol", __table: "users", nickname: "Carol" },
         { _id: "dave", __table: "users", nickname: "Dave" },
+        ...deckRowSeeds(opts.eventId, seats),
     ];
     return { event, deckForSeat, seeds };
 }
@@ -732,6 +775,31 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
                 deck: { ...fx.deckForSeat(0), limitedEventId: "event-other" },
             })
         ).rejects.toThrow(/same Limited Event/);
+    });
+
+    // The Pool no longer pins the seat a payload claims (ADR 0106 §4, issue
+    // #2815), so an inline deck claiming THIS event's seat while naming a row
+    // built elsewhere would otherwise play a recorded round with another
+    // event's Pool: legal against that Pool, and against nothing here.
+    it("refuses the caller's own deck built at ANOTHER event, whatever event and seat the payload claims", async () => {
+        const fx = playingEvent({
+            eventId: "event-g6",
+            seed: 4247,
+            gamesFormat: "bo1",
+        });
+        const elsewhere = deckRowSeeds("event-elsewhere", fx.event.seats as []);
+        const stub = makeCtx("alice", [...fx.seeds, ...elsewhere]);
+        await expect(
+            runStart(stub.ctx, {
+                eventId: "event-g6",
+                deck: {
+                    ...fx.deckForSeat(0),
+                    userDeckId: userDeckIdFor("event-elsewhere", 0),
+                },
+            })
+        ).rejects.toThrow(/not built at that event's seat/);
+        expect(stub.rows("matches")).toEqual([]);
+        expect(stub.rows("games")).toEqual([]);
     });
 
     it("refuses to start once the pairing is already decided", async () => {

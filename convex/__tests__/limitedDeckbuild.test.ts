@@ -11,8 +11,17 @@
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { assertDeckLegal, type GateDeck } from "../formats";
-import { loadLimitedPoolResolver } from "../game";
+import {
+    createGame,
+    createSoloGame,
+    joinGame,
+    loadLimitedPoolResolver,
+} from "../game";
+import { deckValidator } from "../gameSeats";
+import { create } from "../userDecks";
+import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { makeInMemoryDb, type InMemoryDb } from "./fixtures/inMemoryDb.fixture";
 import { makeRng } from "../gre/rng";
 import {
     assignFreeSeat,
@@ -34,6 +43,16 @@ const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);
     return meta ? { cardId: meta.cardId, cardName: def.name } : null;
 };
+
+const ALICE = "user-alice";
+const BOB = "user-bob";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const run = (fn: unknown, ctx: MutationCtx, args: unknown): Promise<any> =>
+    (fn as { _handler: (c: MutationCtx, a: unknown) => Promise<any> })._handler(
+        ctx,
+        args
+    );
 
 describe("Limited deckbuild pipeline: sealed event → build → submit → createGame (issue #1111)", () => {
     it("a legal deck built entirely from the seat's Pool starts a real Match", () => {
@@ -132,10 +151,8 @@ describe("Limited deckbuild pipeline: sealed event → build → submit → crea
         expect(advisory.isLegal).toBe(true);
         expect(advisory.reasons).toEqual([]);
 
-        // 4. createGame — the authoritative game-start gate. The deck's
-        // `ResolvePool` is built from the ALREADY-FETCHED event (mirrors
-        // `loadLimitedPoolResolver` in `convex/game.ts`), never from the
-        // deck's own claims.
+        // 4. The pure legality decision against that Pool; the game-start path
+        // proper (Deck Pool by `userDeckId`) is driven for real below.
         const gateDeck: GateDeck = { ...deckRow };
         const resolvePool = () =>
             resolvePoolFromEvent(event, gateDeck.limitedSeatId!);
@@ -202,90 +219,307 @@ describe("Limited deckbuild pipeline: sealed event → build → submit → crea
             assertDeckLegal(gateDeck, undefined, undefined, resolvePool)
         ).toThrow(/not in this seat's Pool/i);
     });
+});
 
-    // Security regression (issue #1111 follow-up): `createGame` /
-    // `createSoloGame` / `joinGame` accept an INLINE `args.deck`, never one
-    // loaded from a persisted `userDecks` row — so the `userDecks.create`
-    // seat-ownership gate is fully bypassable by a client that fabricates a
-    // deck object naming ANOTHER user's `limitedEventId`/`limitedSeatId`
-    // directly at game-start. This drives the REAL, exported
-    // `loadLimitedPoolResolver` from `convex/game.ts` (not a hand-mirrored
-    // reimplementation) with a minimal stub `MutationCtx` whose `db.get`
-    // returns the fixture event — the exact function all three mutation
-    // entry points call before `assertDeckLegal`.
-    describe("loadLimitedPoolResolver — game-start seat-ownership gate (convex/game.ts)", () => {
-        const packSlots = ["lea"];
+// Game start resolves a Limited deck's Pool by `userDeckId` (ADR 0106 §4, issue
+// #2815): the REAL handlers, in the order a player reaches them, against the
+// shared in-memory ctx (no convex-test harness, see `limitedDeckPool.test.ts`).
+describe("Limited game start: sealed event → build → save → event removed → createGame (issue #2815)", () => {
+    const EVENT_ID = "event-sealed";
+
+    /** A started 2-human Sealed LEA event, seen as Alice. */
+    function world() {
         let seats = buildEmptySeats(2);
-        seats = assignFreeSeat(seats, "victim", "Victim");
-        seats = fillBotSeats(seats);
+        seats = assignFreeSeat(seats, ALICE, "Alice");
+        seats = assignFreeSeat(seats, BOB, "Bob");
         seats = generateSealedPools(
             seats,
-            packSlots,
+            ["lea"],
             6,
             getBoosterConfig,
             resolveCardMeta,
-            makeRng(4242)
+            makeRng(2815)
         );
-        const event = { _id: "event-3", seats };
-        const victimSeat = event.seats.find((s) => s.userId === "victim")!;
+        const db = makeInMemoryDb(
+            {
+                users: [
+                    { _id: ALICE, nickname: "Alice" },
+                    { _id: BOB, nickname: "Bob" },
+                ],
+                limitedEvents: [
+                    {
+                        _id: EVENT_ID,
+                        type: "sealed",
+                        status: "started",
+                        packSlots: ["lea"],
+                        seatCount: 2,
+                        seats,
+                    },
+                ],
+            },
+            { identitySubject: `${ALICE}|session` }
+        );
+        return { db, seats };
+    }
 
-        // Stub ctx: `loadLimitedPoolResolver` calls `ctx.db.get` for the event
-        // row, then hydrates the claimed seat's payload through
-        // `convex/limitedSeatStore.ts`. `limitedSeats` returns nothing here —
-        // the event above carries its Pools inline, the legacy pre-split shape
-        // the store still folds in, which is exactly what this gate must keep
-        // resolving.
-        const stubCtx = {
-            db: {
-                get: async () => event,
-                query: () => ({
-                    withIndex: () => ({
-                        unique: async () => null,
-                        collect: async () => [],
-                    }),
+    const as = (ctx: MutationCtx, userId: string): MutationCtx =>
+        ({
+            ...ctx,
+            auth: {
+                getUserIdentity: async () => ({
+                    subject: `${userId}|session`,
                 }),
             },
-        } as unknown as MutationCtx;
+        }) as unknown as MutationCtx;
 
-        it("denies an ATTACKER who supplies the VICTIM's limitedSeatId/limitedEventId", async () => {
+    /** The deck the pool builder saves: all of the seat's non-basic Pool,
+     *  30 in the Maindeck padded with basics, the rest in the Sideboard. */
+    function builtDeck(
+        seats: ReturnType<typeof buildEmptySeats>,
+        seat: number
+    ) {
+        const pool = seats.find((s) => s.seatIndex === seat)!.pool!;
+        const toCard = (c: { cardId: string; cardName: string }) => ({
+            cardId: c.cardId,
+            cardName: c.cardName,
+        });
+        const nonBasic = pool.filter(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic !== true
+        );
+        const basic = pool.find(
+            (c) => resolveDeckCardMeta(c.cardId)?.isBasic === true
+        )!;
+        const main = nonBasic.slice(0, 30);
+        return {
+            name: `Seat ${seat}`,
+            format: "limited",
+            cards: [
+                ...main.map(toCard),
+                ...Array.from({ length: 40 - main.length }, () =>
+                    toCard(basic)
+                ),
+            ],
+            sideboard: nonBasic.slice(30).map(toCard),
+            limitedEventId: EVENT_ID,
+            limitedSeatId: String(seat),
+        };
+    }
+
+    /** Saves the seat's deck through `userDecks.create` and returns the inline
+     *  payload a client sends for it. */
+    async function savedPayload(
+        db: InMemoryDb,
+        seats: ReturnType<typeof buildEmptySeats>,
+        seat: number,
+        owner: string
+    ) {
+        const deck = builtDeck(seats, seat);
+        const userDeckId = await run(create, as(db.ctx, owner), {
+            ...deck,
+            colors: [],
+        });
+        return { id: userDeckId, userDeckId, ...deck };
+    }
+
+    function removeEvent(db: InMemoryDb) {
+        db.tables.limitedEvents = [];
+        db.tables.limitedSeats = [];
+    }
+
+    function expectNoMatchWritten(db: InMemoryDb) {
+        expect(db.tables.matches ?? []).toEqual([]);
+        expect(db.tables.games ?? []).toEqual([]);
+    }
+
+    describe("a Limited deck whose event is gone still starts", () => {
+        it("a normal game: createGame, then joinGame with the joiner's deck", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            const bob = await savedPayload(db, seats, 1, BOB);
+            removeEvent(db);
+
+            const gameId = await run(createGame, db.ctx, {
+                name: "t",
+                deck: alice,
+            });
+            expect(db.tables.matches).toHaveLength(1);
+
+            await run(joinGame, as(db.ctx, BOB), { gameId, deck: bob });
+            expect(db.tables.matches![0].status).toBe("pregame");
+        });
+
+        it.each([
+            ["a solo game", false],
+            ["a vs-AI game", true],
+        ])("%s: createSoloGame", async (_label, vsAi) => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            removeEvent(db);
+
+            await run(createSoloGame, db.ctx, {
+                name: "t",
+                deck: alice,
+                vsAi,
+            });
+            expect(db.tables.matches).toHaveLength(1);
+        });
+
+        it("the event is not even read while it still exists: seat occupancy no longer gates this path", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            db.gets.length = 0;
+            db.reads.length = 0;
+
+            await run(createGame, db.ctx, { name: "t", deck: alice });
+
+            expect(db.gets).not.toContain(EVENT_ID);
+            expect(db.reads.map((r) => r.table)).not.toContain("limitedSeats");
+        });
+    });
+
+    describe("rejections, before any Match or Game row is written", () => {
+        it("a `limited` payload without `userDeckId`, on every entry point and either seat", async () => {
+            const { db, seats } = world();
+            const noRow = {
+                ...(await savedPayload(db, seats, 0, ALICE)),
+                userDeckId: undefined,
+            };
+            const legal = await savedPayload(db, seats, 0, ALICE);
+            const NO_ROW = /must be a saved deck/;
+
             await expect(
-                loadLimitedPoolResolver(
-                    stubCtx,
-                    {
-                        limitedEventId: event._id,
-                        limitedSeatId: String(victimSeat.seatIndex),
+                run(createGame, db.ctx, { name: "t", deck: noRow })
+            ).rejects.toThrow(NO_ROW);
+            await expect(
+                run(createSoloGame, db.ctx, { name: "t", deck: noRow })
+            ).rejects.toThrow(NO_ROW);
+            await expect(
+                run(createSoloGame, db.ctx, {
+                    name: "t",
+                    deck: legal,
+                    deck2: noRow,
+                })
+            ).rejects.toThrow(NO_ROW);
+            expectNoMatchWritten(db);
+        });
+
+        it("joinGame with a `limited` payload without `userDeckId`, leaving the waiting Match unjoined", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            const noRow = {
+                ...(await savedPayload(db, seats, 1, BOB)),
+                userDeckId: undefined,
+            };
+            const gameId = await run(createGame, db.ctx, {
+                name: "t",
+                deck: alice,
+            });
+
+            await expect(
+                run(joinGame, as(db.ctx, BOB), { gameId, deck: noRow })
+            ).rejects.toThrow(/must be a saved deck/);
+            expect(db.tables.matches![0].status).toBe("waiting");
+        });
+
+        it("`userDeckId` pointing at another user's deck — the seat in the payload proves nothing", async () => {
+            const { db, seats } = world();
+            const victims = await savedPayload(db, seats, 1, BOB);
+
+            await expect(
+                run(createGame, db.ctx, { name: "t", deck: victims })
+            ).rejects.toThrow(/do not own this Limited deck/);
+            expectNoMatchWritten(db);
+        });
+
+        it("a `userDeckId` naming no row", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+
+            await expect(
+                run(createGame, db.ctx, {
+                    name: "t",
+                    deck: { ...alice, userDeckId: "userdeck-gone" },
+                })
+            ).rejects.toThrow(/do not own this Limited deck/);
+            expectNoMatchWritten(db);
+        });
+
+        it("provenance the row does not carry", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+
+            await expect(
+                run(createGame, db.ctx, {
+                    name: "t",
+                    deck: { ...alice, limitedSeatId: "1" },
+                })
+            ).rejects.toThrow(/not built at that event's seat/);
+            expectNoMatchWritten(db);
+        });
+
+        it("a card the Deck Pool does not account for, the event gone — and a Pool in the payload changes nothing", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            removeEvent(db);
+            const contraband = {
+                cardId: "not-in-any-pool",
+                cardName: "Contraband",
+            };
+            const tampered = {
+                ...alice,
+                cards: [...alice.cards.slice(1), contraband],
+                sideboard: [...alice.sideboard, alice.cards[0]],
+            };
+
+            await expect(
+                run(createGame, db.ctx, { name: "t", deck: tampered })
+            ).rejects.toThrow(/not in this seat's Pool/i);
+            await expect(
+                run(createGame, db.ctx, {
+                    name: "t",
+                    deck: {
+                        ...tampered,
+                        pool: [
+                            {
+                                scryfallId: contraband.cardId,
+                                ...contraband,
+                            },
+                        ],
                     },
-                    "attacker" // authenticated caller — NOT the seat's occupant
-                )
-            ).rejects.toThrow(/do not occupy/);
+                })
+            ).rejects.toThrow(/not in this seat's Pool/i);
+            expectNoMatchWritten(db);
         });
 
-        it("still resolves the Pool for the seat's REAL occupant (no false-reject)", async () => {
-            const resolver = await loadLimitedPoolResolver(
-                stubCtx,
-                {
-                    limitedEventId: event._id,
-                    limitedSeatId: String(victimSeat.seatIndex),
-                },
-                "victim" // the authenticated occupant of this seat
-            );
-            expect(resolver).toBeDefined();
-            // `ResolvePool` takes a `ValidatableDeck` but this resolver
-            // (mirroring `resolvePoolFromEvent`'s closure in `game.ts`)
-            // ignores it — the Pool is already fixed by the closed-over
-            // event/seat, not by anything on the deck passed at call time.
-            expect(resolver!({} as GateDeck)).toEqual(
-                resolvePoolFromEvent(event, String(victimSeat.seatIndex))
-            );
-        });
+        it("a row with no Deck Pool is `pool-unresolved`, never a silent pass or a fall back to the Seat", async () => {
+            const { db, seats } = world();
+            const alice = await savedPayload(db, seats, 0, ALICE);
+            db.tables.limitedDeckPools = [];
 
-        it("is a no-op (undefined resolver, no ownership check) for a non-Limited deck", async () => {
-            const resolver = await loadLimitedPoolResolver(
-                stubCtx,
-                {}, // no limitedEventId/limitedSeatId — every other Format
-                "anyone"
-            );
-            expect(resolver).toBeUndefined();
+            await expect(
+                run(createGame, db.ctx, { name: "t", deck: alice })
+            ).rejects.toThrow(/Pool/);
+            expectNoMatchWritten(db);
         });
+    });
+
+    it("the payload's validator names no Pool field, so Convex refuses one on the wire", () => {
+        const fields = Object.keys(deckValidator.fields);
+        expect(fields).toContain("userDeckId");
+        expect(fields.filter((f) => /pool/i.test(f))).toEqual([]);
+    });
+
+    it("a non-Limited deck never reads the row it names", async () => {
+        const { ctx, gets } = makeInMemoryDb();
+        const resolver = await loadLimitedPoolResolver(
+            ctx,
+            {
+                format: "freeform",
+                userDeckId: "someone-elses-deck" as Id<"userDecks">,
+            },
+            ALICE
+        );
+        expect(resolver).toBeUndefined();
+        expect(gets).toEqual([]);
     });
 });
