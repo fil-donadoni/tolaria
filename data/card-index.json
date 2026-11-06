@@ -55191,6 +55191,14 @@
         "source": "compiled"
     },
     {
+        "name": "Painter's Servant",
+        "scryfallId": "be407a81-b25a-4e5d-845e-be0cc0d18db8",
+        "oracleId": "baf93873-35e6-4bf2-bdcc-78a5206422fb",
+        "firstSet": "shm",
+        "firstPrintId": "be407a81-b25a-4e5d-845e-be0cc0d18db8",
+        "firstPrintSet": "shm"
+    },
+    {
         "name": "Palace Familiar",
         "scryfallId": "fc0c17c9-54af-4dd4-8d4a-fd5a7b8c3c77",
         "oracleId": "dab9e40f-b73a-4c55-8bb3-63b32c23f07b",
