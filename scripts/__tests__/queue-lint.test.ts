@@ -195,13 +195,36 @@ describe("queue lint — advisory findings (issue #2188)", () => {
         expect(isBlocking(findings)).toBe(false);
     });
 
-    it("notes a missing target-files section WITHOUT blocking, and says why it costs throughput", () => {
+    it("BLOCKS a missing target-files section, and says what the planner does with an unknown radius (issue #8406)", () => {
         const body = WELL_FORMED.replace(/## Target files[\s\S]*$/, "");
         const f = lintIssue(issue({ body })).find(
             (x) => x.rule === "no-target-files"
         )!;
-        expect(f.severity).toBe("advisory");
-        expect(f.message).toMatch(/SOLO/);
+        expect(f.severity).toBe("blocking");
+        expect(f.message).toMatch(/no `Target files` section/);
+        expect(f.message).toMatch(/nothing in flight/);
+    });
+
+    it("tells a section with no readable path apart from no section (issue #8406)", () => {
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "## Target files\n\nsee the table above\n"
+        );
+        const f = lintIssue(issue({ body })).find(
+            (x) => x.rule === "no-target-files"
+        )!;
+        expect(f.severity).toBe("blocking");
+        expect(f.message).toMatch(/no readable path/);
+    });
+
+    it("accepts bare path lines as a declaration (issue #8406)", () => {
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "## Target files\n\nscripts/lib/a.ts\n`scripts/lib/b.ts`\n"
+        );
+        expect(lintIssue(issue({ body })).map((x) => x.rule)).not.toContain(
+            "no-target-files"
+        );
     });
 
     it("flags a body that names a parent while the sub-issue edge is missing, and emits the exact fix command", () => {

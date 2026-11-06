@@ -105,8 +105,23 @@ export const SECTION_BREAK = /^(?:#{1,6}\s+|\*\*[^*]+\*\*:?\s*$)/;
  */
 export function declaresTargetFiles(body: string): boolean {
     return (targetFilesSection(body) ?? []).some((l) =>
-        /^[-*]\s+/.test(l.trim())
+        isTargetFilesItem(l.trim())
     );
+}
+
+/**
+ * ONE definition of a `Target files` item (issue #8406), shared by the lint and
+ * the planner's reader so they cannot disagree: a `- `/`* ` list line, or a
+ * bare line that is a path or glob (backticked or not). A bare line is a path
+ * only when it is a single token with a separator, an extension, or the
+ * whole-repo marker — prose has spaces, so it never becomes an item.
+ */
+export function isTargetFilesItem(line: string): boolean {
+    const trimmed = line.trim();
+    if (/^[-*]\s+/.test(trimmed)) return true;
+    const bare = trimmed.replace(/`/g, "");
+    if (bare === "" || /\s/.test(bare)) return false;
+    return bare.includes("/") || /\.\w+$/.test(bare) || /^\*{1,2}$/.test(bare);
 }
 
 /** The one sentence that names the accepted forms, shared by the fix hint. */
@@ -426,11 +441,16 @@ export function lintIssue(
     }
 
     if (!declaresTargetFiles(body)) {
+        // Blocking (issue #8406): an unknown radius is not free. The planner
+        // admits it only when nothing is in flight and holds every other pick
+        // until its PR opens, so one such issue stalls the queue.
+        const labelled = (targetFilesSection(body) ?? null) !== null;
         findings.push({
             rule: "no-target-files",
-            severity: "advisory",
-            message:
-                "no `Target files` section — the planner will not guess a file set, so the issue is scheduled SOLO and the rest of the batch waits behind it",
+            severity: "blocking",
+            message: labelled
+                ? "a `Target files` section with no readable path — list items or bare path lines count, prose does not; the radius reads as unknown, so the planner runs this issue only with nothing in flight and holds the queue while it has no PR"
+                : "no `Target files` section — the planner will not guess a file set, so the radius is unknown: the issue runs only with nothing in flight and holds the queue while it has no PR",
             fix: TARGET_FILES_FIX,
         });
     }
