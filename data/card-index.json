@@ -7048,6 +7048,14 @@
         "source": "compiled"
     },
     {
+        "name": "Bilbo, Thief in the Night",
+        "scryfallId": "484c7f83-8339-4ae1-8350-68ce1f7d05a3",
+        "oracleId": "72a9a85d-7cfc-4b3c-82db-9d35be6c0982",
+        "firstSet": "hob",
+        "firstPrintId": "484c7f83-8339-4ae1-8350-68ce1f7d05a3",
+        "firstPrintSet": "hob"
+    },
+    {
         "name": "Bilbo's Deadly Slice",
         "scryfallId": "17892c93-b9b2-4720-933b-998ed0200492",
         "oracleId": "4c054431-3667-4e28-9d68-03b43447c35b",
