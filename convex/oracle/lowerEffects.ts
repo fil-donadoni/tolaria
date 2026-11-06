@@ -5872,6 +5872,44 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 701.26a + CR 701.26b + CR 608.2d — one announced target, the
+            // direction picked on resolution. Precedent: Twiddle's modes.
+            case "tapOrUntap": {
+                const target = objectSelector(
+                    frame.subject,
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                ops.push({
+                    op: "optionChoice",
+                    // A second announced target needs telling apart from the
+                    // first: both prompts otherwise read the same.
+                    prompt:
+                        typeof target.value === "object" &&
+                        "target" in target.value &&
+                        target.value.target > 0
+                            ? "Tap or untap the other target?"
+                            : "Tap or untap the target?",
+                    modes: (
+                        [
+                            ["tap", "Tap"],
+                            ["untap", "Untap"],
+                        ] as const
+                    ).map(([action, label]) => ({
+                        id: action,
+                        label,
+                        effects: [
+                            {
+                                op: "tapUntap" as const,
+                                action,
+                                target: target.value,
+                            },
+                        ],
+                    })),
+                });
+                break;
+            }
             // CR 701.65a — one Op per announced object: each is airbended, and
             // each card's own owner holds its permission.
             case "airbend": {
