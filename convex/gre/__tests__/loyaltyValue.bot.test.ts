@@ -42,6 +42,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Dack Fayden": 7,
     // start 3, spends 1/4
     "Garruk Wildspeaker": 5,
+    // start 5, spends 3/4 — the starting count is the larger bound
+    "Garruk, Curse Breaker": 6,
     // start 3, spends 2/5
     "Grist, the Hunger Tide": 6,
     // start 3, spends 1/12

@@ -30582,6 +30582,14 @@
         "firstPrintSet": "lrw"
     },
     {
+        "name": "Garruk, Curse Breaker",
+        "scryfallId": "90ca5812-ceb5-46bd-b049-aed7ff10e6af",
+        "oracleId": "184d4672-05a9-4182-8b3f-3561fb33ed62",
+        "firstSet": "fra",
+        "firstPrintId": "90ca5812-ceb5-46bd-b049-aed7ff10e6af",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Garruk's Companion",
         "scryfallId": "863c9a10-d83f-415b-adf2-2d0f870410b2",
         "oracleId": "32fc8fa7-7e0a-4d4e-85cf-2f98b3fc6ecf",
