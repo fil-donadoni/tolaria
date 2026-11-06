@@ -35,6 +35,7 @@
 import {
     lintIssue,
     parseDependencies,
+    isTargetFilesItem,
     targetFilesSection,
     type Finding,
 } from "./queue-lint";
@@ -297,8 +298,9 @@ export interface PlanConfig {
      * is still open. Their files are OCCUPIED — a candidate overlapping one is
      * deferred exactly like a within-plan overlap, because two PRs on the same
      * files meet as a rebase conflict at the queue. Built by `inFlightSet`; an
-     * entry with `files: null` has an unknown blast radius and occupies
-     * nothing (it would freeze the queue), but the plan names it.
+     * entry with `files: null` has an unknown blast radius: it holds every
+     * other candidate until its PR opens (issue #8406; bounded by its claim,
+     * and a stale or released claim is outside this set).
      */
     inFlight?: InFlightIssue[];
     /**
@@ -520,8 +522,8 @@ export interface BatchPlan {
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
     staleClaims: number[];
-    /** In-flight issues with an unknown blast radius (issue #6195): they
-     *  occupy nothing, and the plan names them — `in-flight radius unknown #N`. */
+    /** In-flight issues with an unknown blast radius (issue #6195): they hold
+     *  the queue (issue #8406), and the plan names them — `in-flight radius unknown #N`. */
     inFlightUnknown?: number[];
     /**
      * Issues held by a claim the planner judged LIVE — `in-progress`, not
@@ -774,7 +776,7 @@ export function parseTargetFiles(body: string): string[] | null {
     for (const line of section) {
         const trimmed = line.trim();
         if (trimmed === "") continue;
-        if (/^[-*]\s+/.test(trimmed)) {
+        if (isTargetFilesItem(trimmed)) {
             items.push(normalizePath(trimmed));
             continue;
         }
@@ -1189,8 +1191,11 @@ export function planBatch(
             },
             { readTokenScopes: port.tokenScopes }
         );
+        // `no-target-files` blocks at intake (issue #8406) but is the planner's
+        // own call: an unknown radius is admitted solo, never skipped — a
+        // skip would send every undeclared issue in the backlog to needs-info.
         const lintBlockers = lintFindings.filter(
-            (f) => f.severity === "blocking"
+            (f) => f.severity === "blocking" && f.rule !== "no-target-files"
         );
         if (lintBlockers.length > 0) {
             skipped.push({
@@ -1258,6 +1263,34 @@ export function planBatch(
         const comparable = targetFiles.filter(
             (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
         );
+
+        // Unknown radius runs solo against the in-flight set too (issue #8406).
+        // The within-batch rule below sees an empty batch when the dispatcher
+        // fills one slot at a time, so it never fires; and an entry with
+        // `files: null` occupies nothing, so the next pick was admitted blind.
+        // Both directions hold: an unknown candidate waits for an empty set,
+        // and any candidate waits for an unknown entry's PR to open. The
+        // issue's own entry (a repair pick) is exempt, as from overlap.
+        const othersInFlight = (config.inFlight ?? []).filter(
+            (f) => f.number !== issue.number
+        );
+        const unknownHolder = othersInFlight.find((f) => f.files === null);
+        if (unknownHolder) {
+            deferred.push({
+                number: issue.number,
+                reason: `in-flight radius unknown #${unknownHolder.number} — held until its PR opens or its claim ends`,
+                conflictsWith: unknownHolder.number,
+            });
+            continue;
+        }
+        if (blastRadius === "unknown" && othersInFlight.length > 0) {
+            deferred.push({
+                number: issue.number,
+                reason: `no declared target files and none inferred — an unknown blast radius runs solo, and #${othersInFlight[0].number} is in flight`,
+                conflictsWith: othersInFlight[0].number,
+            });
+            continue;
+        }
 
         // In-flight overlap (issue #6195). A repair pick is never deferred by
         // its own PR: the issue's own entry occupies nothing against itself.

@@ -333,7 +333,11 @@ describe("planner — in-flight overlap (issue #6195)", () => {
             })
         );
         expect(got.plan.inFlightUnknown).toEqual([1]);
-        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+        // Issue #8406: an unknown in-flight entry holds the queue.
+        expect(got.plan.batch).toEqual([]);
+        expect(got.plan.deferred.map((d) => d.reason)).toContainEqual(
+            expect.stringMatching(/in-flight radius unknown #1/)
+        );
     });
 
     it("a candidate is never deferred by its own in-flight entry", () => {
@@ -408,9 +412,8 @@ describe("planner — a deferred higher band reserves its files (issue #6897)", 
             { ...CONFIG, inFlight },
             noFiles
         );
-        expect(reason(plan, 3)).toBe(
-            "target files reserved by higher-priority #2"
-        );
+        // Issue #8406: an unknown candidate waits on any in-flight claim first.
+        expect(reason(plan, 3)).toMatch(/runs solo, and #1 is in flight/);
         expect(plan.batch).toEqual([]);
     });
 
