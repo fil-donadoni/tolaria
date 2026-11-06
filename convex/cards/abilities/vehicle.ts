@@ -137,20 +137,16 @@ const NON_ARTIFACT_PERMANENT_TYPES: CardType[] = [
  *  Layer 4 (CR 613.1d), derived at every read, so the Aura leaving restores the
  *  host with nothing to undo:
  *   - `type-add` Artifact + `type-remove` every other card type (CR 205.1a);
- *   - `subtype-set` Vehicle, in that order: the set then reads a host that is
- *     no longer a land, so it is the wholesale replace CR 205.1a asks for —
- *     an Equipment stops being one, a Bear stops being one.
+ *   - `subtype-set` Vehicle, artifact family: it replaces the artifact types
+ *     alone, so an Equipment stops being one. A Bear's creature type answers to
+ *     the walk's CR 205.1a correlation: gone while the host is no creature, back
+ *     for as long as crewing makes it one.
  *
  *  Layer 6 (CR 613.1f): the `crew N` keyword and its enforcing ability. The
  *  host keeps every ability it has, a Vehicle's own crew included.
  *
  *  The crew ability states no P/T: the Aura cannot know the host's, and a host
- *  crewed has its printed ones (CR 301.7b), or 0/0 with none printed.
- *
- *  Deviation: CR 205.1a removes a subtype correlated with a removed card type
- *  only "for the entire time the object's card type is removed". While crewed,
- *  the host is a creature again and its creature types would return; here it
- *  stays a Vehicle with no creature type (tracked-by: issue #8314). */
+ *  crewed has its printed ones (CR 301.7b), or 0/0 with none printed. */
 export function enchantedPermanentIsVehicle(args: {
     /** Aura card name — namespaces the granted ability id. */
     name: string;
@@ -192,6 +188,7 @@ export function enchantedPermanentIsVehicle(args: {
                 kind: "subtype-set",
                 applies: AURA_AFFECTS_HOST,
                 subtypes: ["Vehicle"],
+                family: "artifact",
             },
             {
                 kind: "keyword-grant",

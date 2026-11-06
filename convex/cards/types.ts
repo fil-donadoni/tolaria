@@ -9837,7 +9837,8 @@ export interface StaticTypeAdd extends ZoneScopedStaticEffect {
  *  EVERY derivation of the layers-2-to-5 walk (`gre/layers2to5.ts`, CR 613.1),
  *  not only at attach/detach: Impending's "not a creature" removal
  *  (CR 702.176a) is revoked by its last time counter coming off, with no
- *  event to hang a re-application on. */
+ *  event to hang a re-application on. The subtypes correlated with a removed
+ *  type go with it for as long as it is gone (CR 205.1a). */
 export interface StaticTypeRemove extends ZoneScopedStaticEffect {
     kind: "type-remove";
     /** Predicate: does this removal apply to `target` given `source`? */
@@ -10524,6 +10525,10 @@ export interface StaticLoyaltyActivationTiming {
     condition?: "entered-this-turn";
 }
 
+/** CR 205.1a — the subtype set a `subtype-set` declares it replaces ("the new
+ *  subtype(s) replaces any existing subtypes from the appropriate set"). */
+export type SubtypeSetFamily = "creature" | "artifact";
+
 /** Layer 4 subtype replacement (CR 305.7 — "enchanted land is a [type]").
  *  Replaces the target's subtypes entirely with the specified array. The
  *  engine stores the printed subtypes before the first replacement so removal
@@ -10541,6 +10546,10 @@ export interface StaticSubtypeSet extends ZoneScopedStaticEffect {
         ctx: StaticEffectContext
     ) => boolean;
     subtypes?: string[];
+    /** CR 205.1a — replace only this family's subtypes; every other subtype
+     *  survives the set, and answers to `gre/layers2to5.ts`'s correlation with
+     *  the object's card types. Absent keeps the replace described above. */
+    family?: SubtypeSetFamily;
     /** Optional source-level gate (CR 611.3a), exactly
      *  `StaticTypeAdd.condition`: re-evaluated at every layer-4 derivation,
      *  for either output form ("he's a 3/4 NINJA creature" replaces the

@@ -25,6 +25,7 @@ import {
     LAND_SUBTYPES,
     SPELL_SUBTYPES,
 } from "../../convex/oracle/grammar/shared/subtypes";
+import { PLANESWALKER_TYPES } from "../../convex/gre/constants";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..", "..");
 const CR = readFileSync(
@@ -85,6 +86,12 @@ describe("CR 205.3 subtype tables match the vendored document", () => {
             expect([...table].sort()).toEqual([...expected].sort());
         });
     }
+
+    it("planeswalker types match CR 205.3j", () => {
+        const expected = subtypeList("205.3j", "The planeswalker types are ");
+        expect(expected.length).toBeGreaterThan(50);
+        expect([...PLANESWALKER_TYPES].sort()).toEqual([...expected].sort());
+    });
 
     it("the parse is not vacuous — every list has a plausible size", () => {
         expect(CREATURE_SUBTYPES.size).toBeGreaterThan(200);

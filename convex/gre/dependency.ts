@@ -36,6 +36,8 @@ import type {
     StaticEffectContext,
 } from "../cards/types";
 import { BASIC_LAND_SUBTYPES, colorGrantColors } from "../cards/types";
+import type { CardType } from "../cards/types";
+import { isSubtypeOfCardType } from "./constants";
 import type { ContinuousEffect } from "./continuousEffects";
 
 /** The live source and `StaticEffect` behind a TEMPLATE entry. Structurally the
@@ -279,6 +281,30 @@ function writesOf(
     }
 }
 
+/** CR 205.1a — the subtypes this entry can take away by removing a card type, as
+ *  a test on one subtype, or `undefined` when it removes none. A type-line SET can
+ *  strip any type, so any subtype. Adding a type is not asked: the pair alone
+ *  cannot tell a type returning from a type simply added, so a reader timestamped
+ *  between a removal and the return reads the line without the subtype. */
+function subtypeLossOf(
+    entry: ContinuousEffect,
+    template: DependencyTemplate | undefined
+): ((subtype: string) => boolean) | undefined {
+    const correlatedWith =
+        (types: readonly CardType[]) =>
+        (subtype: string): boolean =>
+            types.some((type) => isSubtypeOfCardType(type, subtype));
+    const payload = entry.payload;
+    if (payload.kind === "type-change") {
+        if (payload.set) return () => true;
+        return payload.remove ? correlatedWith(payload.remove) : undefined;
+    }
+    return payload.kind === "template" &&
+        template?.effect.kind === "type-remove"
+        ? correlatedWith(template.effect.types)
+        : undefined;
+}
+
 /** CR 613.8a clause (b) — does what `write` puts on the board intersect what
  *  `read` looks for? The family must match; the VALUES need only overlap when
  *  both sides know theirs. */
@@ -488,6 +514,18 @@ function dependsOn(
     // Clause (b), "what it applies to" / "what it does to them".
     const write = b.writes;
     if (write && a.reads.some((read) => intersects(read, write))) return true;
+    const subtypeLoss = subtypeLossOf(b.entry, b.template);
+    if (
+        subtypeLoss &&
+        a.reads.some((read) =>
+            typeof read === "string"
+                ? read === "subtypes"
+                : read.characteristic === "subtypes" &&
+                  read.values.some(subtypeLoss)
+        )
+    ) {
+        return true;
+    }
     // Clause (b), the EXISTENCE limb (CR 305.7, CR 613.1f).
     if (!a.rulesTextSource) return false;
     return destroysRulesTextOf(b.entry, b.template, a.rulesTextSource, ctx);
