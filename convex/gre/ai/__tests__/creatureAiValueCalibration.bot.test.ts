@@ -11,8 +11,13 @@ import { meddlingMage } from "../../../cards/sets/pls/multicolor.cards";
 import { creatureValueRaw } from "../../creatureBody";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 
-/** Allowed drift in Forge points between an override and its derivation. */
-const TOLERANCE = 1;
+/** Allowed drift in Forge points between an override and its derivation. A PR
+ *  that moves the fit lands on the COMMITTED discount and the base's refit
+ *  follows it (ADR 0157 Amendment II), so an override has to hold under both
+ *  vectors at once: issue #8271 moved the discount by 5 points of a 2/2 body,
+ *  and a tolerance of 1 had no value satisfying both. The drift this exists to
+ *  catch was ~40% (issue #5012). */
+const TOLERANCE = 4;
 
 const CASES = [
     // body = a representative 2/2 at MV2 (the copied body is unknowable).

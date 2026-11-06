@@ -174,6 +174,24 @@ export function additionalCostDiscardXCeiling(
         .length;
 }
 
+/** How many life-X values the Bot weighs (issue #8271). A whole life total of
+ *  casts would thin the search's visits over payments no sweep needs, so the
+ *  enumeration stops here; a human's X dialog still offers the rest. */
+export const PAY_X_LIFE_ENUMERATION_CAP = 8;
+
+/** CR 601.2b / 119.4 (issue #8271) — the fourth shape a cast can owe an X for:
+ *  an additional cost paying X LIFE (Toxic Deluge, Fire Covenant), on a card
+ *  whose printed cost has no `{X}` pip. A player can pay only the life they
+ *  have, and may pay all of it, so X = life stays offered: refusing that is the
+ *  search's job, not legality's. `undefined` when the spec has no such leg. */
+export function additionalCostPayXLifeCeiling(
+    player: PlayerState,
+    spec: AdditionalCostSpec | undefined
+): number | undefined {
+    if (spec?.payXLife !== true) return undefined;
+    return Math.min(Math.max(player.life, 0), PAY_X_LIFE_ENUMERATION_CAP);
+}
+
 /** CR 601.2h — "unpayable costs can't be paid": whether this FLAT (already
  *  `oneOf`-resolved) additional cost can be paid in full right now.
  *
