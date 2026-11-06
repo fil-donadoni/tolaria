@@ -41,6 +41,11 @@
         },
         {
             "kind": "bot",
+            "key": "harness-error › Stack item not found",
+            "issue": 8363
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Artifact [trample] › if+mayPay+sacrifice",
             "issue": 4825
         },
@@ -686,11 +691,6 @@
         },
         {
             "kind": "grammar",
-            "key": "(card) › a modal trigger is read behind an enters-this-permanent head only",
-            "issue": 8334
-        },
-        {
-            "kind": "grammar",
             "key": "(card) › \"each player\" is not in grammar v0",
             "issue": 4587
         },
@@ -698,6 +698,11 @@
             "kind": "grammar",
             "key": "(card) › \"that player\" names no player at this site",
             "issue": 4587
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › a modal trigger is read behind an enters-this-permanent head only",
+            "issue": 8334
         },
         {
             "kind": "grammar",
@@ -4523,6 +4528,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"if\" reads ref \"$sacrificed1\" — depends on a runtime binding",
             "issue": 6423
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads ref \"$sacrificed2\" — depends on a runtime binding",
+            "issue": 8362
         },
         {
             "kind": "scenario",
