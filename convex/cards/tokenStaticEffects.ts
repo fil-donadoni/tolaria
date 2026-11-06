@@ -37,6 +37,7 @@ import {
 } from "./types";
 import type {
     StaticBlockRestriction,
+    StaticCastRestriction,
     StaticKeywordGrant,
     StaticPTCDA,
 } from "./types";
@@ -115,6 +116,26 @@ function cantBeBlockedByNonSpiritSelf(): StaticBlockRestriction {
     };
 }
 
+/** CR 601.3 / 102.1 — "Your opponents can't cast spells during your turn."
+ *  The read-time cast gate: every spell cast by an opponent of the source's
+ *  controller while that controller is the active player. One authority for the
+ *  compiled static (`compiledStatics.ts`), a hand-written face and a back face's
+ *  `staticEffectKeys` (The Sensational She-Hulk, issue #8171). A view built
+ *  without an active player names no turn, so it imposes no lock. */
+export function opponentsCantCastDuringYourTurn(
+    id: string
+): StaticCastRestriction {
+    return {
+        kind: "cast-restriction",
+        id,
+        oracleText: "Your opponents can't cast spells during your turn.",
+        forbids: (caster, _spell, source, state) =>
+            caster !== source.controllerId &&
+            state.activePlayerId !== undefined &&
+            state.activePlayerId === source.controllerId,
+    };
+}
+
 /** The single ENCODE/DECODE table. Exhaustive by construction — see the module
  *  header. Add a key to {@link TokenStaticEffectKey} and the compiler demands
  *  the factory here (and vice versa). */
@@ -134,6 +155,8 @@ export const TOKEN_STATIC_EFFECT_FACTORIES: Record<
     "vigilance-land-creatures-you-control": vigilanceLandCreaturesYouControl,
     "cant-block-non-spirit-self": cantBlockNonSpiritSelf,
     "cant-be-blocked-by-non-spirit-self": cantBeBlockedByNonSpiritSelf,
+    "opponents-cant-cast-during-your-turn": () =>
+        opponentsCantCastDuringYourTurn("opponents-cant-cast-during-your-turn"),
 };
 
 /** Legacy ids written before the keys existed encoded effect KINDS in the same
