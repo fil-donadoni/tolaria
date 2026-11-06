@@ -127,6 +127,7 @@ describe("shell mode per route family (issue #2582)", () => {
         ["/join/j123", "browse"],
         ["/limited", "browse"],
         ["/limited/events", "browse"],
+        ["/limited/decks", "browse"],
         ["/limited/e123", "browse"],
         ["/limited/e123/build", "immersive"],
         ["/admin", "browse"],

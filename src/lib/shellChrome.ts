@@ -181,6 +181,11 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         why: "Your-events list (issue #2357) — a static sibling of the dynamic route below.",
     },
     {
+        pattern: "/limited/decks",
+        mode: "browse",
+        why: "The player's Limited Deck Archive (issue #8409) — a list reached from the Limited hub, and a static sibling of the dynamic route below.",
+    },
+    {
         pattern: "/limited/new",
         mode: "browse",
         why: "The Limited event setup flow (PRD #5383, issue #5387) — reached from the events list and left back to it; Create routes to the new event.",

@@ -1,12 +1,12 @@
 /**
- * Which `check:ui` surfaces a diff can reach (issue #3627, PRD #3625 slice B).
+ * Which `check:ui` surfaces a diff can reach.
  *
  * THE ARGUMENT. A surface's rendered layout is a function of three inputs:
  *   1. its route module's import closure — scoped EXACTLY, by `import-graph.ts`;
  *   2. the global styling inputs (stylesheets, design tokens, shared UI
  *      primitives, the shell every route renders inside) — which always force
  *      the full run, because they can move every surface;
- *   3. deployment data — pinned by the per-run lane account (issue #3626).
+ *   3. deployment data — pinned by the per-run lane account.
  *
  * FAIL-CLOSED, like `check:lane`'s `classifyPath`: a changed path narrows the
  * run only when a rule affirmatively places it. Anything no rule places and no
@@ -16,35 +16,38 @@
  *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, floors)
  *     → `full`: it changes what every surface's measurement means — EXCEPT
  *     `surfaces.ts`, whose hunks inside `SURFACES` elements select exactly the
- *     surfaces they edit (`ui-surface-edits.ts`, issue #4687); a hunk in a
+ *     surfaces they edit (`ui-surface-edits.ts`); a hunk in a
  *     shared helper, selector or table there is still `full`;
+ *   - the router or the shell's route table, when the diff only registers a
+ *     new static route (`ui-route-registration-edits.ts`) →
+ *     contributes nothing: the new route module is placed by its own closure;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
  *     bundle every route is served from;
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
  *   - reachable from the shell, the build or a surface ONLY through
  *     `import type` / `export type` statements → contributes nothing: the
- *     build erases those, so no code of it runs on any screen (issue #4913;
- *     a type change that matters fails `check:ts`, not a walk);
+ *     build erases those, so no code of it runs on any screen
+ *     (a type change that matters fails `check:ts`, not a walk);
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
  *     modules nor the catalogue gate) → `full`: the shell renders around
  *     every surface;
  *   - reached from the shell only through the CATALOGUE GATE (the lazy chunk
- *     that loads the catalogue into the card registry, issue #5379) → selects
+ *     that loads the catalogue into the card registry) → selects
  *     every surface that reads that registry, or `full` if none does;
  *   - in one or more surfaces' closures → selects those surfaces;
  *   - in no closure at all, and SERVER-ONLY (`isServerOnlyPath`: `convex/**`
  *     or `data/**` outside `convex/_generated/`) → contributes nothing: the
  *     walk runs the tree's frontend against whatever functions the shared
  *     deployment serves, and never pushes Convex functions (ADR 0131
- *     amendment, issue #5074). A module the frontend DOES import is in a
+ *     amendment). A module the frontend DOES import is in a
  *     closure and was placed above;
  *   - in no closure at all, but reachable ONLY from a STAFF-ONLY route entry
  *     (`isStaffOnlyRouteEntry`: the admin pages, `/admin/draft-lab`) →
  *     contributes nothing: staff tooling is out of `check:ui`'s scope, so no
  *     surface walks it and its private modules must not force `full` (ADR 0131
- *     amendment, owner ruling issue #5075). A module an admin page SHARES with
+ *     amendment, owner ruling). A module an admin page SHARES with
  *     a product surface is in that surface's closure and was placed above;
  *   - otherwise → `full`.
  *
@@ -53,17 +56,17 @@
  * still walks them (they render its edge toggle).
  *
  * A SURFACE'S CLOSURE is its route entries' import closure — except for a
- * SPECIMEN row (issue #4913). `/admin/design-system` mounts ~30 dialogs and
+ * SPECIMEN row. `/admin/design-system` mounts ~30 dialogs and
  * pickers one at a time behind openers, and every one of those rows declared
  * the page's route as its entry, so any file in that page's closure walked all
- * of them: PR #4911 changed one admin hook and paid 34 surfaces × 5 viewports.
+ * of them: one PR changed one admin hook and paid 34 surfaces × 5 viewports.
  * A specimen row (`ScopeSurface.specimen`) is selected by the closure of what
  * it measures instead — three parts, each taken from the same graph:
  *   1. the PAGE scaffolding: its entries' closure, not descending into any
  *      SECTION module of the page — a specimen section, or a sibling module
  *      named like one (`sections-*.tsx` beside `sections-overlays.tsx`):
  *      the frame every row shares is the layout and the census page's own
- *      controls, never the swatches another section renders (issue #6073);
+ *      controls, never the swatches another section renders;
  *   2. its SECTION's closure, not descending into any row's mount (the openers
  *      and fixture props of that section: a change there selects every row of
  *      the section, and no other section's);
@@ -71,7 +74,7 @@
  * The soundness argument is re-made at this granularity in ADR 0131's
  * amendment; the residual it accepts (a mount a section renders
  * unconditionally, a sibling section's frame under an open layer) only the
- * full `check:ui --all` walk sees — run by hand since issue #6143, with no
+ * full `check:ui --all` walk sees — run by hand, with no
  * automated backstop.
  *
  * An empty `scoped` result is valid: a test-only diff owes no browser time.
@@ -85,6 +88,7 @@
  * hole is limited to runtime-built class strings; it is recorded, not closed.
  */
 import type { ImportGraph } from "./import-graph";
+import { additiveRegistrationsSinceBase } from "./ui-route-registration-edits";
 import type { SurfaceEdits } from "./ui-surface-edits";
 
 /** The module that boots the app; its closure, minus route modules, is the shell. */
@@ -235,6 +239,9 @@ export interface ComputeUiScopeInput {
     /** Which surfaces a diff to `SURFACES_FILE` edits, when the caller could
      *  derive it. Absent or `shared` keeps that file a full-lane path. */
     surfaceEdits?: SurfaceEdits | null;
+    /** Changed paths whose diff only registers a new static route (issue
+     *  #8409). Absent: derived from git at the graph's root. */
+    additiveRegistrations?: ReadonlySet<string>;
 }
 
 /** A JS/TS module: what an `import` names, so what `tsc` resolves. */
@@ -291,6 +298,7 @@ export function computeUiScope({
     surfaces,
     graph,
     surfaceEdits = null,
+    additiveRegistrations = additiveRegistrationsSinceBase(changed, graph.root),
 }: ComputeUiScopeInput): UiScope {
     const shell = shellClosure(graph);
     const build = graph.closureOf(BUILD_CONFIG);
@@ -368,6 +376,7 @@ export function computeUiScope({
     // DOUBT, collected: a certain-global path later in the diff still wins.
     const doubts: string[] = [];
     for (const path of [...changed].sort()) {
+        if (additiveRegistrations.has(path)) continue;
         if (path === SURFACES_FILE && surfaceEdits?.kind === "surfaces") {
             for (const id of surfaceEdits.ids) selected.add(id);
             continue;
