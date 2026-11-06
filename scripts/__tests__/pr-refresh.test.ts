@@ -22,7 +22,12 @@ import {
     type RefreshPr,
 } from "../lib/pr-refresh";
 import { CORPUS_CACHE_REL } from "../lib/generated-artifacts";
-import { prepareWith, refreshPr, seedCorpus } from "../pr-refresh";
+import {
+    localConflicts,
+    prepareWith,
+    refreshPr,
+    seedCorpus,
+} from "../pr-refresh";
 
 const GREEN = { red: false };
 const RED = { red: true };
@@ -446,6 +451,48 @@ describe("refreshPr — real git, a bare origin", () => {
             deps
         );
         expect(out.kind).toBe("unchanged");
+    });
+
+    describe("localConflicts — GitHub's verdict, which runs no merge driver (issue #8384)", () => {
+        const asPr = (headRefOid: string): RefreshPr => ({
+            number: 9,
+            headRefName: "feat/issue-9",
+            headRefOid,
+            mergeable: "UNKNOWN",
+            isCrossRepository: false,
+            labels: [],
+            files: [],
+        });
+
+        it("reports a conflict a registered driver would have merged clean", () => {
+            commit(".gitattributes", "driven.txt merge=clean\n", "attributes");
+            commit("driven.txt", "base\n", "driven");
+            git(["push", "origin", BASE_BRANCH], primary);
+            git(["config", "merge.clean.driver", "true"], primary);
+            const oid = queuedBranch("driven.txt");
+            baseMoves("driven.txt");
+
+            // The driver is live: with it, git itself calls this merge clean.
+            expect(
+                spawnSync(
+                    "git",
+                    [
+                        "merge-tree",
+                        "--write-tree",
+                        `origin/${BASE_BRANCH}`,
+                        oid,
+                    ],
+                    { cwd: primary }
+                ).status
+            ).toBe(0);
+            expect(localConflicts(primary, [asPr(oid)])).toEqual(new Set([9]));
+        });
+
+        it("leaves out a PR that merges clean", () => {
+            const oid = queuedBranch("pr.txt");
+            baseMoves("other.txt");
+            expect(localConflicts(primary, [asPr(oid)])).toEqual(new Set());
+        });
     });
 
     it("a dry run rebases but does not push", () => {

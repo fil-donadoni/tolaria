@@ -84,14 +84,19 @@ if (plan.kind === "refuse") {
     process.exit(1);
 }
 
+// The commit this tree was rebased onto, never `ORIGIN_BASE` itself: that ref
+// is shared by every worktree and a fetch anywhere moves it while the generators
+// below run. Bytes read from a newer tip are bytes `check:derived-in-diff` finds
+// changed against this tree's merge-base (issue #8384).
+const rebasedOnto = git(["merge-base", ORIGIN_BASE, "HEAD"], root);
+
 // The base's own paths first: their bytes are the base's, whatever the
-// driver took (ADR 0157). `ORIGIN_BASE` is the tip this tree was just rebased
-// onto — the merge-base.
+// driver took (ADR 0157).
 if (plan.fromBase.length > 0) {
     process.stderr.write(
-        `${DIM}resolve-generated-artifacts: taking ${plan.fromBase.join(", ")} from ${ORIGIN_BASE} — the base writes them (ADR 0157)${RESET}\n`
+        `${DIM}resolve-generated-artifacts: taking ${plan.fromBase.join(", ")} from ${rebasedOnto} — the base writes them (ADR 0157)${RESET}\n`
     );
-    git(["checkout", ORIGIN_BASE, "--", ...plan.fromBase], root);
+    git(["checkout", rebasedOnto, "--", ...plan.fromBase], root);
 }
 
 // One run per distinct command: several artifacts share a generator
@@ -128,7 +133,7 @@ for (const artifact of plan.artifacts) {
 if (plan.restoreHeader) {
     const base = spawnSync(
         "git",
-        ["show", `${ORIGIN_BASE}:${BASE_OWNED_LOCKFILE}`],
+        ["show", `${rebasedOnto}:${BASE_OWNED_LOCKFILE}`],
         {
             cwd: root,
             encoding: "utf8",
@@ -142,7 +147,7 @@ if (plan.restoreHeader) {
             restoreHeaderHashes(readFileSync(path, "utf8"), base.stdout)
         );
         process.stderr.write(
-            `${DIM}resolve-generated-artifacts: ${BASE_OWNED_LOCKFILE} header hashes put back to ${ORIGIN_BASE}'s (ADR 0157)${RESET}\n`
+            `${DIM}resolve-generated-artifacts: ${BASE_OWNED_LOCKFILE} header hashes put back to ${rebasedOnto}'s (ADR 0157)${RESET}\n`
         );
     }
 }
