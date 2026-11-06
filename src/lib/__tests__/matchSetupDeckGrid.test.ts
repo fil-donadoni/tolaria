@@ -8,6 +8,8 @@ import {
     freeformFormatOptions,
     groupByLimitedOrigin,
     limitedOriginOptions,
+    originNarrows,
+    type DeckGridFormat,
     UNCLASSIFIED_ORIGIN_LABEL,
 } from "../matchSetupDeckGrid";
 
@@ -186,5 +188,44 @@ describe("Limited Origin grouping (issue #5394)", () => {
         expect(
             deckGrid(all, "freeform", "", "all", "sealed:lea").mine
         ).toHaveLength(4);
+    });
+
+    describe("under Freeform (Deck Format Limited)", () => {
+        const burn = deck({
+            presetId: "burn",
+            kind: "user",
+            format: "premodern",
+        });
+        const mixed = [...all, burn];
+        const ids = (format: DeckGridFormat, origin: string) =>
+            deckGrid(mixed, "freeform", "", format, origin).mine.map(
+                (e) => e.deck.presetId
+            );
+
+        it("the origin options are those of the Limited decks only", () => {
+            expect(limitedOriginOptions(mixed, "freeform")).toEqual([
+                { key: "sealed:lea", label: "Limited Edition Alpha Sealed" },
+                { key: "draft:cube:vintage", label: "Vintage Cube Draft" },
+            ]);
+        });
+
+        it("narrows to one origin while the Deck Format is Limited", () => {
+            expect(ids("limited", "draft:cube:vintage")).toEqual([
+                "cube-a",
+                "cube-b",
+            ]);
+        });
+
+        it("leaves the narrowing off for any other Deck Format", () => {
+            expect(ids("all", "draft:cube:vintage")).toHaveLength(5);
+            expect(ids("premodern", "draft:cube:vintage")).toEqual(["burn"]);
+        });
+
+        it("originNarrows is true only for Limited, or Freeform + Limited", () => {
+            expect(originNarrows("limited", "all")).toBe(true);
+            expect(originNarrows("freeform", "limited")).toBe(true);
+            expect(originNarrows("freeform", "all")).toBe(false);
+            expect(originNarrows("premodern", "limited")).toBe(false);
+        });
     });
 });

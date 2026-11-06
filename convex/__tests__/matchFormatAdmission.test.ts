@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
+import { resolveDeckCardMeta } from "../cards";
 import { createGame, createSoloGame, joinGame, joinGameByCode } from "../game";
 import { assertDeckAdmitted } from "../gameSeats";
 import { createManualGame, createManualSoloGame } from "../gameManual";
@@ -273,5 +274,105 @@ describe("Manual — Cockatrice fixes the Match Format to Manual (ADR 0153 § 4)
             await run(fn, db.ctx, { name: "t", deck: MANUAL });
             expect(db.tables.matches![0].matchFormat).toBe("manual");
         }
+    });
+});
+
+describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 0106)", () => {
+    const BOLT_PRINT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+    const BOLT = { cardId: BOLT_PRINT, cardName: "Lightning Bolt" };
+    const POOL_BOLT = {
+        scryfallId: BOLT_PRINT,
+        cardId: resolveDeckCardMeta(BOLT_PRINT)!.cardId,
+        cardName: "Lightning Bolt",
+    };
+
+    // A finished Sealed Event Alice sat in, with its Seat payload.
+    const finishedEvent = (_id: string): InMemoryRow => ({
+        _id,
+        type: "sealed",
+        status: "finished",
+        packSlots: ["lea"],
+        seats: [{ seatIndex: 0, userId: ALICE, displayName: "Alice" }],
+    });
+    const seat = (eventId: string): InMemoryRow => ({
+        _id: `seat-${eventId}`,
+        eventId,
+        seatIndex: 0,
+        pool: [POOL_BOLT, POOL_BOLT],
+    });
+    const limitedDeck = (eventId: string) => ({
+        id: `deck-${eventId}`,
+        name: `Deck of ${eventId}`,
+        format: "limited",
+        cards: [
+            BOLT,
+            ...Array.from({ length: 39 }, () => ({
+                cardId: MOUNTAIN,
+                cardName: "Mountain",
+            })),
+        ],
+        sideboard: [BOLT],
+        limitedEventId: eventId,
+        limitedSeatId: "0",
+    });
+    const world = () =>
+        makeInMemoryDb(
+            {
+                users: users(),
+                limitedEvents: [finishedEvent("ev-1"), finishedEvent("ev-2")],
+                limitedSeats: [seat("ev-1"), seat("ev-2")],
+            },
+            { identitySubject: ALICE }
+        );
+
+    for (const vsAi of [false, true]) {
+        it(`createSoloGame${vsAi ? " vs the Bot" : ""} seats both, one from each Event`, async () => {
+            const db = world();
+            await run(createSoloGame, db.ctx, {
+                name: "t",
+                deck: limitedDeck("ev-1"),
+                deck2: limitedDeck("ev-2"),
+                vsAi,
+                matchFormat: "freeform",
+            });
+            const [match] = db.tables.matches!;
+            expect(match.matchFormat).toBe("freeform");
+            expect(match.players.map((p: any) => p.id)).toEqual([
+                `${ALICE}-p1`,
+                `${ALICE}-p2`,
+            ]);
+            // Each seat holds its own Event's deck copy: 40 main, 1 side.
+            expect(
+                db.tables.matchDecks!.map((d: any) => [
+                    d.playerId,
+                    d.maindeck.length,
+                    d.sideboard.length,
+                ])
+            ).toEqual([
+                [`${ALICE}-p1`, 40, 1],
+                [`${ALICE}-p2`, 40, 1],
+            ]);
+        });
+    }
+
+    it("refuses a Limited deck whose Seat the caller does not occupy", async () => {
+        const db = makeInMemoryDb(
+            {
+                users: users(),
+                limitedEvents: [finishedEvent("ev-1"), finishedEvent("ev-2")],
+                limitedSeats: [seat("ev-1"), seat("ev-2")],
+            },
+            { identitySubject: BOB }
+        );
+        await rejection(() =>
+            run(createSoloGame, db.ctx, {
+                name: "t",
+                deck: limitedDeck("ev-1"),
+                deck2: limitedDeck("ev-2"),
+                matchFormat: "freeform",
+            })
+        );
+        expect(db.tables.matches ?? []).toHaveLength(0);
     });
 });
