@@ -40726,6 +40726,14 @@
         "source": "compiled"
     },
     {
+        "name": "Jennifer Walters",
+        "scryfallId": "61237530-ad49-469c-a952-67c92315708e",
+        "oracleId": "c867a778-97ef-4872-b890-b088b96a1281",
+        "firstSet": "msh",
+        "firstPrintId": "61237530-ad49-469c-a952-67c92315708e",
+        "firstPrintSet": "msh"
+    },
+    {
         "name": "Jenny, Generated Anomaly",
         "scryfallId": "abedc7b1-b6a4-48ab-a336-c0b8edb426a2",
         "oracleId": "fbddb6a4-f817-4f3d-bf75-63a98e71954b",

@@ -41,6 +41,7 @@ import {
     untapRestriction,
 } from "./abilities/static/untapRestriction";
 import { getCardsExiledWith } from "../gre/exileLinks";
+import { opponentsCantCastDuringYourTurn } from "./tokenStaticEffects";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
 import {
@@ -925,15 +926,8 @@ export function resolveCompiledStatic(
         case "cast-restriction":
             if (descriptor.opponentsDuringControllersTurn === true)
                 return {
-                    kind: "cast-restriction",
-                    id: descriptor.id,
+                    ...opponentsCantCastDuringYourTurn(descriptor.id),
                     oracleText: descriptor.oracleText,
-                    // CR 601.3 / 102.1 — a view built without an active
-                    // player names no turn, so it imposes no lock.
-                    forbids: (caster, _spell, source, state) =>
-                        caster !== source.controllerId &&
-                        state.activePlayerId !== undefined &&
-                        state.activePlayerId === source.controllerId,
                 };
             return {
                 kind: "cast-restriction",
