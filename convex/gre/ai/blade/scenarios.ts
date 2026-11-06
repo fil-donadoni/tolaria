@@ -20296,9 +20296,17 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        expect: { forbidden: [{ kind: "pass" }] },
-        note: "Issue #8297 — the cost is paid with the spell on the stack, so nothing is discarded. No Move offers it.",
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "pass" },
+                {
+                    kind: "activate-ability",
+                    card: "Lion's Eye Diamond",
+                },
+            ],
+        },
+        note: "Issue #8297 — the cost is paid with the spell on the stack, so nothing is discarded. Cracking it first would discard the Angel.",
     },
     {
         label: "fast mana: keeps Lion's Eye Diamond with a full hand of live cards",

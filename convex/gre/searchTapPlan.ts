@@ -227,7 +227,7 @@ export function searchCastManaSpent(
                 src,
                 player.id,
                 battlefields,
-                { requireTap: true },
+                { requireTap: true, admitHandDiscard: true },
                 undefined,
                 state
             )[tap.manaChoiceIndex ?? 0];

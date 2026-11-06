@@ -31,6 +31,7 @@ import {
     getManaTapOptionsDetailed,
     hasInstantSpeed,
     isTapLockedBySummoningSickness,
+    handDiscardCostsNothing,
     manaGateBattlefields,
     manaValue,
     normalizedHybridPips,
@@ -2484,16 +2485,20 @@ export function getProducibleManaSourceView(
         battlefield: readonly CardInstanceState[];
     }>,
     /** CR 106.7 / 614 — see `getManaTapOptionsDetailed`. */
-    replacements?: ManaReplacementView
+    replacements?: ManaReplacementView,
+    /** See `getManaTapOptionsDetailed`'s option of the same name. */
+    admitHandDiscard?: boolean
 ): ProducibleManaSourceView {
     // requireTap: the auto-tap planner only ever taps for mana — it must never
-    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
+    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand)
+    // unless the caller has established the hand is not worth anything to it.
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
         battlefields,
         {
             requireTap: true,
+            admitHandDiscard,
         },
         undefined,
         replacements
@@ -2761,7 +2766,11 @@ export function buildManaSourceUnits(
             converters: converterColors,
             controllerId: boardControllerId,
             battlefields: boardBattlefields,
-            spell: { types: card.types, supertypes: spellSupertypes },
+            spell: {
+                types: card.types,
+                supertypes: spellSupertypes,
+                handDiscardFree: handDiscardCostsNothing(player, card.id),
+            },
             replacements: opts.state,
         })) {
             sources.push(unit);
