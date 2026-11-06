@@ -184,3 +184,75 @@ describe("Limited Origin (issue #5394)", () => {
         ).toBe("true");
     });
 });
+
+describe("Limited Origin under Freeform", () => {
+    const limited = (id: string, limitedOrigin: string, isLegal = true) =>
+        deck({
+            kind: "user",
+            presetId: id,
+            name: id,
+            format: "limited",
+            limitedOrigin,
+            isLegal,
+            reasons: isLegal ? [] : [{ code: "size", message: "Too small" }],
+        } as Partial<LobbyDeck>);
+    const FREEFORM_DECKS = [
+        limited("cube-a", "draft:cube:vintage"),
+        limited("alpha", "sealed:lea"),
+        limited("alpha-bad", "sealed:lea", false),
+        deck({ presetId: "burn", kind: "user", name: "Burn" }),
+    ];
+    const originSelect = () => screen.queryByLabelText("Limited Origin");
+    const pickFormat = (value: string) =>
+        fireEvent.change(screen.getByLabelText("Deck Format"), {
+            target: { value },
+        });
+    const steps: [string, Partial<MatchSetup>][] = [
+        ["your deck", {}],
+        ["the opponent's deck", { myDeckId: "burn" }],
+    ];
+
+    for (const [step, patch] of steps) {
+        describe(step, () => {
+            const open = () =>
+                render(
+                    <Harness
+                        initial={firstVisit({
+                            matchFormat: "freeform",
+                            ...patch,
+                        })}
+                        decks={FREEFORM_DECKS}
+                    />
+                );
+
+            it("shows the origin select only while Deck Format is Limited", () => {
+                open();
+                expect(originSelect()).toBeNull();
+                pickFormat("limited");
+                expect(originSelect()).not.toBeNull();
+                pickFormat("premodern");
+                expect(originSelect()).toBeNull();
+            });
+
+            it("narrows the grid, and leaving Limited drops the narrowing", () => {
+                open();
+                pickFormat("limited");
+                fireEvent.change(originSelect()!, {
+                    target: { value: "draft:cube:vintage" },
+                });
+                expect(gridDecks()).toEqual(["cube-a"]);
+                pickFormat("all");
+                expect(gridDecks()).toHaveLength(4);
+                pickFormat("limited");
+                expect(gridDecks()).toHaveLength(3);
+            });
+
+            it("shows an illegal Limited deck but cannot select it", () => {
+                open();
+                pickFormat("limited");
+                expect(tileButton("alpha-bad").disabled).toBe(true);
+                expect(tileButton("alpha").disabled).toBe(false);
+            });
+        });
+    }
+});

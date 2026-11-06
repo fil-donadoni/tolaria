@@ -13,6 +13,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
+import { resolveDeckCardMeta } from "../cards";
+import { create as userDecksCreate } from "../userDecks";
 import { createGame, createSoloGame, joinGame, joinGameByCode } from "../game";
 import { assertDeckAdmitted } from "../gameSeats";
 import { createManualGame, createManualSoloGame } from "../gameManual";
@@ -273,5 +275,123 @@ describe("Manual — Cockatrice fixes the Match Format to Manual (ADR 0153 § 4)
             await run(fn, db.ctx, { name: "t", deck: MANUAL });
             expect(db.tables.matches![0].matchFormat).toBe("manual");
         }
+    });
+});
+
+describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 0106)", () => {
+    const BOLT_PRINT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+    const BOLT = { cardId: BOLT_PRINT, cardName: "Lightning Bolt" };
+    const POOL_BOLT = {
+        scryfallId: BOLT_PRINT,
+        cardId: resolveDeckCardMeta(BOLT_PRINT)!.cardId,
+        cardName: "Lightning Bolt",
+    };
+
+    // A Sealed Event Alice sat in, started so `userDecks.create` accepts a
+    // deck; the test finishes it afterwards (a deck outlives its Event).
+    const event = (_id: string): InMemoryRow => ({
+        _id,
+        type: "sealed",
+        status: "started",
+        packSlots: ["lea"],
+        seats: [{ seatIndex: 0, userId: ALICE, displayName: "Alice" }],
+    });
+    const seat = (eventId: string): InMemoryRow => ({
+        _id: `seat-${eventId}`,
+        eventId,
+        seatIndex: 0,
+        pool: [POOL_BOLT, POOL_BOLT],
+    });
+    const deckBody = (eventId: string) => ({
+        name: `Deck of ${eventId}`,
+        format: "limited",
+        colors: ["R"],
+        cards: [
+            BOLT,
+            ...Array.from({ length: 39 }, () => ({
+                cardId: MOUNTAIN,
+                cardName: "Mountain",
+            })),
+        ],
+        sideboard: [BOLT],
+        limitedEventId: eventId,
+        limitedSeatId: "0",
+    });
+
+    /** Alice saves one Limited deck per Event, both Events then finish. The
+     *  returned payloads are what the Match setup sends: the inline deck plus
+     *  the `userDeckId` of the row it stands for. */
+    async function world(identitySubject: string) {
+        const db = makeInMemoryDb(
+            {
+                users: users(),
+                limitedEvents: [event("ev-1"), event("ev-2")],
+                limitedSeats: [seat("ev-1"), seat("ev-2")],
+            },
+            { identitySubject: ALICE }
+        );
+        const decks = [];
+        for (const eventId of ["ev-1", "ev-2"]) {
+            const userDeckId = await run(
+                userDecksCreate,
+                db.ctx,
+                deckBody(eventId)
+            );
+            decks.push({ ...deckBody(eventId), id: eventId, userDeckId });
+        }
+        for (const e of db.tables.limitedEvents) e.status = "finished";
+        const ctx = {
+            ...db.ctx,
+            auth: {
+                getUserIdentity: async () => ({
+                    subject: identitySubject,
+                    tokenIdentifier: `test|${identitySubject}`,
+                }),
+            },
+        } as unknown as MutationCtx;
+        return { db, ctx, decks };
+    }
+
+    for (const vsAi of [false, true]) {
+        it(`createSoloGame${vsAi ? " vs the Bot" : ""} seats both, one from each Event`, async () => {
+            const { db, ctx, decks } = await world(ALICE);
+            await run(createSoloGame, ctx, {
+                name: "t",
+                deck: decks[0],
+                deck2: decks[1],
+                vsAi,
+                matchFormat: "freeform",
+            });
+            const [match] = db.tables.matches!;
+            expect(match.matchFormat).toBe("freeform");
+            expect(
+                (match.players as { id: string }[]).map((p) => p.id)
+            ).toEqual([`${ALICE}-p1`, `${ALICE}-p2`]);
+            expect(
+                db.tables.matchDecks!.map((d: any) => [
+                    d.playerId,
+                    d.maindeck.length,
+                    d.sideboard.length,
+                ])
+            ).toEqual([
+                [`${ALICE}-p1`, 40, 1],
+                [`${ALICE}-p2`, 40, 1],
+            ]);
+        });
+    }
+
+    it("refuses a Limited deck whose row the caller does not own", async () => {
+        const { db, ctx, decks } = await world(BOB);
+        const message = await rejection(() =>
+            run(createSoloGame, ctx, {
+                name: "t",
+                deck: decks[0],
+                deck2: decks[1],
+                matchFormat: "freeform",
+            })
+        );
+        expect(message).toMatch(/do not own/);
+        expect(db.tables.matches ?? []).toHaveLength(0);
     });
 });

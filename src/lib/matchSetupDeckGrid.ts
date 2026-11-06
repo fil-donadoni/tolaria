@@ -70,14 +70,29 @@ function originLabelOf(deck: LobbyDeck): string | null {
     return deck.limitedOrigin ? limitedOriginLabel(deck.limitedOrigin) : null;
 }
 
-/** The origins a Limited grid's select offers: those of the decks the Match
- *  Format admits, labelled, sorted by label — never an option that selects
- *  nothing. Unclassified decks have no option (they are not an origin). */
+/** Does the grid narrow by Limited Origin? Under a Limited Match Format
+ *  always; under Freeform only while the Deck Format select is on Limited. */
+export function originNarrows(
+    matchFormat: FormatId,
+    format: DeckGridFormat
+): boolean {
+    return (
+        matchFormat === "limited" ||
+        (matchFormat === "freeform" && format === "limited")
+    );
+}
+
+/** The origins a Limited grid's select offers: those of the Limited decks the
+ *  Match Format admits, labelled, sorted by label — never an option that
+ *  selects nothing. Unclassified decks have no option (they are not an
+ *  origin). */
 export function limitedOriginOptions(
-    decks: readonly LobbyDeck[]
+    decks: readonly LobbyDeck[],
+    matchFormat: FormatId = "limited"
 ): { key: string; label: string }[] {
     const byKey = new Map<string, string>();
-    for (const deck of filterDecksAdmittedBy(decks, "limited")) {
+    for (const deck of filterDecksAdmittedBy(decks, matchFormat)) {
+        if (deck.format !== "limited") continue;
         const label = originLabelOf(deck);
         if (label !== null && deck.limitedOrigin) {
             byKey.set(deck.limitedOrigin, label);
@@ -145,9 +160,9 @@ export function deckGrid(
         if (matchFormat === "freeform" && format !== "all") {
             if (deck.format !== format) continue;
         }
-        // Origin narrows only under Limited, like Format under Freeform; an
-        // origin select excludes the unclassified decks (they have none).
-        if (matchFormat === "limited" && origin !== "all") {
+        // Origin narrows only for Limited decks, like Format under Freeform;
+        // an origin select excludes the unclassified decks (they have none).
+        if (originNarrows(matchFormat, format) && origin !== "all") {
             if (deck.limitedOrigin !== origin) continue;
         }
         const hit = deckSearchHit(deck, query);
