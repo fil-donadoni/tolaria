@@ -1,5 +1,5 @@
 // A "Discard your hand, Sacrifice this" mana ability paying for the spell it
-// would otherwise discard (CR 601.2a / 601.2g / 118.3), end to end across the
+// would otherwise discard (CR 601.2a / 601.2g), end to end across the
 // GRE → game.ts boundary.
 //
 // CR 601.2g: mana abilities are activated with the spell already on the stack,
@@ -148,7 +148,7 @@ describe("a hand-discarding mana ability pays for the last card in hand (CR 601.
             ).toContain("cast");
         });
 
-        it("neither reaches it while the discard would cost another card (CR 118.3)", () => {
+        it("neither reaches it while the discard would cost another card", () => {
             const state = angelAndBears();
             const p1 = state.players[0];
             const angel = p1.hand[0];
