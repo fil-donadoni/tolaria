@@ -53141,6 +53141,16 @@
         "source": "compiled"
     },
     {
+        "name": "North Pole Patrol",
+        "scryfallId": "c2c0c138-5b61-4949-8431-4a6d458ead6a",
+        "oracleId": "a1230e78-0bfa-489e-a1b9-3c227bceb6fb",
+        "firstSet": "tla",
+        "firstPrintId": "c2c0c138-5b61-4949-8431-4a6d458ead6a",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "North Star",
         "scryfallId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
         "oracleId": "9109437a-da80-463f-a92a-77d693d05d91",

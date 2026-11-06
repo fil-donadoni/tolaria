@@ -107,7 +107,6 @@ import type { BaselineRow } from "../../../scripts/lib/baseline-triage";
  * that beat the grammar, which is what ranks the next grammar rule.
  */
 export const COMPILER_GAP_ROWS: readonly string[] = [
-    "Aang's Iceberg",
     "Abandoned Air Temple",
     "Abu Ja'far",
     "Adarkar Unicorn",
