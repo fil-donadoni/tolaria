@@ -159,6 +159,9 @@ export const deepCavernBat = defineCard(() => ({
                     from: "hand",
                     to: "exile",
                     linkToSource: true,
+                    // CR 610.3b — killed in response, the look and the pick
+                    // still happen, and the card stays in hand.
+                    untilSourceLeaves: true,
                 },
             ],
         }),

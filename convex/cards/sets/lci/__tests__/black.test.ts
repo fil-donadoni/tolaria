@@ -171,6 +171,24 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         expect(state.players[0].hand).toHaveLength(0);
     });
 
+    it("killed with the ETB on the stack, the look still happens and the chosen card stays in hand, never stranded in exile (CR 610.3b)", () => {
+        const { state } = setup([handCard(grizzlyBears, "bears")]);
+        etbTriggerOnStack(state, state.players[0].battlefield[0]);
+
+        // The return trigger resolves first, with nothing held.
+        batLeaves(state);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["bat"]);
+        expect(state.stack.map((s) => s.id)).toEqual(["bat-etb-trig"]);
+
+        resolveTopOfStack(state);
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        submitChoice(state, ["bears"]);
+
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["bears"]);
+        expect(state.players[1].exile).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
     it("the exile survives arbitrarily many turns and CLEANUP steps before the Bat leaves", () => {
         const { state } = setup([handCard(grizzlyBears, "bears")]);
         etbTriggerOnStack(state, state.players[0].battlefield[0]);

@@ -8205,6 +8205,11 @@ export interface SpellContext {
         sourceInstanceId: string
     ) => void;
 
+    /** CR 610.3a / 610.3b — whether the event of an "until this leaves the
+     *  battlefield" exile has already occurred: `sourceInstanceId` is gone from
+     *  the battlefield and is not a spell resolving as its own source. */
+    sourceAlreadyLeftBattlefield: (sourceInstanceId: string) => boolean;
+
     /** CR 111 (issue #791) — every card currently in ANY player's exile that was
      *  stamped (via {@link linkExileToSource}) as "exiled with
      *  `sourceInstanceId`". The retrieval half of the per-source exile linkage:
@@ -18302,6 +18307,16 @@ export type EffectOp =
            *  sweep (a "generalize, don't add" parametrization of this
            *  EXISTING shape rather than a new Op). */
           linkToSource?: boolean;
+          /** CR 610.3a / 610.3b — this exile runs "until this leaves the
+           *  battlefield": if the source already left when the move would
+           *  occur, nothing moves, so no card is stranded after its return has
+           *  come and gone. Opt-in, valid ONLY alongside `to: "exile"` and
+           *  `linkToSource: true` (validator-enforced): a plain linked exile
+           *  has no duration (CR 607.2a) and still exiles with its source gone.
+           *  Earlier Ops of the script (a look, a reveal, the pick) still
+           *  happen. A spell resolving as its own source never counts as gone
+           *  (`sourceAlreadyLeftBattlefield`). */
+          untilSourceLeaves?: boolean;
       }
     /** CR 400.7 — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
      *  move. Every card currently in `from` moves to `to` — no announced

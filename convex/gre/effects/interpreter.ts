@@ -4416,6 +4416,14 @@ export const OP_EXECUTORS: {
             if (playerId === undefined) return;
             const ids = resolvePicks(ctx, op.cards);
             if (!ids) return; // binding never captured — CR 608.2b, skip
+            // CR 610.3a / 610.3b — the "until" event already occurred, so the
+            // object doesn't move. The validator pins this to `to: "exile"`.
+            if (
+                op.untilSourceLeaves &&
+                ctx.sourceAlreadyLeftBattlefield(ctx.sourceInstanceId)
+            ) {
+                return;
+            }
             // issue #1125 — the tutor-to-top template. `from: "library"` is
             // validator-enforced for this destination: the picked card never
             // left the library (a search only chooses, it doesn't move), so

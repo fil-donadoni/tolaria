@@ -4929,6 +4929,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             // (the "cards" shape's own search-and-exile sweep), valid only
             // alongside `to: "exile"` (Skyship Weatherlight).
             linkToSource: isBoolean,
+            // CR 610.3a / 610.3b — the "cards" shape's "until this leaves the
+            // battlefield" declaration, valid only on a linked exile.
+            untilSourceLeaves: isBoolean,
             // issue #2993 — the type line the returning permanent ENTERS with
             // ("return it to the battlefield. It's an enchantment."), valid
             // only on the `target` shape with `to: "battlefield"`.
@@ -5000,6 +5003,16 @@ const OP_SCHEMAS: OpSchemaTable = {
                         'field "linkToSource" is only valid with "cards" and to: "exile" (issue #1947)'
                     );
                 }
+            }
+            if (
+                "untilSourceLeaves" in entry &&
+                (!hasCards ||
+                    entry.to !== "exile" ||
+                    entry.linkToSource !== true)
+            ) {
+                errors.push(
+                    'field "untilSourceLeaves" is only valid with "cards", to: "exile" and linkToSource: true (CR 610.3b)'
+                );
             }
             if ("linkToSource" in entry && !hasCards && !hasTarget) {
                 errors.push(

@@ -8077,6 +8077,44 @@ function phaseInBundlesForSource(state: GameState, sourceId: string): void {
     }
 }
 
+/** CR 610.3a / 610.3b — whether the event of an "until this leaves the
+ *  battlefield" exile has ALREADY occurred: its source is gone before the
+ *  initial one-shot effect would occur, so the object doesn't move.
+ *
+ *  The ONE legitimate exemption is a resolving SPELL acting as its own
+ *  source: it has never been on the battlefield and has not "left" it in
+ *  CR 610.3's sense. That is tested against the CURRENTLY-RESOLVING item
+ *  only, and only when it is a plain spell — NOT by scanning the stack for
+ *  the id.
+ *
+ *  A stack scan would defeat the guard entirely for the ACTIVATED half of
+ *  the family (Parallax Wave/Tide, Tawnos's Coffin, Safe Haven, CR 610.3a):
+ *  `buildActivatedAbilityStackItem` clones the source and KEEPS its `id`
+ *  (`gre/activationCommit.ts`), so the resolving ability's stack item shares
+ *  the permanent's id and the scan always matched — exiling a card under a
+ *  link keyed to a source that can never leave again, i.e. stranding it
+ *  forever. A triggered ability is unaffected either way (`buildTriggerItem`
+ *  allocates a FRESH id), which is exactly why the trigger-path test passed
+ *  while the activated path stayed broken.
+ *
+ *  Reading the resolving item rather than the whole stack also closes the
+ *  blink hole: instance ids survive a zone change, so an O-Ring bounced and
+ *  recast while its old trigger is still on the stack would otherwise match
+ *  its own earlier id. */
+export function sourceAlreadyLeftBattlefield(
+    state: GameState,
+    sourceId: string
+): boolean {
+    if (findOnBattlefield(state, sourceId)) return false;
+    const resolving = state.stack[state.stack.length - 1];
+    const isOwnResolvingSpell =
+        resolving !== undefined &&
+        resolving.id === sourceId &&
+        resolving.abilityId === undefined &&
+        resolving.triggeredAbilityId === undefined;
+    return !isOwnResolvingSpell;
+}
+
 /** CR 603.7a / ADR 0028 — exile `targetId` and every permanent attached to it
  *  (Auras), noting the host's counters when `noteCounters` asks (CR 122.2),
  *  and record an `ExileReturnBundle` keyed
@@ -8129,37 +8167,9 @@ export function exileWithAttachments(
     // CR 610.3a / 610.3b — the specified event (this source leaving the
     // battlefield) has already happened, so the initial one-shot effect does
     // nothing at all.
-    //
-    // The ONE legitimate exemption is a resolving SPELL acting as its own
-    // source: it has never been on the battlefield and has not "left" it in
-    // CR 610.3's sense. That is tested against the CURRENTLY-RESOLVING item
-    // only, and only when it is a plain spell — NOT by scanning the stack for
-    // the id.
-    //
-    // A stack scan would defeat the guard entirely for the ACTIVATED half of
-    // the family (Parallax Wave/Tide, Tawnos's Coffin, Safe Haven, CR 610.3a):
-    // `buildActivatedAbilityStackItem` clones the source and KEEPS its `id`
-    // (`gre/activationCommit.ts`), so the resolving ability's stack item shares
-    // the permanent's id and the scan always matched — exiling a card under a
-    // bundle keyed to a source that can never leave again, i.e. stranding it
-    // forever. A triggered ability is unaffected either way (`buildTriggerItem`
-    // allocates a FRESH id), which is exactly why the trigger-path test passed
-    // while the activated path stayed broken.
-    //
-    // Reading the resolving item rather than the whole stack also closes the
-    // blink hole: instance ids survive a zone change, so an O-Ring bounced and
-    // recast while its old trigger is still on the stack would otherwise match
-    // its own earlier id.
-    const resolving = state.stack[state.stack.length - 1];
-    const isOwnResolvingSpell =
-        resolving !== undefined &&
-        resolving.id === opts.sourceId &&
-        resolving.abilityId === undefined &&
-        resolving.triggeredAbilityId === undefined;
     if (
         opts.requireSourceOnBattlefield &&
-        !findOnBattlefield(state, opts.sourceId) &&
-        !isOwnResolvingSpell
+        sourceAlreadyLeftBattlefield(state, opts.sourceId)
     ) {
         return null;
     }
@@ -20395,6 +20405,10 @@ export function buildSpellContext(
                 type: "graveyard-card",
                 id,
             }).slice(1);
+        },
+        // CR 610.3a / 610.3b — see `sourceAlreadyLeftBattlefield`.
+        sourceAlreadyLeftBattlefield(sourceInstanceId: string): boolean {
+            return sourceAlreadyLeftBattlefield(state, sourceInstanceId);
         },
         // CR 111 (issue #791) — stamp the per-source exile provenance link on an
         // already-exiled card. Scans every owner's exile (CR 400.7 — the card
