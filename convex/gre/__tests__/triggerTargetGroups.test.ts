@@ -319,6 +319,38 @@ describe("trigger target groups — later groups read the walk", () => {
         );
     });
 
+    it("a prompted later group carries the source-bound filters to the chooser", () => {
+        const state = board(["source", "x", "y"], []);
+        withGroups(
+            OPPONENT_GROUP,
+            [{ type: "Creature", count: 1, excludeSource: true }],
+            () => {
+                raiseTriggerTargetSelection(state);
+                expect(state.pendingTarget?.excludeInstanceIds).toEqual([
+                    "source",
+                ]);
+            }
+        );
+    });
+
+    it("a prompted later group binds a sourcePower bound to the source's live power", () => {
+        const state = board(["source", "x", "y"], []);
+        withGroups(
+            OPPONENT_GROUP,
+            [
+                {
+                    type: "Creature",
+                    count: 1,
+                    mvFilter: { max: "sourcePower" },
+                },
+            ],
+            () => {
+                raiseTriggerTargetSelection(state);
+                expect(state.pendingTarget?.mvFilter).toEqual({ max: 2 });
+            }
+        );
+    });
+
     it("chains to the next trigger of the batch once the walk finishes", () => {
         const state = board([], ["a", "b"]);
         state.stack.unshift(groupsTrigger("t0"));
