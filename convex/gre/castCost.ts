@@ -88,6 +88,22 @@ export function flashbackStackFlags(zone: CastFromZone): {
     return zone === "graveyard" ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS : {};
 }
 
+/** CR 614.1a (issue #2380) — the stack flag of a per-card graveyard grant's
+ *  "if that spell would be put into your graveyard, exile it instead" rider
+ *  (Jace, Telepath Unbound's −3). READ BEFORE THE CARD MOVES: `removeFromZone`
+ *  clears the grant with the rest of the permission. */
+export function graveyardGrantRiderFlags(
+    zoneOwner: PlayerState,
+    cardInstanceId: string,
+    zone: CastFromZone
+): { exileOnResolve?: true } {
+    if (zone !== "graveyard") return {};
+    const card = zoneOwner.graveyard.find((c) => c.id === cardInstanceId);
+    return card?.castFromGraveyardExilesOnResolve
+        ? { exileOnResolve: true }
+        : {};
+}
+
 /** CR 702.34 / 702.138 / 305.1-analog / 118.9 — the MECHANISM flags a
  *  graveyard cast adds, choosing between Escape, Flashback, and every OTHER
  *  graveyard-cast mechanism by the card's live capability. The provenance
@@ -119,15 +135,6 @@ export function graveyardCastStackFlags(
     }
     if (hasFlashback(card)) {
         return flashbackStackFlags(zone);
-    }
-    // CR 614.1 / 400.7 (issue #2380) — a per-card grant may carry an
-    // "if that spell would be put into your graveyard, exile it instead"
-    // rider (Jace, Telepath Unbound's −3). Checked BEFORE the plain-grant
-    // fallback below and routed through the SAME `exileOnResolve` flag
-    // Flashback uses, so there is exactly one exile-as-it-leaves-the-stack
-    // path rather than a second parallel one.
-    if (card.castFromGraveyardExilesOnResolve) {
-        return { exileOnResolve: true };
     }
     // CR 702.81a (issue #2358) — a RETRACE cast.
     //

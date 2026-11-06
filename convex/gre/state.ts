@@ -3906,7 +3906,11 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // CR 702.34a / 702.133a — exiled "instead of putting it anywhere else": a
     // fizzled or countered spell never reaches the graveyard, so no graveyard
     // replacement or "put into a graveyard" trigger sees it.
-    if (item.exileAnyTimeLeavesStack) {
+    // CR 614.1a / 614.6 — "if that spell would be put into your graveyard, exile
+    // it instead" (`exileOnResolve` stamped at cast commit) replaces this same
+    // move when a spell is countered (CR 701.6a) or fizzles (CR 608.2b), and
+    // leaves every other departure alone.
+    if (item.exileAnyTimeLeavesStack || item.exileOnResolve) {
         item.zone = "exile";
         resetStackTransientState(item);
         owner.exile.push(item);
@@ -21357,6 +21361,7 @@ export function buildSpellContext(
                 placement: {
                     kind: "during-resolution",
                     resolvingItemId: item.id,
+                    ...(opts?.exilesOnResolve ? { exilesOnResolve: true } : {}),
                 },
             });
             return committed !== null;

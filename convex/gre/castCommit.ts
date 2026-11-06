@@ -44,6 +44,7 @@ import { castExileCostPickIds } from "./alternativeCost";
 import { applyBestowCharacteristics } from "./bestow";
 import {
     EXILE_ANY_TIME_LEAVES_STACK_FLAGS,
+    graveyardGrantRiderFlags,
     graveyardCastStackFlags,
     reboundCastStackFlags,
 } from "./castCost";
@@ -189,8 +190,13 @@ export type CastCommitPlacement =
      *  Command, the `castDuringResolution` Op): spliced directly BELOW the
      *  resolving item so it becomes the new top once that item pops and
      *  resolves next, with no priority in between. The resolver owns the
-     *  trigger pass and the priority that follows. */
-    | { kind: "during-resolution"; resolvingItemId: string };
+     *  trigger pass and the priority that follows. `exilesOnResolve` is the
+     *  resolving effect's own "exile it instead" rider (CR 614.1a). */
+    | {
+          kind: "during-resolution";
+          resolvingItemId: string;
+          exilesOnResolve?: boolean;
+      };
 
 /** Everything a Cast Commit applies. Built by the announcement paths, which
  *  alone decide what the cast owes. */
@@ -462,6 +468,12 @@ export function commitCast(
         plan.cardInstanceId,
         castFromZone
     );
+    // CR 614.1a — likewise: the removal clears the graveyard grant.
+    const graveyardRiderFlags = graveyardGrantRiderFlags(
+        zoneOwner,
+        plan.cardInstanceId,
+        castFromZone
+    );
     const spellCard = removeFromZone(
         state,
         zoneOwner,
@@ -520,14 +532,14 @@ export function commitCast(
         // flashback cost) and WRONG for a cast made during resolution under the
         // resolving effect's own permission (Malcolm's free cast of a discarded
         // Think Twice paid no flashback cost, so CR 702.34a exiles nothing):
-        // that cast carries only the per-card exile rider a graveyard grant
-        // stamped (`castFromGraveyardExilesOnResolve`).
+        // that cast carries only an exile rider (CR 614.1a), below: a graveyard
+        // grant's or the resolving effect's own.
         ...(placement.kind === "announce"
             ? graveyardCastStackFlags(state, spellCard, castFromZone)
-            : castFromZone === "graveyard" &&
-                spellCard.castFromGraveyardExilesOnResolve
+            : placement.exilesOnResolve
               ? { exileOnResolve: true as const }
               : {}),
+        ...graveyardRiderFlags,
         ...(plan.source.viaJumpStart ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS : {}),
         // CR 702.88a — rebound applies to a cast from the caster's hand under
         // either placement (Word of Command's controlled cast leaves a hand).

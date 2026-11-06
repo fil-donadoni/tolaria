@@ -8341,6 +8341,9 @@ export interface SpellContext {
              *  a waived cost is 0 (CR 107.3b). Additional costs (e.g. sacrifice)
              *  still apply. Defaults to false (pay normally). */
             free?: boolean;
+            /** CR 614.1a — the `castDuringResolution` Op's rider: this spell
+             *  is exiled if it would be put into its owner's graveyard. */
+            exilesOnResolve?: boolean;
             /** CR 118.9 / 601.2f — pay THIS mana cost rather than the card's
              *  printed one (the miracle cost, CR 702.94a): the third payment
              *  mode beside `free` and the printed cost. Cost modifiers still
@@ -17712,6 +17715,13 @@ export type EffectOp =
            *  with a bare picks `card` and `source: "exile"`
            *  (validator-enforced). */
           asCopy?: true;
+          /** CR 614.1a — "If [that] spell would be put into your graveyard,
+           *  exile it instead" (Bilbo, Thief in the Night): stamps the spell's
+           *  `exileOnResolve`, the rider `grantCastFromGraveyard` carries for a
+           *  cast made later. Only the graveyard is replaced, so a spell
+           *  returned to a hand or library still goes there. Not valid with
+           *  `anyNumber` (validator-enforced). */
+          exilesOnResolve?: boolean;
       }
     /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
      *  ability, in one Op: "exile cards from the top of your library until you

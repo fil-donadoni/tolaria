@@ -20,11 +20,7 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import {
-    assertLoyaltyActivationLegal,
-    graveyardCastStackFlags,
-    payLoyaltyCost,
-} from "../../../../game";
+import { assertLoyaltyActivationLegal, payLoyaltyCost } from "../../../../game";
 import { compactState, expandState } from "../../../../gre/serialize";
 import {
     getEffectivePower,
@@ -280,14 +276,6 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
         // The grant is a permission, not a cost waiver (Jace does not say
         // "without paying its mana cost").
         expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
-
-        // Full path GRE → game.ts: the flag the grant stamped is what the CAST
-        // site reads to redirect the spell off the stack. Asserting the flag
-        // alone would leave the two halves passing individually and failing
-        // together (CR 702.34a's Flashback exile shares this seam).
-        expect(graveyardCastStackFlags(state, granted, "graveyard")).toEqual({
-            exileOnResolve: true,
-        });
 
         // The grant must survive the DB round-trip (the window outlives the
         // mutation that opened it).

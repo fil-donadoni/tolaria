@@ -10,7 +10,12 @@
 // first cut of the kernel stamped the announcement's set on both placements.
 import { describe, expect, it } from "vitest";
 import { commitCast, type CastCommitPlan } from "../castCommit";
-import { resolveTopOfStack } from "../state";
+import {
+    buildSpellContext,
+    getPlayer,
+    resolveTopOfStack,
+    type StackItem,
+} from "../state";
 import { getCardByName, getDefinition } from "../../cards";
 import {
     makeInstance,
@@ -143,6 +148,86 @@ describe("Cast Commit — Cast Provenance for every zone (CR 601.2a)", () => {
             });
         }
     }
+});
+
+describe("Cast Commit — an exile rider replaces only the move to the graveyard (CR 614.1a)", () => {
+    /** A spell cast under `grantCastFromGraveyard`'s rider (Jace, Telepath
+     *  Unbound's −3), announced from the graveyard. */
+    function riderOnStack(): GameState {
+        const bolt = getCardByName("Lightning Bolt");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(bolt.id, {
+                            id: "spell",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                            castableFromGraveyardBy: "p1",
+                            castFromGraveyardExilesOnResolve: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const item = commitCast(state, {
+            casterId: "p1",
+            cardInstanceId: "spell",
+            cardDef: getDefinition(bolt.id),
+            manaCost: {},
+            source: { zone: "graveyard" },
+            legs: {},
+            record: { targets: [{ type: "player", id: "p2" }] },
+            mode: {},
+            placement: { kind: "announce" },
+        });
+        expect(item!.exileOnResolve).toBe(true);
+        return state;
+    }
+
+    function p2Context(state: GameState) {
+        const item = {
+            ...makeInstance(getCardByName("Lightning Bolt").id, {
+                id: "counterer",
+                zone: "stack",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            castById: "p2",
+        } as StackItem;
+        state.stack.push(item);
+        return buildSpellContext(state, item);
+    }
+
+    it("a countered spell is exiled (CR 701.6a)", () => {
+        const state = riderOnStack();
+        p2Context(state).counter({ type: "spell", id: "spell" }, "graveyard");
+        const p1 = getPlayer(state, "p1");
+        expect(p1.exile.map((c) => c.id)).toEqual(["spell"]);
+        expect(p1.graveyard).toHaveLength(0);
+    });
+
+    it("a fizzled spell is exiled (CR 608.2b)", () => {
+        const state = riderOnStack();
+        state.stack[0].targets = [{ type: "permanent", id: "gone" }];
+        resolveTopOfStack(state);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.exile.map((c) => c.id)).toEqual(["spell"]);
+        expect(p1.graveyard).toHaveLength(0);
+    });
+
+    it("a spell countered back to hand goes there: only the graveyard is replaced", () => {
+        const state = riderOnStack();
+        p2Context(state).counter({ type: "spell", id: "spell" }, "hand");
+        const p1 = getPlayer(state, "p1");
+        expect(p1.hand.map((c) => c.id)).toEqual(["spell"]);
+        expect(p1.exile).toHaveLength(0);
+    });
 });
 
 describe("Cast Provenance belongs to the spell, not the permanent (CR 400.7)", () => {

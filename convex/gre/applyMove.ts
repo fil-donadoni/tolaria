@@ -200,6 +200,7 @@ import {
     castSourceForSearch,
     findCastSourceCard,
     EXILE_ANY_TIME_LEAVES_STACK_FLAGS,
+    graveyardGrantRiderFlags,
     graveyardCastMechanism,
     graveyardCastStackFlags,
     reboundCastStackFlags,
@@ -1661,6 +1662,12 @@ export function commitCastInSearch(
         move.cardInstanceId,
         castFromZone
     );
+    // CR 614.1a — likewise: the removal clears the graveyard grant.
+    const graveyardRiderFlags = graveyardGrantRiderFlags(
+        castSource.owner,
+        move.cardInstanceId,
+        castFromZone
+    );
     const spellCard = removeFromZone(
         state,
         castSource.owner,
@@ -1737,6 +1744,7 @@ export function commitCastInSearch(
         // flashback card as infinitely recastable. A new mechanism added to
         // those helpers reaches the search for free.
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
+        ...graveyardRiderFlags,
         ...(castMechanism === "jump-start"
             ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS
             : {}),

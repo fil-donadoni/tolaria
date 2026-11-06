@@ -2775,7 +2775,10 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  thing it does (CR 608.2 — "Exile <this spell>", e.g. Recall). When set,
      *  `finalizeSpellResolution` routes the non-permanent card to its owner's
      *  exile zone instead of the graveyard. Set via
-     *  `SpellContext.exileSelf()`. */
+     *  `SpellContext.exileSelf()`. Also stamped at cast commit by an "if that
+     *  spell would be put into your graveyard, exile it instead" rider
+     *  (CR 614.1a), which is why `sendStackItemToGraveyard` reads it too: a
+     *  countered or fizzled spell is exiled, one returned to a hand is not. */
     exileOnResolve?: boolean;
     /** True iff this spell is exiled instead of going anywhere else "any time
      *  it would leave the stack" (flashback CR 702.34a, jump-start CR 702.133a):

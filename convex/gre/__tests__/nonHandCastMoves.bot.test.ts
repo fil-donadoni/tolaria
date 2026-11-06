@@ -39,7 +39,7 @@ import {
     grizzlyBears,
     ancestralRecall,
 } from "../../cards/sets/lea/index.cards";
-import { withTemporaryDefinition } from "../../cards";
+import { getCardByName, withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { firebolt } from "../../cards/sets/ody/red.cards";
 import { ephemerate } from "../../cards/sets/mh1/white.cards";
@@ -730,6 +730,29 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         expect(item.castFromZone).toBe("graveyard");
         expect(item.exileOnResolve).toBeUndefined();
         expect(item.escaped).toBeUndefined();
+    });
+
+    it("PER-CARD GRANT WITH THE EXILE RIDER (CR 614.1a): the search stamps exileOnResolve too", () => {
+        const bolt = makeInstance(getCardByName("Lightning Bolt").id, {
+            id: "gyBolt",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+            castableFromGraveyardBy: "p1",
+            castFromGraveyardExilesOnResolve: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [bolt],
+                    battlefield: lands(mountain(), 1, "p1"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const move = castOf(state, "p1", "gyBolt")!;
+        const { tree } = applyBoth(state, "p1", move);
+        expect(stackItem(tree, "gyBolt")!.exileOnResolve).toBe(true);
     });
 
     it("CROSS-PLAYER EXILE GRANT (CR 400.7): the card leaves the OPPONENT's exile, not the caster's", () => {
