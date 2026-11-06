@@ -22,9 +22,12 @@ import { enumerateMoves, type Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, searchWithTrace } from "../search";
 import {
+    buildCastPermanentCostChoice,
     enumerateKickerVariants,
-    kickerLegPermanentSlotWouldCollide,
+    resolveCastPermanentSelection,
 } from "../kicker";
+import { buildCastCostSelection } from "../castCostPicks";
+import { completeSacrificeSelection } from "../paymentPicks";
 import { resolveAdditionalCosts } from "../additionalCost";
 import { getPlayer, type GameState } from "../state";
 import { describeMove } from "../describeMove";
@@ -50,19 +53,16 @@ const SWAMP = getCardByName("Swamp").id;
 const FOREST = getCardByName("Forest").id;
 const DROUGHT = getCardByName("Drought").id;
 const BOG_DOWN = getCardByName("Bog Down").id;
+const SOL_RING = getCardByName("Sol Ring").id;
 
-// Synthetic fixture (issue #2081 fixup, review round 2) — no shipped card
-// pairs a permanent-leg Kicker with a CASTER-CHOSEN `oneOf` additional-cost
-// leg that ITSELF carries a `sacrificeFilter` (catalogue census). The
-// combination is still reachable the moment one ships (`AdditionalCostLeg`
-// carries its own `sacrificeFilter`, `resolveAdditionalCosts` flattens
-// either leg onto the spec exactly like the board-wide/base-field case
-// round 1 fixed), so this proves the enumerator refuses it BEFORE a real
-// card exercises the gap. Shape: "As an additional cost to cast this spell,
-// sacrifice a land or pay 3 life. Kicker—Sacrifice a Forest." — the
-// Bitter Triumph disjunction (`lci/black.cards.ts`) with a sacrifice leg standing
-// in for its discard leg, plus a Magma Burst-shaped (`pls/red.cards.ts`) permanent
-// Kicker leg.
+// Synthetic fixture — no shipped card pairs a permanent-leg Kicker with a
+// CASTER-CHOSEN `oneOf` additional-cost leg that ITSELF carries a
+// `sacrificeFilter`, and `resolveAdditionalCosts` flattens such a leg onto the
+// spec like the base field. Shape: "As an additional cost to cast this spell,
+// sacrifice a land or pay 3 life. Kicker—Sacrifice a Forest." — the Bitter
+// Triumph disjunction (`lci/black.cards.ts`) with a sacrifice leg standing in for
+// its discard leg, plus a Magma Burst-shaped (`pls/red.cards.ts`) permanent Kicker
+// leg.
 const SYNTHETIC_KICKER_ONEOF_ID = "00000000-0000-4000-8000-00002081f001";
 const SYNTHETIC_KICKER_ONEOF: CardDefinition = {
     id: SYNTHETIC_KICKER_ONEOF_ID,
@@ -505,20 +505,12 @@ describe("the BOUND — Multikicker's repetition axis is a fixed sample, not the
     });
 });
 
-describe("AC #3 fixup (review round 1) — a permanent-leg Kicker never collides with a board-wide static additional sacrifice (Drought + Bog Down)", () => {
-    // Before this fix, `enumerateKickerVariants` only checked the Kicker's
-    // OWN legs for affordability (`canPayKickerLegs`) — nothing checked
-    // whether the cast ALSO owed a sacrifice of its own, so it happily
-    // offered a kicked Bog Down cast under Drought. `announceCast`'s prelude
-    // gate (`assertKickerAnnouncementLegal` -> `assertKickerPermanentSlotFree`,
-    // `game.ts`) then rejected it — live, `executeMove`'s promise rejects,
-    // the driver retries to `BOT_SUBMIT_RETRY_LIMIT`, and the watchdog takes
-    // the window: the bot stalling on a move it generated itself (AC #3).
-    // Drought's board-wide "Sacrifice a Swamp" (CR 118.8, one per black mana
-    // symbol) collides with Bog Down's own permanent Kicker leg ("Kicker —
-    // Sacrifice two lands") because the cast has exactly ONE permanent-cost
-    // selection slot (`assertKickerPermanentSlotFree`'s own doc).
-    function board() {
+describe("a permanent-leg Kicker is priced ON TOP of a board-wide static additional sacrifice (Drought + Bog Down, CR 601.2f)", () => {
+    // Drought's "Sacrifice a Swamp" (CR 118.8, one per black mana symbol) is owed
+    // beside Bog Down's "Kicker — Sacrifice two lands", from distinct lands. The
+    // mana sources are kept off the land count with Sol Ring, so the only thing
+    // deciding the offer is how many lands the two costs together need.
+    function board(swamps: number, forests: number) {
         return makeState({
             players: [
                 makePlayer(BOT, {
@@ -532,12 +524,11 @@ describe("AC #3 fixup (review round 1) — a permanent-leg Kicker never collides
                     ],
                     battlefield: [
                         bf(DROUGHT, "drought1", BOT),
-                        // {2}{B} printed cost — 3 Swamps covers it.
-                        ...lands(SWAMP, 3, "swp"),
-                        // Extra lands to sacrifice for the Kicker's OWN
-                        // "Sacrifice two lands" leg, distinct from the mana
-                        // lands above.
-                        ...lands(FOREST, 2, "for"),
+                        bf(SOL_RING, "ring", BOT),
+                        // The Swamps' ids sort first, so a cheapest-first pick
+                        // (mana value, then id) reaches for them before a Forest.
+                        ...lands(SWAMP, swamps, "aswp"),
+                        ...lands(FOREST, forests, "for"),
                     ],
                 }),
                 makePlayer(OPP),
@@ -547,96 +538,126 @@ describe("AC #3 fixup (review round 1) — a permanent-leg Kicker never collides
         });
     }
 
-    it("enumerateMoves offers NO kicked Bog Down cast, but still offers the unkicked one", () => {
-        const moves = castMoves(board(), "bogdown");
-        // The unkicked cast is still legal and still offered — this is a
-        // refusal of the COLLIDING variant only, never a blanket "Bog Down
-        // is uncastable under Drought".
-        expect(moves.length).toBeGreaterThan(0);
-        expect(
-            moves.every((m) => m.kind === "cast-spell" && !m.kickerPayments)
-        ).toBe(true);
+    function kicked(moves: Move[]) {
+        return moves.filter((m) => m.kind === "cast-spell" && m.kickerPayments);
+    }
+
+    it("offers the kicked cast once the board covers the tax AND the Kicker", () => {
+        expect(kicked(castMoves(board(1, 2), "bogdown"))).not.toHaveLength(0);
     });
 
-    it("proves the premise: announceCast's own prelude gate (game.ts) DOES reject the payment the enumerator used to offer here", () => {
-        const state = board();
+    it("the announcement accepts the payment the enumerator offers", () => {
+        const state = board(1, 2);
         const def = getCardByName("Bog Down");
         const player = getPlayer(state, BOT);
-        const cardInHand = player.hand[0];
         expect(() =>
             assertKickerAnnouncementLegal(
                 state,
                 def,
-                cardInHand,
+                player.hand[0],
                 player,
                 { kicker: 1 },
                 "hand",
                 def.additionalCosts
             )
-        ).toThrow(
-            "This spell's kicker cost cannot be paid alongside its other additional costs"
-        );
+        ).not.toThrow();
     });
 
-    it("enumerateKickerVariants itself refuses the kicked payment on this board", () => {
-        const state = board();
-        const def = getCardByName("Bog Down");
-        const card = getPlayer(state, BOT).hand[0];
-        const variants = enumerateKickerVariants(
-            state,
-            getPlayer(state, BOT),
-            def,
-            card
-        );
-        expect(variants).toEqual([undefined]);
-    });
-
-    it("without Drought on the battlefield, the SAME kicked Bog Down cast IS offered (the collision, not Kicker itself, is what's refused)", () => {
-        const state = makeState({
-            players: [
-                makePlayer(BOT, {
-                    hand: [
-                        makeInstance(BOG_DOWN, {
-                            id: "bogdown",
-                            zone: "hand",
-                            controllerId: BOT,
-                            ownerId: BOT,
-                        }),
-                    ],
-                    battlefield: [
-                        ...lands(SWAMP, 3, "swp"),
-                        ...lands(FOREST, 2, "for"),
-                    ],
-                }),
-                makePlayer(OPP),
-            ],
-            activePlayerId: BOT,
-            priorityPlayerId: BOT,
-        });
+    it("two lands cover each cost alone but not both: only the unkicked cast is offered, and the announcement agrees", () => {
+        const state = board(2, 0);
         const moves = castMoves(state, "bogdown");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(kicked(moves)).toHaveLength(0);
+
+        const def = getCardByName("Bog Down");
+        const player = getPlayer(state, BOT);
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                def,
+                player.hand[0],
+                player,
+                { kicker: 1 },
+                "hand",
+                def.additionalCosts
+            )
+        ).toThrow(/not enough permanents to sacrifice/);
+    });
+
+    it("both search appliers charge the tax AND the Kicker, never spending the taxed Swamp on the Kicker", () => {
+        // A cheapest-first Kicker leg paid ahead of the tax would take the Swamp
+        // and leave Drought's cost unpaid, with a Forest surviving.
+        const state = board(1, 2);
+        const move = kicked(castMoves(state, "bogdown"))[0];
+        const expected = ["aswp0", "for0", "for1"];
+
+        const greedy = applyMoveForSearch(state, BOT, move);
         expect(
-            moves.some((m) => m.kind === "cast-spell" && m.kickerPayments)
-        ).toBe(true);
+            getPlayer(greedy, BOT)
+                .graveyard.filter((c) => !c.types.includes("Sorcery"))
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(expected);
+
+        const world = structuredClone(state);
+        applyMoveInSearch(world, BOT, move);
+        expect(
+            getPlayer(world, BOT)
+                .graveyard.filter((c) => !c.types.includes("Sorcery"))
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(expected);
+    });
+
+    it("the live owed-payment seam completes the merged park the announcement raises", () => {
+        const state = board(1, 2);
+        const owner = getPlayer(state, BOT);
+        const card = owner.hand[0];
+        const own = buildCastCostSelection(
+            state,
+            owner,
+            card,
+            undefined,
+            "Bog Down"
+        ).selection;
+        const merged = resolveCastPermanentSelection(
+            buildCastPermanentCostChoice(
+                state,
+                BOT,
+                undefined,
+                getCardByName("Bog Down"),
+                { kicker: 1 },
+                "Bog Down",
+                card
+            ),
+            own
+        )!;
+        expect(merged.picked).toEqual(["aswp0"]);
+        expect(completeSacrificeSelection(state, merged)).toEqual([
+            "for0",
+            "for1",
+        ]);
+    });
+
+    it("without Drought, two lands are enough for the same kicked cast (the tax, not Kicker itself, is what raises the price)", () => {
+        const state = board(2, 0);
+        const owner = getPlayer(state, BOT);
+        owner.battlefield = owner.battlefield.filter(
+            (c) => c.id !== "drought1"
+        );
+        expect(kicked(castMoves(state, "bogdown"))).not.toHaveLength(0);
     });
 });
 
-describe("AC #3 fixup round 2 — a permanent-leg Kicker also never collides with a CASTER-CHOSEN oneOf additional-cost leg", () => {
-    // Round 1's `kickerPermanentSlotWouldCollide` only weighs the card's
-    // BASE `additionalCosts.sacrificeFilter` and the board-wide static
-    // sacrifice — neither depends on which `oneOf` leg the caster eventually
-    // picks, because `enumerateKickerVariants` runs BEFORE `moves.ts`
-    // crosses `kickerVariants` with `legVariants` (the leg isn't known yet).
-    // A leg that ITSELF declares a `sacrificeFilter` (this fixture's
-    // "sacrifice a land" leg) claims the SAME single permanent-cost slot the
-    // moment it's chosen — `assertKickerAnnouncementLegal` prices the
-    // EFFECTIVE spec (`resolveAdditionalCosts`, the leg flattened on), not
-    // the base one. Without `kickerLegPermanentSlotWouldCollide` the
-    // enumerator would offer a Move pairing the kicked cast with the
-    // "sacrifice a land" leg, and the real mutation would reject it live —
-    // round 1's exact stall shape, reopened by a leg instead of a
-    // board-wide effect. No shipped card exercises this yet (catalogue
-    // census), so the fixture is synthetic (`SYNTHETIC_KICKER_ONEOF`).
-    function board() {
+describe("a permanent-leg Kicker is priced ON TOP of a CASTER-CHOSEN oneOf additional-cost leg (CR 601.2b / 601.2f)", () => {
+    // The leg is only known once `moves.ts` crosses the Kicker axis with the leg
+    // axis, and `assertKickerAnnouncementLegal` prices the EFFECTIVE spec
+    // (`resolveAdditionalCosts`, the leg flattened on), so the enumerator prices
+    // the same pair. No shipped card has this shape: the fixture is synthetic.
+    function board(
+        battlefield: ReturnType<typeof bf>[],
+        manaPool?: { R: number }
+    ) {
         return makeState({
             players: [
                 makePlayer(BOT, {
@@ -648,10 +669,19 @@ describe("AC #3 fixup round 2 — a permanent-leg Kicker also never collides wit
                             ownerId: BOT,
                         }),
                     ],
-                    battlefield: [
-                        bf(MOUNTAIN, "mtn0", BOT),
-                        bf(FOREST, "for0", BOT),
-                    ],
+                    battlefield,
+                    ...(manaPool
+                        ? {
+                              manaPool: {
+                                  W: 0,
+                                  U: 0,
+                                  B: 0,
+                                  G: 0,
+                                  C: 0,
+                                  ...manaPool,
+                              },
+                          }
+                        : {}),
                 }),
                 makePlayer(OPP),
             ],
@@ -660,46 +690,29 @@ describe("AC #3 fixup round 2 — a permanent-leg Kicker also never collides wit
         });
     }
 
-    it("kickerLegPermanentSlotWouldCollide is true ONLY for the leg that itself declares a sacrificeFilter", () => {
-        expect(
-            kickerLegPermanentSlotWouldCollide(
-                SYNTHETIC_KICKER_ONEOF,
-                { kicker: 1 },
-                "sac-land"
-            )
-        ).toBe(true);
-        expect(
-            kickerLegPermanentSlotWouldCollide(
-                SYNTHETIC_KICKER_ONEOF,
-                { kicker: 1 },
-                "pay-3-life"
-            )
-        ).toBe(false);
-        expect(
-            kickerLegPermanentSlotWouldCollide(
-                SYNTHETIC_KICKER_ONEOF,
-                { kicker: 1 },
-                undefined
-            )
-        ).toBe(false);
-        expect(
-            kickerLegPermanentSlotWouldCollide(
-                SYNTHETIC_KICKER_ONEOF,
-                undefined,
-                "sac-land"
-            )
-        ).toBe(false);
-    });
+    function offered(state: GameState, leg: string, isKicked: boolean) {
+        return castMoves(state, "synth").some(
+            (m) =>
+                m.kind === "cast-spell" &&
+                !!m.kickerPayments === isKicked &&
+                m.additionalCostLegId === leg
+        );
+    }
 
-    it("proves the premise: announceCast's own prelude gate (game.ts) rejects kicked+sac-land, but accepts kicked+pay-3-life", () => {
-        const state = board();
+    it("offers kicked+sac-land when a second Forest pays the Kicker, and the announcement accepts it", () => {
+        const state = board([
+            bf(MOUNTAIN, "mtn0", BOT),
+            bf(FOREST, "for0", BOT),
+            bf(FOREST, "for1", BOT),
+        ]);
+        expect(offered(state, "sac-land", true)).toBe(true);
+
         const player = getPlayer(state, BOT);
-        const cardInHand = player.hand[0];
         expect(() =>
             assertKickerAnnouncementLegal(
                 state,
                 SYNTHETIC_KICKER_ONEOF,
-                cardInHand,
+                player.hand[0],
                 player,
                 { kicker: 1 },
                 "hand",
@@ -708,52 +721,84 @@ describe("AC #3 fixup round 2 — a permanent-leg Kicker also never collides wit
                     "sac-land"
                 )
             )
-        ).toThrow(
-            "This spell's kicker cost cannot be paid alongside its other additional costs"
+        ).not.toThrow();
+    });
+
+    it("a broad own sacrifice beside a narrower Kicker leg is only offered when BOTH walks finish, so the announcement never refuses a Move", () => {
+        // The announcement reserves first-match, and the Mountain sits behind the
+        // Forest: the "sacrifice a land" leg takes the Forest and leaves the
+        // Kicker's Forest unpayable, though the Mountain could have paid the leg.
+        const state = board(
+            [bf(FOREST, "zfor0", BOT), bf(MOUNTAIN, "amtn0", BOT)],
+            { R: 1 }
         );
+        expect(offered(state, "sac-land", true)).toBe(false);
+
+        const player = getPlayer(state, BOT);
         expect(() =>
             assertKickerAnnouncementLegal(
                 state,
                 SYNTHETIC_KICKER_ONEOF,
-                cardInHand,
+                player.hand[0],
                 player,
                 { kicker: 1 },
                 "hand",
                 resolveAdditionalCosts(
                     SYNTHETIC_KICKER_ONEOF.additionalCosts,
-                    "pay-3-life"
+                    "sac-land"
+                )
+            )
+        ).toThrow(/not enough permanents to sacrifice/);
+    });
+
+    it("the mirror board: the announcement would accept it, but the Bot's cheapest-first answer cannot finish, so no Move is offered", () => {
+        // Battlefield order gives the Mountain to the "sacrifice a land" leg, so
+        // the announcement passes; cheapest-first spends the Forest on that leg
+        // and the merged selection could never complete.
+        const state = board(
+            [bf(MOUNTAIN, "zmtn0", BOT), bf(FOREST, "afor0", BOT)],
+            { R: 1 }
+        );
+        expect(offered(state, "sac-land", true)).toBe(false);
+
+        const player = getPlayer(state, BOT);
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                SYNTHETIC_KICKER_ONEOF,
+                player.hand[0],
+                player,
+                { kicker: 1 },
+                "hand",
+                resolveAdditionalCosts(
+                    SYNTHETIC_KICKER_ONEOF.additionalCosts,
+                    "sac-land"
                 )
             )
         ).not.toThrow();
     });
 
-    it("enumerateMoves AGREES with the mutation: never offers kicked+sac-land, but still offers kicked+pay-3-life and unkicked+sac-land", () => {
-        const moves = castMoves(board(), "synth");
-        expect(moves.length).toBeGreaterThan(0);
-        expect(
-            moves.some(
-                (m) =>
-                    m.kind === "cast-spell" &&
-                    m.kickerPayments &&
-                    m.additionalCostLegId === "sac-land"
+    it("a lone Forest cannot pay both, so only kicked+pay-3-life and unkicked+sac-land are offered, and the announcement agrees", () => {
+        const state = board([bf(FOREST, "for0", BOT)], { R: 1 });
+        expect(offered(state, "sac-land", true)).toBe(false);
+        expect(offered(state, "pay-3-life", true)).toBe(true);
+        expect(offered(state, "sac-land", false)).toBe(true);
+
+        const player = getPlayer(state, BOT);
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                SYNTHETIC_KICKER_ONEOF,
+                player.hand[0],
+                player,
+                { kicker: 1 },
+                "hand",
+                resolveAdditionalCosts(
+                    SYNTHETIC_KICKER_ONEOF.additionalCosts,
+                    "sac-land"
+                )
             )
-        ).toBe(false);
-        expect(
-            moves.some(
-                (m) =>
-                    m.kind === "cast-spell" &&
-                    m.kickerPayments &&
-                    m.additionalCostLegId === "pay-3-life"
-            )
-        ).toBe(true);
-        expect(
-            moves.some(
-                (m) =>
-                    m.kind === "cast-spell" &&
-                    !m.kickerPayments &&
-                    m.additionalCostLegId === "sac-land"
-            )
-        ).toBe(true);
+        ).toThrow(/not enough permanents to sacrifice/);
     });
 });
 

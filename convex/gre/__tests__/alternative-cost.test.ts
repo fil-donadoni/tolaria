@@ -26,7 +26,7 @@ import {
     isSacrificeSelectionComplete,
 } from "../sacrificeChoice";
 import {
-    assertKickerPermanentSlotFree,
+    assertCastPermanentCostsPayable,
     buildCastPermanentCostChoice,
     resolveCastPermanentSelection,
 } from "../kicker";
@@ -505,11 +505,14 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             onceUponATime(),
             "free-first-spell"
         );
-        assertKickerPermanentSlotFree(
+        assertCastPermanentCostsPayable(
+            state,
+            "p1",
             onceUponATime(),
             undefined,
             ownSac,
-            chosenAltCost
+            chosenAltCost,
+            cardInHand
         );
         const altChoice = buildCastPermanentCostChoice(
             state,

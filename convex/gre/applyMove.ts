@@ -647,8 +647,9 @@ export function applyCastCostPicksForSearch(
     // before THIS function mutates anything, so a refusal never leaves a
     // half-paid cost behind here. It is NOT a whole-move rollback: by the time
     // this runs the caller has already applied the tap plan, the life payment,
-    // the chosen additional-cost leg and the Kicker permanent leg, and the
-    // caller's bail keeps those — the same shape the pre-existing
+    // the chosen additional-cost leg and the Kicker hand legs (the Kicker
+    // permanent leg comes after), and the caller's bail keeps those — the same
+    // shape the pre-existing
     // `castSource === null` bail below already has.
     const exileIds = picks.exileCostCardIds ?? [];
     // CR 701.59a / 701.59c — a collect-evidence leg, on an alternative cost or on
@@ -1539,36 +1540,26 @@ export function commitCastInSearch(
     ) {
         return null;
     }
-    // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's PERMANENT leg
-    // (sacrifice/return) before the spell leaves its zone, for the same reason.
-    // `preCastSpell` is looked up in the zone the Move DECLARES (issue #2980),
-    // so this is right for whichever zone the cast actually leaves.
-    if (move.kickerPayments && preCastSpell) {
-        const kickerCardDef = tryGetDefinition(
-            (preCastSpell.card as { id?: string }).id ?? ""
-        );
-        if (kickerCardDef) {
-            applyKickerPermanentLegForSearch(
-                state,
-                playerId,
-                kickerCardDef,
-                move.kickerPayments,
-                preCastSpell
-            );
-            // CR 702.120a (issue #2267) — and its HAND legs (escalate's
-            // discard per extra mode); a stale Move is dropped.
-            if (
-                !applyKickerHandLegsForSearch(
-                    state,
-                    playerId,
-                    preCastSpell,
-                    kickerCardDef,
-                    move.kickerPayments
-                )
-            ) {
-                return null;
-            }
-        }
+    // CR 702.120a (issue #2267) — a paid entry's HAND legs (escalate's discard
+    // per extra mode); a stale Move is dropped. `preCastSpell` is looked up in the
+    // zone the Move DECLARES (issue #2980), so this is right for whichever zone
+    // the cast actually leaves.
+    const kickerCardDef =
+        move.kickerPayments && preCastSpell
+            ? tryGetDefinition((preCastSpell.card as { id?: string }).id ?? "")
+            : undefined;
+    if (
+        kickerCardDef &&
+        preCastSpell &&
+        !applyKickerHandLegsForSearch(
+            state,
+            playerId,
+            preCastSpell,
+            kickerCardDef,
+            move.kickerPayments
+        )
+    ) {
+        return null;
     }
     // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory
     // additional-cost parks (filtered sacrifice + Drought, and the exile
@@ -1601,6 +1592,19 @@ export function commitCastInSearch(
         // spell on the stack for free — escape exiles nothing on resolution, so
         // an uncharged escape cast is recastable forever.
         if (!castCostsPaid) return null;
+    }
+    // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's PERMANENT leg
+    // before the spell leaves its zone, and AFTER the cast's own sacrifices: the
+    // live selection declares those first, so a cheapest-first Kicker pick
+    // cannot eat the Swamp Drought's tax still needs.
+    if (kickerCardDef && preCastSpell) {
+        applyKickerPermanentLegForSearch(
+            state,
+            playerId,
+            kickerCardDef,
+            move.kickerPayments,
+            preCastSpell
+        );
     }
     // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD, not the
     // hand, and discards a land card from hand on the way. The discard is what

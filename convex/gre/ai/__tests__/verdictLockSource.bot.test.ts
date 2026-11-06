@@ -446,7 +446,15 @@ describe("one lock, one corpus (issue #3578)", () => {
     });
 
     it("puts the registry verdicts first and the locked verdicts after them, with the registry's gaps", () => {
-        const scenarios = BLADE_SCENARIOS.slice(0, 8);
+        // Chosen by what each entry yields, never by where it sits: a predicate
+        // entry is a gap, and a run of them at the head of the registry would
+        // leave a positional slice with no verdict to order.
+        const isPredicate = (s: (typeof BLADE_SCENARIOS)[number]) =>
+            s.expect.predicate !== undefined;
+        const scenarios = [
+            ...BLADE_SCENARIOS.filter(isPredicate).slice(0, 4),
+            ...BLADE_SCENARIOS.filter((s) => !isPredicate(s)).slice(0, 4),
+        ];
         const corpus = lockedVerdictCorpus(
             lockOf([B.verdictId]),
             [A, B],
@@ -454,6 +462,7 @@ describe("one lock, one corpus (issue #3578)", () => {
         );
         const registry = lockedVerdictCorpus(lockOf([]), [], scenarios);
         expect(registry.verdicts.length).toBeGreaterThan(0);
+        expect(registry.gaps.length).toBeGreaterThan(0);
         expect(corpus.verdicts.map((v) => v.id)).toEqual([
             ...registry.verdicts.map((v) => v.id),
             B.verdictId,

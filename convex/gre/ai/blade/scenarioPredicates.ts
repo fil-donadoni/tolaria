@@ -779,6 +779,27 @@ function castTargetIds(
     return move.kind === "cast-spell" ? move.targets.map((t) => t.id) : null;
 }
 
+/** CR 601.2f — whether the enumerator offers `card` KICKED, among casts it does
+ *  offer. Asserted on the LEGAL SET: a Kicker's permanent leg priced beside the
+ *  cast's own sacrifice decides whether the Move exists at all, and whether to
+ *  kick is a preference no entry here asserts. */
+export function kickedCastOffered(card: string, offered: boolean) {
+    return (
+        _move: Move | null,
+        state: Parameters<typeof enumerateMoves>[0]
+    ): boolean => {
+        const ids = instanceIdsForName(state, card);
+        const casts = enumerateMoves(state, state.players[0].id).filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" && ids.has(m.cardInstanceId)
+        );
+        return (
+            casts.length > 0 &&
+            casts.some((m) => m.kickerPayments !== undefined) === offered
+        );
+    };
+}
+
 /** Issue #6985 — a cast of `card`, if the move is one, names none of `seat`'s
  *  own permanents. Any other move passes: whether to act at all is not the
  *  question (issue #6913), where a harmful one-shot points is. */
