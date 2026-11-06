@@ -338,10 +338,9 @@ describe("Freeform seats two Limited decks of different Events (ADR 0153, ADR 01
             });
             const [match] = db.tables.matches!;
             expect(match.matchFormat).toBe("freeform");
-            expect(match.players.map((p: any) => p.id)).toEqual([
-                `${ALICE}-p1`,
-                `${ALICE}-p2`,
-            ]);
+            expect(
+                (match.players as { id: string }[]).map((p) => p.id)
+            ).toEqual([`${ALICE}-p1`, `${ALICE}-p2`]);
             // Each seat holds its own Event's deck copy: 40 main, 1 side.
             expect(
                 db.tables.matchDecks!.map((d: any) => [
