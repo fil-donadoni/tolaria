@@ -1397,6 +1397,7 @@ export function hasBattlefieldTargetCandidate(
     const values: PermanentFilterValues = {
         controller: requirement.controller,
         subtypeFilter: shorthandArray(requirement.subtypeFilter),
+        typeOrSubtypeFilter: requirement.typeOrSubtypeFilter,
     };
     // CR 602.2b (issue #1951 review round 3, MINOR 8) — a `count >= 2`
     // ability (Sorrow's Path / General Jarkeld's swap-blockers, Garruk

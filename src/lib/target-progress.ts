@@ -31,16 +31,22 @@ export function formatTargetLabel(
     targetType: string | string[],
     zone: PendingTarget["zone"],
     controller: PendingTarget["controller"],
-    spellStackKind: PendingTarget["spellStackKind"]
+    spellStackKind: PendingTarget["spellStackKind"],
+    typeOrSubtypeFilter?: PendingTarget["typeOrSubtypeFilter"]
 ): string {
-    const types = Array.isArray(targetType) ? targetType : [targetType];
-    const labels = types
+    // `targetType` of a union is widened to the subtype's card type, so
+    // "creature or Vehicle" must not read as "a creature or an artifact".
+    const types = typeOrSubtypeFilter?.types ?? targetType;
+    const labels = (Array.isArray(types) ? types : [types])
         .map((t) =>
             t === "spell" && spellStackKind && STACK_KIND_LABEL[spellStackKind]
                 ? STACK_KIND_LABEL[spellStackKind]
                 : (TARGET_LABEL[t] ?? t.toLowerCase())
         )
         .filter(Boolean);
+    for (const subtype of typeOrSubtypeFilter?.subtypes ?? []) {
+        labels.push(`a${/^[AEIOU]/.test(subtype) ? "n" : ""} ${subtype}`);
+    }
     let head: string;
     if (labels.length === 0) head = "a target";
     else if (labels.length === 1) head = labels[0];

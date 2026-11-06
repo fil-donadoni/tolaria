@@ -29,6 +29,7 @@ import { counterspell, grizzlyBears } from "../../cards/sets/lea/index.cards";
 const SHAPE: Record<FilterKey, "array" | "other"> = {
     controller: "other",
     subtypeFilter: "array",
+    typeOrSubtypeFilter: "other",
     supertypeFilter: "array",
     excludeSubtypes: "array",
     excludeSupertypes: "array",

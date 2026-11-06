@@ -29,6 +29,7 @@ import type {
     EffectOp,
     EmblemInstance,
     EnchantRestriction,
+    TypeOrSubtypeFilter,
     EntryTypeLine,
     FlashbackCost,
     GameEvent,
@@ -4132,6 +4133,9 @@ export type PendingTarget = {
      *  Propagated from TargetRequirement.subtypeFilter. Match if the
      *  permanent's subtypes include at least one of these. */
     subtypeFilter?: string[];
+    /** A type-or-subtype union ("creature or Vehicle"). Propagated from
+     *  TargetRequirement.typeOrSubtypeFilter. */
+    typeOrSubtypeFilter?: TypeOrSubtypeFilter;
     /** If set, restricts legal permanent targets by LIVE supertype (CR 205.4a).
      *  Propagated from TargetRequirement.supertypeFilter. Match if the
      *  permanent currently has ALL of these (snow-aware — Avalanche). */
