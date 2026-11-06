@@ -53,6 +53,7 @@ import { representativeVictimLoss } from "./representativeVictim";
 import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { isCreature } from "../constants";
 import { describeDamageSource } from "../replacements";
 import { lethalDamageThreshold } from "../lethalDamage";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
@@ -274,6 +275,17 @@ function standsAbilityOnBoard(player: PlayerState): boolean {
     });
 }
 
+/** Whether `playerId` controls a creature that deals damage (CR 510.1a): the
+ *  board a held stack answer stays in reserve to protect. */
+function casterHasClock(state: GameState, playerId: string): boolean {
+    const player = state.players.find((p) => p.id === playerId);
+    return (
+        player?.battlefield.some(
+            (perm) => isCreature(perm) && getEffectivePower(state, perm) > 0
+        ) ?? false
+    );
+}
+
 /** A lens that prices a card in hand against THIS board (issue #3398).
  *
  *  `victimUnits(slot)` answers, for announced target slot `slot`:
@@ -488,10 +500,17 @@ export function makeLatentBoardLens(
             const opponents = state.players.filter((p) => p.id !== casterId);
             // An opponent's object already on the stack is a spell the
             // answer can meet now, whatever is left in their hand.
+            //
+            // A caster with a clock holds the answer in reserve even against
+            // an empty hand: the opponent draws a card a turn until the clock
+            // runs out, and the one that turns the game is the spell the
+            // answer waits for. Without a clock nothing is being protected,
+            // so a land or a body on the stack is worth the answer now.
             const share =
                 opponents.some((p) => p.hand.length > 0) ||
                 state.stack.some((item) => item.controllerId !== casterId) ||
-                (answersAbilities && opponents.some(standsAbilityOnBoard))
+                (answersAbilities && opponents.some(standsAbilityOnBoard)) ||
+                casterHasClock(state, casterId)
                     ? 1
                     : 0;
             // A zero is a reading of this board, not an assumption: it lifts
