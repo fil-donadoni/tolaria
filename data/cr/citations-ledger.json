@@ -3082,6 +3082,7 @@
         {"id":"108.4","line":"// reliably reset once an object leaves the battlefield — CR 108.4 /","sites":1,"status":"baseline"},
         {"id":"108.4","line":"// zone has no controller at all (CR 108.4), so the field is REJECTED there","sites":1,"status":"baseline"},
         {"id":"108.4a","line":"* OWNER instead (CR 108.4a — a card in a graveyard has no controller):","sites":1,"status":"confirmed","ruleHash":"72ae6dd1922dba3e"},
+        {"id":"108.4a","line":"* controller-relationship filter (issue #2202). CR 108.4a — a graveyard card","sites":1,"status":"confirmed","ruleHash":"72ae6dd1922dba3e"},
         {"id":"108.4a","line":"/** The player whose zone the candidate must be in (CR 108.4a / 404.1 for a","sites":1,"status":"confirmed","ruleHash":"72ae6dd1922dba3e"},
         {"id":"108.4a","line":"// CR 108.4a + CR 404.1 — a card in a graveyard has no controller; the","sites":1,"status":"confirmed","ruleHash":"72ae6dd1922dba3e"},
         {"id":"108.4a","line":"// belongs to its OWNER (CR 108.4a), so the check reads `ownerId`.","sites":1,"status":"confirmed","ruleHash":"72ae6dd1922dba3e"},
