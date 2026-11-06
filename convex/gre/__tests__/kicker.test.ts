@@ -13,8 +13,11 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    finalizeTargetSelection,
+    announceCast,
     assertKickerAnnouncementLegal,
+    finalizeTargetSelection,
+    selectSacrifice,
+    selectSacrificeOnState,
 } from "../../game";
 import {
     canPayKickerLegs,
@@ -34,7 +37,6 @@ import {
     type PendingTarget,
     type GameState,
     type CardInstanceState,
-    type PlayerState,
 } from "../state";
 import { compactState, expandState } from "../serialize";
 import {
@@ -47,6 +49,15 @@ import { getDefinition, registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { bloodchiefsThirst } from "../../cards/sets/znr/black.cards";
 import { drought } from "../../cards/sets/ice/white.cards";
+import { bogDown } from "../../cards/sets/pls/black.cards";
+import { crabomination } from "../../cards/sets/mh3/black.cards";
+import {
+    makeMutationCtx,
+    gameStateSeed,
+    runMutation,
+    type Handler,
+} from "../../__tests__/gameMutationHarness.fixture";
+import type { Id } from "../../_generated/dataModel";
 import { tearAsunder } from "../../cards/sets/dmu/green.cards";
 import { burstLightning } from "../../cards/sets/zen/red.cards";
 import {
@@ -883,8 +894,7 @@ describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 6
 
 // A probe whose printed cost carries a BLACK pip (so Drought imposes its
 // "Sacrifice a Swamp" additional cost, CR 118.8) AND whose Kicker owes a
-// PERMANENT leg. No printed card has this shape — it is the only way to reach
-// the one-slot collision the announcement guard fails closed on.
+// PERMANENT leg: the shape of Bog Down, on a {B} cost so one Swamp funds it.
 const PIP_SAC_PROBE_ID = "test:kicker-permleg-plus-additional-cost-probe";
 const pipSacProbe: CardDefinition = {
     id: PIP_SAC_PROBE_ID,
@@ -907,261 +917,392 @@ const pipSacProbe: CardDefinition = {
 };
 registerTokenDefinition(pipSacProbe);
 
-describe("Kicker — a permanent leg colliding with another additional cost fails CLOSED (CR 601.2f)", () => {
-    function pipSacState(kicked: boolean) {
-        const probe = makeInstance(PIP_SAC_PROBE_ID, {
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-            id: "pipsac1",
-        });
-        const droughtInst = makeInstance(drought().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "drought2",
-        });
-        const swampInst = makeInstance(swamp().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "swamp2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [probe],
-                    battlefield: [
-                        droughtInst,
-                        swampInst,
-                        land("pl1"),
-                        land("pl2"),
-                    ],
-                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        return () =>
-            finalizeTargetSelection(
-                state,
-                probePendingTarget(
-                    "pipsac1",
-                    kicked ? { "kicker-sac": 1 } : undefined
-                ),
-                "p1"
-            );
-    }
-
-    it("throws rather than silently dropping the cast's own sacrifice", () => {
-        // `?? ownSac` would have quietly paid the kicker's two lands and NOT
-        // Drought's Swamp — a spell on the stack with an unpaid cost.
-        expect(pipSacState(true)).toThrow(/kicker cost cannot be paid/i);
-    });
-
-    it("leaves the UNKICKED cast (no permanent leg owed) untouched", () => {
-        expect(pipSacState(false)).not.toThrow();
-    });
-});
-
-// Same collision as `pipSacProbe` above, but with a `targetRequirement` — so
-// casting it goes through `announceCast`'s TARGETED branch, the one that
-// writes `state.pendingTarget` at announcement (before target selection even
-// starts) rather than committing directly. No printed card has this shape
-// (see the header comment on `pipSacProbe`); it exists to reach the targeted
-// announcement path the untargeted `pipSacProbe` above cannot.
-const PIP_SAC_TARGETED_PROBE_ID =
-    "test:kicker-permleg-plus-additional-cost-targeted-probe";
-const pipSacTargetedProbe: CardDefinition = {
-    id: PIP_SAC_TARGETED_PROBE_ID,
+// The same cost with a RETURN leg, so the merged selection holds two terminal
+// actions at once (Arctic Merfolk's leg, on a card Drought taxes).
+const PIP_RETURN_PROBE_ID = "test:kicker-return-leg-plus-additional-cost-probe";
+const pipReturnProbe: CardDefinition = {
+    id: PIP_RETURN_PROBE_ID,
     rarity: "common",
-    name: "Kicker Permanent-Leg Targeted Probe",
+    name: "Kicker Return-Leg Probe",
     manaCost: { B: 1 },
     types: ["Sorcery"],
-    targetRequirement: { type: "any", count: 1 },
     kickers: [
         {
-            id: "kicker-sac",
-            description: "Kicker — Sacrifice two lands",
+            id: "kicker-return",
+            description: "Kicker — Return a creature you control",
             permanent: {
-                action: "sacrifice",
-                filter: { types: ["Land"] },
-                count: 2,
+                action: "return",
+                filter: { types: ["Creature"] },
+                count: 1,
             },
         },
     ],
     effects: [],
 };
-registerTokenDefinition(pipSacTargetedProbe);
+registerTokenDefinition(pipReturnProbe);
 
-// issue #1986 — `assertKickerPermanentSlotFree` used to be checked ONLY from
-// `finalizeTargetSelection` (the "throws rather than silently dropping the
-// cast's own sacrifice" test above), which on a TARGETED cast runs in a
-// SEPARATE, LATER mutation (`selectTarget`/`selectTargets`/`confirmTargets`)
-// than the one that opens target selection (`announceCast`). By the time that
-// later mutation threw, a PRIOR mutation had already persisted
-// `state.pendingTarget` — the throw rolled back nothing (Convex mutations are
-// transactional) but left the ALREADY-COMMITTED `pendingTarget` behind, and
-// every subsequent attempt to finalize the same selection would throw again
-// at the same spot: a soft-lock with no way out but `cancelTarget`.
-//
-// `assertKickerAnnouncementLegal` (game.ts) is the fix: `announceCast`'s
-// SHARED prelude — the code that runs identically before either the targeted
-// branch's `pendingTarget` write or the no-target branch's `pendingCast`
-// write — now runs this exact check first. These tests drive the real
-// exported piece the mutation calls, in the same order, mirroring the
-// no-convex-test-harness pattern (`additional-cost-cast.test.ts`, ADR 0001).
-describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE, before pendingTarget is ever persisted (issue #1986)", () => {
-    function targetedAnnouncementState(kicked: boolean) {
-        const probe = makeInstance(PIP_SAC_TARGETED_PROBE_ID, {
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-            id: "pipsacT1",
-        });
-        const droughtInst = makeInstance(drought().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "droughtT",
-        });
-        const swampInst = makeInstance(swamp().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "swampT",
-        });
-        const state: GameState = makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [probe],
-                    battlefield: [
-                        droughtInst,
-                        swampInst,
-                        land("plT1"),
-                        land("plT2"),
-                    ],
-                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        const player = getPlayer(state, "p1");
-        const cardInHand = player.hand.find((c) => c.id === "pipsacT1")!;
-        const kickerPayments = kicked ? { "kicker-sac": 1 } : undefined;
-        return { state, player, cardInHand, kickerPayments };
-    }
+// The card's OWN additional sacrifice beside a Kicker's, with no Drought around.
+const OWN_SAC_PROBE_ID = "test:kicker-permleg-plus-own-sacrifice-probe";
+const ownSacProbe: CardDefinition = {
+    id: OWN_SAC_PROBE_ID,
+    rarity: "common",
+    name: "Kicker Own-Sacrifice Probe",
+    manaCost: { G: 1 },
+    types: ["Sorcery"],
+    additionalCosts: { sacrificeFilter: { types: ["Creature"] } },
+    kickers: [
+        {
+            id: "kicker-sac",
+            description: "Kicker — Sacrifice a land",
+            permanent: {
+                action: "sacrifice",
+                filter: { types: ["Land"] },
+                count: 1,
+            },
+        },
+    ],
+    effects: [],
+};
+registerTokenDefinition(ownSacProbe);
 
-    /** Mirrors `announceCast`'s targeted-branch control flow (game.ts): the
-     *  prelude gate runs FIRST; only if it doesn't throw does the mutation go
-     *  on to write `state.pendingTarget` and open target selection. Because
-     *  this is a plain synchronous function call, a throw on the gate line
-     *  makes the write below UNREACHABLE — the same guarantee the real
-     *  mutation gets from running the two statements in this order. */
-    function simulateTargetedAnnouncement(
-        state: GameState,
-        cardDef: CardDefinition,
-        cardInHand: CardInstanceState,
-        player: PlayerState,
-        kickerPayments: Record<string, number> | undefined
-    ): void {
-        assertKickerAnnouncementLegal(
-            state,
-            cardDef,
-            cardInHand,
-            player,
-            kickerPayments,
-            "hand",
-            cardDef.additionalCosts
+type AnnounceArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    cardInstanceId: string;
+    kickerPayments?: Record<string, number>;
+};
+type SacrificeArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    cardInstanceId: string;
+};
+
+/** p1 with `cardId` in hand as "spell", holding `battlefield`, `{B}{G}` floating. */
+function castBoard(
+    cardId: string,
+    battlefield: CardInstanceState[],
+    hand: CardInstanceState[] = []
+): GameState {
+    const spell = makeInstance(cardId, {
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+        id: "spell",
+    });
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [spell, ...hand],
+                battlefield,
+                manaPool: { W: 0, U: 0, B: 1, R: 0, G: 1, C: 0 },
+            }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+function droughtOnBoard() {
+    return makeInstance(drought().id, {
+        controllerId: "p1",
+        ownerId: "p1",
+        id: "drought",
+    });
+}
+
+function swampOnBoard(id: string) {
+    return makeInstance(swamp().id, {
+        controllerId: "p1",
+        ownerId: "p1",
+        id,
+    });
+}
+
+function bearOnBoard(id: string) {
+    return makeInstance(grizzlyBears().id, {
+        controllerId: "p1",
+        ownerId: "p1",
+        id,
+    });
+}
+
+function announce(
+    harness: ReturnType<typeof makeMutationCtx>,
+    kickerPayments: Record<string, number> | undefined
+) {
+    return runMutation<AnnounceArgs, void>(
+        announceCast as unknown as Handler<AnnounceArgs, void>,
+        harness.ctx,
+        {
+            gameId: "game-1" as Id<"games">,
+            playerId: "p1",
+            cardInstanceId: "spell",
+            ...(kickerPayments ? { kickerPayments } : {}),
+        }
+    );
+}
+
+function pick(
+    harness: ReturnType<typeof makeMutationCtx>,
+    cardInstanceId: string
+) {
+    return runMutation<SacrificeArgs, void>(
+        selectSacrifice as unknown as Handler<SacrificeArgs, void>,
+        harness.ctx,
+        {
+            gameId: "game-1" as Id<"games">,
+            playerId: "p1",
+            cardInstanceId,
+        }
+    );
+}
+
+describe("Kicker — a permanent leg is paid ALONGSIDE the cast's other additional sacrifices (CR 601.2f)", () => {
+    it("Drought's tax and the Kicker's two lands join one selection, tax first and already picked", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(PIP_SAC_PROBE_ID, [
+                    droughtOnBoard(),
+                    swampOnBoard("swamp"),
+                    land("land1"),
+                    land("land2"),
+                ])
+            ),
+        ]);
+        await announce(harness, { "kicker-sac": 1 });
+
+        const sel = harness.state().pendingCast?.sacrificeSelection;
+        expect(sel?.picked).toEqual(["swamp"]);
+        expect(sel?.requirements.map((r) => r.count)).toEqual([1, 2]);
+        expect(sel?.requirements[1].explicit).toBe(true);
+    });
+
+    it("paying both puts the kicked spell on the stack with all three lands gone", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(PIP_SAC_PROBE_ID, [
+                    droughtOnBoard(),
+                    swampOnBoard("swamp"),
+                    land("land1"),
+                    land("land2"),
+                ])
+            ),
+        ]);
+        await announce(harness, { "kicker-sac": 1 });
+        await pick(harness, "land1");
+        await pick(harness, "land2");
+
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(totalKickerCount(state.stack[0].kickerPayments)).toBe(1);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.graveyard.map((c) => c.id).sort()).toEqual([
+            "land1",
+            "land2",
+            "swamp",
+        ]);
+    });
+
+    it("the permanent that paid the tax cannot pay the Kicker too", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(PIP_SAC_PROBE_ID, [
+                    droughtOnBoard(),
+                    swampOnBoard("swamp"),
+                    land("land1"),
+                    land("land2"),
+                ])
+            ),
+        ]);
+        await announce(harness, { "kicker-sac": 1 });
+
+        await expect(pick(harness, "swamp")).rejects.toThrow(
+            /not a legal sacrifice/
         );
-        state.pendingTarget = {
-            playerId: player.id,
-            cardInstanceId: cardInHand.id,
-            targetType: "any",
-            count: 1,
-            selected: [],
-        };
+    });
+
+    it("each permanent takes its own requirement's action: the tax is sacrificed, the Kicker's creature RETURNS", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(PIP_RETURN_PROBE_ID, [
+                    droughtOnBoard(),
+                    swampOnBoard("swamp"),
+                    bearOnBoard("bear"),
+                ])
+            ),
+        ]);
+        await announce(harness, { "kicker-return": 1 });
+        await pick(harness, "bear");
+
+        const p1 = getPlayer(harness.state(), "p1");
+        expect(p1.graveyard.map((c) => c.id)).toEqual(["swamp"]);
+        expect(p1.hand.map((c) => c.id)).toEqual(["bear"]);
+    });
+
+    it("the card's OWN additional sacrifice joins the same way, with no static effect involved", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(OWN_SAC_PROBE_ID, [
+                    bearOnBoard("bear"),
+                    land("land1"),
+                ])
+            ),
+        ]);
+        await announce(harness, { "kicker-sac": 1 });
+        await pick(harness, "land1");
+
+        const state = harness.state();
+        expect(state.stack).toHaveLength(1);
+        expect(
+            getPlayer(state, "p1")
+                .graveyard.map((c) => c.id)
+                .sort()
+        ).toEqual(["bear", "land1"]);
+    });
+
+    it("a board that covers each cost alone but not both is refused at announcement (CR 601.2h)", async () => {
+        // Two Swamps pay the tax, and pay the Kicker's two lands, but not both.
+        const board = () =>
+            castBoard(PIP_SAC_PROBE_ID, [
+                droughtOnBoard(),
+                swampOnBoard("swamp1"),
+                swampOnBoard("swamp2"),
+            ]);
+        const state = board();
+        const player = getPlayer(state, "p1");
+        expect(
+            canPayKickerLegs(
+                state,
+                player,
+                pipSacProbe,
+                { "kicker-sac": 1 },
+                "spell",
+                player.hand[0]
+            )
+        ).toBe(true);
+
+        const harness = makeMutationCtx("p1", [gameStateSeed(board())]);
+        await expect(announce(harness, { "kicker-sac": 1 })).rejects.toThrow(
+            /not enough permanents to sacrifice/
+        );
+        expect(harness.state().pendingCast).toBeUndefined();
+    });
+
+    it("the same short board still casts the spell UNKICKED", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                castBoard(PIP_SAC_PROBE_ID, [
+                    droughtOnBoard(),
+                    swampOnBoard("swamp1"),
+                    swampOnBoard("swamp2"),
+                ])
+            ),
+        ]);
+        await expect(announce(harness, undefined)).resolves.not.toThrow();
+    });
+});
+
+// `announceCast`'s prelude runs the gate on the targeted branch too, before
+// `pendingTarget` is written: a throw from the LATER mutation that finalizes
+// targets would leave a persisted `pendingTarget` that can never finalize.
+describe("Kicker alongside an own sacrifice — the targeted path (CR 601.2f)", () => {
+    function bogDownBoard(lands: CardInstanceState[]) {
+        const state = castBoard(bogDown().id, [droughtOnBoard(), ...lands]);
+        const player = getPlayer(state, "p1");
+        player.manaPool = { W: 0, U: 0, B: 1, R: 0, G: 2, C: 0 };
+        return { state, player, cardInHand: player.hand[0] };
     }
 
-    it("throws at announcement, and pendingTarget is never persisted", () => {
-        const { state, player, cardInHand, kickerPayments } =
-            targetedAnnouncementState(true);
-        expect(() =>
-            simulateTargetedAnnouncement(
-                state,
-                pipSacTargetedProbe,
-                cardInHand,
-                player,
-                kickerPayments
-            )
-        ).toThrow(/kicker cost cannot be paid/i);
-        // The proof this issue asks for: no pendingTarget survives the
-        // rejection — unlike the pre-fix shape, where a PRIOR mutation had
-        // already committed it before this exact collision was discovered.
-        expect(state.pendingTarget).toBeUndefined();
-    });
-
-    it("an unkicked targeted cast is unaffected — pendingTarget is written normally", () => {
-        const { state, player, cardInHand, kickerPayments } =
-            targetedAnnouncementState(false);
-        expect(() =>
-            simulateTargetedAnnouncement(
-                state,
-                pipSacTargetedProbe,
-                cardInHand,
-                player,
-                kickerPayments
-            )
-        ).not.toThrow();
-        expect(state.pendingTarget).toBeDefined();
-        expect(state.pendingTarget?.cardInstanceId).toBe("pipsacT1");
-    });
-
-    it("the untargeted probe's collision is ALSO caught by the same prelude gate (no path left ungated)", () => {
-        // `pipSacProbe` (above) has no `targetRequirement`, so it reaches
-        // `announceCast`'s no-target branch instead — already correctly
-        // gated before this issue (site B in the issue's producer census).
-        // Asserting `assertKickerAnnouncementLegal` also rejects it proves
-        // BOTH announcement paths now share the one prelude gate.
-        const probe = makeInstance(PIP_SAC_PROBE_ID, {
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-            id: "pipsacU1",
-        });
-        const droughtInst = makeInstance(drought().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "droughtU",
-        });
-        const swampInst = makeInstance(swamp().id, {
-            controllerId: "p1",
-            ownerId: "p1",
-            id: "swampU",
-        });
-        const state: GameState = makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [probe],
-                    battlefield: [
-                        droughtInst,
-                        swampInst,
-                        land("plU1"),
-                        land("plU2"),
-                    ],
-                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        const player = getPlayer(state, "p1");
-        const cardInHand = player.hand.find((c) => c.id === "pipsacU1")!;
+    it("the prelude gate refuses a short board, so no target selection ever opens", () => {
+        const { state, player, cardInHand } = bogDownBoard([
+            swampOnBoard("swamp1"),
+            swampOnBoard("swamp2"),
+        ]);
         expect(() =>
             assertKickerAnnouncementLegal(
                 state,
-                pipSacProbe,
+                bogDown(),
                 cardInHand,
                 player,
-                { "kicker-sac": 1 },
+                { kicker: 1 },
                 "hand",
-                pipSacProbe.additionalCosts
+                undefined
             )
-        ).toThrow(/kicker cost cannot be paid/i);
+        ).toThrow(/not enough permanents to sacrifice/);
+    });
+
+    it("finalizing a kicked Bog Down under Drought parks the merged selection, and the picks pay it", () => {
+        const { state, player, cardInHand } = bogDownBoard([
+            swampOnBoard("swamp"),
+            land("land1"),
+            land("land2"),
+        ]);
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                bogDown(),
+                cardInHand,
+                player,
+                { kicker: 1 },
+                "hand",
+                undefined
+            )
+        ).not.toThrow();
+
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "spell",
+                targetType: "player",
+                count: 1,
+                selected: [{ type: "player", id: "p2" }],
+                kickerPayments: { kicker: 1 },
+            },
+            "p1"
+        );
+        const sel = state.pendingCast?.sacrificeSelection;
+        expect(sel?.picked).toEqual(["swamp"]);
+        expect(sel?.requirements.map((r) => r.count)).toEqual([1, 2]);
+
+        selectSacrificeOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "land1",
+        });
+        selectSacrificeOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "land2",
+        });
+        expect(
+            getPlayer(state, "p1")
+                .graveyard.map((c) => c.id)
+                .sort()
+        ).toEqual(["land1", "land2", "swamp"]);
+    });
+});
+
+// tracked-by: issue #8259 — an alternative cost's permanent leg beside an own
+// sacrifice stays refused until the merge keeps the emerge victim first.
+describe("an alternative cost's permanent leg beside an own sacrifice fails CLOSED (CR 118.9)", () => {
+    it("refuses Crabomination's emerge cast under Drought rather than misread its victim", () => {
+        const state = castBoard(crabomination().id, [
+            droughtOnBoard(),
+            swampOnBoard("swamp1"),
+            swampOnBoard("swamp2"),
+            bearOnBoard("bear"),
+        ]);
+        const player = getPlayer(state, "p1");
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                crabomination(),
+                player.hand[0],
+                player,
+                undefined,
+                "hand",
+                undefined,
+                crabomination().emerge
+            )
+        ).toThrow(/alternative cost cannot be paid/);
     });
 });

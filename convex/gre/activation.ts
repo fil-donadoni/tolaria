@@ -2057,7 +2057,7 @@ export function resolveTargetCount(
  *
  *  Exported (issue #1985) so a focused GRE-level test can drive the
  *  no-target alt-cost commit branch's REAL composition (this call,
- *  `buildCastSacrificeSelection`, `assertKickerPermanentSlotFree`,
+ *  `buildCastSacrificeSelection`, `assertCastPermanentCostsPayable`,
  *  `buildCastPermanentCostChoice`, in the same order `announceCast` runs
  *  them) without going through the full mutation — the same reason
  *  `buildCastSacrificeSelection` and `assertKickerAnnouncementLegal` are

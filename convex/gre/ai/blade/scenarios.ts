@@ -48,6 +48,7 @@ import {
     STARVED_TARGET_FANOUT_BOARD,
     castSparesOwnPermanents,
     castTargetsOnlyNamed,
+    kickedCastOffered,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -160,6 +161,66 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "kicks Jilt announcing Serra Angel first (bounced) and Grizzly Bears second (burned)",
         },
         note: "CR 601.2c ordered announcement. `MoveMatcher.target` matches ANY target, so it cannot state an ORDER — and order is the whole decision here — hence the predicate shape (as for adventure / mdfc). Issue #4193.",
+    },
+    {
+        // KICKER beside a STATIC SACRIFICE reachability (CR 601.2f, issue #2017).
+        // Under Drought, Bog Down owes a Swamp on top of "Kicker—Sacrifice two
+        // lands". One Swamp and two Forests pay both, from distinct lands, and
+        // Sol Ring funds {2}{B} with the Swamp, so land count alone decides.
+        label: "Kicker beside Drought's tax: the kicked cast is offered when both can be paid",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Bog Down", owner: "me", zone: "hand" },
+                { name: "Drought", owner: "me", zone: "battlefield" },
+                { name: "Sol Ring", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: kickedCastOffered("Bog Down", true),
+            describe:
+                "Bog Down is enumerated kicked under Drought when three lands cover the tax and the Kicker",
+        },
+        note: "Half 1 of a discriminating pair. The legal set is the claim: the executor pays the tax and the Kicker through one merged selection, and `kickerBot.bot.test.ts` proves both search appliers charge the three lands.",
+    },
+    {
+        // NEGATIVE CONTROL (issue #2017). Two Swamps cover the tax alone and the
+        // Kicker alone, but not both, so offering the kicked cast would be a Move
+        // the announcement refuses and the Bot stalls on.
+        label: "Kicker beside Drought's tax: the kicked cast is withheld when the lands cover only one cost",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Bog Down", owner: "me", zone: "hand" },
+                { name: "Drought", owner: "me", zone: "battlefield" },
+                { name: "Sol Ring", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: kickedCastOffered("Bog Down", false),
+            describe:
+                "Bog Down is enumerated only unkicked under Drought when two lands cannot cover the tax and the Kicker",
+        },
+        note: "Half 2 of the discriminating pair above: the same board one land short keeps the unkicked cast and drops the kicked one.",
     },
     {
         // KICKER {X} reachability (CR 107.3a / 702.33a, issue #2141). The

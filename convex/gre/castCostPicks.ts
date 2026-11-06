@@ -35,6 +35,9 @@ import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
 import {
     buildCastPermanentCostChoice,
+    canPayKickerLegsAlongside,
+    hasKickerPermanentLeg,
+    resolveCastPermanentSelection,
     paidCollectEvidence,
     type KickerPayments,
 } from "./kicker";
@@ -235,6 +238,63 @@ export function buildCastCostSelection(
     };
 }
 
+/** CR 601.2f / 601.2h — can the caster pay a paid Kicker's permanent legs on top
+ *  of the sacrifices this cast already owes (the card's own, with the `oneOf` leg
+ *  `chosenLegId` flattened on, and Drought's tax)? The offer-side twin of
+ *  `assertCastPermanentCostsPayable`, read by the Bot's enumerator and the
+ *  cast-cost dialog, so neither offers a kicked cast the announcement refuses.
+ *
+ *  Both walks must succeed: the announcement's first-match reservation, and the
+ *  cheapest-first one the Bot will answer the merged selection with, so a board
+ *  this plan cannot finish is never a Move the Bot then stalls on. A broad own
+ *  sacrifice that would eat the one permanent a narrower Kicker leg needs reads as
+ *  unpayable, the fail-closed side of that shape. */
+export function canPayKickerAlongsideCastSacrifices(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition,
+    chosenLegId: string | undefined,
+    payments: KickerPayments | undefined,
+    castFromZone: CastFromZone = "hand"
+): boolean {
+    if (!hasKickerPermanentLeg(def, payments)) return true;
+    const reason = def.name ?? "Sacrifice";
+    const { selection } = buildCastCostSelection(
+        state,
+        player,
+        card,
+        resolveAdditionalCosts(def.additionalCosts, chosenLegId),
+        reason,
+        castFromZone
+    );
+    if (
+        !canPayKickerLegsAlongside(
+            state,
+            player.id,
+            def,
+            payments,
+            selection?.requirements ?? [],
+            card
+        )
+    ) {
+        return false;
+    }
+    const merged = resolveCastPermanentSelection(
+        buildCastPermanentCostChoice(
+            state,
+            player.id,
+            undefined,
+            def,
+            payments,
+            reason,
+            card
+        ),
+        selection
+    );
+    return !merged || completeSacrificeSelection(state, merged) !== null;
+}
+
 /** Pay a cast's sacrifice legs on a SEARCH SANDBOX state: every permanent that
  *  actually leaves the battlefield — the victims the server auto-resolved at
  *  announcement PLUS the ones the payer submits (`picks.sacrificeIds`); the
@@ -345,10 +405,10 @@ export function planCastCostPicks(
     // via `applyCastSacrificeVictims`.
     let owesSacrifice = false;
 
-    // CR 601.2f / 118.9 (issue #4935) — the alternative cost's permanent leg
-    // claims the cast's ONE permanent-cost slot (`assertKickerPermanentSlotFree`),
-    // so a cast that also owes its own sacrifice (Drought's tax) is refused by
-    // the server at announcement: fail CLOSED rather than offer it.
+    // CR 601.2f / 118.9 (issue #4935) — an alternative cost's permanent leg
+    // beside the cast's own sacrifice (Drought's tax) is refused by the server
+    // at announcement (`assertCastPermanentCostsPayable`): fail CLOSED rather
+    // than offer it.
     if (def && opts?.altCost?.permanent) {
         if (selection) return null;
         const altSelection = buildCastPermanentCostChoice(
