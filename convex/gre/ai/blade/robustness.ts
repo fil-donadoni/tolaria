@@ -152,6 +152,21 @@ export function classifyRobustness(
         : "noise-pinned";
 }
 
+/**
+ * Whether an entry's note admits, in the present tense, that the entry is green
+ * by noise: "noise-settled", "noise-pinned", or "passes on 13/16 seeds". A pass
+ * rate from before a fix ("on 1/5 seeds before the term") is history, not an
+ * admission. An entry that knows this and stays in `must` reds the tip at the
+ * next refit (issue #8459), so it owes a baseline row naming its fix.
+ */
+export function confessesNoise(note: string | undefined): boolean {
+    if (!note) return false;
+    if (/\bnoise[- ](?:settled|pinned)\b/i.test(note)) return true;
+    return [
+        ...note.matchAll(/\bpass(?:es)? (?:on )?(\d+)\/(\d+) seeds\b/gi),
+    ].some((m) => Number(m[1]) < Number(m[2]));
+}
+
 /** Run the audit for ONE entry: its own seeds, then every vector over
  *  `ROBUSTNESS_SEEDS`. Throws what `runBladeScenario` throws (a malformed
  *  entry is an authoring bug, not a verdict). */

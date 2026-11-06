@@ -49,6 +49,11 @@ export const DIRECTORY_WALK =
     /\b(?:readdir|opendir|glob)(?:Sync)?\(|["']ls-files["']|\bgit (?:ls-files|grep)\b/;
 
 export const CENSUS_TESTS: readonly CensusTest[] = [
+    // vitest*.config.ts and package.json — every project a config declares must be reachable by the health retry
+    {
+        test: "scripts/__tests__/health-main-retry.test.ts",
+        admits: /^(vitest(\..+)?\.config\.ts|package\.json)$/,
+    },
     // scripts/__tests__/**/*.test.ts and the guard's own rule — no test pays the live lane-source walk unmarked
     {
         test: "scripts/__tests__/lane-sources-injected.test.ts",
