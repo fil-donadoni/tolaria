@@ -142,7 +142,8 @@ export default function TargetSelectionBanner({
         pendingTarget.targetType,
         pendingTarget.zone,
         pendingTarget.controller,
-        pendingTarget.spellStackKind
+        pendingTarget.spellStackKind,
+        pendingTarget.typeOrSubtypeFilter
     );
     const { hint, minReached, maxReached } = describeTargetProgress(
         pendingTarget.count,

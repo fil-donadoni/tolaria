@@ -50,7 +50,7 @@ import {
     protectionListRule,
 } from "../shared/protectionKeyword";
 import {
-    descriptorRule,
+    targetDescriptorRule,
     targetRequirementFromDescriptor,
 } from "../shared/targetFilter";
 
@@ -203,7 +203,7 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     if (!span.startsWith(ENCHANT_HEAD))
         return fail(`an enchant line starts with "${ENCHANT_HEAD}"`, span);
     const phrase = span.slice(ENCHANT_HEAD.length);
-    const descriptor = descriptorRule.run(phrase, ctx);
+    const descriptor = targetDescriptorRule.run(phrase, ctx);
     if (!descriptor.ok) return descriptor;
     const d = descriptor.value;
     if (d.player !== undefined || d.anyTarget === true)
