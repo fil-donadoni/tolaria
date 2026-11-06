@@ -32,6 +32,7 @@ import type {
     ManaCost,
     PermanentFilter,
 } from "../../../cards/types";
+import { waterbendCost } from "../../../cards/abilities/waterbend";
 import { DISCARD_HAND_COUNT } from "../../../gre/constants";
 import { readManaCost } from "../../manaCost";
 import {
@@ -144,6 +145,11 @@ export type CostAtomIR =
      *  `activateFromGraveyard`; the leg is `lowerActivationCost`'s, the zone
      *  the activated slot's (`lowerActivatedAbility`). */
     | { readonly kind: "exile-self-from-graveyard" }
+    /** CR 701.67a — "Waterbend {3}": pay the generic cost, tapping an untapped
+     *  artifact or creature you control for any of its generic mana. Fixed
+     *  generic only: "Waterbend {X}" has no announced X on an activated
+     *  ability, so it reads as no atom. Lowers to `waterbendCost`. */
+    | { readonly kind: "waterbend"; readonly generic: number }
     /** CR 602.1a — "Return this enchantment to its owner's hand" as a cost
      *  (Attunement). Self only: a return cost naming any OTHER object is a
      *  different leg this grammar deliberately does not read. */
@@ -185,6 +191,10 @@ const GRAVEYARD_TO_LIBRARY_BOTTOM =
 
 /** CR 701.59a — "Collect evidence N", a fixed threshold only. */
 const COLLECT_EVIDENCE_COST = /^Collect evidence (\d+)$/;
+
+// CR 701.67a — the cost is a fixed generic amount; a coloured or variable
+// waterbend cost is a separate refused form.
+const WATERBEND_COST = /^Waterbend \{(\d+)\}$/;
 
 const TAP_OTHER = /^Tap (\S+) (untapped .+)$/;
 
@@ -537,6 +547,16 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
 
         if (span.startsWith("Tap ")) return readTapOtherAtom(span, ctx);
 
+        if (span.startsWith("Waterbend ")) {
+            const match = span.match(WATERBEND_COST);
+            return match === null
+                ? fail("not a waterbend cost this grammar knows", span)
+                : ok({
+                      kind: "waterbend" as const,
+                      generic: Number(match[1]),
+                  });
+        }
+
         return fail("not a cost atom this grammar knows", span);
     }
 );
@@ -612,15 +632,38 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
                 "a cost paid from the graveyard reads only mana beside exiling the card (CR 113.6m)",
                 span
             );
+        // CR 701.67a — a waterbend cost owns the ability's whole mana leg and
+        // its tap-other leg (`waterbendCost`): beside another mana atom or a
+        // tap-other atom it would collide on those fields, and no corpus line
+        // prints either beside it.
+        if (
+            seen.has("waterbend") &&
+            (seen.has("mana") || seen.has("tap-other"))
+        )
+            return fail(
+                "a waterbend cost beside another mana or tap-other atom has no encoding",
+                span
+            );
         // CR 118.3 — with `{T}` in the cost the source is already tapped, so it
         // cannot also be one of the untapped permanents it taps. Without it the
         // source may pay with itself, which the engine's pool cannot express.
-        const tapOther = atoms.value.find((atom) => atom.kind === "tap-other");
-        if (tapOther?.kind === "tap-other" && !seen.has("tap")) {
+        // The waterbend pool (artifact or creature you control, CR 701.67a)
+        // excludes the source the same way, so it takes the same refusal.
+        const tapOther = atoms.value.find(
+            (atom) => atom.kind === "tap-other" || atom.kind === "waterbend"
+        );
+        if (tapOther !== undefined && !seen.has("tap")) {
             const typeLine = (ctx as Partial<ParseContext>).typeLine;
+            const tapFilter =
+                tapOther.kind === "waterbend"
+                    ? waterbendCost(tapOther.generic).tapOtherFilter!.filter
+                    : tapOther.kind === "tap-other"
+                      ? tapOther.filter
+                      : undefined;
             if (
+                tapFilter === undefined ||
                 typeLine === undefined ||
-                sourceCouldPayItself(tapOther.filter, typeLine)
+                sourceCouldPayItself(tapFilter, typeLine)
             )
                 return fail(
                     "the source could tap itself to pay this cost, which the engine's tap-other pool excludes",
@@ -663,6 +706,13 @@ export function lowerActivationCost(
                     count: atom.count,
                 };
                 break;
+            case "waterbend": {
+                // CR 701.67a — mana leg + substitution picker, one authority.
+                const waterbend = waterbendCost(atom.generic);
+                cost.mana = waterbend.mana;
+                cost.tapOtherFilter = waterbend.tapOtherFilter;
+                break;
+            }
             case "pay-life":
                 cost.life = atom.amount;
                 break;
