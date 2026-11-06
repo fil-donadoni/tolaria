@@ -1202,6 +1202,11 @@ export const CHEAP_GUARDS: readonly {
     /** It compares the PR to its merge base, so on the base tip — where
      *  health runs — it has nothing to compare and is no health step. */
     diffOnly?: true;
+    /** It runs vitest, so it reads the catalogue `getAllCatalogueCards()`
+     *  loads: a tree without `derive:regenerate` (a PR never carries
+     *  `data/catalogue/*`, ADR 0157) is the wrong population. `pr-refresh`
+     *  leaves it to the lane (issue #8398). */
+    runsTests?: true;
     /** The bot test files it runs WHOLE, which the cost admission (issue
      *  #6943) then leaves out rather than run twice. */
     runsBotFiles?: readonly string[];
@@ -1231,6 +1236,7 @@ export const CHEAP_GUARDS: readonly {
     {
         id: "check:weight-noise",
         diffOnly: true,
+        runsTests: true,
         admits: /\.bot\.test\.ts$/,
         lacks: "no changed bot-node test — a test already on the base is health's",
     },

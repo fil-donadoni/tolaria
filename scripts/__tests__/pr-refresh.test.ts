@@ -286,6 +286,16 @@ describe("semanticChecks", () => {
         );
         expect(ids).toContain("check:gaps");
         expect(semanticChecks(["no/guard/admits/this.xyz"])).toEqual([]);
+    });
+
+    it("leaves a vitest-running guard to the lane: the rebased tree has a stale catalogue (issue #8398)", () => {
+        const ids = semanticChecks([
+            "convex/gre/ai/__tests__/loyaltyValue.bot.test.ts",
+        ]).map((c) => c.id);
+        expect(ids).not.toContain("check:weight-noise");
+    });
+
+    it("renders the comment naming the command", () => {
         expect(
             semanticComment({
                 check: { id: "check:gaps", command: "bun run check:gaps" },

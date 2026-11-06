@@ -180,7 +180,10 @@ export interface SemanticCheck {
  * #6651): the census and counter invariants the lane's cheap tier runs as
  * plain scripts (`CHEAP_GUARDS`, the one authority — `pre-queue-steps.ts`
  * filters the same table), admitted by the paths the PR changes against the
- * base. Never a second list of guards.
+ * base. Never a second list of guards. A guard that runs vitest
+ * (`runsTests`) is left to the lane: `pr-refresh` does not regenerate the
+ * derived catalogue, so a test reading it sees a population the lane never
+ * does (issue #8398); regenerating first costs minutes against the guard's ~7 s.
  */
 export function semanticChecks(
     changedFiles: readonly string[]
@@ -188,6 +191,7 @@ export function semanticChecks(
     return CHEAP_GUARDS.filter(
         (g) =>
             g.command === undefined &&
+            g.runsTests !== true &&
             changedFiles.some((f) => g.admits.test(f))
     ).map((g) => ({ id: g.id, command: `bun run ${g.id}` }));
 }
