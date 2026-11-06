@@ -1398,6 +1398,7 @@ export function etbFindsNoTarget(
         .filter((t) => t.etbAbility === true)
         .flatMap((t) => [
             t.targetRequirement,
+            ...(t.additionalTargetRequirements ?? []),
             ...(t.modes ?? []).map((m) => m.targetRequirement),
         ])
         .filter((r) => r !== undefined);

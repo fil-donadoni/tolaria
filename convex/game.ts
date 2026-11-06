@@ -11306,13 +11306,19 @@ export const confirmTargets = mutation({
  *  "deal 5 damage to any target" would silently deal 0. A MANDATORY target
  *  (min > 0) that the player declines removes the trigger from the stack
  *  entirely (CR 603.3c — no legal target chosen); an "up to" target (min 0)
- *  resolves with no target (`targets: []`). Then chain to any other
+ *  declines that group: it locks nothing, and the walk moves on (CR 601.2c,
+ *  issue #8475) keeping earlier groups' picks. Then chain to any other
  *  still-untargeted trigger of the same batch; otherwise a fresh priority
  *  round begins with the active player. Pure over `GameState` for testability. */
 export function cancelTriggerTargetSelection(state: GameState): void {
     const pt = state.pendingTarget;
     if (!pt || pt.kind !== "trigger") return;
     const min = typeof pt.count === "number" ? pt.count : pt.count.min;
+    if (min === 0 && (pt.remainingRequirements || pt.priorSelected)) {
+        pt.selected = [];
+        advanceTargetGroupOrFinalize(state, pt, pt.playerId);
+        return;
+    }
     if (min > 0) {
         const idx = state.stack.findIndex((s) => s.id === pt.cardInstanceId);
         if (idx !== -1) state.stack.splice(idx, 1);
