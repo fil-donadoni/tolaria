@@ -1,36 +1,77 @@
-// The rounding rule for a value a test derives by subtracting two valuations.
+// The rounding rule for an exact assertion on points that went through float
+// arithmetic, and the scanner that refuses the assertion without it.
 //
-// A difference of two sums carries floating-point noise that depends on the
-// weights, so an exact assertion on it can flip on any refit.
+// A value derived by subtracting two valuations carries noise that depends on the
+// weights, so `toBe` on it can flip on any refit.
 //
-// The rule is 11 decimals, and the number is not arbitrary. A fitted weight has
-// 6 decimals and every `REMOVAL_COMPLETENESS` denominator divides 32, so a price
-// is a multiple of 1e-6 / 32 = 3125e-11: it lies ON the 1e-11 grid. No true value
-// can then sit on a rounding boundary, and noise (about 1e-13 at these
-// magnitudes, against the 5e-12 to the nearest boundary) cannot push one value to
-// a different grid point than its twin. A coarser grid has no such guarantee:
-// 6 decimals would split a price ending in exactly ...5 at the seventh.
+// The rule rounds the DIFFERENCE of the two sides to 9 decimals and requires 0.
+// Rounding each side instead would not hold: two twins a noise apart can straddle
+// a rounding boundary, whatever the precision, and a price with a denominator of
+// 3 or 11 has no grid to keep it off one. The difference has no boundary near it:
+// noise is about 1e-13 at these magnitudes, 5e-10 away from rounding to anything
+// but 0, and a real change is at least a fitted weight's last digit, 1e-6.
 
-const POINTS_GRID_PER_UNIT = 1e11;
+import { expect } from "vitest";
+import ts from "typescript";
 
-/** Both sides of an exact assertion on a derived difference go through this. */
-export function roundToPointsGrid(points: number): number {
-    return Math.round(points * POINTS_GRID_PER_UNIT) / POINTS_GRID_PER_UNIT;
+const POINTS_DECIMALS_FACTOR = 1e9;
+
+/** Rounds to the rule's 9 decimals; `+ 0` turns a rounded -0 into 0. */
+export function roundPoints(points: number): number {
+    return (
+        Math.round(points * POINTS_DECIMALS_FACTOR) / POINTS_DECIMALS_FACTOR + 0
+    );
 }
 
-const POINTS_SUBTRACTION = /\.points\s*-\s*[\w$.]*\.points/;
-const ROUNDING_CALL = "roundToPointsGrid(";
+export function expectSamePoints(actual: number, expected: number): void {
+    expect(
+        roundPoints(actual - expected),
+        `${actual} is not ${expected} at 9 decimals`
+    ).toBe(0);
+}
 
-/** 1-indexed lines subtracting two `.points` outside the rounding rule. A line
- *  wrapped by the formatter counts when the call opens on the line before. */
-export function findUnroundedPointsSubtractions(source: string): number[] {
-    const lines = source.split("\n");
-    const found: number[] = [];
-    lines.forEach((line, i) => {
-        if (!POINTS_SUBTRACTION.test(line)) return;
-        if (line.includes(ROUNDING_CALL)) return;
-        if ((lines[i - 1] ?? "").trimEnd().endsWith(ROUNDING_CALL)) return;
-        found.push(i + 1);
-    });
-    return found;
+const POINTS_READ = ".points";
+
+function isExactAssertionOnPoints(node: ts.CallExpression): boolean {
+    const callee = node.expression;
+    if (!ts.isPropertyAccessExpression(callee)) return false;
+    if (callee.name.text !== "toBe") return false;
+    return callee.expression.getText().includes(POINTS_READ);
+}
+
+/**
+ * 1-indexed lines of the `toBe` assertions on points in a file that subtracts two
+ * `.points`: there an exact assertion may be reading the noisy difference, so the
+ * file asserts through `expectSamePoints`. Parsed, not matched, so a wrapped line,
+ * an optional chain or a call on either side reads the same.
+ */
+export function findExactPointsAssertions(
+    fileName: string,
+    source: string
+): number[] {
+    if (!source.includes(POINTS_READ)) return [];
+    const file = ts.createSourceFile(
+        fileName,
+        source,
+        ts.ScriptTarget.Latest,
+        true
+    );
+    let subtracts = false;
+    const exact: number[] = [];
+    const visit = (node: ts.Node): void => {
+        if (
+            ts.isBinaryExpression(node) &&
+            node.operatorToken.kind === ts.SyntaxKind.MinusToken &&
+            node.left.getText().includes(POINTS_READ) &&
+            node.right.getText().includes(POINTS_READ)
+        )
+            subtracts = true;
+        if (ts.isCallExpression(node) && isExactAssertionOnPoints(node))
+            exact.push(
+                file.getLineAndCharacterOfPosition(node.getStart()).line + 1
+            );
+        ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return subtracts ? exact : [];
 }

@@ -1,61 +1,62 @@
-// A test that subtracts two valuations asserts through the rounding rule, or the
-// next refit reds it with noise (`pointsGrid.helper.ts` states the rule).
+// A test file that subtracts two valuations asserts through the rounding rule, or
+// the next refit reds it with noise (`pointsGrid.helper.ts` states the rule).
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, it, expect } from "vitest";
-import {
-    findUnroundedPointsSubtractions,
-    roundToPointsGrid,
-} from "./pointsGrid.helper";
+import { findExactPointsAssertions, roundPoints } from "./pointsGrid.helper";
 
 const ROOT = resolve(__dirname, "../../../..");
 const SWEPT_DIRS = ["convex", "src"];
+const TEST_SOURCE = /\.(test|helper)\.tsx?$/;
 const THIS_FILE = "pointsSubtractionRounded.bot.test.ts";
 
 function testFiles(): string[] {
     return SWEPT_DIRS.flatMap((dir) =>
         readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
-            .filter((p) => p.endsWith(".test.ts") && !p.endsWith(THIS_FILE))
+            .filter((p) => TEST_SOURCE.test(p) && !p.endsWith(THIS_FILE))
             .map((p) => join(ROOT, dir, p))
     );
 }
 
-describe("a points difference asserted in a test", () => {
+const noisy = (source: string) => findExactPointsAssertions("t.ts", source);
+
+describe("an exact assertion on points in a file that subtracts them", () => {
     it("goes through the rounding rule, in every test file", () => {
         const offenders = testFiles().flatMap((file) =>
-            findUnroundedPointsSubtractions(readFileSync(file, "utf8")).map(
+            findExactPointsAssertions(file, readFileSync(file, "utf8")).map(
                 (line) => `${file}:${line}`
             )
         );
         expect(offenders).toEqual([]);
     });
 
-    it("the scanner reads the bare, the rounded and the wrapped shape", () => {
-        expect(
-            findUnroundedPointsSubtractions("x = all.points - head.points;")
-        ).toEqual([1]);
-        expect(
-            findUnroundedPointsSubtractions(
-                "x = roundToPointsGrid(all.points - head.points);"
-            )
-        ).toEqual([]);
-        expect(
-            findUnroundedPointsSubtractions(
-                "x = roundToPointsGrid(\n    all.points - head.points\n);"
-            )
-        ).toEqual([]);
+    it("the scanner reads every shape of the subtraction", () => {
+        const assertion = "\nexpect(v.points).toBe(1);";
+        for (const subtraction of [
+            "x = all.points - head.points;",
+            "x = all.points -\n    head.points;",
+            "x = (a?.points ?? 0) - (b?.points ?? 0);",
+            "x = f(a).points - f(b).points;",
+        ])
+            expect(noisy(subtraction + assertion)).not.toEqual([]);
     });
 
-    it("the rule absorbs the noise the refit produced and keeps a real gap", () => {
-        expect(roundToPointsGrid(155.15567799999997)).toBe(
-            roundToPointsGrid(155.155678)
-        );
-        expect(roundToPointsGrid(155.15567800000002)).toBe(
-            roundToPointsGrid(155.155678)
-        );
-        expect(roundToPointsGrid(155.155679)).not.toBe(
-            roundToPointsGrid(155.155678)
-        );
+    it("the scanner leaves alone what carries no noise", () => {
+        expect(noisy("expect(v.points).toBe(1);")).toEqual([]);
+        expect(
+            noisy("x = a.points - b.points;\nexpect(x.points).toBeCloseTo(1);")
+        ).toEqual([]);
+    });
+});
+
+describe("the rounding rule", () => {
+    it("reads the noise the refit produced as no difference, either sign", () => {
+        expect(roundPoints(155.15567799999997 - 155.155678)).toBe(0);
+        expect(roundPoints(155.15567800000002 - 155.155678)).toBe(0);
+    });
+
+    it("keeps a fitted weight's last digit as a difference", () => {
+        expect(roundPoints(155.155679 - 155.155678)).not.toBe(0);
     });
 });

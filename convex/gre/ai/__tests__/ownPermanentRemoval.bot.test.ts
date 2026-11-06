@@ -11,7 +11,7 @@ import { valueEffectScript, valueOp, contextFreeGrounding } from "../index";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { withGraveyardSource } from "../grounding";
 import { SAC_SELF_COST } from "../opValuers";
-import { roundToPointsGrid } from "./pointsGrid.helper";
+import { expectSamePoints } from "./pointsGrid.helper";
 
 const cf = contextFreeGrounding();
 const REMOVAL = DEFAULT_EVAL_WEIGHTS.latent.boardRemoval;
@@ -39,12 +39,12 @@ function delayed(
 }
 
 /** The value of the LAST Op of a script: what the walk read for it once every
- *  Op before it bound what it binds. A difference, so on the rounding grid. */
+ *  Op before it bound what it binds. A difference, so asserted through `expectSamePoints`. */
 function lastOpValue(script: readonly EffectOp[], ctx = cf) {
     const all = valueEffectScript(script, ctx);
     const head = valueEffectScript(script.slice(0, -1), ctx);
     return {
-        points: roundToPointsGrid(all.points - head.points),
+        points: all.points - head.points,
         tags: all.tags,
     };
 }
@@ -66,7 +66,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
         const script = unearthAbility({ B: 1 }).effects as EffectOp[];
         const ctx = withGraveyardSource(cf);
         const v = lastOpValue(script, ctx);
-        expect(v.points).toBe(SAC_SELF_COST);
+        expectSamePoints(v.points, SAC_SELF_COST);
         expect(v.tags).toContain("self-cost");
     });
 
@@ -74,7 +74,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
         describe(`${verb}`, () => {
             it("of the battlefield source", () => {
                 const v = valueOp({ op: verb, target: { ref: "$source" } }, cf);
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
                 expect(v.tags).toContain("self-cost");
             });
 
@@ -83,7 +83,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                     [delayed(verb, { $self: { ref: "$source" } }, "$self")],
                     cf
                 );
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
             });
 
             it("of a capture aliasing a card the script reanimated", () => {
@@ -95,7 +95,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                         "$captured"
                     ),
                 ]);
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
             });
 
             it("of a capture two levels down, through an `if`", () => {
@@ -116,7 +116,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                         ],
                     },
                 ]);
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
             });
 
             it("of a token copy the script made for its controller", () => {
@@ -129,7 +129,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                     },
                     delayed(verb, { $token: { ref: "$copy" } }, "$token"),
                 ]);
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
             });
 
             it("of a card named by a controller-side `moveZone { cards }`", () => {
@@ -148,7 +148,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                         "$captured"
                     ),
                 ]);
-                expect(v.points).toBe(SAC_SELF_COST);
+                expectSamePoints(v.points, SAC_SELF_COST);
             });
         });
     }
@@ -162,7 +162,7 @@ describe("a script's own permanent removed is a cost, not removal (CR 702.84a)",
                 "$captured"
             ),
         ]);
-        expect(v.points).toBe(SAC_SELF_COST);
+        expectSamePoints(v.points, SAC_SELF_COST);
     });
 });
 
@@ -172,9 +172,10 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
             const price = OPPOSING_PRICE[verb];
 
             it("of an announced target", () => {
-                expect(
-                    valueOp({ op: verb, target: { target: 0 } }, cf).points
-                ).toBe(price);
+                expectSamePoints(
+                    valueOp({ op: verb, target: { target: 0 } }, cf).points,
+                    price
+                );
             });
 
             it("of a capture of an announced target", () => {
@@ -182,15 +183,16 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     [delayed(verb, { $it: { target: 0 } }, "$it")],
                     cf
                 );
-                expect(v.points).toBe(price);
+                expectSamePoints(v.points, price);
                 expect(v.tags).not.toContain("self-cost");
             });
 
             it("of an unbound or event-named ref", () => {
                 for (const ref of ["$event.blockerId", "$unknown"]) {
-                    expect(
-                        valueOp({ op: verb, target: { ref } }, cf).points
-                    ).toBe(price);
+                    expectSamePoints(
+                        valueOp({ op: verb, target: { ref } }, cf).points,
+                        price
+                    );
                 }
             });
 
@@ -204,7 +206,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     },
                     delayed(verb, { $c: { ref: "$back" } }, "$c"),
                 ]);
-                expect(v.points).toBe(roundToPointsGrid(price));
+                expectSamePoints(v.points, price);
             });
 
             it("of a permanent the script gave to another player", () => {
@@ -217,7 +219,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     },
                     delayed(verb, { $token: { ref: "$copy" } }, "$token"),
                 ]);
-                expect(v.points).toBe(roundToPointsGrid(price));
+                expectSamePoints(v.points, price);
             });
 
             it("of the same name in a body that never captured it", () => {
@@ -225,7 +227,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     REVIVE_TOP,
                     delayed(verb, { $other: { target: 0 } }, "$revived"),
                 ]);
-                expect(v.points).toBe(roundToPointsGrid(price));
+                expectSamePoints(v.points, price);
             });
         });
     }
