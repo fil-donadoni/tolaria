@@ -15,12 +15,14 @@ export default function MatchSetupStepBody({
     decks,
     tables,
     onChange,
+    onLoadMoreArchived,
 }: {
     step: StepKey;
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
     tables: readonly OpenTable[];
     onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
+    onLoadMoreArchived?: () => void;
 }) {
     switch (step) {
         case "mode":
@@ -37,7 +39,12 @@ export default function MatchSetupStepBody({
             );
         case "myDeck":
             return (
-                <MyDeckStep setup={setup} decks={decks} onChange={onChange} />
+                <MyDeckStep
+                    setup={setup}
+                    decks={decks}
+                    onChange={onChange}
+                    onLoadMoreArchived={onLoadMoreArchived}
+                />
             );
         case "opponentDeck":
             return (
@@ -45,6 +52,7 @@ export default function MatchSetupStepBody({
                     setup={setup}
                     decks={decks}
                     onChange={onChange}
+                    onLoadMoreArchived={onLoadMoreArchived}
                 />
             );
         case "table":

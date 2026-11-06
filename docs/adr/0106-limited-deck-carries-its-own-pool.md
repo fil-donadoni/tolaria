@@ -73,6 +73,14 @@ deck ever reads.**
    guarantee, still keyed off the authenticated caller, and one that keeps
    holding after the event is gone. A client-supplied Pool is never accepted:
    it would let the caller declare the universe it is validated against.
+   _Amended by issue #8411:_ access at game start is "you own this deck, or you
+   are an admin", and the admin half holds for `createSoloGame` only, vs-Bot
+   included. An admin naming another player's `limited` row gets the row: its
+   cards, Format and Deck Pool, the inline payload ignored, at a Freeform Match
+   outside any Event. `createGame` and `joinGame` stay owner-only, for an admin
+   too: another player's deck at a table with a second human is a separate
+   decision. The Match takes its usual copy, so nothing reaches the row or its
+   Deck Pool.
 5. **`limitedEventId` / `limitedSeatId` are demoted to provenance.** They stay,
    because `useLimitedSeatDeck` uses them to find a Seat's deck while the event
    runs, but they gate no legality and may dangle harmlessly.

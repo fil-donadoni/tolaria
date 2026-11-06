@@ -6,8 +6,10 @@
 import { describe, expect, it } from "vitest";
 import type { MutationCtx } from "@convex/_generated/server";
 import { makeInMemoryDb } from "@convex/__tests__/fixtures/inMemoryDb.fixture";
+import { resolveDeckCardMeta } from "@convex/cards";
 import { createSoloGame } from "@convex/game";
-import type { LobbyDeck } from "../deckTypes";
+import { listSeatableLimitedDecksAdmin } from "@convex/userDecks";
+import { toArchivedLobbyDeck, type LobbyDeck } from "../deckTypes";
 import { EMPTY_SETUP, startRequest, type MatchSetup } from "../matchSetup";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -99,5 +101,71 @@ describe("vs-Bot Start through createSoloGame", () => {
         const { match, p2 } = await startVsBot(VS_BOT);
         expect(match.matchFormat).toBe("freeform");
         expect(new Set(p2)).toEqual(new Set(["Mountain"]));
+    });
+});
+
+describe("an admin's archived deck, list to seat (issue #8411)", () => {
+    const BOLT_PRINT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const BOLT = { cardId: BOLT_PRINT, cardName: "Lightning Bolt" };
+    const LAND = { cardId: MOUNTAIN, cardName: "Mountain" };
+
+    it("what the list offers, Start sends and the server seats", async () => {
+        const db = makeInMemoryDb(
+            {
+                users: [
+                    { _id: "user-root", nickname: "Root", isAdmin: true },
+                    { _id: ALICE, nickname: "Alice" },
+                ],
+                userDecks: [
+                    {
+                        _id: "row-1",
+                        userId: ALICE,
+                        name: "Alice's Sealed",
+                        format: "limited",
+                        colors: ["R"],
+                        cards: [BOLT, ...Array(39).fill(LAND)],
+                        sideboard: [],
+                    },
+                ],
+                limitedDeckPools: [
+                    {
+                        _id: "pool-1",
+                        deckId: "row-1",
+                        pool: [
+                            {
+                                scryfallId: BOLT_PRINT,
+                                cardId: resolveDeckCardMeta(BOLT_PRINT)!.cardId,
+                                cardName: "Lightning Bolt",
+                            },
+                        ],
+                    },
+                ],
+            },
+            { identitySubject: "user-root" }
+        );
+        const { page } = await run(listSeatableLimitedDecksAdmin, db.ctx, {
+            paginationOpts: { numItems: 25, cursor: null },
+        });
+        const archived = page.map(toArchivedLobbyDeck);
+        expect(archived[0].ownerNickname).toBe("Alice");
+        const own = deck("own", "freeform", "Own");
+        const request = startRequest(
+            {
+                ...EMPTY_SETUP,
+                mode: "arena",
+                opponent: "bot",
+                matchFormat: "freeform",
+                myDeckId: "own",
+                opponentDeckId: "row-1",
+                opponentDeckChosen: true,
+            },
+            [own, ...archived],
+            "Root"
+        );
+        expect(request?.mutation).toBe("createSoloGame");
+        await run(createSoloGame, db.ctx, request?.args);
+        const seats = db.tables.matchDecks as any[];
+        expect(seats[1].maindeck).toHaveLength(40);
+        expect(seats[1].maindeck[0].cardName).toBe("Lightning Bolt");
     });
 });

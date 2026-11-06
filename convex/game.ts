@@ -1,7 +1,7 @@
 import { ConvexError, v, type GenericId, type Infer } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
-import { assertIsAdmin, getCurrentUser } from "./auth";
+import { assertIsAdmin, getCurrentUser, isAdminUser } from "./auth";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { copyExceptName } from "./cards/cardNames";
@@ -3047,8 +3047,9 @@ export const getFullState = query({
  * SECURITY: the game mutations accept an INLINE deck, so the payload names the
  * row it stands for and the server re-derives everything that matters from it:
  * - no `userDeckId` on a `limited` payload is refused, fail-closed;
- * - the row must belong to the AUTHENTICATED `callerUserId`, never anything
- *   from `deck` — "you own this deck" is the whole ownership rule here;
+ * - the row must belong to `seatOwnerId`, never anything from `deck`: the
+ *   AUTHENTICATED caller, or the owner `resolveSoloSeatDeck` admitted an admin
+ *   for (ADR 0106 §4);
  * - the payload's `limitedEventId`/`limitedSeatId` must be the row's. The
  *   event-bound mutations read those two off the payload, and the Pool no
  *   longer pins them, so a mismatch would seat a deck legal against ANOTHER
@@ -3067,7 +3068,7 @@ export async function loadLimitedPoolResolver(
         Infer<typeof deckValidator>,
         "format" | "userDeckId" | "limitedEventId" | "limitedSeatId"
     >,
-    callerUserId: string,
+    seatOwnerId: string,
     resolve?: ResolveCard
 ): Promise<ResolvePool | undefined> {
     if (deck.format !== "limited") return undefined;
@@ -3076,7 +3077,7 @@ export async function loadLimitedPoolResolver(
             "A Limited deck must be a saved deck to start a game."
         );
     const row = await ctx.db.get(deck.userDeckId);
-    if (!row || row.userId !== callerUserId)
+    if (!row || row.userId !== seatOwnerId)
         throw new ConvexError("You do not own this Limited deck.");
     if (
         row.limitedEventId !== deck.limitedEventId ||
@@ -3097,15 +3098,52 @@ export async function loadLimitedPoolResolver(
 async function assertGameDeckLegal(
     ctx: MutationCtx,
     deck: Infer<typeof deckValidator>,
-    callerUserId: string
+    seatOwnerId: string
 ): Promise<void> {
     const resolve = makeResolveCardFromRows(await loadDeckPrintRows(ctx, deck));
     assertDeckLegal(
         deck,
         resolve,
         await loadBanlistOverrides(ctx, deck.format),
-        await loadLimitedPoolResolver(ctx, deck, callerUserId, resolve)
+        await loadLimitedPoolResolver(ctx, deck, seatOwnerId, resolve)
     );
+}
+
+/**
+ * One `createSoloGame` seat's deck and the user its row must belong to (ADR 0106
+ * §4 as amended by issue #8411): "you own this deck, or you are an admin".
+ *
+ * An admin naming another player's Limited row gets THE ROW — cards, sideboard,
+ * Format and provenance — and the inline payload is dropped, so nothing the
+ * client sent reaches the seat. The Match then takes its usual copy, which is
+ * what leaves the row and its Deck Pool untouched. Anyone else naming another
+ * player's row is refused here, whatever Format the payload claims, and so is an
+ * admin naming a non-Limited one: the archive is Limited decks.
+ */
+async function resolveSoloSeatDeck(
+    ctx: MutationCtx,
+    deck: Infer<typeof deckValidator>,
+    user: Doc<"users">
+): Promise<{ deck: Infer<typeof deckValidator>; ownerId: string }> {
+    const own = { deck, ownerId: user._id as string };
+    if (!deck.userDeckId) return own;
+    const row = await ctx.db.get(deck.userDeckId);
+    if (!row || row.userId === user._id) return own;
+    if (!isAdminUser(user) || row.format !== "limited")
+        throw new ConvexError("You do not own this deck.");
+    return {
+        deck: {
+            id: row._id,
+            name: row.name,
+            format: row.format,
+            cards: row.cards,
+            sideboard: row.sideboard ?? [],
+            userDeckId: row._id,
+            limitedEventId: row.limitedEventId,
+            limitedSeatId: row.limitedSeatId,
+        },
+        ownerId: row.userId,
+    };
 }
 
 export const createGame = mutation({
@@ -3577,12 +3615,18 @@ export const createSoloGame = mutation({
         // #155 (match-scoped): one active match per user (see createGame).
         if (await findActiveMatchForUser(ctx, user._id))
             throw new ConvexError(ACTIVE_GAME_MESSAGE);
+        // Everything below reads these, never `args.deck`/`args.deck2`: an
+        // admin's seat with another player's deck is the row, not the payload.
+        const seat1 = await resolveSoloSeatDeck(ctx, args.deck, user);
+        const seat2 = args.deck2
+            ? await resolveSoloSeatDeck(ctx, args.deck2, user)
+            : seat1;
         // An event binding is only legitimate when seat 1's deck IS that
         // event's deck — `loadLimitedPoolResolver` below holds the payload's
         // event to the row the caller owns.
         let botDifficulty: Difficulty | undefined;
         if (args.limitedEventId) {
-            assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
+            assertSameEventDeck(seat1.deck.limitedEventId, args.limitedEventId);
             const limitedEvent = await ctx.db.get(args.limitedEventId);
             if (!limitedEvent) throw new Error("Limited Event not found.");
             // "Play vs the Table" plays at the event's difficulty (issue
@@ -3600,7 +3644,6 @@ export const createSoloGame = mutation({
                     "Play vs Bots is off while this event's rounds are running."
                 );
         }
-        const deck2 = args.deck2 ?? args.deck;
         // Match Format admission (ADR 0153): both seats, before any legality
         // work — a client that offered an inadmissible Bot deck is refused
         // here, not trusted. An absent one is seat 1's Deck Format — except
@@ -3611,27 +3654,37 @@ export const createSoloGame = mutation({
             args.matchFormat ??
             (args.limitedEventId && args.deck2
                 ? "freeform"
-                : toFormatId(args.deck.format));
-        assertDeckAdmitted(args.deck, matchFormat);
-        assertDeckAdmitted(deck2, matchFormat);
+                : toFormatId(seat1.deck.format));
+        // Another player's deck is a study seat (ADR 0106 §4): a Freeform
+        // Match outside any Event, never a playtest bound to a seat's Event.
+        if (
+            (seat1.ownerId !== user._id || seat2.ownerId !== user._id) &&
+            (args.limitedEventId || matchFormat !== "freeform")
+        )
+            throw new ConvexError(
+                "Another player's deck can only sit at a Freeform Match outside any Limited Event."
+            );
+        assertDeckAdmitted(seat1.deck, matchFormat);
+        assertDeckAdmitted(seat2.deck, matchFormat);
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
         // override (PRD #1138, issue #1144) is loaded independently — the two
         // seats' decks aren't guaranteed to share a Format.
-        await assertGameDeckLegal(ctx, args.deck, user._id);
-        if (args.deck2) await assertGameDeckLegal(ctx, args.deck2, user._id);
+        await assertGameDeckLegal(ctx, seat1.deck, seat1.ownerId);
+        if (args.deck2)
+            await assertGameDeckLegal(ctx, seat2.deck, seat2.ownerId);
 
         const player1: PlayerInput = {
             id: `${user._id}-p1`,
             name: `${user.nickname} (P1)`,
             bgColor: PLAYER_COLORS[0],
-            deck: args.deck,
+            deck: seat1.deck,
         };
         const player2: PlayerInput = {
             id: `${user._id}-p2`,
             name: `${user.nickname} (P2)`,
             bgColor: PLAYER_COLORS[1],
-            deck: deck2,
+            deck: seat2.deck,
         };
 
         const allPlayers = [player1, player2];

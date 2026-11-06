@@ -6,6 +6,7 @@ import {
     EMPTY_SETUP,
     MATCH_SETUP_STORAGE_KEY,
     applyChange,
+    archivedDecksOffered,
     defaultBotDeckId,
     firstOpenStep,
     loadSetup,
@@ -558,5 +559,64 @@ describe("Bot deck default by Limited Origin (issue #5394, ADR 0153)", () => {
         expect(defaultBotDeckId({ ...base, ...mine }, LIMITED_DECKS)).toBe(
             "cube-b"
         );
+    });
+});
+
+describe("another player's archived deck (issue #8411, ADR 0106 §4)", () => {
+    const archived = deck({
+        kind: "user",
+        userDeckId: "row-1",
+        presetId: "row-1",
+        name: "Alice's Sealed",
+        format: "limited",
+        ownerNickname: "Alice",
+    } as Partial<LobbyDeck>);
+    const decks = [...DECKS, archived];
+    const seated = setup({
+        mode: "arena",
+        opponent: "bot",
+        matchFormat: "freeform",
+        myDeckId: "row-1",
+        opponentDeckId: null,
+        opponentDeckChosen: true,
+    });
+
+    it("is offered only where createSoloGame seats it: Arena, Bot or Solo, Freeform", () => {
+        expect(archivedDecksOffered(seated)).toBe(true);
+        expect(archivedDecksOffered({ ...seated, opponent: "solo" })).toBe(
+            true
+        );
+        for (const opponent of ["host", "join"] as const) {
+            expect(archivedDecksOffered({ ...seated, opponent })).toBe(false);
+        }
+        expect(
+            archivedDecksOffered({ ...seated, matchFormat: "premodern" })
+        ).toBe(false);
+        expect(archivedDecksOffered({ ...seated, mode: "cockatrice" })).toBe(
+            false
+        );
+    });
+
+    it("Start names its row, so the server can seat the row", () => {
+        const request = startRequest(seated, decks, "Root");
+        expect(request?.mutation).toBe("createSoloGame");
+        expect(request?.args.deck.userDeckId).toBe("row-1");
+    });
+
+    it("leaving Bot or Solo drops it, though the deck list still holds it", () => {
+        const next = applyChange(seated, { opponent: "host" }, decks);
+        expect(next.myDeckId).toBeNull();
+    });
+
+    it("leaving Freeform drops it", () => {
+        const next = applyChange(seated, { matchFormat: "premodern" }, decks);
+        expect(next.myDeckId).toBeNull();
+    });
+
+    it("is not counted among the player's decks a Match Format admits", () => {
+        const count = (list: readonly LobbyDeck[]) =>
+            matchFormatOptions(list).find((o) => o.format === "freeform")
+                ?.admitted;
+        expect(count(decks)).toBe(count(DECKS));
     });
 });

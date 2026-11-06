@@ -10,10 +10,12 @@ export default function OpponentDeckStep({
     setup,
     decks,
     onChange,
+    onLoadMoreArchived,
 }: {
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
     onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
+    onLoadMoreArchived?: () => void;
 }) {
     const matchFormat = effectiveMatchFormat(setup);
     if (matchFormat === null) return null;
@@ -44,6 +46,7 @@ export default function OpponentDeckStep({
                         deck
                     )
                 }
+                onLoadMoreArchived={onLoadMoreArchived}
                 mirror={{
                     selected: mirror,
                     onSelect: () =>

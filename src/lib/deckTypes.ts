@@ -61,6 +61,10 @@ export interface PresetLobbyDeck extends LobbyDeckBase {
 export interface UserLobbyDeck extends LobbyDeckBase {
     kind: "user";
     userDeckId: Id<"userDecks">;
+    // Another player's Limited deck, offered to an admin by the Match setup
+    // (issue #8411, ADR 0106 §4). Absent on the viewer's own decks, so its
+    // presence is what `isArchivedDeck` reads.
+    ownerNickname?: string;
 }
 
 export type LobbyDeck = PresetLobbyDeck | UserLobbyDeck;
@@ -185,6 +189,19 @@ export function toUserLobbyDeck(
         // row saved before this slice simply has none.
         layout: d.layout,
     };
+}
+
+/** One row of `userDecks.listSeatableLimitedDecksAdmin` as a lobby deck. */
+export function toArchivedLobbyDeck(
+    d: UserDeckSource & { ownerNickname: string }
+): UserLobbyDeck {
+    return { ...toUserLobbyDeck(d), ownerNickname: d.ownerNickname };
+}
+
+/** Is this another player's deck, which only an admin's solo or vs-Bot Freeform
+ *  setup may seat (`archivedDecksOffered`)? */
+export function isArchivedDeck(d: LobbyDeck): boolean {
+    return d.kind === "user" && d.ownerNickname !== undefined;
 }
 
 /**

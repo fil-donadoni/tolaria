@@ -28,6 +28,7 @@ export default function MatchSetupPanes({
     decks,
     tables,
     onChange,
+    onLoadMoreArchived,
     canStart,
     busy,
     error,
@@ -37,6 +38,7 @@ export default function MatchSetupPanes({
     decks: readonly LobbyDeck[];
     tables: readonly OpenTable[];
     onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
+    onLoadMoreArchived?: () => void;
     canStart: boolean;
     busy: boolean;
     error: string | null;
@@ -73,6 +75,7 @@ export default function MatchSetupPanes({
                         setup={setup}
                         decks={decks}
                         tables={tables}
+                        onLoadMoreArchived={onLoadMoreArchived}
                         onChange={(patch, imported) => {
                             onChange(patch, imported);
                             // The following step under the setup AFTER the

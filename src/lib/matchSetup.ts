@@ -22,6 +22,7 @@ import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import {
     deckPayload,
     filterDecksAdmittedBy,
+    isArchivedDeck,
     selectPreset,
     type LobbyDeck,
 } from "./deckTypes";
@@ -197,10 +198,22 @@ const OPPONENT_LABEL: Record<Opponent, string> = {
 export const modeLabel = (m: GameMode): string => MODE_LABEL[m];
 export const opponentLabel = (o: Opponent): string => OPPONENT_LABEL[o];
 
+/** Does this setup seat another player's deck when the viewer is an admin?
+ *  Only what `createSoloGame` accepts (ADR 0106 §4): Bot or Solo, Arena, a
+ *  Freeform Match. The server decides; this is what the flow offers. */
+export function archivedDecksOffered(s: MatchSetup): boolean {
+    return (
+        s.mode === "arena" &&
+        (s.opponent === "bot" || s.opponent === "solo") &&
+        s.matchFormat === "freeform"
+    );
+}
+
 /** A deck the setup may still use: it exists, the Match Format admits it and
  *  it is legal for its own Format — an illegal deck is shown in the grid but
  *  never selectable (story 34), so a remembered one reads as unanswered
- *  rather than enabling a Start the server would refuse. */
+ *  rather than enabling a Start the server would refuse. Another player's deck
+ *  also needs a setup that offers it: leaving Bot, Solo or Freeform drops it. */
 function admittedDeck(
     s: MatchSetup,
     id: string | null,
@@ -210,6 +223,7 @@ function admittedDeck(
     if (mf === null) return null;
     const deck = selectPreset(decks, id);
     if (!deck?.isLegal) return null;
+    if (isArchivedDeck(deck) && !archivedDecksOffered(s)) return null;
     return filterDecksAdmittedBy([deck], mf).length > 0 ? deck : null;
 }
 
@@ -412,7 +426,8 @@ export function reconcileSetup(
 export interface MatchFormatOption {
     format: FormatId;
     label: string;
-    /** How many of the player's decks and presets this Match Format admits. */
+    /** How many of the player's decks and presets this Match Format admits;
+     *  another player's archived deck is neither. */
     admitted: number;
     /** The option's supporting line. */
     hint: string;
@@ -422,8 +437,9 @@ export interface MatchFormatOption {
 export function matchFormatOptions(
     decks: readonly LobbyDeck[]
 ): MatchFormatOption[] {
+    const own = decks.filter((d) => !isArchivedDeck(d));
     return ARENA_MATCH_FORMATS.map((format) => {
-        const admitted = filterDecksAdmittedBy(decks, format).length;
+        const admitted = filterDecksAdmittedBy(own, format).length;
         const count = `${admitted} ${admitted === 1 ? "deck" : "decks"}`;
         return {
             format,
