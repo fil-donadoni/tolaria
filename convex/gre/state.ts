@@ -13015,6 +13015,9 @@ export function requestCopyRetargetOn(
         ...(req.zone ? { zone: req.zone } : {}),
         ...(req.controller ? { controller: req.controller } : {}),
         ...(subtypeFilter ? { subtypeFilter } : {}),
+        ...(req.typeOrSubtypeFilter
+            ? { typeOrSubtypeFilter: req.typeOrSubtypeFilter }
+            : {}),
         ...(supertypeFilter ? { supertypeFilter } : {}),
         ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
         ...(req.toughnessFilter
@@ -18782,6 +18785,9 @@ export function buildSpellContext(
                     ? { controller: requirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(requirement.typeOrSubtypeFilter
+                    ? { typeOrSubtypeFilter: requirement.typeOrSubtypeFilter }
+                    : {}),
                 ...(supertypeFilter ? { supertypeFilter } : {}),
                 ...(requirement.powerFilter
                     ? { powerFilter: requirement.powerFilter }

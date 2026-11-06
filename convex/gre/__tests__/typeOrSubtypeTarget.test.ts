@@ -3,6 +3,7 @@
 // and no creature. CR 702.5a — enchant restricts both what an Aura spell can
 // target and what an Aura can enchant, so the two read one predicate.
 import { describe, expect, it } from "vitest";
+import { applyOneTargetSelection } from "../../game";
 import { registerTokenDefinition } from "../../cards";
 import {
     enchantedPermanentIsVehicle,
@@ -12,6 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { grizzlyBears, solRing } from "../../cards/sets/lea/index.cards";
 import type { TargetRequirement } from "../../cards/types";
@@ -23,7 +25,9 @@ import {
 import { checkStateBasedActions } from "../sba";
 import {
     beginApplyingStaticEffects,
+    buildSpellContext,
     hostMatchesEnchantRestriction,
+    requestCopyRetargetOn,
     type CardInstanceState,
     type GameState,
 } from "../state";
@@ -63,6 +67,16 @@ registerTokenDefinition({
     subtypes: ["Aura"],
     targetRequirement: CREATURE_OR_VEHICLE,
     ...enchantedPermanentIsVehicle({ name: "Test Union Aura", crew: 5 }),
+});
+
+const SPELL_ID = "test-union-spell";
+registerTokenDefinition({
+    id: SPELL_ID,
+    name: "Test Union Spell",
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: CREATURE_OR_VEHICLE,
 });
 
 // No static of its own: `AURA_ID` would make any host a Vehicle, legal or not.
@@ -152,6 +166,40 @@ describe("target creature or Vehicle (issue #8230)", () => {
                 ) === null
         );
         expect(accepted.map((c) => c.id).sort()).toEqual(["bear", "vehicle"]);
+    });
+});
+
+describe("retargeting a creature-or-Vehicle spell (issue #8230)", () => {
+    const pick = (state: GameState, targetId: string) =>
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId,
+        });
+
+    it("CR 707.10c — a copy's new target obeys the union", () => {
+        const state = board();
+        const copy = pushSpell(state, SPELL_ID, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        requestCopyRetargetOn(state, copy);
+        expect(() => pick(state, "ring")).toThrow();
+        pick(state, "vehicle");
+        expect(copy.targets).toEqual([{ type: "permanent", id: "vehicle" }]);
+    });
+
+    it("CR 115.7 — an in-place retarget with a stated requirement obeys the union", () => {
+        const state = board();
+        const spell = pushSpell(state, SPELL_ID, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const source = pushSpell(state, SPELL_ID, "p1", []);
+        buildSpellContext(state, source).requestRetarget(
+            spell.id,
+            CREATURE_OR_VEHICLE
+        );
+        expect(() => pick(state, "ring")).toThrow();
+        pick(state, "vehicle");
+        expect(spell.targets).toEqual([{ type: "permanent", id: "vehicle" }]);
     });
 });
 
