@@ -46,6 +46,7 @@ const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
 
 const ALICE = "user-alice";
 const BOB = "user-bob";
+const BOLT_PRINT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const run = (fn: unknown, ctx: MutationCtx, args: unknown): Promise<any> =>
@@ -461,9 +462,11 @@ describe("Limited game start: sealed event → build → save → event removed 
             const { db, seats } = world();
             const alice = await savedPayload(db, seats, 0, ALICE);
             removeEvent(db);
+            // A real card, so it is the Pool alone that refuses it: copies past
+            // what the stored Deck Pool holds, whatever this seed opened.
             const contraband = {
-                cardId: "not-in-any-pool",
-                cardName: "Contraband",
+                cardId: resolveDeckCardMeta(BOLT_PRINT)!.cardId,
+                cardName: "Lightning Bolt",
             };
             const tampered = {
                 ...alice,
@@ -479,11 +482,10 @@ describe("Limited game start: sealed event → build → save → event removed 
                     name: "t",
                     deck: {
                         ...tampered,
+                        // The Pool that WOULD make it legal, were it read.
                         pool: [
-                            {
-                                scryfallId: contraband.cardId,
-                                ...contraband,
-                            },
+                            ...(db.tables.limitedDeckPools![0].pool as []),
+                            { scryfallId: BOLT_PRINT, ...contraband },
                         ],
                     },
                 })
