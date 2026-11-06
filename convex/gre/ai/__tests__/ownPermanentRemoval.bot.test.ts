@@ -11,6 +11,7 @@ import { valueEffectScript, valueOp, contextFreeGrounding } from "../index";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { withGraveyardSource } from "../grounding";
 import { SAC_SELF_COST } from "../opValuers";
+import { roundToPointsGrid } from "./pointsGrid.helper";
 
 const cf = contextFreeGrounding();
 const REMOVAL = DEFAULT_EVAL_WEIGHTS.latent.boardRemoval;
@@ -38,12 +39,12 @@ function delayed(
 }
 
 /** The value of the LAST Op of a script: what the walk read for it once every
- *  Op before it bound what it binds. */
+ *  Op before it bound what it binds. A difference, so on the rounding grid. */
 function lastOpValue(script: readonly EffectOp[], ctx = cf) {
     const all = valueEffectScript(script, ctx);
     const head = valueEffectScript(script.slice(0, -1), ctx);
     return {
-        points: all.points - head.points,
+        points: roundToPointsGrid(all.points - head.points),
         tags: all.tags,
     };
 }
@@ -203,7 +204,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     },
                     delayed(verb, { $c: { ref: "$back" } }, "$c"),
                 ]);
-                expect(v.points).toBe(price);
+                expect(v.points).toBe(roundToPointsGrid(price));
             });
 
             it("of a permanent the script gave to another player", () => {
@@ -216,7 +217,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     },
                     delayed(verb, { $token: { ref: "$copy" } }, "$token"),
                 ]);
-                expect(v.points).toBe(price);
+                expect(v.points).toBe(roundToPointsGrid(price));
             });
 
             it("of the same name in a body that never captured it", () => {
@@ -224,7 +225,7 @@ describe("a permanent the script cannot call its own keeps the removal price (CR
                     REVIVE_TOP,
                     delayed(verb, { $other: { target: 0 } }, "$revived"),
                 ]);
-                expect(v.points).toBe(price);
+                expect(v.points).toBe(roundToPointsGrid(price));
             });
         });
     }
