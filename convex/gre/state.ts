@@ -2057,14 +2057,14 @@ function resolvingTargetRequirement(
     if (item.triggeredAbilityId) {
         const ability = findTriggeredAbility(item, item.triggeredAbilityId);
         if (!ability) return undefined;
-        // `TriggeredAbility` (and its `AbilityMode`) declares no
-        // `additionalTargetRequirements` twin — a triggered ability cannot
-        // have independent target groups at the TYPE level, so this half of
-        // the narrowing is unreachable here (unlike the activated-ability
-        // branch below).
+        // CR 603.3d (issue #8475) — ability-level groups apply whatever mode
+        // was announced, as on the activated twin below (`AbilityMode` has no
+        // per-mode field).
+        const hasAdditionalGroups =
+            (ability.additionalTargetRequirements?.length ?? 0) > 0;
         if (!ability.modes || ability.modes.length === 0) {
             return ability.targetRequirement
-                ? { req: ability.targetRequirement, hasAdditionalGroups: false }
+                ? { req: ability.targetRequirement, hasAdditionalGroups }
                 : undefined;
         }
         // CR 700.2c — a modal trigger targets under its ANNOUNCED
@@ -2073,7 +2073,7 @@ function resolvingTargetRequirement(
         if (!soleModeId) return undefined;
         const mode = ability.modes.find((m) => m.id === soleModeId);
         return mode?.targetRequirement
-            ? { req: mode.targetRequirement, hasAdditionalGroups: false }
+            ? { req: mode.targetRequirement, hasAdditionalGroups }
             : undefined;
     }
 

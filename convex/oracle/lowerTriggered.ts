@@ -594,9 +594,9 @@ export function lowerTriggeredAbility(input: {
             reason: "an ability cannot announce a target only if kicked (CR 702.33g)",
         };
     // CR 603.3d — a triggered ability's targets are announced as it goes on
-    // the stack. `declareTargets` writes at most one and REFUSES more: a
-    // triggered ability has no `additionalTargetRequirements` twin, unlike a
-    // spell or an activated ability.
+    // the stack. `declareTargets` writes at most one and REFUSES more: the
+    // engine can walk a trigger's `additionalTargetRequirements` (issue #8475),
+    // but no compiled descriptor carries them yet.
     const declared: { targetRequirement?: TargetRequirement } = {};
     const targetError = declareTargets(declared, walk.targets.requirements());
     if (targetError !== null) return { ok: false, reason: targetError };

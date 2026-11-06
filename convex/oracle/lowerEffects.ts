@@ -7614,8 +7614,9 @@ function lowerMoveZone(
  * `groups` is the site's own answer to "can I carry a SECOND instance of the
  * word target?" (CR 115.3), and it is a fact about the engine shape the site
  * writes onto, not about the sentence: a spell and an activated ability each
- * have an `additionalTargetRequirements` list, a TRIGGERED ability has no such
- * field (`gre/state.ts` — no twin on a triggered ability), so the trigger site
+ * lower onto an `additionalTargetRequirements` list. A TRIGGERED ability has
+ * the engine field too (issue #8475), but no Grammar Rule emits it and
+ * `compiledTriggers.ts` carries no such descriptor field, so the trigger site
  * keeps the one-group ceiling and says so by omitting the flag.
  */
 export function declareTargets(

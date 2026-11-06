@@ -41,6 +41,7 @@ import type { TriggeredAbility } from "../types";
 function hasInertVariableMax(ability: TriggeredAbility): boolean {
     return [
         ability.targetRequirement,
+        ...(ability.additionalTargetRequirements ?? []),
         ...(ability.modes ?? []).map((m) => m.targetRequirement),
     ].some((req) => {
         const count = req?.count;

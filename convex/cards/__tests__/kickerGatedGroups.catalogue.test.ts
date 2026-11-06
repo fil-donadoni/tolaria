@@ -51,7 +51,10 @@ describe("TargetRequirement.announcedOnlyIfKicked catalogue guard (issue #4220)"
                 }
             }
             for (const trigger of card.triggeredAbilities ?? []) {
-                if (gated(trigger.targetRequirement)) {
+                if (
+                    gated(trigger.targetRequirement) ||
+                    trigger.additionalTargetRequirements?.some(gated)
+                ) {
                     offenders.push(where(`trigger ${trigger.id}`));
                 }
             }

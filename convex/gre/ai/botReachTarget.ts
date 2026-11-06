@@ -777,6 +777,7 @@ export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
             subtypes: [],
             effects: t.effects,
             targetRequirement: t.targetRequirement,
+            additionalTargetRequirements: t.additionalTargetRequirements,
             modes: t.modes,
         });
     }
