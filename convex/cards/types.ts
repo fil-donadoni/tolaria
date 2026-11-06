@@ -3529,7 +3529,8 @@ export type TokenStaticEffectKey =
     | "vigilance-land-creatures-you-control"
     | "cant-block-non-spirit-self"
     | "cant-be-blocked-by-non-spirit-self"
-    | "loyalty-activation-twice";
+    | "loyalty-activation-twice"
+    | "opponents-cant-cast-during-your-turn";
 
 /** Characteristics a card takes on in every zone OTHER than the battlefield
  *  (CR 113.6c — "an ability that states which zones it doesn't function in
