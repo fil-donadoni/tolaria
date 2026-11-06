@@ -3210,3 +3210,80 @@ describe("parkedPrItems — an open PR no queue label covers is seen (issue #764
         ).toEqual({ resume: [], ownerParked: [] });
     });
 });
+
+describe("queue planner — bare Target files and unknown radius (issue #8406)", () => {
+    const bare = (...files: string[]) =>
+        body({ targetFiles: null }) +
+        `\n## Target files\n\n${files.join("\n")}\n`;
+
+    it("reads bare and backticked path lines, never prose", () => {
+        expect(
+            parseTargetFiles("## Target files\n\nsrc/a.ts\n`src/b.ts`\n")
+        ).toEqual(["src/a.ts", "src/b.ts"]);
+        expect(
+            parseTargetFiles("## Target files\n\nsee the table above\n")
+        ).toBeNull();
+        expect(
+            parseTargetFiles(
+                "## Target files\n\nsrc/a.ts\n\nThen prose here.\n"
+            )
+        ).toEqual(["src/a.ts"]);
+    });
+
+    it("replays observed bare bodies one slot per round: the overlap is deferred", () => {
+        const details = {
+            1: { body: bare("scripts/lib/q.ts") },
+            2: { body: bare("scripts/lib/q.ts") },
+        };
+        const plan = planBatch(
+            [issue(2)],
+            {
+                ...CONFIG,
+                inFlight: [{ number: 1, files: ["scripts/lib/q.ts"] }],
+            },
+            makePort(details)
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([]);
+        expect(plan.deferred[0].reason).toMatch(
+            /target files overlap in-flight #1/
+        );
+    });
+
+    it("defers an unknown candidate while any claim is in flight, admits it when none is", () => {
+        const details = { 5: { body: body({ targetFiles: null }) } };
+        const held = planBatch(
+            [issue(5)],
+            { ...CONFIG, inFlight: [{ number: 9, files: ["src/z.ts"] }] },
+            makePort(details)
+        );
+        expect(held.batch).toEqual([]);
+        expect(held.deferred[0].reason).toMatch(
+            /runs solo, and #9 is in flight/
+        );
+        const free = planBatch([issue(5)], CONFIG, makePort(details));
+        expect(free.batch.map((b) => b.number)).toEqual([5]);
+    });
+
+    it("defers any candidate while an unknown entry is in flight, but not the entry's own repair", () => {
+        const details = {
+            5: { body: body({ targetFiles: ["src/a.ts"] }) },
+            9: { body: body({ targetFiles: ["src/b.ts"] }) },
+        };
+        const config = {
+            ...CONFIG,
+            inFlight: [{ number: 9, files: null }],
+        };
+        const plan = planBatch([issue(5), issue(9)], config, makePort(details));
+        expect(plan.batch.map((b) => b.number)).toEqual([9]);
+        expect(plan.deferred.find((d) => d.number === 5)!.reason).toMatch(
+            /in-flight radius unknown #9/
+        );
+        // Once its PR opens the entry carries files and stops holding.
+        const open = planBatch(
+            [issue(5)],
+            { ...CONFIG, inFlight: [{ number: 9, files: ["src/b.ts"] }] },
+            makePort(details)
+        );
+        expect(open.batch.map((b) => b.number)).toEqual([5]);
+    });
+});
