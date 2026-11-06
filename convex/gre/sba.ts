@@ -18,6 +18,7 @@ import {
     unapplyAuraControlChange,
     stopApplyingStaticEffects,
     withCardsPutIntoLibraryBatch,
+    narrowLibraryPositionToChooser,
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
 import {
@@ -822,6 +823,16 @@ export function finalizeMeldArrangement(
     const head = state.pendingChoices?.[0];
     if (!head || head.kind !== "meld-arrange" || head.stackItemId !== "") {
         return;
+    }
+    // CR 712.21a — the owner "doesn't reveal the order" of the two cards in a
+    // library, so the pair's public placement narrows to whoever arranged it.
+    if (head.zone === "library" && head.candidateIds) {
+        narrowLibraryPositionToChooser(
+            state,
+            head.zoneOwnerId ?? head.playerId,
+            head.candidateIds,
+            head.playerId
+        );
     }
     applyMeldArrangement(state, selectedIds[0]);
     checkStateBasedActions(state);

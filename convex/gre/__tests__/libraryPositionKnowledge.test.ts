@@ -258,6 +258,34 @@ describe("a private placement is known to its controller only", () => {
         expect(seen(state, "p2")).toEqual([]);
     });
 
+    it("hides a hand card moved by id from whoever merely knows what it is", () => {
+        const shown = makeInstance(MOUNTAIN, {
+            id: "shown",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            knownTo: ["p2"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library(["u1"]), hand: [shown] }),
+                makePlayer("p2"),
+            ],
+        });
+        buildSpellContext(state, stackItem(state)).moveCardById(
+            "p1",
+            "shown",
+            "hand",
+            "library"
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "u1",
+            "shown",
+        ]);
+        expect(seen(state, "p2")).toEqual([]);
+        expect(seen(state, "p1")).toEqual([[1, "shown"]]);
+    });
+
     it("shows a card this resolution publicly revealed to the reveal's audience", () => {
         const state = makeState({
             players: [

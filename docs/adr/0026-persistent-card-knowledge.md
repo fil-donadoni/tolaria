@@ -152,8 +152,9 @@ reveal of a recorded card adds the viewer to the record.
 
 **Narrowed** to the chooser when the card goes through a hidden choice: the answer
 to any choice over library cards (`order-top`, `reorder-library`, a
-`look-distribute` split, a closure's own pick or partition), and
-`putLibraryCardsOnTop`. The narrowing covers every card the chooser looked at, not
+`look-distribute` split, a closure's own pick or partition, a melded pair's
+`meld-arrange`), `putLibraryCardsOnTop`, and a hand card `moveCardById` puts into a
+library. The narrowing covers every card the chooser looked at, not
 only those picked: a card that stayed where it was would otherwise show that the
 split left it there. A card with no record whose every knower saw the placement
 stays under the run rule, so a look gains no reach. A card known to anyone else

@@ -18109,8 +18109,8 @@ export type EffectOp =
            *  same LTB-aware primitive an omitted `position` already used, so
            *  `to: "library-top"` and `to: "library"` with no `position` are
            *  the same move from the battlefield; a graveyard/exile-sourced one
-           *  moves by id and is then repositioned with `putLibraryCardsOnTop`,
-           *  the single primitive that can address the top of a library. */
+           *  moves by id and is then reordered to the top, staying the public
+           *  placement the move stamped (ADR 0026). */
           to: EffectMoveZone | "library-top";
           /** The zone the named object is recovered FROM when it is not on the
            *  battlefield. `"graveyard"` / `"exile"` re-derive a departed object

@@ -22932,6 +22932,15 @@ function moveCardWithGraveyardReplacementUnsynced(
                 (c) => c.id === cardInstanceId && isFaceDownExile(c)
             );
         const moved = moveCard(player, cardInstanceId, from, to);
+        // ADR 0026 — like `putHandCardOnTopOfLibrary`, a hand card's way into a
+        // library is seen by its owner and a reveal's audience, not by whoever
+        // merely knows what the card is.
+        if (from === "hand" && to === "library") {
+            narrowLibraryPosition(moved, [
+                player.id,
+                ...publicRevealAudience(state, moved.id),
+            ]);
+        }
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
             if (!leavingFaceDownExile) {
                 if (to === "library") {
