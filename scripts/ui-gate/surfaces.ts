@@ -414,9 +414,6 @@ async function fixtureRowsRendered(
         );
 }
 
-/** One deck of the Limited Deck Archive (`limited-deck-archive-entry.tsx`). */
-const ARCHIVE_DECK = "[data-limited-archive-deck]";
-
 /** A pack tile in the Draft Room. Two traps in one selector:
  *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
  *    never in the text content, so `:has-text('Draft pick')` matches nothing;
@@ -4036,6 +4033,7 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
+            const ARCHIVE_DECK = "[data-limited-archive-deck]";
             await goto(page, ctx, "/limited/decks");
             await page
                 .locator("[data-surface-ready]")
