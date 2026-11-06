@@ -109,7 +109,8 @@ describe("Cut Experiment: the upstream cut reaches the observed seat (issue #373
                     })
             );
             // The bound holds per seed: the policy removes the best card of
-            // the colour, and a normal pick removes that card or a lesser one.
+            // the colour, a normal pick that card, a lesser one or none of the
+            // colour, and a Pick Rating is never negative (0-5 scale).
             for (const [i, drop] of drops.entries()) {
                 expect(
                     drop,
