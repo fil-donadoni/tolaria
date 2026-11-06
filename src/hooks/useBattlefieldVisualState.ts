@@ -161,7 +161,8 @@ export function useBattlefieldVisualState(
         undefined,
         undefined,
         undefined,
-        continuousEffects
+        continuousEffects,
+        emblems
     );
 
     // CR 106.1 (issue #1889) — `allPlayers` is also handed to `hasManaAbility`
