@@ -325,6 +325,39 @@ describe("a melded permanent leaving the battlefield (CR 712.21)", () => {
         expect(head?.zoneOwnerId).toBe("p1");
     });
 
+    it("CR 712.21a — the owner does not reveal the order: only they see the arranged pair", () => {
+        const state = board("p1");
+        meld(state);
+        state.players[0].library = [
+            makeInstance(BEARS_ID, { id: "u1" }),
+            makeInstance(BEARS_ID, { id: "u2" }),
+        ];
+        const ctx = buildSpellContext(state, pushSpell(state, BEARS_ID, "p1"));
+        ctx.putIntoLibraryFromBattlefield(
+            { type: "permanent", id: "holder" },
+            2
+        );
+        checkStateBasedActions(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("meld-arrange");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["partner"],
+        });
+        const known = (viewer: string) =>
+            projectPublicState(state, 1, viewer).players[0].library.known.map(
+                (k) => [k.index, k.card.id]
+            );
+        expect(known("p1")).toEqual([
+            [1, "partner"],
+            [2, "holder"],
+        ]);
+        expect(known("p2")).toEqual([]);
+    });
+
     it("CR 712.21a — a LIBRARY's top is its first card: the chosen card is drawn first", () => {
         const state = board("p1");
         meld(state);

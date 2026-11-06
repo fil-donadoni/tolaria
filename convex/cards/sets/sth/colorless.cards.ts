@@ -66,9 +66,8 @@ export const moxDiamond = defineCard(() => ({
 // because the plain `"library"` zone cannot name an ORDER: the generic
 // `moveCardById` library leg pushes, i.e. BOTTOMS the card, which would turn
 // a one-card-a-turn engine into a card you never see again. The interpreter
-// follows the move with `putLibraryCardsOnTop`, the single primitive that
-// addresses the top of a library — the same two steps Doomsday
-// (`wth/black.cards.ts`) performs imperatively, here as one declarative Op.
+// follows the move with a reorder that brings the card to the top, leaving it a
+// public placement, here as one declarative Op.
 //
 // compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#2693)
 export const volrathsStronghold = defineCard(() => ({

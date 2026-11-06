@@ -283,11 +283,11 @@ function makeRealLibrary(
  *  ISMCTS iteration, throwing away exactly the knowledge this overlay had just
  *  restored (the bot forgot a card it had scryed to the top one action ago).
  *  Every entry in `known[]` IS the projection's own statement that `viewerId`
- *  legitimately knows this card at this index, so stamping `knownTo:
- *  [viewerId]` back onto the overlaid instance hands `determinize` the SAME
- *  authority rather than a second parallel derivation: it re-derives the
- *  contiguous known runs with `knownLibraryIndices`, the very function the
- *  projection emitted `known[]` with, and pins them.
+ *  legitimately knows this card at this index, so stamping it back onto the
+ *  overlaid instance, identity and position, hands `determinize` the SAME
+ *  authority rather than a second parallel derivation: it re-derives the known
+ *  indices with `knownLibraryIndices`, the very function the projection emitted
+ *  `known[]` with, and pins them.
  *
  *  `viewerId` is optional because most callers of `projectedToGameState` only
  *  ENUMERATE (owed-input gates, `shouldThink`) and never determinize; omitted,
@@ -370,8 +370,14 @@ function overlayKnownLibraryCards(
                 def?.staticAbilities ?? entry.card.staticAbilities ?? [],
             zone: "library",
             // The wire's own statement of what this viewer knows, put back in
-            // the field the engine already understands (issue #1524).
-            ...(viewerId !== undefined ? { knownTo: [viewerId] } : {}),
+            // the fields the engine already understands (issue #1524): the
+            // record, because the entry may sit at any depth (ADR 0026).
+            ...(viewerId !== undefined
+                ? {
+                      knownTo: [viewerId],
+                      libraryPositionKnownTo: [viewerId],
+                  }
+                : {}),
         } as CardInstanceState;
         pinned.add(index);
     }

@@ -483,6 +483,8 @@ function slimCard<
     // ADR 0026 — the raw per-viewer knowledge set must NEVER cross the wire;
     // identity is gated upstream and the eye flag is derived separately.
     delete (slimmed as { knownTo?: string[] }).knownTo;
+    delete (slimmed as { libraryPositionKnownTo?: string[] })
+        .libraryPositionKnownTo;
     // Cast-Copy (CR 702.40 Storm / CR 702.56 Replicate, ADR 0052) —
     // `castCopySnapshot` is a resolution-time
     // engine artifact (a full nested StackItem with its OWN fat `card`
@@ -524,13 +526,15 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
 }
 
 /** ADR 0026 / PRD #338 — projects a library to the sparse wire shape for one
- *  viewer: `count` is the full size, `known` carries only the cards where
- *  `viewer ∈ knownTo`, each at its top-relative `index` (0 = top). The owner
- *  does NOT auto-know their own order; gating is purely by `knownTo`. Raw
- *  `knownTo` never crosses the wire (each card is slimmed).
+ *  viewer: `count` is the full size, `known` carries only the positions
+ *  `knownLibraryIndices` grants, each at its top-relative `index` (0 = top). The
+ *  owner does NOT auto-know their own order. Raw `knownTo` and
+ *  `libraryPositionKnownTo` never cross the wire (each card is slimmed).
  *
- *  Only the two CONTIGUOUS known runs from each END are exposed — the run from
- *  the TOP (scry/Brainstorm kept on top) and the run from the BOTTOM (scry /
+ *  A card with a placement record is exposed at any depth to exactly the players
+ *  it names (a public insert: everyone; a Brainstorm put-back: its owner).
+ *  Otherwise only the two CONTIGUOUS known runs from each END are exposed — the
+ *  run from the TOP (scry kept on top) and the run from the BOTTOM (scry /
  *  Impulse / Stock Up cards the controller looked at and PLACED at the bottom in
  *  a chosen order, so their position is certain). Iteration from each end stops
  *  at the first position the viewer doesn't know. A card whose `knownTo`
@@ -590,9 +594,10 @@ function projectLibrary(
      *  positional parameter here. */
     topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>
 ): PublicLibrary {
-    // The two contiguous runs (and the CR 401.5 index-0 carve-out) are derived
-    // by `knownLibraryIndices` — ONE authority, shared with `determinize`, so
-    // the bot's search can never pin a position this projection did not grant
+    // The placement records, the two contiguous runs and the CR 401.5 index-0
+    // carve-out are derived by `knownLibraryIndices` — ONE authority, shared
+    // with `determinize`, so the bot's search can never pin a position this
+    // projection did not grant
     // (issue #1524).
     const known: KnownLibraryCard[] = knownLibraryIndices(
         library,

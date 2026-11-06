@@ -1,7 +1,9 @@
 # ADR 0026 — Persistent per-card knowledge (`knownTo`) replaces choice-derived visibility
 
 **Status:** Accepted (2026-06-19), amended 2026-09-11 (issue #3001 — the
-impulse idiom exiles FACE UP; see the `knownTo` bullet below)
+impulse idiom exiles FACE UP; see the `knownTo` bullet below), amended
+2026-11-06 (issue #3281 — position is a fact of its own; see § Amendment:
+library position follows the placement)
 
 ## Context
 
@@ -107,6 +109,72 @@ make projection a pure function of it.
       the specific known cards.
     - Raw `knownTo` is **never** sent to the client — only identity gating + the
       derived flag.
+
+## Amendment: library position follows the placement (issue #3281)
+
+`knownTo` answers one question, who knows what this card is, and the library
+projection used it to answer a second, who knows where it is. Two defects came
+from that:
+
+- A card put second or third from the top in full view (Oust, Teferi, Hero of
+  Dominaria) was hidden from everyone until it reached an end of the library,
+  because only the two contiguous runs from each end counted.
+- A card an opponent had seen in hand kept that opponent in `knownTo` through a
+  private put-back (Brainstorm), so the run rule showed the opponent where the
+  controller had chosen to put it. "Prior knowers persist" held for identity and
+  was wrong for position.
+
+**A card's position in a library is known to exactly the players who could see
+that placement.** A public placement gives identity and position to every player.
+A private placement gives its position to its controller alone.
+
+`libraryPositionKnownTo?: string[]` on the instance records who saw the card
+placed where it is. `knownTo` stays the identity record and is not narrowed by a
+private placement. `knownLibraryIndices` stays the single derivation, shared by
+the wire projection and `determinize`:
+
+- **A card with a record:** the record alone decides. A player it names knows the
+  index at any depth; a player it omits does not, even one in `knownTo`.
+- **A card with no record:** the contiguous-run rule on `knownTo`, unchanged. A
+  look, a scry or a reveal conveys what it always did, and a scry-known card an
+  unknown card straddles still reads as a back. A witnessed card extends a run,
+  as any card known to that viewer always has.
+
+**Stamped by** the placements themselves: `putIntoLibraryFromBattlefield`, a spell
+moved from the stack into a library and a card `moveCardById` moves there from a
+public zone, Volrath's Stronghold's top leg included (everyone), and
+`putHandCardOnTopOfLibrary` (the hand's owner plus the audience of a reveal in the
+same resolution).
+
+**Kept through** ordinary library traffic. The record names the card, not an
+index, so a draw or an insert shifts it with no bookkeeping. A later look or
+reveal of a recorded card adds the viewer to the record.
+
+**Narrowed** to the chooser when the card goes through a hidden choice: the answer
+to any choice over library cards (`order-top`, `reorder-library`, a
+`look-distribute` split, a closure's own pick or partition, a melded pair's
+`meld-arrange`), `putLibraryCardsOnTop`, and a hand card `moveCardById` puts into a
+library. The narrowing covers every card the chooser looked at, not
+only those picked: a card that stayed where it was would otherwise show that the
+split left it there. A card with no record whose every knower saw the placement
+stays under the run rule, so a look gains no reach. A card known to anyone else
+gets a record naming the witnesses, because the run rule alone would show it: a
+card revealed on top and then scried to the bottom is hidden from the opponent, and
+so is the order Drafna's Restoration chooses for the artifacts it returns. Reordering
+a single card hides nothing and narrows nothing.
+
+**Ended by** a shuffle and by a re-placement nobody can follow (`clearKnowledge`,
+through `forgetLibraryCards` for part of a library): a random-order placement and
+the `lookDistribute` bottom leg, which also runs with no choice when nothing can be
+kept. A chooser who ordered that bottom pile regains its knowledge as a look. A
+card also loses its record by leaving its position (`moveCard`, the zone-change and
+stack ladders).
+
+Raw `libraryPositionKnownTo` never crosses the wire. The client Brain restores
+every `library.known[]` entry as a record, because an entry may sit at any depth.
+
+**Not widened, on purpose:** look-class knowledge, `reorder-library` and
+`divide-piles` peeks.
 
 ## Rationale
 

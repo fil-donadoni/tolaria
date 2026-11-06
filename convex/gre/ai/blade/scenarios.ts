@@ -8969,6 +8969,83 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #1524, half 2 — the discriminating twin of "known top: digs with a cantrip because it knows the Bolt is there"; the two are only evidence together, so neither may be deleted alone. The pin is what makes half 1 pass, so this half proves the pin is carrying INFORMATION rather than just biasing the bot towards its cantrip: swap the pinned card and the preference flips. A pin that leaked identity, or a search that had simply learned to like Thought Scour, would pass one of these two and not the other.',
     },
     {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (ADR 0026). The known-top pair above
+        // with the card two deeper: a card everyone watched go THIRD from the
+        // top sits under two cards nobody knows, contiguous with neither end,
+        // and only the placement record keeps it pinned. Thought Scour on the
+        // bot's own library mills the two above it and draws it.
+        label: "witnessed placement: mills down to the Bolt it saw put there",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Thought Scour", owner: "me", zone: "hand" },
+                { name: "Robber of the Rich", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Lightning Bolt",
+                    owner: "me",
+                    zone: "library",
+                    position: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "witness-library-placement", position: 3 }],
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A `predicate`, not `moves`: the pair lowered to Verdicts asks the fit
+        // for a term it lacks. It moved `latentCreatureDiscount` 0.626 → 0.669
+        // and the report refused the paste ("orders FEWER verdicts"). The claim
+        // is what the search does with a pinned card, not how a leaf is priced.
+        // No `pairOf` for the same reason: a declared half must lower to a
+        // Verdict (ADR 0148), so the note below names its twin instead.
+        expect: {
+            predicate: (move, state) =>
+                castsCardNamed(move, state, "Thought Scour"),
+            describe:
+                "casts Thought Scour: the Bolt it watched go third from the top is pinned, so milling two draws it for lethal",
+        },
+        note: 'ADR 0026, half 1 of a discriminating pair with "witnessed placement: plays the creature when what it saw put there is a blank"; neither may be deleted alone. The bot watched a Lightning Bolt go third from the top and the opponent is at 3: milling two and drawing it wins. With the card re-dealt every iteration the dig is a blind shot and the 2/2 haste is the play.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (ADR 0026): see half 1 above.
+        label: "witnessed placement: plays the creature when what it saw put there is a blank",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Thought Scour", owner: "me", zone: "hand" },
+                { name: "Robber of the Rich", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "library", position: 3 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "witness-library-placement", position: 3 }],
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                castsCardNamed(move, state, "Robber of the Rich"),
+            describe:
+                "casts Robber of the Rich: a Swamp went third from the top, so the dig finds nothing it wants",
+        },
+        note: 'ADR 0026, half 2 of the pair with "witnessed placement: mills down to the Bolt it saw put there": the same board with a Swamp in that position. The dig finds nothing it wants, so an always-dig fix fails this half.',
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3027).
         // PAIRED WITH: "burst mana: does NOT reach the two-mana kill off a
         // ONE-mana source".
