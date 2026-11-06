@@ -21521,7 +21521,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: {
             iterations: 400,
         },
-        seeds: [0xb1ade, 1, 2, 4],
+        seeds: [0xb1ade, 1, 2, 4, 7, 9, 10, 15, 16, 18],
         tier: "must",
         expect: {
             forbidden: [
@@ -21531,7 +21531,56 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the Wurm would be sacrificed having done nothing.",
+        note: "Issue #8271 — the Wurm would be sacrificed having done nothing. Issue #8394: `pass` kept the Mountain open, so every later decision below it re-offered the doomed activation and its mean absorbed those lines. The tree and the rollouts now drop the move (`ai/doomedEntry.ts`); the seeds are the ones that failed before.",
+    },
+    {
+        label: "cheat into play: activates Sneak Attack at the opponent's end step",
+        pairOf: {
+            anchor: "cheat into play: holds Sneak Attack after combat",
+            discriminant: { kind: "step", detail: "the step" },
+        },
+        spec: {
+            life: { me: 20, opp: 6 },
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Sneak Attack",
+                },
+            ],
+        },
+        note: "Issue #8394 — a delayed trigger made in an end step waits for the next one (CR 603.7b), so this Wurm lasts through the Bot's own attack, and at 6 life that attack is lethal.",
     },
     {
         label: "removal: Swords to Plowshares takes the greater threat",
@@ -22168,7 +22217,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         label: "strip: casts Thoughtseize at a castable Shivan Dragon",
         classification: {
-            kind: "absolute",
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that can hold no spell to strip",
+            },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -22206,10 +22259,20 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         bot: "me",
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    ...Array<string>(17).fill("Mountain"),
+                    ...Array<string>(6).fill("Shivan Dragon"),
+                    ...Array<string>(5).fill("Savannah Lions"),
+                ],
+            },
+        ],
         budget: {
             iterations: 400,
         },
-        seeds: [1, 2, 3, 5, 9],
+        seeds: [0xb1ade, 1, 2, 3, 4, 6, 7, 14, 18],
         tier: "must",
         expect: {
             moves: [
@@ -22220,7 +22283,73 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Passes on 13/16 seeds at 400 iterations, not all: seeds picked green under both the committed and the refit weights.",
+        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search. Issue #8394: with no decklist the search re-dealt the hand from 20 basics and these 2 spells, so the strip found the Dragon in 9% of its worlds and the cast tied with passing by arithmetic, about +40 against 41 of cost, 15/20 seeds. The decklist is what the Bot knows in a real game, and it holds a spell in a worthwhile share of its worlds.",
+    },
+    {
+        label: "strip: holds Thoughtseize when the opponent's decklist holds no spell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that can hold a spell to strip",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        bot: "me",
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: Array<string>(28).fill("Mountain"),
+            },
+        ],
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4, 6, 7, 14, 18],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Thoughtseize",
+                },
+            ],
+        },
+        note: "Issue #8394 — the position above with only the decklist changed: the Bot deduces a hand of lands, and the real hand stays hidden from the search.",
     },
     {
         label: "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
