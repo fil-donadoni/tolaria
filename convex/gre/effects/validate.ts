@@ -4692,6 +4692,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             anyNumber: (v: unknown) => v === true,
             // CR 707.12 — "cast a copy of" the bound card.
             asCopy: (v: unknown) => v === true,
+            // CR 614.1a — "If that spell would be put into your graveyard,
+            // exile it instead" (Bilbo, Thief in the Night).
+            exilesOnResolve: isBoolean,
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -4723,6 +4726,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     "includesLand",
                     "resultBind",
                     "alternativeCost",
+                    "exilesOnResolve",
                 ] as const) {
                     if (field in entry) {
                         errors.push(

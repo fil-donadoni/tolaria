@@ -9848,7 +9848,8 @@ function runCastDuringResolution(
             op.free,
             "",
             op.alternativeCost,
-            faceId
+            faceId,
+            op.exilesOnResolve
         )
     ) {
         case "suspend":
@@ -9987,7 +9988,9 @@ function castPickedCard(
     alternativeCost?: ManaCost,
     /** CR 709.3 / 712.11b / 715.3 — the announced face; every question below
      *  is asked of that subject alone. Omitted = the printed cast. */
-    faceId?: string
+    faceId?: string,
+    /** CR 614.1a — the Op's "exile it instead" rider. */
+    exilesOnResolve?: boolean
 ): PickedCastOutcome {
     // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
     // (CR 700.2d). Non-modal cards skip this.
@@ -10137,6 +10140,7 @@ function castPickedCard(
         free,
         ...(alternativeCost !== undefined ? { alternativeCost } : {}),
         ...(faceId !== undefined ? { alternativeCostId: faceId } : {}),
+        ...(exilesOnResolve ? { exilesOnResolve: true } : {}),
     });
     return cast ? "cast" : "pass";
 }
