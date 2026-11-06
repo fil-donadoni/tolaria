@@ -12,6 +12,7 @@ import {
     freeformFormatOptions,
     groupByLimitedOrigin,
     limitedOriginOptions,
+    originNarrows,
     type DeckGridFormat,
     type DeckGridOrigin,
 } from "~/lib/matchSetupDeckGrid";
@@ -42,19 +43,23 @@ export default function DeckGrid({
     const [chosenOrigin, setOrigin] = useState<DeckGridOrigin>("all");
     const freeform = matchFormat === "freeform";
     const limited = matchFormat === "limited";
-    const originOptions = limitedOriginOptions(decks);
-    // Same fall-back as the Format select: a vanished origin reads as "all".
-    const origin =
-        chosenOrigin !== "all" &&
-        originOptions.some((o) => o.key === chosenOrigin)
-            ? chosenOrigin
-            : "all";
     const formatOptions = freeformFormatOptions(decks);
     // A Format whose last deck went away falls back to every Format rather
     // than leaving the select on an option it no longer lists.
     const format =
         chosenFormat !== "all" && formatOptions.includes(chosenFormat)
             ? chosenFormat
+            : "all";
+    // Under Freeform the origin select lives only while the Deck Format is
+    // Limited; leaving it drops the narrowing.
+    const showOrigin = originNarrows(matchFormat, format);
+    const originOptions = limitedOriginOptions(decks, matchFormat);
+    // Same fall-back as the Format select: a vanished origin reads as "all".
+    const origin =
+        showOrigin &&
+        chosenOrigin !== "all" &&
+        originOptions.some((o) => o.key === chosenOrigin)
+            ? chosenOrigin
             : "all";
     const admitted = deckGrid(decks, matchFormat, "");
     const empty = admitted.mine.length + admitted.presets.length === 0;
@@ -79,9 +84,10 @@ export default function DeckGrid({
                     <select
                         aria-label="Deck Format"
                         value={format}
-                        onChange={(e) =>
-                            setFormat(e.target.value as DeckGridFormat)
-                        }
+                        onChange={(e) => {
+                            setFormat(e.target.value as DeckGridFormat);
+                            setOrigin("all");
+                        }}
                         className="input-field px-2 py-1.5 text-sm"
                     >
                         <option value="all">All Formats</option>
@@ -92,7 +98,7 @@ export default function DeckGrid({
                         ))}
                     </select>
                 )}
-                {limited && originOptions.length > 0 && (
+                {showOrigin && originOptions.length > 0 && (
                     <select
                         aria-label="Limited Origin"
                         value={origin}
