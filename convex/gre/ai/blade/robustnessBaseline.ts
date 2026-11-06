@@ -24,9 +24,4 @@
 
 import type { RobustnessBaselineRow } from "./robustness";
 
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    {
-        label: "strip: casts Thoughtseize at a castable Shivan Dragon",
-        issue: 8394,
-    },
-];
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
