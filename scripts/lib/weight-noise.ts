@@ -56,3 +56,19 @@ export function noiseCheckedFiles(changed: readonly string[]): string[] {
         (path) => path.endsWith(".bot.test.ts") && !EXEMPT.has(path)
     );
 }
+
+/** The run under the nudge. A changed `.bot.test.ts` can belong to another project
+ *  (a `bot-dom` file, the ladder), and vitest exits 1 when none of the files match:
+ *  that is nothing to check, not a noise pin. */
+export function weightNoiseVitestArgs(files: readonly string[]): string[] {
+    return [
+        "vitest",
+        "run",
+        "--config",
+        "vitest.weight-noise.config.ts",
+        "--project",
+        "bot-node",
+        "--passWithNoTests",
+        ...files,
+    ];
+}

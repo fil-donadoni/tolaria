@@ -13,7 +13,7 @@ import {
     VITEST_FS_CACHE_ENV,
     VITEST_FS_CACHE_OFF,
 } from "./lib/vitest-fs-cache";
-import { noiseCheckedFiles } from "./lib/weight-noise";
+import { noiseCheckedFiles, weightNoiseVitestArgs } from "./lib/weight-noise";
 
 function git(...args: string[]): string {
     const run = spawnSync("git", args, { encoding: "utf8" });
@@ -43,22 +43,10 @@ function main(): number {
         );
         return 0;
     }
-    const run = spawnSync(
-        "bunx",
-        [
-            "vitest",
-            "run",
-            "--config",
-            "vitest.weight-noise.config.ts",
-            "--project",
-            "bot-node",
-            ...files,
-        ],
-        {
-            stdio: "inherit",
-            env: { ...process.env, [VITEST_FS_CACHE_ENV]: VITEST_FS_CACHE_OFF },
-        }
-    );
+    const run = spawnSync("bunx", weightNoiseVitestArgs(files), {
+        stdio: "inherit",
+        env: { ...process.env, [VITEST_FS_CACHE_ENV]: VITEST_FS_CACHE_OFF },
+    });
     if (run.status !== 0) {
         console.error(
             "check:weight-noise: red with the fitted weights one last digit away. The test pins float noise or a weight's exact value, and the next refit reds it on the base. Assert a difference through `expectSamePoints` (`convex/gre/ai/__tests__/pointsGrid.helper.ts`), or read the weight instead of its literal."

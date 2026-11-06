@@ -4,6 +4,7 @@ import {
     FITTED_WEIGHTS_MODULE,
     nudgeWeightsSource,
     noiseCheckedFiles,
+    weightNoiseVitestArgs,
 } from "../lib/weight-noise";
 
 const SOURCE = "a: 8,\nb: 1.500000,\nc: 155.155678,\nd: -2.000001,\n";
@@ -42,5 +43,13 @@ describe("the files the guard runs", () => {
                 "scripts/__tests__/ladder-worker-boundary.bot.test.ts",
             ])
         ).toEqual([other]);
+    });
+});
+
+describe("the run under the nudge", () => {
+    it("reads a file of another project as nothing to check, not a red", () => {
+        expect(weightNoiseVitestArgs(["a.bot.test.ts"])).toContain(
+            "--passWithNoTests"
+        );
     });
 });
