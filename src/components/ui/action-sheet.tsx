@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type ActionSheetItem = {
@@ -23,6 +23,10 @@ export default function ActionSheet({
     const [animIn, setAnimIn] = useState(false);
     const [translateY, setTranslateY] = useState(0);
     const swipeStart = useRef<number | null>(null);
+    const pendingClose = useRef<{
+        timer: ReturnType<typeof setTimeout>;
+        run: () => void;
+    } | null>(null);
 
     const backdropRef = useCallback((node: HTMLDivElement | null) => {
         if (node) {
@@ -33,8 +37,26 @@ export default function ActionSheet({
     const handleClose = useCallback(() => {
         setAnimIn(false);
         setTranslateY(0);
-        setTimeout(onClose, 200);
+        if (pendingClose.current) clearTimeout(pendingClose.current.timer);
+        const run = () => {
+            pendingClose.current = null;
+            onClose();
+        };
+        pendingClose.current = { timer: setTimeout(run, 200), run };
     }, [onClose]);
+
+    // An unmount settles a pending close at once: the slide-out has nothing
+    // left to show, and the parent may outlive the sheet and still need the
+    // call. Left armed, the timer reached React after a test file's teardown
+    // and red a lane with every test green (issue #8296).
+    useEffect(
+        () => () => {
+            if (!pendingClose.current) return;
+            clearTimeout(pendingClose.current.timer);
+            pendingClose.current.run();
+        },
+        []
+    );
 
     const onSwipeStart = useCallback((e: React.TouchEvent) => {
         swipeStart.current = e.touches[0].clientY;

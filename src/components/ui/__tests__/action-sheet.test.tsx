@@ -56,4 +56,38 @@ describe("ActionSheet", () => {
         act(() => vi.advanceTimersByTime(200));
         expect(onClose).toHaveBeenCalledOnce();
     });
+
+    it("an unmount during the slide-out settles the close at once, leaving no timer to fire later (issue #8296)", () => {
+        const onClose = vi.fn();
+        const { baseElement, unmount } = render(
+            <ActionSheet open onClose={onClose} items={makeItems()} />
+        );
+        fireEvent.click(baseElement.querySelector(".fixed.inset-0")!);
+        expect(onClose).not.toHaveBeenCalled();
+        unmount();
+        expect(onClose).toHaveBeenCalledOnce();
+        vi.advanceTimersByTime(200);
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it("an unmount with no close pending never calls onClose", () => {
+        const onClose = vi.fn();
+        const { unmount } = render(
+            <ActionSheet open onClose={onClose} items={makeItems()} />
+        );
+        unmount();
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("a second close during the slide-out still calls onClose once", () => {
+        const onClose = vi.fn();
+        const { baseElement } = render(
+            <ActionSheet open onClose={onClose} items={makeItems()} />
+        );
+        const backdrop = baseElement.querySelector(".fixed.inset-0")!;
+        fireEvent.click(backdrop);
+        fireEvent.click(backdrop);
+        act(() => vi.advanceTimersByTime(200));
+        expect(onClose).toHaveBeenCalledOnce();
+    });
 });
