@@ -30,9 +30,15 @@ export interface DeckWorkspace {
     /** Apply an edit and schedule the debounced save. */
     updateDeck: (updater: (deck: WorkingDeck) => WorkingDeck) => void;
     setName: (name: string) => void;
+    /** Why the last write failed, or `null`. The edit it carried stays pending,
+     *  so the next edit or `flush` writes it again. */
+    saveError: unknown;
     /** Write any pending edit NOW and resolve with the resulting identity.
-     *  Called before leaving the screen, and on unmount. */
+     *  Called before leaving the screen, and on unmount. Rejects when the write
+     *  fails, so a caller leaving the screen knows the edit is not saved. */
     flush: () => Promise<string | null>;
+    /** Drop the pending edit and return the identity: leaving without saving. */
+    discard: () => string | null;
 }
 
 /**
@@ -60,11 +66,15 @@ export function useDeckWorkspace({
 }: DeckWorkspaceSpec): DeckWorkspace {
     const [deck, setDeck] = useState<WorkingDeck>(initial);
     const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<unknown>(null);
 
     const identityRef = useRef<string | null>(initialIdentity);
     const pendingRef = useRef<WorkingDeck | null>(null);
     const timerRef = useRef<number | null>(null);
     const inflightRef = useRef<Promise<unknown> | null>(null);
+    // Bumped by `discard`: a write already in flight cannot be cancelled, but if
+    // it fails, the edit it carried was refused by the player and must not return.
+    const discardCountRef = useRef(0);
     // The sink is read at flush time through a ref rather than captured in
     // `flush`'s dependencies. A wrapper hands a fresh closure on most renders
     // (it closes over the deck's mutation hooks); if that closure were a
@@ -85,7 +95,9 @@ export function useDeckWorkspace({
 
     const flush = useCallback(async (): Promise<string | null> => {
         clearTimer();
-        if (inflightRef.current) {
+        // A loop, because another waiter may start the next write first: a caller
+        // leaving the screen must not resolve while that write can still fail.
+        while (inflightRef.current) {
             try {
                 await inflightRef.current;
             } catch {
@@ -96,14 +108,31 @@ export function useDeckWorkspace({
         if (!pending) return identityRef.current;
         pendingRef.current = null;
         setSaving(true);
-        const promise = saveRef.current(pending, identityRef.current);
-        inflightRef.current = promise;
+        const discardCount = discardCountRef.current;
         try {
+            const promise = saveRef.current(pending, identityRef.current);
+            inflightRef.current = promise;
             identityRef.current = await promise;
+            setSaveError(null);
+        } catch (error) {
+            if (discardCount === discardCountRef.current) {
+                // A newer edit already holds the whole deck, so it wins.
+                pendingRef.current ??= pending;
+                setSaveError(error);
+            }
+            throw error;
         } finally {
             inflightRef.current = null;
             setSaving(false);
         }
+        return identityRef.current;
+    }, []);
+
+    const discard = useCallback((): string | null => {
+        clearTimer();
+        discardCountRef.current += 1;
+        pendingRef.current = null;
+        setSaveError(null);
         return identityRef.current;
     }, []);
 
@@ -126,6 +155,8 @@ export function useDeckWorkspace({
             clearTimer();
             timerRef.current = window.setTimeout(() => {
                 timerRef.current = null;
+                // A rejection is left unhandled on purpose: `saveError` tells the
+                // player, and the global handler reports it to Sentry.
                 void flush();
             }, SAVE_DEBOUNCE_MS);
         },
@@ -134,7 +165,9 @@ export function useDeckWorkspace({
 
     useEffect(() => {
         return () => {
-            void flush();
+            // Nobody is left to tell: the write that failed first has already
+            // reached the player and the global error handler.
+            flush().catch(() => {});
         };
     }, [flush]);
 
@@ -154,5 +187,5 @@ export function useDeckWorkspace({
         [updateDeck]
     );
 
-    return { deck, saving, updateDeck, setName, flush };
+    return { deck, saving, saveError, updateDeck, setName, flush, discard };
 }

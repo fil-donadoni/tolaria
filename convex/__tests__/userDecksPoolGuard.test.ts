@@ -2,6 +2,7 @@
 // its Deck Pool does not account for (issue #2816), driven for real against
 // the shared in-memory ctx (no convex-test harness, see
 // `deckDefinitionIdWrite.test.ts`).
+import { ConvexError } from "convex/values";
 import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
@@ -69,7 +70,33 @@ const limitedDeck = {
     limitedSeatId: "0",
 };
 
+describe("userDecks.create — a Limited deck needs its Event", () => {
+    it("refuses a Limited deck with no Event, with a client-safe message", async () => {
+        const { ctx, tables } = world();
+        const noEvent = {
+            ...limitedDeck,
+            limitedEventId: undefined,
+            limitedSeatId: undefined,
+        };
+        const refusal = run(create, ctx, noEvent);
+        await expect(refusal).rejects.toBeInstanceOf(ConvexError);
+        await expect(refusal).rejects.toThrow(/only be created from its Event/);
+        expect(tables.userDecks ?? []).toHaveLength(0);
+    });
+});
+
 describe("userDecks.update — Deck Pool introduction guard (issue #2816)", () => {
+    it("refuses with a ConvexError, whose message survives production", async () => {
+        const { ctx } = world();
+        const id = await run(create, ctx, limitedDeck);
+        await expect(
+            run(update, ctx, {
+                id,
+                patch: { cards: [BOLT, OFF_POOL, ...basics(39)] },
+            })
+        ).rejects.toBeInstanceOf(ConvexError);
+    });
+
     it("refuses a patch introducing an off-Pool card, with a client-safe message", async () => {
         const { ctx, tables } = world();
         const id = await run(create, ctx, limitedDeck);

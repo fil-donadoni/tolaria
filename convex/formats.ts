@@ -24,7 +24,12 @@ import oracleLegalityData from "../data/oracle-legality.json";
 // The Format identity and Match Format admission (ADR 0153) live in the
 // card-free `./formatAdmission` so the lobby reads and the Tabletop mutations
 // can enforce admission without importing the card registry this module needs.
-import { FORMAT_LABELS, isFormatId, type FormatId } from "./formatAdmission";
+import {
+    FORMAT_IDS as FORMAT_IDS_FOR_CREATION,
+    FORMAT_LABELS,
+    isFormatId,
+    type FormatId,
+} from "./formatAdmission";
 export {
     FORMAT_IDS,
     FORMAT_LABELS,
@@ -35,6 +40,12 @@ export {
     toFormatId,
     type FormatId,
 } from "./formatAdmission";
+
+/** The Formats the generic deck builder can create a deck in. A Limited deck
+ *  belongs to an Event and Seat, whose Pool decides its legality (ADR 0054/0055),
+ *  so only that Event's builder can create one. */
+export const DECK_CREATION_FORMATS: readonly FormatId[] =
+    FORMAT_IDS_FOR_CREATION.filter((format) => format !== "limited");
 
 /**
  * A single legality failure reason: a stable machine `code` plus a precise,

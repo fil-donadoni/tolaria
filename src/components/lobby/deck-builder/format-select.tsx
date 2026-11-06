@@ -1,4 +1,8 @@
-import { FORMAT_IDS, FORMAT_RULES, type FormatId } from "@convex/formats";
+import {
+    DECK_CREATION_FORMATS,
+    FORMAT_RULES,
+    type FormatId,
+} from "@convex/formats";
 
 interface FormatSelectProps {
     value: FormatId;
@@ -55,7 +59,7 @@ export default function FormatSelect({
                 className="input-field px-2 py-1"
                 aria-label="Deck format"
             >
-                {FORMAT_IDS.map((id) => (
+                {DECK_CREATION_FORMATS.map((id) => (
                     <option key={id} value={id}>
                         {FORMAT_RULES[id].label}
                     </option>

@@ -296,21 +296,26 @@ export default function PoolDeckBuilderForm({
         [create, update, eventId, seatIndex]
     );
 
-    const { deck, saving, updateDeck, setName, flush } = useDeckWorkspace({
-        initialIdentity: existingDeck?.userDeckId ?? null,
-        save,
-        initial: () => {
-            if (existingDeck) {
-                return savedWorkingDeck(existingDeck, pool, poolArrangement);
-            }
-            // A new deck is named after its Limited Origin (ADR 0106 §6,
-            // issue #5393) — the same derivation the server stores the key by.
-            const name = limitedEventName({ type: eventType, packSlots });
-            return eventType === "draft"
-                ? continuousWorkingDeck(pool, poolArrangement, name)
-                : defaultWorkingDeck(pool, name);
-        },
-    });
+    const { deck, saving, saveError, updateDeck, setName, flush, discard } =
+        useDeckWorkspace({
+            initialIdentity: existingDeck?.userDeckId ?? null,
+            save,
+            initial: () => {
+                if (existingDeck) {
+                    return savedWorkingDeck(
+                        existingDeck,
+                        pool,
+                        poolArrangement
+                    );
+                }
+                // A new deck is named after its Limited Origin (ADR 0106 §6,
+                // issue #5393) — the same derivation the server stores the key by.
+                const name = limitedEventName({ type: eventType, packSlots });
+                return eventType === "draft"
+                    ? continuousWorkingDeck(pool, poolArrangement, name)
+                    : defaultWorkingDeck(pool, name);
+            },
+        });
 
     /** Removes exactly one copy of a Basic land SUBTYPE from the Maindeck
      *  (issue #1627, PR #2320 review B1/NB1) — shared by a direct tap on a
@@ -602,9 +607,18 @@ export default function PoolDeckBuilderForm({
     );
 
     const handleDone = useCallback(async () => {
-        await flush();
+        try {
+            await flush();
+        } catch {
+            return; // `saveError` tells the player; the edit stays pending.
+        }
         void navigate({ to: "/limited/$eventId", params: { eventId } });
     }, [flush, navigate, eventId]);
+
+    const handleLeaveWithoutSaving = useCallback(() => {
+        discard();
+        void navigate({ to: "/limited/$eventId", params: { eventId } });
+    }, [discard, navigate, eventId]);
 
     // The Stats toolbar action (issue #1631): the header's full-size copy
     // and SaveDeckBar's short-viewport-only compact twin (issue #1631
@@ -752,6 +766,11 @@ export default function PoolDeckBuilderForm({
             title="Build Limited Deck"
             backLabel="← Back to Event"
             onDone={() => void handleDone()}
+            saveFailure={
+                saveError === null
+                    ? undefined
+                    : { error: saveError, onLeave: handleLeaveWithoutSaving }
+            }
             manager={manager}
             basicsBar={
                 <PoolBasicLandsBar
