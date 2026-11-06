@@ -136,6 +136,7 @@ describe("shell mode per route family (issue #2582)", () => {
         ["/admin/card-profiles", "browse"],
         ["/admin/bug-reports", "browse"],
         ["/admin/bot-findings", "browse"],
+        ["/admin/limited-decks", "browse"],
         ["/admin/draft-lab", "browse"],
         ["/admin/design-system", "browse"],
     ] as const)("resolves %s as %s", (pathname, mode) => {
