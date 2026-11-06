@@ -135,7 +135,7 @@ describe("a standing each-step mill reads the board (issue #5625)", () => {
         );
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
+    it("at fraction 1 the hand reads the board Differential, a negative one reading 0", () => {
         const faces = (own: number, opp: number) => {
             const held = board(
                 { library: own, beads: "hand" },
@@ -148,7 +148,10 @@ describe("a standing each-step mill reads the board (issue #5625)", () => {
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace: beadsWorth(
                     board({ library: own, beads: "board" }, { library: opp })
@@ -159,8 +162,8 @@ describe("a standing each-step mill reads the board (issue #5625)", () => {
         expect(takes.handFace).toBeGreaterThan(0);
         expect(takes.handFace).toBeCloseTo(takes.boardFace, 6);
         const costs = faces(5, 30);
-        expect(costs.handFace).toBeLessThan(0);
-        expect(costs.handFace).toBeCloseTo(costs.boardFace, 6);
+        expect(costs.handFace).toBe(0);
+        expect(costs.boardFace).toBeLessThan(0);
     });
 
     it("a side whose graveyard the evaluator credits reads nothing, whichever side it is", () => {

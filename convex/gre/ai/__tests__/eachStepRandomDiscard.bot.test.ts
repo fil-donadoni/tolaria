@@ -105,7 +105,7 @@ describe("a standing each-step discard at random reads the board (issue #5624)",
         }
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
+    it("at fraction 1 the hand reads the board Differential, a negative one reading 0", () => {
         const faces = (own: number, opp: number) => {
             const held = board({ hand: own, pit: "hand" }, { hand: opp });
             const inHand = held.players[0].hand.find(
@@ -115,7 +115,10 @@ describe("a standing each-step discard at random reads the board (issue #5624)",
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace: pitWorth(
                     board({ hand: own, pit: "board" }, { hand: opp })
@@ -126,7 +129,7 @@ describe("a standing each-step discard at random reads the board (issue #5624)",
         expect(takes.handFace).toBeGreaterThan(0);
         expect(takes.handFace).toBeCloseTo(takes.boardFace, 6);
         const costs = faces(3, 0);
-        expect(costs.handFace).toBeLessThan(0);
-        expect(costs.handFace).toBeCloseTo(costs.boardFace, 6);
+        expect(costs.handFace).toBe(0);
+        expect(costs.boardFace).toBeLessThan(0);
     });
 });

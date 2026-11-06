@@ -722,7 +722,7 @@
     "Oath of Druids": [
         {
             "label": "symmetric: casts Oath of Druids when it feeds the Bot",
-            "tier": "stretch",
+            "tier": "must",
             "needsSetup": false
         }
     ],
@@ -1179,7 +1179,7 @@
     "Timetwister": [
         {
             "label": "symmetric: casts Timetwister on an empty hand against seven",
-            "tier": "stretch",
+            "tier": "must",
             "needsSetup": false
         }
     ],

@@ -162,33 +162,25 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         expect(mineWorth(dragons)).toBeGreaterThan(mineWorth(bears));
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
-        // ADR 0151 / issue #5145 — casting the Mine moves its worth from the
-        // hand term to the board term unchanged; a Mine that would feed the
-        // opponent reads below nothing in hand as on the board (the measured
-        // standing lock's rule, issue #5163).
-        const faces = (own: number, opp: number) => {
-            const held = board({ hand: own, mine: "hand" }, { hand: opp });
-            const mineInHand = held.players[0].hand.find(
-                (c) => String(c.card.id) === MINE
-            )!;
-            const handFace = cardValue(
-                held,
-                mineInHand,
-                handLatentLens(held, "p1", mineInHand)
-            );
-            const boardFace = mineWorth(
-                board({ hand: own, mine: "board" }, { hand: opp })
-            );
-            return { handFace, boardFace };
-        };
-        const feeds = faces(1, 7);
-        expect(feeds.handFace).toBeGreaterThan(0);
-        expect(feeds.handFace).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
-        expect(feeds.handFace).toBeCloseTo(feeds.boardFace, 6);
-        const starves = faces(7, 1);
-        expect(starves.handFace).toBeLessThan(0);
-        expect(starves.handFace).toBeCloseTo(starves.boardFace, 6);
+    it("hand and board read one Differential: at fraction 1 the faces match", () => {
+        // ADR 0151 / issue #5145 — both faces measure the same board; the hand
+        // only takes its fitted share of it (issue #8295, the describe below).
+        const full = { ...DEFAULT_EVAL_WEIGHTS, heldDifferentialFraction: 1 };
+        const held = board({ hand: 1, mine: "hand" }, { hand: 7 });
+        const mineInHand = held.players[0].hand.find(
+            (c) => String(c.card.id) === MINE
+        )!;
+        const handFace = cardValue(
+            held,
+            mineInHand,
+            handLatentLens(held, "p1", mineInHand, full)
+        );
+        const boardFace = mineWorth(
+            board({ hand: 1, mine: "board" }, { hand: 7 })
+        );
+        expect(handFace).toBeGreaterThan(0);
+        expect(handFace).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
+        expect(handFace).toBeCloseTo(boardFace, 6);
     });
 
     it("context-free, the Mine carries no fixed sign: it reads as a blank card of its mana value", () => {
@@ -213,12 +205,10 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
     });
 });
 
-describe("a standing engine is not a held one-shot (issue #5560)", () => {
-    it("the Mine's reading ignores `heldDifferentialFraction` on both faces", () => {
-        // The fraction discounts a ONE-SHOT's swing that decays once cast;
-        // an each-step engine recurs on the board face, and its two faces
-        // are one number (issue #5164) — scaling the shared Differential
-        // would shrink both.
+describe("a held engine is priced below the one on the board (issue #8295)", () => {
+    it("the fraction scales the Mine in hand and never on the board", () => {
+        // An each-step engine recurs on the board face, which stays whole;
+        // credited whole in hand too, casting ties holding.
         const full = { ...DEFAULT_EVAL_WEIGHTS, heldDifferentialFraction: 1 };
         const onBoard = board({ hand: 1, mine: "board" }, { hand: 7 });
         const mine = onBoard.players[0].battlefield[0];
@@ -230,7 +220,25 @@ describe("a standing engine is not a held one-shot (issue #5560)", () => {
         const held = inHand.players[0].hand.find((c) => c.card.id === MINE)!;
         const read = (w: typeof full) =>
             cardValue(inHand, held, handLatentLens(inHand, "p1", held, w));
-        expect(read(DEFAULT_EVAL_WEIGHTS)).toBeCloseTo(read(full), 9);
+        expect(read(full)).toBeGreaterThan(0);
+        expect(read(DEFAULT_EVAL_WEIGHTS)).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.heldDifferentialFraction * read(full),
+            9
+        );
+    });
+
+    it("a Mine that would feed only the opponent reads 0 in hand, below 0 on the board", () => {
+        // CR 113.6 — the trigger functions only once the Mine stands: in hand
+        // it does nothing, so the card can simply stay there.
+        const inHand = board({ hand: 7, mine: "hand" }, { hand: 1 });
+        const held = inHand.players[0].hand.find((c) => c.card.id === MINE)!;
+        expect(
+            cardValue(inHand, held, handLatentLens(inHand, "p1", held))
+        ).toBe(0);
+        const onBoard = board({ hand: 7, mine: "board" }, { hand: 1 });
+        expect(
+            permanentRealisedValue(onBoard, onBoard.players[0].battlefield[0])
+        ).toBeLessThan(0);
     });
 });
 
