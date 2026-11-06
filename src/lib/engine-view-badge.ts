@@ -64,6 +64,7 @@ type ResolutionSite = {
  *  | `triggeredGrantTemplates[]` + modes   | idem — a granted triggered ability       |
  *  | `delayedTriggers[]` (CR 603.7a)       | `resolve`, `resolveSteps`, `effects`     |
  *  | `splitHalves[]` (CR 709.3b)           | `effects` — each half is castable        |
+ *  | `entersWith.asEnters[].whenCopied`    | `effects` — the reflexive exile (CR 603.12) |
  *
  *  (*) on the CARD, `effect` is the declarative `EffectShorthand` registry key,
  *  never a closure — see {@link hasHandWrittenBody}.
@@ -102,6 +103,16 @@ function resolutionSites(def: CardDefinition): ResolutionSite[] {
     // them read Stand // Deliver as `none` while the deep-walk guard saw two
     // scripts.
     for (const half of def.splitHalves ?? []) sites.push(half);
+    // CR 603.12 — an as-enters copy choice's `whenCopied` is the
+    // reflexive trigger the engine puts on the stack once the copy is chosen
+    // (Superior Spider-Man's "When you do, exile that card"). Its Effect
+    // Script lives under `entersWith.asEnters[]`, not in any array above;
+    // omitting it read the card as `none` while the deep-walk guard saw it.
+    for (const choice of def.entersWith?.asEnters ?? []) {
+        if (choice.kind === "copy" && choice.whenCopied) {
+            sites.push({ effects: choice.whenCopied.effects });
+        }
+    }
     return sites;
 }
 
