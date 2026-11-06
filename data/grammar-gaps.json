@@ -686,6 +686,11 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › a modal trigger is read behind an enters-this-permanent head only",
+            "issue": 8334
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › \"each player\" is not in grammar v0",
             "issue": 4587
         },

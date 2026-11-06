@@ -138,12 +138,7 @@ export const portalToPhyrexia = defineCard(() => ({
 }));
 
 // The Mightstone and Weakstone — {5} Legendary Artifact — Powerstone, the half
-// of the Urza meld pair that carries no meld ability (CR 712.4a). A MODAL
-// trigger and a restricted-mana rider are outside grammar v0; every other
-// clause of the card compiles.
-//
-// compiler-gap: "When The Mightstone and Weakstone enters, choose one — • Draw two cards. • Target creature gets -5/-5 until end of turn." (#8285)
-// compiler-gap: "{T}: Add {C}{C}. This mana can't be spent to cast nonartifact spells." (#8285)
+// of the Urza meld pair that carries no meld ability (CR 712.4a).
 export const theMightstoneAndWeakstone = defineCard(() => ({
     id: "02aea379-b444-46a3-82f4-3038f698d4f4",
     name: "The Mightstone and Weakstone",
