@@ -38,6 +38,7 @@ import {
     ALTERNATIVE_COST_SLOT,
     alternativeCostSlot,
 } from "./slots/alternativeCost";
+import { CHAPTER_SLOT, chapterSlot } from "./slots/chapter";
 import { KEYWORD_LINE_SLOT, keywordLineSlot } from "./slots/keywordLine";
 import { MANA_ABILITY_SLOT, manaAbilitySlot } from "./slots/manaAbility";
 import { SPELL_SLOT, spellSlot } from "./slots/spell";
@@ -58,6 +59,7 @@ export const SLOTS: readonly Slot[] = [
     { name: STATIC_SLOT, rule: staticSlot },
     { name: SPELL_SLOT, rule: spellSlot },
     { name: ALTERNATIVE_COST_SLOT, rule: alternativeCostSlot },
+    { name: CHAPTER_SLOT, rule: chapterSlot },
 ];
 
 /**

@@ -227,6 +227,8 @@ const SELF_NOUNS: ReadonlySet<string> = new Set([
     "Equipment",
     "Vehicle",
     "Class",
+    // CR 205.3h — a chapter line names its source by the subtype.
+    "Saga",
 ]);
 
 /** True when the span names the source object (CR 700.7). */

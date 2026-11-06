@@ -49,12 +49,19 @@ import type { TokenStaticEffectKey } from "../cards/types";
 import { MELD_CLAUSE, MELD_LAYOUT } from "./meldPairs";
 
 /**
+ * CR 714 — a Saga prints one face, its chapter lines in `oracle_text`: Scryfall
+ * names the layout for the frame, so the card runs the ordinary pipeline and
+ * the chapter slot reads the lines.
+ */
+const SAGA_LAYOUT = "saga";
+
+/**
  * Layouts grammar v0 reads. A multi-faced card (split, transform, adventure, …)
  * has rules text belonging to more than one object, and Scryfall reports it in
  * `card_faces` rather than in `oracle_text` — so compiling the top-level text
  * would compile a fragment of the card while looking complete. Fail closed.
  */
-const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
+const SUPPORTED_LAYOUTS = new Set<string>(["normal", SAGA_LAYOUT]);
 
 /** Scryfall's layout string for a Class card (CR 716). */
 export const CLASS_LAYOUT = "class";
