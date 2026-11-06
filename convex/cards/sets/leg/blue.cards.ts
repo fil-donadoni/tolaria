@@ -429,6 +429,13 @@ export const manaDrain = defineCard(() => ({
     manaCost: { U: 2 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
+    // The Bot's reading of the `resolve` below: the counter, then the {C} of a
+    // representative two-mana spell (the real amount is the countered spell's
+    // mana value, unknown while the card is held).
+    aiEffects: [
+        { op: "counter", target: { target: 0 } },
+        { op: "addMana", mana: { C: 2 } },
+    ],
     // NOT DSL-migratable (ADR 0045), both this resolve and the delayedTriggers[]
     // body below: the countered spell's mana value (getManaValue) must be
     // captured at counter time and read back as the {C} amount when the delayed

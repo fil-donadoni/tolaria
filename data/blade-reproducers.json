@@ -732,6 +732,7 @@
     },
     "counterspell: Force of Will pitches against a lethal Lightning Bolt": null,
     "counterspell: Mana Drain counters the Craw Wurm": null,
+    "counterspell: Mana Drain counters the Craw Wurm with an Angel in play": null,
     "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor": {
         "cards": [
             {

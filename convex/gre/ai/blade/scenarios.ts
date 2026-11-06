@@ -21870,7 +21870,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -21879,7 +21879,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8293 — a real card and a life to stop a 2/2, with an Angel in play.",
+        note: "Issue #8293 — a real card and a life to stop a 2/1, with an Angel in play: the clock keeps the answer in reserve (`stackAnswerUnits`).",
     },
     {
         label: "counterspell: Mana Drain counters the Craw Wurm",
@@ -21942,6 +21942,76 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8271 — the big spell, and the mana next main phase.",
     },
     {
+        label: "counterspell: Mana Drain counters the Craw Wurm with an Angel in play",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the spell on the stack: a Craw Wurm against a Savannah Lions",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mana Drain",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Craw Wurm",
+                by: "opp",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Drain",
+                },
+            ],
+        },
+        note: "Issue #8293 — the other half of the Lions pair: same Angel, same empty hand. The reserve is for the spell that matters, and this is it.",
+    },
+    {
         label: "counterspell: Mana Drain holds against a Savannah Lions",
         classification: {
             kind: "absolute",
@@ -21996,7 +22066,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -22005,7 +22075,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8293 — a cheap spell, with no use for the mana.",
+        note: "Issue #8293 — a cheap spell, with no use for the mana, and a clock whose reserve the answer is.",
     },
     {
         label: "X spell: Mind Twist for all it can at a full hand",
