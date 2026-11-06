@@ -103,7 +103,7 @@ function resolutionSites(def: CardDefinition): ResolutionSite[] {
     // them read Stand // Deliver as `none` while the deep-walk guard saw two
     // scripts.
     for (const half of def.splitHalves ?? []) sites.push(half);
-    // CR 707.9b / 603.12 — an as-enters copy choice's `whenCopied` is the
+    // CR 603.12 — an as-enters copy choice's `whenCopied` is the
     // reflexive trigger the engine puts on the stack once the copy is chosen
     // (Superior Spider-Man's "When you do, exile that card"). Its Effect
     // Script lives under `entersWith.asEnters[]`, not in any array above;
