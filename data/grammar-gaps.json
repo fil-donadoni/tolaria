@@ -4713,6 +4713,1121 @@
             "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This land enters tapped unless you control a basic land",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This land enters tapped unless you control two or fewer other lands",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As this land enters, you may pay N life. If you don't, it enters tapped",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If one or more tokens would be created under your control, twice that many of those tokens are created instead",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › {self} can be your commander",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You have no maximum hand size",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › {self} can't be blocked by creatures with power N or less",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't be blocked except by three or more creatures",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature enters with X +N/+N counters on it",
+            "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you attack",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you discard a card",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever an opponent draws their second card each turn",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast an artifact spell",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a player casts their second spell each turn",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever an opponent draws a card",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When you draw your third card in a turn",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast or copy an instant or sorcery spell",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you discard one or more cards",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you draw a card",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you sacrifice a Clue",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a colorless spell",
+            "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a land you control enters",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever one or more +N/+N counters are put on this creature",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When {self} is put into a graveyard from anywhere",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another artifact you control enters",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature deals combat damage to a player or planeswalker",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this creature enters or dies",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever equipped creature dies",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this Vehicle attacks or blocks",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever an artifact you control enters",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever equipped creature deals combat damage",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When {self} enters and at the beginning of your upkeep",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} deals combat damage to an opponent",
+            "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Earthbend N",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › it",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › it was a creature",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › type",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › a card left your graveyard this turn",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Play that card this turn",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › you cast it",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › you gained life this turn",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › verb frame › Sacrifice it unless it escaped",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › it's not a token",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › duration › and gains trample until end of turn",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › {…} was spent to cast it",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Escape—{…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Buyback {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Backup N",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Affinity for artifacts",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Eternalize {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Replicate {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Warp {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Dash {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Hideaway N",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Bestow {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Splice onto Arcane {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Evoke {…}",
+            "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Blood token",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Food token",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Treasure token",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Create a Food token",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Map token",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Investigate",
+            "issue": 8498
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › activation cost › Channel — {…}",
+            "issue": 8499
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › activation cost › Pay X life",
+            "issue": 8499
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Discard this card",
+            "issue": 8499
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › activation cost › colors",
+            "issue": 8499
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › This artifact deals N damage to you",
+            "issue": 8499
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {self} deals N damage instead",
+            "issue": 8500
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If that spell is countered this way, exile it instead of putting it into its owner's graveyard",
+            "issue": 8500
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › exile all creatures",
+            "issue": 8500
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › All creatures get -X/-X until end of turn",
+            "issue": 8500
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › X target lands",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › You may sacrifice a creature",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › this card from your graveyard",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › You may put a creature card from your hand onto the battlefield",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › It",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › each creature you control",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Adapt N",
+            "issue": 8501
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › effect clause › Discard your hand",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Surveil N",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Surveil N",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Each player shuffles their hand and graveyard into their library",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Its controller may search their library for a basic land card, put it onto the battlefield tapped",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › the top card of your library face down",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Look at the top card of target player's library",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Surveil N",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › You and target opponent each draw a card",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › zone reference › its owner's library second from the top",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › zone reference › its owner's library third from the top",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › zone reference › your hand and the rest on the bottom of your library in a random order",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › You gain N life and draw a card",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › effect clause › Shuffle your library",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Each player discards their hand",
+            "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Plainscycling {…}",
+            "issue": 8503
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Islandcycling {…}",
+            "issue": 8503
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Mountaincycling {…}",
+            "issue": 8503
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Forestcycling {…}",
+            "issue": 8503
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Swampcycling {…}",
+            "issue": 8503
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › \"another target\" names no earlier target here (CR 115.3)",
+            "issue": 8504
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Choose a Background",
+            "issue": 8504
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › layout \"leveler\" is not in grammar v0 (multi-faced cards)",
+            "issue": 8504
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › \"it\" names no object at this site",
+            "issue": 8504
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › mana ability cost leg \"removeCounter\" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana, tapOtherFilter and addCounter",
+            "issue": 8504
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Archon of Cruelty",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Astrologian's Planisphere",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Balance",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Barrowgoyf",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bitter Triumph",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Blazemire Verge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bleachbone Verge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bloodchief's Thirst",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bolas's Citadel",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bone Shards",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bonecrusher Giant // Stomp",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Brightglass Gearhulk",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Broadside Bombardiers",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Celestial Colonnade",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Chain Lightning",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Chandra, Torch of Defiance",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Chrome Mox",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "City of Traitors",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Containment Priest",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Coveted Jewel",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Creeping Tar Pit",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dack Fayden",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dauthi Voidwalker",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Deathrite Shaman",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Deep-Cavern Bat",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Delighted Halfling",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Elite Spellbinder",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Endurance",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Everflowing Chalice",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Expressive Iteration",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fabled Passage",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fallen Shinobi",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fastbond",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fatal Push",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fear of Missing Out",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Figure of Destiny",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Figure of Fable",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Force of Vigor",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Force of Will",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Forth Eorlingas!",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fractured Identity",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fury",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Galvanic Discharge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Giver of Runes",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Glimmer Lens",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Grief",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Haywire Mite",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hullbreacher",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Inquisition of Kozilek",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jacked Rabbit",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kaldra Compleat",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Karn, Scion of Urza",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Library of Alexandria",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Liliana of the Veil",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lion Sash",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lurrus of the Dream-Den",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Malcolm, Alluring Scoundrel",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Malevolent Rumble",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mana Drain",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mana Vault",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Memory Jar",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Memory Lapse",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mine Collapse",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mishra's Workshop",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Moonshadow",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mox Opal",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Multiversal Passage",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Narset, Parter of Veils",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Necromancy",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Nettlecyst",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Nissa, Who Shakes the World",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Occult Epiphany",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Once Upon a Time",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Orcish Bowmasters",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Orcish Lumberjack",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ouroboroid",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Palace Jailer",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Path to Exile",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pest Infestation",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phantasmal Image",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phelia, Exuberant Shepherd",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Metamorph",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ponder",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pyrogoyf",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Relic of Sauron",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Remand",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Riverpyre Verge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Saheeli, Sublime Artificer",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sheoldred's Edict",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Shifting Woodland",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Skyclave Apparition",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Snuff Out",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Solitude",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Soul-Guide Lantern",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Staff of the Storyteller",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Starting Town",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stern Scolding",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stoneforge Mystic",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Subtlety",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Super Shredder",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sword of the Meek",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tear Asunder",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thassa's Oracle",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thopter Foundry",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thornspire Verge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Titania, Protector of Argoth",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Underworld Breach",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Unholy Heat",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Urborg, Tomb of Yawgmoth",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Urza's Saga",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Vivi Ornitier",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wastewood Verge",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wishclaw Talisman",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wrenn and Six",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Yavimaya, Cradle of Growth",
+            "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Zirda, the Dawnwaker",
+            "issue": 8505
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
@@ -4912,6 +6027,182 @@
                 "spell › effect clause › object descriptor › multicolored permanent",
                 "spell › effect clause › target filter › object descriptor › multicolored creature or multicolored enchantment",
                 "spell › effect clause › target filter › object descriptor › multicolored creature"
+            ]
+        },
+        {
+            "issue": 8493,
+            "kind": "grammar",
+            "match": [
+                "static › static clause › This land enters tapped unless you control a basic land",
+                "static › static clause › This land enters tapped unless you control two or fewer other lands",
+                "static › static clause › As this land enters, you may pay N life. If you don't, it enters tapped",
+                "static › static clause › If one or more tokens would be created under your control, twice that many of those tokens are created instead",
+                "static › static clause › {self} can be your commander",
+                "static › static clause › You have no maximum hand size",
+                "static › static clause › {self} can't be blocked by creatures with power N or less",
+                "static › static clause › This creature can't be blocked except by three or more creatures",
+                "static › static clause › This creature enters with X +N/+N counters on it"
+            ]
+        },
+        {
+            "issue": 8494,
+            "kind": "grammar",
+            "match": [
+                "triggered › trigger head › Whenever you attack",
+                "triggered › trigger head › Whenever you discard a card",
+                "triggered › trigger head › Whenever an opponent draws their second card each turn",
+                "triggered › trigger head › Whenever you cast an artifact spell",
+                "triggered › trigger head › Whenever a player casts their second spell each turn",
+                "triggered › trigger head › Whenever an opponent draws a card",
+                "triggered › trigger head › When you draw your third card in a turn",
+                "triggered › trigger head › Whenever you cast or copy an instant or sorcery spell",
+                "triggered › trigger head › Whenever you discard one or more cards",
+                "triggered › trigger head › Whenever you draw a card",
+                "triggered › trigger head › Whenever you sacrifice a Clue",
+                "triggered › trigger head › Whenever you cast a colorless spell"
+            ]
+        },
+        {
+            "issue": 8495,
+            "kind": "grammar",
+            "match": [
+                "triggered › trigger head › Whenever a land you control enters",
+                "triggered › trigger head › Whenever one or more +N/+N counters are put on this creature",
+                "triggered › trigger head › When {self} is put into a graveyard from anywhere",
+                "triggered › trigger head › Whenever this creature or another artifact you control enters",
+                "triggered › trigger head › Whenever this creature deals combat damage to a player or planeswalker",
+                "triggered › trigger head › When this creature enters or dies",
+                "triggered › trigger head › Whenever equipped creature dies",
+                "triggered › trigger head › Whenever this Vehicle attacks or blocks",
+                "triggered › trigger head › Whenever an artifact you control enters",
+                "triggered › trigger head › Whenever equipped creature deals combat damage",
+                "triggered › trigger head › When {self} enters and at the beginning of your upkeep",
+                "triggered › trigger head › Whenever {self} deals combat damage to an opponent"
+            ]
+        },
+        {
+            "issue": 8496,
+            "kind": "grammar",
+            "match": [
+                "triggered › effect clause › Earthbend N",
+                "triggered › effect clause › it",
+                "triggered › condition › it was a creature",
+                "triggered › effect clause › target filter › type",
+                "triggered › condition › a card left your graveyard this turn",
+                "triggered › effect clause › Play that card this turn",
+                "triggered › condition › you cast it",
+                "triggered › condition › you gained life this turn",
+                "triggered › effect clause › verb frame › Sacrifice it unless it escaped",
+                "triggered › condition › it's not a token",
+                "triggered › effect clause › duration › and gains trample until end of turn",
+                "triggered › condition › {…} was spent to cast it"
+            ]
+        },
+        {
+            "issue": 8497,
+            "kind": "grammar",
+            "match": [
+                "keyword-line › keyword ability › Escape—{…}",
+                "keyword-line › keyword ability › Buyback {…}",
+                "keyword-line › keyword ability › Backup N",
+                "keyword-line › keyword ability › Affinity for artifacts",
+                "keyword-line › keyword ability › Eternalize {…}",
+                "keyword-line › keyword ability › Replicate {…}",
+                "keyword-line › keyword ability › Warp {…}",
+                "keyword-line › keyword ability › Dash {…}",
+                "keyword-line › keyword ability › Hideaway N",
+                "keyword-line › keyword ability › Bestow {…}",
+                "keyword-line › keyword ability › Splice onto Arcane {…}",
+                "keyword-line › keyword ability › Evoke {…}"
+            ]
+        },
+        {
+            "issue": 8498,
+            "kind": "grammar",
+            "match": [
+                "triggered › effect clause › Create a Blood token",
+                "triggered › effect clause › Create a Food token",
+                "triggered › effect clause › Create a Treasure token",
+                "activated › effect clause › Create a Food token",
+                "triggered › effect clause › Create a Map token",
+                "triggered › effect clause › Investigate"
+            ]
+        },
+        {
+            "issue": 8499,
+            "kind": "grammar",
+            "match": [
+                "mana-ability › activation cost › Channel — {…}",
+                "spell › activation cost › Pay X life",
+                "activated › activation cost › Discard this card",
+                "spell › activation cost › colors",
+                "mana-ability › mana ability rider › This artifact deals N damage to you"
+            ]
+        },
+        {
+            "issue": 8500,
+            "kind": "grammar",
+            "match": [
+                "spell › effect clause › {self} deals N damage instead",
+                "spell › effect clause › If that spell is countered this way, exile it instead of putting it into its owner's graveyard",
+                "spell › effect clause › exile all creatures",
+                "spell › effect clause › All creatures get -X/-X until end of turn"
+            ]
+        },
+        {
+            "issue": 8501,
+            "kind": "grammar",
+            "match": [
+                "activated › effect clause › X target lands",
+                "activated › effect clause › You may sacrifice a creature",
+                "activated › effect clause › this card from your graveyard",
+                "activated › effect clause › You may put a creature card from your hand onto the battlefield",
+                "activated › effect clause › It",
+                "activated › effect clause › each creature you control",
+                "activated › effect clause › Adapt N"
+            ]
+        },
+        {
+            "issue": 8502,
+            "kind": "grammar",
+            "match": [
+                "triggered › effect clause › effect clause › Discard your hand",
+                "triggered › effect clause › Surveil N",
+                "spell › effect clause › Surveil N",
+                "spell › effect clause › effect clause › Each player shuffles their hand and graveyard into their library",
+                "spell › effect clause › effect clause › Its controller may search their library for a basic land card, put it onto the battlefield tapped",
+                "triggered › effect clause › the top card of your library face down",
+                "activated › effect clause › Look at the top card of target player's library",
+                "activated › effect clause › Surveil N",
+                "activated › effect clause › You and target opponent each draw a card",
+                "spell › effect clause › zone reference › its owner's library second from the top",
+                "activated › effect clause › zone reference › its owner's library third from the top",
+                "triggered › effect clause › zone reference › your hand and the rest on the bottom of your library in a random order",
+                "activated › effect clause › You gain N life and draw a card",
+                "activated › effect clause › effect clause › Shuffle your library",
+                "spell › effect clause › effect clause › Each player discards their hand"
+            ]
+        },
+        {
+            "issue": 8503,
+            "kind": "grammar",
+            "match": [
+                "(no slot) › Plainscycling {…}",
+                "(no slot) › Islandcycling {…}",
+                "(no slot) › Mountaincycling {…}",
+                "(no slot) › Forestcycling {…}",
+                "(no slot) › Swampcycling {…}"
+            ]
+        },
+        {
+            "issue": 8504,
+            "kind": "grammar",
+            "match": [
+                "(card) › \"another target\" names no earlier target here (CR 115.3)",
+                "(no slot) › Choose a Background",
+                "(card) › layout \"leveler\" is not in grammar v0 (multi-faced cards)",
+                "(card) › \"it\" names no object at this site",
+                "(card) › mana ability cost leg \"removeCounter\" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana, tapOtherFilter and addCounter"
             ]
         }
     ],
