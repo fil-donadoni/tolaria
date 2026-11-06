@@ -236,6 +236,10 @@ export function definitionMatchesFilter(
     // CR 205.3m (issue #6618) — `sharesCreatureTypeWith` names an object this
     // `SpellContext`-free matcher cannot read: refused, same reason as above.
     if (filter.sharesCreatureTypeWith !== undefined) return false;
+    // CR 709.3a / 712.11c / 715.3a — `castFaceType` needs the card's cast faces,
+    // which this definition-level matcher does not enumerate: refused rather
+    // than skipped (skipping is this matcher's fail-OPEN shape).
+    if (filter.castFaceType !== undefined) return false;
     const literalSubtypes: string | string[] | undefined = filter.subtype;
     const subtypes = asArray(literalSubtypes);
     if (

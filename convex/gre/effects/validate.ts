@@ -510,7 +510,12 @@ function isCardFilter(
     // single subtype slot cannot express: refused rather than half-honoured.
     if ("sharesCreatureTypeWith" in value && "subtype" in value) return false;
     return entries.every(([k, v]) => {
-        if (k === "type" || k === "excludeType" || k === "excludeSubtype") {
+        if (
+            k === "type" ||
+            k === "excludeType" ||
+            k === "excludeSubtype" ||
+            k === "castFaceType"
+        ) {
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && m.length > 0
@@ -871,7 +876,8 @@ function filterUsesManaCostEquals(value: unknown): boolean {
     if (
         f.manaCostEquals !== undefined ||
         f.hasFlashback !== undefined ||
-        f.hasCounter !== undefined
+        f.hasCounter !== undefined ||
+        f.castFaceType !== undefined
     ) {
         return true;
     }
@@ -894,6 +900,12 @@ const TOKEN_CARD_TYPES = new Set([
     "Battle",
     "Kindred",
 ]);
+
+/** A non-empty list of card types — `castDuringResolution.spellTypes` and its
+ *  rider scope (CR 709.3a / 712.11c / 715.3a). */
+function isCardTypeList(value: unknown): boolean {
+    return isNonEmptyStringArray(value, TOKEN_CARD_TYPES);
+}
 
 /** Valid `EffectTokenSpec.supertypes` members (CR 205.4). */
 const TOKEN_SUPERTYPES = new Set([
@@ -4695,10 +4707,32 @@ const OP_SCHEMAS: OpSchemaTable = {
             // CR 614.1a — "If that spell would be put into your graveyard,
             // exile it instead" (Bilbo, Thief in the Night).
             exilesOnResolve: isBoolean,
+            // CR 709.3a / 712.11c / 715.3a — the spell types the permission
+            // names, asked of each face; and the rider's own type scope.
+            spellTypes: isCardTypeList,
+            exilesOnResolveForTypes: isCardTypeList,
         },
         check: (entry) => {
             const errors: string[] = [];
             const hasCard = "card" in entry;
+            if (
+                "exilesOnResolveForTypes" in entry &&
+                entry.exilesOnResolve !== true
+            ) {
+                errors.push(
+                    'field "exilesOnResolveForTypes" requires "exilesOnResolve"'
+                );
+            }
+            if (
+                "spellTypes" in entry &&
+                (entry.anyNumber === true ||
+                    entry.includesLand === true ||
+                    "alternativeCost" in entry)
+            ) {
+                errors.push(
+                    'field "spellTypes" is not valid with "anyNumber", "includesLand" or "alternativeCost"'
+                );
+            }
             const fromTop = entry.fromTopOfLibrary === true;
             if (
                 entry.asCopy === true &&
@@ -4727,6 +4761,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     "resultBind",
                     "alternativeCost",
                     "exilesOnResolve",
+                    "exilesOnResolveForTypes",
                 ] as const) {
                     if (field in entry) {
                         errors.push(
@@ -6788,7 +6823,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesManaCostEquals(entry.filter)
             ) {
                 errors.push(
-                    '"filter.manaCostEquals" / "filter.hasFlashback" / "filter.hasCounter" is not valid with zone: "battlefield" — a live permanent has no printed-cost, flashback or counter slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
+                    '"filter.manaCostEquals" / "filter.hasFlashback" / "filter.hasCounter" / "filter.castFaceType" is not valid with zone: "battlefield" — a live permanent has no printed-cost, flashback, counter or cast-face slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
                 );
             }
             if (

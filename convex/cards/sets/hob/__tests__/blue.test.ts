@@ -7,6 +7,7 @@
 // a move to the graveyard), CR 601.2f (the static line discounts the cast).
 import { describe, expect, it } from "vitest";
 import { getDefinition, registerTokenDefinition } from "../../../index";
+import { adventureCastAltCostId } from "../../../../gre/adventure";
 import {
     makeInstance,
     makePlayer,
@@ -366,5 +367,93 @@ describe("castDuringResolution — validator", () => {
             ],
         } as never);
         expect(errors.join()).toContain('"exilesOnResolve" is not valid');
+    });
+});
+
+// CR 709.3a / 712.11c / 715.3a — the permission names SPELL types, so it is
+// asked of each face the card can be cast as, never of the printed type line.
+describe("Bilbo — the permission is asked per face (issue #8463)", () => {
+    const GIANT = getDefinition("ff984a4c-1818-4f8f-a9d7-fce57e77937d");
+    const STOMP = adventureCastAltCostId(GIANT);
+    const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
+
+    function withMountain(state: GameState): GameState {
+        getPlayer(state, "p1").battlefield.push(
+            makeInstance(MOUNTAIN, {
+                id: "mountain",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return state;
+    }
+
+    it("a creature with an instant Adventure is a candidate; only the Adventure is offered", () => {
+        const state = withMountain(board([graveyardCard(GIANT.id)]));
+        attack(state);
+        const pick = state.pendingChoices![0];
+        expect(pick.candidateIds).toEqual(["spell"]);
+        answer(state, ["spell"]);
+        const offer = projectPublicState(state, 1, "p1").pendingChoices?.[0];
+        expect(offer?.options?.map((o) => o.id)).toEqual([STOMP, "decline"]);
+    });
+
+    it("casting the Adventure exiles it as it resolves: the rider follows the face cast", () => {
+        const state = withMountain(board([graveyardCard(GIANT.id)]));
+        attack(state);
+        answer(state, ["spell"]);
+        answer(state, [STOMP]);
+        // Stomp's target, if asked.
+        if (state.pendingChoices?.length) answer(state, ["victim"]);
+        const spell = state.stack.find((s) => s.id === "spell")!;
+        expect(spell.exileOnResolve).toBe(true);
+    });
+
+    it("a creature card with no qualifying face is no candidate", () => {
+        const state = withMountain(board([graveyardCard(CREATURE)]));
+        attack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("a qualifying printed face never offers a non-qualifying one", () => {
+        // The same card, asked for CREATURE spells: the printed face qualifies,
+        // the instant Adventure does not.
+        const id = "hob-test-creature-spells-only";
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "castDuringResolution",
+                    fromTopOfLibrary: true,
+                    player: "controller",
+                    spellTypes: ["Creature"],
+                },
+            ],
+        });
+        const state = withMountain(board([]));
+        getPlayer(state, "p1").library.unshift(
+            makeInstance(GIANT.id, {
+                id: "top",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        state.stack.push({
+            ...makeInstance(id, {
+                id: "script",
+                zone: "stack",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            castById: "p1",
+        } as StackItem);
+        resolveTopOfStack(state);
+        const offer = projectPublicState(state, 1, "p1").pendingChoices?.[0];
+        expect(offer?.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
     });
 });
