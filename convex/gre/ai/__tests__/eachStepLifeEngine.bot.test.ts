@@ -141,9 +141,9 @@ describe("a standing each-step life engine reads the board (issue #5574)", () =>
         expect(delta(swamps(4), forests(4))).toBeLessThan(0);
     });
 
-    it("hand face equals board face for Karma on the same board, whatever the sign", () => {
-        // ADR 0151 / issue #5145 — casting Karma moves its worth from the
-        // hand term to the board term unchanged.
+    it("at fraction 1 the hand reads the board Differential for Karma, a negative one reading 0", () => {
+        // ADR 0151 — both faces measure the same board; the hand takes its
+        // fitted share, here all of it.
         const faces = (own: Side["lands"], opp: Side["lands"]) => {
             const held = board(
                 KARMA,
@@ -157,7 +157,10 @@ describe("a standing each-step life engine reads the board (issue #5574)", () =>
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace: engineWorth(
                     board(
@@ -172,8 +175,8 @@ describe("a standing each-step life engine reads the board (issue #5574)", () =>
         expect(helps.handFace).toBeGreaterThan(0);
         expect(helps.handFace).toBeCloseTo(helps.boardFace, 6);
         const hurts = faces(swamps(4), forests(4));
-        expect(hurts.handFace).toBeLessThan(0);
-        expect(hurts.handFace).toBeCloseTo(hurts.boardFace, 6);
+        expect(hurts.handFace).toBe(0);
+        expect(hurts.boardFace).toBeLessThan(0);
     });
 
     it("Collapsing Borders grounds its Domain on each side: it helps the five-colour side", () => {

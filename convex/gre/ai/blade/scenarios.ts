@@ -22691,7 +22691,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             moves: [
                 {
@@ -22700,7 +22700,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8295 — the shape of the green Wheel of Fortune entry, plus a graveyard.",
+        note: "Issue #8295 — the shape of the green Wheel of Fortune entry, plus a graveyard. The graveyard reshuffle voided the Differential Reading, so the held card kept the representative walk's full price and the Bot passed on all 5 seeds. Now read per side (`graveyardShuffledIn`, `ai/latentBoard.ts`): 5/5 cast. Position B is `holds Timetwister with a full good hand`.",
     },
     {
         label: "each-player one-shot: holds Timetwister with a full good hand",
@@ -24405,7 +24405,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             moves: [
                 {
@@ -24414,7 +24414,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8295 — the opponent has the creatures.",
+        note: "Issue #8295 — the opponent has the creatures. In hand 300 against 316 on the board tied, 2/5 seeds cast; the hand now credits `heldDifferentialFraction` of the standing reading (`heldEngineFraction`, `cardValue.ts`): 5/5 cast. Position B is the entry below.",
     },
     {
         label: "symmetric: holds Oath of Druids when it feeds only the opponent",
@@ -24457,7 +24457,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -24466,7 +24466,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8295 — the Bot has the creatures.",
+        note: "Issue #8295 — the Bot has the creatures, so the Oath would feed only the opponent. -300 in hand against -274 on the board tied and the Bot cast it on all 5 seeds; a negative held reading is now 0 (`heldEngineFraction`, `cardValue.ts`), since the card can simply stay there: 5/5 hold.",
     },
     {
         label: "tutor: Natural Order sacrifices the Elves for the Craw Wurm",

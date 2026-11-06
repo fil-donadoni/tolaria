@@ -574,6 +574,9 @@ export function makeLatentBoardLens(
             return total;
         },
         heldDifferentialFraction: weights.heldDifferentialFraction,
+        ...(card.zone === "battlefield"
+            ? {}
+            : { heldEngineFraction: weights.heldDifferentialFraction }),
         // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
         // the board the card would leave behind: the same per-leaf netting
         // the board face reads, so the hand face and the board face of the
@@ -761,11 +764,26 @@ function boardSide(
                 unreadable = true;
                 return 0;
             }
+            // Issue #8295 — a graveyard the player can still spend is worth
+            // something where it lies (`millLoss` refuses it for the same
+            // reason): the side is unreadable, never priced as free cards.
+            const reshuffles = before.some(
+                (step) => step.kind === "graveyardShuffledIn"
+            );
+            if (reshuffles && creditsGraveyard(player)) {
+                unreadable = true;
+                return 0;
+            }
             const library = {
                 size: player.library.length,
                 mean: libraryMean(player.library, weights, returnedWorth) ?? 0,
             };
-            const landing = handAfter(hand, library, before);
+            const landing = handAfter(
+                hand,
+                library,
+                before,
+                reshuffles ? player.graveyard.map((c) => returnedWorth(c)) : []
+            );
             // Nothing to draw: no worth either way, and nothing read off the
             // board — the side is neither answered nor voided by it.
             if (library.size === 0) return 0;
@@ -1165,11 +1183,13 @@ function handValues(
 /** Issue #5573 — the hand a draw lands in once `before`'s steps have run
  *  over `hand`, each card a context-free worth. `library` (its size and its
  *  mean card) is updated in place: a draw takes from it, a shuffle-in adds
- *  the hand's cards to it. */
+ *  the hand's cards to it. Issue #8295 — a graveyard shuffle-in adds
+ *  `graveyard`'s, each a context-free worth too. */
 function handAfter(
     hand: readonly number[],
     library: { size: number; mean: number },
-    before: readonly HandStep[]
+    before: readonly HandStep[],
+    graveyard: readonly number[]
 ): number[] {
     let current = [...hand];
     for (const step of before) {
@@ -1177,15 +1197,13 @@ function handAfter(
             case "leaves":
                 current = [];
                 break;
-            case "shuffledIn": {
-                const total =
-                    library.mean * library.size +
-                    current.reduce((a, b) => a + b, 0);
-                library.size += current.length;
-                library.mean = library.size > 0 ? total / library.size : 0;
+            case "shuffledIn":
+                addToLibrary(library, current);
                 current = [];
                 break;
-            }
+            case "graveyardShuffledIn":
+                addToLibrary(library, graveyard);
+                break;
             case "discards":
                 // The chooser keeps its best (`discardWorth`).
                 current = [...current]
@@ -1201,6 +1219,17 @@ function handAfter(
         }
     }
     return current;
+}
+
+/** `cards`, each a context-free worth, shuffled into `library`. */
+function addToLibrary(
+    library: { size: number; mean: number },
+    cards: readonly number[]
+): void {
+    const total =
+        library.mean * library.size + cards.reduce((a, b) => a + b, 0);
+    library.size += cards.length;
+    library.mean = library.size > 0 ? total / library.size : 0;
 }
 
 function isPlaceholder(c: CardInstanceState): boolean {

@@ -523,6 +523,12 @@ function valueEachPlayerSide(
             continue;
         }
         if (op.op === "discard") hand.record({ kind: "leaves" });
+        // Issue #8295 — a graveyard's own worth is what the later `draw`
+        // finds in the library (`handAfter`): nothing to price at this Op.
+        if (op.op === "moveZone" && isWholeGraveyardToLibrary(op)) {
+            hand.record({ kind: "graveyardShuffledIn" });
+            continue;
+        }
         if (op.op === "moveZone") hand.shuffleIn(op);
         const edict = op.op === "sacrifice" && edictChoiceFor(op, body);
         if (edict) {
@@ -560,7 +566,7 @@ class EachPlayerHand {
             if (step.kind === "draws") size += step.count;
             else if (step.kind === "discards") {
                 size = Math.max(0, size - step.count);
-            } else size = 0;
+            } else if (step.kind !== "graveyardShuffledIn") size = 0;
         }
         return size;
     }
@@ -1073,12 +1079,13 @@ function isStepGroundableAmount(value: EffectValue): boolean {
  *     (`choice` `sacrifice-permanents` on `$each` + the `sacrifice` of its
  *     picks, CR 701.21a), and (issue #5573) a `draw`, literal or counted off
  *     an earlier shuffle-in's `bindCount`, into the hand the body leaves
- *     (`EachPlayerSide.drawUnits`);
+ *     (`EachPlayerSide.drawUnits`), which also finds a whole graveyard
+ *     shuffled in there by a `moveZone` graveyard → library;
  *   - or the same magnitude on every side, signed by whose it is — life
  *     gained or lost, damage to the player — which the sides net out.
  *  Every Op must name `$each`: one that names a fixed player would be counted
- *  once per side. Anything else (a graveyard reshuffle, a draw counted off
- *  any other binding, a choice of another kind) is fail-closed. */
+ *  once per side. Anything else (a draw counted off any other binding, a
+ *  choice of another kind) is fail-closed. */
 function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "draw":
@@ -1094,7 +1101,7 @@ function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
             if (op.cards) return handEdictChoiceFor(op, body) !== undefined;
             return isEachPlayerRef(op.player) && !op.filter;
         case "moveZone":
-            return isWholeHandToLibrary(op);
+            return isWholeHandToLibrary(op) || isWholeGraveyardToLibrary(op);
         case "libraryLook":
             return op.action === "shuffle" && isEachPlayerRef(op.player);
         case "gainLife":
@@ -1127,6 +1134,19 @@ function isWholeHandToLibrary(op: Extract<EffectOp, { op: "moveZone" }>) {
     if (!("from" in op) || !("player" in op) || "cards" in op) return false;
     return (
         isEachPlayerRef(op.player) && op.from === "hand" && op.to === "library"
+    );
+}
+
+/** Issue #8295 — `moveZone`'s player shape moving `$each`'s whole graveyard
+ *  into its library (Timetwister's second half). */
+function isWholeGraveyardToLibrary(
+    op: Extract<EffectOp, { op: "moveZone" }>
+): boolean {
+    if (!("from" in op) || !("player" in op) || "cards" in op) return false;
+    return (
+        isEachPlayerRef(op.player) &&
+        op.from === "graveyard" &&
+        op.to === "library"
     );
 }
 

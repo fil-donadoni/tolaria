@@ -218,10 +218,17 @@ export function latentValue(chars: {
     /** Issue #5164 (ADR 0151) — true when `dslStandingAbilityValue` was
      *  MEASURED against a real board (a standing engine's Differential
      *  Reading). The Latent Floor drops and, as a measured standing lock's
-     *  does (issue #5163), the reading keeps its sign on both faces — an
-     *  engine that feeds the opponent costs its controller in hand and in
-     *  play alike, down to `-MAX_LATENT_SCRIPT_VALUE`. */
+     *  does (issue #5163), the reading keeps its sign on the board — an
+     *  engine that feeds the opponent costs its controller there, down to
+     *  `-MAX_LATENT_SCRIPT_VALUE`. In hand: `heldEngineFraction`. */
     dslStandingAbilityMeasured?: boolean;
+    /** Issue #8295 — set only for a MEASURED standing engine still in hand
+     *  (`LatentLens.heldEngineFraction`): the share of its reading the hand
+     *  credits, a negative reading being 0. Credited whole, the hand price IS
+     *  what the board face realises and casting ties holding, whichever the
+     *  sign: a card that would feed the opponent can simply stay in hand, and
+     *  one that feeds its holder is worth most once it stands. */
+    heldEngineFraction?: number;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
@@ -317,11 +324,12 @@ export function latentValue(chars: {
     // faces of such a permanent are one number and casting it is never a
     // value loss this composition causes.
     const standing = chars.dslStandingAbilityValue;
+    const held = (bounded: number) =>
+        chars.heldEngineFraction === undefined
+            ? Math.max(floor, bounded)
+            : Math.max(0, bounded) * chars.heldEngineFraction;
     if (standing !== undefined && chars.dslSpellValue === undefined) {
-        return Math.max(
-            floor,
-            Math.min(standing + delayed, MAX_LATENT_SCRIPT_VALUE)
-        );
+        return held(Math.min(standing + delayed, MAX_LATENT_SCRIPT_VALUE));
     }
     if (chars.dslSpellValue !== undefined) {
         // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
@@ -338,9 +346,10 @@ export function latentValue(chars: {
         // liability, and casting it realises the loss the floor declines, so
         // holding already wins. Unfloored, the held price would only shrink
         // that margin. A standing lock or a measured standing reading is
-        // different — its hand and board faces are one number, so it reads
-        // below nothing on both (above, issue #5163 / issue #5164).
-        return Math.max(floor, bounded);
+        // different — both faces read one Differential, so it reads below
+        // nothing while standing (above), and an engine in hand is an option
+        // too (`held`).
+        return held(bounded);
     }
     // No spell and no standing reading: the card has nothing the floor could
     // be lifted for (a Complete Script always reads at least one), so the
@@ -449,6 +458,7 @@ export function dslLatentPieces(
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     dslStandingAbilityMeasured?: boolean;
+    heldEngineFraction?: number;
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
@@ -515,6 +525,9 @@ export function dslLatentPieces(
         dslStandingAbilityValue,
         dslSpellValueMeasured,
         dslStandingAbilityMeasured: engine?.measured() === true,
+        // Issue #8295 — the board lens leaves it out once the card stands.
+        heldEngineFraction:
+            engine?.measured() === true ? board?.heldEngineFraction : undefined,
         // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
         dslScriptComplete: isCompleteScript(def),
         // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
@@ -566,6 +579,7 @@ export function dslLatentPiecesById(
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     dslStandingAbilityMeasured?: boolean;
+    heldEngineFraction?: number;
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
