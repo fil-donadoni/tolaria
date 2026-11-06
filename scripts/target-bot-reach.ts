@@ -174,6 +174,34 @@ function botWithheld(row: CardRow): boolean {
     );
 }
 
+/** The registry calls {@link handWrittenDefinition} needs — injected, because
+ *  this module imports the catalogue only dynamically. */
+export interface DefinitionLookup {
+    tryGetDefinition(id: string): CardDefinition | null;
+    preloadDefinitions(definitions: readonly CardDefinition[]): void;
+    getDefinition(id: string): CardDefinition;
+}
+
+/**
+ * The definition a hand-written card ships. The source walk names the card; the
+ * registry reaches it through the generated Definition Index, which trails a
+ * card's merge until `derive:sync` runs on the base. In that window the lookup
+ * misses, and a throw here would end the whole sweep (it happened on Absorbing
+ * Man, 18 minutes in), so the walk's own definition is made resident: the same
+ * bytes, and a verdict that does not depend on when the index was regenerated.
+ */
+export function handWrittenDefinition(
+    printId: string,
+    walked: ReadonlyMap<string, CardDefinition>,
+    registry: DefinitionLookup
+): CardDefinition {
+    const resident = registry.tryGetDefinition(printId);
+    if (resident !== null) return resident;
+    const raw = walked.get(printId);
+    if (raw !== undefined) registry.preloadDefinitions([raw]);
+    return registry.getDefinition(printId);
+}
+
 function argValues(flag: string): string[] {
     const out: string[] = [];
     process.argv.forEach((arg, i) => {
@@ -224,8 +252,8 @@ async function main(): Promise<void> {
     // The Bot and the catalogue are imported here, dynamically, like
     // `oracle-compile.ts` does: nothing above this line plays.
     const { playBotReach } = await import("../convex/gre/ai/botReach");
-    const { preloadDefinitions, getDefinition } =
-        await import("../convex/cards/registry");
+    const definitionRegistry = await import("../convex/cards/registry");
+    const { preloadDefinitions } = definitionRegistry;
     const { getAllRawCards } = await import("../convex/cards/catalogue");
 
     /** Play one card. A throw is the SWEEP failing, never the card, so it is
@@ -263,10 +291,8 @@ async function main(): Promise<void> {
     const index = JSON.parse(
         readFileSync(join(ROOT, POOL_PROJECTION_SOURCE), "utf8")
     ) as CardIndexEntry[];
-    const handWritten = handWrittenPrintIds(
-        index,
-        getAllRawCards().map((raw) => raw.id)
-    );
+    const walked = new Map(getAllRawCards().map((raw) => [raw.id, raw]));
+    const handWritten = handWrittenPrintIds(index, walked.keys());
 
     // The committed artifact IS the cache (ADR 0141 § 4): a verdict survives
     // while the definition AND the Bot hash are unchanged.
@@ -294,7 +320,7 @@ async function main(): Promise<void> {
         let source: ShippedSource | undefined;
         let opsUsed: readonly string[] = [];
         if (printId !== undefined) {
-            def = getDefinition(printId);
+            def = handWrittenDefinition(printId, walked, definitionRegistry);
             hashed = def;
             source = "hand-written";
             // The compiler's own Op census, so a hand-written card keys its

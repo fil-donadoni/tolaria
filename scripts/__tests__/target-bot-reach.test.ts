@@ -24,7 +24,49 @@ import {
 } from "../lib/oracle-bot-reach";
 import { mergeAllBotVerdicts } from "../lib/bot-findings-merge";
 import type { CardRow } from "../lib/oracle-lockfile";
-import { aggregate, type CardMeasure } from "../target-bot-reach";
+import {
+    aggregate,
+    handWrittenDefinition,
+    type CardMeasure,
+    type DefinitionLookup,
+} from "../target-bot-reach";
+import type { CardDefinition } from "../../convex/cards/types";
+
+describe("handWrittenDefinition — a card merged before derive:sync", () => {
+    const card = { id: "print", name: "Fresh" } as CardDefinition;
+    /** A registry that reaches only what is resident, as one behind a stale
+     *  Definition Index does: the real `getDefinition` throws on a miss. */
+    const registryHolding = (held: CardDefinition[]): DefinitionLookup => {
+        const resident = new Map(held.map((d) => [d.id, d]));
+        const tryGetDefinition = (id: string) => resident.get(id) ?? null;
+        return {
+            tryGetDefinition,
+            preloadDefinitions: (definitions) => {
+                for (const d of definitions) resident.set(d.id, d);
+            },
+            getDefinition: (id) => {
+                const found = tryGetDefinition(id);
+                if (found === null) throw new Error(`Card not found: ${id}`);
+                return found;
+            },
+        };
+    };
+
+    it("plays the walked definition when the index has not caught up", () => {
+        const walked = new Map([[card.id, card]]);
+        expect(
+            handWrittenDefinition(card.id, walked, registryHolding([]))
+        ).toBe(card);
+    });
+
+    it("prefers what the registry already resolves", () => {
+        const expanded = { ...card, name: "Expanded" };
+        const walked = new Map([[card.id, card]]);
+        expect(
+            handWrittenDefinition(card.id, walked, registryHolding([expanded]))
+        ).toBe(expanded);
+    });
+});
 
 describe("aggregate", () => {
     const card = (
