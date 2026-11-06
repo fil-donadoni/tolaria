@@ -107,6 +107,8 @@ interface Accumulator {
     chapterAbilities: ChapterAbilityDefinition[];
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
+    /** CR 614.12 — the shockland pay-choice. */
+    entersTappedUnlessPay?: { life: number };
     /** CR 722.3a — "This creature enters prepared." */
     entersPrepared: boolean;
     drawStepReplacement: boolean;
@@ -677,6 +679,8 @@ function lowerLine(
                     acc.plannedMechanics.push(granted.ability);
             acc.ungrantableKeywords.push(...(out.ungrantableKeywords ?? []));
             if (out.entersTapped === true) acc.entersTapped = true;
+            if (out.entersTappedUnlessPay !== undefined)
+                acc.entersTappedUnlessPay = out.entersTappedUnlessPay;
             if (out.entersPrepared === true) acc.entersPrepared = true;
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
@@ -1354,6 +1358,9 @@ export function lowerCard(
     // CR 614.1c / 122.1 — entry riders, applied AS the permanent enters. Never
     // a continuous effect and never a trigger (issue #1693).
     if (acc.entersTapped) definition.entersTapped = true;
+    // CR 614.12 — the shockland pay-choice, applied AS the land enters.
+    if (acc.entersTappedUnlessPay)
+        definition.entersTappedUnlessPay = acc.entersTappedUnlessPay;
     // CR 722.3a — "enters prepared", the same as-it-enters slot.
     if (acc.entersPrepared) definition.entersPrepared = true;
     // CR 614.10 — "Skip your draw step" is a replacement effect the phase code
