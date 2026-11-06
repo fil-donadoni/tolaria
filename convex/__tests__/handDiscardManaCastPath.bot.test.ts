@@ -26,6 +26,7 @@ import { projectPublicState } from "../gameProjections";
 import { applyMoveForSearch } from "../gre/applyMove";
 import { enumerateMoves, planManaPayment, type Move } from "../gre/moves";
 import { getLegalActions } from "../gre/rules";
+import { searchCastManaSpent } from "../gre/searchTapPlan";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -207,6 +208,13 @@ describe("a hand-discarding mana ability pays for the last card in hand (CR 601.
             expect(ids(p1.battlefield)).not.toContain("diamond");
             expect(ids(p1.graveyard)).toEqual(["diamond"]);
             expect(p1.hand).toEqual([]);
+        });
+
+        it("reads the source's whole yield as mana the spell was paid with (CR 601.2h)", () => {
+            const state = angelOnly();
+            expect(
+                searchCastManaSpent(state, "p1", castOfAngel(state).tapPlan)
+            ).toEqual({ W: 5 });
         });
     });
 

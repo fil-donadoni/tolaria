@@ -25138,6 +25138,7 @@
         {"id":"601.2h","line":"it(\"counted additional cost: the controlled cast charges ALL five lands (CR 118.8 / 601.2h, issue #3808)\", () => {","sites":1,"status":"confirmed","ruleHash":"1f64adef4e78920e"},
         {"id":"601.2h","line":"it(\"is REFUSED outright with no land in hand (CR 601.2h — an unpayable cost can't be paid)\", async () => {","sites":1,"status":"baseline"},
         {"id":"601.2h","line":"it(\"nonblack branch: only nonblack cards are offered as the discard (CR 601.2h)\", () => {","sites":1,"status":"baseline"},
+        {"id":"601.2h","line":"it(\"reads the source's whole yield as mana the spell was paid with (CR 601.2h)\", () => {","sites":1,"status":"confirmed","ruleHash":"1f64adef4e78920e"},
         {"id":"601.2h","line":"it(\"refuses at finalize with no Elf to return — targets first, then costs (CR 601.2c / 601.2h)\", async () => {","sites":1,"status":"confirmed","ruleHash":"1f64adef4e78920e"},
         {"id":"601.2h","line":"it(\"sacrifices the Swamp when the spell is put on the stack (full commit path, CR 601.2h)\", () => {","sites":1,"status":"baseline"},
         {"id":"601.2h","line":"it(\"the same 1/1 token WITHOUT the rider can't reach Crew 8 (CR 601.2h)\", () => {","sites":1,"status":"confirmed","ruleHash":"1f64adef4e78920e"},
