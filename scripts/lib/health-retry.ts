@@ -14,7 +14,7 @@
  * the chain stops at the first red, a green retry then owes the chain scripts
  * that never started.
  *
- * A project runs under the config that declares it (issue #8459): `blade` is
+ * A project runs under the config that declares it: `blade` is
  * declared only by `vitest.blade.config.ts`, so `--project blade` on the root
  * config dies at startup, having run nothing. A project the chain does not run
  * is refused, and a retry that names no failing test keeps the first failure's
