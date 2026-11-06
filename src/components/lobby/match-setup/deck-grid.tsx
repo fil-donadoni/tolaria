@@ -5,7 +5,7 @@
 // Under Limited the player's decks group by Limited Origin, filterable by one
 // (issue #5394). Step 5 passes `mirror`, an always-admitted choice above the grid.
 // An admin's setup also lists other players' Limited decks, in their own section
-// that grows by "Load more" (issue #8411).
+// that grows by "Load more".
 import { useState } from "react";
 import { FORMAT_LABELS, type FormatId } from "@convex/formats";
 import type { LobbyDeck, UserLobbyDeck } from "~/lib/deckTypes";
