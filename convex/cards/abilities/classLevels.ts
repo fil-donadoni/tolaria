@@ -234,9 +234,9 @@ function gateCostModifier(
         ...effect,
         ...(appliesToSpell
             ? {
-                  appliesToSpell: (card, ctx, effectSource) =>
+                  appliesToSpell: (card, ctx, effectSource, announcerId) =>
                       atLevel(effectSource) &&
-                      appliesToSpell(card, ctx, effectSource),
+                      appliesToSpell(card, ctx, effectSource, announcerId),
               }
             : {}),
         ...(appliesToAbility

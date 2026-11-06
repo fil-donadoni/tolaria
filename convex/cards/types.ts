@@ -10661,10 +10661,15 @@ const FIVE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
  *  (Gloom) ignore it. */
 export interface StaticCostModifier {
     kind: "cost-modifier";
+    /** The optional fourth argument is the CASTER (CR 601.2a — the player who
+     *  moves the card to the stack becomes its controller). "Spells YOU cast"
+     *  reads it rather than `card.controllerId`, which still names the zone
+     *  owner for a cross-player exile cast. */
     appliesToSpell?: (
         card: PermanentView,
         ctx: StaticEffectContext,
-        effectSource?: PermanentView
+        effectSource?: PermanentView,
+        announcerId?: string
     ) => boolean;
     /** The optional fourth argument is the `ActivatedAbility` template being
      *  reduced — present whenever the collector was called for an ability
@@ -10714,6 +10719,14 @@ export interface StaticCostModifier {
      *  field rather than a predicate argument because `appliesToSpell` sees no
      *  game state, and whose turn it is lives only there. */
     onlyOutsideAnnouncersTurn?: true;
+    /** CR 601.2a / 601.2f — the modifier applies only to a spell the announcer
+     *  is casting from anywhere other than their own hand: "Spells you cast
+     *  from anywhere other than your hand cost {2} less to cast" (Sage of the
+     *  Beyond). The zone a spell is cast from is the one it moves out of at
+     *  CR 601.2a, and every cost computation runs before that move, so the
+     *  collector answers this from where the card still sits. A field for the
+     *  same reason as the one above: zones live only in game state. */
+    onlyOutsideAnnouncersHand?: true;
 }
 
 /** Count-driven CR 601.2f cost-reduction amount: `perCount`'s generic portion
