@@ -479,6 +479,18 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.26a + CR 701.26b + CR 608.2d — "You may tap or untap target
+           * <permanent>": the direction is picked on resolution, over ONE
+           * announced target. The "may" is the verb's own and needs no
+           * `optional` wrapper: only an untapped permanent can be tapped and
+           * only a tapped one untapped, so one direction always does nothing,
+           * and that direction IS declining.
+           */
+          readonly frame: "tapOrUntap";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
            * CR 205.1b + CR 613.1d — "<object> becomes a <Subtype> in addition
            * to its other types", "That creature is a <Subtype> …", "It's a
            * <Subtype> …": one creature type added to one object, keeping the
@@ -754,6 +766,7 @@ export const VERB_FRAMES: readonly {
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
     { name: "transform", opens: /^transform \S/i },
+    { name: "tapOrUntap", opens: /^you may tap or untap /i },
     { name: "airbend", opens: /^airbend \S/i },
     {
         name: "addSubtype",
@@ -2170,6 +2183,28 @@ function readMember(
     if (opensFrame("addSubtype", lower)) {
         const read = readAddSubtypeFrame(lower, ctx);
         return "refused" in read ? read : { frames: [read], referent };
+    }
+    if (opensFrame("tapOrUntap", lower)) {
+        const subject = subjectRule.run(
+            lower.slice("you may tap or untap ".length),
+            ctx
+        );
+        if (!subject.ok) return { refused: subject.reason, failure: subject };
+        // CR 115.1 — only ONE announced battlefield target: an anaphor, the
+        // equipped creature and the source name their object another way,
+        // and no card prints the two-way tap over a counted target.
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.zone !== undefined ||
+            subject.value.requirement.count !== 1
+        )
+            return {
+                refused: `"${member}" — tap or untap is read for one announced battlefield permanent`,
+            };
+        return {
+            frames: [{ frame: "tapOrUntap", subject: subject.value }],
+            referent,
+        };
     }
     if (opensFrame("transform", lower)) {
         const object = lower.match(TRANSFORM_OBJECT)![1]!;
