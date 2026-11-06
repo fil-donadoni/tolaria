@@ -49,6 +49,12 @@ export function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
         // do; the closures are recovered from the printed card on a cold
         // decode.
         triggeredAbilities: backFace.triggeredAbilities,
+        // CR 714.2 (issue #8338) — a Saga back face's chapters ride the id as
+        // the data they are; `expandChapterAbilities` derives the triggers and
+        // the CR 714.3a lore counter from the definition the id presents.
+        ...(backFace.chapterAbilities
+            ? { chapterAbilities: backFace.chapterAbilities }
+            : {}),
         imagePrintId: backFace.imagePrintId,
         ...(backFace.imagePrintId ? { imagePrintFace: "back" as const } : {}),
     };

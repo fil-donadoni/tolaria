@@ -185,6 +185,7 @@ const TRANSFORM_BACK_FACE_FIELDS = new Set<string>([
     "staticAbilities",
     "activatedAbilities",
     "compiledTriggeredAbilities",
+    "chapterAbilities",
     "oracleText",
 ]);
 
@@ -879,6 +880,9 @@ function compileTransformLayout(card: OracleCard): CompileOutcome {
                       compiledTriggeredAbilities:
                           backDef.compiledTriggeredAbilities,
                   }
+                : {}),
+            ...(backDef.chapterAbilities
+                ? { chapterAbilities: backDef.chapterAbilities }
                 : {}),
             oracleText: faces[1].oracleText,
         },

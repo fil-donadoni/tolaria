@@ -6,6 +6,7 @@ import type {
     CardImageFace,
     CardSupertype,
     CardType,
+    ChapterAbilityDefinition,
     Color,
     EffectOp,
     GameEventType,
@@ -1051,11 +1052,26 @@ export function tokenDefinitionId(spec: TokenSpec): string {
     // creating effect specifies (the Gingerbrute token's {1}), JSON-encoded like
     // `activatedAbilities`. Appended only when present, holding the 17th slot
     // empty, so every other token id stays byte-identical.
-    if (spec.crewPowerBonus !== undefined || spec.manaCost) {
+    // 19th segment (index 18, CR 714.2) — a Saga back face's chapter
+    // abilities, JSON like `activatedAbilities`. Appended only when present,
+    // holding the 17th and 18th slots empty, so every other id stays
+    // byte-identical.
+    const chapters =
+        spec.chapterAbilities && spec.chapterAbilities.length > 0
+            ? spec.chapterAbilities
+            : undefined;
+    if (spec.crewPowerBonus !== undefined || spec.manaCost || chapters) {
         parts.push(spec.crewPowerBonus ?? "");
     }
-    if (spec.manaCost) {
-        parts.push(encodeURIComponent(JSON.stringify(spec.manaCost)));
+    if (spec.manaCost || chapters) {
+        parts.push(
+            spec.manaCost
+                ? encodeURIComponent(JSON.stringify(spec.manaCost))
+                : ""
+        );
+    }
+    if (chapters) {
+        parts.push(encodeURIComponent(JSON.stringify(chapters)));
     }
     return `token:${parts.join("|")}`;
 }
@@ -1400,6 +1416,15 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     if (!manaCostRaw) {
         for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     }
+    // CR 714.2 (issue #8338) — a Saga back face's chapters (see
+    // `tokenDefinitionId`). `expandDefinition` desugars them on this definition
+    // as on any Saga, so a cold decode needs no printed card to recover them.
+    const chaptersRaw = parts[18];
+    const chapterAbilities: ChapterAbilityDefinition[] | undefined = chaptersRaw
+        ? (JSON.parse(
+              decodeURIComponent(chaptersRaw)
+          ) as ChapterAbilityDefinition[])
+        : undefined;
     const def: CardDefinition = {
         id: cardId,
         name,
@@ -1426,6 +1451,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ...(triggeredAbilities && triggeredAbilities.length > 0
             ? { triggeredAbilities }
             : {}),
+        ...(chapterAbilities ? { chapterAbilities } : {}),
         ...(backFace ? { backFace } : {}),
     };
     setRegistryEntry(cardId, def);
