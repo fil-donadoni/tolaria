@@ -77838,6 +77838,14 @@
         "source": "compiled"
     },
     {
+        "name": "Swift Reconfiguration",
+        "scryfallId": "975dcfab-0281-4fee-92aa-021ea6c524c7",
+        "oracleId": "5d47e820-913f-441a-a6cc-37ab3181d79a",
+        "firstSet": "nec",
+        "firstPrintId": "975dcfab-0281-4fee-92aa-021ea6c524c7",
+        "firstPrintSet": "nec"
+    },
+    {
         "name": "Swift Response",
         "scryfallId": "a90c1ad0-83bd-471c-8d4c-e65bc2abaa18",
         "oracleId": "5820d760-8ed7-4abf-a959-c06ed86a3730",
