@@ -49,7 +49,7 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
-import { readFrameChain, type FrameChainIR } from "./verbFrames";
+import { frameOf, readFrameChain, type FrameChainIR } from "./verbFrames";
 import {
     foldActedOnControllers,
     readActedOnControllersSentence,
@@ -5103,6 +5103,9 @@ export function optionalSentenceRule(
         // CR 608.2c — a revealed hand's pick carries its own "You may": the
         // marker says the pick may take nothing (`assembleSentences` folds it).
         if (OPTIONAL_HAND_PICK.test(probe)) return inner.run(probe, ctx);
+        // CR 608.2d — the two-way tap's "may" is the verb's own (the
+        // `tapOrUntap` frame says why), never an `optional` wrapper around it.
+        if (frameOf(probe) === "tapOrUntap") return inner.run(probe, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
         // of an `optional-hand-cost-then`: what it gates is the "If you do"

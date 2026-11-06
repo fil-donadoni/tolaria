@@ -348,7 +348,7 @@ export const elderDruid = defineCard(() => ({
                     modes: [
                         {
                             id: "tap",
-                            label: "Tap it",
+                            label: "Tap",
                             effects: [
                                 {
                                     op: "tapUntap",
@@ -359,7 +359,7 @@ export const elderDruid = defineCard(() => ({
                         },
                         {
                             id: "untap",
-                            label: "Untap it",
+                            label: "Untap",
                             effects: [
                                 {
                                     op: "tapUntap",
