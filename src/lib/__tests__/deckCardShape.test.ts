@@ -7,6 +7,8 @@ import { describe, it, expect } from "vitest";
 import type { FullCatalogueRow } from "../fullCatalogue";
 import {
     catalogueRowShape,
+    deckCardLookup,
+    definitionOfDeckEntry,
     makeDeckCardShapeResolver,
     registryDeckCardShape,
 } from "../deckCardShape";
@@ -107,5 +109,52 @@ describe("makeDeckCardShapeResolver", () => {
         const resolve = makeDeckCardShapeResolver(undefined);
         expect(resolve(BOLT_LEA)?.manaValue).toBe(1);
         expect(resolve(UNIMPLEMENTED)).toBeNull();
+    });
+});
+
+// Issue #8387: a deck entry's `cardId` is the chosen PRINTING, and the registry
+// knows Card IDs only.
+describe("a deck entry holding an alternate printing", () => {
+    const PRINT = "aaaaaaaa-0000-4000-8000-000000000001";
+    const BY_DEFINITION = {
+        cardId: PRINT,
+        cardName: "Lightning Bolt",
+        definitionId: BOLT_LEA,
+    };
+    const BY_NAME = { cardId: PRINT, cardName: "Lightning Bolt" };
+
+    it("the print id alone is unknown to the registry", () => {
+        expect(definitionOfDeckEntry(PRINT)).toBeNull();
+    });
+
+    it("resolves to its definition through `definitionId`", () => {
+        expect(definitionOfDeckEntry(PRINT, BY_DEFINITION)?.id).toBe(BOLT_LEA);
+    });
+
+    it("resolves to its definition through `cardName` when no `definitionId` is known", () => {
+        expect(definitionOfDeckEntry(PRINT, BY_NAME)?.id).toBe(BOLT_LEA);
+    });
+
+    it("falls back to `cardName` when `definitionId` holds the print id itself", () => {
+        expect(
+            definitionOfDeckEntry(PRINT, { ...BY_NAME, definitionId: PRINT })
+                ?.id
+        ).toBe(BOLT_LEA);
+    });
+
+    it("`deckCardLookup` answers with the definition of the entry it was given", () => {
+        expect(deckCardLookup(undefined, [BY_NAME])(PRINT)?.id).toBe(BOLT_LEA);
+    });
+
+    it("an unimplemented printing with no catalogue row takes its shape from a row of the same name", () => {
+        const resolve = makeDeckCardShapeResolver([row()]);
+        expect(
+            resolve(PRINT, { cardName: "Unimplemented Card" })?.manaValue
+        ).toBe(3);
+        expect(
+            deckCardLookup(resolve, [
+                { cardId: PRINT, cardName: "Unimplemented Card" },
+            ])(PRINT)?.name
+        ).toBe("Unimplemented Card");
     });
 });

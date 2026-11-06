@@ -1,6 +1,9 @@
 import { tryGetCardByName, type CardPrinting } from "@convex/cards/catalogue";
+import {
+    definitionOfDeckEntry,
+    type DeckEntryIdentity,
+} from "~/lib/deckCardShape";
 import { printingsWithHome } from "@convex/cards/printingList";
-import { tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
 import {
@@ -43,7 +46,7 @@ export function resolveBasicLandCardIds(
         Forest: null,
     };
     for (const card of pool) {
-        const def = definitionOfEntry(card.cardId, card);
+        const def = definitionOfDeckEntry(card.cardId, card);
         if (!def?.supertypes?.includes("Basic")) continue;
         for (const subtype of BASIC_LAND_SUBTYPES) {
             if (result[subtype] === null && def.subtypes?.includes(subtype)) {
@@ -73,23 +76,7 @@ export function resolveCanonicalBasicLandCardIds(): Record<
     return resolveBasicLandCardIds([]);
 }
 
-/** What an entry carries besides its `cardId` that names its Card
- *  Definition: the registry no longer resolves a Print ID (ADR 0140, issue
- *  #4121), so a printing is classified by its `definitionId`, else by its
- *  `cardName` — every printing of a basic carries the basic's own name. */
-export interface BasicLandIdentity {
-    cardName?: string;
-    definitionId?: string;
-}
-
-function definitionOfEntry(cardId: string, hint: BasicLandIdentity) {
-    return (
-        tryGetDefinition(hint.definitionId ?? cardId) ??
-        (hint.cardName === undefined
-            ? undefined
-            : (tryGetCardByName(hint.cardName) ?? undefined))
-    );
-}
+export type BasicLandIdentity = DeckEntryIdentity;
 
 /** The Basic subtype a cardId resolves to, or `null` if it isn't a Basic land
  *  at all — the ONE classifier every basics affordance keys off:
@@ -107,7 +94,7 @@ export function basicLandSubtypeOf(
     cardId: string,
     hint: BasicLandIdentity = {}
 ): BasicLandSubtype | null {
-    const def = definitionOfEntry(cardId, hint);
+    const def = definitionOfDeckEntry(cardId, hint);
     if (!def?.supertypes?.includes("Basic")) return null;
     for (const subtype of BASIC_LAND_SUBTYPES) {
         if (def.subtypes?.includes(subtype)) return subtype;
@@ -124,7 +111,7 @@ export function basicLandEntryDefinitionId(
     cardId: string,
     hint: BasicLandIdentity = {}
 ): string | undefined {
-    const def = definitionOfEntry(cardId, hint);
+    const def = definitionOfDeckEntry(cardId, hint);
     return def?.supertypes?.includes("Basic") ? def.id : undefined;
 }
 

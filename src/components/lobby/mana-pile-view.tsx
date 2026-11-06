@@ -25,7 +25,6 @@ export default function ManaPileView({
     // and only the piles that hold a card render — the dynamic look the pile
     // view has always had.
     const piles = useMemo(() => {
-        const names = new Map(cards.map((c) => [c.cardId, c.cardName]));
         return resolveColumnLayout<DeckCard>({
             layout: createColumnLayout(),
             items: cards,
@@ -34,7 +33,7 @@ export default function ManaPileView({
                 pinKey: (c) => c.cardId,
                 tiebreak: (a, b) => a.cardId.localeCompare(b.cardId),
             },
-            lookup: deckCardLookup(resolveShape, (id) => names.get(id)),
+            lookup: deckCardLookup(resolveShape, cards),
         }).filter((column) => column.items.length > 0);
     }, [cards, resolveShape]);
 

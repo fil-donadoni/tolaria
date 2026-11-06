@@ -1,5 +1,4 @@
 import type { DeckCard } from "~/types/game";
-import { tryGetDefinition } from "@convex/cards";
 import { displaySubtypes } from "@convex/cards/abilities/changeling";
 import { getPipCountsFromCost } from "@convex/cards/colors";
 import type { CardDefinition, Color, ManaCost } from "@convex/cards/types";
@@ -8,6 +7,7 @@ import {
     isLandDefinition,
     manaValue,
 } from "@convex/gre/constants";
+import { definitionOfDeckEntry, type DeckEntryIdentity } from "./deckCardShape";
 
 /** Resolves a `DeckCard` to its `CardDefinition`, or `null` when the registry
  *  doesn't know it. Same seam shape as `computeDeckColors`'s `resolve` param
@@ -18,7 +18,8 @@ import {
  *  there is no Tabletop (catalogue-backed) fallback here; an unresolvable
  *  card contributes nothing rather than throwing. */
 export type DeckCardDefinitionResolver = (
-    cardId: string
+    cardId: string,
+    identity?: DeckEntryIdentity
 ) => CardDefinition | null;
 
 /** Curve buckets: index 0..6 = mana value 0..6 exactly, index 7 ("7+")
@@ -135,12 +136,12 @@ function pipCountsForCost(
  */
 export function computeDeckStats(
     cards: readonly DeckCard[],
-    resolve: DeckCardDefinitionResolver = tryGetDefinition
+    resolve: DeckCardDefinitionResolver = definitionOfDeckEntry
 ): DeckStats {
     const stats = emptyStats();
 
     for (const card of cards) {
-        const def = resolve(card.cardId);
+        const def = resolve(card.cardId, card);
         if (!def) continue;
 
         const land = isLandDefinition(def);

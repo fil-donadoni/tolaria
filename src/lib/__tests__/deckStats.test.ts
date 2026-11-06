@@ -257,3 +257,20 @@ describe("computeDeckStats", () => {
         });
     });
 });
+
+describe("computeDeckStats — an alternate printing (issue #8387)", () => {
+    it("counts in the curve at its definition's mana value", () => {
+        const { curve } = computeDeckStats([
+            {
+                cardId: "aaaaaaaa-0000-4000-8000-000000000001",
+                cardName: "Grizzly Bears",
+                definitionId: GRIZZLY_BEARS,
+            },
+            {
+                cardId: "aaaaaaaa-0000-4000-8000-000000000002",
+                cardName: "Grizzly Bears",
+            },
+        ]);
+        expect(curve[2]).toBe(2);
+    });
+});
