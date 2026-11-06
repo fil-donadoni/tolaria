@@ -675,6 +675,51 @@ describe("a retry runs each project under the config declaring it", () => {
         expect(await secondRun("blade")).toEqual(["run", "test:blade"]);
     });
 
+    it("a retried script runs under bun, whatever command the step was", async () => {
+        // `--early` runs the chain as `sh -c …` (`healthStepCommand`).
+        const shStep: HealthStep = {
+            ...TEST_STEP,
+            cmd: "sh",
+            args: ["-c", "bun run test:app; bun run test:bot"],
+        };
+        const f = fakeRunner([
+            result(false, `${BOT_CMD}\n${failOf("bot-node")}`),
+            result(true),
+            result(true),
+        ]);
+        await runStepWithRetry(shStep, f.run);
+        expect(f.ran.slice(1).map((s) => s.cmd)).toEqual(["bun", "bun"]);
+        const blade = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, failOf("blade")),
+        ]);
+        await runStepWithRetry(shStep, blade.run);
+        expect(blade.ran[1].cmd).toBe("bun");
+    });
+
+    it("every project the chain scripts select is one the retry knows", () => {
+        const selected = ["test:app", "test:bot"].flatMap((name) =>
+            [...scripts[name].matchAll(/--project (\S+?)(?=[\s']|$)/g)].map(
+                (m) => m[1]
+            )
+        );
+        expect(selected.length).toBeGreaterThan(0);
+        expect([...selected].sort()).toEqual([...ROOT_CHAIN_PROJECTS].sort());
+        expect(scripts["test:blade"]).toContain(
+            "--config vitest.blade.config.ts"
+        );
+    });
+
+    it("a retry that crashed stays a crash: the first failure is not merged", async () => {
+        const crash = result(false, "");
+        crash.signal = "SIGKILL";
+        crash.status = null;
+        const f = fakeRunner([result(false, failOf("blade")), crash]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(failLines(out.result.output).length).toBe(0);
+        expect(out.result.signal).toBe("SIGKILL");
+    });
+
     it("refuses a project no chain script runs", () => {
         const decision = retryDecision("test", failOf("ladder"));
         expect(decision).toEqual({

@@ -278,9 +278,12 @@ export async function runStepWithRetry(
         if (!result.ok) break;
     }
     // A retry that names no failing test ran nothing worth reading: the first
-    // failure stays in the output, or the evidence would name nothing.
+    // failure stays in the output, or the evidence would name nothing. A crash
+    // is its own verdict, and stays one: it owes the full gate.
     if (
         !result.ok &&
+        !result.signal &&
+        !CRASH_LINE.test(plainOf(result.output)) &&
         [...plainOf(result.output).matchAll(ANY_FAIL_LINE)].length === 0
     )
         result = {
@@ -292,6 +295,7 @@ export async function runStepWithRetry(
         result = await run({
             ...step,
             name: script,
+            cmd: "bun",
             args: ["run", script],
         });
     }

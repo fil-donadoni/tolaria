@@ -280,16 +280,17 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // cast, and two 2/2s for {1}{B} with no other difference but Ingest:
         // the keyword only ever takes a card off the player the creature hit.
         //
-        // Three cards left, so the exile decks the opponent and the cast wins
-        // on mean reward. Over a full library the two casts tie: settled by
-        // `material-tiebreak` on any budget, flipped by any refit, which is
-        // how this entry went RED at 721ec1d1c4c5 (issue #8459).
+        // Three cards left in the library: the cast wins on mean reward on all
+        // 30 audit runs. Over a full library the two casts tie: settled by
+        // `material-tiebreak` on every budget measured up to 3200, flipped by
+        // any refit, which is how this entry went RED at 721ec1d1c4c5 (issue
+        // #8459).
         //
-        // It guards that the Bot casts the Ingest body when the exile matters,
-        // through real rollouts. It does NOT guard the sign of
-        // `$event.damagedPlayer`: no library size is both robust here and red
-        // with the sign broken, because where the exile decides the game the
-        // rollouts see it unaided. `ingestValue.bot.test.ts` guards the sign.
+        // It guards that the Bot casts the Ingest body when the library is
+        // short, through real rollouts. It does NOT guard the sign of
+        // `$event.damagedPlayer`: at every library size measured (3-14, 20) it
+        // is either green with the sign broken or split by seed, so this cannot
+        // be the sign's test. `ingestValue.bot.test.ts` guards the sign.
         label: "Ingest: casts the 2/2 that exiles from the damaged player's library over the vanilla 2/2",
         classification: { kind: "absolute" },
         spec: {
