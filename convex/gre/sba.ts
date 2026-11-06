@@ -12,6 +12,7 @@ import {
     processPendingActionTriggers,
     recomputeContinuousEffects,
     refreshLandPlayLock,
+    removePermanentFromCombat,
     removePermanentTo,
     revertControlChange,
     unapplyAuraControlChange,
@@ -918,6 +919,27 @@ export function checkWorldRuleSBA(state: GameState): boolean {
  *  mutations, `resumeAfterChoice`, `submitResolutionChoice`) through
  *  `sweepUnlessResolutionSuspended`. A blanket gate here would swallow the sweep
  *  `finalizeAsEnters` runs while its entry still owes choices (CR 707.6). */
+/** CR 506.4 — "A permanent is removed from combat if ... it's an attacking or
+ *  blocking creature that ... stops being a creature". Every other cause in
+ *  that rule has an event to hang on; a layer-4 type change has none, it is
+ *  derived, so the combat record is swept once the derivation has run. An id
+ *  nothing on the battlefield answers to is a departed combatant's tombstone
+ *  (`retireDepartingCombatant`) and stays in the record. */
+function removeNoncreaturesFromCombat(state: GameState): void {
+    const combat = state.combat;
+    if (!combat) return;
+    const combatants = [
+        ...combat.attackerIds,
+        ...Object.keys(combat.blockerAssignments),
+    ];
+    for (const id of combatants) {
+        const card = findPermanent(state, id);
+        if (card && !card.types.includes("Creature")) {
+            removePermanentFromCombat(state, id);
+        }
+    }
+}
+
 export function checkStateBasedActions(state: GameState): void {
     // CR 113.6c — same "canonical recompute point" placement as the two
     // refreshes inside the loop below, but hoisted OUT of the fixpoint: it
@@ -947,6 +969,9 @@ export function checkStateBasedActions(state: GameState): void {
         // strip, depletion counters on tap, `payRemoveCounterCost`, loyalty).
         // Idempotent, so it does not gate the fixpoint.
         recomputeContinuousEffects(state);
+        // CR 506.4 (issue #7212) — not an SBA either, a rule checked at this
+        // same point: idempotent, and the removal changes nothing an SBA reads.
+        removeNoncreaturesFromCombat(state);
         let acted = false;
         acted = checkAuraAttachmentSBA(state) || acted;
         // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling

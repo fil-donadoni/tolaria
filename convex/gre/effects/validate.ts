@@ -5899,10 +5899,10 @@ const OP_SCHEMAS: OpSchemaTable = {
     animate: {
         required: {
             target: isObjectSelector,
-            power: isNonNegativeInt,
-            toughness: isNonNegativeInt,
         },
         optional: {
+            power: isNonNegativeInt,
+            toughness: isNonNegativeInt,
             subtype: isNonEmptyString,
             additionalTypes: (v) => isStringArray(v, TOKEN_CARD_TYPES),
             grantedAbilities: (v) => isStringArray(v),
@@ -5911,11 +5911,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             duration: isDurationSpec,
         },
         check: (entry) =>
-            Array.isArray(entry.colors) && entry.colors.length === 0
+            "power" in entry !== "toughness" in entry
                 ? [
-                      'field "colors" must be non-empty — omit it to leave the printed colour alone (CR 105.2)',
+                      'fields "power" and "toughness" go together — omit both to keep the permanent\'s own P/T (CR 301.7b)',
                   ]
-                : [],
+                : Array.isArray(entry.colors) && entry.colors.length === 0
+                  ? [
+                        'field "colors" must be non-empty — omit it to leave the printed colour alone (CR 105.2)',
+                    ]
+                  : [],
     },
     // CR 205.1a layer 4 (issue #2361) — SET a permanent's card types,
     // REPLACING every type it currently has, indefinitely (Oko, Thief of
