@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import {
     chmodSync,
     mkdtempSync,
+    readdirSync,
     readFileSync,
     rmSync,
     writeFileSync,
@@ -9,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { failingFiles } from "../lib/health-evidence";
+import { failingFiles, failLines } from "../lib/health-evidence";
 import {
     healthStepCommand,
     noBailChain,
@@ -19,7 +20,9 @@ import {
 } from "../lib/health-step";
 import {
     failedVitestProjects,
+    OWN_CONFIG_PROJECT_SCRIPTS,
     planLaneRetry,
+    ROOT_CHAIN_PROJECTS,
     retryCauseOf,
     retryDecision,
     retryNote,
@@ -615,5 +618,163 @@ describe("the verdict description names how many failing files it cut (issue #76
         const d = red(["a.test.ts", "b.test.ts"]);
         expect(back(d)?.tests).toEqual(["a.test.ts", "b.test.ts"]);
         expect(back(d)?.testsMore).toBeUndefined();
+    });
+});
+
+/**
+ * A retry can only help if vitest can run what it names (issue #8459): a blade
+ * RED was retried as `vitest run --project blade`, which the root config cannot
+ * select, so it died at startup and its output replaced the real failure's.
+ */
+describe("a retry runs each project under the config declaring it", () => {
+    const repo = join(import.meta.dirname, "..", "..");
+    const configs = readdirSync(repo).filter((f) =>
+        /^vitest(\..+)?\.config\.ts$/.test(f)
+    );
+    const declaredBy = (config: string): string[] =>
+        [
+            ...readFileSync(join(repo, config), "utf8").matchAll(
+                /^\s*name: "([^"]+)"/gm
+            ),
+        ].map((m) => m[1]);
+    const scripts = JSON.parse(readFileSync(join(repo, "package.json"), "utf8"))
+        .scripts as Record<string, string>;
+    const failOf = (project: string): string =>
+        ` FAIL  |${project}| convex/x.test.ts > a > b\n`;
+
+    const secondRun = async (project: string): Promise<string[] | null> => {
+        const f = fakeRunner([
+            result(false, failOf(project)),
+            result(false, failOf(project)),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        return out.refused ? null : f.ran[1].args;
+    };
+
+    it("sweeps every project every vitest config declares", async () => {
+        const root = declaredBy("vitest.config.ts");
+        expect(root.length).toBeGreaterThan(0);
+        for (const config of configs)
+            for (const project of declaredBy(config)) {
+                const args = await secondRun(project);
+                if (args === null) continue;
+                const line = args.join(" ");
+                if (line.includes("--project")) {
+                    expect(root, `${project} (${config})`).toContain(project);
+                    expect(config).toBe("vitest.config.ts");
+                } else {
+                    // A chain script, whose own command names the config.
+                    expect(scripts[args[1]], project).toContain(
+                        `--config ${config}`
+                    );
+                }
+            }
+    });
+
+    it("retries the blade under its own config", async () => {
+        expect(await secondRun("blade")).toEqual(["run", "test:blade"]);
+    });
+
+    it("a retried script runs under bun, whatever command the step was", async () => {
+        // `--early` runs the chain as `sh -c …` (`healthStepCommand`).
+        const shStep: HealthStep = {
+            ...TEST_STEP,
+            cmd: "sh",
+            args: ["-c", "bun run test:app; bun run test:bot"],
+        };
+        const f = fakeRunner([
+            result(false, `${BOT_CMD}\n${failOf("bot-node")}`),
+            result(true),
+            result(true),
+        ]);
+        await runStepWithRetry(shStep, f.run);
+        expect(f.ran.slice(1).map((s) => s.cmd)).toEqual(["bun", "bun"]);
+        const blade = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, failOf("blade")),
+        ]);
+        await runStepWithRetry(shStep, blade.run);
+        expect(blade.ran[1].cmd).toBe("bun");
+    });
+
+    it("every project the chain scripts select is one the retry knows", () => {
+        const selected = ["test:app", "test:bot"].flatMap((name) =>
+            [...scripts[name].matchAll(/--project (\S+?)(?=[\s']|$)/g)].map(
+                (m) => m[1]
+            )
+        );
+        expect(selected.length).toBeGreaterThan(0);
+        expect([...selected].sort()).toEqual([...ROOT_CHAIN_PROJECTS].sort());
+        expect(scripts["test:blade"]).toContain(
+            "--config vitest.blade.config.ts"
+        );
+    });
+
+    it("a retry that crashed stays a crash: the first failure is not merged", async () => {
+        const crash = result(false, "");
+        crash.signal = "SIGKILL";
+        crash.status = null;
+        const f = fakeRunner([result(false, failOf("blade")), crash]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(failLines(out.result.output).length).toBe(0);
+        expect(out.result.signal).toBe("SIGKILL");
+    });
+
+    it("a retry whose worker died stays a crash, with no signal on the exit", async () => {
+        const f = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, "Error: Worker exited unexpectedly\n"),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(failLines(out.result.output).length).toBe(0);
+    });
+
+    it("refuses a project no chain script runs", () => {
+        const decision = retryDecision("test", failOf("ladder"));
+        expect(decision).toEqual({
+            refused: "no chain script runs ladder",
+        });
+    });
+
+    it("every chain project is a project its config declares", () => {
+        const root = declaredBy("vitest.config.ts");
+        for (const p of ROOT_CHAIN_PROJECTS) expect(root).toContain(p);
+        for (const p of Object.keys(OWN_CONFIG_PROJECT_SCRIPTS))
+            expect(
+                configs.some((c) => declaredBy(c).includes(p)),
+                p
+            ).toBe(true);
+    });
+
+    it("a lane retry never selects a project the root cannot", () => {
+        const output = `${failOf("blade")}\n Test Files  1 failed (1)\n`;
+        expect(
+            planLaneRetry(
+                "bunx vitest run --config vitest.blade.config.ts",
+                output
+            )
+        ).toBeNull();
+    });
+
+    it("a retry that names no failing test keeps the first failure's", async () => {
+        const startup = 'Error: No projects matched the filter "blade".\n';
+        const f = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, startup),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.result.ok).toBe(false);
+        expect(failLines(out.result.output).length).toBe(1);
+        expect(out.result.output).toContain(startup);
+    });
+
+    it("a retry that names its own failure reports only that", async () => {
+        const second = failOf("blade").replace("a > b", "c > d");
+        const f = fakeRunner([
+            result(false, failOf("blade")),
+            result(false, second),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.result.output).toBe(second);
     });
 });

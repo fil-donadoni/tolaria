@@ -1016,6 +1016,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
+            "blade-noise-notes",
             // Nor anything a search iteration runs on (issue #6545).
             "search-cost",
             "eval-weights-fit",
@@ -1252,6 +1253,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:cube-ratings",
             "check:weight-noise",
             "blade-index",
+            "blade-noise-notes",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:duplicate-test-blocks",
@@ -1294,6 +1296,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "dom",
             "check:weight-noise",
             "blade-index",
+            "blade-noise-notes",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:duplicate-test-blocks",
@@ -1316,6 +1319,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:weight-noise",
             "check:test-hygiene",
             "blade-index",
+            "blade-noise-notes",
             "search-cost",
             "eval-weights-fit",
             "bot-pins",
