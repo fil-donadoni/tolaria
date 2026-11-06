@@ -135,8 +135,10 @@ beforeEach(() => {
 });
 
 describe("a new deck seeded with the lobby's Format filter", () => {
-    const renderSeeded = (defaultFormat: "limited" | "premodern") =>
-        render(
+    async function savedFormat(defaultFormat: "limited" | "premodern") {
+        sinks.user.create.mockClear();
+        const onClose = vi.fn();
+        const { getByLabelText, getByRole } = render(
             <DeckBuilder
                 kind="user"
                 mode="create"
@@ -145,18 +147,21 @@ describe("a new deck seeded with the lobby's Format filter", () => {
                 initialIdentity={null}
                 initialDeckList={[]}
                 sinks={sinks as never}
-                onClose={() => {}}
+                onClose={onClose}
             />
         );
-    const formatOf = (rendered: ReturnType<typeof renderSeeded>) =>
-        (rendered.getByLabelText("Deck format") as HTMLSelectElement).value;
+        fireEvent.click(getByLabelText("Add one Mountain"));
+        fireEvent.click(getByRole("button", { name: "Done" }));
+        await waitFor(() => expect(onClose).toHaveBeenCalled());
+        return sinks.user.create.mock.calls[0][0].format;
+    }
 
-    it("keeps a Format the builder can create", () => {
-        expect(formatOf(renderSeeded("premodern"))).toBe("premodern");
+    it("keeps a Format the builder can create", async () => {
+        expect(await savedFormat("premodern")).toBe("premodern");
     });
 
-    it("falls back to Freeform from Limited, which only an Event can create", () => {
-        expect(formatOf(renderSeeded("limited"))).toBe("freeform");
+    it("saves Freeform from a Limited seed, which only an Event can create", async () => {
+        expect(await savedFormat("limited")).toBe("freeform");
     });
 });
 
