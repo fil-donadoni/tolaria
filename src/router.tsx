@@ -355,6 +355,16 @@ const adminBugReportsRoute = createRoute({
     ),
 });
 
+// Limited Deck Archive (PRD #8407, issue #8410): every player's Limited decks
+// by Limited Origin, read-only.
+const adminLimitedDecksRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "limited-decks",
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-limited-decks.route")
+    ),
+});
+
 // Draft Lab (PRD #1607 slices 5-6, issues #1612/#1613, ADR 0074): a
 // client-only developer surface that runs a whole Bot Drafter draft in the
 // browser and shows the scorer's per-candidate breakdown. Writes nothing.
@@ -398,6 +408,7 @@ const routeTree = rootRoute.addChildren([
         adminPickRatingsRoute,
         adminCardProfilesRoute,
         adminBugReportsRoute,
+        adminLimitedDecksRoute,
         adminBotFindingsRoute,
         adminDraftLabRoute,
         adminDesignSystemRoute,

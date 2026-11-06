@@ -718,6 +718,10 @@ const ROUTE_ROOTS: Record<
         routePath: "/admin/bug-reports",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],
     },
+    AdminLimitedDecksRoute: {
+        routePath: "/admin/limited-decks",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
     AdminBotFindingsRoute: {
         routePath: "/admin/bot-findings",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],

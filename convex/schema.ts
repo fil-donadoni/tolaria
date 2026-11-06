@@ -275,7 +275,12 @@ export default defineSchema({
         // deck", not "does this ONE user have a deck" — `by_user` can't
         // answer that without a full table scan). Bounded query: at most
         // `seatCount` (<=8) rows ever match one eventId.
-        .index("by_limitedEvent", ["limitedEventId"]),
+        .index("by_limitedEvent", ["limitedEventId"])
+        // The admin Limited Deck Archive (PRD #8407, issue #8410): limited
+        // decks only (`format` first), grouped by Limited Origin — one origin's
+        // decks, and the unclassified group (`limitedOrigin` absent), without
+        // a table scan.
+        .index("by_format_limitedOrigin", ["format", "limitedOrigin"]),
     // Deck Pool (ADR 0106): a `limited` deck's own copy of its Seat's Pool,
     // and the ONLY Pool its legality reads — so the deck outlives its event.
     // Written by every save of the deck, skipped when identical

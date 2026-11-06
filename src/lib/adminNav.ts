@@ -64,6 +64,12 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
             "The evidence behind every filed issue: reporter email, the full game state at the moment they hit the button, and the attachment.",
     },
     {
+        to: "/admin/limited-decks",
+        label: "Limited Decks",
+        description:
+            "Every player's Limited decks by Limited Origin, with owner and legality, and any deck's full list. Read-only.",
+    },
+    {
         to: "/admin/draft-lab",
         label: "Draft Lab",
         description:
