@@ -21,6 +21,8 @@ import {
     loyaltySpendCeiling,
     maxLoyaltySpend,
 } from "../ai/loyaltyValue";
+import { standingCounterWorth } from "../ai/standingCounters";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { cardValue, evaluateBreakdown } from "../evaluate";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
@@ -223,7 +225,13 @@ describe("no baseline shift at starting loyalty (issue #2491)", () => {
             // order, which was exact while they were integers and is one ulp
             // apart now (issue #3401).
             expect(permanentsTerm(state) - empty, def.name).toBeCloseTo(
-                boardPresenceBonus + cardValue(state, walker),
+                boardPresenceBonus +
+                    cardValue(state, walker) +
+                    standingCounterWorth(
+                        state,
+                        walker,
+                        DEFAULT_EVAL_WEIGHTS.latent
+                    ),
                 6
             );
         }
