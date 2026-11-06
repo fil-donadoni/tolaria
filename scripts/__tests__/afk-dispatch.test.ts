@@ -15,6 +15,7 @@ import {
     holdReleases,
     isLostRun,
     PASS_RECORD_UPLOAD_STEP,
+    PASS_STEP,
     hostOfRunnerName,
     livePassIssues,
     repairAttempted,
@@ -1249,6 +1250,56 @@ describe("afk-dispatch lost runs (issue #8062)", () => {
             "utf8"
         );
         expect(yml).toContain(`name: ${PASS_RECORD_UPLOAD_STEP}`);
+    });
+
+    it("a pass cancelled by a failed renewjob is lost though its upload step concluded (issue #8400)", () => {
+        const CANCELLED = [
+            [
+                step(PASS_STEP, "cancelled"),
+                step(PASS_RECORD_UPLOAD_STEP, "success"),
+            ],
+        ];
+        expect(isLostRun(CANCELLED)).toBe(true);
+        // A normally concluded pass with an unreadable record still holds.
+        for (const c of ["success", "failure"]) {
+            expect(
+                isLostRun([
+                    [
+                        step(PASS_STEP, c),
+                        step(PASS_RECORD_UPLOAD_STEP, "success"),
+                    ],
+                ])
+            ).toBe(false);
+        }
+    });
+
+    it("a cancelled-pass run is skipped by the failure streak (issue #8400)", () => {
+        const f = (id: number, m: number) =>
+            passRun(id, id, {
+                conclusion: "failure",
+                updatedAt: iso(m),
+                createdAt: iso(m + 10),
+            });
+        const cancelled = [
+            [
+                step(PASS_STEP, "cancelled"),
+                step(PASS_RECORD_UPLOAD_STEP, "success"),
+            ],
+        ];
+        const s = failureStreak(
+            [f(1, 30), f(2, 20), f(3, 10)],
+            [],
+            (r) => r.id === 3 && isLostRun(cancelled)
+        );
+        expect(s.runs.map((r) => r.id)).toEqual([2, 1]);
+    });
+
+    it("the pass step the cancelled reading keys on exists in afk-pass.yml", () => {
+        const yml = readFileSync(
+            join(__dirname, "../../.github/workflows/afk-pass.yml"),
+            "utf8"
+        );
+        expect(yml).toContain(`name: ${PASS_STEP}`);
     });
 
     it("a run with no job read is unknown, never lost", () => {

@@ -264,6 +264,10 @@ export function budgetReading(
  *  failure, whatever the pass did. */
 export const PASS_RECORD_UPLOAD_STEP = "Upload the pass record";
 
+/** The step of `afk-pass.yml` that runs the pass. The runner cancels it when
+ *  GitHub fails the job renewal (issue #8400). */
+export const PASS_STEP = "afk:pass";
+
 /** One step of a pass job, as `gh run view --json jobs` reads it. */
 export interface JobStep {
     name: string;
@@ -278,6 +282,13 @@ export interface JobStep {
  * at all is not "lost" (nothing is known about it): the caller keeps it
  * unreadable.
  *
+ * A second shape (issue #8400): GitHub fails the job renewal, the runner
+ * cancels the job and kills the pass tree, and its healthy always-run steps
+ * still conclude — the upload finds no file and reports `success`. That
+ * concluded upload proves nothing, so a pass step concluded `cancelled` is
+ * lost too. The caller consults this only when no record could be read: a
+ * cancelled run that did upload one keeps it.
+ *
  * A lost run is charged NOTHING to the budget: its tokens are unknowable
  * (the transcript died with the runner) and the host that lost it is
  * offline, so it cannot be spending either. The gap is named in the job
@@ -287,6 +298,9 @@ export function isLostRun(jobs: readonly (readonly JobStep[])[]): boolean {
     if (jobs.length === 0) return false;
     return jobs.every(
         (steps) =>
+            steps.some(
+                (s) => s.name === PASS_STEP && s.conclusion === "cancelled"
+            ) ||
             !steps.some(
                 (s) =>
                     s.name === PASS_RECORD_UPLOAD_STEP &&
