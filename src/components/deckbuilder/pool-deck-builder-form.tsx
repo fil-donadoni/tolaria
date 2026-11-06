@@ -36,6 +36,7 @@ import { limitedEventName } from "~/lib/limitedEventName";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import type { DeckCard, ZoneCard } from "~/types/game";
+import { deckCardLookup } from "~/lib/deckCardShape";
 import { computeDeckColors } from "~/lib/deckColors";
 import { useBasicLandPreferenceRows } from "~/lib/useBasicLandPreferenceRows";
 import {
@@ -739,6 +740,13 @@ export default function PoolDeckBuilderForm({
         [deck.cards, deck.sideboard, eventId, seatIndex, pool, printResolver]
     );
 
+    // A Basic re-arted by the art picker holds a printing the registry does not
+    // know (issue #8387), so its row is what names its Card Definition.
+    const cardLookup = useMemo(
+        () => deckCardLookup(undefined, [...deck.cards, ...deck.sideboard]),
+        [deck.cards, deck.sideboard]
+    );
+
     return (
         <DeckBuilderShell
             title="Build Limited Deck"
@@ -760,6 +768,7 @@ export default function PoolDeckBuilderForm({
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
+            lookup={cardLookup}
             view={VIEW}
             zones={{
                 sideTitle: "Pool (Sideboard)",

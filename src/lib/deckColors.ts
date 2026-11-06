@@ -25,7 +25,9 @@ export function computeDeckColors(
 ): string[] {
     const set = new Set<string>();
     for (const card of cards) {
-        for (const color of resolve(card.cardId)?.colors ?? []) set.add(color);
+        for (const color of resolve(card.cardId, card)?.colors ?? []) {
+            set.add(color);
+        }
     }
     return COLOR_ORDER.filter((c) => set.has(c));
 }

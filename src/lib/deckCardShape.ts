@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { tryGetDefinition } from "@convex/cards";
+import { tryGetCardByName } from "@convex/cards/catalogue";
 import { getCardColorIdentity } from "@convex/cards/colors";
 import type {
     CardDefinition,
@@ -32,16 +33,47 @@ export interface DeckCardShape {
     colors: string[];
 }
 
+/** What a deck entry carries besides its `cardId` that names its Card
+ *  Definition. `cardId` is the chosen PRINTING and the registry knows Card IDs
+ *  only (ADR 0140, issue #4121), so a printing is identified by its
+ *  `definitionId`, else by its `cardName` — every printing of a card carries
+ *  that card's name. */
+export interface DeckEntryIdentity {
+    cardName?: string;
+    definitionId?: string;
+}
+
+/** THE answer to "which Card Definition does this deck entry name?" (issue
+ *  #8387): whichever printing the entry holds, its characteristics are its
+ *  definition's. `null` for a card the engine does not implement. */
+export function definitionOfDeckEntry(
+    cardId: string,
+    identity: DeckEntryIdentity = {}
+): CardDefinition | null {
+    return (
+        tryGetDefinition(identity.definitionId ?? cardId) ??
+        (identity.cardName === undefined
+            ? null
+            : tryGetCardByName(identity.cardName))
+    );
+}
+
 /** Resolves ONE deck card to its display shape, or `null` when nothing on the
  *  client can describe it (unknown to the registry AND the catalogue isn't
  *  loaded). Never throws — an unresolvable card degrades the view, it does not
  *  break it. */
-export type DeckCardShapeResolver = (cardId: string) => DeckCardShape | null;
+export type DeckCardShapeResolver = (
+    cardId: string,
+    identity?: DeckEntryIdentity
+) => DeckCardShape | null;
 
 /** Registry-backed resolution: the implemented-card path, and the default for
  *  every surface that never sees a Tabletop deck. */
-export const registryDeckCardShape: DeckCardShapeResolver = (cardId) => {
-    const def = tryGetDefinition(cardId);
+export const registryDeckCardShape: DeckCardShapeResolver = (
+    cardId,
+    identity
+) => {
+    const def = definitionOfDeckEntry(cardId, identity);
     if (!def) return null;
     return {
         isLand: def.types.includes("Land"),
@@ -72,11 +104,26 @@ export function makeDeckCardShapeResolver(
 ): DeckCardShapeResolver {
     if (!rows || rows.length === 0) return registryDeckCardShape;
     const byPrintId = new Map<string, FullCatalogueRow>();
-    for (const row of rows) byPrintId.set(row.printId, row);
-    return (cardId) => {
-        const fromRegistry = registryDeckCardShape(cardId);
+    // A printing picked from Scryfall's editions has no row of its own: the
+    // catalogue holds other printings of the card, and the shape is the same.
+    // A token is another object that may share the card's name, never a
+    // printing of it, so it does not answer for the name.
+    const byName = new Map<string, FullCatalogueRow>();
+    for (const row of rows) {
+        byPrintId.set(row.printId, row);
+        const nameKey = row.name.toLowerCase();
+        if (!byName.has(nameKey) && !parseTypeLine(row.typeLine).isToken) {
+            byName.set(nameKey, row);
+        }
+    }
+    return (cardId, identity) => {
+        const fromRegistry = registryDeckCardShape(cardId, identity);
         if (fromRegistry) return fromRegistry;
-        const row = byPrintId.get(cardId);
+        const row =
+            byPrintId.get(cardId) ??
+            (identity?.cardName === undefined
+                ? undefined
+                : byName.get(identity.cardName.toLowerCase()));
         return row ? catalogueRowShape(row) : null;
     };
 }
@@ -118,20 +165,24 @@ function syntheticDefinition(
  * Mana Value instead of falling into the Catch-All Column — the successor of
  * `groupDeckIntoPiles`' `resolve` seam, in the vocabulary the engine speaks.
  *
- * `nameOf` supplies the deck row's own `cardName` for the synthetic
- * definition, preserving the `cardName`-then-`cardId` ordering every deck
- * surface used before the engine.
+ * `entries` are the deck rows the lookup serves. A row names its Card Definition
+ * when its `cardId` is a printing the registry does not know (issue #8387), and
+ * supplies the synthetic definition's name, preserving the
+ * `cardName`-then-`cardId` ordering every deck surface used before the engine.
  */
 export function deckCardLookup(
     resolve: DeckCardShapeResolver = registryDeckCardShape,
-    nameOf?: (cardId: string) => string | undefined
+    entries: Iterable<{ cardId: string } & DeckEntryIdentity> = []
 ): CardLookup {
+    const entryById = new Map<string, DeckEntryIdentity>();
+    for (const entry of entries) entryById.set(entry.cardId, entry);
     return (cardId) => {
-        const def = tryGetDefinition(cardId);
+        const entry = entryById.get(cardId);
+        const def = definitionOfDeckEntry(cardId, entry);
         if (def) return def;
-        const shape = resolve(cardId);
+        const shape = resolve(cardId, entry);
         if (!shape) return undefined;
-        return syntheticDefinition(cardId, shape, nameOf?.(cardId) ?? cardId);
+        return syntheticDefinition(cardId, shape, entry?.cardName ?? cardId);
     };
 }
 
