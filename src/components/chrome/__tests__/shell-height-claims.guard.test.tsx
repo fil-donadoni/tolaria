@@ -649,6 +649,13 @@ const ROUTE_ROOTS: Record<
         routePath: "/limited/events",
         files: [{ rel: "components/ui/loading-screen.tsx" }],
     },
+    LimitedDecksRoute: {
+        routePath: "/limited/decks",
+        files: [
+            { rel: "components/lobby/limited-deck-archive-page.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
     LimitedEventDetailRoute: {
         routePath: "/limited/abc123",
         files: [

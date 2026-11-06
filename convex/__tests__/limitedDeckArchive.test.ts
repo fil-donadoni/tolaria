@@ -12,6 +12,7 @@ import {
     getLimitedDeckAdmin,
     listLimitedOriginDecksAdmin,
     listLimitedOriginsAdmin,
+    listMine,
 } from "../userDecks";
 import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 
@@ -189,5 +190,16 @@ describe("Limited Deck Archive — deck detail", () => {
             await run(getLimitedDeckAdmin, c, { deckId: "nope" })
         ).toBeNull();
         expect(await run(getLimitedDeckAdmin, c, { deckId: "c1" })).toBeNull();
+    });
+});
+
+// The player's own archive (issue #8409) has no query of its own: it reads
+// `listMine`, so this is where another player's deck is kept out of it.
+describe("listMine as the player's Limited Deck Archive", () => {
+    it("never returns another player's deck", async () => {
+        const { ctx } = ctxFor("alice");
+        const rows = await run(listMine, ctx as unknown as QueryCtx, {});
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.every((r: any) => r.userId === "alice")).toBe(true);
     });
 });

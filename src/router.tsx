@@ -207,6 +207,14 @@ const limitedYourEventsRoute = createRoute({
     ),
 });
 
+// The player's Limited Deck Archive (PRD #8407, issue #8409): a static sibling
+// of the dynamic `/limited/$eventId` below, like `/limited/events` above.
+const limitedDecksRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/decks",
+    component: lazyRouteComponent(() => import("./routes/limited-decks.route")),
+});
+
 // Limited event setup (PRD #5383, issue #5387): a static sibling of the
 // dynamic `/limited/$eventId` below, like `/limited/events` above.
 const limitedNewRoute = createRoute({
@@ -394,6 +402,7 @@ const routeTree = rootRoute.addChildren([
     joinRoute,
     limitedEventsRoute,
     limitedYourEventsRoute,
+    limitedDecksRoute,
     limitedNewRoute,
     limitedEventDetailRoute,
     limitedDraftRoomRoute,

@@ -414,6 +414,9 @@ async function fixtureRowsRendered(
         );
 }
 
+/** One deck of the Limited Deck Archive (`limited-deck-archive-entry.tsx`). */
+const ARCHIVE_DECK = "[data-limited-archive-deck]";
+
 /** A pack tile in the Draft Room. Two traps in one selector:
  *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
  *    never in the text content, so `:has-text('Draft pick')` matches nothing;
@@ -4007,6 +4010,65 @@ export const SURFACES: readonly Surface[] = [
                     `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. ${FIXTURE_SEED_HINT}`
                 );
             }
+        },
+    },
+    {
+        id: "limited-deck-archive",
+        entries: ["src/routes/limited-decks.route.tsx"],
+        // Issue #8409. A fresh lane account owns no Limited deck, and a deck of
+        // the run's own fixture seat is the honest way to make one: the same
+        // public `userDecks:create` the builder's save calls, with no function
+        // the deployment might not carry yet (the reasoning of
+        // `passwordSeedDeck`, `lane-account.ts`). The fixture is mid-draft, so
+        // the deck cannot open the play phase, and it stays an illegal deck: the
+        // row measures its reasons too. Skipped once a viewport has saved it.
+        label: "Limited Deck Archive (/limited/decks)",
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Limited Deck Archive" },
+                check: "visible",
+            },
+            {
+                label: "deck entry",
+                locator: { selector: "[data-limited-archive-deck]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/limited/decks");
+            await page
+                .locator("[data-surface-ready]")
+                .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
+            if ((await page.locator(ARCHIVE_DECK).count()) === 0) {
+                await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+                const eventId = currentEventId(page);
+                await goto(page, ctx, `/limited/${eventId}/build`);
+                if (!(await visible(page, "[data-card-tile]", 10_000))) {
+                    throw new Unreachable(
+                        `/limited/${eventId}/build rendered no card tile, so no Limited deck can be saved. ${FIXTURE_SEED_HINT}`
+                    );
+                }
+                await page
+                    .getByRole("textbox", { name: "Deck name" })
+                    .fill("ui-gate archive deck", { timeout: STEP_TIMEOUT });
+                await page
+                    .getByRole("button", { name: "Done" })
+                    .first()
+                    .click({ timeout: STEP_TIMEOUT });
+                await page
+                    .waitForURL(new RegExp(`/limited/${eventId}(\\?.*)?$`), {
+                        timeout: NAV_TIMEOUT,
+                    })
+                    .catch(() => {});
+                await goto(page, ctx, "/limited/decks");
+            }
+            if (!(await visible(page, ARCHIVE_DECK, 10_000))) {
+                throw new Unreachable(
+                    "/limited/decks listed no deck after the fixture seat saved one"
+                );
+            }
+            await settle(page);
         },
     },
     {

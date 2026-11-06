@@ -275,11 +275,12 @@ Behaviour for both steps is covered by
 The three routes that need no fixture beyond a signed-in account. Each is one
 navigation:
 
-| Route           | Screen                                                                                                                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`             | Lobby home — Last Match, Play (Constructed · Limited), Your Tables, Decks; the active-game banner when one is running                                                                   |
-| `/decks/create` | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                      |
-| `/limited`      | Limited hub (issue #5388) — status chips (waiting/drafting/building/playing/history, with counts), "Your events" tiles with one CTA per phase and a New event tile last, "Join a table" |
+| Route            | Screen                                                                                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`              | Lobby home — Last Match, Play (Constructed · Limited), Your Tables, Decks; the active-game banner when one is running                                                                   |
+| `/decks/create`  | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                      |
+| `/limited`       | Limited hub (issue #5388) — status chips (waiting/drafting/building/playing/history, with counts), "Your events" tiles with one CTA per phase and a New event tile last, "Join a table" |
+| `/limited/decks` | Limited Deck Archive (issue #8409) — the account's Limited decks by Limited Origin. Empty on a fresh account: the walk saves one from the fixture seat's pool builder first             |
 
 **`/limited/events` is a redirect stub, not a screen** (issue #2590): the
 your-events page it used to render was absorbed into the `/limited` hub —
