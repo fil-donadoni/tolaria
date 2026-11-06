@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
@@ -18,6 +18,7 @@ import {
 } from "~/lib/limitedEventStatus";
 import { buildHub } from "~/lib/limited/limitedHub";
 import { Banner } from "@/components/ui/banner";
+import { buttonVariants } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import LimitedHubHistory from "./limited-hub/limited-hub-history";
@@ -127,9 +128,20 @@ export default function LimitedEventsPage({
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
             <SurfaceReadyMarker />
             <header className="flex flex-wrap items-center justify-between gap-2">
-                <h1 className="font-display text-2xl text-parchment">
-                    Limited Events
-                </h1>
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="font-display text-2xl text-parchment">
+                        Limited Events
+                    </h1>
+                    <Link
+                        to="/limited/decks"
+                        className={buttonVariants({
+                            variant: "secondary",
+                            size: "sm",
+                        })}
+                    >
+                        Your decks
+                    </Link>
+                </div>
                 <LimitedStatusFilterBar
                     value={status}
                     counts={hub.counts}

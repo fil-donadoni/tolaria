@@ -267,7 +267,6 @@
     "scripts/lib/target-completed.ts#39b0c9d78b",
     "scripts/lib/targets.ts#06d602ddf7",
     "scripts/lib/targets.ts#a13311c1ad",
-    "scripts/lib/ui-scope.ts#684356b496",
     "scripts/lib/umbrella-detach.ts#8b69541a1c",
     "scripts/lib/worktree-seed.ts#4d298c7337",
     "scripts/measure-client-heap.ts#5abc4be73a",

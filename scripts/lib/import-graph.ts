@@ -268,6 +268,8 @@ export interface ClosureOptions {
 }
 
 export interface ImportGraph {
+    /** Absolute path every repo-relative path is resolved against. */
+    root: string;
     /** The files `repoPath` imports directly at runtime, resolved. */
     importsOf(repoPath: string): readonly string[];
     /** The files `repoPath` names only in type-only statements, resolved. */
@@ -475,6 +477,7 @@ export function createImportGraph({
     };
 
     return {
+        root,
         importsOf,
         typeImportsOf,
         staticImportsOf,

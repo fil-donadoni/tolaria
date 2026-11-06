@@ -44,6 +44,12 @@ describe("router: /limited/events vs /limited/$eventId precedence (issue #2357)"
         expect(result.foundRoute?.id).toBe("/limited");
     });
 
+    it("routes /limited/decks to the Limited Deck Archive, not $eventId (issue #8409)", () => {
+        const result = router.getMatchedRoutes("/limited/decks");
+        expect(result.foundRoute?.id).toBe("/limited/decks");
+        expect(result.routeParams).not.toHaveProperty("eventId");
+    });
+
     it("routes /limited/new to the static setup route, not $eventId (issue #5387)", () => {
         const result = router.getMatchedRoutes("/limited/new");
         expect(result.foundRoute?.id).toBe("/limited/new");

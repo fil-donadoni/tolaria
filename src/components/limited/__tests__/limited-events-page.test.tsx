@@ -8,6 +8,7 @@
 // drives every filter without mocking `useSearch`.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type {
     LimitedEventSummaryView,
     PackSourceInfo,
@@ -20,6 +21,9 @@ const navigate = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => navigate,
+    Link: ({ to, children }: { to: string; children: ReactNode }) => (
+        <a href={to}>{children}</a>
+    ),
 }));
 
 vi.mock("~/hooks/useCurrentUser", () => ({
@@ -297,6 +301,15 @@ describe("LimitedEventsPage — Your events", () => {
         renderPage();
 
         expect(tileKinds()).toEqual(["event", "event", "new-event"]);
+    });
+
+    it("links to the player's Limited Deck Archive (issue #8409)", () => {
+        renderPage();
+        expect(
+            screen
+                .getByRole("link", { name: "Your decks" })
+                .getAttribute("href")
+        ).toBe("/limited/decks");
     });
 
     it("navigates to the event detail page from a tile's View", () => {
