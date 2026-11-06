@@ -12,7 +12,8 @@ import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { assertDeckLegal, type GateDeck } from "../formats";
 import { loadLimitedPoolResolver } from "../game";
-import type { MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
+import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 import { makeRng } from "../gre/rng";
 import {
     assignFreeSeat,
@@ -154,31 +155,33 @@ describe("Limited challenge pipeline: challenge → join → game start (issue #
 
     // Full game-start gate through the REAL exported `loadLimitedPoolResolver`
     // (convex/game.ts) — the resolver both `challengeLimitedSeat` and
-    // `joinGame` call before `assertDeckLegal`, driven with a stub ctx exactly
-    // like `limitedDeckbuild.test.ts` does.
-    it("resolves each seat's Pool for its REAL occupant at game start", async () => {
+    // `joinGame` call before `assertDeckLegal`.
+    it("resolves each seat's Pool from its owner's saved deck at game start", async () => {
         const { event, deckForSeat } = buildTwoHumanEvent("event-3", 4242);
-        // `limitedSeats` returns nothing: this fixture carries its Pools inline
-        // on the event row (the legacy pre-split shape `limitedSeatStore.ts`
-        // still folds in), so the gate must resolve them from there.
-        const stubCtx = {
-            db: {
-                get: async () => event,
-                query: () => ({
-                    withIndex: () => ({
-                        unique: async () => null,
-                        collect: async () => [],
-                    }),
-                }),
-            },
-        } as unknown as MutationCtx;
+        const seatDeckId = (seatIndex: number) => `userdeck-${seatIndex}`;
+        const { ctx } = makeInMemoryDb({
+            userDecks: event.seats.map((seat) => ({
+                _id: seatDeckId(seat.seatIndex),
+                userId: seat.userId,
+                format: "limited",
+                limitedEventId: event._id,
+                limitedSeatId: String(seat.seatIndex),
+            })),
+            limitedDeckPools: event.seats.map((seat) => ({
+                _id: `pool-${seat.seatIndex}`,
+                deckId: seatDeckId(seat.seatIndex),
+                pool: seat.pool,
+            })),
+        });
 
         for (const seatIndex of [0, 1] as const) {
             const userId = seatIndex === 0 ? "alice" : "bob";
             const deck = deckForSeat(seatIndex);
             const resolver = await loadLimitedPoolResolver(
-                stubCtx,
+                ctx,
                 {
+                    format: "limited",
+                    userDeckId: seatDeckId(seatIndex) as Id<"userDecks">,
                     limitedEventId: deck.limitedEventId,
                     limitedSeatId: deck.limitedSeatId,
                 },

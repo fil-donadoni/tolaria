@@ -104,11 +104,16 @@ export const deckValidator = v.object({
     // Sideboard (PRD #387). Optional so legacy callers (and tests) without a
     // sideboard still validate; snapshotted into the Match deck copy.
     sideboard: v.optional(v.array(deckCardValidator)),
-    // Limited Event + Seat reference (ADR 0054/0055, issue #1109/#1111).
-    // Present only for a `format: "limited"` deck; `assertDeckLegal`'s
-    // injected `ResolvePool` reads these two to resolve the deck's
-    // authoritative Pool (`loadLimitedPoolResolver` below). Absent for every
-    // other Format.
+    // The saved deck this payload stands for (ADR 0106 §4, issue #2815).
+    // Mandatory for `format: "limited"`: the server asserts the caller owns the
+    // row and reads its Deck Pool (`loadLimitedPoolResolver`, `convex/game.ts`).
+    // A Pool itself never rides here — the caller would be declaring the
+    // universe it is validated against. Dropped at the write boundary, like
+    // `definitionId`: a Match deck is a copy, tied to no row.
+    userDeckId: v.optional(v.id("userDecks")),
+    // Limited Event + Seat provenance (ADR 0054/0055, ADR 0106 §5). Present
+    // only for a `limited` deck; the event-bound mutations read them, and
+    // `loadLimitedPoolResolver` holds them to the row's. They gate no legality.
     limitedEventId: v.optional(v.string()),
     limitedSeatId: v.optional(v.string()),
 });

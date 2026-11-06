@@ -160,7 +160,12 @@ import { restrictedXCostKey } from "./gre/manaColors";
 import { getInstanceManaCost } from "./cards";
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
-import { assertDeckLegal, toFormatId, type ResolvePool } from "./formats";
+import {
+    assertDeckLegal,
+    toFormatId,
+    type ResolveCard,
+    type ResolvePool,
+} from "./formats";
 import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
 import {
     widenGameDefinitionManifests,
@@ -175,9 +180,9 @@ import {
 import { loadBanlistOverrides } from "./banlists";
 import {
     assertLimitedSeatOwnership,
-    resolvePoolFromEvent,
+    poolFromLimitedPoolCards,
 } from "./limited/poolResolution";
-import { hydrateSeat } from "./limitedSeatStore";
+import { loadDeckPool } from "./limitedDeckPoolStore";
 import {
     assertChallengeableSeat,
     assertSameEventDeck,
@@ -3034,42 +3039,73 @@ export const getFullState = query({
 
 /**
  * Resolves a `deckValidator`-shaped deck's `ResolvePool` (ADR 0036) for the
- * authoritative game-start legality gate (issue #1111): fetches the
- * referenced Limited Event ONCE, then hands `assertDeckLegal` a pure
- * synchronous callback over the already-fetched Pool — mirrors
- * `loadBanlistOverrides`'s injection pattern. `undefined` for a non-Limited
- * deck (no `limitedEventId`) so every existing call site's non-Limited decks
- * are completely unaffected.
+ * authoritative game-start legality gate, from the deck's own Deck Pool (ADR
+ * 0106 §4, issue #2815) — never through its Limited Event, so a deck whose
+ * event is gone still starts. `undefined` for a non-Limited deck, which has no
+ * Pool and whose `userDeckId` is therefore never read.
  *
- * SECURITY (issue #1111 follow-up): `createGame`/`createSoloGame`/`joinGame`
- * accept an INLINE `args.deck`, never one loaded from a persisted `userDecks`
- * row — so the ownership gate `userDecks.create` applies at deck-*save* time
- * never runs for a deck built ad hoc for game-start. Without re-asserting
- * ownership HERE, a client could point `limitedSeatId`/`limitedEventId` at
- * ANOTHER user's seat and have this resolver source THEIR Pool. Reuses the
- * exact same `assertLimitedSeatOwnership` gate `userDecks.create` uses — one
- * seat-ownership authority, never duplicated — keyed off the AUTHENTICATED
- * `callerUserId`, never anything from `deck`. Throws (not a silent
- * `pool-unresolved`) so the mutation aborts before any Match/Game row is
- * written.
+ * SECURITY: the game mutations accept an INLINE deck, so the payload names the
+ * row it stands for and the server re-derives everything that matters from it:
+ * - no `userDeckId` on a `limited` payload is refused, fail-closed;
+ * - the row must belong to the AUTHENTICATED `callerUserId`, never anything
+ *   from `deck` — "you own this deck" is the whole ownership rule here;
+ * - the payload's `limitedEventId`/`limitedSeatId` must be the row's. The
+ *   event-bound mutations read those two off the payload, and the Pool no
+ *   longer pins them, so a mismatch would seat a deck legal against ANOTHER
+ *   event's Pool at this event's table;
+ * - the payload never carries a Pool: a client-supplied one would let the
+ *   caller declare the universe it is validated against.
+ *
+ * Throws (not a silent `pool-unresolved`) so the mutation aborts before any
+ * Match/Game row is written. A row with no Deck Pool — a non-`limited` row, or
+ * a legacy deck the backfill could not recover — resolves to `null`, which
+ * `assertDeckLegal` reports as `pool-unresolved`.
  */
 export async function loadLimitedPoolResolver(
     ctx: MutationCtx,
-    deck: { limitedEventId?: string; limitedSeatId?: string },
-    callerUserId: string
+    deck: Pick<
+        Infer<typeof deckValidator>,
+        "format" | "userDeckId" | "limitedEventId" | "limitedSeatId"
+    >,
+    callerUserId: string,
+    resolve?: ResolveCard
 ): Promise<ResolvePool | undefined> {
-    if (!deck.limitedEventId || !deck.limitedSeatId) return undefined;
-    const event = await ctx.db.get(deck.limitedEventId as Id<"limitedEvents">);
-    assertLimitedSeatOwnership(event, deck.limitedSeatId, callerUserId);
-    // Seat ownership is decided on the event row alone; only the Pool needs
-    // the `limitedSeats` payload, and only for the ONE seat this deck claims
-    // (`convex/limitedSeatStore.ts`).
-    const seatIndex = Number(deck.limitedSeatId);
-    const hydrated = event
-        ? { seats: await hydrateSeat(ctx, event, seatIndex) }
-        : null;
-    const pool = resolvePoolFromEvent(hydrated, deck.limitedSeatId);
+    if (deck.format !== "limited") return undefined;
+    if (!deck.userDeckId)
+        throw new ConvexError(
+            "A Limited deck must be a saved deck to start a game."
+        );
+    const row = await ctx.db.get(deck.userDeckId);
+    if (!row || row.userId !== callerUserId)
+        throw new ConvexError("You do not own this Limited deck.");
+    if (
+        row.limitedEventId !== deck.limitedEventId ||
+        row.limitedSeatId !== deck.limitedSeatId
+    )
+        throw new ConvexError(
+            "This Limited deck was not built at that event's seat."
+        );
+    const deckPool = await loadDeckPool(ctx, row._id);
+    const pool = deckPool ? poolFromLimitedPoolCards(deckPool, resolve) : null;
     return () => pool;
+}
+
+/** The authoritative game-start legality gate (ADR 0036) every seat-taking
+ *  mutation runs before any Match/Game row is written: the deck's printings, its
+ *  Format's DB banlist override (PRD #1138, issue #1144, so a stale client can't
+ *  sneak in a DB-banned card) and, for a `limited` deck, its Deck Pool. */
+async function assertGameDeckLegal(
+    ctx: MutationCtx,
+    deck: Infer<typeof deckValidator>,
+    callerUserId: string
+): Promise<void> {
+    const resolve = makeResolveCardFromRows(await loadDeckPrintRows(ctx, deck));
+    assertDeckLegal(
+        deck,
+        resolve,
+        await loadBanlistOverrides(ctx, deck.format),
+        await loadLimitedPoolResolver(ctx, deck, callerUserId, resolve)
+    );
 }
 
 export const createGame = mutation({
@@ -3105,12 +3141,7 @@ export const createGame = mutation({
         // before any Match/Game row is written. The DB banlist override (PRD
         // #1138, issue #1144) is loaded first so a card banned in `formatBanlists`
         // is enforced here even if the client is stale.
-        assertDeckLegal(
-            args.deck,
-            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
-            await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck, user._id)
-        );
+        await assertGameDeckLegal(ctx, args.deck, user._id);
         // Match Format admission (ADR 0153): the host's own seat too.
         const matchFormat = args.matchFormat ?? toFormatId(args.deck.format);
         assertDeckAdmitted(args.deck, matchFormat);
@@ -3220,12 +3251,7 @@ export const challengeLimitedSeat = mutation({
         );
         // Authoritative deck legality gate (ADR 0036) — the challenger's deck
         // must be legal against its own seat's Pool before any row is written.
-        assertDeckLegal(
-            args.deck,
-            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
-            await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck, user._id)
-        );
+        await assertGameDeckLegal(ctx, args.deck, user._id);
         const now = Date.now();
         const challengedLabel =
             challenged.nickname ?? `Seat ${challenged.seatIndex + 1}`;
@@ -3360,12 +3386,7 @@ export const startPairingMatch = mutation({
 
         // Authoritative deck legality gate (ADR 0036) before any row is
         // written — the caller's deck must be legal against its own Pool.
-        assertDeckLegal(
-            args.deck,
-            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
-            await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck, user._id)
-        );
+        await assertGameDeckLegal(ctx, args.deck, user._id);
 
         const now = Date.now();
         const bestOf = bestOfForGamesFormat(resolveEventGamesFormat(event));
@@ -3557,8 +3578,8 @@ export const createSoloGame = mutation({
         if (await findActiveMatchForUser(ctx, user._id))
             throw new ConvexError(ACTIVE_GAME_MESSAGE);
         // An event binding is only legitimate when seat 1's deck IS that
-        // event's deck — the ownership of that seat is re-checked below by
-        // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.
+        // event's deck — `loadLimitedPoolResolver` below holds the payload's
+        // event to the row the caller owns.
         let botDifficulty: Difficulty | undefined;
         if (args.limitedEventId) {
             assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
@@ -3597,25 +3618,8 @@ export const createSoloGame = mutation({
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
         // override (PRD #1138, issue #1144) is loaded independently — the two
         // seats' decks aren't guaranteed to share a Format.
-        assertDeckLegal(
-            args.deck,
-            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
-            await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck, user._id)
-        );
-        if (args.deck2)
-            assertDeckLegal(
-                args.deck2,
-                makeResolveCardFromRows(
-                    await loadDeckPrintRows(ctx, args.deck2)
-                ),
-                await loadBanlistOverrides(ctx, args.deck2.format),
-                // Solo/vs-AI: a single authenticated user occupies BOTH seats
-                // it controls, so the same `user._id` is the correct owner
-                // check for `deck2`'s seat too — not a false-reject of a
-                // legitimate solo Limited playtest.
-                await loadLimitedPoolResolver(ctx, args.deck2, user._id)
-            );
+        await assertGameDeckLegal(ctx, args.deck, user._id);
+        if (args.deck2) await assertGameDeckLegal(ctx, args.deck2, user._id);
 
         const player1: PlayerInput = {
             id: `${user._id}-p1`,
@@ -3838,12 +3842,7 @@ async function joinWaitingGame(
     // legal for its declared format before the Match flips to "playing".
     // The DB banlist override (PRD #1138, issue #1144) is loaded first so a
     // joiner can't sneak in a DB-banned card even on a stale client.
-    assertDeckLegal(
-        args.deck,
-        makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
-        await loadBanlistOverrides(ctx, args.deck.format),
-        await loadLimitedPoolResolver(ctx, args.deck, user._id)
-    );
+    await assertGameDeckLegal(ctx, args.deck, user._id);
 
     // Match Format admission (ADR 0153): enforced here, after the deck's own
     // legality, not merely hinted by `getJoinInfo`. The joiner is admitted
