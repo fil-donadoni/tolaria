@@ -534,6 +534,9 @@ export function lowerStaticClause(
                             ...(clause.onlyOutsideAnnouncersTurn === true
                                 ? { onlyOutsideAnnouncersTurn: true as const }
                                 : {}),
+                            ...(clause.onlyOutsideAnnouncersHand === true
+                                ? { onlyOutsideAnnouncersHand: true as const }
+                                : {}),
                             // CR 118.7a — a generic reduction affects ONLY the
                             // generic component of a cost, which is why both
                             // directions carry a bare number and the

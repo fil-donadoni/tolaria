@@ -21042,7 +21042,14 @@ export function buildSpellContext(
                 });
                 applyCostModifiers(
                     cost,
-                    getCostModifiers(state, handCard, "spell")
+                    // CR 601.2a — the CASTER, explicitly (see `announcerId`).
+                    getCostModifiers(
+                        state,
+                        handCard,
+                        "spell",
+                        undefined,
+                        owner.id
+                    )
                 );
                 const plan = solveSmartAutoTap(
                     owner.manaPool,
@@ -21370,7 +21377,12 @@ export function planResolutionCastPayment(
     // CR 118.9 — an alternative cost (the miracle cost, CR 702.94a) is paid
     // "rather than its mana cost"; the cost modifiers still apply to it.
     const cost = normalizeManaCost(printedOrAlternative, { chosenX });
-    applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
+    // CR 601.2a — the CASTER, explicitly (see `announcerId`): a card picked out
+    // of the opponent's exile still names its zone owner as `controllerId`.
+    applyCostModifiers(
+        cost,
+        getCostModifiers(state, card, "spell", undefined, payer.id)
+    );
     const subs = getManaSubstitutions(state, payer.id);
     const sources = buildAutoTapSources(
         payer.battlefield,
@@ -24905,7 +24917,8 @@ export function getCostModifiers(
                         ? effect.appliesToSpell?.(
                               card,
                               STATIC_EFFECT_CTX,
-                              source
+                              source,
+                              announcer
                           )
                         : effect.appliesToAbility?.(
                               card,
@@ -24920,6 +24933,16 @@ export function getCostModifiers(
                 if (
                     effect.onlyOutsideAnnouncersTurn === true &&
                     state.activePlayerId === announcer
+                )
+                    continue;
+                // CR 601.2a — "from anywhere other than your hand": the spell
+                // has not left its zone yet at any pricing site, so where the
+                // card sits now IS the zone it is being cast from.
+                if (
+                    effect.onlyOutsideAnnouncersHand === true &&
+                    state.players
+                        .find((p) => p.id === announcer)
+                        ?.hand.some((c) => c.id === card.id)
                 )
                     continue;
                 if (effect.costIncrease) {

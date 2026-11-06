@@ -12,6 +12,8 @@
  *   "<spells> cost {N} more/less to cast"           → CR 601.2f `cost-modifier`
  *   "Each spell costs {N} more to cast except during its controller's turn"
  *                                                   → the same, turn-gated
+ *   "Spells you cast from anywhere other than your hand cost {N} less to cast"
+ *                                                   → the same, zone-gated
  *   "Activated abilities of <permanents> cost {N} more to activate"
  *                                                   → CR 602.2b `cost-modifier`
  *   "Creatures can't attack you unless their controller pays {N} for each
@@ -219,6 +221,8 @@ export type StaticClauseIR =
           readonly amount: number;
           /** CR 601.2f — "except during its controller's turn". */
           readonly onlyOutsideAnnouncersTurn?: true;
+          /** CR 601.2a — "from anywhere other than your hand". */
+          readonly onlyOutsideAnnouncersHand?: true;
       } & (
           | {
                 readonly spells: CompiledSpellFilter;
@@ -988,6 +992,26 @@ export const offTurnCostModifierRule: Rule<StaticClauseIR> = pattern(
             direction: "more" as const,
             amount: Number(match[1]),
             onlyOutsideAnnouncersTurn: true as const,
+        })
+);
+
+/**
+ * CR 601.2f / 601.2a — "Spells you cast from anywhere other than your hand cost
+ * {N} less to cast" (Sage of the Beyond, Bilbo). The zone is the one the spell
+ * moves out of as it is proposed. Only this whole sentence is read: a class of
+ * spells before it, a "more" after it or a named zone in its place has no
+ * fixture and stays refused.
+ */
+export const nonHandCastCostReductionRule: Rule<StaticClauseIR> = pattern(
+    "non-hand cast cost reduction",
+    /^Spells you cast from anywhere other than your hand cost \{(\d+)\} less to cast$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "cost-modifier" as const,
+            spells: { controller: "you" as const },
+            direction: "less" as const,
+            amount: Number(match[1]),
+            onlyOutsideAnnouncersHand: true as const,
         })
 );
 
@@ -2760,6 +2784,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         graveyardKeywordGrantRule,
         fullTextEffectRule,
         costModifierRule,
+        nonHandCastCostReductionRule,
         loyaltyActivationAllowanceRule,
         offTurnCostModifierRule,
         abilityCostModifierRule,
