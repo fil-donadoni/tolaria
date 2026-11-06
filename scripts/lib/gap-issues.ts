@@ -160,24 +160,28 @@ export const BAND_UMBRELLAS: Readonly<Record<UmbrellaFamily, FamilyUmbrellas>> =
             P0: 4091,
             "premodern-metagame": 4092,
             "vintage-cube": 4093,
+            "modern-metagame": 8441,
             "format-premodern": 4094,
         },
         ops: {
             P0: 4095,
             "premodern-metagame": 4096,
             "vintage-cube": 4097,
+            "modern-metagame": 8442,
             "format-premodern": 4098,
         },
         "bot-gaps": {
             P0: 4099,
             "premodern-metagame": 4100,
             "vintage-cube": 4101,
+            "modern-metagame": 8443,
             "format-premodern": 4102,
         },
         "hand-tail": {
             P0: 4241,
             "premodern-metagame": 4242,
             "vintage-cube": 4243,
+            "modern-metagame": 8444,
             "format-premodern": 4244,
         },
     };

@@ -31,7 +31,7 @@
  * elsewhere instead. It still READS the committed artifact as its cache.
  *
  * Default Targets: `premodern-metagame`, `vintage-cube` (the v1 pair,
- * issue #3846).
+ * issue #3846) and `modern-metagame` (the next Target, issue #8276).
  */
 
 import { execFileSync } from "node:child_process";
@@ -79,7 +79,11 @@ import {
 } from "./lib/targets";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const DEFAULT_TARGETS = ["premodern-metagame", "vintage-cube"];
+const DEFAULT_TARGETS = [
+    "premodern-metagame",
+    "vintage-cube",
+    "modern-metagame",
+];
 
 /** Which definition a Target card ships with — the one that gets played.
  *  Defined beside the artifact that records it. */

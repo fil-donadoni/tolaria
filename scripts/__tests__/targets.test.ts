@@ -75,7 +75,7 @@ describe("data/targets.json — the registered Target Lists", () => {
                 .filter((t) => t.priority !== undefined)
                 .sort((a, b) => a.priority! - b.priority!)
                 .map((t) => t.id)
-        ).toEqual(["vintage-cube", "format-premodern"]);
+        ).toEqual(["vintage-cube", "modern-metagame", "format-premodern"]);
     });
 
     it("flags premodern-metagame as the one `playable` Target, and no Target `closed-tail` or `ready` (ADR 0143 Amendment VII)", () => {
