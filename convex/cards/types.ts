@@ -2663,13 +2663,22 @@ export interface DurationSpec {
     player?: "controller" | "opponent";
 }
 
+/** An {@link AnimateSpec} stating its base P/T: what a scenario spec stores, as
+ *  a rebuilt board has no card text to read a stat-less animation from. */
+export type AnimateSpecWithPT = AnimateSpec & {
+    power: number;
+    toughness: number;
+};
+
 /** Specification passed to `SpellContext.animateAsCreature` — the target
  *  becomes a creature with the given base P/T and optional subtype, for the
  *  duration provided (CR 208.2, 611.1). The engine restores the permanent's
  *  original P/T, types, and subtypes on expiry. */
 export interface AnimateSpec {
-    power: number;
-    toughness: number;
+    /** Base P/T the animation sets. Both omitted (issue #7212): no set, the
+     *  permanent keeps its own (CR 301.7b). */
+    power?: number;
+    toughness?: number;
     /** Optional creature subtype to add while animated (e.g. "Golem"). */
     subtype?: string;
     /** Additional card types to add while animated, beyond "Creature" (which
@@ -18824,12 +18833,16 @@ export type EffectOp =
      *  effect (the primitive's "one animation at a time" guard — `subtype` /
      *  `additionalTypes` / `colors` for the SECOND application no-op, but
      *  `grantedAbilities` still apply, matching Earthbend N re-applied to an
-     *  already-earthbent land). */
+     *  already-earthbent land). `power`/`toughness` are declared together or
+     *  not at all: omitting both (issue #7212) sets no base P/T, so the
+     *  permanent keeps the one it has — CR 301.7b's "it immediately has its
+     *  printed power and toughness" for a crew ability GRANTED to a permanent
+     *  whose stats the granting card cannot know. */
     | {
           op: "animate";
           target: EffectObjectSelector;
-          power: number;
-          toughness: number;
+          power?: number;
+          toughness?: number;
           subtype?: string;
           additionalTypes?: CardType[];
           grantedAbilities?: string[];
