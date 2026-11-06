@@ -64,7 +64,14 @@ import {
     getOpponentId,
     tapPermanent,
 } from "./state";
-import type { ActivatedAbility, Color } from "../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    Color,
+    EffectOp,
+} from "../cards/types";
+import { childOpArrays } from "./ai/effectOpChildren";
+import { manaUnitsFor } from "./manaAvailability";
 import { observedOpponentColors } from "./ai/observedColors";
 import {
     checkStateBasedActions as sweepStateBasedActions,
@@ -4412,7 +4419,13 @@ function extraTurnRewardCredit(
  *  `pass` can win the material tie-break on noise (issue: bot prefers `pass`
  *  over `cast Mox Jet`). Effect-keyed (cost 0 + mana ability), NOT a per-card
  *  list, so it covers every free mana source. `caster` is `botId` when known,
- *  else the active player (a 0-cost artifact is cast at sorcery speed). Pure. */
+ *  else the active player (a 0-cost artifact is cast at sorcery speed).
+ *
+ *  Two things make a zero-cost source not free. An as-enters price (`ifDeclined`:
+ *  the permanent enters only if something is given up, else it is binned): the
+ *  card is then a trade the search weighs, never a no-op. And a trigger of its
+ *  own that can kill its controller from here (`selfLossOfTriggers`): the board
+ *  with it is no longer at least the board without it. Pure. */
 function isFreeManaSourceCast(
     state: GameState,
     move: Move,
@@ -4422,8 +4435,66 @@ function isFreeManaSourceCast(
     const casterId = botId ?? state.activePlayerId;
     const caster = state.players.find((p) => p.id === casterId);
     const card = caster?.hand.find((c) => c.id === move.cardInstanceId);
-    if (!card) return false;
-    return manaValue(getInstanceManaCost(card)) === 0 && hasManaAbility(card);
+    if (!caster || !card) return false;
+    if (manaValue(getInstanceManaCost(card)) !== 0 || !hasManaAbility(card)) {
+        return false;
+    }
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    if (!def) return true;
+    if (def.entersWith?.asEnters?.some((c) => "ifDeclined" in c)) return false;
+    return selfLossOfTriggers(def) < caster.life;
+}
+
+/** Whether `move`, a free mana source's cast, adds mana once it has settled: the
+ *  mover can pay with strictly more than before. What "goes first" stands on
+ *  (`selectRootMove`): a zero-cost body making no mana yet (no counters, the
+ *  legend rule, an unmet condition, a choice not yet made) buys nothing, and
+ *  going first would only spend the card. Read through the real engine, so it
+ *  needs no card's shape. */
+function freeSourceAddsMana(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights
+): boolean {
+    const before = state.players.find((p) => p.id === pid);
+    if (!before) return false;
+    const probe = cloneGameState(state);
+    let settled: GameState;
+    try {
+        applyMoveInSearch(probe, pid, move);
+        settled = settleStackForBreakdown(probe, pid, weights);
+    } catch {
+        return false;
+    }
+    const after = settled.players.find((p) => p.id === pid);
+    return (
+        !!after &&
+        manaUnitsFor(settled, after).length > manaUnitsFor(state, before).length
+    );
+}
+
+/** The most life one of `def`'s triggers can cost its own controller in a single
+ *  resolution, read off its Effect Script: fixed damage dealt to, or life lost
+ *  by, the controller. A `resolve()` trigger or a variable amount reads as 0. */
+function selfLossOfTriggers(def: CardDefinition): number {
+    const lossOf = (ops: readonly EffectOp[]): number =>
+        ops.reduce((worst, op) => {
+            const own =
+                (op.op === "dealDamage" &&
+                    "player" in op.to &&
+                    op.to.player === "controller") ||
+                (op.op === "loseLife" && op.player === "controller")
+                    ? typeof op.amount === "number"
+                        ? op.amount
+                        : 0
+                    : 0;
+            return Math.max(worst, own, ...childOpArrays(op).map(lossOf));
+        }, 0);
+    return (def.triggeredAbilities ?? []).reduce(
+        (worst, ability) => Math.max(worst, lossOf(ability.effects ?? [])),
+        0
+    );
 }
 
 /** Whether `move` casts a MANA DORK — a creature with a mana ability (Birds of
@@ -5757,8 +5828,8 @@ export function selectRootMove(
     // is `pass` but an outcome-equal land drop, free-mana-source cast OR mana-dork
     // cast exists (within `OUTCOME_EPS` of the best mean reward), develop it
     // instead. Fires ONLY on outcome-equality, so it can
-    // never override a genuine decision, and never overrides a non-`pass` robust
-    // pick. Generalizes the issue-#149 "land drop strictly positive" invariant to
+    // never override a genuine decision, and this arm never overrides a
+    // non-`pass` robust pick. Generalizes the issue-#149 "land drop strictly positive" invariant to
     // the tie-break (a strictly-better development already wins on mean reward and
     // never reaches this branch).
     //
@@ -5808,6 +5879,40 @@ export function selectRootMove(
         );
         if (develop)
             return finish(develop, "free-development", develop !== best);
+    }
+
+    // The same rule when the robust pick is ANOTHER cast at sorcery timing: a
+    // free mana source goes first (issue #8296). Not a preference between two
+    // boards, but between two ORDERS of one set of plays. The source spends
+    // nothing, so every line through the other cast stays open behind it (same
+    // leaves, same feature vector, and the cast is re-weighed at the next
+    // decision), and its mana opens lines that spending first closes. So the
+    // value of going first is at least the other's, yet its MEAN can read lower:
+    // the wider node opens more of its own replies, and with reward differences
+    // this small against `ucbC` their visits stay near-uniform, so the weakest
+    // reply dilutes it (measured: the best line anywhere in the tree ran through
+    // the source, whose edge still lost on mean and on margin). No evaluation
+    // term can repair an estimator; the leaves are already ranked right. A taxed
+    // source (`tapPlan`) does spend mana, and one that adds none
+    // (`freeSourceAddsMana`) has nothing to go first for.
+    if (
+        rootState &&
+        botId &&
+        ruleOn("free-development") &&
+        best.move.kind === "cast-spell" &&
+        rootState.stack.length === 0 &&
+        isSorceryTimingFor(rootState, botId) &&
+        !isFreeManaSourceCast(rootState, best.move, botId)
+    ) {
+        const first = pool.find(
+            (e) =>
+                mean(e) >= bestMean - weights.outcomeEps &&
+                e.move.kind === "cast-spell" &&
+                e.move.tapPlan.length === 0 &&
+                isFreeManaSourceCast(rootState, e.move, botId) &&
+                freeSourceAddsMana(rootState, botId, e.move, weights)
+        );
+        if (first) return finish(first, "free-development", true);
     }
 
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the

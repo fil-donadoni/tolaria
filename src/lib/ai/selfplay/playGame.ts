@@ -64,6 +64,7 @@ import {
 } from "@convex/gre/zonePickEligibility";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
+import { isLandDropOpen } from "@convex/gre/ai/asEntersDiscard";
 import {
     chooseResolution,
     type ManaSituation,
@@ -318,6 +319,7 @@ function manaSituationFor(state: GameState, playerId: string): ManaSituation {
         landsInPlay: player.battlefield.filter(instanceIsLand).length,
         landsInHand: player.hand.filter(instanceIsLand).length,
         producibleColors: [...colors] as ManaSituation["producibleColors"],
+        landDropOpen: isLandDropOpen(state, player),
     };
 }
 
