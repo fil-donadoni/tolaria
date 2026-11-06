@@ -620,6 +620,11 @@
             "label": "counterspell: Mana Drain counters the Craw Wurm",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "counterspell: Mana Drain counters the Craw Wurm with an Angel in play",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Mana Leak": [
