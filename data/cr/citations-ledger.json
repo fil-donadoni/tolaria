@@ -59121,7 +59121,7 @@
         {"id":"714.2","line":"/** CR 714.2 — a Saga's chapter lines, in printed order. */","sites":1,"status":"confirmed","ruleHash":"18641e5d5cbfa7cf"},
         {"id":"714.2","line":"/** CR 714.2 — one Oracle chapter line on a Saga, declared as data (ADR 0078).","sites":1,"status":"baseline"},
         {"id":"714.2","line":"/** CR 714.2 — the chapter number(s) this ability is introduced by on a","sites":1,"status":"baseline"},
-        {"id":"714.2","line":"// 19th segment (index 18, issue #8338, CR 714.2) — a Saga back face's chapter","sites":1,"status":"confirmed","ruleHash":"18641e5d5cbfa7cf"},
+        {"id":"714.2","line":"// 19th segment (index 18, CR 714.2) — a Saga back face's chapter","sites":1,"status":"confirmed","ruleHash":"18641e5d5cbfa7cf"},
         {"id":"714.2","line":"// 714.2 Chapter ability (Sagas, ADR 0078). CR 714.2 says literally \"A","sites":2,"status":"baseline"},
         {"id":"714.2","line":"// CR 712.8e / 714.2 — a back face's chapters likewise, read as if they","sites":1,"status":"confirmed","ruleHash":"18641e5d5cbfa7cf"},
         {"id":"714.2","line":"// CR 714.2 (ADR 0078) — a Saga's chapter lines (`chapterAbilities[]`) need","sites":1,"status":"baseline"},

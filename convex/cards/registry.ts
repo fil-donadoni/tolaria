@@ -1052,7 +1052,7 @@ export function tokenDefinitionId(spec: TokenSpec): string {
     // creating effect specifies (the Gingerbrute token's {1}), JSON-encoded like
     // `activatedAbilities`. Appended only when present, holding the 17th slot
     // empty, so every other token id stays byte-identical.
-    // 19th segment (index 18, issue #8338, CR 714.2) — a Saga back face's chapter
+    // 19th segment (index 18, CR 714.2) — a Saga back face's chapter
     // abilities, JSON like `activatedAbilities`. Appended only when present,
     // holding the 17th and 18th slots empty, so every other id stays
     // byte-identical.
