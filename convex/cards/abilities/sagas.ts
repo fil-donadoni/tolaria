@@ -66,6 +66,10 @@ export function buildChapterTrigger(
             chapters.some((n) => crosses(event.total, event.added, n)),
         effects: entry.effects,
     });
+    // CR 603.3d — a chapter ability's target is announced as it goes on the
+    // stack, exactly as any triggered ability's is.
+    if (entry.targetRequirement !== undefined)
+        ability.targetRequirement = entry.targetRequirement;
     ability.chapterNumbers = chapters;
     return ability;
 }

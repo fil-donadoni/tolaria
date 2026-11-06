@@ -365,15 +365,47 @@ describe("refusals: a Saga is refused whole (ADR 0105 § 2)", () => {
         expect(refusedLines(outcome)).toEqual(["Read ahead"]);
     });
 
-    it("a chapter with a target refuses: no field declares it (CR 603.3d; Balance of Terror)", () => {
-        const outcome = compileCard(
-            saga("Balance of Terror", [
-                "I — Destroy up to one other target artifact or enchantment.",
-            ])
+    it("a chapter with a target declares it on the chapter (CR 603.3d; Balance of Terror, Binding the Old Gods)", () => {
+        const balance = definitionOf(
+            compileCard(
+                saga("Balance of Terror", [
+                    "I — Destroy up to one other target artifact or enchantment.",
+                ])
+            )
         );
-        expect(refusals(outcome)).toEqual([
-            "a chapter ability with a target (CR 603.3d) has no target requirement to declare it on",
+        expect(balance.chapterAbilities).toEqual([
+            {
+                chapters: [1],
+                oracleText:
+                    "I — Destroy up to one other target artifact or enchantment.",
+                effects: [{ op: "destroy", target: { target: 0 } }],
+                targetRequirement: {
+                    type: ["Artifact", "Enchantment"],
+                    count: { min: 0, max: 1 },
+                    excludeSource: true,
+                },
+            },
         ]);
+        const binding = definitionOf(
+            compileCard(
+                saga("Binding the Old Gods", [
+                    "I — Destroy target nonland permanent an opponent controls.",
+                ])
+            )
+        );
+        expect(binding.chapterAbilities?.[0]?.targetRequirement).toEqual({
+            type: [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker",
+            ],
+            count: 1,
+            excludeTypes: ["Land"],
+            controller: "opponent",
+        });
     });
 
     it("a numeral with no separating dash is no chapter (`I Denial —`)", () => {

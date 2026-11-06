@@ -228,7 +228,11 @@ function collectScripts(
     // CR 714.4 — a Saga is not sacrificed while a chapter ability it is the
     // source of is on the stack, so the source is there at resolution.
     for (const chapter of definition.chapterAbilities ?? []) {
-        push(chapter.effects, {}, sourceOf(true));
+        push(
+            chapter.effects,
+            { targetRequirement: chapter.targetRequirement },
+            sourceOf(true)
+        );
     }
     return scripts;
 }
