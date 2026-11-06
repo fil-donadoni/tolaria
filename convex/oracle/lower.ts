@@ -17,6 +17,7 @@ import type {
     ActivatedAbility,
     AlternativeCost,
     CardDefinition,
+    AbilityMode,
     DamageLifeFloor,
     EffectOp,
     KickerCost,
@@ -26,6 +27,7 @@ import type {
     SpellMode,
     TargetRequirement,
 } from "../cards/types";
+import { SELF_MARKER } from "./normalize";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { asEntersColorModes } from "../cards/abilities/chooseColor";
@@ -563,6 +565,56 @@ function lowerLine(
             });
             if (!lowered.ok) return lowered.reason;
             acc.compiledTriggeredAbilities.push(lowered.ability);
+            return null;
+        }
+        case "triggered-modal": {
+            // CR 700.2b / 603.3c — each bullet lowers as a triggered body of
+            // its own (its target, its ops); the descriptor keeps the bodies
+            // as `modes` and no ability-level `effects`.
+            if (ir.head.kind !== "enters" || ir.head.scope !== "self")
+                return "a modal trigger is read behind an enters-this-permanent head only";
+            const index = acc.compiledTriggeredAbilities.length;
+            const slug = slugify(card.name);
+            const id =
+                index === 0
+                    ? `${slug}-trigger`
+                    : `${slug}-trigger-${index + 1}`;
+            const lowered = lowerTriggeredAbility({
+                id,
+                oracleText: parsed.line,
+                cardName: card.name,
+                head: ir.head,
+                effects: [],
+                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
+            });
+            if (!lowered.ok) return lowered.reason;
+            const modes: AbilityMode[] = [];
+            for (const [at, mode] of ir.modes.entries()) {
+                censusGrantedKeywords(mode.effects, acc);
+                const body = lowerTriggeredAbility({
+                    id,
+                    oracleText: parsed.line,
+                    cardName: card.name,
+                    head: ir.head,
+                    effects: mode.effects,
+                    ...(acc.kickers !== undefined
+                        ? { kickers: acc.kickers }
+                        : {}),
+                });
+                if (!body.ok) return body.reason;
+                // CR 201.5 — the picker shows the printed name, not the marker.
+                const printed = mode.text.split(SELF_MARKER).join(card.name);
+                modes.push({
+                    id: `${id}-mode-${at + 1}`,
+                    label: printed,
+                    oracleText: `${printed}.`,
+                    ...(body.ability.targetRequirement !== undefined
+                        ? { targetRequirement: body.ability.targetRequirement }
+                        : {}),
+                    effects: [...body.ability.effects],
+                });
+            }
+            acc.compiledTriggeredAbilities.push({ ...lowered.ability, modes });
             return null;
         }
         case "static": {

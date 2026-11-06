@@ -373,6 +373,10 @@ const ONCE_PER_TURN_RIDER = "Activate only once each turn";
  */
 const INSTANT_ONLY_RIDER = "Activate only as an instant";
 
+/** CR 106.6 — the spend restriction a fixed production may print. */
+const NOT_NONARTIFACT_RIDER =
+    "This mana can't be spent to cast nonartifact spells";
+
 /**
  * CR 122.1 / 701.21a — "If there are no depletion counters on this land,
  * sacrifice it", the Mercadian Masques depletion lands' second sentence
@@ -408,6 +412,8 @@ function readManaRider(
         if (span === DRAW_RIDER) return { kind: "draw-card" };
         if (span === ONCE_PER_TURN_RIDER) return { kind: "once-per-turn" };
         if (span === INSTANT_ONLY_RIDER) return { kind: "instant-only" };
+        if (span === NOT_NONARTIFACT_RIDER)
+            return { kind: "not-nonartifact-spells" };
         if (span === NEXT_UNTAP_RETURN_RIDER)
             return { kind: "return-source-at-next-untap" };
         const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);

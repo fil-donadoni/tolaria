@@ -214,6 +214,15 @@ function collectScripts(
             ability,
             sourceOf(compiledTriggerSourceOnBattlefield(head))
         );
+        // CR 700.2b — a modal trigger's body lives on its modes; each is
+        // smoked with its own target requirement, like a modal spell's.
+        for (const mode of ability.modes ?? []) {
+            push(
+                mode.effects,
+                { targetRequirement: mode.targetRequirement },
+                sourceOf(compiledTriggerSourceOnBattlefield(head))
+            );
+        }
     }
     return scripts;
 }
@@ -522,6 +531,22 @@ export function runGates(input: GateInput): GateResult {
         ),
         ...(definition.activatedAbilities ?? []).flatMap((ability) =>
             validateAbilityEffectScript(ability, definition.name)
+        ),
+        // CR 700.2b — a modal trigger's mode bodies, each checked as the
+        // ability body they stand in for.
+        ...rebuiltTriggers.flatMap(({ ability }) =>
+            (ability.modes ?? []).flatMap((mode) =>
+                validateAbilityEffectScript(
+                    {
+                        ...ability,
+                        id: `${ability.id}#${mode.id}`,
+                        effects: mode.effects,
+                        modes: undefined,
+                    },
+                    definition.name,
+                    ability.event
+                )
+            )
         ),
         ...rebuiltTriggers.flatMap(({ ability }) =>
             validateAbilityEffectScript(

@@ -322,7 +322,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Deathlace",
     "Deathrite Shaman",
     "Deceit",
-    "Deceiver Exarch",
     "Deep Forest Hermit",
     "Deep Spawn",
     "Deep Water",

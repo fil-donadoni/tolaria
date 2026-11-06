@@ -33,6 +33,7 @@ import { countControlledMatching } from "./controlledCount";
 import { readEffectivePT } from "./effectivePT";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
+    AbilityMode,
     AdditionalCostTwin,
     AttackersDeclaredEvent,
     CardType,
@@ -459,8 +460,15 @@ export interface CompiledTriggeredAbility {
      *  illegal." Entered heads only (`resolveCompiledTrigger` refuses the
      *  rest). */
     readonly resolvesIfTargetsIllegal?: true;
-    /** ADR 0045 — the resolution body. Required: there is no escape hatch. */
+    /** ADR 0045 — the resolution body. Required: there is no escape hatch.
+     *  Empty beside `modes`, whose chosen mode carries the body instead. */
     readonly effects: readonly EffectOp[];
+    /**
+     * CR 700.2b / 603.3c — a MODAL trigger: the controller announces the mode
+     * as the ability goes on the stack, and the mode supplies the target and
+     * the body. Entered heads only (`resolveCompiledTrigger` refuses the rest).
+     */
+    readonly modes?: readonly AbilityMode[];
     /**
      * CR 702.175a — this trigger is the TRIGGER half of an additional-cost
      * keyword (Offspring), linked to the `kickers[]` entry it names. Stamped
@@ -677,6 +685,10 @@ function resolveCompiledTriggerHead(
         throw new Error(
             `compiled trigger ${descriptor.id}: resolvesIfTargetsIllegal needs an entered head`
         );
+    if (descriptor.modes !== undefined && head.kind !== "entered")
+        throw new Error(
+            `compiled trigger ${descriptor.id}: modes need an entered head`
+        );
     const common = {
         id: descriptor.id,
         oracleText: descriptor.oracleText,
@@ -688,6 +700,11 @@ function resolveCompiledTriggerHead(
         case "entered":
             return enteredTrigger({
                 ...common,
+                // CR 700.2b — the chosen mode carries the body, so the
+                // ability-level script is dropped beside `modes`.
+                ...(descriptor.modes !== undefined
+                    ? { effects: undefined, modes: [...descriptor.modes] }
+                    : {}),
                 ...(descriptor.resolvesIfTargetsIllegal
                     ? { resolvesIfTargetsIllegal: true }
                     : {}),

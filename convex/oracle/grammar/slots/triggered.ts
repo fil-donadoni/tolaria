@@ -78,6 +78,8 @@ import {
     type TriggerHeadIR,
 } from "../shared/triggerHead";
 import type { SlotIR } from "../ir";
+import { BULLET, GROUP_SEPARATOR } from "../lineGroups";
+import { readModeBullets } from "./spell";
 
 export const TRIGGERED_SLOT = "triggered";
 
@@ -291,6 +293,39 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     });
 });
 
+/**
+ * CR 700.2b / 603.3c — "<trigger head>, choose one —" and its bullets. The
+ * head is the shared trigger-head sub-grammar and the modes are the spell
+ * slot's bullet reader. Only "choose one" is read: a triggered ability's
+ * `modes` carry no cardinality (`TriggeredAbility.modes`), so every other
+ * count stays refused rather than shipped as one.
+ */
+const MODAL_TRIGGER_HEAD = /^(.+), choose one \u2014$/;
+
+const modalTriggeredBody: Rule<SlotIR> = rule(
+    "modal triggered body",
+    (span, ctx) => {
+        const parts = span.split(GROUP_SEPARATOR);
+        if (parts.length < 2 || !parts[1]!.startsWith(`${BULLET} `))
+            return fail("not a modal triggered ability", span);
+        const match = parts[0]!.match(MODAL_TRIGGER_HEAD);
+        if (match === null)
+            return fail(
+                `"${parts[0]}" is not a modal trigger head this grammar reads`,
+                span
+            );
+        const head = triggerHeadRule.run(match[1]!, ctx);
+        if (!head.ok) return head;
+        const modes = readModeBullets(parts.slice(1), span, ctx);
+        if (!modes.ok) return modes;
+        return ok({
+            kind: "triggered-modal" as const,
+            head: head.value,
+            modes: modes.value,
+        });
+    }
+);
+
 /** CR 113.3c — the ability's own full stop closes the line. */
 /** CR 603.2 — the per-turn limit sentence a trigger may end on, with the
  *  count its words print ("once" / "twice"). */
@@ -363,7 +398,8 @@ const labelledTriggeredBody: Rule<SlotIR> = rule(
     }
 );
 
-export const triggeredSlot: Rule<SlotIR> = terminated(
-    ".",
-    labelledTriggeredBody
+export const triggeredSlot: Rule<SlotIR> = rule(TRIGGERED_SLOT, (span, ctx) =>
+    span.includes(GROUP_SEPARATOR)
+        ? modalTriggeredBody.run(span, ctx)
+        : terminated(".", labelledTriggeredBody).run(span, ctx)
 );

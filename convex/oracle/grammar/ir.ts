@@ -141,7 +141,10 @@ export type ManaRiderIR =
     | { readonly kind: "once-per-turn" }
     /** CR 605.3a — "Activate only as an instant." A mana ability is already
      *  activatable at instant speed: lowers to no field. */
-    | { readonly kind: "instant-only" };
+    | { readonly kind: "instant-only" }
+    /** CR 106.6 — "This mana can't be spent to cast nonartifact spells."
+     *  (`manaRestriction: "not-nonartifact-spell"`). */
+    | { readonly kind: "not-nonartifact-spells" };
 
 export type ManaProductionIR =
     | {
@@ -259,6 +262,16 @@ export type SlotIR =
            *  most times the ability triggers in one turn, per source. */
           readonly maxTriggersPerTurn?: number;
           readonly effects: readonly EffectSentenceIR[];
+      }
+    /**
+     * CR 700.2b — a triggered ability whose body is a mode list: the head, then
+     * "choose one —" and its bullets. The modes are the body, so no `effects`
+     * ride beside them (`TriggeredAbility.modes` excludes a body).
+     */
+    | {
+          readonly kind: "triggered-modal";
+          readonly head: TriggerHeadIR;
+          readonly modes: readonly SpellModeIR[];
       }
     /**
      * CR 113.3d — a continuous static ability written as a sentence rather
