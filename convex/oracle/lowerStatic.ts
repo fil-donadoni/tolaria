@@ -108,6 +108,8 @@ export interface LoweredStatic {
     /** CR 702.16n — "This effect doesn't remove this Aura." */
     readonly exemptFromProtectionDetach?: true;
     readonly entersTapped?: true;
+    /** CR 614.12 — the shockland pay-choice (`entersTappedUnlessPay`). */
+    readonly entersTappedUnlessPay?: { readonly life: number };
     /** CR 722.3a — "This creature enters prepared." */
     readonly entersPrepared?: true;
     /** CR 614.10 — "Skip your draw step". */
@@ -640,6 +642,11 @@ export function lowerStaticClause(
                         ? { entersWithCounters: clause.counters }
                         : {}),
                 },
+            };
+        case "enters-tapped-unless-pay-life":
+            return {
+                ok: true,
+                lowered: { entersTappedUnlessPay: { life: clause.life } },
             };
         case "enters-prepared":
             return { ok: true, lowered: { entersPrepared: true } };

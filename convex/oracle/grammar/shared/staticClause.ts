@@ -267,6 +267,10 @@ export type StaticClauseIR =
           readonly kind: "enters-tapped";
           readonly counters?: { readonly type: string; readonly count: number };
       }
+    /** CR 614.12 — "As <self> enters, you may pay N life. If you
+     *  don't, it enters tapped": the shockland pay-choice, made before the
+     *  permanent enters (CR 614.12a). */
+    | { readonly kind: "enters-tapped-unless-pay-life"; readonly life: number }
     /** CR 722.3a — "<self> enters prepared": the designation, given as the
      *  permanent enters (the `enters-tapped` shape). */
     | { readonly kind: "enters-prepared" }
@@ -1385,6 +1389,32 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
             kind: "enters-tapped" as const,
             counters: { type: match[3]!, count },
         });
+    }
+);
+
+const ENTERS_TAPPED_UNLESS_PAY_LIFE =
+    /^As (.+) enters, you may pay (\S+) life\. If you don't, it enters tapped$/;
+
+/**
+ * "As <self> enters, you may pay N life. If you don't, it enters tapped" — the
+ * shockland entry choice (CR 614.12 / 614.12a: the choice is made before the
+ * permanent enters). Anchored on the WHOLE two-sentence line: another cost
+ * ("pay {1}"), another rider ("it enters with a stun counter") or a trailing
+ * clause is a different form and refuses, never reads as this one.
+ */
+const entersTappedUnlessPayLife: Rule<StaticClauseIR> = pattern(
+    "enters tapped unless pay life",
+    ENTERS_TAPPED_UNLESS_PAY_LIFE,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        const life = readNumberWord(match[2]!);
+        if (life === null || life < 1)
+            return fail(`"${match[2]}" is not a life amount`, match[2]!);
+        return ok({ kind: "enters-tapped-unless-pay-life" as const, life });
     }
 );
 
@@ -2794,6 +2824,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
+        entersTappedUnlessPayLife,
         entersPrepared,
         entersWithCounters,
         asEntersChooseCreatureType,
