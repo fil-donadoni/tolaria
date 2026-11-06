@@ -477,6 +477,7 @@ export function createImportGraph({
     };
 
     return {
+        root,
         importsOf,
         typeImportsOf,
         staticImportsOf,
