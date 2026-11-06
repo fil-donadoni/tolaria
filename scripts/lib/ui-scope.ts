@@ -18,6 +18,9 @@
  *     `surfaces.ts`, whose hunks inside `SURFACES` elements select exactly the
  *     surfaces they edit (`ui-surface-edits.ts`, issue #4687); a hunk in a
  *     shared helper, selector or table there is still `full`;
+ *   - the router or the shell's route table, when the diff only registers a
+ *     new static route (`ui-route-registration-edits.ts`, issue #8409) →
+ *     contributes nothing: the new route module is placed by its own closure;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
  *     bundle every route is served from;
@@ -85,6 +88,7 @@
  * hole is limited to runtime-built class strings; it is recorded, not closed.
  */
 import type { ImportGraph } from "./import-graph";
+import { additiveRegistrationsSinceBase } from "./ui-route-registration-edits";
 import type { SurfaceEdits } from "./ui-surface-edits";
 
 /** The module that boots the app; its closure, minus route modules, is the shell. */
@@ -235,6 +239,9 @@ export interface ComputeUiScopeInput {
     /** Which surfaces a diff to `SURFACES_FILE` edits, when the caller could
      *  derive it. Absent or `shared` keeps that file a full-lane path. */
     surfaceEdits?: SurfaceEdits | null;
+    /** Changed paths whose diff only registers a new static route (issue
+     *  #8409). Absent: derived from git at the graph's root. */
+    additiveRegistrations?: ReadonlySet<string>;
 }
 
 /** A JS/TS module: what an `import` names, so what `tsc` resolves. */
@@ -291,6 +298,7 @@ export function computeUiScope({
     surfaces,
     graph,
     surfaceEdits = null,
+    additiveRegistrations = additiveRegistrationsSinceBase(changed, graph.root),
 }: ComputeUiScopeInput): UiScope {
     const shell = shellClosure(graph);
     const build = graph.closureOf(BUILD_CONFIG);
@@ -368,6 +376,7 @@ export function computeUiScope({
     // DOUBT, collected: a certain-global path later in the diff still wins.
     const doubts: string[] = [];
     for (const path of [...changed].sort()) {
+        if (additiveRegistrations.has(path)) continue;
         if (path === SURFACES_FILE && surfaceEdits?.kind === "surfaces") {
             for (const id of surfaceEdits.ids) selected.add(id);
             continue;

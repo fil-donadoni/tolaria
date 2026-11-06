@@ -403,6 +403,20 @@ describe("computeUiScope — full (fail-closed)", () => {
         expect(scope.kind === "full" && scope.reason).toContain(reason);
     });
 
+    it("the router stays out of the scope when its diff only registers a route (issue #8409)", () => {
+        expect(
+            computeUiScope({
+                changed: ["src/router.tsx", "src/lib/shellChrome.ts"],
+                surfaces: [],
+                graph: createImportGraph({ root }),
+                additiveRegistrations: new Set([
+                    "src/router.tsx",
+                    "src/lib/shellChrome.ts",
+                ]),
+            }).kind
+        ).toBe("scoped");
+    });
+
     it("a component under a route no surface declares selects full — reachable at runtime, walked by nothing (issue #4913 review)", () => {
         // The type-only rule must not swallow it: the file IS in the
         // type-inclusive closure of the shell (through the router), but it
