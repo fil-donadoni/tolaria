@@ -145,7 +145,11 @@ import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "@convex/cards/landwalkNegation";
-import { toLayerState, toPermanentView } from "./effective-stats";
+import {
+    toLayerState,
+    toPermanentView,
+    type LayerPlayersInput,
+} from "./effective-stats";
 import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
 
 export function isLand(card: CardInstance): boolean {
@@ -1853,22 +1857,20 @@ export function matchesPlayerTargetFilters(
  *  authoritative. Only fields cards may rely on are surfaced — `hand.length`,
  *  battlefield `types`/`subtypes`/`staticAbilities`, life, ids. */
 export function buildTriggerStateView(
-    players: ReadonlyArray<{
-        id: string;
-        life: number;
-        hand: ReadonlyArray<unknown>;
-        battlefield: ReadonlyArray<CardInstance>;
-        graveyard?: ReadonlyArray<CardInstance>;
-        /** CR 121.1 — cards drawn this turn, in draw order. Crosses the wire
-         *  untouched (`PublicPlayer` omits only the zone arrays), so forwarding
-         *  it costs nothing and dropping it would make any client-side
-         *  "you've drawn more than one card this turn" predicate permanently
-         *  answer no (Proft's Eidetic Memory). */
-        drawnThisTurn?: ReadonlyArray<string>;
-        /** CR 400.7 — cards that left this player's graveyard this turn. Same
-         *  wire-untouched forwarding, same drop symptom (Gau, Feral Youth). */
-        leftGraveyardThisTurn?: number;
-    }>,
+    players: ReadonlyArray<
+        LayerPlayersInput[number] & {
+            life: number;
+            /** CR 121.1 — cards drawn this turn, in draw order. Crosses the wire
+             *  untouched (`PublicPlayer` omits only the zone arrays), so forwarding
+             *  it costs nothing and dropping it would make any client-side
+             *  "you've drawn more than one card this turn" predicate permanently
+             *  answer no (Proft's Eidetic Memory). */
+            drawnThisTurn?: ReadonlyArray<string>;
+            /** CR 400.7 — cards that left this player's graveyard this turn. Same
+             *  wire-untouched forwarding, same drop symptom (Gau, Feral Youth). */
+            leftGraveyardThisTurn?: number;
+        }
+    >,
     activePlayerId?: string,
     /** Player ids under Abeyance's "can't activate abilities that aren't mana
      *  abilities" lock (CR 602.1, issue #1124) — forwarded from the wire
@@ -1900,7 +1902,12 @@ export function buildTriggerStateView(
      *  precise hint-vs-server divergence the effective-P/T note below exists to
      *  prevent. Optional to match every other forwarded wire field on this
      *  signature; `TRIGGER_STATE_VIEW_CENSUS` is what keeps it honest. */
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    /** CR 114 — command-zone emblems, forwarded from the wire
+     *  `GameState.emblems`. An emblem anthem (Sorin's +1/+0) lifts a
+     *  creature's effective power server-side; omitting this hid Crew N from a
+     *  board the server would accept. */
+    emblems?: EmblemInstance[]
 ): TriggerStateView {
     // CR 613 — the board-wide layer state, built ONCE per call and shared by
     // every permanent's effective-P/T read below (issue #3190). The
@@ -1908,10 +1915,9 @@ export function buildTriggerStateView(
     // `players`, so calling them per permanent made ONE view build O(N²) on
     // the permanent count — the exact bug class issue #2931 / PR #3189 fixed
     // for the P/T badge, still live here. The primitives are that PR's, reused
-    // verbatim: no parallel cache, same inputs (no emblems — this view has
-    // never been handed any — plus `continuousEffects`), so the derived P/T is
-    // field-for-field what the wrappers produced.
-    const layerState = toLayerState(players, undefined, continuousEffects);
+    // verbatim: no parallel cache, same inputs as the wrappers (emblems and
+    // `continuousEffects`), so the derived P/T is field-for-field theirs.
+    const layerState = toLayerState(players, emblems, continuousEffects);
     return {
         players: players.map((p) => ({
             id: p.id,
