@@ -70,6 +70,9 @@ export interface EnteredTriggerArgs {
      *  resolve/effects body reads the announced slot via `ctx.targets` /
      *  `{ target: 0 }`. */
     targetRequirement?: TargetRequirement;
+    /** CR 603.3d (issue #8475) — further INDEPENDENT target groups, chosen in
+     *  order after `targetRequirement`. Forwarded verbatim. */
+    additionalTargetRequirements?: TargetRequirement[];
     /** CR 603.4 check-time predicate. Evaluated once when the event fires;
      *  if false the trigger never goes on the stack. Use for arbitrary
      *  domain logic that can't be expressed by `scope` + `filter`. */
@@ -311,6 +314,10 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     }
     if (args.targetRequirement !== undefined) {
         ability.targetRequirement = args.targetRequirement;
+    }
+    if (args.additionalTargetRequirements !== undefined) {
+        ability.additionalTargetRequirements =
+            args.additionalTargetRequirements;
     }
     if (args.aiEffects !== undefined) {
         ability.aiEffects = args.aiEffects;

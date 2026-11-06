@@ -44,6 +44,7 @@ import {
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { castAnnouncedTargetGroups, firstUnfillableCastGroup } from "./kicker";
+import { advancePendingTargetGroup } from "./targetGroupWalk";
 import {
     isProtectedFrom,
     playerHasProtectionFromEverything,
@@ -4640,7 +4641,7 @@ export function effectiveRequirementForSource(
     );
 }
 
-function triggerTargetLegality(
+export function triggerTargetLegality(
     state: GameState,
     item: StackItem,
     req: TargetRequirement
@@ -4752,26 +4753,51 @@ function triggerAbilityModes(item: StackItem): AbilityMode[] | undefined {
 /** CR 700.2c — "If a spell or ability targets one or more targets only if a
  *  particular mode is chosen for it, its controller will need to choose those
  *  targets only if they chose that mode" — the announcement-time
- *  `targetRequirement` that actually applies
- *  to a triggered-ability stack item: for a MODAL ability it is the ANNOUNCED
- *  mode's requirement and never the ability-level one (a modal ability has no
+ *  target groups that actually apply to a triggered-ability stack item, in
+ *  declaration order: for a MODAL ability the first is the ANNOUNCED mode's
+ *  requirement and never the ability-level one (a modal ability has no
  *  ability-level body or requirement to fall back on — the modes carry both);
- *  for every other trigger it is the ability's own. Returns `undefined` for a
- *  modal trigger whose mode has not been announced yet, so no target can be
- *  locked ahead of the mode. */
-function triggerAnnouncedRequirement(
-    item: StackItem
-): TargetRequirement | undefined {
-    if (!item.triggeredAbilityId) return undefined;
+ *  for every other trigger it is the ability's own. The
+ *  `additionalTargetRequirements` groups follow either way (CR 603.3d, issue
+ *  #8475), like an activated ability's. Empty for a modal trigger whose mode
+ *  has not been announced yet, so no target can be locked ahead of the mode. */
+function triggerAnnouncedGroups(item: StackItem): TargetRequirement[] {
+    if (!item.triggeredAbilityId) return [];
     const ability = findTriggeredAbility(item, item.triggeredAbilityId);
-    if (!ability) return undefined;
+    if (!ability) return [];
     const modes = triggerAbilityModes(item);
-    if (!modes) return ability.targetRequirement;
     // A modal trigger announces exactly one mode (no `modeSelection` on a
     // triggered ability yet, ADR 0094).
     const modeId = item.chosenModeIds?.[0];
-    if (!modeId) return undefined;
-    return modes.find((m) => m.id === modeId)?.targetRequirement;
+    if (modes && !modeId) return [];
+    const primary = modes
+        ? modes.find((m) => m.id === modeId)?.targetRequirement
+        : ability.targetRequirement;
+    return [
+        ...(primary ? [primary] : []),
+        ...(ability.additionalTargetRequirements ?? []),
+    ];
+}
+
+/** CR 603.3d — one target group of a trigger, when no real choice is owed: the
+ *  picks it locks (`[]`: a zero bound, or an "up to" with nothing legal, so the
+ *  ability stays on the stack without that target; the sole legal target of a
+ *  mandatory single target), or `"unfillable"` when a required group has too
+ *  few legal targets and the ability is removed from the stack. `undefined`
+ *  means a real choice. The primary group and every later group ask this. */
+export function forcedTriggerGroupAnswer(
+    legal: TargetSelection[],
+    min: number,
+    max: number,
+    divides: boolean
+): TargetSelection[] | "unfillable" | undefined {
+    if (max === 0) return [];
+    if (legal.length < min) return "unfillable";
+    if (legal.length === 0) return [];
+    if (min === 1 && max === 1 && legal.length === 1 && !divides) {
+        return [legal[0]];
+    }
+    return undefined;
 }
 
 /** CR 603.3c — is `mode` a legal choice for this trigger right now? "If one of
@@ -4917,11 +4943,10 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // rides on the stack item itself (`reflexiveTrigger` Op). Everything
         // downstream — legality, auto-select, the `kind:"trigger"`
         // PendingTarget — is the same path a card-def trigger takes.
-        const req: TargetRequirement | undefined = item.inlineTargetRequirement
-            ? item.inlineTargetRequirement
-            : item.triggeredAbilityId
-              ? triggerAnnouncedRequirement(item)
-              : undefined;
+        const [req, ...laterGroups]: TargetRequirement[] =
+            item.inlineTargetRequirement
+                ? [item.inlineTargetRequirement]
+                : triggerAnnouncedGroups(item);
         if (!req) continue;
 
         const { effectiveReq, effectiveLegal, sourcePower } =
@@ -4939,34 +4964,34 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
                 priorTargets: [],
             }
         );
-        if (max === 0) {
-            // CR 601.2c — an "up to X" bound that resolved to zero (Batroc
-            // unkicked, issue #7210): the ability announces no targets and
-            // stays on the stack, exactly like an "up to" with nothing legal.
-            item.targets = [];
+        // CR 601.2c — an "up to X" bound that resolved to zero (Batroc
+        // unkicked, issue #7210): the ability announces no targets and stays
+        // on the stack, exactly like an "up to" with nothing legal.
+        const forced = forcedTriggerGroupAnswer(
+            effectiveLegal,
+            min,
+            max,
+            !!req.divideAsChosen
+        );
+
+        // CR 603.3d — required target(s), none legal, in ANY group: "no legal
+        // choices can be made", so the ability is removed before anyone
+        // chooses. A later group's prior-dependent directive is read by the
+        // walk, against the actual picks (`advancePendingTargetGroup`).
+        if (
+            forced === "unfillable" ||
+            laterGroups.some(
+                (group) =>
+                    triggerTargetLegality(state, item, group).effectiveLegal
+                        .length < triggerTargetMinMax(group.count).min
+            )
+        ) {
+            state.stack.splice(i, 1);
             continue;
         }
 
-        if (effectiveLegal.length < min) {
-            // CR 603.3c — required target(s), none legal: remove from the stack.
-            if (min > 0) {
-                state.stack.splice(i, 1);
-                continue;
-            }
-        }
-        if (min === 0 && effectiveLegal.length === 0) {
-            // "Up to" with nothing legal — stays on the stack, no target.
-            item.targets = [];
-            continue;
-        }
-        if (
-            min === 1 &&
-            max === 1 &&
-            effectiveLegal.length === 1 &&
-            !req.divideAsChosen
-        ) {
-            // Sole mandatory target auto-selects (no real choice). CR 603.3d.
-            item.targets = [effectiveLegal[0]];
+        if (forced !== undefined && laterGroups.length === 0) {
+            item.targets = forced;
             // CR 603.2b (issue #1265) — even an auto-selected targeted trigger
             // locks a target, so it fires "becomes the target of an ability"
             // triggers (Leovold). Queued for the next event drain.
@@ -4982,8 +5007,10 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             continue;
         }
 
-        // A real choice is owed — raise the same PendingTarget the spell path
-        // uses, pointed at this on-stack trigger item (kind: "trigger").
+        // A real choice is owed, here or in a queued group — raise the same
+        // PendingTarget the spell path uses, pointed at this on-stack trigger
+        // item (kind: "trigger"). A forced primary group seeds its picks, so
+        // the sole-target auto-select never skips the queue (CR 601.2c).
         const divideTotal =
             req.divideAsChosen && typeof req.divideAsChosen.total === "number"
                 ? req.divideAsChosen.total
@@ -4994,13 +5021,13 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // shape (a literal `"X"` string would have reached `PendingTarget`).
         const count: PendingTarget["count"] =
             typeof req.count === "number" ? req.count : { min, max };
-        state.pendingTarget = {
+        const pending: PendingTarget = {
             playerId: item.controllerId,
             cardInstanceId: item.id,
             kind: "trigger",
             targetType: req.type,
             count,
-            selected: [],
+            selected: forced ?? [],
             // `effectiveReq` (not the static `req`) so a real-choice fallback
             // for a `spellTargetsSelfSource` requirement (Ward) still carries
             // the resolved instance filter, not an empty static list.
@@ -5009,11 +5036,44 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
                 item.chosenX,
                 sourcePower
             ),
-            ...(divideTotal !== undefined ? { divideTotal } : {}),
+            ...(divideTotal !== undefined && forced === undefined
+                ? { divideTotal }
+                : {}),
             ...(req.divideAsChosen?.kind
                 ? { divideKind: req.divideAsChosen.kind }
                 : {}),
+            ...(laterGroups.length > 0
+                ? {
+                      remainingRequirements: laterGroups,
+                      ...(item.chosenX !== undefined
+                          ? { chosenX: item.chosenX }
+                          : {}),
+                  }
+                : {}),
         };
+        state.pendingTarget = pending;
+        if (
+            forced !== undefined &&
+            advancePendingTargetGroup(state, pending) === "exhausted"
+        ) {
+            // CR 603.3d — no group owed a choice. The walk may have removed the
+            // ability instead (a later group its picks left unfillable).
+            state.pendingTarget = undefined;
+            if (state.stack[i] === item) {
+                item.targets = [
+                    ...(pending.priorSelected ?? []),
+                    ...pending.selected,
+                ];
+                emitBecameTargetEvents(
+                    state,
+                    item.targets,
+                    item.controllerId,
+                    item.id,
+                    "triggered-ability"
+                );
+            }
+            continue;
+        }
         state.priorityPlayerId = item.controllerId;
         state.passCount = 0;
         return true;

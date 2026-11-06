@@ -7,7 +7,11 @@
 import type { GameState, PendingTarget } from "./state";
 import { PENDING_TARGET_FILTER_KEYS } from "./state";
 import type { TargetRequirement, TargetSelection } from "../cards/types";
-import { pendingTargetFiltersFromRequirement } from "./rules";
+import {
+    forcedTriggerGroupAnswer,
+    pendingTargetFiltersFromRequirement,
+    triggerTargetLegality,
+} from "./rules";
 import { resolveTargetCount } from "./activation";
 import {
     priorTargetsOfSameModeInstance,
@@ -27,7 +31,9 @@ export function applyRequirementToPendingTarget(
     pt: PendingTarget,
     req: TargetRequirement,
     chosenX: number | undefined,
-    priorTargets: readonly TargetSelection[]
+    priorTargets: readonly TargetSelection[],
+    /** CR 603.3d — a trigger's source power, for a `"sourcePower"` bound. */
+    sourcePower?: number
 ): void {
     pt.targetType = req.type;
     // CR 601.2c — a text-defined bound is read HERE, once, against the picks
@@ -70,7 +76,10 @@ export function applyRequirementToPendingTarget(
     // `announcedTargetRoleFields`), so leaking the primary group's would
     // caption the wrong picks.
     pt.announcedTargetRoles = undefined;
-    Object.assign(pt, pendingTargetFiltersFromRequirement(req, chosenX));
+    Object.assign(
+        pt,
+        pendingTargetFiltersFromRequirement(req, chosenX, sourcePower)
+    );
 }
 
 /** CR 115.3 "another target" (issue #3236) — lowers a group's
@@ -123,7 +132,13 @@ export function zoneOwnedByPriorPlayerTarget(
  *  further INDEPENDENT groups queued, lock the current group's picks into
  *  `priorSelected` and load the next requirement, returning `"advanced"`.
  *  Returns `"exhausted"` when nothing is queued (or every queued group resolved
- *  to no targets at all), leaving `pt` for the caller to finalize. */
+ *  to no targets at all), leaving `pt` for the caller to finalize.
+ *
+ *  CR 603.3d (issue #8475) — a TRIGGER's walk has no player to rewind: a group
+ *  with no real choice is answered here (`forcedTriggerGroupAnswer`, the rule
+ *  its primary group follows too), and a required group nothing can fill takes
+ *  the ability off the stack, returning `"exhausted"` so finalization finds no
+ *  item to write onto and chains to the next trigger of the batch. */
 export function advancePendingTargetGroup(
     state: GameState,
     pt: PendingTarget
@@ -139,16 +154,25 @@ export function advancePendingTargetGroup(
     // sees are its own instance's: the slots its script reads at
     // resolution.
     const instancePrior = priorTargetsOfSameModeInstance(pt, pt.priorSelected);
+    const lowered = zoneOwnedByPriorPlayerTarget(
+        excludingPriorTargets(next, instancePrior),
+        instancePrior,
+        state
+    );
+    const trigger =
+        pt.kind === "trigger"
+            ? state.stack.find((s) => s.id === pt.cardInstanceId)
+            : undefined;
+    const triggerLegality = trigger
+        ? triggerTargetLegality(state, trigger, lowered)
+        : undefined;
     applyRequirementToPendingTarget(
         state,
         pt,
-        zoneOwnedByPriorPlayerTarget(
-            excludingPriorTargets(next, instancePrior),
-            instancePrior,
-            state
-        ),
+        triggerLegality?.effectiveReq ?? lowered,
         pt.chosenX,
-        instancePrior
+        instancePrior,
+        triggerLegality?.sourcePower
     );
     // CR 601.2c — one announcement, one set of targets: a requirement the
     // earlier groups left unobeyed follows the walk into this one, and the
@@ -161,5 +185,21 @@ export function advancePendingTargetGroup(
     if (pendingTargetCountMaxReached(pt.count, 0)) {
         return advancePendingTargetGroup(state, pt);
     }
-    return "advanced";
+    if (!trigger || !triggerLegality) return "advanced";
+    const forced = forcedTriggerGroupAnswer(
+        triggerLegality.effectiveLegal,
+        typeof pt.count === "number" ? pt.count : pt.count.min,
+        typeof pt.count === "number"
+            ? pt.count
+            : (pt.count.max ?? Number.MAX_SAFE_INTEGER),
+        pt.divideTotal !== undefined
+    );
+    if (forced === undefined) return "advanced";
+    if (forced === "unfillable") {
+        state.stack.splice(state.stack.indexOf(trigger), 1);
+        pt.remainingRequirements = undefined;
+        return "exhausted";
+    }
+    pt.selected = forced;
+    return advancePendingTargetGroup(state, pt);
 }

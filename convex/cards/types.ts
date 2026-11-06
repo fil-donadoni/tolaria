@@ -13856,6 +13856,22 @@ export interface TriggeredAbility {
      *  majority), unchanged. Reverses ADR 0002's "triggers carry no
      *  targetRequirement" simplification. */
     targetRequirement?: TargetRequirement;
+    /** Additional INDEPENDENT target groups beyond the primary
+     *  `targetRequirement` (CR 603.3d, which incorporates CR 601.2c) — "target
+     *  opponent ... up to one target creature". The triggered-ability twin of
+     *  `ActivatedAbility.additionalTargetRequirements`, same semantics: each
+     *  entry is chosen in order AFTER the primary group, as the ability goes
+     *  on the stack, and the picks land on the stack item's flat `targets` in
+     *  declaration order, so an Effect Script reads them positionally. Applies
+     *  whatever mode was announced, like the twin; `AbilityMode` has no
+     *  per-mode field.
+     *
+     *  A required group with no legal target removes the ability from the
+     *  stack; an "up to" group with none locks nothing and the ability stays.
+     *  Walked by `raiseTriggerTargetSelection` (`gre/rules.ts`) and
+     *  `advancePendingTargetGroup` (`gre/targetGroupWalk.ts`). Undefined for
+     *  the common single-group case. Issue #8475. */
+    additionalTargetRequirements?: TargetRequirement[];
     /** CR 603.3c / 700.2b (issue #2461) — a MODAL triggered ability ("When this
      *  creature enters, choose one — • … • …"). The controller announces
      *  exactly one mode as the ability is PUT ON THE STACK, before targets, and
