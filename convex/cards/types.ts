@@ -13611,6 +13611,10 @@ export interface ChapterAbilityDefinition {
     oracleText: string;
     /** The chapter's effect as an Effect Script (ADR 0045). */
     effects: EffectOp[];
+    /** CR 603.3d — the target the chapter ability announces as it goes on the
+     *  stack (CR 714.2b: a chapter ability is a triggered ability). Forwarded
+     *  verbatim to the synthesized trigger's `targetRequirement`. */
+    targetRequirement?: TargetRequirement;
 }
 
 /** A `StaticEffect` a class level bar can level-gate (CR 716.2a): every layer

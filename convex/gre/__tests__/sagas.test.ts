@@ -29,7 +29,8 @@ import {
 import { checkSagaSacrificeSBA, checkStateBasedActions } from "../sba";
 import { advancePhase } from "../phases";
 import { resolveTopOfStack } from "../state";
-import { getDefinition } from "../../cards";
+import { getCardByName, getDefinition } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
 import { projectPublicState } from "../../gameProjections";
 import type {
     CardDefinition,
@@ -225,6 +226,73 @@ describe("chapter I triggers on entry (ADR 0078 §7 — applyEntersWithCounters 
         expect(knight!.power).toBe(2);
         expect(knight!.toughness).toBe(2);
         expect(knight!.staticAbilities).toContain("vigilance");
+    });
+});
+
+const TARGETED_SAGA_ID = "test-saga-targeted-chapter";
+
+/** A one-chapter Saga whose chapter I prints a target (CR 714.2b + 603.3d). */
+const targetedChapterSaga: CardDefinition = {
+    id: TARGETED_SAGA_ID,
+    name: "Targeted Saga",
+    rarity: "rare",
+    oracleText: "I — Destroy target creature an opponent controls.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Saga"],
+    chapterAbilities: [
+        {
+            chapters: [1],
+            oracleText: "I — Destroy target creature an opponent controls.",
+            effects: [{ op: "destroy", target: { target: 0 } }],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    ],
+};
+
+describe("a chapter ability with a target (CR 714.2b, CR 603.3d)", () => {
+    it("forwards the declared requirement to the synthesized trigger", () => {
+        const expanded = expandChapterAbilities(targetedChapterSaga);
+        const trigger = expanded.triggeredAbilities?.find(
+            (t) => t.id === chapterAbilityId([1])
+        );
+        expect(trigger?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+
+    it("goes on the stack with its target chosen, and destroys it on resolution", () => {
+        withTemporaryDefinition(targetedChapterSaga, () => {
+            const bear = makeInstance(getCardByName("Grizzly Bears").id, {
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { battlefield: [bear] }),
+                ],
+            });
+            pushSpell(state, TARGETED_SAGA_ID, "p1");
+            resolveTopOfStack(state);
+
+            const trigger = state.stack.find(
+                (i) => i.triggeredAbilityId === chapterAbilityId([1])
+            );
+            expect(trigger?.targets?.map((t) => t.id)).toEqual([bear.id]);
+
+            resolveTopOfStack(state);
+            expect(state.players[1].battlefield).toHaveLength(0);
+            expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+                bear.id
+            );
+        });
     });
 });
 
