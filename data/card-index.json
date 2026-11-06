@@ -8890,6 +8890,16 @@
         "source": "compiled"
     },
     {
+        "name": "Boggart Trawler // Boggart Bog",
+        "scryfallId": "d0d484a6-5610-4f1d-95ec-eda273c255e4",
+        "oracleId": "727f3201-1cfc-4ab2-9dfe-be4f7251f42f",
+        "firstSet": "mh3",
+        "firstPrintId": "d0d484a6-5610-4f1d-95ec-eda273c255e4",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bogstomper",
         "scryfallId": "05145a8d-0bfb-4f07-87cf-65875310bdb4",
         "oracleId": "7c2f1915-8d91-47c6-bab4-be325348673a",
@@ -26740,6 +26750,16 @@
         "firstSet": "blb",
         "firstPrintId": "c96ac326-de44-470b-a592-a4c2a052c091",
         "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Fell the Profane // Fell Mire",
+        "scryfallId": "a3cb782d-c459-468d-9779-9b5669abc337",
+        "oracleId": "053a69d8-2b5e-4f14-8b02-ca405891dc4a",
+        "firstSet": "mh3",
+        "firstPrintId": "a3cb782d-c459-468d-9779-9b5669abc337",
+        "firstPrintSet": "mh3",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -57186,6 +57206,16 @@
         "firstPrintId": "d5ac39e8-bd0e-4fa3-bc1e-a93944d013f3",
         "firstPrintSet": "tmp",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Pinnacle Monk // Mystic Peak",
+        "scryfallId": "24d4f26e-7f96-4b38-867e-4fac819b2679",
+        "oracleId": "f3d48efa-910a-4872-a5b1-a353c5dbce99",
+        "firstSet": "mh3",
+        "firstPrintId": "24d4f26e-7f96-4b38-867e-4fac819b2679",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

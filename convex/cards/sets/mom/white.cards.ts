@@ -20,7 +20,6 @@ import { defineCard } from "../../types";
 // twin. CR 712.14b is inert for this card — its front face IS a permanent card
 // — which is why Sink into Stupor is the clause's live subject and this one is
 // its control.
-// compiler-gap: "As this land enters, you may pay 3 life. If you don't, it enters tapped." (#2693)
 export const witchEnchanter = defineCard(() => ({
     id: "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
     name: "Witch Enchanter",
