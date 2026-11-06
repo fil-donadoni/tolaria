@@ -914,6 +914,7 @@ describe("BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211)", 
             P0: 4241,
             "premodern-metagame": 4242,
             "vintage-cube": 4243,
+            "modern-metagame": 8444,
             "format-premodern": 4244,
         });
     });
@@ -1909,11 +1910,16 @@ describe("umbrellaBandRank — a family's band census, P0 first (issue #4680)", 
 
     it("ranks each Target umbrella by its declared position, weaker as it ranks lower", () => {
         const ranks = (
-            ["premodern-metagame", "vintage-cube", "format-premodern"] as const
+            [
+                "premodern-metagame",
+                "vintage-cube",
+                "modern-metagame",
+                "format-premodern",
+            ] as const
         ).map((t) =>
             umbrellaBandRank("bot-gaps", BAND_UMBRELLAS["bot-gaps"][t])
         );
-        expect(ranks).toEqual([1, 2, 3]);
+        expect(ranks).toEqual([1, 2, 3, 4]);
     });
 
     it("null for a parent naming none of the family's umbrellas, or no parent at all — a hand-parented cluster, left to its cutter", () => {
