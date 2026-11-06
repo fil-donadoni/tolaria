@@ -12,10 +12,10 @@ import { GINGERBRUTE_TOKEN } from "../../sharedTokens";
 // (Vintage Cube, issue #8173). "When Ginger enters, you become the monarch.
 // {2}, {T}, Sacrifice Ginger: You gain 6 life. At the beginning of each
 // upkeep, if you're the monarch, create a Gingerbrute token."
-//   - The ETB is a plain `becomeMonarch` Op (CR 720.2).
+//   - The ETB is a plain `becomeMonarch` Op (CR 725.1).
 //   - The sacrifice-for-life is an activated ability whose cost sacrifices its
 //     own source (CR 602.1, `sacrifice: true`).
-//   - The upkeep clause is a `phaseTrigger` with scope `each` (CR 503.1 — every
+//   - The upkeep clause is a `phaseTrigger` with scope `each` (CR 503.1a — every
 //     player's upkeep) whose CR 603.4 intervening-if reads the ABILITY'S
 //     controller, not the step's active player: `interveningIf` is checked as
 //     the trigger would trigger and again as it resolves, against
