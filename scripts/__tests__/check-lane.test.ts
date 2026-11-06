@@ -1292,6 +1292,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bundle",
             "node-engine+node-tooling",
             "dom",
+            "check:weight-noise",
             "blade-index",
             "check:baseline-shrink",
             "check:derived-in-diff",
