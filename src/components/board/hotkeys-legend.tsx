@@ -23,6 +23,7 @@ const HOTKEYS: HotkeyRow[] = [
         label: "Pass turn",
     },
     { keys: ["P"], label: "Pass until opponent acts" },
+    { keys: ["A"], label: "Auto-tap while paying a cost" },
     { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },

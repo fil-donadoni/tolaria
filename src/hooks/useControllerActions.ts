@@ -35,7 +35,7 @@ export type ControllerAction = {
     tone: ControllerActionTone;
     onClick: () => void;
     disabled: boolean;
-    shortcut?: "space" | "enter" | "U" | "S" | "P";
+    shortcut?: "space" | "enter" | "U" | "S" | "P" | "A";
     /** A "status pill" action (e.g. waiting on opponent / auto-passing) renders
      *  as informative chrome rather than a primary call-to-action button. */
     pill?: boolean;
@@ -413,6 +413,29 @@ export function useControllerActions(): ControllerState {
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent) {
                     handlePassUntilAction();
+                }
+                return;
+            }
+            if (
+                (e.key === "a" || e.key === "A") &&
+                !e.repeat &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+            ) {
+                // Dedicated Auto-tap key: the same call the PaymentBanner /
+                // AttackManaTaxBanner "Auto-tap" button makes. No-op when no
+                // cost is being paid; also when a substitution is on offer
+                // (nothing left to auto-tap, mirrors the banner).
+                if (isSubstitutionOffered) return;
+                if (isPayingCast || isPayingActivation) {
+                    e.preventDefault();
+                    autoTap({ gameId, playerId }).catch(reportError);
+                } else if (isPayingAttackTax) {
+                    e.preventDefault();
+                    autoTapForAttackTax({ gameId, playerId }).catch(
+                        reportError
+                    );
                 }
                 return;
             }

@@ -280,6 +280,12 @@ export default function PaymentBanner(props: Props) {
                             className="mt-2 w-full"
                         >
                             Auto-tap
+                            <span
+                                aria-hidden="true"
+                                className="ml-2 hidden text-xs opacity-70 md:inline"
+                            >
+                                [A]
+                            </span>
                         </Button>
                     )}
                     {awaitingAssistHandoff && (
