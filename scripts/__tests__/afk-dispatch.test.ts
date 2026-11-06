@@ -345,6 +345,71 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
         expect(holdFor(holdInput({ streak: s }))).toBeNull();
     });
 
+    describe("runs lost with their runner (issue #8315)", () => {
+        const lostIds =
+            (...ids: number[]) =>
+            (r: WorkflowRun) =>
+                ids.includes(r.id);
+
+        it("three lost runs in a row hold nothing and leave a pass slot free", () => {
+            const runs = [failed(1, 30), failed(2, 20), failed(3, 10)];
+            const s = failureStreak(runs, [], lostIds(1, 2, 3));
+            expect(s.runs).toHaveLength(0);
+            expect(holdFor(holdInput({ streak: s }))).toBeNull();
+            const slots = passSlots(
+                [runner("mbp-pass-1", "mbp")],
+                "mbp-pass-1",
+                []
+            );
+            expect(slots.free).toEqual(["mbp"]);
+        });
+
+        it("a lost run older than the budget window is passed over too", () => {
+            const old = failed(1, 60 * 5);
+            const s = failureStreak(
+                [old, failed(2, 20), failed(3, 10)],
+                [],
+                lostIds(1)
+            );
+            expect(s.runs.map((r) => r.id)).toEqual([3, 2]);
+        });
+
+        it("three real failures still hold, with a lost run between them", () => {
+            const runs = [
+                failed(1, 40),
+                failed(2, 30),
+                failed(3, 20),
+                failed(4, 10),
+            ];
+            const s = failureStreak(runs, [], lostIds(3));
+            expect(s.runs.map((r) => r.id)).toEqual([4, 2, 1]);
+            expect(holdFor(holdInput({ streak: s }))).toMatchObject({
+                kind: "failure-streak",
+            });
+        });
+
+        it("a lost run does not break a streak of real failures", () => {
+            const runs = [
+                failed(1, 40),
+                failed(2, 30),
+                failed(3, 20),
+                failed(4, 10),
+            ];
+            const s = failureStreak(runs, [], lostIds(2));
+            expect(s.runs).toHaveLength(3);
+            expect(holdFor(holdInput({ streak: s }))?.kind).toBe(
+                "failure-streak"
+            );
+        });
+
+        it("a failed run whose jobs cannot be read counts as failed", () => {
+            // The caller's reading answers false for an unreadable job list.
+            const runs = [failed(1, 30), failed(2, 20), failed(3, 10)];
+            const s = failureStreak(runs, [], () => false);
+            expect(s.runs).toHaveLength(3);
+        });
+    });
+
     it("a running pass does not count", () => {
         const runs = [
             failed(1, 30),
