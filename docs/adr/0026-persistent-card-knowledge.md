@@ -140,8 +140,9 @@ the wire projection and `determinize`:
   unknown card straddles still reads as a back. A witnessed card extends a run,
   as any card known to that viewer always has.
 
-**Stamped by** the placements themselves: `putIntoLibraryFromBattlefield` and a
-spell moved from the stack into a library (everyone), and
+**Stamped by** the placements themselves: `putIntoLibraryFromBattlefield`, a spell
+moved from the stack into a library and a card `moveCardById` moves there from a
+public zone, Volrath's Stronghold's top leg included (everyone), and
 `putHandCardOnTopOfLibrary` (the hand's owner plus the audience of a reveal in the
 same resolution).
 
@@ -149,21 +150,30 @@ same resolution).
 index, so a draw or an insert shifts it with no bookkeeping. A later look or
 reveal of a recorded card adds the viewer to the record.
 
-**Narrowed** to the chooser when the card is re-placed behind a hidden choice: an
-`order-top` answer, a `reorder-library` answer, `putLibraryCardsOnTop`. A card
-with no record stays under the run rule here, so these paths grant nothing new.
+**Narrowed** to the chooser when the card goes through a hidden choice: the answer
+to any choice over library cards (`order-top`, `reorder-library`, a
+`look-distribute` split, a closure's own pick or partition), and
+`putLibraryCardsOnTop`. The narrowing covers every card the chooser looked at, not
+only those picked: a card that stayed where it was would otherwise show that the
+split left it there. A card with no record whose every knower saw the placement
+stays under the run rule, so a look gains no reach. A card known to anyone else
+gets a record naming the witnesses, because the run rule alone would show it: a
+card revealed on top and then scried to the bottom is hidden from the opponent, and
+so is the order Drafna's Restoration chooses for the artifacts it returns. Reordering
+a single card hides nothing and narrows nothing.
 
-**Ended by** a shuffle and by a random-order placement (`clearKnowledge`), and by
-the card leaving its position (`moveCard`, the zone-change and stack ladders).
+**Ended by** a shuffle and by a re-placement nobody can follow (`clearKnowledge`,
+through `forgetLibraryCards` for part of a library): a random-order placement and
+the `lookDistribute` bottom leg, which also runs with no choice when nothing can be
+kept. A chooser who ordered that bottom pile regains its knowledge as a look. A
+card also loses its record by leaving its position (`moveCard`, the zone-change and
+stack ladders).
 
 Raw `libraryPositionKnownTo` never crosses the wire. The client Brain restores
 every `library.known[]` entry as a record, because an entry may sit at any depth.
 
 **Not widened, on purpose:** look-class knowledge, `reorder-library` and
-`divide-piles` peeks. **Not covered:** a card a generic `moveCardById` puts into a
-library from a public zone (Volrath's Stronghold) is stamped `knownTo` only and
-stays under the run rule, because its `library-top` leg ends in
-`putLibraryCardsOnTop`, which narrows.
+`divide-piles` peeks.
 
 ## Rationale
 

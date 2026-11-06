@@ -6,6 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName, getDefinition } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
 import { ponder } from "../../cards/sets/lrw/blue.cards";
 import {
     makeInstance,
@@ -15,7 +17,9 @@ import {
     submitChoice,
 } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
+import { runEffectScript } from "../effects/interpreter";
 import { knownLibraryIndices } from "../libraryKnownRuns";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { finalizeDrawLookKeep } from "../phases";
 import { compactState, expandState } from "../serialize";
 import {
@@ -36,6 +40,11 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const NATURAL_SELECTION = getDefinition(
     "a8917dc8-01c0-4e72-9310-c4d501775411"
 ).id;
+const IMPULSE = getDefinition("9d710a97-062f-4773-b6c6-8aeddeb3b6e8").id;
+const EXPRESSIVE_ITERATION = getDefinition(
+    "31b770cc-09e7-4c0b-b2a4-462ab4f7200d"
+).id;
+const RANDOM_BOTTOM_DIG = getCardByName("Once Upon a Time").id;
 
 const library = (ids: string[], owner = "p1") =>
     ids.map((id) =>
@@ -282,6 +291,102 @@ describe("a private placement is known to its controller only", () => {
     });
 });
 
+describe("a card everyone knows goes through a hidden re-placement", () => {
+    it("hides a card revealed on top once a scry bottoms it", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library(["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = stackItem(state);
+        buildSpellContext(state, item).markKnownToAll("p1", ["a"]);
+        expect(seen(state, "p2")).toEqual([[0, "a"]]);
+        const scry = () =>
+            buildSpellContext(state, item).orderTop("p1", 1, {
+                destination: "library-bottom",
+            });
+        scry();
+        item.collectedChoices = {
+            "0:order-top-s1": [],
+            "0:order-top-s1:second": ["a"],
+        };
+        scry();
+        expect(state.players[0].library.slice(-1)[0].id).toBe("a");
+        expect(seen(state, "p2")).toEqual([]);
+        expect(seen(state, "p1")).toEqual([[2, "a"]]);
+    });
+
+    it("hides the order of a graveyard Doomsday puts back on top", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: library(["u1"]),
+                    graveyard: [
+                        makeInstance(MOUNTAIN, {
+                            id: "g1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const ctx = buildSpellContext(state, stackItem(state));
+        ctx.moveCardById("p1", "g1", "graveyard", "library");
+        ctx.putLibraryCardsOnTop("p1", ["g1"]);
+        expect(state.players[0].library[0].id).toBe("g1");
+        expect(seen(state, "p2")).toEqual([]);
+        expect(seen(state, "p1")).toEqual([[0, "g1"]]);
+    });
+});
+
+describe("a public zone's card put into a library is a public placement", () => {
+    function graveyardBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: library(["u1", "u2"]),
+                    graveyard: [
+                        makeInstance(BEARS, {
+                            id: "bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("stays visible on the bottom when more cards go below it", () => {
+        const state = graveyardBear();
+        const ctx = buildSpellContext(state, stackItem(state));
+        ctx.moveCardById("p1", "bear", "graveyard", "library");
+        expect(seen(state, "p2")).toEqual([[2, "bear"]]);
+        state.players[0].library.push(...library(["u3"]));
+        expect(seen(state, "p2")).toEqual([[2, "bear"]]);
+    });
+
+    it("stays visible under a card put on top after it (Volrath's Stronghold)", () => {
+        const state = graveyardBear();
+        const recur = getCardByName(
+            "Volrath's Stronghold"
+        ).activatedAbilities!.find((a) => a.effects)!;
+        const item = stackItem(state);
+        item.targets = [{ type: "graveyard-card", id: "bear", playerId: "p1" }];
+        runEffectScript(buildSpellContext(state, item), recur.effects!);
+        expect(state.players[0].library[0].id).toBe("bear");
+        expect(seen(state, "p2")).toEqual([[0, "bear"]]);
+        state.players[0].library.unshift(...library(["hidden"]));
+        expect(seen(state, "p2")).toEqual([[1, "bear"]]);
+    });
+});
+
 describe("a look-class grant conveys what it always did", () => {
     it("stays with the viewer it was shown to, and unknown neighbours stay backs", () => {
         const state = makeState({
@@ -339,7 +444,7 @@ describe("a private re-placement takes a public position away", () => {
         buildSpellContext(state, item).orderTop("p1", 2, {
             destination: "library-bottom",
         });
-        expect(state.players[0].library.at(-1)!.id).toBe("bear");
+        expect(state.players[0].library.slice(-1)[0].id).toBe("bear");
         expect(seen(state, "p2")).toEqual([]);
     });
 
@@ -390,7 +495,7 @@ describe("a private re-placement takes a public position away", () => {
             },
         ] as unknown as GameState["pendingChoices"];
         finalizeDrawLookKeep(state, ["u1"]);
-        expect(state.players[0].library.at(-1)!.id).toBe("bear");
+        expect(state.players[0].library.slice(-1)[0].id).toBe("bear");
         expect(seen(state, "p1")).toEqual([]);
         expect(seen(state, "p2")).toEqual([]);
     });
@@ -422,5 +527,121 @@ describe("knownLibraryIndices — placements between the end runs", () => {
         clearKnowledge(cards, "p1");
         expect(knownLibraryIndices(cards, "p2")).toEqual([]);
         expect(knownLibraryIndices(cards, "p1")).toEqual([0]);
+    });
+});
+
+describe("a hidden look over library cards takes a public position away", () => {
+    /** The bear is public, second from the top, and p1 resolves `card`. */
+    function resolving(card: string, under: string[]): GameState {
+        const state = oustBear(under);
+        pushSpell(state, card, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("hides where an answered look-and-bottom put the card (Impulse)", () => {
+        const state = resolving(IMPULSE, ["u1", "u2", "u3", "u4"]);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["u1"],
+            secondZoneIds: ["bear", "u2", "u3"],
+        });
+        expect(state.players[0].library.slice(-3)[0].id).toBe("bear");
+        expect(seen(state, "p2")).toEqual([]);
+        expect(seen(state, "p1").map(([, id]) => id)).toContain("bear");
+    });
+
+    it("hides which card a pick sent to the bottom (Expressive Iteration)", () => {
+        const state = resolving(EXPRESSIVE_ITERATION, ["u1", "u2", "u3"]);
+        submitChoice(state, ["u1"]);
+        submitChoice(state, ["bear"]);
+        expect(state.players[0].library.slice(-1)[0].id).toBe("bear");
+        expect(seen(state, "p2")).toEqual([]);
+        expect(seen(state, "p1")).toEqual([
+            [state.players[0].library.length - 1, "bear"],
+        ]);
+    });
+
+    it("hides a card a partition kept in place, because the split was hidden", () => {
+        const state = oustBear(["u1", "u2"]);
+        const item = stackItem(state);
+        buildSpellContext(state, item).requestChoice({
+            playerId: "p1",
+            choiceId: "split",
+            kind: "partition",
+            zone: "library",
+            candidateIds: ["u1", "bear"],
+            count: { min: 0, max: 2 },
+            prompt: "Choose any number of cards to put on the bottom.",
+        });
+        submitChoice(state, ["u1"]);
+        expect(state.players[0].library[1].id).toBe("bear");
+        expect(seen(state, "p2")).toEqual([]);
+    });
+
+    it("leaves a public position alone when the look never reached the card", () => {
+        const state = oustBear(["u1", "u2"]);
+        const item = stackItem(state);
+        buildSpellContext(state, item).requestChoice({
+            playerId: "p1",
+            choiceId: "split",
+            kind: "partition",
+            zone: "library",
+            candidateIds: ["u1"],
+            count: { min: 0, max: 1 },
+            prompt: "Choose any number of cards to put on the bottom.",
+        });
+        submitChoice(state, []);
+        expect(seen(state, "p2")).toEqual([[1, "bear"]]);
+    });
+
+    it("ends every viewer's knowledge on a random bottom with a pick", () => {
+        const state = resolving(RANDOM_BOTTOM_DIG, ["u1", "u2", "u3", "u4"]);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.randomizeRest).toBe(true);
+        submitChoice(state, ["u1"]);
+        expect(state.players[0].library.map((c) => c.id)).toContain("bear");
+        expect(seen(state, "p1")).toEqual([]);
+        expect(seen(state, "p2")).toEqual([]);
+    });
+
+    describe("a window with nothing to keep opens no choice", () => {
+        /** Instant: dig five, keep an artifact, bottom the rest. Mountains and
+         *  a Bear hold no artifact, so the whole window goes straight down. */
+        const digForArtifact = (randomBottom: boolean): CardDefinition => ({
+            ...getDefinition(RANDOM_BOTTOM_DIG),
+            effects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 5,
+                    take: 1,
+                    filter: { type: ["Artifact"] },
+                    randomBottom,
+                },
+            ],
+        });
+
+        it.each([
+            ["random", true],
+            ["look-ordered", false],
+        ])("%s bottom: hides the card from the opponent", (_, randomBottom) => {
+            withTemporaryDefinition(digForArtifact(randomBottom), () => {
+                const state = resolving(RANDOM_BOTTOM_DIG, ["u1", "u2", "u3"]);
+                expect(state.pendingChoices ?? []).toEqual([]);
+                expect(state.players[0].library.map((c) => c.id)).toContain(
+                    "bear"
+                );
+                expect(seen(state, "p2")).toEqual([]);
+                if (randomBottom) expect(seen(state, "p1")).toEqual([]);
+            });
+        });
     });
 });

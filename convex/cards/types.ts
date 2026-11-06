@@ -7886,6 +7886,10 @@ export interface SpellContext {
     /** Reorders the top cards of `playerId`'s library so they match the order
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
+    /** ADR 0026 — `playerId`'s library cards named here were just re-placed in
+     *  an order nobody can follow, so all knowledge of them ends, as a shuffle
+     *  ends it for a whole library. The rest of the library is untouched. */
+    forgetLibraryCards: (playerId: string, cardInstanceIds: string[]) => void;
 
     /** CR 401.4 "put it on top of your library" (issue #1125) — the
      *  tutor-to-top template: relocates specific card(s), by id, from

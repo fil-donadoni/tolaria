@@ -630,30 +630,35 @@ export function clearKnowledge(
             if (survivors.length > 0) card.knownTo = survivors;
             else delete card.knownTo;
         }
-        narrowLibraryPosition(card, [selectorId]);
+        if (card.libraryPositionKnownTo?.includes(selectorId)) {
+            card.libraryPositionKnownTo = [selectorId];
+        } else {
+            delete card.libraryPositionKnownTo;
+        }
     }
 }
 
-/** ADR 0026 — a private re-placement of a card that carries a placement record
- *  (`libraryPositionKnownTo`): only `witnesses` saw where it went now, so
- *  everyone else stops knowing its position while keeping its identity. A card
- *  with no record is left to the run rule (`knownLibraryIndices`), so a look
- *  never gains the record's reach through here. */
+/** ADR 0026 — a private re-placement: only `witnesses` saw where the card went
+ *  now, so everyone else stops knowing its position while keeping its identity.
+ *  A card with no record whose every knower is a witness stays under the run
+ *  rule (`knownLibraryIndices`), so a look never gains the record's reach
+ *  through here; a card known to anyone else needs the record to hide it. */
 function narrowLibraryPosition(
     card: CardInstanceState,
     witnesses: readonly string[]
 ): void {
-    if (!card.libraryPositionKnownTo) return;
-    const survivors = card.libraryPositionKnownTo.filter((id) =>
-        witnesses.includes(id)
-    );
-    if (survivors.length > 0) card.libraryPositionKnownTo = survivors;
-    else delete card.libraryPositionKnownTo;
+    const knowers = card.libraryPositionKnownTo ?? card.knownTo ?? [];
+    if (
+        card.libraryPositionKnownTo ||
+        knowers.some((id) => !witnesses.includes(id))
+    ) {
+        card.libraryPositionKnownTo = [...witnesses];
+    }
 }
 
-/** ADR 0026 — `chooserId` re-placed `cardInstanceIds` in `zoneOwnerId`'s library
- *  behind a hidden choice (a scry split, a "put them back in any order"), so
- *  the chooser alone saw where the cards went. */
+/** ADR 0026 — `chooserId` answered a hidden choice over `cardInstanceIds` in
+ *  `zoneOwnerId`'s library (a scry split, a "put them back in any order", a
+ *  look-and-bottom), so the chooser alone saw where the cards went. */
 export function narrowLibraryPositionToChooser(
     state: GameState,
     zoneOwnerId: string,
@@ -19906,6 +19911,13 @@ export function buildSpellContext(
             });
             player.library.unshift(...reordered);
         },
+        forgetLibraryCards(playerId: string, cardInstanceIds: string[]): void {
+            const ids = new Set(cardInstanceIds);
+            clearKnowledge(
+                getPlayer(state, playerId).library.filter((c) => ids.has(c.id)),
+                null
+            );
+        },
         // CR 401.4 "put it on top of your library" (issue #1125) — the
         // tutor-to-top template: relocate specific card(s), by id, from
         // ANYWHERE in `playerId`'s library onto the top, preserving
@@ -22922,7 +22934,11 @@ function moveCardWithGraveyardReplacementUnsynced(
         const moved = moveCard(player, cardInstanceId, from, to);
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
             if (!leavingFaceDownExile) {
-                grantKnowledgeToAll(state, player.id, [moved.id]);
+                if (to === "library") {
+                    recordPublicLibraryPlacement(state, moved);
+                } else {
+                    grantKnowledgeToAll(state, player.id, [moved.id]);
+                }
             }
         }
         if (to === "library") emitLibraryEntryFromMover(state, moved, from);
