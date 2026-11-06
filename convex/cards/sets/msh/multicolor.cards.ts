@@ -30,9 +30,17 @@ const JENNIFER_WALTERS_ID = "61237530-ad49-469c-a952-67c92315708e";
 // announced as the trigger goes on the stack (CR 603.3d); the "you may" is a
 // cost-free `mayPay` decision on resolution (CR 603.5), and the damage is the
 // event's amount (`$event.amount`), dealt BY She-Hulk (the default source).
-// "Do this only once each turn" is `maxTriggersPerTurn: 1`, a per-source tally
-// (counted when the ability triggers, so it caps the trigger rather than the
-// accepted offer — the same reading as the other once-per-turn triggers).
+// "Do this only once each turn" (CR 603.2h) is `maxTriggersPerTurn: 1`, a
+// per-source trigger tally: a documented deviation, out of scope for this
+// hand-tail pass. CR 603.2h gates the trigger on whether the indicated action
+// (dealing the damage) was actually TAKEN this turn, not on how many times the
+// ability fired. So here a declined "may", or a trigger that fizzles on an
+// illegal target, still spends the turn's one trigger, and simultaneous combat
+// damage to several creatures puts only the first event's amount on the stack
+// (CR 603.2h would put one trigger per creature until the damage is dealt).
+// The CR-faithful fix is new per-turn "action taken" state in `convex/gre/**`,
+// shared with Ancient Cornucopia (`sets/big/green.cards.ts`); see
+// docs/findings/8171-she-hulk-cr603-2h-action-taken.md.
 //
 // hand-tail: Whenever a creature you control is dealt damage (#8171)
 export const jenniferWaltersTheSensationalSheHulk = defineCard(() => ({
