@@ -251,6 +251,11 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         why: "Admin page — bug-report evidence, reached and left through the admin nav.",
     },
     {
+        pattern: "/admin/limited-decks",
+        mode: "browse",
+        why: "Admin page — the Limited Deck Archive, reached and left through the admin nav.",
+    },
+    {
         pattern: "/admin/draft-lab",
         mode: "browse",
         why: "Developer surface (ADR 0074) — reached and left through the admin nav.",

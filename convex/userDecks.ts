@@ -1,13 +1,18 @@
 import { ConvexError, v } from "convex/values";
-import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
+import {
+    type GenericMutationCtx,
+    type GenericQueryCtx,
+    paginationOptsValidator,
+} from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import {
     internalMutation,
     type MutationCtx,
     mutation,
+    type QueryCtx,
     query,
 } from "./_generated/server";
-import { getCurrentUserId } from "./auth";
+import { assertIsAdmin, getCurrentUserId } from "./auth";
 import { fillDefinitionIds, loadPrintRows } from "./cardPrintRows";
 import { withDefinitionId } from "./cards/catalogue";
 import { makeResolveCardFromRows } from "./cards/printRows";
@@ -90,36 +95,158 @@ export const listMine = query({
         // 0036), reactive to a DB banlist sync.
         const banlists = await loadBanlistOverridesByFormat(ctx);
         return await Promise.all(
-            rows.map(async (row) => {
-                // The CHOSEN printing's Set and Rarity are the table's (issue
-                // #5106): Old School judges Set, Alpha 40 Rarity. A `limited`
-                // entry's `cardId` is the opened PRINT (ADR 0140 §5): the
-                // deck side of Pool membership resolves through the same rows,
-                // exactly as game start does.
-                const resolve = makeResolveCardFromRows(
-                    await loadPrintRows(
-                        ctx,
-                        [...row.cards, ...(row.sideboard ?? [])].map(
-                            (c) => c.cardId
-                        )
-                    )
+            rows.map((row) => withDerivedLegality(ctx, row, banlists))
+        );
+    },
+});
+
+/** One deck row with its legality derived (ADR 0036): the shared body of
+ *  `listMine` and the admin Limited Deck Archive. */
+async function withDerivedLegality(
+    ctx: QueryCtx,
+    row: Doc<"userDecks">,
+    banlists: Awaited<ReturnType<typeof loadBanlistOverridesByFormat>>
+) {
+    // The CHOSEN printing's Set and Rarity are the table's (issue #5106):
+    // Old School judges Set, Alpha 40 Rarity. A `limited` entry's `cardId` is
+    // the opened PRINT (ADR 0140 §5): the deck side of Pool membership
+    // resolves through the same rows, exactly as game start does.
+    const resolve = makeResolveCardFromRows(
+        await loadPrintRows(
+            ctx,
+            [...row.cards, ...(row.sideboard ?? [])].map((c) => c.cardId)
+        )
+    );
+    const { isLegal, reasons } =
+        row.format === "limited"
+            ? resolveLimitedDeckLegality(
+                  row,
+                  await loadDeckPool(ctx, row._id),
+                  resolve
+              )
+            : validateDeck(row, row.format, resolve, banlists[row.format]);
+    return { ...row, isLegal, reasons };
+}
+
+// ── Limited Deck Archive (admin, read-only; PRD #8407, issue #8410) ──────
+// Every Limited deck of every player, grouped by Limited Origin. Each query
+// runs `assertIsAdmin` FIRST (ADR 0033): the admin route gate is cosmetic.
+
+/** A page of the per-origin read is capped here: legality costs reads per
+ *  deck (print rows + Deck Pool), so the client cannot ask for the world. */
+export const ARCHIVE_MAX_PAGE_SIZE = 25;
+
+/**
+ * Each Limited Origin that holds decks, with its count; `origin: null` is the
+ * unclassified group (a limited deck with no origin). Reads the
+ * `by_format_limitedOrigin` range of `limited` rows, never the whole table.
+ */
+export const listLimitedOriginsAdmin = query({
+    args: {},
+    handler: async (ctx) => {
+        await assertIsAdmin(ctx);
+        const rows = await ctx.db
+            .query("userDecks")
+            .withIndex("by_format_limitedOrigin", (q) =>
+                q.eq("format", "limited")
+            )
+            .collect();
+        const counts = new Map<string | null, number>();
+        for (const row of rows) {
+            const key = row.limitedOrigin ?? null;
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return [...counts.entries()]
+            .map(([origin, deckCount]) => ({ origin, deckCount }))
+            .sort(
+                (a, b) =>
+                    b.deckCount - a.deckCount ||
+                    Number(a.origin === null) - Number(b.origin === null) ||
+                    (a.origin ?? "").localeCompare(b.origin ?? "")
+            );
+    },
+});
+
+/**
+ * One page of one origin's decks (`origin: null` = unclassified), newest
+ * first, each with owner nickname, card counts and derived legality. NO card
+ * list: the detail query is the one that returns it.
+ */
+export const listLimitedOriginDecksAdmin = query({
+    args: {
+        origin: v.union(v.string(), v.null()),
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const page = await ctx.db
+            .query("userDecks")
+            .withIndex("by_format_limitedOrigin", (q) =>
+                q
+                    .eq("format", "limited")
+                    .eq("limitedOrigin", args.origin ?? undefined)
+            )
+            .order("desc")
+            .paginate({
+                ...args.paginationOpts,
+                numItems: Math.min(
+                    args.paginationOpts.numItems,
+                    ARCHIVE_MAX_PAGE_SIZE
+                ),
+            });
+        const banlists = await loadBanlistOverridesByFormat(ctx);
+        const owners = new Map<Id<"users">, string>();
+        const decks = await Promise.all(
+            page.page.map(async (row) => {
+                if (!owners.has(row.userId)) {
+                    const owner = await ctx.db.get(row.userId);
+                    owners.set(row.userId, owner?.nickname ?? "Unknown");
+                }
+                const { isLegal, reasons } = await withDerivedLegality(
+                    ctx,
+                    row,
+                    banlists
                 );
-                const { isLegal, reasons } =
-                    row.format === "limited"
-                        ? resolveLimitedDeckLegality(
-                              row,
-                              await loadDeckPool(ctx, row._id),
-                              resolve
-                          )
-                        : validateDeck(
-                              row,
-                              row.format,
-                              resolve,
-                              banlists[row.format]
-                          );
-                return { ...row, isLegal, reasons };
+                return {
+                    _id: row._id,
+                    name: row.name,
+                    ownerNickname: owners.get(row.userId)!,
+                    cardCount: row.cards.length,
+                    sideboardCount: row.sideboard?.length ?? 0,
+                    isLegal,
+                    reasons,
+                    createdAt: row._creationTime,
+                };
             })
         );
+        return { ...page, page: decks };
+    },
+});
+
+/** One archived Limited deck's full list (maindeck + sideboard) with its
+ *  owner and legality; `null` for a missing or non-Limited deck. */
+export const getLimitedDeckAdmin = query({
+    args: { deckId: v.id("userDecks") },
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const row = await ctx.db.get(args.deckId);
+        if (!row || row.format !== "limited") return null;
+        const owner = await ctx.db.get(row.userId);
+        const { isLegal, reasons } = await withDerivedLegality(
+            ctx,
+            row,
+            await loadBanlistOverridesByFormat(ctx)
+        );
+        return {
+            _id: row._id,
+            name: row.name,
+            ownerNickname: owner?.nickname ?? "Unknown",
+            limitedOrigin: row.limitedOrigin ?? null,
+            cards: row.cards,
+            sideboard: row.sideboard ?? [],
+            isLegal,
+            reasons,
+        };
     },
 });
 
