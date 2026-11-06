@@ -15,8 +15,10 @@ import { definitionOfDeckEntry, type DeckEntryIdentity } from "./deckCardShape";
  *  colour identity, pip counts / producible colours / type-subtype maps have
  *  no catalogue-row equivalent (a `FullCatalogueRow` carries no
  *  `activatedAbilities`/`subtypes` mana data), so — unlike `deckColors.ts` —
- *  there is no Tabletop (catalogue-backed) fallback here; an unresolvable
- *  card contributes nothing rather than throwing. */
+ *  there is no catalogue-row fallback here. A Tabletop card the engine
+ *  implements counts through its name (`definitionOfDeckEntry`); a catalogue-
+ *  only card, like any unresolvable one, contributes nothing rather than
+ *  throwing. */
 export type DeckCardDefinitionResolver = (
     cardId: string,
     identity?: DeckEntryIdentity

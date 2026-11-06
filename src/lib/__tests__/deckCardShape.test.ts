@@ -146,6 +146,22 @@ describe("a deck entry holding an alternate printing", () => {
         expect(deckCardLookup(undefined, [BY_NAME])(PRINT)?.id).toBe(BOLT_LEA);
     });
 
+    it("the name match ignores case, keeps the first row and never answers with a token", () => {
+        const token = row({
+            printId: "bbbbbbbb-0000-4000-8000-000000000001",
+            typeLine: "Token Creature — Zombie",
+            cmc: 0,
+        });
+        const later = row({
+            printId: "bbbbbbbb-0000-4000-8000-000000000002",
+            cmc: 9,
+        });
+        const resolve = makeDeckCardShapeResolver([token, row(), later]);
+        expect(
+            resolve(PRINT, { cardName: "UNIMPLEMENTED CARD" })?.manaValue
+        ).toBe(3);
+    });
+
     it("an unimplemented printing with no catalogue row takes its shape from a row of the same name", () => {
         const resolve = makeDeckCardShapeResolver([row()]);
         expect(

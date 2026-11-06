@@ -106,10 +106,15 @@ export function makeDeckCardShapeResolver(
     const byPrintId = new Map<string, FullCatalogueRow>();
     // A printing picked from Scryfall's editions has no row of its own: the
     // catalogue holds other printings of the card, and the shape is the same.
+    // A token is another object that may share the card's name, never a
+    // printing of it, so it does not answer for the name.
     const byName = new Map<string, FullCatalogueRow>();
     for (const row of rows) {
         byPrintId.set(row.printId, row);
-        byName.set(row.name, row);
+        const nameKey = row.name.toLowerCase();
+        if (!byName.has(nameKey) && !parseTypeLine(row.typeLine).isToken) {
+            byName.set(nameKey, row);
+        }
     }
     return (cardId, identity) => {
         const fromRegistry = registryDeckCardShape(cardId, identity);
@@ -118,7 +123,7 @@ export function makeDeckCardShapeResolver(
             byPrintId.get(cardId) ??
             (identity?.cardName === undefined
                 ? undefined
-                : byName.get(identity.cardName));
+                : byName.get(identity.cardName.toLowerCase()));
         return row ? catalogueRowShape(row) : null;
     };
 }
