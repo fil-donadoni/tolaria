@@ -1701,7 +1701,7 @@
         },
         "3c3ac3dd-35db-447f-8674-37b4680a1ef7": {
             "archetypes": ["control"],
-            "provides": ["value-on-etb"],
+            "provides": [],
             "requires": [],
             "reviewed": false
         },
@@ -1935,7 +1935,7 @@
         },
         "69c68c95-b788-43b1-9f22-1b22c5a00b25": {
             "archetypes": ["aggro"],
-            "provides": ["value-on-etb"],
+            "provides": [],
             "requires": [],
             "reviewed": false
         },
@@ -2592,7 +2592,7 @@
         },
         "361c2f3b-f04e-446b-a683-9195e238daf0": {
             "archetypes": ["aggro", "artifacts"],
-            "provides": ["value-on-etb"],
+            "provides": [],
             "requires": ["cheap-artifact"],
             "reviewed": false
         },
@@ -2760,7 +2760,7 @@
         },
         "1abecc77-07f2-43e4-8585-0a8199cdcf01": {
             "archetypes": ["aggro"],
-            "provides": ["value-on-etb"],
+            "provides": [],
             "requires": [],
             "reviewed": false
         },
