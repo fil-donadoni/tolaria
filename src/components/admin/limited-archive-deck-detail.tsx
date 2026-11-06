@@ -5,37 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
-
-function countByName(cards: readonly { cardName: string }[]) {
-    const counts = new Map<string, number>();
-    for (const { cardName } of cards) {
-        counts.set(cardName, (counts.get(cardName) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
-}
-
-function CardList({
-    heading,
-    cards,
-}: {
-    heading: string;
-    cards: readonly { cardName: string }[];
-}) {
-    return (
-        <section>
-            <h3 className="text-label">
-                {heading} ({cards.length})
-            </h3>
-            <ul className="mt-1 text-sm text-text">
-                {countByName(cards).map(([name, count]) => (
-                    <li key={name}>
-                        {count} {name}
-                    </li>
-                ))}
-            </ul>
-        </section>
-    );
-}
+import LimitedArchiveCardList from "./limited-archive-card-list";
 
 export default function LimitedArchiveDeckDetail({
     deckId,
@@ -72,9 +42,12 @@ export default function LimitedArchiveDeckDetail({
                         ))}
                     </ul>
                 )}
-                <CardList heading="Maindeck" cards={deck.cards} />
+                <LimitedArchiveCardList heading="Maindeck" cards={deck.cards} />
                 {deck.sideboard.length > 0 && (
-                    <CardList heading="Sideboard" cards={deck.sideboard} />
+                    <LimitedArchiveCardList
+                        heading="Sideboard"
+                        cards={deck.sideboard}
+                    />
                 )}
             </PanelBody>
         </Panel>
