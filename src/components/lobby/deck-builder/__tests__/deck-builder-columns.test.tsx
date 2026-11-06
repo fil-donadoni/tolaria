@@ -134,6 +134,54 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
+describe("a save the server refuses", () => {
+    function renderEditedDeck() {
+        const onClose = vi.fn();
+        sinks.user.update.mockRejectedValueOnce(
+            Object.assign(new Error("Server Error"), {
+                data: "Cannot add cards outside this deck's Pool.",
+            })
+        );
+        const rendered = render(
+            <DeckBuilder
+                kind="user"
+                initialDeck={deck()}
+                initialIdentity="deck-1"
+                initialDeckList={[]}
+                sinks={sinks as never}
+                onClose={onClose}
+            />
+        );
+        fireEvent.change(rendered.getByLabelText("Deck name"), {
+            target: { value: "Renamed" },
+        });
+        return { ...rendered, onClose };
+    }
+
+    it("keeps Done on the screen and names the refusal", async () => {
+        const { getByRole, findByRole, onClose } = renderEditedDeck();
+        fireEvent.click(getByRole("button", { name: "Done" }));
+        const alert = await findByRole("alert");
+        expect(alert.textContent).toContain(
+            "Cannot add cards outside this deck's Pool."
+        );
+        expect(onClose).not.toHaveBeenCalled();
+        fireEvent.click(getByRole("button", { name: "Leave without saving" }));
+        expect(onClose).toHaveBeenCalledWith("deck-1");
+    });
+
+    it("writes the same edit again on the next Done", async () => {
+        const { getByRole, findByRole, onClose } = renderEditedDeck();
+        fireEvent.click(getByRole("button", { name: "Done" }));
+        await findByRole("alert");
+        fireEvent.click(getByRole("button", { name: "Done" }));
+        await waitFor(() => expect(onClose).toHaveBeenCalledWith("deck-1"));
+        expect(sinks.user.update.mock.lastCall?.[1]).toMatchObject({
+            name: "Renamed",
+        });
+    });
+});
+
 describe("an alternate printing in the deck (issue #8387)", () => {
     const PRINT = "aaaaaaaa-0000-4000-8000-000000000001";
 

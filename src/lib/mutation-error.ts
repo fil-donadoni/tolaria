@@ -15,7 +15,7 @@ function shortTitle(message: string): string {
  *  collapses to "Server Error" — but keeps a `ConvexError`'s `data`. Reading it
  *  first is what makes a legality rejection ("Another spell is already being
  *  cast") readable in production instead of an opaque toast. */
-function convexErrorData(error: unknown): string | undefined {
+export function convexErrorData(error: unknown): string | undefined {
     if (typeof error !== "object" || error === null) return undefined;
     const data = (error as { data?: unknown }).data;
     return typeof data === "string" && data.length > 0 ? data : undefined;

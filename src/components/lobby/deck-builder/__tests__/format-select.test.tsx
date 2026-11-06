@@ -2,7 +2,8 @@
 // create, a read-only label on edit (Format is immutable once chosen).
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
-import { FORMAT_IDS, FORMAT_RULES } from "@convex/formats";
+import { DECK_CREATION_FORMATS, FORMAT_RULES } from "@convex/formats";
+import { isDeckCreationFormat } from "@convex/formatAdmission";
 import FormatSelect from "../format-select";
 
 describe("FormatSelect (ADR 0036)", () => {
@@ -16,7 +17,37 @@ describe("FormatSelect (ADR 0036)", () => {
         );
         const select = getByRole("combobox", { name: "Deck format" });
         expect(select).toBeDefined();
-        expect(getAllByRole("option")).toHaveLength(FORMAT_IDS.length);
+        expect(getAllByRole("option")).toHaveLength(
+            DECK_CREATION_FORMATS.length
+        );
+    });
+
+    it("never offers Limited, whose deck only its Event can create", () => {
+        const { getAllByRole } = render(
+            <FormatSelect
+                value="freeform"
+                readOnly={false}
+                onChange={() => {}}
+            />
+        );
+        const values = getAllByRole("option").map(
+            (option) => (option as HTMLOptionElement).value
+        );
+        expect(values).toContain("freeform");
+        expect(values).not.toContain("limited");
+    });
+
+    it("the `/decks/create` seed admits a creation Format, never Limited", () => {
+        expect(isDeckCreationFormat("premodern")).toBe(true);
+        expect(isDeckCreationFormat("limited")).toBe(false);
+        expect(isDeckCreationFormat("unknown")).toBe(false);
+    });
+
+    it("still labels an existing Limited deck read-only", () => {
+        const { getByText } = render(
+            <FormatSelect value="limited" readOnly={true} onChange={() => {}} />
+        );
+        expect(getByText(FORMAT_RULES.limited.label)).toBeDefined();
     });
 
     it("shows the current Format as the selected value", () => {

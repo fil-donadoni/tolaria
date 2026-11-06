@@ -30,6 +30,18 @@ export const FORMAT_IDS: readonly FormatId[] = [
     "manual",
 ] as const;
 
+/** The Formats the generic deck builder can create a deck in. A Limited deck
+ *  belongs to an Event and Seat, whose Pool decides its legality (ADR 0054/0055),
+ *  so only that Event's builder can create one. */
+export const DECK_CREATION_FORMATS: readonly FormatId[] = FORMAT_IDS.filter(
+    (format) => format !== "limited"
+);
+
+/** Type guard: is an arbitrary string a Format the generic builder can seed? */
+export function isDeckCreationFormat(value: string): value is FormatId {
+    return (DECK_CREATION_FORMATS as readonly string[]).includes(value);
+}
+
 /** Type guard: is an arbitrary string a known `FormatId`? Used by the schema
  *  validator boundary and the migration to reject/normalize legacy values. */
 export function isFormatId(value: string): value is FormatId {

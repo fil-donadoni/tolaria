@@ -18,6 +18,7 @@ import DeckZonesSurface from "./deck-zones-surface";
 import DeckPaneTabs from "./deck-pane-tabs";
 import DeckBottomBar from "./deck-bottom-bar";
 import DeckFeaturedSelect from "./deck-featured-select";
+import DeckSaveError from "./deck-save-error";
 import DeckBasicsSheet from "./deck-basics-sheet";
 import { deckPanes, resolveActivePaneId, type DeckPane } from "./deckPanes";
 import { isCreatureCard } from "./deckZoneFilter";
@@ -58,6 +59,8 @@ export interface DeckBuilderShellProps extends DeckBuilderSlots {
     view: DeckBuilderViewSpec;
     legality?: DeckLegalitySpec;
     saveBar?: DeckSaveBarSpec;
+    /** The last save failed: why, and how to leave without it. */
+    saveFailure?: { error: unknown; onLeave: () => void };
 
     /** dnd-kit manager. Omitted in the app (the provider makes its own); the
      *  mounted drag tests inject one so they can drive REAL drag operations
@@ -111,6 +114,7 @@ export default function DeckBuilderShell({
     view,
     legality,
     saveBar,
+    saveFailure,
     manager,
 }: DeckBuilderShellProps) {
     const sensors = useDeckDragSensors();
@@ -535,6 +539,13 @@ export default function DeckBuilderShell({
             >
                 {basicsBar}
             </DeckBasicsSheet>
+
+            {saveFailure && (
+                <DeckSaveError
+                    error={saveFailure.error}
+                    onLeave={saveFailure.onLeave}
+                />
+            )}
 
             {saveBar && !portrait && (
                 <div className="shrink-0">

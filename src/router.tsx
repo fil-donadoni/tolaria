@@ -4,7 +4,7 @@ import {
     createRouter,
     lazyRouteComponent,
 } from "@tanstack/react-router";
-import { type FormatId, isFormatId } from "@convex/formatAdmission";
+import { type FormatId, isDeckCreationFormat } from "@convex/formatAdmission";
 import {
     parseLimitedStatusParam,
     type LimitedEventStatusChip,
@@ -63,10 +63,11 @@ const decksCreateRoute = createRoute({
     path: "/decks/create",
     // Optional `?format=` seed carried from the lobby's format filter, so New
     // Deck opens on the selected format instead of resetting to Freeform. An
-    // unknown value is dropped (falls back to the builder's default).
+    // unknown value is dropped (falls back to the builder's default), and so is
+    // Limited: the lobby filter can browse it, but only its Event can create one.
     validateSearch: (search): { format?: FormatId } => {
         const raw = search.format;
-        return typeof raw === "string" && isFormatId(raw)
+        return typeof raw === "string" && isDeckCreationFormat(raw)
             ? { format: raw }
             : {};
     },

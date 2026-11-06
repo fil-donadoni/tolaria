@@ -241,41 +241,42 @@ export default function DeckBuilder({
         [kind, mode, sinks, fullCatalogue?.rows]
     );
 
-    const { deck, saving, updateDeck, setName, flush } = useDeckWorkspace({
-        initialIdentity,
-        save,
-        initial: () =>
-            initialDeck
-                ? {
-                      name: initialDeck.name,
-                      format: initialDeck.format,
-                      cards: initialDeck.cards,
-                      sideboard: initialDeck.sideboard ?? [],
-                      // The override is seeded `undefined` so an unchanged save
-                      // leaves the stored value untouched (the update mutation
-                      // skips an absent `featuredCardId`). The currently-featured
-                      // card is still shown via the resolved
-                      // `initialDeck.featuredCardId` (see
-                      // `effectiveFeaturedCardId`), so it survives reloads.
-                      featuredCardId: undefined,
-                      // The stored Column Layout (issue #1626), seeded whole
-                      // — unlike `featuredCardId` above it is NOT seeded
-                      // `undefined`, because it is the complete value rather
-                      // than an override: re-sending it unchanged is a no-op,
-                      // while seeding `undefined` would make the FIRST column
-                      // edit overwrite the other Zone's stored arrangement
-                      // with nothing.
-                      layout: initialDeck.layout,
-                  }
-                : {
-                      name: nextDeckName(initialDeckList),
-                      format: defaultFormat,
-                      cards: [],
-                      sideboard: [],
-                      featuredCardId: undefined,
-                      layout: undefined,
-                  },
-    });
+    const { deck, saving, saveError, updateDeck, setName, flush, discard } =
+        useDeckWorkspace({
+            initialIdentity,
+            save,
+            initial: () =>
+                initialDeck
+                    ? {
+                          name: initialDeck.name,
+                          format: initialDeck.format,
+                          cards: initialDeck.cards,
+                          sideboard: initialDeck.sideboard ?? [],
+                          // The override is seeded `undefined` so an unchanged save
+                          // leaves the stored value untouched (the update mutation
+                          // skips an absent `featuredCardId`). The currently-featured
+                          // card is still shown via the resolved
+                          // `initialDeck.featuredCardId` (see
+                          // `effectiveFeaturedCardId`), so it survives reloads.
+                          featuredCardId: undefined,
+                          // The stored Column Layout (issue #1626), seeded whole
+                          // — unlike `featuredCardId` above it is NOT seeded
+                          // `undefined`, because it is the complete value rather
+                          // than an override: re-sending it unchanged is a no-op,
+                          // while seeding `undefined` would make the FIRST column
+                          // edit overwrite the other Zone's stored arrangement
+                          // with nothing.
+                          layout: initialDeck.layout,
+                      }
+                    : {
+                          name: nextDeckName(initialDeckList),
+                          format: defaultFormat,
+                          cards: [],
+                          sideboard: [],
+                          featuredCardId: undefined,
+                          layout: undefined,
+                      },
+        });
 
     // The card search is pre-filtered to the deck's Format allowed sets (issue
     // #514): the builder only surfaces legally-includable prints. Discovery
@@ -670,9 +671,18 @@ export default function DeckBuilder({
     );
 
     const handleDone = useCallback(async () => {
-        const identity = await flush();
+        let identity: string | null;
+        try {
+            identity = await flush();
+        } catch {
+            return; // `saveError` tells the player; the edit stays pending.
+        }
         onClose(identity);
     }, [flush, onClose]);
+
+    const handleLeaveWithoutSaving = useCallback(() => {
+        onClose(discard());
+    }, [discard, onClose]);
 
     const toggleColor = useCallback(
         (color: string) => {
@@ -1015,6 +1025,11 @@ export default function DeckBuilder({
                       : "New Deck"
             }
             onDone={() => void handleDone()}
+            saveFailure={
+                saveError === null
+                    ? undefined
+                    : { error: saveError, onLeave: handleLeaveWithoutSaving }
+            }
             manager={manager}
             basicsBar={
                 <PoolBasicLandsBar

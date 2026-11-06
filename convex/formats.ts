@@ -26,6 +26,7 @@ import oracleLegalityData from "../data/oracle-legality.json";
 // can enforce admission without importing the card registry this module needs.
 import { FORMAT_LABELS, isFormatId, type FormatId } from "./formatAdmission";
 export {
+    DECK_CREATION_FORMATS,
     FORMAT_IDS,
     FORMAT_LABELS,
     admissionRefusal,

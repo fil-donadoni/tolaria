@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import {
@@ -163,7 +163,7 @@ async function assertNoPoolIntroductions(
     );
     const reasons = findPoolIntroductions(deck, after, pool, resolve);
     if (reasons.length > 0) {
-        throw new Error(
+        throw new ConvexError(
             `Cannot add cards outside this deck's Pool: ${reasons.map((r) => r.message).join(" ")}`
         );
     }
@@ -233,6 +233,14 @@ export const create = mutation({
             if (args.format === "limited") {
                 limitedOrigin = limitedOriginKey(event);
             }
+        }
+
+        // A Limited deck with no Event has no Pool to validate against, and
+        // `update` would then refuse every card added to it.
+        if (args.format === "limited" && args.limitedEventId === undefined) {
+            throw new ConvexError(
+                "A Limited deck can only be created from its Event."
+            );
         }
 
         const name = args.name.trim() || "Untitled deck";
