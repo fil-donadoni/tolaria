@@ -7876,7 +7876,9 @@ export interface SpellContext {
 
     /** Moves a card from `playerId`'s hand to the TOP of their library (CR
      *  121.1 — top is the next card drawn). Returns false if the card isn't in
-     *  hand. Sylvan Library's "put the card on top of your library" uses this. */
+     *  hand. Sylvan Library's "put the card on top of your library" uses this.
+     *  A private placement (ADR 0026): `playerId` knows the card's position, and
+     *  a prior knower of its identity does not. */
     moveHandCardToLibraryTop: (
         playerId: string,
         cardInstanceId: string
@@ -7884,6 +7886,10 @@ export interface SpellContext {
     /** Reorders the top cards of `playerId`'s library so they match the order
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
+    /** ADR 0026 — `playerId`'s library cards named here were just re-placed in
+     *  an order nobody can follow, so all knowledge of them ends, as a shuffle
+     *  ends it for a whole library. The rest of the library is untouched. */
+    forgetLibraryCards: (playerId: string, cardInstanceIds: string[]) => void;
 
     /** CR 401.4 "put it on top of your library" (issue #1125) — the
      *  tutor-to-top template: relocates specific card(s), by id, from
@@ -18103,8 +18109,8 @@ export type EffectOp =
            *  same LTB-aware primitive an omitted `position` already used, so
            *  `to: "library-top"` and `to: "library"` with no `position` are
            *  the same move from the battlefield; a graveyard/exile-sourced one
-           *  moves by id and is then repositioned with `putLibraryCardsOnTop`,
-           *  the single primitive that can address the top of a library. */
+           *  moves by id and is then reordered to the top, staying the public
+           *  placement the move stamped (ADR 0026). */
           to: EffectMoveZone | "library-top";
           /** The zone the named object is recovered FROM when it is not on the
            *  battlefield. `"graveyard"` / `"exile"` re-derive a departed object

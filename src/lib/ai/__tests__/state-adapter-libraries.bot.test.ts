@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import { getCardByName } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
 import { drawCard } from "@convex/gre/state";
+import { determinize } from "@convex/gre/determinize";
+import { makeRng } from "@convex/gre/rng";
 import { checkGameOverSBA } from "@convex/gre/sba";
 import { evaluate, WIN_SCORE } from "@convex/gre";
 import {
@@ -107,5 +109,30 @@ describe("AI library rehydration (issue #136)", () => {
         expect(checkGameOverSBA(world)).toBe(false);
         // The bot must value this by material, never as a win.
         expect(evaluate(world, "bot")).toBeLessThan(WIN_SCORE);
+    });
+});
+
+// ADR 0026 — the client Brain never holds the raw records: `library.known[]` is
+// all it gets, so the rehydrated world must keep pinning every index it names,
+// including one in the middle of the pile that no run reaches.
+describe("AI library rehydration — a known index in the middle of the pile", () => {
+    it("stays pinned through determinize, where the wire put it", () => {
+        const library = libraryOf("p1", 6);
+        library[2].knownTo = ["p1", "p2"];
+        library[2].libraryPositionKnownTo = ["p1", "p2"];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+
+        const world = projectedToGameState(
+            projectPublicState(state, 1, "p2"),
+            undefined,
+            "p2"
+        );
+        expect(world.players[0].library[2].id).toBe("p1-lib-2");
+        for (const seed of [1, 2, 3, 7, 11, 42, 1337]) {
+            const dealt = determinize(world, "p2", makeRng(seed));
+            expect(dealt.players[0].library[2].id).toBe("p1-lib-2");
+        }
     });
 });

@@ -64,6 +64,7 @@ import {
     tickColorOverrideLedger,
     tickDuration,
     withCardsPutIntoLibraryBatch,
+    clearKnowledge,
 } from "./state";
 import { encodedCardsGrantingAbility } from "./cipher";
 import { drawnThisTurnCount, offerStacklessMiracleReveal } from "./miracle";
@@ -1056,6 +1057,8 @@ export function finalizeDrawLookKeep(
         (c) => lookedSet.has(c.id) && c.id !== keptId
     );
     seededShuffle(state, rest);
+    // ADR 0026 — a random order nobody witnessed, exactly like a shuffle.
+    clearKnowledge(rest, null);
     const below = player.library.filter((c) => !lookedSet.has(c.id));
     player.library = [...(kept ? [kept] : []), ...below, ...rest];
 

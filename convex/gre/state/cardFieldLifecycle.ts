@@ -235,6 +235,9 @@ export const CARD_FIELD_LIFECYCLE = {
     createdBy:                  { codec: "scalar",  reset: NONE },
     linkedTokenId:              { codec: "scalar",  reset: NONE },
     knownTo:                    { codec: "custom",  reset: NONE },
+    // Also ended by `moveCard` and `clearKnowledge`; library cards persist it
+    // in their `compactLibrary` tuple.
+    libraryPositionKnownTo:     { codec: "list",    reset: ZONE_STACK },
     notedMana:                  { codec: "scalar",  reset: NONE },
     // The impulse permission window: the whole family expires TOGETHER at
     // cleanup, conditionally on the turn it names (`gre/phases.ts`).

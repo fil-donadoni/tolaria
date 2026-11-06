@@ -13,6 +13,7 @@ import {
     getPlayer,
     matchesPermanentFilter,
     grantKnowledge,
+    narrowLibraryPositionToChooser,
     emitLibrarySearchedEvent,
     enqueueFailToFindNotice,
     type CardInstanceState,
@@ -791,6 +792,22 @@ export function submitMidResolutionPick(
             state,
             head.zoneOwnerId ?? head.playerId,
             args.cardInstanceIds,
+            head.playerId
+        );
+    }
+    // ADR 0026 — the answer to any look over library cards is hidden: whatever
+    // this choice puts back, bottoms or leaves in place, only the chooser saw
+    // which card went where, for every card they looked at and not only those
+    // they picked. Reordering a single card hides nothing.
+    const lookedAt = head.candidateIds ?? args.cardInstanceIds;
+    if (
+        head.zone === "library" &&
+        (head.kind !== "reorder-library" || lookedAt.length > 1)
+    ) {
+        narrowLibraryPositionToChooser(
+            state,
+            head.zoneOwnerId ?? head.playerId,
+            lookedAt,
             head.playerId
         );
     }

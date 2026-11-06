@@ -7,7 +7,8 @@ import { getCardByName } from "../../cards";
 import { PLACEHOLDER_CARD_ID } from "../constants";
 import { unseenRemainder } from "../deckKnowledge";
 import { determinize } from "../determinize";
-import type { GameState } from "../state";
+import { buildSpellContext, type GameState } from "../state";
+import { projectPublicState } from "../../gameProjections";
 import { makeRng } from "../rng";
 import { LADDER_VARIANTS, resolveOpponentModel } from "../ai/searchVariant";
 import { runBladeScenario } from "../ai/blade/runner";
@@ -857,6 +858,62 @@ describe("determinize — known library runs are pinned (issue #1524)", () => {
         }
         expect(seen.size).toBeGreaterThan(1);
         expect(seen).toContain(buried);
+    });
+
+    describe("agrees with the projection on witnessed placements (ADR 0026)", () => {
+        /** p1's library with a public insert at index 1 and, at index 3, a card
+         *  revealed to both players earlier and then put back privately: its
+         *  identity is known to both, its position to p1 alone. */
+        function placedState(): GameState {
+            const state = knowledgeState();
+            const library = state.players[0].library;
+            const bear = makeInstance(BEARS, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: "inserted",
+            });
+            state.players[0].battlefield.push(bear);
+            const item = {
+                ...makeInstance(BEARS, { controllerId: "p1", ownerId: "p1" }),
+                id: "s1",
+                castById: "p1",
+                targets: [],
+                resolutionStep: 0,
+            };
+            state.stack.push(item);
+            buildSpellContext(state, item).putIntoLibraryFromBattlefield(
+                { type: "permanent", id: "inserted" },
+                2
+            );
+            state.stack.pop();
+            library[3].knownTo = ["p1", "p2"];
+            library[3].libraryPositionKnownTo = ["p1"];
+            return state;
+        }
+
+        it.each([
+            ["p1", [1, 3]],
+            ["p2", [1]],
+        ])(
+            "%s: pins exactly the indices the wire grants",
+            (observer, expected) => {
+                const state = placedState();
+                const granted = projectPublicState(state, 1, observer)
+                    .players[0].library.known.map((k) => k.index)
+                    .sort((a, b) => a - b);
+                expect(granted).toEqual(expected);
+
+                const real = state.players[0].library.map((c) => c.id);
+                const stable = (index: number) =>
+                    SEEDS.every(
+                        (seed) =>
+                            determinize(state, observer, makeRng(seed))
+                                .players[0].library[index].id === real[index]
+                    );
+                const pinned = real.flatMap((_, i) => (stable(i) ? [i] : []));
+                expect(pinned).toEqual(granted);
+            }
+        );
     });
 
     it("ignores knowledge held by the OTHER player — the observer's own gate", () => {

@@ -81,7 +81,8 @@ type CompactCard = Record<string, unknown>;
 // when there is no ExpandCtx, so the v1 shape still expands unchanged).
 type LibraryEntry =
     | readonly [string, string | number]
-    | readonly [string, string | number, string[]];
+    | readonly [string, string | number, string[]]
+    | readonly [string, string | number, string[], string[]];
 
 const MANA_KEYS = ["W", "U", "B", "R", "G", "C"] as const;
 
@@ -510,7 +511,16 @@ function compactLibrary(
         const cardId = (c.card as { id?: string }).id ?? "";
         const idx = internCardIdForCompact(ctx, cardId);
         // ADR 0026 — preserve persistent knowledge across the DB boundary;
-        // omit the third element for the overwhelmingly common unknown card.
+        // omit the third element for the overwhelmingly common unknown card,
+        // the fourth (who saw it placed) for every card with no such record.
+        if (c.libraryPositionKnownTo?.length) {
+            return [
+                c.id,
+                idx,
+                c.knownTo ?? [],
+                c.libraryPositionKnownTo,
+            ] as const;
+        }
         return c.knownTo?.length
             ? ([c.id, idx, c.knownTo] as const)
             : ([c.id, idx] as const);
@@ -532,9 +542,12 @@ function expandLibrary(
                 ctx
             );
         }
-        const [id, rawCardId, knownTo] = entry as
-            | readonly [string, string | number]
-            | readonly [string, string | number, string[]];
+        const [id, rawCardId, knownTo, positionKnownTo] = entry as readonly [
+            string,
+            string | number,
+            string[]?,
+            string[]?,
+        ];
         const cardId = resolveCardId(rawCardId, ctx);
         const def = tryGetDefinition(cardId);
         // CR 113.6c (issue #3278) — the library tuple stores only
@@ -565,6 +578,9 @@ function expandLibrary(
         if (power !== undefined) card.power = power;
         if (toughness !== undefined) card.toughness = toughness;
         if (knownTo?.length) card.knownTo = [...knownTo];
+        if (positionKnownTo?.length) {
+            card.libraryPositionKnownTo = [...positionKnownTo];
+        }
         return card;
     });
 }

@@ -858,6 +858,11 @@
             "label": "known top: plays the creature instead when the known top is a blank",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "witnessed placement: plays the creature when what it saw put there is a blank",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Samite Pilgrim": [
@@ -1158,6 +1163,11 @@
     "Thought Scour": [
         {
             "label": "known top: digs with a cantrip because it knows the Bolt is there",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "witnessed placement: mills down to the Bolt it saw put there",
             "tier": "must",
             "needsSetup": true
         }
