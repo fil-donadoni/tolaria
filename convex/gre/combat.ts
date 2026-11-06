@@ -4,6 +4,7 @@ import type {
     GrantedAttackRequirement,
 } from "./state";
 import { copyExceptName } from "../cards/cardNames";
+import { matchesPermanentFilter } from "../cards/filters";
 import { recomputeContinuousEffects } from "./state";
 import type {
     ManaCost,
@@ -912,6 +913,20 @@ export function validateBlockerEligibility(
                 reason: `Attacker can't be blocked by ${banned}s this turn`,
             };
         }
+    }
+
+    // Pass 0c' — attacker "can't be blocked this turn except by <filter>" (CR
+    // 509.1b, issue #8168 — Gingerbrute). Evasion is cumulative, so EVERY filter
+    // must pass. Reads the blocker's live characteristics at the declaration.
+    if (
+        attacker.cantBeBlockedExceptByThisTurn?.some(
+            (filter) => !matchesPermanentFilter(blocker, filter)
+        )
+    ) {
+        return {
+            eligible: false,
+            reason: "Attacker can't be blocked by this creature this turn",
+        };
     }
 
     // Pass 0d — CR 702.28b (issue #1156): Shadow is BIDIRECTIONAL — "A

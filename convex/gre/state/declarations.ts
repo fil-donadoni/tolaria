@@ -1157,6 +1157,13 @@ export type CardInstanceState = {
      *  blocker carrying a listed subtype is rejected. Cleared at CLEANUP
      *  (CR 514.2). */
     cantBeBlockedBySubtypesThisTurn?: string[];
+    /** Transient list: this creature (an attacker) can't be blocked this turn
+     *  except by creatures matching EVERY filter listed here (CR 509.1b —
+     *  evasion is cumulative). Set by the `restrictCombat` Op's `exceptBy`
+     *  (Gingerbrute: "except by creatures with haste"). Read by
+     *  `validateBlockerEligibility` and the client's declare-blockers
+     *  affordance. Cleared at CLEANUP (CR 514.2). */
+    cantBeBlockedExceptByThisTurn?: PermanentFilter[];
     /** A player chosen as this permanent enters the battlefield and stored for
      *  the rest of the game (CR 603.6b / 614.12 — "as ~ enters, choose an
      *  opponent"). Set by the as-enters `opponent` leg;

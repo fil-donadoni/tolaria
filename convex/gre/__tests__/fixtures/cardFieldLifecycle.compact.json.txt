@@ -321,6 +321,11 @@
           "cantBeBlockedBySubtypesThisTurn": [
             "Wall"
           ],
+          "cantBeBlockedExceptByThisTurn": [
+            {
+              "requireAbility": "haste"
+            }
+          ],
           "chosenPlayerId": "p2",
           "chosenSubtypes": [
             "Elf",
@@ -784,6 +789,11 @@
       "cantBeBlockedThisTurn": true,
       "cantBeBlockedBySubtypesThisTurn": [
         "Wall"
+      ],
+      "cantBeBlockedExceptByThisTurn": [
+        {
+          "requireAbility": "haste"
+        }
       ],
       "chosenPlayerId": "p2",
       "chosenSubtypes": [

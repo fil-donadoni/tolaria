@@ -1325,6 +1325,7 @@ function isEffectTokenSpec(value: unknown): boolean {
         "supertypes",
         "power",
         "toughness",
+        "manaCost",
         "colors",
         "staticAbilities",
         "staticEffectKeys",
@@ -1339,6 +1340,8 @@ function isEffectTokenSpec(value: unknown): boolean {
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (typeof s.name !== "string" || s.name.length === 0) return false;
+    // CR 202.1b (issue #8168) — a mana cost the creating effect specifies.
+    if ("manaCost" in s && !isManaCost(s.manaCost)) return false;
     if (
         !Array.isArray(s.types) ||
         s.types.length === 0 ||
@@ -7187,9 +7190,25 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
             attacker: isObjectSelector,
             scope: (v) => v === "turn" || v === "combat",
+            // CR 509.1b (issue #8168) — "… except by <filter>", read against
+            // the live blocker: the battlefield-guaranteed flags, as
+            // `objectMatchesFilter` passes them.
+            exceptBy: (v) =>
+                isCardFilter(v, {
+                    allowHasAbility: true,
+                    allowLiveState: true,
+                    rejectHiddenZoneFields: true,
+                }),
         },
         check: (entry) => {
             const problems: string[] = [];
+            if (
+                entry.exceptBy !== undefined &&
+                entry.restriction !== "cant-be-blocked"
+            )
+                problems.push(
+                    '"exceptBy" is only allowed when "restriction" is "cant-be-blocked"'
+                );
             const gameScoped =
                 entry.restriction === "cant-attack-all" ||
                 entry.restriction === "cant-block-all";

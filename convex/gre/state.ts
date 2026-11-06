@@ -18406,6 +18406,23 @@ export function buildSpellContext(
             found.card.cantBeBlockedThisTurn = true;
         },
 
+        setCantBeBlockedExceptByThisTurn(
+            target: TargetSelection,
+            filter: PermanentFilter
+        ): void {
+            // CR 509.1b — "can't be blocked this turn except by <filter>". Read
+            // on the attacker side by `validateBlockerEligibility`; cleared at
+            // CLEANUP (CR 514.2). A repeated activation adds nothing, so an
+            // identical filter is not recorded twice.
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const existing = found.card.cantBeBlockedExceptByThisTurn ?? [];
+            const key = JSON.stringify(filter);
+            if (existing.some((f) => JSON.stringify(f) === key)) return;
+            found.card.cantBeBlockedExceptByThisTurn = [...existing, filter];
+        },
+
         setCantBeBlockedBySubtypeThisTurn(
             target: TargetSelection,
             subtype: string
@@ -21600,9 +21617,13 @@ export function createTokenPermanents(
         }).count;
     }
     const ids: string[] = [];
-    const manaCost: CardManaCost = {};
-    for (const c of spec.colors ?? []) {
-        manaCost[c] = (manaCost[c] ?? 0) + 1;
+    // CR 202.1b — a cost the creating effect specifies; else the colour-derived
+    // synthetic one (`maybeSynthesizeToken` decodes the same choice).
+    const manaCost: CardManaCost = spec.manaCost ? { ...spec.manaCost } : {};
+    if (!spec.manaCost) {
+        for (const c of spec.colors ?? []) {
+            manaCost[c] = (manaCost[c] ?? 0) + 1;
+        }
     }
     // Synthesize + register one CardDefinition per unique spec shape. Multiple
     // copies of the same Wasp share the same def entry; the frontend reads

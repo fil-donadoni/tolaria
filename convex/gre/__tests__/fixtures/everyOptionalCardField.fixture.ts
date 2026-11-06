@@ -168,6 +168,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         cantAttackThisTurn: true,
         cantBeBlockedThisTurn: true,
         cantBeBlockedBySubtypesThisTurn: ["Wall"],
+        cantBeBlockedExceptByThisTurn: [{ requireAbility: "haste" }],
         chosenPlayerId: "p2",
         chosenSubtypes: ["Elf", "Goblin"],
         colorOverride: ["R"],

@@ -1047,7 +1047,16 @@ export function tokenDefinitionId(spec: TokenSpec): string {
     // above — so every token id minted without the rider stays byte-identical
     // (persisted states, scenario specs) and a 16-segment id decodes as "no
     // bonus".
-    if (spec.crewPowerBonus !== undefined) parts.push(spec.crewPowerBonus);
+    // 18th segment (index 17, issue #8168, CR 202.1b) — the mana cost the
+    // creating effect specifies (the Gingerbrute token's {1}), JSON-encoded like
+    // `activatedAbilities`. Appended only when present, holding the 17th slot
+    // empty, so every other token id stays byte-identical.
+    if (spec.crewPowerBonus !== undefined || spec.manaCost) {
+        parts.push(spec.crewPowerBonus ?? "");
+    }
+    if (spec.manaCost) {
+        parts.push(encodeURIComponent(JSON.stringify(spec.manaCost)));
+    }
     return `token:${parts.join("|")}`;
 }
 
@@ -1382,8 +1391,15 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                       matches: () => false,
                   };
               }));
-    const manaCost: ManaCost = {};
-    for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
+    // CR 202.1b (issue #8168) — the specified cost (see `tokenDefinitionId`), else
+    // the colour-derived synthetic one.
+    const manaCostRaw = parts[17];
+    const manaCost: ManaCost = manaCostRaw
+        ? (JSON.parse(decodeURIComponent(manaCostRaw)) as ManaCost)
+        : {};
+    if (!manaCostRaw) {
+        for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
+    }
     const def: CardDefinition = {
         id: cardId,
         name,
