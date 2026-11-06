@@ -782,6 +782,14 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         expect(git(["show", `HEAD:${index}`])).toBe("index: main");
         expect(lockAt("HEAD")).toEqual(lockAt(rebasePoint));
         expect(lockAt(newerTip)).not.toEqual(lockAt(rebasePoint));
+
+        // The guard that labelled a healthy PR `land-failed`, on the moved ref.
+        const guard = spawnSync(
+            "bun",
+            [join(REPO_ROOT, "scripts", "check-derived-in-diff.ts")],
+            { cwd: repo, encoding: "utf8" }
+        );
+        expect(guard.status, guard.stdout + guard.stderr).toBe(0);
     });
 
     it("restores OURS byte-for-byte when the 3-way merge conflicts — never conflict markers", () => {
