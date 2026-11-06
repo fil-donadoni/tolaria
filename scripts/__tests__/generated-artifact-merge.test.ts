@@ -729,6 +729,69 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         expect(existsSync(markerPath())).toBe(false);
     });
 
+    it("takes the rebase point's bytes when origin/<base> moves after the rebase (issue #8384)", () => {
+        const index = "data/catalogue/search-index.json";
+        const writeIndex = (root: string, value: string) =>
+            writeFileSync(join(root, index), `index: ${value}\n`);
+        mkdirSync(join(repo, "data", "catalogue"), { recursive: true });
+        writeIndex(repo, "base");
+        git(["add", "-A"]);
+        git(["commit", "-m", "catalogue"]);
+        useDriver();
+
+        git(["checkout", "-q", "-b", "branch"]);
+        writeIndex(repo, "branch");
+        move("registry", "branch", "branch-value", "branch moves a field");
+        git(["checkout", "-q", BASE_BRANCH]);
+        writeIndex(repo, "main");
+        move("compiler", "main", "main-value", "main moves a field");
+        git(["checkout", "-q", "branch"]);
+
+        const rebased = rebaseOntoMain();
+        expect(rebased.status, rebased.output).toBe(0);
+        const rebasePoint = git(["rev-parse", ORIGIN_BASE]);
+
+        // A `derive:sync` lands, and any fetch on the machine moves the ref
+        // every worktree shares, while the generators run.
+        const later = join(dir, "later");
+        git(["worktree", "add", "-q", "--detach", later, rebasePoint]);
+        writeIndex(later, "later");
+        const compiler = join(later, "input", "compiler.txt");
+        writeFileSync(
+            compiler,
+            readFileSync(compiler, "utf8").replace(
+                "main:main-value",
+                "main:later"
+            )
+        );
+        const compiled = spawnSync("bun", ["gen.mjs", "compile"], {
+            cwd: later,
+            encoding: "utf8",
+        });
+        expect(compiled.status, compiled.stderr).toBe(0);
+        git(["add", "-A"], later);
+        git(["commit", "-m", "derive:sync"], later);
+        const newerTip = git(["rev-parse", "HEAD"], later);
+        git(["update-ref", `refs/remotes/${ORIGIN_BASE}`, newerTip]);
+
+        const resolved = runResolver();
+        expect(resolved.status, resolved.output).toBe(0);
+
+        const lockAt = (ref: string) =>
+            headerHashes(git(["show", `${ref}:${LOCKFILE_PATH}`]));
+        expect(git(["show", `HEAD:${index}`])).toBe("index: main");
+        expect(lockAt("HEAD")).toEqual(lockAt(rebasePoint));
+        expect(lockAt(newerTip)).not.toEqual(lockAt(rebasePoint));
+
+        // The guard that labelled a healthy PR `land-failed`, on the moved ref.
+        const guard = spawnSync(
+            "bun",
+            [join(REPO_ROOT, "scripts", "check-derived-in-diff.ts")],
+            { cwd: repo, encoding: "utf8" }
+        );
+        expect(guard.status, guard.stdout + guard.stderr).toBe(0);
+    });
+
     it("restores OURS byte-for-byte when the 3-way merge conflicts — never conflict markers", () => {
         const base = join(repo, "m.base");
         const ours = join(repo, "m.ours");

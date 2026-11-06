@@ -361,12 +361,22 @@ function firstSemanticRed(
  * The PRs whose head `git merge-tree` cannot merge into the base tip: local
  * detection, never waiting for GitHub's `mergeable` to leave `UNKNOWN`. A PR
  * whose branch cannot be fetched is left out (not a conflict).
+ *
+ * The verdict is GitHub's, so it runs without our merge drivers: `merge-tree`
+ * honours the ones registered in the primary and would call a driven-file
+ * conflict clean, exactly the PRs this exists to find (issue #8384). An empty
+ * attribute source names no driver.
  */
-function localConflicts(
+export function localConflicts(
     primary: string,
     prs: readonly RefreshPr[]
 ): Set<number> {
     const out = new Set<number>();
+    const noAttributes = run(
+        "git",
+        ["hash-object", "-t", "tree", "-w", "/dev/null"],
+        primary
+    ).stdout.trim();
     for (const pr of prs) {
         if (pr.isCrossRepository || pr.mergeable === "CONFLICTING") continue;
         const fetched = run(
@@ -390,6 +400,7 @@ function localConflicts(
         const merged = run(
             "git",
             [
+                `--attr-source=${noAttributes}`,
                 "merge-tree",
                 "--write-tree",
                 `origin/${BASE_BRANCH}`,
