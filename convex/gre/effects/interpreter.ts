@@ -3201,6 +3201,9 @@ function bottomLookedAtCards(
     const restSet = new Set(restTop);
     const below = all.filter((id) => !restSet.has(id));
     ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
+    // ADR 0026 — nobody else saw where these went, so what anyone knew about
+    // them from before ends here, on the no-choice path too.
+    ctx.forgetLibraryCards(playerId, restTop);
     if (!randomBottom) {
         // ADR 0026 — the bottomed cards were looked at and placed by the
         // controller, so they stay known until a shuffle. A random bottom
@@ -4836,12 +4839,17 @@ export const OP_EXECUTORS: {
             // from your graveyard on top of your library", Volrath's
             // Stronghold). The generic library leg of `moveCardById` PUSHES,
             // i.e. bottoms the card (`library[0]` is the top), so the move is
-            // followed by `putLibraryCardsOnTop` — the one primitive that can
-            // address the top of a library, the same two-step Doomsday
-            // (`wth/black.cards.ts`) performs imperatively.
+            // followed by a reorder. Not `putLibraryCardsOnTop`, the two-step
+            // Doomsday (`wth/black.cards.ts`) performs imperatively: that one
+            // narrows the position to its controller, and this placement is
+            // made in full view (ADR 0026), as `moveCardById` just stamped it.
             if (op.to === "library-top") {
                 ctx.moveCardById(owner, target.id, recoveredZone, "library");
-                ctx.putLibraryCardsOnTop(owner, [target.id]);
+                const rest = ctx
+                    .peekLibraryTop(owner, Number.MAX_SAFE_INTEGER)
+                    .filter((id) => id !== target.id);
+                ctx.reorderLibraryTop(owner, [target.id, ...rest]);
+                ctx.markKnown(owner, [target.id], owner);
                 return;
             }
             ctx.moveCardById(owner, target.id, recoveredZone, op.to);

@@ -1034,6 +1034,36 @@ describe("blade setup — `know-library-top` grants ADR 0026 knowledge (issue #1
     });
 });
 
+describe("blade setup — `witness-library-placement` records a public placement (ADR 0026)", () => {
+    const board = (): ScenarioSpec => ({
+        cards: [{ name: "Mountain", owner: "me", zone: "battlefield" }],
+        phase: "PRECOMBAT_MAIN",
+        libraryCount: 3,
+    });
+
+    it("puts exactly that card on record for every player", () => {
+        const state = build(board());
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "witness-library-placement", position: 2 }],
+        });
+        const everyone = state.players.map((p) => p.id);
+        const library = state.players[0].library;
+        expect(library[1].libraryPositionKnownTo).toEqual(everyone);
+        expect(library[1].knownTo).toEqual(everyone);
+        expect(library[0].libraryPositionKnownTo).toBeUndefined();
+    });
+
+    it("throws on a position the library does not have", () => {
+        expect(() =>
+            applyBladeSetup(build(board()), {
+                label: "t",
+                setup: [{ kind: "witness-library-placement", position: 9 }],
+            })
+        ).toThrow(/no position 9/);
+    });
+});
+
 describe("blade setup — `know-library-top` rejects a run it cannot grant", () => {
     it("THROWS on count < 1 rather than granting nothing quietly", () => {
         for (const count of [0, -1]) {
