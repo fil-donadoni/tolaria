@@ -799,7 +799,7 @@ blade entry with a stale index and the base went RED.
 
 A row of the same shape, `blade-noise-notes` (issue #8459), refuses a `must`
 blade entry whose note admits it is green by noise unless a baseline row names
-the issue fixing it. It reads the registry and runs no search: 6.7 s wall
+the issue fixing it. It reads the registry and runs no search: 6.7 s to 9.9 s wall
 (`convex/gre/ai/blade/__tests__/noiseNotes.bot.test.ts`, 2026-11-06), admitted by
 `convex/gre/ai/blade/**`. It is no substitute for the robustness audit, which
 finds the entries no note admits.
