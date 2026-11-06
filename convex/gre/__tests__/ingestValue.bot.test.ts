@@ -81,13 +81,15 @@ function castPolicyValue(name: string): number {
     return candidateFeatures(state, bot, move).policyValue;
 }
 
-// The blade entry runs the search, where the two casts tie inside rollout
-// noise over a full library (issue #8459); the sign of the damaged player is
-// decided here, one ply deep, where it is +3.0 intact and -3.0 flipped.
+// The blade entry runs the search, whose rollouts do not separate the two
+// casts by the sign (issue #8459); the sign is decided here, one ply deep.
+// The gap is the exile's priced value (`exileTopOfLibrary`, a constant, no
+// fitted weight) minus its latent half in hand: +3 intact, -3 flipped. Only
+// the sign is asserted, so a retune of those constants is no red here.
 describe("the sign reaches the decision — 1-ply policy at the blade position (issue #8465)", () => {
     it("ranks the Ingest body's cast above the vanilla body's (CR 702.115a)", () => {
         expect(castPolicyValue("Culling Drone")).toBeGreaterThan(
-            castPolicyValue("Walking Corpse") + 2
+            castPolicyValue("Walking Corpse")
         );
     });
 });
