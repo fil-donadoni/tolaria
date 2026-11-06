@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import type { Doc } from "@convex/_generated/dataModel";
 import type { Reason } from "@convex/formats";
 import {
+    deckPayload,
     toUserLobbyDeck,
     toPresetLobbyDeck,
     selectPreset,
@@ -398,5 +399,44 @@ describe("filterDecksByFormat (issue #513)", () => {
         const input = [...decks];
         filterDecksByFormat(input, "alpha-40");
         expect(input).toHaveLength(decks.length);
+    });
+});
+
+// ADR 0106 §4, issue #2815: every game-start surface builds its payload here;
+// the server refuses a Limited one that names no row.
+describe("deckPayload — the row the payload stands for", () => {
+    it("a user deck names its row, with the provenance the row carries", () => {
+        const payload = deckPayload(
+            toUserLobbyDeck({
+                _id: "deck-7" as Doc<"userDecks">["_id"],
+                _creationTime: 0,
+                userId: "user1" as Doc<"userDecks">["userId"],
+                name: "Sealed",
+                format: "limited",
+                colors: [],
+                cards: [],
+                limitedEventId: "event1",
+                limitedSeatId: "0",
+                isLegal: true,
+                reasons: [],
+            })
+        );
+        expect(payload.userDeckId).toBe("deck-7");
+        expect(payload.limitedEventId).toBe("event1");
+        expect(payload.limitedSeatId).toBe("0");
+    });
+
+    it("a preset has no row to name", () => {
+        const payload = deckPayload(
+            toPresetLobbyDeck({
+                presetId: "preset-1",
+                name: "Preset",
+                format: "freeform",
+                description: "",
+                colors: [],
+                cards: [],
+            })
+        );
+        expect(payload.userDeckId).toBeUndefined();
     });
 });
