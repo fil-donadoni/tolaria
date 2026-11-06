@@ -11,6 +11,17 @@ const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // basic land, colorless
 
 describe("computeDeckColors", () => {
+    it("an alternate printing colours the deck as its definition does (issue #8387)", () => {
+        expect(
+            computeDeckColors([
+                {
+                    cardId: "aaaaaaaa-0000-4000-8000-000000000001",
+                    cardName: "Lightning Bolt",
+                },
+            ])
+        ).toEqual(["R"]);
+    });
+
     it("derives WUBRG-ordered colors from the deck's cards", () => {
         expect(
             computeDeckColors([

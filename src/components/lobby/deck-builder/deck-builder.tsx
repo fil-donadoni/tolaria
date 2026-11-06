@@ -869,18 +869,15 @@ export default function DeckBuilder({
         initial: 0.95,
     });
 
-    // The Column Layout engine's catalogue lookup. A Tabletop deck's
-    // catalogue-only cards (ADR 0080) resolve through the shape resolver into a
-    // synthetic definition, so they still bucket by Mana Value instead of
-    // falling into the Catch-All; `nameOf` keeps the deck row's own name as the
-    // in-column sort key, exactly as the retired pile grouping did.
-    const cardLookup = useMemo(() => {
-        const names = new Map<string, string>();
-        for (const card of deck.cards) names.set(card.cardId, card.cardName);
-        for (const card of deck.sideboard)
-            names.set(card.cardId, card.cardName);
-        return deckCardLookup(resolveShape, (id) => names.get(id));
-    }, [resolveShape, deck.cards, deck.sideboard]);
+    // The Column Layout engine's catalogue lookup. An entry holding a printing
+    // resolves through its own row to its Card Definition (issue #8387), and a
+    // Tabletop deck's catalogue-only cards (ADR 0080) through the shape resolver
+    // into a synthetic definition, so both bucket by Mana Value instead of
+    // falling into the Catch-All.
+    const cardLookup = useMemo(
+        () => deckCardLookup(resolveShape, [...deck.cards, ...deck.sideboard]),
+        [resolveShape, deck.cards, deck.sideboard]
+    );
 
     // The basics bar, shared with the Limited builder (ADR 0075, issue
     // #1627 — "the basics bar ships in BOTH builders"). Constructed has no

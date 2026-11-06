@@ -427,7 +427,7 @@ describe("DeckZoneSurface — catalogue-only cards (Tabletop, ADR 0080)", () => 
                 available: false,
             },
         ]),
-        (id) => (id === CREATURE.cardId ? CREATURE.cardName : LAND.cardName)
+        [CREATURE, LAND]
     );
 
     it("does not throw on a card the registry has never heard of", () => {

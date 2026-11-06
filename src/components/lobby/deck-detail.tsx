@@ -48,9 +48,9 @@ export default function DeckDetail({
     // deckbuilder's Stats dialog computes, reused rather than re-derived. A
     // Manual (Cockatrice) deck's catalogue-only cards aren't in the card
     // registry `computeDeckStats` reads (ADR 0080 — no `CardDefinition` is
-    // ever hydrated for one), so its curve renders all-zero by the same
+    // ever hydrated for one), so only its implemented cards chart, by the same
     // "unresolvable contributes nothing" rule the Stats dialog already
-    // follows — not a bug, just nothing to chart for a format the engine
+    // follows — not a bug, just all there is to chart for a format the engine
     // never validates.
     const curve = useMemo(
         () => computeDeckStats(deck.cards).curve,

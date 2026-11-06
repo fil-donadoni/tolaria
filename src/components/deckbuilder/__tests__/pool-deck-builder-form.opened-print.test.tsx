@@ -19,6 +19,7 @@ interface ShellStubProps {
     actions: { onMoveToMaindeck: (cardId: string, pinKey?: string) => void };
     mainCards: WorkingCard[];
     sideCards: WorkingCard[];
+    lookup?: (cardId: string) => { id: string } | undefined;
 }
 
 const createMock = vi.fn().mockResolvedValue("deck-1");
@@ -64,6 +65,11 @@ vi.mock("../deck-builder-shell", () => ({
         <div>
             <pre data-testid="main">{JSON.stringify(props.mainCards)}</pre>
             <pre data-testid="side">{JSON.stringify(props.sideCards)}</pre>
+            <pre data-testid="main-definitions">
+                {JSON.stringify(
+                    props.mainCards.map((c) => props.lookup?.(c.cardId)?.id)
+                )}
+            </pre>
             <button
                 type="button"
                 onClick={() => props.actions.onMoveToMaindeck(BOLT_ID)}
@@ -147,6 +153,31 @@ describe("PoolDeckBuilderForm — the opened print (issue #5473)", () => {
             { cardId: MOUNTAIN_ID, cardName: "Mountain" },
             { cardId: "unknown", cardName: "Mystery" },
         ]);
+    });
+
+    it("a re-arted Basic resolves to its definition for the Column Layout (issue #8387)", () => {
+        const { getByTestId } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={
+                    {
+                        userDeckId: "deck-1",
+                        name: "Saved",
+                        format: "limited",
+                        cards: [{ cardId: "art-print", cardName: "Mountain" }],
+                        sideboard: [],
+                    } as never
+                }
+                eventType="sealed"
+                packSlots={["lea"]}
+                poolArrangement={[]}
+            />
+        );
+        expect(
+            JSON.parse(getByTestId("main-definitions").textContent ?? "")
+        ).toEqual([MOUNTAIN_ID]);
     });
 
     it("reopening a saved deck re-attaches each print-keyed entry to its Pool copy: the Pin survives and the face is the copy's", () => {

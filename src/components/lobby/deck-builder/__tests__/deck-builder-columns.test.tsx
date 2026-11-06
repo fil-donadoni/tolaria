@@ -134,6 +134,21 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
+describe("an alternate printing in the deck (issue #8387)", () => {
+    const PRINT = "aaaaaaaa-0000-4000-8000-000000000001";
+
+    it.each([
+        ["its `definitionId`", { definitionId: BOLT.cardId }],
+        ["only its name (a drag add, before the server fills the id)", {}],
+    ])("sits in its Mana Value column, knowing %s", (_how, identity) => {
+        const { container } = renderBuilder(
+            deck([{ cardId: PRINT, cardName: "Lightning Bolt", ...identity }])
+        );
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "catch-all")).toEqual([]);
+    });
+});
+
 describe("DeckBuilder — manual Columns (ADR 0075 §2, issue #1626)", () => {
     it("an add-column affordance creates a NAMED column, last before the Catch-All", () => {
         const rendered = renderBuilder();
