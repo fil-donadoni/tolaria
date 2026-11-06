@@ -12,6 +12,10 @@
 // addition), and any cube addition reshuffles the seeds' packs. It returns
 // here as a gate once issue #7418's weights hold it. What stays is the
 // harness, which is not an opinion: the cut reaches the observed seat.
+//
+// It is asserted on the pack that seat receives, never on its final Pool (issue
+// #8515). The whole-draft sum is chaotic: on one test, untouched, it read 177,
+// 65.5, 173, -1 and 141 as cards joined the catalogue, and -1 redded the base.
 import { describe, it, expect } from "vitest";
 import {
     buildDraftLabPickRating,
@@ -23,7 +27,7 @@ import {
 } from "../draftLabEngine";
 import { draftLabGetCardEvalMeta } from "../draftLabCardMeta";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
-import type { LimitedPoolCard } from "@convex/limited/eventTypes";
+import type { DraftPackCard } from "@convex/limited/eventTypes";
 import type { SignalColour } from "@convex/limited/draftSignal";
 
 const PACK_SLOTS = standardPackSlots(CUBE_SOURCE_KEY);
@@ -62,51 +66,61 @@ function onlyColour(colour: SignalColour): SeatPickPolicy {
     };
 }
 
-/** Pick-rating power of `colour` in a Pool. */
+/** Pick-rating power of `colour` in a pack. */
 function colourPower(
-    pool: readonly LimitedPoolCard[],
+    pack: readonly DraftPackCard[],
     colour: SignalColour
 ): number {
-    return pool
+    return pack
         .filter((c) => hasColour(c.scryfallId, colour))
         .reduce((sum, c) => sum + ratingOf(c.scryfallId), 0);
 }
 
-function observedPower(
+/** The `colour` power in the pack the observed seat faces at its second pick:
+ *  the cut seat's first pack minus the card that seat took. */
+function secondPickPower(
     seed: number,
     colour: SignalColour,
     options: DraftLabRunOptions
 ): number {
     const state = runFullDraftLab(seed, PACK_SLOTS, 8, [], options);
-    return colourPower(state.seats[OBSERVED_SEAT].pool ?? [], colour);
-}
-
-/** Total `colour` power the observed seat ends with over every seed. */
-function total(colour: SignalColour, options: DraftLabRunOptions): number {
-    return SEEDS.reduce(
-        (sum, seed) => sum + observedPower(seed, colour, options),
-        0
+    const pick = state.pickLog.find(
+        (r) => r.seatIndex === OBSERVED_SEAT && r.seatPickNumber === 2
     );
+    if (!pick) throw new Error(`seed ${seed}: no second pick for the seat`);
+    return colourPower(pick.pack, colour);
 }
 
 describe("Cut Experiment: the upstream cut reaches the observed seat (issue #3738)", () => {
     for (const colour of CUT_COLOURS) {
-        it(`a ${colour} cut upstream leaves the blind downstream seat less ${colour}`, () => {
+        it(`a ${colour} cut upstream leaves the blind downstream seat a pack with less ${colour}`, () => {
             const pickPolicies: SeatPickPolicies = new Map([
                 [CUT_SEAT, onlyColour(colour)],
             ]);
             // Blind on both arms: the drop is the cut's mechanical effect on
-            // the packs, with no Draft Signal read in it.
+            // the pack, with no Draft Signal read in it.
             const blind: DraftLabRunOptions = { readSignal: false };
-            const dropBlind =
-                total(colour, blind) -
-                total(colour, { ...blind, pickPolicies });
+            const drops = SEEDS.map(
+                (seed) =>
+                    secondPickPower(seed, colour, blind) -
+                    secondPickPower(seed, colour, {
+                        ...blind,
+                        pickPolicies,
+                    })
+            );
+            // The bound holds per seed: the policy removes the best card of
+            // the colour, and a normal pick removes that card or a lesser one.
+            for (const [i, drop] of drops.entries()) {
+                expect(
+                    drop,
+                    `seed ${SEEDS[i]}: the cut cannot leave more ${colour}`
+                ).toBeGreaterThanOrEqual(0);
+            }
             expect(
-                dropBlind,
+                Math.max(...drops),
                 `the seat upstream cutting ${colour} must leave the observed ` +
-                    `seat with less ${colour} power over ${SEEDS.length} seeds ` +
-                    `(drop ${dropBlind.toFixed(1)}) — else the pick policy never ` +
-                    `reached the table`
+                    `seat less ${colour} on some seed (drops ${drops.join(", ")}) ` +
+                    `— else the pick policy never reached the table`
             ).toBeGreaterThan(0);
         });
     }
