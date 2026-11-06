@@ -38,7 +38,9 @@ export default function LimitedArchiveDeckDetail({
                 {deck.reasons.length > 0 && (
                     <ul className="text-xs text-text-muted">
                         {deck.reasons.map((reason) => (
-                            <li key={reason}>{reason}</li>
+                            <li key={reason.code + reason.message}>
+                                {reason.message}
+                            </li>
                         ))}
                     </ul>
                 )}
