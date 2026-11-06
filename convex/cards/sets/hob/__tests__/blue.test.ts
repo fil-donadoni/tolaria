@@ -6,11 +6,7 @@
 // cast happens during the resolution), CR 614.1a (the exile rider replaces only
 // a move to the graveyard), CR 601.2f (the static line discounts the cast).
 import { describe, expect, it } from "vitest";
-import {
-    getCardByName,
-    getDefinition,
-    registerTokenDefinition,
-} from "../../../index";
+import { getDefinition, registerTokenDefinition } from "../../../index";
 import { adventureCastAltCostId } from "../../../../gre/adventure";
 import {
     makeInstance,
@@ -377,9 +373,9 @@ describe("castDuringResolution — validator", () => {
 // CR 709.3a / 712.11c / 715.3a — the permission names SPELL types, so it is
 // asked of each face the card can be cast as, never of the printed type line.
 describe("Bilbo — the permission is asked per face (issue #8463)", () => {
-    const GIANT = getCardByName("Bonecrusher Giant");
+    const GIANT = getDefinition("ff984a4c-1818-4f8f-a9d7-fce57e77937d");
     const STOMP = adventureCastAltCostId(GIANT);
-    const MOUNTAIN = getCardByName("Mountain").id;
+    const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
 
     function withMountain(state: GameState): GameState {
         getPlayer(state, "p1").battlefield.push(
