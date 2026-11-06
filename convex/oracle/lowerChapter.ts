@@ -7,9 +7,13 @@
  * (CR 714.2d). None of them is the compiler's to write.
  */
 
-import type { ChapterAbilityDefinition, EffectOp } from "../cards/types";
+import type {
+    ChapterAbilityDefinition,
+    EffectOp,
+    TargetRequirement,
+} from "../cards/types";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
-import { lowerSentence, SentenceWalk } from "./lowerEffects";
+import { declareTargets, lowerSentence, SentenceWalk } from "./lowerEffects";
 
 export type LowerChapterResult =
     | { readonly ok: true; readonly ability: ChapterAbilityDefinition }
@@ -34,20 +38,27 @@ export function lowerChapterAbility(input: {
         if (!result.ok) return { ok: false, reason: result.reason };
         effects.push(...result.value);
     }
-    // CR 603.3d — a chapter's targets would be announced as it goes on the
-    // stack, and `ChapterAbilityDefinition` has no field to declare them on: a
-    // `{ target: 0 }` with no requirement behind it would never be chosen.
-    if (walk.targets.requirements().length > 0)
+    // CR 702.33g — only a spell's announcement filters a gated group.
+    if (walk.targets.hasKickerGatedGroup())
         return {
             ok: false,
-            reason: "a chapter ability with a target (CR 603.3d) has no target requirement to declare it on",
+            reason: "an ability cannot announce a target only if kicked (CR 702.33g)",
         };
+    // CR 603.3d — a chapter ability is a triggered ability (CR 714.2b): its
+    // target is announced as it goes on the stack. `declareTargets` writes at
+    // most one group and refuses more, as at the triggered-ability site.
+    const declared: { targetRequirement?: TargetRequirement } = {};
+    const targetError = declareTargets(declared, walk.targets.requirements());
+    if (targetError !== null) return { ok: false, reason: targetError };
     return {
         ok: true,
         ability: {
             chapters: [...input.chapters],
             oracleText: input.oracleText,
             effects,
+            ...(declared.targetRequirement !== undefined
+                ? { targetRequirement: declared.targetRequirement }
+                : {}),
         },
     };
 }
