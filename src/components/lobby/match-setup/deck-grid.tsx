@@ -4,6 +4,8 @@
 // Your decks / Presets. Under Freeform a Format select narrows "every deck".
 // Under Limited the player's decks group by Limited Origin, filterable by one
 // (issue #5394). Step 5 passes `mirror`, an always-admitted choice above the grid.
+// An admin's setup also lists other players' Limited decks, in their own section
+// that grows by "Load more" (issue #8411).
 import { useState } from "react";
 import { FORMAT_LABELS, type FormatId } from "@convex/formats";
 import type { LobbyDeck, UserLobbyDeck } from "~/lib/deckTypes";
@@ -17,6 +19,7 @@ import {
     type DeckGridOrigin,
 } from "~/lib/matchSetupDeckGrid";
 import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupImportFormats";
+import { Button } from "~/components/ui/button";
 import DeckGridSection from "./deck-grid-section";
 import ImportDeckAction from "./import-deck-action";
 import SetupChoice from "./setup-choice";
@@ -28,6 +31,7 @@ export default function DeckGrid({
     onSelect,
     onImported,
     mirror,
+    onLoadMoreArchived,
 }: {
     decks: readonly LobbyDeck[];
     matchFormat: FormatId;
@@ -37,6 +41,8 @@ export default function DeckGrid({
     /** A deck the strict import just saved — the step selects it. */
     onImported: (deck: UserLobbyDeck) => void;
     mirror?: { selected: boolean; onSelect: () => void };
+    /** Fetches the next page of archived decks; absent when there is none. */
+    onLoadMoreArchived?: () => void;
 }) {
     const [query, setQuery] = useState("");
     const [chosenFormat, setFormat] = useState<DeckGridFormat>("all");
@@ -62,9 +68,13 @@ export default function DeckGrid({
             ? chosenOrigin
             : "all";
     const admitted = deckGrid(decks, matchFormat, "");
-    const empty = admitted.mine.length + admitted.presets.length === 0;
+    const empty =
+        admitted.mine.length +
+            admitted.presets.length +
+            admitted.archived.length ===
+        0;
     const grid = deckGrid(decks, matchFormat, query, format, origin);
-    const shown = grid.mine.length + grid.presets.length;
+    const shown = grid.mine.length + grid.presets.length + grid.archived.length;
 
     return (
         <div className="flex flex-col gap-3">
@@ -155,6 +165,20 @@ export default function DeckGrid({
                 showFormat={freeform}
                 onSelect={onSelect}
             />
+            <DeckGridSection
+                title="Other players' archived decks"
+                entries={grid.archived}
+                selectedId={selectedId}
+                showFormat={false}
+                onSelect={onSelect}
+            />
+            {onLoadMoreArchived && (
+                <div>
+                    <Button variant="secondary" onClick={onLoadMoreArchived}>
+                        Load more archived decks
+                    </Button>
+                </div>
+            )}
             {shown === 0 && (
                 <p className="rounded-sm border border-dashed border-[var(--hairline)] px-3 py-3 text-sm text-text-muted">
                     {empty

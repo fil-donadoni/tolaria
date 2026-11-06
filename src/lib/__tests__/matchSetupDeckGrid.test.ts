@@ -229,3 +229,42 @@ describe("Limited Origin grouping (issue #5394)", () => {
         });
     });
 });
+
+describe("an admin's archived decks (issue #8411)", () => {
+    const archived = deck({
+        kind: "user",
+        presetId: "row-1",
+        name: "Alice's Sealed",
+        format: "limited",
+        limitedOrigin: "sealed:lea",
+        cards: [card("Lightning Bolt")],
+        ownerNickname: "Alice",
+    } as Partial<LobbyDeck>);
+    const own = deck({
+        kind: "user",
+        presetId: "own-1",
+        name: "My Sealed",
+        format: "limited",
+    } as Partial<LobbyDeck>);
+
+    it("fills their own section, never Your decks", () => {
+        const grid = deckGrid([own, archived], "freeform", "");
+        expect(grid.mine.map((e) => e.deck.presetId)).toEqual(["own-1"]);
+        expect(grid.archived.map((e) => e.deck.presetId)).toEqual(["row-1"]);
+    });
+
+    it("the search, the Format and the origin narrow them like any deck", () => {
+        const shown = (
+            query: string,
+            format: DeckGridFormat = "all",
+            origin = "all"
+        ) =>
+            deckGrid([own, archived], "freeform", query, format, origin)
+                .archived.length;
+        expect(shown("bolt")).toBe(1);
+        expect(shown("no such card")).toBe(0);
+        expect(shown("", "premodern")).toBe(0);
+        expect(shown("", "limited", "sealed:lea")).toBe(1);
+        expect(shown("", "limited", "draft:inv")).toBe(0);
+    });
+});

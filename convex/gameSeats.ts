@@ -106,7 +106,8 @@ export const deckValidator = v.object({
     sideboard: v.optional(v.array(deckCardValidator)),
     // The saved deck this payload stands for (ADR 0106 §4, issue #2815).
     // Mandatory for `format: "limited"`: the server asserts the caller owns the
-    // row and reads its Deck Pool (`loadLimitedPoolResolver`, `convex/game.ts`).
+    // row (or, in `createSoloGame`, is an admin, and then seats the row itself)
+    // and reads its Deck Pool (`loadLimitedPoolResolver`, `convex/game.ts`).
     // A Pool itself never rides here — the caller would be declaring the
     // universe it is validated against. Dropped at the write boundary, like
     // `definitionId`: a Match deck is a copy, tied to no row.
