@@ -797,6 +797,13 @@ or the test itself, and runs with its own command
 (`docs/guides/github-pipeline.md` § pr-fixup). Without it, PR #5868 landed a
 blade entry with a stale index and the base went RED.
 
+A row of the same shape, `blade-noise-notes` (issue #8459), refuses a `must`
+blade entry whose note admits it is green by noise unless a baseline row names
+the issue fixing it. It reads the registry and runs no search: 6.7 s wall
+(`convex/gre/ai/blade/__tests__/noiseNotes.bot.test.ts`, 2026-11-06), admitted by
+`convex/gre/ai/blade/**`. It is no substitute for the robustness audit, which
+finds the entries no note admits.
+
 A fifth, `search-cost` (issue #6545), is the same shape: the ISMCTS
 cost-counter pin (`searchCost.bot.test.ts`), exact clone / SBA-sweep /
 layer-7-walk counts that any change to what a search iteration runs moves.

@@ -280,9 +280,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // cast, and two 2/2s for {1}{B} with no other difference but Ingest:
         // the keyword only ever takes a card off the player the creature hit.
         //
-        // What it guards is the sign of `$event.damagedPlayer`: read as the
-        // controller's own seat, the exile prices as a cost, and the Bot casts
-        // the vanilla body instead of the one that does more.
+        // Three cards left, so the exile decks the opponent and the cast wins
+        // on mean reward. Over a full library the two casts tie: settled by
+        // `material-tiebreak` on any budget, flipped by any refit, which is
+        // how this entry went RED at 721ec1d1c4c5 (issue #8459).
+        //
+        // It guards that the Bot casts the Ingest body when the exile matters,
+        // through real rollouts. It does NOT guard the sign of
+        // `$event.damagedPlayer`: no library size is both robust here and red
+        // with the sign broken, because where the exile decides the game the
+        // rollouts see it unaided. `ingestValue.bot.test.ts` guards the sign.
         label: "Ingest: casts the 2/2 that exiles from the damaged player's library over the vanilla 2/2",
         classification: { kind: "absolute" },
         spec: {
@@ -294,20 +301,19 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 3,
-            libraryCount: 20,
+            libraryCount: 3,
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [1, 2, 6],
         tier: "must",
-        // A PREDICATE: the sign of one ref, not a preference the weight fit
+        // A PREDICATE: a reachability claim, not a preference the weight fit
         // should learn.
         expect: {
             predicate: (move, state) =>
                 castsCardNamed(move, state, "Culling Drone"),
             describe: "casts Culling Drone, not Walking Corpse",
         },
-        note: "CR 702.115a Ingest — the deterministic half is in `ingestValue.bot.test.ts`. Issue #8271 re-seeded it: the two ties are noise-settled, 11/16 seeds on the committed weights and 10/16 after that issue's refit, so these three are green under both.",
+        note: "CR 702.115a Ingest — the sign of the damaged player is the deterministic half, in `ingestValue.bot.test.ts`; this half is the cast, decided on mean reward. Issue #8459.",
     },
     {
         // X SPENT FOR AN ETB TRIGGER reachability (CR 400.7d / 107.3a). The

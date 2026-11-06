@@ -1191,6 +1191,9 @@ export const BOT_PINS_TESTS: readonly string[] = [
     "convex/gre/__tests__/evaluateManaCensus.bot.test.ts",
 ];
 
+const BLADE_NOISE_NOTES_TEST =
+    "convex/gre/ai/blade/__tests__/noiseNotes.bot.test.ts";
+
 export const CHEAP_GUARDS: readonly {
     id: string;
     /** A changed path that is one of the guard's inputs. */
@@ -1251,6 +1254,16 @@ export const CHEAP_GUARDS: readonly {
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
         runsBotFiles: [BLADE_INDEX_DRIFT_TEST],
+    },
+    // Issue #8459: a `must` entry whose note admits it is green by noise owes a
+    // baseline row. Reads the registry, no search; health runs it through
+    // `test:bot`.
+    {
+        id: "blade-noise-notes",
+        admits: /^convex\/gre\/ai\/blade\//,
+        lacks: "no changed path under convex/gre/ai/blade/** — no blade entry's note moved",
+        command: `bunx vitest run --project bot-node ${BLADE_NOISE_NOTES_TEST}`,
+        runsBotFiles: [BLADE_NOISE_NOTES_TEST],
     },
     // Issue #6545: the ISMCTS cost-counter pin, a `bot-node` file no scoped
     // lane relates — exact clone / SBA-sweep / layer-7-walk counts any change

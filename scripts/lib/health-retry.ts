@@ -10,9 +10,15 @@
  * guards — a green retry of its vitest half would hide a red tsc half, so it
  * is never retried. The retry runs exactly the projects the output names
  * (`FAIL |node-engine| …`), never the step; a failure no project tag
- * explains (the blade config has none, a crash prints no FAIL line) is not
- * retried and stays RED. Because the chain stops at the first red, a green
- * retry then owes the chain scripts that never started.
+ * explains (a crash prints no FAIL line) is not retried and stays RED. Because
+ * the chain stops at the first red, a green retry then owes the chain scripts
+ * that never started.
+ *
+ * A project runs under the config that declares it (issue #8459): `blade` is
+ * declared only by `vitest.blade.config.ts`, so `--project blade` on the root
+ * config dies at startup, having run nothing. A project the chain does not run
+ * is refused, and a retry that names no failing test keeps the first failure's
+ * output, so the evidence still says what went red.
  *
  * The note names WHAT failed the first time (issue #5484): `timeout` when
  * every failed test timed out (`timeoutOnlyFailure`), `assertion` otherwise.
@@ -77,6 +83,29 @@ const TEST_CHAIN: readonly { script: string; marker: string }[] = [
     { script: "test:blade", marker: "BLADE_TIER=must" },
 ];
 
+/** The chain's projects the root `vitest.config.ts` declares: `--project` can
+ *  select these and nothing else. */
+export const ROOT_CHAIN_PROJECTS: readonly string[] = [
+    "node-engine",
+    "node-tooling",
+    "dom",
+    "bot-node",
+    "bot-dom",
+];
+
+/** The chain's projects another config declares, each with the chain script
+ *  that runs it under that config. */
+export const OWN_CONFIG_PROJECT_SCRIPTS: Readonly<Record<string, string>> = {
+    blade: "test:blade",
+};
+
+function retryable(project: string): boolean {
+    return (
+        ROOT_CHAIN_PROJECTS.includes(project) ||
+        Object.hasOwn(OWN_CONFIG_PROJECT_SCRIPTS, project)
+    );
+}
+
 /** The echo line `bun run` prints when a chain script starts — anchored, so
  *  a test printing the same text in its own output cannot fake progress. */
 function startLine(marker: string): RegExp {
@@ -129,6 +158,11 @@ export function retryDecision(stepName: string, output: string): RetryDecision {
                     ? "no vitest FAIL line in the output"
                     : "a FAIL line names no vitest project",
         };
+    const unknown = projects.filter((p) => !retryable(p));
+    if (unknown.length > 0)
+        return {
+            refused: `no chain script runs ${unknown.join(", ")}`,
+        };
     // A failure the FAIL lines do not explain is not a flake to absorb.
     if (UNHANDLED_ERROR_LINE.test(plain))
         return {
@@ -176,18 +210,35 @@ export interface RetriedStep {
     refused?: string;
 }
 
-/** The retry's own step: exactly the failed projects, under the heavy gate. */
-function retryStep(step: HealthStep, projects: readonly string[]): HealthStep {
-    return {
-        ...step,
-        name: `${step.name} retry`,
-        cmd: "bun",
-        args: [
-            "scripts/gate.ts",
-            "heavy",
-            `vitest run ${projects.map((p) => `--project ${p}`).join(" ")}`,
-        ],
-    };
+/** The retry's own steps: the failed projects under the config declaring
+ *  each. The root's run together under the heavy gate; another config's run
+ *  as the chain script that names it. */
+function retrySteps(
+    step: HealthStep,
+    projects: readonly string[]
+): HealthStep[] {
+    const root = projects.filter((p) => ROOT_CHAIN_PROJECTS.includes(p));
+    const steps: HealthStep[] = [];
+    if (root.length > 0)
+        steps.push({
+            ...step,
+            name: `${step.name} retry`,
+            cmd: "bun",
+            args: [
+                "scripts/gate.ts",
+                "heavy",
+                `vitest run ${root.map((p) => `--project ${p}`).join(" ")}`,
+            ],
+        });
+    for (const p of projects)
+        if (Object.hasOwn(OWN_CONFIG_PROJECT_SCRIPTS, p))
+            steps.push({
+                ...step,
+                name: `${step.name} retry`,
+                cmd: "bun",
+                args: ["run", OWN_CONFIG_PROJECT_SCRIPTS[p]],
+            });
+    return steps;
 }
 
 /**
@@ -221,7 +272,21 @@ export async function runStepWithRetry(
     log(
         `health-main: ${step.name} failed (${retryCauseOf(first.output)}) in ${plan.projects.join(", ")} — re-running only that, once (issue #5461)\n`
     );
-    let result = await run(retryStep(step, plan.projects));
+    let result = first;
+    for (const retry of retrySteps(step, plan.projects)) {
+        result = await run(retry);
+        if (!result.ok) break;
+    }
+    // A retry that names no failing test ran nothing worth reading: the first
+    // failure stays in the output, or the evidence would name nothing.
+    if (
+        !result.ok &&
+        [...plainOf(result.output).matchAll(ANY_FAIL_LINE)].length === 0
+    )
+        result = {
+            ...result,
+            output: `${first.output}\n${result.output}`,
+        };
     for (const script of plan.remaining) {
         if (!result.ok) break;
         result = await run({
@@ -266,6 +331,8 @@ export function planLaneRetry(
     if (!LANE_VITEST.test(command)) return null;
     const projects = failedVitestProjects(output);
     if (projects === null) return null;
+    // The narrowed command selects by `--project` on the root config.
+    if (projects.some((p) => !ROOT_CHAIN_PROJECTS.includes(p))) return null;
     if (UNHANDLED_ERROR_LINE.test(plainOf(output))) return null;
     // A narrowed re-run would green files that never ran: a crashed run (OOM,
     // worker exit) or one with no summary is not a flake (review of #5640).
