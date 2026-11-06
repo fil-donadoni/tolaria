@@ -28,7 +28,7 @@ export default function LimitedDeckArchiveEntry({ deck }: { deck: LobbyDeck }) {
                             Legal
                         </span>
                     ) : (
-                        <span className="shrink-0 rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-danger-strong-strong uppercase">
+                        <span className="shrink-0 rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-danger-strong uppercase">
                             Illegal
                         </span>
                     )}
