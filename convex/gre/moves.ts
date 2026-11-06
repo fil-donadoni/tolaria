@@ -4633,7 +4633,9 @@ function enumerateCastMovesFromZone(
             // IS, so the enumerator, the gate and the payment cannot drift
             // apart when a new mode needs a view (PR #3302 review finding 1).
             castSubjectView(card, morphCast.id),
-            "spell"
+            "spell",
+            undefined,
+            player.id
         );
         applyCostModifiers(morphCost, morphModifiers);
         for (const morphTapPlan of castTapPlans(state, player, morphCost)) {

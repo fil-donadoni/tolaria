@@ -65006,6 +65006,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sage of the Beyond",
+        "scryfallId": "1f5497d0-0765-4619-a218-b6a8709810cb",
+        "oracleId": "fc74f6a6-9064-4e1b-8dc1-446192bbc448",
+        "firstSet": "khc",
+        "firstPrintId": "1f5497d0-0765-4619-a218-b6a8709810cb",
+        "firstPrintSet": "khc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Sage of the Skies",
         "scryfallId": "6ade6918-6d1d-448d-ab56-93996051e9a9",
         "oracleId": "cfc7cef7-0a95-49f8-970f-abff2cacd82d",

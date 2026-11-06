@@ -468,6 +468,9 @@ export type CompiledStaticEffect =
           /** CR 601.2f — "except during its controller's turn" (the engine
            *  field of the same name). */
           readonly onlyOutsideAnnouncersTurn?: true;
+          /** CR 601.2a — "from anywhere other than your hand" (the engine
+           *  field of the same name). */
+          readonly onlyOutsideAnnouncersHand?: true;
       } & (
           | {
                 readonly spells: CompiledSpellFilter;
@@ -651,7 +654,8 @@ function spellMatches(
     spells: CompiledSpellFilter,
     card: PermanentView,
     ctx: StaticEffectContext,
-    effectSource: PermanentView | undefined
+    effectSource: PermanentView | undefined,
+    announcerId: string | undefined
 ): boolean {
     if (spells.types !== undefined) {
         if (!spells.types.some((t) => card.types.includes(t))) return false;
@@ -670,7 +674,10 @@ function spellMatches(
     }
     if (spells.controller !== undefined) {
         if (effectSource === undefined) return false;
-        const same = card.controllerId === effectSource.controllerId;
+        // CR 601.2a — a spell's controller is its caster; `card.controllerId`
+        // still names the zone owner for a cross-player exile cast.
+        const same =
+            (announcerId ?? card.controllerId) === effectSource.controllerId;
         if (spells.controller === "you" ? !same : same) return false;
     }
     return true;
@@ -983,8 +990,16 @@ export function resolveCompiledStatic(
                           appliesToSpell: (
                               card: PermanentView,
                               ctx: StaticEffectContext,
-                              effectSource?: PermanentView
-                          ) => spellMatches(spells, card, ctx, effectSource),
+                              effectSource?: PermanentView,
+                              announcerId?: string
+                          ) =>
+                              spellMatches(
+                                  spells,
+                                  card,
+                                  ctx,
+                                  effectSource,
+                                  announcerId
+                              ),
                       }
                     : {}),
                 // CR 602.2b — the ability's SOURCE is matched as a permanent;
@@ -1007,6 +1022,9 @@ export function resolveCompiledStatic(
                     : {}),
                 ...(descriptor.onlyOutsideAnnouncersTurn === true
                     ? { onlyOutsideAnnouncersTurn: true as const }
+                    : {}),
+                ...(descriptor.onlyOutsideAnnouncersHand === true
+                    ? { onlyOutsideAnnouncersHand: true as const }
                     : {}),
                 ...(descriptor.increase !== undefined
                     ? { costIncrease: generic(descriptor.increase) }

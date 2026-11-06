@@ -5617,10 +5617,14 @@ export function finalizeTargetSelection(
     // taxed it at the gate and not here, undercharging it).
     applyCostModifiers(
         manaCost,
+        // CR 601.2a — the CASTER, explicitly (see `announcerId`): this total
+        // must equal the gate's, which names the caster too.
         getCostModifiers(
             state,
             castSubjectView(cardInHand, pt.alternativeCostId),
-            "spell"
+            "spell",
+            undefined,
+            player.id
         )
     );
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
@@ -7639,7 +7643,9 @@ export const announceCast = mutation({
                 getCostModifiers(
                     state,
                     castSubjectView(cardInHand, args.alternativeCostId),
-                    "spell"
+                    "spell",
+                    undefined,
+                    player.id
                 )
             );
             // CR 601.2f / 118.8 — board-wide static NON-mana additional cost
@@ -8020,7 +8026,7 @@ export const announceCast = mutation({
         );
         applyCostModifiers(
             manaCost,
-            getCostModifiers(state, cardInHand, "spell")
+            getCostModifiers(state, cardInHand, "spell", undefined, player.id)
         );
         // CR 107.4f — resolve this no-target cast's Phyrexian pips (Phyrexian
         // Metamorph's {U/P}): mana-paid pips fold into `manaCost`, life-paid pips
