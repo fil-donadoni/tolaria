@@ -9,7 +9,7 @@ import {
 const row = (pattern: string, extra = "") =>
     `    {\n        pattern: "${pattern}",\n        mode: "browse",\n${extra}        why: "Why.",\n    },\n`;
 const table = (...rows: string[]) =>
-    `const a = 1;\nexport const SHELL_ROUTE_RULES: readonly R[] = [\n${rows.join("")}];\nconst b = 2;\n`;
+    `const a = 1;\nexport const SHELL_ROUTE_RULES: readonly R[] = [\n${rows.join("")}] as const;\nconst b = 2;\n`;
 
 describe("isAdditiveShellRule", () => {
     const old = table(row("/"), row("/limited"));

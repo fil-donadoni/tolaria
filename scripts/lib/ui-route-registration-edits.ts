@@ -40,7 +40,7 @@ export function isAdditiveShellRule(
     newSource: string
 ): boolean {
     const open = newSource.indexOf("export const SHELL_ROUTE_RULES");
-    const close = newSource.indexOf("\n];", open);
+    const close = newSource.indexOf("\n]", open);
     if (open === -1 || close === -1) return false;
     let added = 0;
     const stripped = newSource.replace(
