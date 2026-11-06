@@ -3381,6 +3381,13 @@ export interface CardBackFace {
      *  it into `triggeredAbilities` at the registry seam, on the card that
      *  declares the face, so everything downstream reads one field. */
     compiledTriggeredAbilities?: CompiledTriggeredAbility[];
+    /** CR 714.2 / 712.8e (issue #8338) — the chapter abilities of a Saga back
+     *  face, declared as data exactly as on a front face
+     *  ({@link CardDefinition.chapterAbilities}). NONMODAL faces only. They ride
+     *  the face's content-derived id (`TokenSpec.chapterAbilities`), so the
+     *  definition it presents reaches `expandChapterAbilities` through the one
+     *  seam every Saga does, on a cold decode and a client's too. */
+    chapterAbilities?: ChapterAbilityDefinition[];
     /** Printed Oracle text of the back face (display/reference only). */
     oracleText?: string;
     /** CR 614.12 / 712.12 — the back face's own land-entry pay-choice ("As
@@ -3592,6 +3599,11 @@ export interface TokenSpec {
      *  that creates them specifies otherwise" (the Gingerbrute token's {1}).
      *  Omitted = the colour-derived cost every other token synthesizes. */
     manaCost?: ManaCost;
+    /** CR 714.2 / 712.8e (issue #8338) — the chapter abilities of a Saga BACK
+     *  face, reached only through `backFaceAsTokenSpec`. Plain data, so unlike
+     *  `triggeredAbilities` nothing is lost in the id: the decoded definition
+     *  desugars at `expandChapterAbilities` like any Saga. */
+    chapterAbilities?: ChapterAbilityDefinition[];
     /** Power for creature tokens (CR 208.2). */
     power?: number;
     /** Toughness for creature tokens. */

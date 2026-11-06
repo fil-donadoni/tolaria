@@ -8,11 +8,20 @@
 //  5. THE SEAM — a compiled Saga is what `expandChapterAbilities` expects.
 
 import { describe, expect, it } from "vitest";
-import { makeInstance } from "../../cards/__tests__/setup.helper";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../cards/__tests__/setup.helper";
+import { chapterAbilityId } from "../../cards/abilities/sagas";
 import { getCardByName, getDefinition } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
+import { advancePhase } from "../../gre/phases";
 import { finalChapter } from "../../gre/sagas";
+import { checkStateBasedActions } from "../../gre/sba";
+import { resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { runGates, sortKeys } from "../gates";
 import { roundTripCard } from "../gold";
@@ -453,39 +462,119 @@ describe("refusals: a Saga is refused whole (ADR 0105 § 2)", () => {
         );
         expect(refusedLines(outcome)).toEqual([line]);
     });
+});
 
-    it("a Saga BACK face refuses: `CardBackFace` has no chapter abilities", () => {
-        const outcome = compileCard(
-            oracleCard({
-                name: "Front // Back",
-                manaCost: "{1}",
-                typeLine: "Creature — Human // Enchantment — Saga",
-                oracleText: "",
-                layout: "transform",
-                power: undefined,
-                toughness: undefined,
-                faces: [
-                    {
-                        name: "Front",
-                        manaCost: "{1}",
-                        typeLine: "Creature — Human",
-                        oracleText: "",
-                        power: "1",
-                        toughness: "1",
-                    },
-                    {
-                        name: "Back",
-                        manaCost: "",
-                        typeLine: "Enchantment — Saga",
-                        oracleText: "I — Draw a card.",
-                        colors: ["W"],
-                    },
-                ],
-            })
-        );
-        expect(refusals(outcome)).toEqual([
-            "transform back face carries chapterAbilities, which a CardBackFace cannot hold",
+const SAGA_BACK_TRANSFORM: OracleCard = oracleCard({
+    name: "Front // Back",
+    manaCost: "{1}",
+    typeLine: "Creature — Human // Enchantment — Saga",
+    oracleText: "",
+    layout: "transform",
+    power: undefined,
+    toughness: undefined,
+    faces: [
+        {
+            name: "Front",
+            manaCost: "{1}",
+            typeLine: "Creature — Human",
+            oracleText:
+                "{0}: Exile this creature, then return it to the battlefield transformed under its owner's control.",
+            power: "1",
+            toughness: "1",
+        },
+        {
+            name: "Back",
+            manaCost: "",
+            typeLine: "Enchantment — Saga",
+            oracleText: `${REMINDER}\nI — Draw a card.\nII — You gain 2 life.`,
+            colors: ["W"],
+        },
+    ],
+});
+
+describe("a Saga BACK face compiles (CR 714.2, CR 712.8e)", () => {
+    it("declares its chapters on the face, none on the front", () => {
+        // The front's flip clause is a fixture-cleared smoke form of its own;
+        // the back face gates clean, so a plain front is `ready`.
+        const [front, back] = SAGA_BACK_TRANSFORM.faces!;
+        const outcome = compileCard({
+            ...SAGA_BACK_TRANSFORM,
+            faces: [{ ...front!, oracleText: "" }, back!],
+        });
+        expect(outcome.state).toBe("ready");
+        const definition = definitionOf(outcome);
+        expect(definition.chapterAbilities).toBeUndefined();
+        expect(definition.backFace?.chapterAbilities).toEqual([
+            {
+                chapters: [1],
+                oracleText: "I — Draw a card.",
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+            {
+                chapters: [2],
+                oracleText: "II — You gain 2 life.",
+                effects: [{ op: "gainLife", player: "controller", amount: 2 }],
+            },
         ]);
+    });
+
+    it("an unparsed chapter on the back face refuses the card whole (ADR 0105 § 2)", () => {
+        const line = "II — Exile all opponents' graveyards.";
+        const [front, back] = SAGA_BACK_TRANSFORM.faces!;
+        const outcome = compileCard({
+            ...SAGA_BACK_TRANSFORM,
+            faces: [
+                front!,
+                { ...back!, oracleText: `I — Draw a card.\n${line}` },
+            ],
+        });
+        expect(refusedLines(outcome)).toEqual([line]);
+    });
+
+    it("the compiled card enters as the Saga: lore counter, chapter I, sacrifice (CR 714.3a, CR 714.4)", () => {
+        const declared: CardDefinition = {
+            ...definitionOf(compileCard(SAGA_BACK_TRANSFORM)),
+            id: "compiled-saga-back-transform",
+            rarity: "mythic",
+        };
+        withTemporaryDefinition(declared, () => {
+            const front = makeInstance(declared.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [front],
+                        library: [
+                            makeInstance(declared.id, { zone: "library" }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+                phase: "DRAW",
+                priorityPlayerId: "p1",
+            });
+            resolveActivated(
+                state,
+                front,
+                getDefinition(declared.id).activatedAbilities![0]!.id
+            );
+            const saga = state.players[0].battlefield.find(
+                (c) => c.id === front.id
+            )!;
+            expect(saga.transformed).toBe(true);
+            expect(saga.counters?.lore).toBe(1);
+            expect(finalChapter(saga)).toBe(2);
+            expect(state.stack.map((i) => i.triggeredAbilityId)).toEqual([
+                chapterAbilityId([1]),
+            ]);
+            resolveTopOfStack(state);
+            advancePhase(state);
+            resolveTopOfStack(state);
+            checkStateBasedActions(state);
+            expect(state.players[0].battlefield).not.toContain(saga);
+        });
     });
 });
 
@@ -531,6 +620,36 @@ describe("gates: a chapter's script is judged like any ability's", () => {
         expect(new Set(reasons.map((r) => r.kind))).toEqual(
             new Set(["smoke-scenario"])
         );
+    });
+});
+
+describe("gates: a Saga back face's fixture (CR 712.8e)", () => {
+    it("clears the card-dependent forms its back-face chapters exhibit (CR 714.2b)", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (f) => f.card.name === "The Birth of Meletis"
+        )!;
+        const { chapterAbilities, ...front } = fixture.expected;
+        const { reasons } = runGates({
+            oracleId: fixture.card.oracleId,
+            definition: fixture.expected,
+            plannedMechanics: [],
+            ungrantableKeywords: [],
+            fixtures: [
+                {
+                    ...fixture,
+                    expected: {
+                        ...front,
+                        backFace: {
+                            name: "Back",
+                            types: ["Enchantment"],
+                            subtypes: ["Saga"],
+                            chapterAbilities,
+                        },
+                    },
+                },
+            ],
+        });
+        expect(reasons.map((r) => r.kind)).not.toContain("smoke-scenario");
     });
 });
 
