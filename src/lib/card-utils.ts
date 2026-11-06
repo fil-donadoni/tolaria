@@ -348,6 +348,21 @@ export function isSkulkBarred(
     );
 }
 
+/** CR 509.1b (issue #8168) — a turn-scoped evasion grant on `attacker` refuses
+ *  this `blocker`: "can't be blocked this turn", or "… except by <filter>" with
+ *  a filter it fails. Mirrors `validateBlockerEligibility`'s attacker flags. */
+export function isTurnEvasionBarred(
+    attacker: CardInstance,
+    blocker: CardInstance
+): boolean {
+    if (attacker.cantBeBlockedThisTurn) return true;
+    return (
+        attacker.cantBeBlockedExceptByThisTurn?.some(
+            (filter) => !matchesPermanentFilter(blocker, filter)
+        ) ?? false
+    );
+}
+
 /** CR 305.6 — does this permanent have an intrinsic basic-land mana ability
  *  (one per basic land type)? The engine's own probe (`hasBasicLandMana`), so
  *  the board reads the same text-change-aware subtypes the server taps by and

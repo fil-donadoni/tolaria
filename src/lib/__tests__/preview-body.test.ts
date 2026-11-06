@@ -555,6 +555,18 @@ describe("buildPreviewBody — turn-scoped combat restrictions", () => {
         expect(body.combatRestrictions).toEqual([]);
     });
 
+    it("names the keyword of an evasion exception (CR 509.1b)", () => {
+        const body = buildPreviewBody(
+            GRIZZLY_BEARS.id,
+            bear({
+                cantBeBlockedExceptByThisTurn: [{ requireAbility: "haste" }],
+            })
+        );
+        expect(body.combatRestrictions).toEqual([
+            "Can't be blocked this turn except by creatures with haste.",
+        ]);
+    });
+
     it("lists the attack and unblockable twins too, in a fixed order", () => {
         const body = buildPreviewBody(
             GRIZZLY_BEARS.id,

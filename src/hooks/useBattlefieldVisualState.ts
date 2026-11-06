@@ -14,6 +14,7 @@ import {
     isHorsemanshipBarred,
     isLandwalkUnblockable,
     isSkulkBarred,
+    isTurnEvasionBarred,
     hasManaAbility,
     matchesPermanentFilter,
     matchesTargetRequirement,
@@ -429,6 +430,7 @@ export function useBattlefieldVisualState(
             if (!attacker) continue;
             if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
             if (isHorsemanshipBarred(attacker, blocker)) continue;
+            if (isTurnEvasionBarred(attacker, blocker)) continue;
             if (
                 isSkulkBarred(attacker, blocker, (card) =>
                     effectivePower(allPlayers, card, emblems, continuousEffects)
@@ -441,6 +443,17 @@ export function useBattlefieldVisualState(
             if (!attackerFlies || hasFlying || hasReach) return true;
         }
         return false;
+    }
+
+    /** CR 509.1b — the pair a click would declare, against this attacker's own
+     *  turn-scoped evasion grant. The server re-validates every assignment. */
+    function isBlockablePendingTarget(attacker: CardInstance): boolean {
+        const pendingBlocker = allPlayers
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === pendingBlockerId);
+        return (
+            !pendingBlocker || !isTurnEvasionBarred(attacker, pendingBlocker)
+        );
     }
 
     function canInteract(card: CardInstance): boolean {
@@ -597,7 +610,9 @@ export function useBattlefieldVisualState(
         // attack targets while attackers are being declared.
         if (isAttackTargetBoard && isPlaneswalker(card)) return true;
 
-        if (isBlockerTarget && card.isAttacking) return true;
+        if (isBlockerTarget && card.isAttacking) {
+            return isBlockablePendingTarget(card);
+        }
 
         // CR 702.126 — Improvise: while paying for a spell that declares the
         // keyword, an untapped ARTIFACT the caster controls is a legal
@@ -789,7 +804,9 @@ export function useBattlefieldVisualState(
                         isImproviseArtifact ||
                         (isSelectingAttackers && creature) ||
                         (isSelectingBlockers && creature))) ||
-                (isBlockerTarget && !!card.isAttacking) ||
+                (isBlockerTarget &&
+                    !!card.isAttacking &&
+                    isBlockablePendingTarget(card)) ||
                 isAttackTargetPw;
 
         const enabled = canInteract(card);

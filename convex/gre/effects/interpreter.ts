@@ -8054,6 +8054,16 @@ export const OP_EXECUTORS: {
             ctx.setCantAttackThisTurn(target);
         } else if (op.restriction === "cant-block") {
             ctx.setCantBlockThisTurn(target);
+        } else if (op.exceptBy) {
+            // CR 509.1b (issue #8168) — "… except by <filter>". A filter whose
+            // ref resolved to nothing admits no blocker, so the grant is the
+            // plain unblockable one, never a silently open filter.
+            const filter = toPermanentFilter(ctx, op.exceptBy);
+            if (filter === UNMATCHABLE_FILTER || filter === undefined) {
+                ctx.setCantBeBlockedThisTurn(target);
+            } else {
+                ctx.setCantBeBlockedExceptByThisTurn(target, filter);
+            }
         } else {
             ctx.setCantBeBlockedThisTurn(target);
         }

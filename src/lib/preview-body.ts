@@ -155,6 +155,7 @@ export function combatRestrictionLines(
               | "cantAttackThisTurn"
               | "cantBlockThisTurn"
               | "cantBeBlockedThisTurn"
+              | "cantBeBlockedExceptByThisTurn"
           >
         | undefined
 ): string[] {
@@ -163,6 +164,13 @@ export function combatRestrictionLines(
     if (card.cantAttackThisTurn) lines.push("Can't attack this turn.");
     if (card.cantBlockThisTurn) lines.push("Can't block this turn.");
     if (card.cantBeBlockedThisTurn) lines.push("Can't be blocked this turn.");
+    for (const filter of card.cantBeBlockedExceptByThisTurn ?? []) {
+        lines.push(
+            filter.requireAbility
+                ? `Can't be blocked this turn except by creatures with ${filter.requireAbility}.`
+                : "Can't be blocked this turn except by certain creatures."
+        );
+    }
     return lines;
 }
 

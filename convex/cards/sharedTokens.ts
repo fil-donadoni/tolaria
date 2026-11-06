@@ -636,6 +636,50 @@ export const FOOD_TOKEN: EffectTokenSpec = {
     ],
 };
 
+/** Gingerbrute token (CR 111.3, issue #8168). "A {1} 1/1 Food Golem artifact
+ *  creature with haste, '{1}: This token can't be blocked this turn except by
+ *  creatures with haste,' and '{2}, {T}, Sacrifice this token: You gain 3
+ *  life.'" — created by Ginger, Queen of Sweets. `manaCost` is what the creating
+ *  effect specifies (CR 202.1b), so the token's mana value is 1. The sacrifice
+ *  ability is the Food token's, carried under its own id because a Food Golem
+ *  is not a predefined Food token (CR 111.10b). Colorless: no `colors` (CR
+ *  105.2). Art: the producer's own printing's token (Scryfall `all_parts` →
+ *  tfrc Gingerbrute). */
+export const GINGERBRUTE_TOKEN: EffectTokenSpec = {
+    name: "Gingerbrute",
+    types: ["Artifact", "Creature"],
+    subtypes: ["Food", "Golem"],
+    manaCost: { generic: 1 },
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["haste"],
+    imagePrintId: "dc2dff97-a68b-497f-a004-1e14ba5116ea",
+    activatedAbilities: [
+        {
+            id: "gingerbrute-token-evasion",
+            oracleText:
+                "{1}: This token can't be blocked this turn except by creatures with haste.",
+            cost: { mana: { generic: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "restrictCombat",
+                    restriction: "cant-be-blocked",
+                    target: { ref: "$source" },
+                    exceptBy: { hasAbility: "haste" },
+                },
+            ],
+        },
+        {
+            id: "gingerbrute-token-sacrifice-gain-life",
+            oracleText: "{2}, {T}, Sacrifice this token: You gain 3 life.",
+            cost: { mana: { generic: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+        },
+    ],
+};
+
 /** Mutagen token (CR 111.3, issue #3230). "Token Artifact — Mutagen"
  *  with "{1}, {T}, Sacrifice this token: Put a +1/+1 counter on target
  *  creature. Activate only as a sorcery."
