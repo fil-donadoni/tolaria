@@ -25,7 +25,7 @@ describe("confessesNoise (issue #8459)", () => {
         "passes on 16/16 seeds",
         "the bot gave a land away on 1/5 seeds before the term",
         "rollout noise is not the lever here",
-        "CR 702.115a, decided on mean reward",
+        "decided on mean reward",
     ])("reads no admission in: %s", (note) => {
         expect(confessesNoise(note)).toBe(false);
     });

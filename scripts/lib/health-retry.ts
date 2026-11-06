@@ -102,7 +102,7 @@ export const OWN_CONFIG_PROJECT_SCRIPTS: Readonly<Record<string, string>> = {
 function retryable(project: string): boolean {
     return (
         ROOT_CHAIN_PROJECTS.includes(project) ||
-        Object.hasOwn(OWN_CONFIG_PROJECT_SCRIPTS, project)
+        Object.keys(OWN_CONFIG_PROJECT_SCRIPTS).includes(project)
     );
 }
 
@@ -231,7 +231,7 @@ function retrySteps(
             ],
         });
     for (const p of projects)
-        if (Object.hasOwn(OWN_CONFIG_PROJECT_SCRIPTS, p))
+        if (Object.keys(OWN_CONFIG_PROJECT_SCRIPTS).includes(p))
             steps.push({
                 ...step,
                 name: `${step.name} retry`,
