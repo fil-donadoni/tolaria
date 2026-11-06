@@ -3043,6 +3043,7 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // even in the full debug projection); read separately (raw states only)
     // to derive `faceDownExile`.
     "knownTo",
+    "libraryPositionKnownTo",
     // Wire-projection-only additions.
     "legalActions",
     "canTurnFaceUp",

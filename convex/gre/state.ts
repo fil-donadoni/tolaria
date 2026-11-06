@@ -620,15 +620,62 @@ export function clearKnowledge(
     selectorId: string | null
 ): void {
     for (const card of cards) {
-        if (!card.knownTo) continue;
         if (selectorId === null) {
             delete card.knownTo;
+            delete card.libraryPositionKnownTo;
             continue;
         }
-        const survivors = card.knownTo.filter((id) => id === selectorId);
-        if (survivors.length > 0) card.knownTo = survivors;
-        else delete card.knownTo;
+        if (card.knownTo) {
+            const survivors = card.knownTo.filter((id) => id === selectorId);
+            if (survivors.length > 0) card.knownTo = survivors;
+            else delete card.knownTo;
+        }
+        narrowLibraryPosition(card, [selectorId]);
     }
+}
+
+/** ADR 0026 — a private re-placement of a card that carries a placement record
+ *  (`libraryPositionKnownTo`): only `witnesses` saw where it went now, so
+ *  everyone else stops knowing its position while keeping its identity. A card
+ *  with no record is left to the run rule (`knownLibraryIndices`), so a look
+ *  never gains the record's reach through here. */
+function narrowLibraryPosition(
+    card: CardInstanceState,
+    witnesses: readonly string[]
+): void {
+    if (!card.libraryPositionKnownTo) return;
+    const survivors = card.libraryPositionKnownTo.filter((id) =>
+        witnesses.includes(id)
+    );
+    if (survivors.length > 0) card.libraryPositionKnownTo = survivors;
+    else delete card.libraryPositionKnownTo;
+}
+
+/** ADR 0026 — `chooserId` re-placed `cardInstanceIds` in `zoneOwnerId`'s library
+ *  behind a hidden choice (a scry split, a "put them back in any order"), so
+ *  the chooser alone saw where the cards went. */
+export function narrowLibraryPositionToChooser(
+    state: GameState,
+    zoneOwnerId: string,
+    cardInstanceIds: readonly string[],
+    chooserId: string
+): void {
+    const ids = new Set(cardInstanceIds);
+    for (const card of getPlayer(state, zoneOwnerId).library) {
+        if (ids.has(card.id)) narrowLibraryPosition(card, [chooserId]);
+    }
+}
+
+/** ADR 0026 — `card` was just put into a library in full view: every player
+ *  saw which card went in and where (CR 400.2 keeps the zone hidden, not this
+ *  placement), so identity and position are both known to all, wherever the
+ *  card sits, until a shuffle (CR 701.24a). */
+export function recordPublicLibraryPlacement(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    grantKnowledgeToAll(state, card.ownerId, [card.id]);
+    card.libraryPositionKnownTo = state.players.map((p) => p.id);
 }
 
 /** ADR 0026 / PRD #338 — grants persistent knowledge: adds `knowerId` to the
@@ -647,6 +694,12 @@ export function grantKnowledge(
         if (!ids.has(card.id)) continue;
         const known = card.knownTo ?? [];
         if (!known.includes(knowerId)) card.knownTo = [...known, knowerId];
+        // Shown a card whose placement is on record: the viewer now sees it
+        // where it is, like everyone the record already names.
+        const placed = card.libraryPositionKnownTo;
+        if (placed && !placed.includes(knowerId)) {
+            card.libraryPositionKnownTo = [...placed, knowerId];
+        }
     }
 }
 
@@ -14918,9 +14971,9 @@ export function buildSpellContext(
         // redirected card never reaches the library, so the reposition below
         // finds nothing and skips) all apply. A library shorter than the
         // position puts the card on the bottom (splice clamps its start
-        // index — the official Teferi ruling). The moved card is stamped
-        // known-to-all (ADR 0026): both players watched which card went in
-        // and where; a shuffle clears it.
+        // index — the official Teferi ruling). The placement is public (ADR
+        // 0026): both players watched which card went in and where, so it
+        // stays visible at any depth; a shuffle clears it.
         putIntoLibraryFromBattlefield(
             target: TargetSelection,
             positionFromTop: number | "bottom"
@@ -14944,7 +14997,7 @@ export function buildSpellContext(
                     ? owner.library.length
                     : Math.max(0, positionFromTop - 1);
             owner.library.splice(insertAt, 0, card);
-            grantKnowledgeToAll(state, moved.ownerId, [card.id]);
+            recordPublicLibraryPlacement(state, card);
             // CR 712.21 — a melded permanent is two cards put there: its
             // other card goes to the same position of ITS owner's library,
             // directly below the first when they share one (the owner then
@@ -14966,7 +15019,7 @@ export function buildSpellContext(
                                 Math.max(0, positionFromTop - 1)
                             );
                 partnerOwner.library.splice(below, 0, partner);
-                grantKnowledgeToAll(state, partner.ownerId, [partner.id]);
+                recordPublicLibraryPlacement(state, partner);
             }
         },
         withCardsPutIntoLibraryBatch<T>(run: () => T): T {
@@ -16087,7 +16140,7 @@ export function buildSpellContext(
                     // via `clearKnowledge`) erases it. Identical to the
                     // `moveSpellFromStack` (Subtlety) path — one mechanism, not
                     // a counterspell-specific marker.
-                    grantKnowledgeToAll(state, item.ownerId, [item.id]);
+                    recordPublicLibraryPlacement(state, item);
                     break;
                 case "hand":
                     item.zone = "hand";
@@ -16189,7 +16242,11 @@ export function buildSpellContext(
             // shuffle by the same path as any revealed library card; in hand it
             // is what the projection renders as the per-card `seenByOpponent`
             // eye icon, exactly like `counter`'s Remand branch.
-            grantKnowledgeToAll(state, item.ownerId, [item.id]);
+            if (destination === "hand") {
+                grantKnowledgeToAll(state, item.ownerId, [item.id]);
+            } else {
+                recordPublicLibraryPlacement(state, item);
+            }
         },
         discardAtRandom(
             playerId: string,
@@ -19894,10 +19951,12 @@ export function buildSpellContext(
             if (moved.length === 0) return;
             player.library.unshift(...moved);
             for (const card of moved) {
+                const audience = publicRevealAudience(state, card.id);
                 grantKnowledge(state, playerId, [card.id], playerId);
-                for (const knowerId of publicRevealAudience(state, card.id)) {
+                for (const knowerId of audience) {
                     grantKnowledge(state, playerId, [card.id], knowerId);
                 }
+                narrowLibraryPosition(card, [playerId, ...audience]);
             }
         },
         // CR 701.22 Scry / 701.25 Surveil / "put them back in any order" (Ponder,
@@ -20017,6 +20076,12 @@ export function buildSpellContext(
                 // (Jace's controller) knows the OWNER's (`playerId`) bottomed
                 // card; ordinary Scry has chooser === owner.
                 grantKnowledge(state, playerId, second, chooserId);
+                narrowLibraryPositionToChooser(
+                    state,
+                    playerId,
+                    second,
+                    chooserId
+                );
             }
             // After removing the un-kept cards, the kept cards are exactly the top
             // `storedTop.length` of the library — reorder them to the chosen order.
@@ -20046,6 +20111,12 @@ export function buildSpellContext(
                 // the graveyard is public anyway. For fateseal the chooser
                 // (Jace's controller) knows the OWNER's kept-on-top card.
                 grantKnowledge(state, playerId, storedTop, chooserId);
+                narrowLibraryPositionToChooser(
+                    state,
+                    playerId,
+                    storedTop,
+                    chooserId
+                );
             } else if (needsLibraryShuffle) {
                 // No kept cards to protect (e.g. every looked-at card was
                 // surveiled away) — shuffle whatever's left directly.
@@ -22403,10 +22474,15 @@ export function putHandCardOnTopOfLibrary(
     // witnesses (they held the card and placed it), so the owner's knowledge
     // is granted here, at the primitive, for EVERY caller (Brainstorm's
     // `putBack`, Sylvan Library, Conch Horn, Stunted Growth, Library of
-    // Leng). Prior knowers persist per the slice-5 cross-zone rules; nobody
-    // new learns it — a reveal clause must call markKnownToAll explicitly.
+    // Leng). Prior knowers keep the card's IDENTITY but never saw this
+    // placement, so the position goes on record for the owner and for whoever
+    // this resolution publicly revealed the card to; nobody else sees it at
+    // this position. A later reveal clause (markKnownToAll) adds its audience.
     const known = card.knownTo ?? [];
     if (!known.includes(player.id)) card.knownTo = [...known, player.id];
+    card.libraryPositionKnownTo = [
+        ...new Set([player.id, ...publicRevealAudience(state, card.id)]),
+    ];
     player.library.unshift(card);
     // issue #3242 — hand → library is a card put into a library.
     emitCardsPutIntoLibrary(state, [libraryEntry(card, "hand")]);
@@ -22626,6 +22702,8 @@ export function moveCard(
     // later return to a hidden zone is hidden again unless freshly re-granted.
     // Stale `knownTo` never resurrects.
     if (PUBLIC_ZONES.has(to)) delete card.knownTo;
+    // A placement record names one position in one library: any move ends it.
+    delete card.libraryPositionKnownTo;
     // issue #2904 — the display producer marker travels with the face-down
     // state, not with the card, and a card exiled face down stops being face
     // down the moment it LEAVES exile. Keyed on the destination, not on

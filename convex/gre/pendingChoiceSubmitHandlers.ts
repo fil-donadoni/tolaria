@@ -13,6 +13,7 @@ import {
     getPlayer,
     matchesPermanentFilter,
     grantKnowledge,
+    narrowLibraryPositionToChooser,
     emitLibrarySearchedEvent,
     enqueueFailToFindNotice,
     type CardInstanceState,
@@ -788,6 +789,12 @@ export function submitMidResolutionPick(
     // target's for a Portent aimed at the opponent), known to the chooser.
     if (head.kind === "reorder-library") {
         grantKnowledge(
+            state,
+            head.zoneOwnerId ?? head.playerId,
+            args.cardInstanceIds,
+            head.playerId
+        );
+        narrowLibraryPositionToChooser(
             state,
             head.zoneOwnerId ?? head.playerId,
             args.cardInstanceIds,

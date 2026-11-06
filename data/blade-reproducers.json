@@ -5113,6 +5113,8 @@
         "priority": "me"
     },
     "wish: brings the sorcery in from outside the game rather than declining": null,
+    "witnessed placement: mills down to the Bolt it saw put there": null,
+    "witnessed placement: plays the creature when what it saw put there is a blank": null,
     "X spell: Green Sun's Zenith finds the Bears at X = 2": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,

@@ -2,20 +2,24 @@
 // knows. ONE derivation, two consumers (issue #1524).
 //
 // A library is a hidden zone (CR 400.2), but a scry keep, a Brainstorm
-// put-back, an Impulse/Stock Up bottoming and the CR 401.5 continuous top
-// reveal all leave the viewer knowing a card AND its position. `knownTo`
-// records who was shown what; this module turns that per-card record into the
-// set of INDICES the viewer is entitled to, applying the one rule that makes
-// position knowledge sound:
+// put-back, an Impulse/Stock Up bottoming, a public insert and the CR 401.5
+// continuous top reveal all leave the viewer knowing a card AND its position.
+// This module turns the per-card records into the set of INDICES the viewer is
+// entitled to. Identity and position are separate facts, and two rules follow:
 //
-//   only the two CONTIGUOUS runs from each END count — the run from the TOP
-//   and the run from the BOTTOM.
+//   A PLACEMENT RECORD DECIDES ALONE. `libraryPositionKnownTo` names who saw
+//   the card put where it is (a public insert: everyone; a private put-back:
+//   its owner). A player it names knows the position at any depth, because a
+//   witnessed placement stays trackable through ordinary library traffic. A
+//   player it omits does not, even one in `knownTo`: an opponent who saw a card
+//   revealed in hand knows what it is, but not where a put-back put it.
 //
-// Position certainty is lost the moment an unknown card straddles a known one:
-// a scry-known card pushed into the middle by a later Stock Up is contiguous
-// with neither end, so the viewer knows the card is SOMEWHERE in there but not
-// where, and it reads as a face-down back again. The instance keeps its
-// `knownTo` (nothing mutates); the derivation simply stops granting it.
+//   WITH NO RECORD, ONLY THE ENDS COUNT. A look, scry or reveal grants through
+//   `knownTo`, and only the two CONTIGUOUS runs from each END honour it — the
+//   run from the TOP and the run from the BOTTOM. A scry-known card pushed into
+//   the middle by a later Stock Up is contiguous with neither end, so it reads
+//   as a face-down back again. The instance keeps its `knownTo` (nothing
+//   mutates); the derivation simply stops granting it.
 //
 // WHY THIS IS A MODULE AND NOT TWO COPIES. The wire projection
 // (`projectLibrary`) decides what a client is shown; `determinize` decides
@@ -30,20 +34,19 @@
 import type { CardInstanceState, PendingChoice } from "./state";
 
 /** ADR 0026 — the indices of `library` that `viewerId` legitimately knows: the
- *  contiguous run from the top, then the contiguous run from the bottom.
+ *  contiguous run from the top, then the contiguous run from the bottom, then
+ *  every other position the placement records grant the viewer.
  *
- *  Returned TOP RUN ASCENDING, then BOTTOM RUN DESCENDING — the order
- *  `PublicLibrary.known[]` has always been emitted in, so the wire shape is
- *  byte-identical to before this was extracted.
+ *  Returned TOP RUN ASCENDING, BOTTOM RUN DESCENDING, then the rest ascending —
+ *  the runs in the order `PublicLibrary.known[]` has always been emitted in.
+ *  Each index appears exactly once: the bottom scan stops at the top run's
+ *  boundary, and the last pass covers only what lies between the two runs.
  *
- *  The two runs never overlap: the bottom scan stops at the top run's
- *  boundary, so an all-known library yields each index exactly once.
- *
- *  `topRevealed` is the CR 401.5 continuous reveal (issue #1095 symmetric,
- *  #2398 asymmetric), a second SOURCE of the same knowledge rather than a
- *  second mechanism: it makes index 0 — and only index 0 — known independently
- *  of `knownTo`. It is derived from the battlefield on every call
- *  (`libraryReveal.ts`), never stored, so it cannot go stale.
+ *  `topRevealed` is the CR 401.5 continuous reveal, symmetric or asymmetric, a
+ *  second SOURCE of the same knowledge rather than a second mechanism: it makes
+ *  index 0 — and only index 0 — known independently of the records. It is
+ *  derived from the battlefield on every call (`libraryReveal.ts`), never
+ *  stored, so it cannot go stale.
  *
  *  `peekedTop` is the THIRD such source (issue #2996): while a top-N look
  *  choice is OPEN, the chooser is staring at those cards in the picker — the
@@ -54,7 +57,7 @@ import type { CardInstanceState, PendingChoice } from "./state";
  *  open choice's `candidateIds` name, and the resume path then throws
  *  ("Card … not in kept top of library") because the kept cards are no longer
  *  the library's top run. It makes indices `[0, peekedTop)` known
- *  independently of `knownTo`, so the run scan continues past them into any
+ *  independently of the records, so the run scan continues past them into any
  *  genuinely-known card beneath — see {@link openPeekTopCount}. */
 export function knownLibraryIndices(
     library: readonly CardInstanceState[],
@@ -62,10 +65,14 @@ export function knownLibraryIndices(
     topRevealed: boolean = false,
     peekedTop: number = 0
 ): number[] {
+    const sawPlacement = (card: CardInstanceState): boolean =>
+        card.libraryPositionKnownTo?.includes(viewerId) ?? false;
     const knows = (card: CardInstanceState, index: number): boolean =>
         (topRevealed && index === 0) ||
         index < peekedTop ||
-        (card.knownTo?.includes(viewerId) ?? false);
+        (card.libraryPositionKnownTo
+            ? sawPlacement(card)
+            : (card.knownTo?.includes(viewerId) ?? false));
 
     const indices: number[] = [];
     // Top run: [0, topEnd).
@@ -74,10 +81,18 @@ export function knownLibraryIndices(
         indices.push(topEnd);
         topEnd++;
     }
-    // Bottom run: (bottomStart, length), scanning up but never crossing topEnd.
-    for (let index = library.length - 1; index >= topEnd; index--) {
-        if (!knows(library[index], index)) break;
-        indices.push(index);
+    // Bottom run: [bottomStart, length), scanning up but never crossing topEnd.
+    let bottomStart = library.length;
+    while (
+        bottomStart > topEnd &&
+        knows(library[bottomStart - 1], bottomStart - 1)
+    ) {
+        bottomStart--;
+        indices.push(bottomStart);
+    }
+    // Between the runs only a witnessed placement counts.
+    for (let index = topEnd; index < bottomStart; index++) {
+        if (sawPlacement(library[index])) indices.push(index);
     }
     return indices;
 }

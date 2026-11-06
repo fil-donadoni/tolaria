@@ -1343,6 +1343,15 @@ export type CardInstanceState = {
      *  projection turns it into identity gating + the derived `seenByOpponent`
      *  flag. */
     knownTo?: string[];
+    /** ADR 0026 — the players who saw this card PLACED at its current library
+     *  position: a public insert names everyone, a private put-back its owner.
+     *  `knownTo` says who knows the card's identity, which is not who knows
+     *  where it is. Present, this record alone decides the position: a player
+     *  it names sees the card at any depth, a player it omits does not, even
+     *  one in `knownTo`. Absent, `knownLibraryIndices` applies the run rule to
+     *  `knownTo`. Ended by a shuffle (`clearKnowledge`) or any move out of the
+     *  position. Never crosses the wire. */
+    libraryPositionKnownTo?: string[];
     /** Noted-mana battery (CR 106.10 — Jeweled Amulet, Ice Cauldron). The type
      *  and amount of mana the artifact most recently noted ("note the type [and
      *  amount] of mana spent to pay this activation cost"). `mana` is a

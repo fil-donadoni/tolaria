@@ -7876,7 +7876,9 @@ export interface SpellContext {
 
     /** Moves a card from `playerId`'s hand to the TOP of their library (CR
      *  121.1 — top is the next card drawn). Returns false if the card isn't in
-     *  hand. Sylvan Library's "put the card on top of your library" uses this. */
+     *  hand. Sylvan Library's "put the card on top of your library" uses this.
+     *  A private placement (ADR 0026): `playerId` knows the card's position, and
+     *  a prior knower of its identity does not. */
     moveHandCardToLibraryTop: (
         playerId: string,
         cardInstanceId: string
