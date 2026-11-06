@@ -175,4 +175,14 @@ describe("useControllerActions — A = Auto-tap", () => {
         });
         expect(calls).toEqual([]);
     });
+
+    it("ignores other keys while paying", async () => {
+        renderCtrl({
+            pendingCast: { playerId: "me", manaCost: { generic: 2 } },
+        });
+        await act(async () => {
+            pressA({ key: "b", code: "KeyB" });
+        });
+        expect(calls).toEqual([]);
+    });
 });
