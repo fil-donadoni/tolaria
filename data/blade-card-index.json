@@ -980,11 +980,6 @@
             "label": "cheat into play: activates Sneak Attack at the beginning of combat",
             "tier": "must",
             "needsSetup": false
-        },
-        {
-            "label": "cheat into play: activates Sneak Attack at the opponent's end step",
-            "tier": "must",
-            "needsSetup": false
         }
     ],
     "Sol Ring": [
