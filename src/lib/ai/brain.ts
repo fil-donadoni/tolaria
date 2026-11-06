@@ -50,6 +50,10 @@ import {
     type PickCategory,
 } from "@convex/gre/categorizedPick";
 import { canAddDistinctPick } from "@convex/gre/distinctPick";
+import {
+    asEntersDiscardPays,
+    LAND_LIGHT_LANDS_IN_PLAY,
+} from "@convex/gre/ai/asEntersDiscard";
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -245,17 +249,12 @@ export type ManaSituation = {
     /** Distinct colors the controller's lands in play can currently produce.
      *  A spell needing a color outside this set is treated as uncastable. */
     producibleColors: Color[];
+    /** Whether the controller can still make a land drop this turn (CR 305.2):
+     *  a land past its drop is surplus to an as-enters discard. */
+    landDropOpen: boolean;
 };
 
-/** A controller with this many or fewer lands in play is still developing its
- *  mana and is "land-light" (issue #242): lands are the constraining resource
- *  and must NOT be auto-discarded. The reported case (1 land in play) sits well
- *  inside this band, so the bot keeps the land and sheds a spell instead. Above
- *  the threshold the board is mana-developed and an excess land is a fair pitch
- *  (the land-flooded counter-case). CR 305.2 caps a player at one land drop per
- *  turn, so ~4 lands in play is enough to operate while extra lands in hand
- *  are surplus. */
-export const LAND_LIGHT_LANDS_IN_PLAY = 4;
+export { LAND_LIGHT_LANDS_IN_PLAY };
 
 /** The interactive choice the bot is owed this window (ADR 0016), reduced to the
  *  fields `chooseResolution` reasons about. Built by `buildBotView` from the
@@ -844,17 +843,10 @@ function discardOrder(
  *  and with which card. `[]` declines, which puts the entering permanent in its
  *  owner's graveyard; a one-id answer pays and lets it enter.
  *
- *  The pitch is only worth making out of SURPLUS, and for the one printed card
- *  in this family the surplus is lands (its `filter` admits nothing else). Two
- *  ways to have a spare land, reusing the same `LAND_LIGHT_LANDS_IN_PLAY` band
- *  the #242 discard heuristic already draws:
- *   - two or more lands in hand — one covers this turn's land drop (CR 305.2
- *     caps it at one), the second is surplus;
- *   - one land in hand on a mana-developed board (>= the band) — the extra land
- *     is surplus there too, which is the land-flood case the Mox is for.
- *  Otherwise the land IS the mana development and the bot keeps it, taking the
- *  graveyard branch — the same "don't auto-discard the constraining resource"
- *  judgement, applied to a cost instead of a levy.
+ *  Whether it pays is `asEntersDiscardPays`, the reading the search plays out
+ *  too; otherwise the bot keeps the land, taking the graveyard branch — the same
+ *  "don't auto-discard the constraining resource" judgement, applied to a cost
+ *  instead of a levy.
  *
  *  `candidates` arrives already ordered by shed priority and already filtered to
  *  the legal payments (the engine's `candidateIds`), so paying is "take the
@@ -867,10 +859,7 @@ function asEntersDiscardAnswer(
 ): string[] {
     const pitch = candidates[0];
     if (!pitch || !mana) return [];
-    const surplus =
-        mana.landsInHand >= 2 ||
-        (mana.landsInHand >= 1 && mana.landsInPlay >= LAND_LIGHT_LANDS_IN_PLAY);
-    return surplus ? [pitch.id] : [];
+    return asEntersDiscardPays(mana) ? [pitch.id] : [];
 }
 
 /** The bot's weak-but-legal default for a mid-resolution zone-pick choice

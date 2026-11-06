@@ -1,9 +1,15 @@
 ---
 title: ActionSheet's close timer has no cleanup, and can red a lane whose tests all passed
 discoveredBy: 8168
-status: draft
-confidence: medium
+status: triaged
+issue: 8296
+confidence: high
 ---
+
+**Fixed under issue #8296.** PR #8396's `check:lane` went red on the same stack
+twice (run 42218346112, attempts 1 and 2), so a re-run could not land it. An
+unmount now settles a pending close at once, and no timer outlives the sheet.
+The lane error itself has still never been reproduced locally.
 
 **What is wrong.** `handleClose` in `src/components/ui/action-sheet.tsx:36` calls
 `setTimeout(onClose, 200)` and never clears it. If the sheet unmounts inside

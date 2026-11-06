@@ -64,6 +64,7 @@ import {
 } from "@convex/gre/paymentPicks";
 import { isSacrificeSelectionComplete } from "@convex/gre/sacrificeChoice";
 import type { GameState, ManaRestriction } from "@convex/gre/state";
+import { isLandDropOpen } from "@convex/gre/ai/asEntersDiscard";
 import { projectedToGameState } from "./state-adapter";
 import { owedInputFor } from "./owed-input";
 import type {
@@ -162,7 +163,14 @@ function buildManaSituation(
         landsInPlay: battlefield.filter((c) => handCardIsLand(c.types)).length,
         landsInHand: hand.filter((c) => handCardIsLand(c.types)).length,
         producibleColors: producibleColors(battlefield),
+        landDropOpen: landDropOpenFor(state, botId),
     };
+}
+
+function landDropOpenFor(state: PublicGameState, botId: string): boolean {
+    const full = projectedToGameState(state);
+    const bot = full.players.find((p) => p.id === botId);
+    return !!bot && isLandDropOpen(full, bot);
 }
 
 /** CR 601.2g (issue #1444/#1446) — read the parked generic-mana spend choice

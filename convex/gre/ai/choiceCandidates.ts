@@ -81,6 +81,8 @@ import {
 } from "../moves";
 import { exileCastPermitted } from "../castCost";
 import { getLegalActions } from "../rules";
+import { isLand } from "../constants";
+import { asEntersDiscardPays, isLandDropOpen } from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
@@ -1446,8 +1448,8 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  It reads the chooser's hand by identity, as `evaluate` already does when
  *  it scores that hand: at the real root this is no new information.
- *  An as-enters discard (`asEntersKind`, an "instead" replacement, CR 614.1a) is not
- *  that shape and gets nothing. */
+ *  An as-enters discard (`asEntersKind`, an "instead" replacement, CR 614.1a) is
+ *  not that shape: it has its own answer, `asEntersDiscardAnswer`. */
 export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
@@ -1459,6 +1461,9 @@ export function forcedChoiceAnswer(
         return isStacklessEntryPark(choice)
             ? nameCardAnswer(state, choice)
             : null;
+    if (choice.kind === "discard-hand" && choice.asEntersKind === "discard") {
+        return asEntersDiscardAnswer(state, choice);
+    }
     if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
     const min = getPendingChoiceMin(choice.count);
     if (min <= 0) return null;
@@ -1484,6 +1489,43 @@ export function forcedChoiceAnswer(
         step: choice.step,
         choiceId: choice.choiceId,
         cardInstanceIds: shed.map((p) => p.card.id),
+    };
+}
+
+/** The search's answer to an as-enters discard (CR 614.1a): the live Brain's
+ *  own reading (`asEntersDiscardPays`), so the playout reaches the board the Bot
+ *  would then really have. Pays with the cheapest legal card; declining is an
+ *  empty submission, which sends the entering permanent to `ifDeclined`. Not a
+ *  decision node: the policy is argued and measured, the search only has to get
+ *  past the window. Without an answer the walk stopped there (issue #8296), and
+ *  a cast scored at that half-resolved leaf skipped the opponent's turn every
+ *  other line pays for at the horizon. */
+function asEntersDiscardAnswer(state: GameState, choice: PendingChoice): Move {
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const legal = new Set(choice.candidateIds ?? []);
+    const [pitch] = owner.hand
+        .filter((c) => legal.has(c.id))
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (x, y) =>
+                x.worth - y.worth ||
+                (x.identity < y.identity ? -1 : x.identity > y.identity ? 1 : 0)
+        );
+    const pays = asEntersDiscardPays({
+        landsInHand: owner.hand.filter(isLand).length,
+        landsInPlay: owner.battlefield.filter(isLand).length,
+        landDropOpen: isLandDropOpen(state, owner),
+    });
+    return {
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: pays && pitch ? [pitch.card.id] : [],
     };
 }
 
@@ -2392,14 +2434,13 @@ const keepHandCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  - no `asEntersCardId` — the ADR 0100 as-enters `copy` family (Clone, Copy
  *    Artifact, Vesuvan Doppelganger, Phyrexian Metamorph, Phantasmal Image,
  *    CR 614.1c / 707.5) stays on its hand-written policy in `brain.ts`'s
- *    minimal-legal answer, beside its `discard` twin (issue #2389). Three
+ *    minimal-legal answer, beside its `discard` twin (issue #2389). Two
  *    reasons: those policies are argued and measured, and this is the only
  *    sub-case where registering the kind would REPLACE a heuristic with an
- *    unmeasured search; the `discard` policy reads the mana situation, which
- *    is not on the pending choice and so is invisible to a generator; and the
- *    settle failure does not reach them — an as-enters choice is a permanent
- *    parked in `stagedEntries` with an empty `stackItemId`, not a suspended
- *    resolution, so there is nothing to unblock. */
+ *    unmeasured search; and the settle failure does not reach them — an
+ *    as-enters choice is a permanent parked in `stagedEntries` with an empty
+ *    `stackItemId`, not a suspended resolution, so there is nothing to unblock.
+ *    (Its `discard` twin DID stop the walk at that park: `forcedChoiceAnswer`.) */
 function choosePermanentsIsSearchable(choice: PendingChoice): boolean {
     return (
         getPendingChoiceMax(choice.count) > 0 &&

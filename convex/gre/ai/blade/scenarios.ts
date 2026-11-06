@@ -20073,7 +20073,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 1200,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -20085,7 +20085,55 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8296 — the Bears first spend both Forests and leave the Juggernaut uncastable. Tied inside outcomeEps.",
+        note: "Issue #8296 — the Bears first spend both Forests and leave the Juggernaut uncastable. The best line in the tree runs through the Crypt, whose edge lost anyway: its wider node dilutes its mean. Going first keeps every line of the other order.",
+    },
+    {
+        label: "free mana: holds Mana Crypt at 3 life, its upkeep damage is lethal",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 3,
+            },
+            cards: [
+                {
+                    name: "Mana Crypt",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Crypt",
+                },
+            ],
+        },
+        note: "Issue #8296 — the source that can kill its controller is no free play: the line without it is not reachable behind it. A Crypt within outcomeEps of the Bears went first without the life check.",
     },
     {
         label: "fast mana: Sol Ring before the other one-mana play",
@@ -20449,7 +20497,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 1200,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -20458,7 +20506,100 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8296 — the Mox would eat the one land drop. Tied inside outcomeEps.",
+        note: "Issue #8296 — the Mox would eat the one land drop. The cast used to read high because its playout stopped at the as-enters discard, before the opponent's turn; `forcedChoiceAnswer` now plays it out.",
+    },
+    {
+        label: "free mana: a second Mox Opal does not go ahead of the Grizzly Bears",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mox Opal",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mox Opal",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mox Opal",
+                },
+            ],
+        },
+        note: "Issue #8296 — the legend rule leaves no new mana, so casting it only burns a card; a source goes first only if it adds mana.",
+    },
+    {
+        label: "free mana: holds Mox Diamond with no land to feed it",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            landsPlayed: {
+                me: 1,
+            },
+            cards: [
+                {
+                    name: "Mox Diamond",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mox Diamond",
+                },
+            ],
+        },
+        note: "Issue #8296 — with no land in hand the cast only bins the card; an as-enters price keeps it out of the free-mana rule.",
     },
     {
         label: "Fastbond: plays the extra land with life to spare",
