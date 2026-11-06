@@ -1388,8 +1388,20 @@ One **Capability** a card in the deck requires, together with how well it is met
 _Avoid_: Requirement (reserved for the card-level declaration), dependency, missing piece
 
 **Combo Edge**:
-An explicit, signed, directed link between two specific cards, used only for the closed two-card loop no **Capability** vocabulary can express (Painter's Servant + Grindstone). Deliberately capped in number — the escape hatch, not the model. Everything expressible as **Capability** must be a Capability.
-_Avoid_: Synergy, combo (bare — a combo in the domain sense may well be Capability-derived)
+An explicit, signed, directed link between two specific cards, used only for the closed combo no **Capability** vocabulary can express (Painter's Servant + Grindstone). Derived from the **Combo Corpus**, never authored by hand: an edge exists only for an **Executable** entry, its weight is a constant per class of what the combo produces (a terminal outcome above a lock above a non-terminal infinite), refined by the **Combo Census**'s reading once that has data. Still capped per candidate — the escape hatch, not the model. Everything expressible as **Capability** must be a Capability.
+_Avoid_: Synergy, combo (bare — a combo in the domain sense may well be Capability-derived), authored edge (the hand-written form this replaced)
+
+**Combo Corpus**:
+The projection of an external, community-curated combo database (Commander Spellbook) onto the catalogue: every combo whose pieces are all cards the engine has, each piece with the zone it must be in, what the combo produces (a closed feature vocabulary: "Win the game", "Infinite colorless mana", "Lock"), the mana it needs and its popularity. Vendored in `data/`, keyed by Scryfall oracle id, regenerated with the card index — never fetched at run time, never authored by hand. It is first a measure (the **Combo Census** reads it) and only second a source of knowledge: a Bot seam reads a combo from it only once the census has proved that combo **Executable**.
+_Avoid_: Combo registry (ADR 0102 rejects a hand-registered, per-combo boost in the evaluation; the corpus never enters the evaluation), combo database (that is the upstream site), synergy list
+
+**Executable** (of a combo):
+A **Combo Corpus** entry the play Bot, given the assembled position, actually carries through to its payoff within its search budget — measured by the **Combo Census**, never assumed from the combo's shape. The gate every knowledge seam (draft **Combo Edge**, deck build, library-search candidates) sits behind: a combo the Bot cannot finish is worth nothing to a Bot that drafts it.
+_Avoid_: Known combo, supported combo, reachable (that is the enumerator question for a single Move)
+
+**Combo Census**:
+The measurement that reads the **Combo Corpus**: for every entry it assembles the position (each piece in its zone, the mana the combo needs, a passive opponent who passes throughout — the CR 732.2a shape), lets the Bot play it out with a fixed budget and fixed seeds, and records one of three readings. **Executable**: the game ends in the Bot's win within the ply cap. **Initiated**: the root Move uses a piece of the combo, but no win follows — the payoff sits behind the horizon or behind a missing sink. **Untouched**: the Bot never plays a piece — a valuation gap, not a horizon one. A combo whose `produces` has no terminal reading ("Infinite colorless mana" with no sink) is **unmeasurable** until the loop detector (CR 732.1b) emits a certificate the census can read. A report like the greedy report and the audit census, not a strength claim: a fixed position with a passive opponent is not a Ladder game.
+_Avoid_: Combo test, combo blade (the census feeds `must` promotions; it is not itself an entry), combo ladder
 
 **Card Profile**:
 The per-card, per-**Pack Source** scope authored record a **Bot Drafter** reads beyond its **Pick Rating**: its **Archetypes**, the **Capabilities** it provides, the Capabilities it requires. Sibling of the **Pick Rating** — same scope keying, same DB-over-seed layering, same **Admin** editability.
