@@ -377,7 +377,18 @@ export function fixtureForms(
             // throws (ADR 0105 § 3).
             continue;
         }
-        for (const { form } of cardDependentSkips(fixture.expected, rebuilt))
+        // CR 712.8e / 714.2 — a back face's chapters likewise, read as if they
+        // were the definition's own: `collectScripts` is face-blind.
+        const expected = fixture.expected.backFace?.chapterAbilities
+            ? {
+                  ...fixture.expected,
+                  chapterAbilities: [
+                      ...(fixture.expected.chapterAbilities ?? []),
+                      ...fixture.expected.backFace.chapterAbilities,
+                  ],
+              }
+            : fixture.expected;
+        for (const { form } of cardDependentSkips(expected, rebuilt))
             forms.add(form);
     }
     fixtureFormsCache.set(fixtures, forms);

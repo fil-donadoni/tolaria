@@ -143,6 +143,12 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         ...(spec.triggeredAbilities
             ? { triggeredAbilities: [...spec.triggeredAbilities] }
             : {}),
+        // CR 714.2 / 714.3a (issue #8338) — a Saga back face's chapters, off
+        // `spec` like the rest: `expandChapterAbilities` derives the triggers
+        // and the entry lore counter from this definition at `getDefinition`.
+        ...(spec.chapterAbilities
+            ? { chapterAbilities: [...spec.chapterAbilities] }
+            : {}),
         // CR 611 — rebuilt from the spec's keys through the shared factory
         // table, the same call `maybeSynthesizeToken` makes decoding `id`.
         ...(backFaceStaticEffects.length > 0
