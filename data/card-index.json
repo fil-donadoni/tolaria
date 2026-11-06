@@ -5322,6 +5322,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Balance of Terror",
+        "scryfallId": "2fc3e03e-29bd-4d69-b1c1-438183f39eb5",
+        "oracleId": "0b035f3c-ba21-4a73-b4df-11a7e8c19056",
+        "firstSet": "trc",
+        "firstPrintId": "2fc3e03e-29bd-4d69-b1c1-438183f39eb5",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Balduvian Barbarians",
         "scryfallId": "efeabe8e-8107-4d19-8a43-362aa79cdd92",
         "oracleId": "23720758-f572-45e3-9bec-f6d3b974d7f5",
@@ -10587,6 +10597,16 @@
         "firstPrintId": "7f01f9a0-f1d0-4241-a270-df4ed673d1fd",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Burn, Burn, Tree and Fern",
+        "scryfallId": "fceb1a2d-121e-49ad-acf2-1bb5aebec116",
+        "oracleId": "a97d6c5c-1cff-442d-b535-fc8389160b0b",
+        "firstSet": "hob",
+        "firstPrintId": "fceb1a2d-121e-49ad-acf2-1bb5aebec116",
+        "firstPrintSet": "hob",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -23522,6 +23542,16 @@
         "firstSet": "tdm",
         "firstPrintId": "73a065e3-b530-4e62-ab3c-4f6f908184ec",
         "firstPrintSet": "tdm"
+    },
+    {
+        "name": "Elspeth's Nightmare",
+        "scryfallId": "37ccd974-d2bc-4fcf-94a7-0a868a04cb98",
+        "oracleId": "ff768016-67f8-409e-8359-9ed05bcb46d2",
+        "firstSet": "thb",
+        "firstPrintId": "37ccd974-d2bc-4fcf-94a7-0a868a04cb98",
+        "firstPrintSet": "thb",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Elturgard Ranger",
