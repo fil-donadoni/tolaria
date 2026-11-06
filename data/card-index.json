@@ -24686,6 +24686,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Era of Enlightenment // Hand of Enlightenment",
+        "scryfallId": "74f43827-2b9b-4fc9-a6e2-c682dfbf14f7",
+        "oracleId": "a6d646e8-0d84-489b-a46a-3bd5b1141864",
+        "firstSet": "neo",
+        "firstPrintId": "74f43827-2b9b-4fc9-a6e2-c682dfbf14f7",
+        "firstPrintSet": "neo",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Erase",
         "scryfallId": "05c89d61-3c2e-4d70-86d6-f70eba3d327f",
         "oracleId": "c2ceb15c-5d02-4cf4-a7c9-c1a40b7ca667",
@@ -29322,6 +29332,16 @@
         "source": "compiled"
     },
     {
+        "name": "Founding of Omashu",
+        "scryfallId": "c4c603c9-f2ed-419b-8704-6fe306f158fa",
+        "oracleId": "ea58fb10-3d70-4c25-b317-615dfb20a48d",
+        "firstSet": "tle",
+        "firstPrintId": "c4c603c9-f2ed-419b-8704-6fe306f158fa",
+        "firstPrintSet": "tle",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Foundry Assembler",
         "scryfallId": "e83a2862-a2d7-4d87-a4b8-def9f441f5fa",
         "oracleId": "8242f4f5-c51d-42dc-a6ae-67060368fed9",
@@ -32016,6 +32036,16 @@
         "firstSet": "akh",
         "firstPrintId": "3277ad99-5682-4baa-b106-de15721876a6",
         "firstPrintSet": "akh"
+    },
+    {
+        "name": "Gloryheath Lynx",
+        "scryfallId": "ea3ac678-8b74-4865-a896-c42692c02341",
+        "oracleId": "28673657-f05f-4b0a-b80c-939773abdefb",
+        "firstSet": "dft",
+        "firstPrintId": "ea3ac678-8b74-4865-a896-c42692c02341",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Glowing Anemone",
@@ -45714,6 +45744,16 @@
         "firstPrintId": "356c5e6a-c0bd-43f7-bc84-a6ae8718a7a2",
         "firstPrintSet": "som",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Loyal Warhound",
+        "scryfallId": "f408c5e4-e18d-4e4d-959a-f41df4c3019c",
+        "oracleId": "cc6a83c7-e645-4a53-9550-be79b42cd851",
+        "firstSet": "afr",
+        "firstPrintId": "f408c5e4-e18d-4e4d-959a-f41df4c3019c",
+        "firstPrintSet": "afr",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -66378,6 +66418,16 @@
         "source": "compiled"
     },
     {
+        "name": "Scouting Hawk",
+        "scryfallId": "bce2209e-7a5c-4394-876c-e0f68cfba9ca",
+        "oracleId": "0f96c48f-aceb-4554-8b06-cca162151a64",
+        "firstSet": "clb",
+        "firstPrintId": "bce2209e-7a5c-4394-876c-e0f68cfba9ca",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Scouting Trek",
         "scryfallId": "1b882e68-5c03-4ec6-9982-8c3b09847969",
         "oracleId": "929c231a-12d9-4f1a-9849-64a8b5a65f20",
@@ -76702,6 +76752,26 @@
         "source": "compiled"
     },
     {
+        "name": "Summon: Choco/Mog",
+        "scryfallId": "00546117-018a-4286-bc20-b5446c5be56f",
+        "oracleId": "8b4bfdc5-8c0a-40c3-abbf-ada4a536dc34",
+        "firstSet": "fin",
+        "firstPrintId": "00546117-018a-4286-bc20-b5446c5be56f",
+        "firstPrintSet": "fin",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Summon: G.F. Ifrit",
+        "scryfallId": "c6c73092-5195-4bdc-b039-a699f6e297b2",
+        "oracleId": "96d1bfc1-b80f-466f-b07d-df1ab361e8e0",
+        "firstSet": "fin",
+        "firstPrintId": "c6c73092-5195-4bdc-b039-a699f6e297b2",
+        "firstPrintSet": "fin",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Summoned Dromedary",
         "scryfallId": "44d0277c-ca82-4334-a15a-cd67a9db0d02",
         "oracleId": "697b14c6-fe6a-4880-9cf2-b6602a52ca0b",
@@ -79688,6 +79758,16 @@
         "source": "compiled"
     },
     {
+        "name": "The Birth of Meletis",
+        "scryfallId": "d824f8bd-58f8-4796-80b5-5cd3033d35e8",
+        "oracleId": "1ae54fe7-b1d3-4c13-a8ef-f502cf3eb1a0",
+        "firstSet": "thb",
+        "firstPrintId": "d824f8bd-58f8-4796-80b5-5cd3033d35e8",
+        "firstPrintSet": "thb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "The Brute",
         "scryfallId": "f9ffb265-872f-47b3-974c-92bcbebd557e",
         "oracleId": "99587b7a-cbd0-4ade-b517-50aaf0635fb1",
@@ -79792,6 +79872,16 @@
         "firstSet": "bro",
         "firstPrintId": "02aea379-b444-46a3-82f4-3038f698d4f4",
         "firstPrintSet": "bro"
+    },
+    {
+        "name": "The Modern Age // Vector Glider",
+        "scryfallId": "ee60a8e9-3201-4a7e-8aa4-2c5e1042c8a5",
+        "oracleId": "a8995df6-99a7-41a7-bd3e-f34643b27947",
+        "firstSet": "neo",
+        "firstPrintId": "ee60a8e9-3201-4a7e-8aa4-2c5e1042c8a5",
+        "firstPrintSet": "neo",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "The Monumental Facade",

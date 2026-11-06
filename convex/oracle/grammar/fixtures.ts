@@ -16054,4 +16054,198 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 714.2b + CR 712.14a — a Saga's final chapter returning it transformed: `exileAndReturnTransformed` on
+    // `$source`, which the canned smoke scenario does not stage for a chapter.
+    {
+        rule: "chapter",
+        card: {
+            name: "Era of Enlightenment // Hand of Enlightenment",
+            manaCost: "",
+            typeLine: "Enchantment — Saga // Enchantment Creature — Human Monk",
+            oracleText: "",
+            oracleId: "a6d646e8-0d84-489b-a46a-3bd5b1141864",
+            layout: "transform",
+            faces: [
+                {
+                    name: "Era of Enlightenment",
+                    manaCost: "{1}{W}",
+                    typeLine: "Enchantment — Saga",
+                    oracleText:
+                        "(As this Saga enters and after your draw step, add a lore counter.)\nI — Scry 2.\nII — You gain 2 life.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
+                    colors: ["W"],
+                },
+                {
+                    name: "Hand of Enlightenment",
+                    manaCost: "",
+                    typeLine: "Enchantment Creature — Human Monk",
+                    oracleText: "First strike",
+                    power: "2",
+                    toughness: "2",
+                    colors: ["W"],
+                },
+            ],
+        },
+        expected: {
+            name: "Era of Enlightenment",
+            types: ["Enchantment"],
+            subtypes: ["Saga"],
+            manaCost: {
+                X: 1,
+                W: 1,
+            },
+            oracleText:
+                "(As this Saga enters and after your draw step, add a lore counter.)\nI — Scry 2.\nII — You gain 2 life.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
+            chapterAbilities: [
+                {
+                    chapters: [1],
+                    oracleText: "I — Scry 2.",
+                    effects: [
+                        {
+                            op: "scryReorder",
+                            player: "controller",
+                            count: 2,
+                            destination: "library-bottom",
+                        },
+                    ],
+                },
+                {
+                    chapters: [2],
+                    oracleText: "II — You gain 2 life.",
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: 2,
+                        },
+                    ],
+                },
+                {
+                    chapters: [3],
+                    oracleText:
+                        "III — Exile this Saga, then return it to the battlefield transformed under your control.",
+                    effects: [
+                        {
+                            op: "exileAndReturnTransformed",
+                            target: {
+                                ref: "$source",
+                            },
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
+            backFace: {
+                name: "Hand of Enlightenment",
+                types: ["Enchantment", "Creature"],
+                subtypes: ["Human", "Monk"],
+                power: 2,
+                toughness: 2,
+                colors: ["W"],
+                staticAbilities: ["first strike"],
+                oracleText: "First strike",
+            },
+        },
+    },
+    // CR 714.2b + CR 701.23a — a chapter searching for a basic land of one type; the
+    // canned generator does not size the search's runtime count.
+    {
+        rule: "chapter",
+        card: {
+            name: "The Birth of Meletis",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment — Saga",
+            oracleText:
+                "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\nI — Search your library for a basic Plains card, reveal it, put it into your hand, then shuffle.\nII — Create a 0/4 colorless Wall artifact creature token with defender.\nIII — You gain 2 life.",
+            oracleId: "1ae54fe7-b1d3-4c13-a8ef-f502cf3eb1a0",
+            layout: "saga",
+        },
+        expected: {
+            name: "The Birth of Meletis",
+            types: ["Enchantment"],
+            subtypes: ["Saga"],
+            manaCost: {
+                X: 1,
+                W: 1,
+            },
+            oracleText:
+                "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\nI — Search your library for a basic Plains card, reveal it, put it into your hand, then shuffle.\nII — Create a 0/4 colorless Wall artifact creature token with defender.\nIII — You gain 2 life.",
+            chapterAbilities: [
+                {
+                    chapters: [1],
+                    oracleText:
+                        "I — Search your library for a basic Plains card, reveal it, put it into your hand, then shuffle.",
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                subtype: "Plains",
+                                supertype: "Basic",
+                            },
+                            count: {
+                                min: 0,
+                                max: 1,
+                            },
+                            prompt: "Search your library for a basic Plains card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: {
+                                ref: "$found1",
+                            },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$found1",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+                {
+                    chapters: [2],
+                    oracleText:
+                        "II — Create a 0/4 colorless Wall artifact creature token with defender.",
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Wall",
+                                types: ["Artifact", "Creature"],
+                                subtypes: ["Wall"],
+                                power: 0,
+                                toughness: 4,
+                                colors: [],
+                                staticAbilities: ["defender"],
+                            },
+                            controller: "controller",
+                        },
+                    ],
+                },
+                {
+                    chapters: [3],
+                    oracleText: "III — You gain 2 life.",
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: 2,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

@@ -274,6 +274,15 @@ export type SlotIR =
           readonly modes: readonly SpellModeIR[];
       }
     /**
+     * CR 714.2b / 714.2c — a Saga's chapter line: the chapter numbers its
+     * symbols name, and the effect that triggers on any of them.
+     */
+    | {
+          readonly kind: "chapter";
+          readonly chapters: readonly number[];
+          readonly effects: readonly EffectSentenceIR[];
+      }
+    /**
      * CR 113.3d — a continuous static ability written as a sentence rather
      * than as a keyword. Unlike every other member this one carries no
      * effects: a static ability never resolves, so there is nothing for the

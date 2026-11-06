@@ -26,6 +26,7 @@ import type {
     ModeSelection,
     SpellMode,
     TargetRequirement,
+    ChapterAbilityDefinition,
 } from "../cards/types";
 import { SELF_MARKER } from "./normalize";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
@@ -48,6 +49,7 @@ import {
 } from "./lowerStatic";
 import type { HostNoun } from "./grammar/shared/staticClause";
 import { destroysEveryLand } from "./lowerEffects";
+import { lowerChapterAbility } from "./lowerChapter";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
@@ -101,6 +103,8 @@ interface Accumulator {
     staticAbilities: string[];
     activatedAbilities: ActivatedAbility[];
     compiledTriggeredAbilities: CompiledTriggeredAbility[];
+    /** CR 714.2 — a Saga's chapter lines, in printed order. */
+    chapterAbilities: ChapterAbilityDefinition[];
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
     /** CR 722.3a — "This creature enters prepared." */
@@ -615,6 +619,23 @@ function lowerLine(
                 });
             }
             acc.compiledTriggeredAbilities.push({ ...lowered.ability, modes });
+            return null;
+        }
+        case "chapter": {
+            censusGrantedKeywords(ir.effects, acc);
+            const lowered = lowerChapterAbility({
+                chapters: ir.chapters,
+                oracleText: parsed.line,
+                cardName: card.name,
+                effects: ir.effects,
+            });
+            if (!lowered.ok) return lowered.reason;
+            // The engine keys a chapter ability's id on its numbers, so one
+            // number on two lines is refused rather than left to collide.
+            const printed = acc.chapterAbilities.flatMap((a) => a.chapters);
+            if (ir.chapters.some((n) => printed.includes(n)))
+                return "a chapter number printed on two lines";
+            acc.chapterAbilities.push(lowered.ability);
             return null;
         }
         case "static": {
@@ -1133,6 +1154,9 @@ function announcesX(
     );
 }
 
+/** CR 702.155a — the keyword, as the keyword slot reports it. */
+const READ_AHEAD = "read ahead";
+
 /**
  * CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700).
  * CR 604.3 — a `*` is read as the base 0 the card's own defining ability
@@ -1161,6 +1185,7 @@ export function lowerCard(
         staticAbilities: [],
         activatedAbilities: [],
         compiledTriggeredAbilities: [],
+        chapterAbilities: [],
         compiledStaticEffects: [],
         entersTapped: false,
         entersPrepared: false,
@@ -1222,11 +1247,24 @@ export function lowerCard(
         if (err !== null)
             return { ok: false, reason: err, fragment: line.line };
     }
+    // CR 702.155a — Read ahead changes when every chapter on the card can
+    // trigger, so a Saga printing it is not one definition short of a keyword
+    // but a card whose chapters mean something else: refused, not quarantined.
+    if (
+        acc.chapterAbilities.length > 0 &&
+        acc.plannedMechanics.some((k) => k.toLowerCase() === READ_AHEAD)
+    )
+        return {
+            ok: false,
+            reason: "a Saga with Read ahead (CR 702.155a) is not in grammar v0",
+            fragment: "Read ahead",
+        };
     // CR 610.3 — an "until" exile's return is owed by the whole card, never
     // printed on a line; a printed CR 607.2a return is refused (`linkExile.ts`).
     const link = linkExileAndReturn(
         [
             ...acc.compiledTriggeredAbilities.map((a) => a.effects),
+            ...acc.chapterAbilities.map((a) => a.effects),
             ...acc.activatedAbilities.map((a) => a.effects ?? []),
         ],
         [
@@ -1305,6 +1343,9 @@ export function lowerCard(
     // sees this field — `expandDefinition` consumes it.
     if (acc.compiledTriggeredAbilities.length > 0)
         definition.compiledTriggeredAbilities = acc.compiledTriggeredAbilities;
+    // CR 714.2 — plain data: `expandChapterAbilities` derives the triggers.
+    if (acc.chapterAbilities.length > 0)
+        definition.chapterAbilities = acc.chapterAbilities;
     // CR 611 — descriptors, not effects, for the same reason as the triggers
     // above: `StaticEffect` is a predicate closure and the compiler emits JSON
     // (`cards/compiledStatics.ts`). `expandDefinition` consumes the field.

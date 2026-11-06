@@ -821,14 +821,14 @@ describe("censusRefusedLayouts (issue #8060)", () => {
     it("recognises the key a real compiler refusal produces", () => {
         const outcome = compileCard({
             name: "Probe",
-            typeLine: "Enchantment — Saga",
-            oracleText: "I — Draw a card.",
-            layout: "saga",
+            typeLine: "Creature — Human",
+            oracleText: "",
+            layout: "flip",
         } as Parameters<typeof compileCard>[0]);
         if (outcome.state !== "unparsed") throw new Error(outcome.state);
         const [gap] = outcome.gaps;
         const { key } = gapOf({ text: gap!.fragment, reason: gap!.reason });
-        expect(refusedLayoutOf(key)).toBe("saga");
+        expect(refusedLayoutOf(key)).toBe("flip");
     });
 
     it("renders a row per layout, and one line when nothing is refused", () => {

@@ -51,7 +51,7 @@ export const chapterAbilityId = (chapters: readonly number[]): string =>
 const crosses = (total: number, added: number, chapter: number): boolean =>
     total - added < chapter && total >= chapter;
 
-function buildChapterTrigger(
+export function buildChapterTrigger(
     entry: ChapterAbilityDefinition
 ): TriggeredAbility {
     const chapters = [...entry.chapters].sort((a, b) => a - b);
