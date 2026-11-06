@@ -600,7 +600,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: "battlefield",
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(140);
+            expect(v.points).toBe(LATENT.recursion);
             expect(v.tags).toContain("recursion");
         });
 
@@ -687,7 +687,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: "battlefield",
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(140);
+            expect(v.points).toBe(LATENT.recursion);
             expect(v.tags).toContain("recursion");
             expect(v.tags).not.toContain("targeted");
         });

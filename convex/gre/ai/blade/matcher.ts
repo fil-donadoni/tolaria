@@ -247,6 +247,19 @@ export function matchesMove(
         }
     }
 
+    // Issue #8271 — the announced X (CR 107.3) and the activated ability's id
+    // (CR 602.1). Only the two kinds that carry them can satisfy either field.
+    if (matcher.x !== undefined) {
+        if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+            return false;
+        }
+        if ((move.chosenX ?? 0) !== matcher.x) return false;
+    }
+    if (matcher.ability !== undefined) {
+        if (move.kind !== "activate-ability") return false;
+        if (move.abilityId !== matcher.ability) return false;
+    }
+
     return true;
 }
 
@@ -281,6 +294,8 @@ export function describeMatcher(matcher: MoveMatcher): string {
     if (matcher.target) parts.push(`target=${matcher.target}`);
     if (matcher.accept !== undefined) parts.push(`accept=${matcher.accept}`);
     if (matcher.option) parts.push(`option=${matcher.option}`);
+    if (matcher.x !== undefined) parts.push(`x=${matcher.x}`);
+    if (matcher.ability) parts.push(`ability=${matcher.ability}`);
     return parts.join(" ");
 }
 

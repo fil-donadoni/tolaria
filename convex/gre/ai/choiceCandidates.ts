@@ -1238,9 +1238,27 @@ function failToFindIsDominated(
  *  review finding 2). Registered in {@link CHOICE_GENERATOR_APPLIES}, which is
  *  what `isSearchableChoiceNode` consults. */
 function handPickIsSearchable(choice: PendingChoice): boolean {
+    if (getPendingChoiceMax(choice.count) <= 0) return false;
+    return getPendingChoiceMin(choice.count) === 0 || handPickIsAStrip(choice);
+}
+
+/** The share of the best card's worth a strip candidate must reach to be
+ *  weighed at all (issue #8271). */
+const STRIP_WORTH_FLOOR = 0.6;
+
+/** A pick out of ANOTHER player's hand (`zoneOwnerId`) — Thoughtseize, Duress,
+ *  Deep-Cavern Bat: the worth moves away from the opponent, never from the
+ *  chooser. Issue #8271: a mandatory strip is a real decision with no cost
+ *  priced elsewhere, unlike the chooser's own discard, so it is a search node
+ *  whatever its minimum. */
+function handPickIsAStrip(choice: PendingChoice): boolean {
     return (
-        getPendingChoiceMin(choice.count) === 0 &&
-        getPendingChoiceMax(choice.count) > 0
+        (choice.zoneOwnerId ?? choice.playerId) !== choice.playerId &&
+        // An Effect Script's pick binds a `$name`. A protocol `resolve()` card
+        // names its own, and what it does with the pick is unreadable: Word of
+        // Command's (ADR 0037) is a card the owner is MADE to cast, so no worth
+        // moves out of that hand. Those stay what they were.
+        choice.choiceId.startsWith("$")
     );
 }
 
@@ -1290,8 +1308,9 @@ export function isOptionalOwnBattlefieldPut(
  *  the EMPTY submission, so Chrome Mox resolved its imprint trigger imprinting
  *  nothing and stayed a Mox that taps for no mana, every game, deterministically.
  *
- *  A MANDATORY hand pick (`min > 0`) gets no candidates and therefore stays off
- *  the tree exactly as before: those are costs already priced elsewhere
+ *  A MANDATORY hand pick (`min > 0`) out of the chooser's OWN hand gets no
+ *  candidates and therefore stays off the tree exactly as before (a strip out of
+ *  another hand is a node, `handPickIsAStrip`): those are costs already priced elsewhere
  *  (Brainstorm's two-card putback, an upkeep discard) and turning them into
  *  search nodes is a separate, much wider change. Returning `[]` is the
  *  registry's own "not a decision node" signal (`decidingPlayer`, `search.ts`),
@@ -1333,27 +1352,27 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // mechanism (`choiceFindDestination`). It fails closed: a `resolve()` card
     // or an unwalkable script answers `undefined`, which is priced exactly as
     // before this existed.
-    // …and WHOSE hand it comes out of. The destination alone is not the sign
-    // (PR review finding C1): a `choose-hand-card` can pick from ANOTHER
-    // player's hand (`zoneOwnerId`, the Deep-Cavern Bat / Elite Spellbinder
-    // strip), and there the worth moves away from the opponent, not from the
-    // decider. That shape is deliberately NOT re-signed here — stripping the
-    // opponent's BEST card is the play, so it wants a `materialGained` hint and
-    // a descending order of its own, and it is a preference change that owes
-    // its own discriminating blade pair rather than a line in a settle fix
-    // (`docs/findings/3388-a-strip-from-the-opponents-hand-is-priced-as-the-movers-own-cost.md`).
-    // What matters here is that it must not be swept into the NEW direction on
-    // the destination alone: this stays exactly as it was, and
-    // `heuristicChoicePrior` keeps it at the flat neutral it has always had.
-    const gained = handPickPutsOntoOwnBattlefield(state, choice);
+    // …and WHOSE hand it comes out of (issue #8271). A strip moves the worth
+    // away from the opponent, so stripping their BEST card is the play: the
+    // same `materialGained` sign and descending order as a put onto the
+    // chooser's own battlefield, whatever the destination. A mandatory strip
+    // owes no empty branch: the empty answer is not legal.
+    const gained =
+        handPickIsAStrip(choice) ||
+        handPickPutsOntoOwnBattlefield(state, choice);
 
-    const out: Omit<ChoiceCandidate, "prior">[] = [
-        {
-            key: "hand-pick:none",
-            move: submit([]),
-            hint: gained ? { materialGained: 0 } : { materialGivenUp: 0 },
-        },
-    ];
+    const out: Omit<ChoiceCandidate, "prior">[] =
+        getPendingChoiceMin(choice.count) === 0
+            ? [
+                  {
+                      key: "hand-pick:none",
+                      move: submit([]),
+                      hint: gained
+                          ? { materialGained: 0 }
+                          : { materialGivenUp: 0 },
+                  },
+              ]
+            : [];
 
     const ranked = pool
         .map((card) => ({
@@ -1371,9 +1390,22 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
 
+    // Issue #8271 — a strip costs the chooser nothing, so its whole outcome is
+    // the worth it takes away, and a card the opponent will not cast within the
+    // search's horizon washes out of every leaf: the Shivan Dragon and the
+    // Savannah Lions tied, and the pick fell to rollout noise. Candidates far
+    // below the best one are dropped rather than weighed.
+    // Only over a best card worth something: a floor scaled off a negative
+    // worth sits ABOVE that card and would leave a mandatory strip no answer,
+    // disagreeing with `handPickIsSearchable`.
+    const stripFloor =
+        handPickIsAStrip(choice) && ranked.length > 0 && ranked[0].worth > 0
+            ? ranked[0].worth * STRIP_WORTH_FLOOR
+            : -Infinity;
     const seen = new Set<string>();
     for (const lead of ranked) {
         if (out.length >= CHOICE_TOP_K) break;
+        if (lead.worth < stripFloor) continue;
         if (seen.has(lead.identity)) continue;
         seen.add(lead.identity);
         const picked = [lead];
@@ -1402,7 +1434,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
  *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
- *  mandatory hand picks are costs, and making them search nodes is a wider
+ *  mandatory own-hand picks are costs, and making them search nodes is a wider
  *  change). But the 1-ply policy probe's settle stopped THERE and scored the
  *  position one Op into the resolution: the discard spell spent, the mana
  *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
@@ -2777,7 +2809,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
  *
  *  Registry membership answers "is this KIND ever an in-tree node?"; a
  *  registered generator may still legitimately decline a PARTICULAR choice —
- *  `handPickCandidates` returns `[]` for a MANDATORY (`min > 0`) hand pick. The
+ *  `handPickCandidates` returns `[]` for a MANDATORY (`min > 0`) own-hand pick. The
  *  authority on "will this generator emit anything" is the generator's output
  *  (`decidingPlayer` / `keyedMovesFor` have always used it), but the CLIENT-side
  *  `searchable` gate (`src/lib/ai/bot-view.ts`) only ever holds the projected
