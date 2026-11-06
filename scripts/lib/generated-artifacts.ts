@@ -506,6 +506,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "hand-curated Tier 1 deck lists",
     },
     {
+        pattern: "data/modern-metagame-decks.json",
+        kind: "human-input",
+        why: "the owner's ten Modern archetype lists (issue #8276)",
+    },
+    {
         pattern: "data/worklists/*",
         kind: "human-input",
         why: "card lists a person wrote for an import or a rollout",

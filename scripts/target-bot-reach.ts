@@ -1,7 +1,7 @@
 /**
  * Whole-Target Bot-play measurement (issue #4149).
  *
- * `oracle:compile`'s Bot-play sweep (issue #3830, ADR 0105 § 7.2) plays only
+ * `oracle:compile`'s Bot-play sweep (ADR 0105 § 7.2) plays only
  * compiled `ready` rows, so on a Target made mostly of HAND-WRITTEN cards it
  * leaves most of the Target unmeasured. This one-off plays the definition that
  * actually SHIPS for every card of a Target — the hand-written one when the
@@ -30,8 +30,8 @@
  * spelling of its path — and asks for an explicit `--findings <path>`
  * elsewhere instead. It still READS the committed artifact as its cache.
  *
- * Default Targets: `premodern-metagame`, `vintage-cube` (the v1 pair,
- * issue #3846).
+ * Default Targets: `premodern-metagame`, `vintage-cube` (the v1 pair) and
+ * `modern-metagame` (the next Target, issue #8276).
  */
 
 import { execFileSync } from "node:child_process";
@@ -79,7 +79,11 @@ import {
 } from "./lib/targets";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const DEFAULT_TARGETS = ["premodern-metagame", "vintage-cube"];
+const DEFAULT_TARGETS = [
+    "premodern-metagame",
+    "vintage-cube",
+    "modern-metagame",
+];
 
 /** Which definition a Target card ships with — the one that gets played.
  *  Defined beside the artifact that records it. */

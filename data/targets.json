@@ -16,6 +16,12 @@
             "priority": 1
         },
         {
+            "id": "modern-metagame",
+            "kind": "deck-list",
+            "source": "data/modern-metagame-decks.json",
+            "priority": 2
+        },
+        {
             "id": "tier1-goblin",
             "kind": "deck-list",
             "source": "data/premodern-tier1-decks.json#goblin"
