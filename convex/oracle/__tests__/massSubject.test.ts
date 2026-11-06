@@ -435,8 +435,7 @@ describe("Mass subject — refusals (fail closed)", () => {
                 refusal(sorcery("Test", "{2}{W}", line)),
                 line
             ).toMatchObject({
-                path: ["effect clause", "mass subject"],
-                span: "subtypes",
+                path: ["effect clause", "mass subject", "object descriptor"],
             });
     });
 

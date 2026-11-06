@@ -2996,6 +2996,14 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
             siblingControllerId: "p2",
         },
         isToken: { req: { isToken: true } },
+        typeOrSubtypeFilter: {
+            req: {
+                typeOrSubtypeFilter: {
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                },
+            },
+        },
         controlledSinceTurnStart: { req: { controlledSinceTurnStart: true } },
         // SUBJECT has no `attachedTo` (it isn't an Aura) — an unattached
         // candidate fails CLOSED against any attachedToFilter (issue #1853).
