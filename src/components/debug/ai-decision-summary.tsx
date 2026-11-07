@@ -99,6 +99,7 @@ export default function AiDecisionSummary({
                     Details — {trace.candidates.length} moves,{" "}
                     {trace.iterationsCompleted}/{trace.iterationsRequested}{" "}
                     iters ({trace.stoppedBy}), {Math.round(trace.elapsedMs)}ms
+                    {trace.selectionRule ? `, ${trace.selectionRule}` : ""}
                 </summary>
                 <div className="mt-1 flex flex-col gap-1">
                     {trace.candidates.map((cand, i) => (

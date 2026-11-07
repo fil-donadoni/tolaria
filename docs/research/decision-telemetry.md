@@ -5,11 +5,8 @@
 > since grown from 8 to 15 `ROOT_DECISION_MECHANISMS` (frozen, ADR 0124 §5),
 > the blade registry from 11 scenarios to several hundred, and the weights
 > are now fitted from Verdicts (ADR 0124). The map these numbers served was
-> re-chartered as Roadmap v3 (ADR 0138). A re-measure on the 2026-11-07 tip
-> (`3f750884247a`, 6 self-play games, seed 1893, 400 iterations, no blade
-> half) was started that day and lands as a § Re-measure section when it
-> completes; it is the baseline issue #8700 (action priors ON) measures
-> against. Until then every percentage below is three months old.
+> re-chartered as Roadmap v3 (ADR 0138). § Re-measure below holds the
+> 2026-11-07 numbers, and § With action priors the effect of issue #8700.
 
 **Question.** What share of the bot's real decisions is actually decided by
 the search (mean reward), and what share falls to the material tie-break or
@@ -309,3 +306,39 @@ rule.
   every level per issue #8692) all act on how visits are spent inside the
   band; this table is their baseline. Re-run the command above on their tip
   and add the column.
+
+## With action priors — 2026-11-07, issue #8700
+
+**Measured on the issue #8700 branch over base `d3cac821f` (2026-11-07)**, both
+arms on that one tree: the command of § Re-measure, the control arm with
+`DECISION_CORPUS_VARIANT=no-action-priors`. The control arm reproduces
+§ Re-measure's split row for row, so it is the old rule. Live play runs the
+other arm since issue #8700 (PUCT, `c = 0.15`, `fpu = 0.15`). One seed and 432
+decisions per arm: a point or two is noise.
+
+| measure                                        | flat UCB1   | PUCT            |
+| ---------------------------------------------- | ----------- | --------------- |
+| mean-reward                                    | 22.2% (96)  | **31.7%** (137) |
+| material-tiebreak                              | 57.4% (248) | **47.7%** (206) |
+| named rules, total                             | 20.4% (88)  | 20.6% (89)      |
+| more than one `OUTCOME_EPS` contender          | 75.5%       | 66.2%           |
+| single visit-band edge                         | 24.1% (104) | 33.3% (144)     |
+| picks differing from the mean argmax (flipped) | 28.5%       | 26.4%           |
+| 1-ply greedy agrees with the pick              | 59.0%       | 60.6%           |
+| search wall clock, ms per iteration            | 19.7        | 25.3            |
+
+### Reading
+
+- The search decides more: ten points move from the material tie-break to the
+  mean reward, and the named rules do not move. This is the depth the priors
+  were turned on to buy.
+- The cost is real. An iteration took 28% longer here, on a loaded machine (the
+  `policyValue` probes; the `searchCost` pins show clones up 21–26% on 4 and 13
+  moves, down on 49), so a `timeMs` cap reaches fewer iterations. Iteration
+  budgets (blade, this corpus) do not see it; live `medium` does.
+- Held-out pick agreement (`verdicts:pick-agreement`, n = 24, indicative) went
+  the other way on the same tree: 14/24 to 13/24, seeds 86/120 to 77/120. The
+  verdicts that went from agree to disagree are listed in the PR of issue #8700.
+- 400 iterations is not where a tie stops being a tie: issue #8736 is a `must`
+  entry that was green at 400 and converges away from its answer at 2000 under
+  either rule.

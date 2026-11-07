@@ -265,4 +265,12 @@ describe("AiDecisionTrace — the numbers (issue #3404)", () => {
         expect(details!.textContent).toContain("400/400 iters (iterations)");
         expect(details!.textContent).toContain("123ms");
     });
+
+    it("names the selection rule the search ran (issue #8700)", () => {
+        pushAiTrace(trace({ selectionRule: "puct" }), "worker");
+        const { container } = render(<AiDecisionTrace />);
+        expect(container.querySelector("details")!.textContent).toContain(
+            "123ms, puct"
+        );
+    });
 });

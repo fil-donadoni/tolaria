@@ -2755,8 +2755,8 @@ describe("opponent priority edges use stable, definition-based keys (issue #1520
 // Ordinary priority moves carry `prior: 0` and are opened uniformly at random,
 // one per iteration; the `actionPriors` variant gives them a real prior
 // (`policyValue`) and folds unopened children into the same argmax as opened
-// ones. Everything here is variant-gated: with the knob OFF the selection rule
-// is the historical one, byte-for-byte.
+// ones. Live play runs with it on (issue #8700); only `actionPriors: null`, the
+// `no-action-priors` variant, takes the historical selection rule.
 // ---------------------------------------------------------------------------
 describe("search — action priors + FPU (issue #2684)", () => {
     const ACTION_PRIORS = {
@@ -2785,6 +2785,7 @@ describe("search — action priors + FPU (issue #2684)", () => {
             { battlefield: [creature(BEARS, "p2", "ob")] }
         );
     }
+    const FLAT_UCB1 = LADDER_VARIANTS["no-action-priors"];
     const underVariant = <T>(v: SearchVariant | null, fn: () => T): T => {
         setSearchVariant(v);
         try {
@@ -2876,7 +2877,7 @@ describe("search — action priors + FPU (issue #2684)", () => {
                     searchWithTrace(state, "p1", { iterations: 10 }, 7).trace!
                         .candidates[0].label
             );
-        expect(first(null)).toBe("pass");
+        expect(first(FLAT_UCB1)).toBe("pass");
         expect(first(ACTION_PRIORS)).toBe("cast Hill Giant");
     });
 
@@ -2891,10 +2892,31 @@ describe("search — action priors + FPU (issue #2684)", () => {
         expect(run()).toEqual(run());
     });
 
-    it("CONTROL LEG: a variant without `actionPriors` changes nothing", () => {
-        // The knob is off by default and off for every variant that does not
-        // ask for it — the search must be indistinguishable from no variant at
-        // all, or the ladder's control leg is not a control.
+    it("LIVE DEFAULT: no variant runs PUCT, and the trace names it (issue #8700)", () => {
+        // What live play installs is nothing at all, so the default is the
+        // whole of the feature: a resolver back at `null` would leave every
+        // `action-priors` test above green while the live Bot ran flat UCB1.
+        expect(resolveActionPriors(null)).toEqual(ACTION_PRIORS.actionPriors);
+        const state = priorBoard();
+        const live = searchWithTrace(
+            state,
+            "p1",
+            { iterations: 200 },
+            31
+        ).trace;
+        expect(live!.selectionRule).toBe("puct");
+        expect(shape(live)).toEqual(
+            underVariant(ACTION_PRIORS, () =>
+                shape(
+                    searchWithTrace(state, "p1", { iterations: 200 }, 31).trace
+                )
+            )
+        );
+    });
+
+    it("CONTROL LEG: a variant silent on `actionPriors` keeps the default", () => {
+        // A ladder or blade variant about another knob must not switch the
+        // selection rule as a side effect, or its A/B measures two things.
         const state = priorBoard();
         const baseline = shape(
             searchWithTrace(state, "p1", { iterations: 200 }, 31).trace
@@ -2903,13 +2925,22 @@ describe("search — action priors + FPU (issue #2684)", () => {
             shape(searchWithTrace(state, "p1", { iterations: 200 }, 31).trace)
         );
         expect(noKnob).toEqual(baseline);
-        expect(resolveActionPriors(null)).toBeNull();
-        expect(resolveActionPriors({ name: "no-knob" })).toBeNull();
-        // …and with the knob ON the search really is a different search.
-        const withKnob = underVariant(ACTION_PRIORS, () =>
+        expect(resolveActionPriors({ name: "no-knob" })).toEqual(
+            ACTION_PRIORS.actionPriors
+        );
+    });
+
+    it("no-action-priors is the A/B's control arm: a different search, named ucb1", () => {
+        const state = priorBoard();
+        expect(resolveActionPriors(FLAT_UCB1)).toBeNull();
+        const flat = underVariant(
+            FLAT_UCB1,
+            () => searchWithTrace(state, "p1", { iterations: 200 }, 31).trace
+        );
+        expect(flat!.selectionRule).toBe("ucb1");
+        expect(shape(flat)).not.toEqual(
             shape(searchWithTrace(state, "p1", { iterations: 200 }, 31).trace)
         );
-        expect(withKnob).not.toEqual(baseline);
     });
 
     it("LADDER_VARIANTS registers the knob under the name the CLI accepts", () => {

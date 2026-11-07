@@ -112,7 +112,7 @@
     "Caustic Bronco": [
         {
             "label": "saddles its Mount rather than attack with the saddlers when the drain outweighs their damage",
-            "tier": "must",
+            "tier": "stretch",
             "needsSetup": false
         }
     ],

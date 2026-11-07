@@ -29,7 +29,7 @@ import { reporterOption } from "./scripts/lib/vitest-reporters";
  *
  * A search VARIANT leg (issue #2684) is opt-in through the environment, the
  * same way the tier is:
- *       BLADE_VARIANT=action-priors bun run test:blade
+ *       BLADE_VARIANT=no-action-priors bun run test:blade
  * installs that `LADDER_VARIANTS` entry around every entry of the tier. Unset
  * (the default, and what `bun run test` runs) touches the variant module state
  * not at all.
