@@ -3,6 +3,16 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { urzaPlaneswalkerFace } from "./urzaPlaneswalkerFace.cards";
+import { mishraLostToPhyrexiaFace } from "./mishraLostToPhyrexiaFace.cards";
+
+// "The number of attacking creatures": every attacker on the battlefield.
+const ATTACKING_CREATURES = {
+    count: {
+        zone: "battlefield" as const,
+        controller: "controller" as const,
+        filter: { type: "Creature" as const, isAttacking: true },
+    },
+};
 
 // Third Path Iconoclast — {U}{R} Creature — Human Monk 2/1 (Vintage Cube token
 // maker, issue #678). "Whenever you cast a noncreature spell, create a 1/1
@@ -108,6 +118,85 @@ export const urzaLordProtector = defineCard(() => ({
                 },
             ],
             sorcerySpeedOnly: true,
+        },
+    ],
+}));
+
+// Mishra, Claimed by Gix — {2}{B}{R} Legendary Creature — Phyrexian Human
+// Artificer, 3/5, the half of the Mishra meld pair that carries the meld ability
+// (CR 712.4a). "Whenever you attack, each opponent loses X life and you gain X
+// life, where X is the number of attacking creatures. If Mishra, Claimed by Gix
+// and a creature named Phyrexian Dragon Engine are attacking, and you both own
+// and control them, exile them, then meld them into Mishra, Lost to Phyrexia.
+// It enters tapped and attacking."
+// One Oracle line = one trigger (CR 603.2). "Both attacking" is read on
+// resolution (the `if` for Mishra, the partner filter for the Engine); "both own
+// and control" by the `meld` Op itself. CR 508.4: the melded permanent enters
+// tapped and attacking (issue #8478).
+// hand-tail: Whenever you attack, each opponent loses X life and you gain X life, where X is the number of attacking creatures. (#8176)
+export const mishraClaimedByGix = defineCard(() => ({
+    id: "a469d7ec-42de-45de-9d8f-469bb979de58",
+    name: "Mishra, Claimed by Gix",
+    rarity: "mythic",
+    oracleText:
+        "Whenever you attack, each opponent loses X life and you gain X life, where X is the number of attacking creatures. If Mishra, Claimed by Gix and a creature named Phyrexian Dragon Engine are attacking, and you both own and control them, exile them, then meld them into Mishra, Lost to Phyrexia. It enters tapped and attacking.\n(Melds with Phyrexian Dragon Engine.)",
+    manaCost: { X: 2, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Phyrexian", "Human", "Artificer"],
+    power: 3,
+    toughness: 5,
+    backFace: mishraLostToPhyrexiaFace,
+    triggeredAbilities: [
+        {
+            id: "mishra-claimed-by-gix-attack",
+            oracleText:
+                "Whenever you attack, each opponent loses X life and you gain X life, where X is the number of attacking creatures. If Mishra, Claimed by Gix and a creature named Phyrexian Dragon Engine are attacking, and you both own and control them, exile them, then meld them into Mishra, Lost to Phyrexia. It enters tapped and attacking.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackingPlayerId === self.controllerId,
+            effects: [
+                {
+                    op: "loseLife",
+                    player: "opponent",
+                    amount: ATTACKING_CREATURES,
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: ATTACKING_CREATURES,
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    name: "Mishra, Claimed by Gix",
+                                    isAttacking: true,
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "meld",
+                            partner: {
+                                type: "Creature",
+                                name: "Phyrexian Dragon Engine",
+                                isAttacking: true,
+                            },
+                            entersTapped: true,
+                            entersAttacking: true,
+                        },
+                    ],
+                },
+            ],
         },
     ],
 }));

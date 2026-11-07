@@ -5,6 +5,8 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import type { ActivatedAbilityContext } from "../../types";
 import { urzaPlaneswalkerFace } from "./urzaPlaneswalkerFace.cards";
+import { mishraLostToPhyrexiaFace } from "./mishraLostToPhyrexiaFace.cards";
+import { unearthAbility } from "../../abilities/unearth";
 
 // Haywire Mite — {1} Artifact Creature — Insect, 1/1 (Vintage Cube FREE:
 // ETB/dies/attack triggers, issue #679). "When this creature dies, you gain
@@ -195,4 +197,61 @@ export const theMightstoneAndWeakstone = defineCard(() => ({
             manaRestriction: "not-nonartifact-spell",
         },
     ],
+}));
+
+// Phyrexian Dragon Engine — {3} Artifact Creature — Phyrexian Dragon, 2/2, the
+// half of the Mishra meld pair that carries no meld ability (CR 712.4a).
+// "Double strike. When this creature enters from your graveyard, you may discard
+// your hand. If you do, draw three cards. Unearth {3}{R}{R}"
+// The trigger fires on the `PERMANENT_ENTERED.enteredFromGraveyard`
+// provenance flag (issue #1533), checked at trigger time; "if you do"
+// reads the `mayPay` boolean (CR 608.2c). Unearth is the shared factory
+// (CR 702.84a, issue #8165).
+// compiler-gap: Unearth {3}{R}{R} (#8165)
+export const phyrexianDragonEngine = defineCard(() => ({
+    id: "e2b826be-4256-4fd6-ad4d-6c80933ee940",
+    name: "Phyrexian Dragon Engine",
+    rarity: "rare",
+    oracleText:
+        "Double strike\nWhen this creature enters from your graveyard, you may discard your hand. If you do, draw three cards.\nUnearth {3}{R}{R} ({3}{R}{R}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)\n(Melds with Mishra, Claimed by Gix.)",
+    manaCost: { X: 3 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Phyrexian", "Dragon"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["double strike"],
+    backFace: mishraLostToPhyrexiaFace,
+    triggeredAbilities: [
+        {
+            id: "phyrexian-dragon-engine-etb",
+            // CR 603.6a: fired by its OWN permanent entering and nothing else.
+            etbAbility: true,
+            oracleText:
+                "When this creature enters from your graveyard, you may discard your hand. If you do, draw three cards.",
+            event: "PERMANENT_ENTERED",
+            matches: (event, self) =>
+                event.type === "PERMANENT_ENTERED" &&
+                event.instanceId === self.id &&
+                event.enteredFromGraveyard === true &&
+                // "your graveyard": a card entering from its OWNER's graveyard.
+                self.ownerId === self.controllerId,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Discard your hand?",
+                    bind: "$discardHand",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$discardHand" },
+                    then: [
+                        { op: "discard", player: "controller" },
+                        { op: "draw", player: "controller", count: 3 },
+                    ],
+                },
+            ],
+        },
+    ],
+    activatedAbilities: [unearthAbility({ X: 3, R: 2 })],
 }));
