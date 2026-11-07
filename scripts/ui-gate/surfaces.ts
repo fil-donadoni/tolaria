@@ -4070,6 +4070,93 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "limited-deck-detached-build",
+        entries: ["src/routes/deck-builder.route.tsx"],
+        // ADR 0106: a saved `limited` deck opened by its own URL lands in the
+        // pool builder over its Deck Pool, with no Seat involved. A fresh lane
+        // account owns no deck, so one is saved from the fixture seat, as
+        // `limited-deck-archive` does, and the row's link names it.
+        label: "Limited deck, detached pool builder (/decks/<id>/edit)",
+        asserts: [
+            {
+                label: "Maindeck pane",
+                locator: { selector: '[data-deck-pane="maindeck"]' },
+                check: "visible",
+            },
+            {
+                label: "Pool pane",
+                locator: { selector: '[data-deck-pane="sideboard"]' },
+                check: "visible",
+            },
+            {
+                label: "pool card tile",
+                locator: { selector: "[data-card-tile]" },
+                check: "visible",
+            },
+            {
+                label: "deck name field",
+                locator: { role: "textbox", name: "Deck name" },
+                check: "reachable",
+            },
+            {
+                label: "primary action: Done",
+                locator: { role: "button", name: "Done" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            const ARCHIVE_DECK = "[data-limited-archive-deck]";
+            await goto(page, ctx, "/limited/decks");
+            await page
+                .locator("[data-surface-ready]")
+                .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
+            if ((await page.locator(ARCHIVE_DECK).count()) === 0) {
+                await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+                const eventId = currentEventId(page);
+                await goto(page, ctx, `/limited/${eventId}/build`);
+                if (!(await visible(page, "[data-card-tile]", 10_000))) {
+                    throw new Unreachable(
+                        `/limited/${eventId}/build rendered no card tile, so no Limited deck can be saved. ${FIXTURE_SEED_HINT}`
+                    );
+                }
+                await page
+                    .getByRole("textbox", { name: "Deck name" })
+                    .fill("ui-gate detached deck", { timeout: STEP_TIMEOUT });
+                await page
+                    .getByRole("button", { name: "Done" })
+                    .first()
+                    .click({ timeout: STEP_TIMEOUT });
+                await page
+                    .waitForURL(new RegExp(`/limited/${eventId}(\\?.*)?$`), {
+                        timeout: NAV_TIMEOUT,
+                    })
+                    .catch(() => {});
+                await goto(page, ctx, "/limited/decks");
+            }
+            if (!(await visible(page, ARCHIVE_DECK, 10_000))) {
+                throw new Unreachable(
+                    "/limited/decks listed no deck after the fixture seat saved one"
+                );
+            }
+            const deckPath = await page
+                .locator(ARCHIVE_DECK)
+                .first()
+                .getAttribute("href", { timeout: STEP_TIMEOUT });
+            if (!deckPath) {
+                throw new Unreachable(
+                    "the Limited Deck Archive's deck row links to no deck"
+                );
+            }
+            await goto(page, ctx, `${deckPath}/edit`);
+            if (!(await visible(page, "[data-card-tile]", 10_000))) {
+                throw new Unreachable(
+                    `${deckPath}/edit rendered no card tile — a Limited deck must open over its Deck Pool`
+                );
+            }
+            await settle(page);
+        },
+    },
+    {
         id: "limited-antechamber",
         entries: [
             "src/routes/limited-events.route.tsx",

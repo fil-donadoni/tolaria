@@ -25,7 +25,8 @@
  *     legality. Uses every field below.
  *  2. **Limited build** (`pool-deck-builder-form.tsx`) — no source panel (the
  *     Pool zone IS the source), a basics bar, `limited` legality, and its
- *     Pins persisted on the seat's Pool Arrangement.
+ *     Pins persisted on the seat's Pool Arrangement (detached from its event,
+ *     ADR 0106: on the deck row, over the deck's own Deck Pool).
  *  3. **Draft-time Pool** (ADR 0075 §6, a later slice) — the reduced-bar
  *     variant: Grouping + Ordering in `headerActions`, no `sourcePanel`, no
  *     `legality`, no `saveBar` (a draft pick persists per move, there is no

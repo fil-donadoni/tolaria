@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
+import DetachedPoolDeckBuilder from "~/components/deckbuilder/detached-pool-deck-builder";
 import { Button } from "~/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
@@ -25,6 +26,7 @@ import {
 import {
     type DeckBuilderKind,
     buildDeckBuilderSinks,
+    deckEditorFor,
     type DeckBuilderSinks,
 } from "~/lib/deckBuilderDispatch";
 import { useFullCatalogue } from "~/lib/fullCatalogue";
@@ -191,6 +193,14 @@ export default function DeckBuilderRoute({
             );
         }
         const userDeck = toUserLobbyDeck(editingUserDeck);
+        if (deckEditorFor(userDeck) === "pool") {
+            return (
+                <DetachedPoolDeckBuilder
+                    key={userDeck.userDeckId}
+                    deck={userDeck}
+                />
+            );
+        }
         return (
             <>
                 <SurfaceReadyMarker />
