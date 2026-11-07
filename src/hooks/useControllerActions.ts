@@ -470,11 +470,14 @@ export function useControllerActions(): ControllerState {
                 } else if (attackAllConfirmOpen) {
                     // The confirmation dialog owns the keyboard while it is up
                     // — let its own focused button handle Space.
-                } else if (isSelectingAttackers && attackSequence.active) {
-                    // Destination sequence up: Space keeps the current attacker
-                    // on the player and advances, mirroring the "Assign target"
-                    // button — never confirms mid-sequence.
-                    attackSequence.advance();
+                } else if (
+                    isSelectingAttackers &&
+                    attackSequence.choosingTarget
+                ) {
+                    // CR 508.1b — a creature still needs its attack target (a
+                    // click on the player's nameplate or a planeswalker): Space
+                    // does nothing, so no shortcut silently sends it at the
+                    // player and nothing confirms an undecided attack.
                 } else if (isSelectingAttackers && selectedAttackerCount > 0) {
                     // At least one attacker already declared: Space means
                     // "Confirm Attackers" — it mirrors the pod's primary
@@ -686,16 +689,16 @@ export function useControllerActions(): ControllerState {
         });
     } else if (isSelectingAttackers && attackSequence.active) {
         // "Attack with all" destination sequence (design 2026-07-23): the
-        // primary button keeps the current attacker on the defending player and
-        // advances to the next; Confirm is intentionally withheld until the
-        // sequence completes. A planeswalker click (handled on the board)
-        // redirects + advances instead.
+        // current attacker needs its target chosen explicitly (CR 508.1b) — a
+        // planeswalker click or the defending player's nameplate, handled on
+        // the board. The button only reports progress and never advances;
+        // Confirm is withheld until the sequence completes.
         actions.push({
             key: "assign-attack-target-next",
-            label: `Assign target (${attackSequence.index + 1}/${attackSequence.order.length})`,
+            label: `Choose a target (${attackSequence.index + 1}/${attackSequence.order.length})`,
             tone: "primary",
-            disabled: isBusy,
-            onClick: () => attackSequence.advance(),
+            disabled: true,
+            onClick: () => {},
         });
         actions.push({
             key: "cancel-attack-sequence",
@@ -722,7 +725,9 @@ export function useControllerActions(): ControllerState {
                     ? `Confirm Attackers (${selectedAttackerIds.length})`
                     : "Skip Attack",
             tone: "primary",
-            disabled: isBusy,
+            // CR 508.1b — creatures still awaiting their attack target block
+            // the confirmation.
+            disabled: isBusy || attackSequence.choosingTarget,
             onClick: runBusy(() => confirmAttackers({ gameId, playerId })),
         });
         if (eligibleIds.length > 0) {

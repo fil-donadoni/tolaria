@@ -26,6 +26,22 @@ export type AttackSequence = {
     advance: () => void;
     /** Abandon the sequence (attackers stay declared vs. the player). */
     reset: () => void;
+    /** Creatures the player clicked while the defender controls a planeswalker
+     *  (CR 508.1b: the attack target is chosen as part of the declaration).
+     *  Client-only and NOT yet declared — or, for a declared must-attack
+     *  creature (CR 508.1d), declared but about to be retargeted. They carry no
+     *  combat arrow until a target click resolves them. */
+    awaiting: string[];
+    /** Add the creature to the awaiting set, or remove it if already there. */
+    toggleAwaiting: (id: string) => void;
+    /** Drop the given creatures from the awaiting set (their target landed). */
+    resolveAwaiting: (ids: string[]) => void;
+    /** Attackers whose target is still unchosen: the awaiting set plus the
+     *  not-yet-assigned tail of the "Attack with all" sequence. These get no
+     *  arrow. */
+    undecidedAttackerIds: string[];
+    /** True while any attacker still needs its target chosen. */
+    choosingTarget: boolean;
 };
 
 /** Inactive singleton returned when no provider is mounted (tests, classic
@@ -38,6 +54,11 @@ const INACTIVE: AttackSequence = {
     begin: () => {},
     advance: () => {},
     reset: () => {},
+    awaiting: [],
+    toggleAwaiting: () => {},
+    resolveAwaiting: () => {},
+    undecidedAttackerIds: [],
+    choosingTarget: false,
 };
 
 export const AttackSequenceContext = createContext<AttackSequence | null>(null);
@@ -57,6 +78,7 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
     const [order, setOrder] = useState<string[]>([]);
     const [index, setIndex] = useState(0);
     const [active, setActive] = useState(false);
+    const [awaiting, setAwaiting] = useState<string[]>([]);
 
     // Reset when the relevance key changes (setState during render — the
     // official React "adjust state when a prop changes" pattern).
@@ -66,7 +88,21 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
         setOrder([]);
         setIndex(0);
         setActive(false);
+        setAwaiting([]);
     }
+
+    const toggleAwaiting = useCallback(
+        (id: string) =>
+            setAwaiting((prev) =>
+                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+            ),
+        []
+    );
+    const resolveAwaiting = useCallback(
+        (ids: string[]) =>
+            setAwaiting((prev) => prev.filter((x) => !ids.includes(x))),
+        []
+    );
 
     const begin = useCallback((next: string[]) => {
         setOrder(next);
@@ -79,6 +115,7 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
     const advance = useCallback(() => setIndex((prev) => prev + 1), []);
 
     const reset = useCallback(() => {
+        setAwaiting([]);
         setActive(false);
         setOrder([]);
         setIndex(0);
@@ -89,7 +126,16 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
     const stillActive = active && index < order.length;
     const currentAttackerId = stillActive ? order[index] : undefined;
 
+    const undecidedAttackerIds = stillActive
+        ? [...order.slice(index), ...awaiting]
+        : awaiting;
+
     return {
+        awaiting,
+        toggleAwaiting,
+        resolveAwaiting,
+        undecidedAttackerIds,
+        choosingTarget: undecidedAttackerIds.length > 0,
         active: stillActive,
         order,
         index,

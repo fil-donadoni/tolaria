@@ -347,7 +347,8 @@ export function useBattlefieldVisualState(
         !combat.pendingAttackManaTax &&
         playerId === activePlayerId &&
         player.id !== activePlayerId &&
-        combat.attackerIds.length > 0;
+        // CR 508.1b — candidates only while a creature awaits its target.
+        attackSequence.choosingTarget;
 
     const isSelectingBlockers =
         phase === "DECLARE_BLOCKERS" &&
@@ -889,7 +890,15 @@ export function useBattlefieldVisualState(
         const isCurrentSequenceAttacker =
             attackSequence.active &&
             attackSequence.currentAttackerId === card.id;
-        if (isCurrentSequenceAttacker) {
+        // CR 508.1b — a clicked creature still waiting for its attack target
+        // (client-only; no arrow yet): the same heavier static ring as the
+        // sequence's current attacker, on the `pending` role.
+        const isAwaitingAttackTarget = attackSequence.awaiting.includes(
+            card.id
+        );
+        if (isAwaitingAttackTarget) {
+            ringClass = `${cardRingClass("pending")} card-ring-current`;
+        } else if (isCurrentSequenceAttacker) {
             ringClass = `${cardRingClass("attacking")} card-ring-current card-ring-pulse`;
         } else if (pendingBlockerId === card.id) {
             ringClass = cardRingClass("pending");

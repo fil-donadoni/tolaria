@@ -15,6 +15,7 @@ import {
     AttackSequenceContext,
     type AttackSequence,
 } from "~/hooks/useAttackSequence";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 import {
     trackGameIntent,
     resetPendingGameIntents,
@@ -93,15 +94,7 @@ function player(id: string): Player {
     } as Player;
 }
 
-const SEQUENCE: AttackSequence = {
-    active: false,
-    order: [],
-    index: 0,
-    currentAttackerId: undefined,
-    begin: vi.fn(),
-    advance: vi.fn(),
-    reset: vi.fn(),
-};
+const SEQUENCE: AttackSequence = makeAttackSequence();
 
 function renderCtrl(overrides: Record<string, unknown> = {}) {
     const ctx = {

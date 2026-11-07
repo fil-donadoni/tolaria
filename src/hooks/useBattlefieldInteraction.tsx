@@ -7,6 +7,10 @@ import { viewerOwesInput } from "~/lib/expected-input";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
+    defenderControlsPlaneswalker,
+    useAttackTargetChooser,
+} from "~/hooks/useAttackTargetChoice";
+import {
     useBattlefieldVisualState,
     type ManaTapOtherPick,
 } from "~/hooks/useBattlefieldVisualState";
@@ -205,6 +209,7 @@ export function useBattlefieldInteraction(player: Player) {
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
+    const attackTargetChooser = useAttackTargetChooser();
 
     // CR 602.1 / 118.8 / 605.3c (issue #2371) — a NON-stack mana ability's
     // `cost.tapOtherFilter` picks ("Tap an untapped artifact you control: Add
@@ -578,7 +583,8 @@ export function useBattlefieldInteraction(player: Player) {
         !combat.pendingAttackManaTax &&
         playerId === activePlayerId &&
         player.id !== activePlayerId &&
-        combat.attackerIds.length > 0;
+        // Candidates only while a creature is waiting for its target.
+        attackTargetChooser.choosing;
 
     // The declarer selects from the DEFENDING player's creatures, so the
     // clickable battlefield is always the non-active player's — even under Melee
@@ -745,6 +751,26 @@ export function useBattlefieldInteraction(player: Player) {
             // flag — the server's own answer (`isRequiredAttacker`, the call
             // toggleAttacker's refusal makes), never a local re-derivation.
             const alreadySelected = selectedAttackerIds.includes(card.id);
+            // CR 508.1b — with a defending planeswalker the attack target is
+            // a choice: the click only marks the creature as awaiting one (no
+            // mutation, no arrow). A declared must-attack creature (CR 508.1d)
+            // can't be deselected, so its click awaits a retarget instead of
+            // erroring. A declared ordinary attacker keeps its deselect.
+            if (
+                defenderControlsPlaneswalker(allPlayers, activePlayerId) &&
+                !attackSequence.active
+            ) {
+                if (
+                    attackSequence.awaiting.includes(card.id) ||
+                    !alreadySelected ||
+                    card.mustAttack
+                ) {
+                    attackSequence.toggleAwaiting(card.id);
+                    return;
+                }
+            } else if (attackSequence.active) {
+                return;
+            }
             if (alreadySelected && card.mustAttack) {
                 const name = getDefinition(displayCardId(card)).name;
                 const msg = `${name} must attack this combat if able`;
@@ -757,39 +783,12 @@ export function useBattlefieldInteraction(player: Player) {
             return;
         }
         if (isAttackTargetBoard && isPlaneswalker(card)) {
-            // CR 508.1a (issue #1220) — direct a declared attacker at this
-            // planeswalker. During the "Attack with all" destination sequence
-            // (design 2026-07-23) the attacker is the one the cursor is on;
-            // after retargeting, advance to the next attacker. Outside the
-            // sequence, pick the most-recently declared attacker not already
-            // attacking it (retargeting from the player or another
-            // planeswalker); repeated clicks pile attackers onto the
-            // planeswalker.
-            const targets = combat?.attackTargets ?? {};
-            const attackerId = attackSequence.active
-                ? attackSequence.currentAttackerId
-                : [...(combat?.attackerIds ?? [])]
-                      .reverse()
-                      .find((id) => targets[id] !== card.id);
-            if (!attackerId) return;
-            // The server treats a repeat `planeswalkerId` for an attacker
-            // ALREADY on that planeswalker as a toggle-OFF (target reverts to
-            // the defending player). Mid-sequence that would silently undo the
-            // very choice the click expresses — reachable when the attacker was
-            // manually pointed at this planeswalker before "Attack with all".
-            // Confirming the existing target is a no-op mutation, then advance.
-            const alreadyOnThisPw = targets[attackerId] === card.id;
-            if (!alreadyOnThisPw) {
-                guardMutation(
-                    toggleAttacker({
-                        gameId,
-                        playerId,
-                        cardInstanceId: attackerId,
-                        planeswalkerId: card.id,
-                    })
-                );
-            }
-            if (attackSequence.active) attackSequence.advance();
+            // CR 508.1b — every creature awaiting a target (or the "Attack with
+            // all" cursor's attacker) goes at this planeswalker.
+            attackTargetChooser.assign({
+                kind: "planeswalker",
+                planeswalkerId: card.id,
+            });
             return;
         }
         if (isSelectingBlockers && isCreature(card)) {
