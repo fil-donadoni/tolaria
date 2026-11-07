@@ -19,7 +19,7 @@
 //     `bun run verdicts:pick-agreement`, the post-verdict health audit's step.
 //     Options: BLADE_VERDICT_SEARCH_LABEL=<substring> (filter verdict ids),
 //     BLADE_VERDICT_SEARCH_OUT=<path>.json (write rows + text),
-//     BLADE_VARIANT=<name from LADDER_VARIANTS> (the A/B arm, issue #8700).
+//     BLADE_VARIANT=<name from LADDER_VARIANTS> (the A/B arm).
 //
 // It lives HERE, as a blade `*.spec.ts`, for the reason `verdict-report.spec.ts`
 // gives: the blade module drags `lib.dom` into any script that imports it.
