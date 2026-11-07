@@ -22,6 +22,7 @@ import {
     graveyardChoiceCards,
     isGraveyardChoiceActive,
 } from "~/lib/graveyard-choice";
+import { isEligibleGraveyardPile } from "~/lib/graveyard-targets";
 import {
     buildTriggerStateView,
     getGraveyardStackAbilities,
@@ -77,17 +78,17 @@ export default function PlayerGraveyard({
     // CR 400.7 / 109.2: this graveyard accepts target clicks only when (a) a
     // target selection is in progress, (b) it's targeting the graveyard zone,
     // (c) the chooser is the local viewer, and (d) this pile's owner matches
-    // the controller-relationship filter ("you" / "opponent" / any).
+    // the controller-relationship filter, per the shared registry check.
     const isGraveyardTarget =
         !!pendingTarget &&
         pendingTarget.zone === "graveyard" &&
         pendingTarget.playerId === playerId &&
-        (() => {
-            const ctrl = pendingTarget.controller ?? "any";
-            if (ctrl === "you") return player.id === playerId;
-            if (ctrl === "opponent") return player.id !== playerId;
-            return true;
-        })();
+        isEligibleGraveyardPile(
+            pendingTarget,
+            player.id,
+            playerId,
+            activePlayerId
+        );
 
     // CR 608.2 — mid-resolution graveyard pick (Recall): the active choice
     // returns N cards from this (the chooser's own) graveyard to hand. The

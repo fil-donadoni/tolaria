@@ -2,6 +2,7 @@ import type { CardInstance, PendingTarget, Player } from "~/types/game";
 import type { CardInstanceState, GameState } from "@convex/gre/state";
 import {
     checkCardTargetFilters,
+    matchesBattlefieldController,
     pickCardFilterValues,
     siblingControllerIdFor,
     type TargetFilterCtx,
@@ -31,6 +32,24 @@ export function isGraveyardTargetForViewer(
         !!pendingTarget &&
         pendingTarget.zone === "graveyard" &&
         pendingTarget.playerId === viewerId
+    );
+}
+
+/** True when the pile owned by `ownerId` passes the pending target's
+ *  controller-relationship filter (issue #2202). CR 108.4a — a graveyard card
+ *  has no controller, so its owner, the pile's, stands in, as the registry's
+ *  `card` kind does for each card inside the pile (`matchesGraveyardTarget`). */
+export function isEligibleGraveyardPile(
+    pendingTarget: PendingTarget,
+    ownerId: string,
+    viewerId: string,
+    activePlayerId: string
+): boolean {
+    return matchesBattlefieldController(
+        ownerId,
+        viewerId,
+        activePlayerId,
+        pendingTarget.controller
     );
 }
 
