@@ -15,27 +15,32 @@
 // path is for 1x only.
 //
 // WHAT. The art (`grid`, the rendition every slot under 488 device px already
-// fetches) is decoded once, cropped the way `object-fit: cover` crops it, and
-// resized OFF the main thread to the slot's exact device size with the
-// browser's high-quality resampler (`createImageBitmap`'s `resizeQuality:
-// "high"` — measured 0.88–0.99 of a box filter's gradient energy at every
-// width, never above it). The result is encoded to a PNG blob and handed to
-// the `<img>` as a `blob:` URL, which it then draws 1:1 — nothing left for the
-// compositor to resample. The face names the art it was made from in
-// `data-art-src`, which `check:ui`'s raster probe builds its reference from
-// and its resource check reads the width against.
+// fetches) is decoded in a Worker (`faceResample.worker.ts`), cropped the way
+// `object-fit: cover` crops it, and AREA-AVERAGED (`boxDownscale.ts`) to the
+// slot's exact device size — the alias-free downscale, in pure JS so it is
+// the same in every renderer (the browser's own `createImageBitmap` resize
+// read +42% to +91% over it in the full Chromium; see `boxDownscale.ts`). The
+// result comes back as a PNG blob and is handed to the `<img>` as a `blob:`
+// URL, which it then draws 1:1 — nothing left for the compositor to
+// resample. The face names the art it was made from in `data-art-src`,
+// which `check:ui`'s raster probe builds its reference from and its resource
+// check reads the width against.
 //
 // COST, and why a cache. A 112×157 face is 70 KB raw and ~30 KB as PNG; the
 // board holds ~50 faces, a library browse 60, the search grid hundreds (which
 // is why a lazy grid opts out). Entries are reference-counted: a mounted
 // face holds its entry, and only unreferenced entries past the cap are
 // evicted (oldest first) and their URLs revoked — a URL an `<img>` still
-// shows is never revoked under it.
+// shows is never revoked under it. The Worker is one, spawned on first use.
 //
-// FAIL OPEN, to the srcset path. No `createImageBitmap`, no `OffscreenCanvas`,
-// a CORS or network failure, a resampler that ignored the resize request
-// (older engines): the entry resolves `null` and the caller renders the
-// responsive srcset exactly as before. Nothing here can leave a slot blank.
+// FAIL OPEN, to the srcset path. No `Worker`, no `OffscreenCanvas`, a CORS or
+// network failure, a worker that died or never answered within the timeout:
+// the entry resolves `null` and the caller renders the responsive srcset
+// exactly as before. Nothing here can leave a slot blank.
+import type {
+    FaceResampleReply,
+    FaceResampleRequest,
+} from "./faceResample.worker";
 
 /** Displays at or above this ratio draw the srcset path unchanged; below it
  *  the face is resampled to its slot. 1.5 splits 1x from every Retina ratio
@@ -45,9 +50,13 @@ export const FACE_BITMAP_MAX_DPR = 1.5;
 /** Unreferenced entries past this many are evicted, oldest first. */
 export const FACE_BITMAP_CACHE_MAX = 400;
 
+/** A resample that has not answered by then is given up (the face falls
+ *  back to the srcset); a stalled CDN must never hold a slot empty. */
+export const FACE_RESAMPLE_TIMEOUT_MS = 12_000;
+
 export interface FaceBitmapHandle {
-    /** The `blob:` URL once resampled; `null` while pending or when the
-     *  resample failed (the caller falls back to the srcset). */
+    /** The `blob:` URL once resampled; `null` when the resample failed (the
+     *  caller falls back to the srcset). */
     ready: Promise<string | null>;
     /** The mounted face no longer shows this bitmap. */
     release: () => void;
@@ -72,11 +81,11 @@ export function faceBitmapKey(artUrl: string, w: number, h: number): string {
 /** Whether this engine can make the bitmap at all. */
 export function supportsFaceBitmaps(): boolean {
     return (
-        typeof createImageBitmap === "function" &&
+        typeof Worker === "function" &&
         typeof OffscreenCanvas !== "undefined" &&
+        typeof createImageBitmap === "function" &&
         typeof URL !== "undefined" &&
-        typeof URL.createObjectURL === "function" &&
-        typeof fetch === "function"
+        typeof URL.createObjectURL === "function"
     );
 }
 
@@ -85,60 +94,87 @@ export function faceBitmapWanted(dpr: number): boolean {
     return dpr > 0 && dpr < FACE_BITMAP_MAX_DPR;
 }
 
-/** The `object-fit: cover` source window of an `nw`×`nh` picture shown in a
- *  `w`×`h` box: `[sx, sy, sw, sh]` in source pixels, a centred crop. */
-export function coverWindow(
-    nw: number,
-    nh: number,
-    w: number,
-    h: number
-): [number, number, number, number] {
-    const s = Math.max(w / nw, h / nh);
-    const sw = w / s;
-    const sh = h / s;
-    return [(nw - sw) / 2, (nh - sh) / 2, sw, sh];
+/** The slice of a Worker this module uses — injectable for the unit test. */
+export interface ResampleWorker {
+    postMessage(message: FaceResampleRequest): void;
+    onmessage: ((e: MessageEvent<FaceResampleReply>) => void) | null;
+    onerror: ((e: unknown) => void) | null;
+    terminate(): void;
 }
 
-/** Fetches the art and resamples it to `w`×`h` device pixels; `null` on any
- *  failure. Exported for the unit test, which injects `fetch`. */
+function spawnWorker(): ResampleWorker {
+    return new Worker(new URL("./faceResample.worker.ts", import.meta.url), {
+        type: "module",
+    }) as unknown as ResampleWorker;
+}
+
+let worker: ResampleWorker | null = null;
+let nextId = 1;
+const inflight = new Map<number, (blob: Blob | null) => void>();
+
+/** Every request in flight fails open, and the next request spawns anew. */
+function dropWorker(): void {
+    const dead = worker;
+    worker = null;
+    try {
+        dead?.terminate();
+    } catch {
+        // already gone
+    }
+    for (const resolve of inflight.values()) resolve(null);
+    inflight.clear();
+}
+
+function getWorker(spawn: () => ResampleWorker): ResampleWorker {
+    if (worker) return worker;
+    const spawned = spawn();
+    worker = spawned;
+    spawned.onmessage = (e) => {
+        const resolve = inflight.get(e.data.id);
+        if (!resolve) return;
+        inflight.delete(e.data.id);
+        resolve(e.data.blob);
+    };
+    spawned.onerror = () => {
+        if (worker === spawned) dropWorker();
+    };
+    return spawned;
+}
+
+/** Fetches the art and resamples it to `w`×`h` device pixels in the worker;
+ *  `null` on any failure or after {@link FACE_RESAMPLE_TIMEOUT_MS}. */
 export async function resampleFace(
     artUrl: string,
     w: number,
     h: number,
-    fetchImpl: typeof fetch = fetch
+    spawn: () => ResampleWorker = spawnWorker
 ): Promise<string | null> {
+    let w$: ResampleWorker;
     try {
-        const res = await fetchImpl(artUrl, {
-            mode: "cors",
-            credentials: "omit",
+        w$ = getWorker(spawn);
+    } catch {
+        return null;
+    }
+    const id = nextId++;
+    const blob = await new Promise<Blob | null>((resolve) => {
+        const timer = setTimeout(() => {
+            if (inflight.delete(id)) resolve(null);
+        }, FACE_RESAMPLE_TIMEOUT_MS);
+        inflight.set(id, (b) => {
+            clearTimeout(timer);
+            resolve(b);
         });
-        if (!res.ok) return null;
-        const blob = await res.blob();
-        const full = await createImageBitmap(blob);
         try {
-            const [sx, sy, sw, sh] = coverWindow(full.width, full.height, w, h);
-            const bitmap = await createImageBitmap(full, sx, sy, sw, sh, {
-                resizeWidth: w,
-                resizeHeight: h,
-                resizeQuality: "high",
-            });
-            try {
-                // An engine that ignored the resize request would hand back
-                // the crop at source size; drawing that into the small canvas
-                // would be the compositor's own resample again. Fail open.
-                if (bitmap.width !== w || bitmap.height !== h) return null;
-                const canvas = new OffscreenCanvas(w, h);
-                const ctx = canvas.getContext("2d");
-                if (!ctx) return null;
-                ctx.drawImage(bitmap, 0, 0);
-                const out = await canvas.convertToBlob({ type: "image/png" });
-                return URL.createObjectURL(out);
-            } finally {
-                bitmap.close();
-            }
-        } finally {
-            full.close();
+            w$.postMessage({ id, artUrl, w, h });
+        } catch {
+            clearTimeout(timer);
+            inflight.delete(id);
+            resolve(null);
         }
+    });
+    if (!blob) return null;
+    try {
+        return URL.createObjectURL(blob);
     } catch {
         return null;
     }
@@ -214,8 +250,10 @@ export function faceBitmapCacheSize(): number {
     return entries.size;
 }
 
-/** Drops every entry and revokes every URL — for the unit test. */
+/** Drops every entry, revokes every URL and forgets the worker — for the
+ *  unit test. */
 export function clearFaceBitmaps(): void {
     for (const e of entries.values()) if (e.url) URL.revokeObjectURL(e.url);
     entries.clear();
+    dropWorker();
 }

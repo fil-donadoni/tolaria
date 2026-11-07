@@ -561,7 +561,14 @@ window.__tolariaProbe = () => {
             offend("cardsSoft", e, r, "unknown rendition " + variant);
             continue;
         }
-        const need = layoutW * devicePixelRatio;
+        // A bitmap is made for the box the face is DRAWN at (issue #8321):
+        // under a scaled slot that is the layout box times the slot's scale,
+        // which the bounding rect shows — its smaller side, so a rotated
+        // card still reads its own width. A rendition is held to the layout
+        // box as before.
+        const need =
+            (bitmap ? Math.min(layoutW, r.width, r.height) : layoutW) *
+            devicePixelRatio;
         // 1px of slack for the sub-pixel rounding a fractional layout width
         // produces; a real under-declaration is never within 1 device pixel.
         if (have + 1 < need) {

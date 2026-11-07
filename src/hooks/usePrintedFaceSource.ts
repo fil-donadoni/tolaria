@@ -13,11 +13,16 @@ import {
 import useCardSlotFloor, { type CardSlotBox } from "./useCardSlotFloor";
 
 /** The attributes a printed-face `<img>` spreads: the responsive srcset, the
- *  jpg fallback, or the 1x bitmap with the art it was made from. */
+ *  jpg fallback, the 1x bitmap with the art it was made from — or, while
+ *  that bitmap is being made, NO source and the pending marker: the element
+ *  is on the page (its `alt` names the button around it for a screen reader
+ *  and for axe's `button-name`; `check:ui`'s settle waits on the marker) but
+ *  paints nothing until the one source it will show is ready. */
 export type PrintedFaceAttrs =
     | { src: string; srcSet: string; sizes: string }
     | { src: string }
-    | { src: string; "data-art-src": string };
+    | { src: string; "data-art-src": string }
+    | { "data-face-pending": "" };
 
 export interface PrintedFaceSourceOptions {
     /** The Scryfall print to draw; `null` draws nothing (a token with no
@@ -41,8 +46,8 @@ export interface PrintedFaceSourceOptions {
 export interface PrintedFaceSource<T extends HTMLElement> {
     /** Attach to the element whose box IS the slot. */
     slotRef: React.RefObject<T | null>;
-    /** What the `<img>` renders; `null` while the slot is unmeasured or the
-     *  1x bitmap is still being made — the caller renders no source then. */
+    /** What the `<img>` renders; `null` while the slot is unmeasured — the
+     *  caller renders no element then. */
     attrs: PrintedFaceAttrs | null;
     /** The `<img>`'s `onError`: steps to the next source. */
     onError: () => void;
@@ -125,7 +130,7 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
                 ? bitmapState
                 : null;
         if (bitmapKey !== null && !bitmapReady) {
-            attrs = null; // the bitmap is being made
+            attrs = { "data-face-pending": "" }; // the bitmap is being made
         } else if (bitmapReady?.url) {
             attrs = { src: bitmapReady.url, "data-art-src": artUrl };
         } else if (jpgFallbackFor === imageId) {

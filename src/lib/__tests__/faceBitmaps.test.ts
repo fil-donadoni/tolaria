@@ -6,12 +6,13 @@ import {
     FACE_BITMAP_MAX_DPR,
     acquireFaceBitmap,
     clearFaceBitmaps,
-    coverWindow,
     faceBitmapCacheSize,
     faceBitmapKey,
     faceBitmapWanted,
     resampleFace,
+    type ResampleWorker,
 } from "../faceBitmaps";
+import { coverWindow } from "../boxDownscale";
 
 const ART = "https://cards.scryfall.io/grid/front/d/5/d573ef03.webp";
 
@@ -117,14 +118,88 @@ describe("acquireFaceBitmap — the reference-counted cache", () => {
     });
 });
 
-describe("resampleFace — fails open", () => {
-    it("returns null on a non-OK fetch and on a fetch that throws", async () => {
-        const notOk = (async () =>
-            ({ ok: false }) as Response) as unknown as typeof fetch;
-        expect(await resampleFace(ART, 10, 14, notOk)).toBeNull();
-        const throwing = (async () => {
-            throw new Error("offline");
-        }) as unknown as typeof fetch;
-        expect(await resampleFace(ART, 10, 14, throwing)).toBeNull();
+/** A worker double: answers each request through `answer`, or not at all. */
+function fakeWorker(
+    answer: (req: {
+        id: number;
+        artUrl: string;
+        w: number;
+        h: number;
+    }) => Blob | null | undefined
+): ResampleWorker & { posted: number; terminated: boolean } {
+    const w: ResampleWorker & { posted: number; terminated: boolean } = {
+        posted: 0,
+        terminated: false,
+        onmessage: null,
+        onerror: null,
+        postMessage(req) {
+            w.posted++;
+            const blob = answer(req);
+            if (blob === undefined) return; // never answers
+            queueMicrotask(() =>
+                w.onmessage?.({ data: { id: req.id, blob } } as MessageEvent)
+            );
+        },
+        terminate() {
+            w.terminated = true;
+        },
+    };
+    return w;
+}
+
+describe("resampleFace — the worker round trip, failing open", () => {
+    beforeEach(() => {
+        clearFaceBitmaps();
+        vi.stubGlobal("URL", {
+            ...URL,
+            createObjectURL: (b: Blob) => `blob:test/${b.size}`,
+            revokeObjectURL: () => {},
+        });
+    });
+    afterEach(() => {
+        clearFaceBitmaps();
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+    });
+
+    it("posts the art and the device box, and hands back a URL for the worker's blob", async () => {
+        const w = fakeWorker((req) => new Blob([`${req.w}x${req.h}`]));
+        expect(await resampleFace(ART, 112, 157, () => w)).toBe("blob:test/7");
+        expect(w.posted).toBe(1);
+    });
+
+    it("spawns the worker once and reuses it", async () => {
+        const w = fakeWorker(() => new Blob(["x"]));
+        const spawn = vi.fn(() => w);
+        await resampleFace(ART, 1, 1, spawn);
+        await resampleFace(ART, 2, 2, spawn);
+        expect(spawn).toHaveBeenCalledTimes(1);
+        expect(w.posted).toBe(2);
+    });
+
+    it("returns null when the worker answers null, and when it cannot be spawned", async () => {
+        expect(
+            await resampleFace(ART, 10, 14, () => fakeWorker(() => null))
+        ).toBeNull();
+        expect(
+            await resampleFace(ART, 10, 14, () => {
+                throw new Error("no Worker");
+            })
+        ).toBeNull();
+    });
+
+    it("gives up a request the worker never answers, and fails every request when the worker dies", async () => {
+        vi.useFakeTimers();
+        const silent = fakeWorker(() => undefined);
+        const pending = resampleFace(ART, 10, 14, () => silent);
+        await vi.advanceTimersByTimeAsync(13_000);
+        expect(await pending).toBeNull();
+        // A fresh worker for the next case: the silent one is still installed.
+        clearFaceBitmaps();
+        const dying = fakeWorker(() => undefined);
+        const p1 = resampleFace(ART, 3, 4, () => dying);
+        dying.onerror?.(new Event("error"));
+        expect(await p1).toBeNull();
+        expect(dying.terminated).toBe(true);
     });
 });

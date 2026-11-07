@@ -3,7 +3,7 @@ import { cardSlotFloor, type CardSlotFloor } from "~/lib/images";
 import { faceBitmapWanted } from "~/lib/faceBitmaps";
 import { watchDevicePixelRatio } from "~/lib/watchDevicePixelRatio";
 
-/** The slot's ON-SCREEN box in DEVICE pixels, exact — what a 1x face is
+/** The slot's DRAWN box in DEVICE pixels, exact — what a 1x face is
  *  resampled to (issue #8321). `null` on a display the srcset path serves
  *  (DPR ≥ 1.5), so a Retina slot re-renders only when its quantised floor
  *  moves. */
@@ -14,14 +14,13 @@ export interface CardSlotBox {
 }
 
 /** How long after a window resize the slot is read again: a spatial zone
- *  re-scales its slots through a transform transition
- *  (`SLOT_SPRING.cssDuration`, 320ms), and a read mid-transition would size
- *  the bitmap to a box the card is still moving through. */
+ *  re-lays its slots out after the resize event, and a read before that
+ *  would size the bitmap to the old placement. */
 export const SLOT_SETTLE_REREAD_MS = 450;
 
 /**
  * Measures a card slot and derives the srcset hint it actually needs
- * (issue #3553), and on a 1x display its exact device box (issue #8321).
+ * (issue #3553), and on a 1x display its exact drawn device box (issue #8321).
  *
  * WHY IT MEASURES. The responsive candidate a browser resolves is decided by
  * `sizes × devicePixelRatio`, and `sizes` used to be a HAND-WRITTEN CONSTANT
@@ -47,15 +46,18 @@ export const SLOT_SETTLE_REREAD_MS = 450;
  * them differently: the first withholds the image, the second falls back to
  * the call site's declared hint so tests and degenerate layouts keep working.
  *
- * WHY AN EXACT, ON-SCREEN BOX TOO, AND ONLY AT 1x. The floor is quantised
+ * WHY AN EXACT, DRAWN BOX TOO, AND ONLY AT 1x. The floor is quantised
  * (`CARD_SLOT_QUANTUM_PX`) so a drag-resize does not re-render every card;
  * the 1x bitmap (`~/lib/faceBitmaps.ts`) must be the size the face is DRAWN
  * at, to the pixel, or the compositor resamples it again — which is the
  * defect. The layout box is not always that size: a spatial zone scales its
- * slots (`placement.scale`), and a tapped permanent turns its box a quarter
- * turn. So `box` is read off the bounding rect (the drawn box, sides swapped
- * back when the slot is rotated), while the floor keeps reading the layout
- * box as before. The box exists only where the bitmap path runs — on a Retina
+ * slots (`placement.scale`, written as an inline `scale()` on the slot). The
+ * box is therefore the layout box times the ancestors' INLINE transform
+ * scale — the target a transition is heading for, never the bounding rect,
+ * which mid-way through a dialog's `zoom-in-95`, a zone's reflow spring or a
+ * `motion` FLIP is a size the card is only passing through (measured on this
+ * lane: rect-sized bitmaps came out 106px for a 112px tile and read as
+ * upscaled). The box exists only where the bitmap path runs — on a Retina
  * display the state carries no box and a sub-quantum resize still re-renders
  * nothing.
  *
@@ -63,8 +65,8 @@ export const SLOT_SETTLE_REREAD_MS = 450;
  * opening, an orientation change), `watchDevicePixelRatio` when the RATIO
  * moves with no resize (issue #6940), and a window `resize` listener when a
  * zone re-scales its slots with no change to their layout box (read at once,
- * and again once the slot's transition has settled). It re-renders only when
- * the derived floor (or 1x box) CHANGES.
+ * and again once the zone has re-laid out). It re-renders only when the
+ * derived floor (or 1x box) CHANGES.
  */
 export default function useCardSlotFloor<T extends HTMLElement>(): {
     /** Attach to the element whose box IS the slot (the wrapper the image
@@ -72,8 +74,8 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
     slotRef: React.RefObject<T | null>;
     /** The measured floor, or `null` when the slot has no usable box. */
     floor: CardSlotFloor | null;
-    /** The slot's exact on-screen device box on a 1x display; `null`
-     *  elsewhere, and `null` while the slot has no usable box. */
+    /** The slot's exact drawn device box on a 1x display; `null` elsewhere,
+     *  and `null` while the slot has no usable box. */
     box: CardSlotBox | null;
     /** `false` until the first measurement has run — the caller renders no
      *  image source while it is false. */
@@ -98,20 +100,20 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
             const height = el ? el.offsetHeight : 0;
             const dpr = window.devicePixelRatio || 1;
             const floor = width > 0 ? cardSlotFloor(width, dpr) : null;
-            setState((prev) => {
-                const box =
-                    el && width > 0 && height > 0 && faceBitmapWanted(dpr)
-                        ? drawnBox(el, width, height, dpr)
-                        : null;
-                return prev &&
-                    prev.floor?.sizes === floor?.sizes &&
-                    prev.floor?.includeThumb === floor?.includeThumb &&
-                    prev.box?.w === box?.w &&
-                    prev.box?.h === box?.h &&
-                    prev.box?.dpr === box?.dpr
+            const box =
+                el && width > 0 && height > 0 && faceBitmapWanted(dpr)
+                    ? drawnBox(el, width, height, dpr)
+                    : null;
+            setState((prev) =>
+                prev &&
+                prev.floor?.sizes === floor?.sizes &&
+                prev.floor?.includeThumb === floor?.includeThumb &&
+                prev.box?.w === box?.w &&
+                prev.box?.h === box?.h &&
+                prev.box?.dpr === box?.dpr
                     ? prev
-                    : { floor, box };
-            });
+                    : { floor, box }
+            );
         };
         // The floor is `width × devicePixelRatio`, and only the width has a
         // resize signal. The ratio moves with no layout change at all — the
@@ -151,27 +153,47 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
     };
 }
 
-/** The box the slot is DRAWN at, in device pixels: its bounding rect, with
- *  the sides swapped back when an ancestor turned it a quarter turn (the
- *  rect is axis-aligned; a card is taller than wide, so a rect that is wider
- *  than tall while the layout box is not — or the reverse — is a turned
- *  card). A rect of zero (a slot `display: none`) yields no box. */
+/** The uniform scale the ancestors' INLINE transforms apply to `el`: the
+ *  product of every `scale(s)` / `scale(sx, sy)` / `matrix(a, b, c, d, …)`
+ *  written in a `style` attribute up the tree. Inline, because that is the
+ *  TARGET value — the spatial slot writes its placement there and a CSS
+ *  transition interpolates the computed value towards it; a class-driven
+ *  animation (a dialog's `zoom-in-95`) writes nothing inline and so counts
+ *  as 1, which is where it ends. Rotations are ignored (they do not change
+ *  the drawn width); a non-uniform scale takes its x factor. */
+export function inlineAncestorScale(el: HTMLElement): number {
+    let scale = 1;
+    for (let n: HTMLElement | null = el.parentElement; n; n = n.parentElement) {
+        const t = n.style?.transform;
+        if (!t) continue;
+        for (const m of t.matchAll(/scale\(\s*([-\d.]+)/g)) {
+            const s = parseFloat(m[1]!);
+            if (Number.isFinite(s) && s > 0) scale *= s;
+        }
+        for (const m of t.matchAll(
+            /matrix\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)/g
+        )) {
+            const a = parseFloat(m[1]!);
+            const b = parseFloat(m[2]!);
+            const s = Math.hypot(a, b);
+            if (Number.isFinite(s) && s > 0) scale *= s;
+        }
+    }
+    return scale;
+}
+
+/** The box the slot is DRAWN at, in device pixels: its layout box under the
+ *  ancestors' inline scale (see {@link inlineAncestorScale}). */
 function drawnBox(
     el: HTMLElement,
     layoutW: number,
     layoutH: number,
     dpr: number
-): CardSlotBox | null {
-    const rect = el.getBoundingClientRect();
-    if (!(rect.width > 0) || !(rect.height > 0)) return null;
-    const turned =
-        (layoutW > layoutH && rect.width < rect.height) ||
-        (layoutW < layoutH && rect.width > rect.height);
-    const drawnW = turned ? rect.height : rect.width;
-    const drawnH = turned ? rect.width : rect.height;
+): CardSlotBox {
+    const scale = inlineAncestorScale(el);
     return {
-        w: Math.max(1, Math.round(drawnW * dpr)),
-        h: Math.max(1, Math.round(drawnH * dpr)),
+        w: Math.max(1, Math.round(layoutW * scale * dpr)),
+        h: Math.max(1, Math.round(layoutH * scale * dpr)),
         dpr,
     };
 }
