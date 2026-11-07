@@ -13238,7 +13238,8 @@ export function requestCopyRetargetOn(
         // CR 115.7d / 707.10c — what each group may leave unchanged, even if
         // illegal by now.
         keepableTargetGroups: current.slice(first),
-        // ADR 0094 — the walk re-tallies the spans it writes at the end.
+        // ADR 0094 — the walk tallies each instance's picks for "another
+        // target"; held counts leave the spell's own spans as they are.
         ...(instances
             ? {
                   chosenModeIds: [...(copy.chosenModeIds ?? [])],

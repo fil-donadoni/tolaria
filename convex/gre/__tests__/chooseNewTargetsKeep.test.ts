@@ -91,6 +91,13 @@ const CHARM = define("test-keep-charm", {
             targetRequirement: { type: "Artifact", count: 1 },
             effects: DESTROY_FIRST,
         },
+        {
+            id: "maybe",
+            label: "Up to one target creature.",
+            oracleText: "Destroy up to one target creature.",
+            targetRequirement: { type: "Creature", count: { min: 0, max: 1 } },
+            effects: DESTROY_FIRST,
+        },
     ],
     modeSelection: { min: 1, max: 3, repeats: true },
 });
@@ -334,6 +341,50 @@ describe("several chosen mode instances are offered new targets (ADR 0094, CR 70
         applyOneTargetSelection(state, "p1", pick("rock1"));
         applyOneTargetSelection(state, "p1", pick("rock2"));
         expect(victim.targets).toEqual([perm("rock1"), perm("rock2")]);
+    });
+
+    it("a group stays within its own current targets: another instance's is not keepable", () => {
+        const state = board(["rock1", "bear1", "bear2"]);
+        const victim = redirected(
+            state,
+            CHARM,
+            [perm("bear1"), perm("bear2")],
+            {
+                chosenModeIds: ["kill", "smash"],
+                modeTargetCounts: [1, 1],
+            }
+        );
+        applyOneTargetSelection(state, "p1", pick("bear1"));
+        // `kill` holds bear1, `smash` holds bear2: bear1 is no artifact, and not
+        // `smash`'s own to keep.
+        expect(() =>
+            applyOneTargetSelection(state, "p1", pick("bear1"))
+        ).toThrow();
+        applyOneTargetSelection(state, "p1", pick("bear2"));
+        expect(victim.targets).toEqual([perm("bear1"), perm("bear2")]);
+    });
+
+    it("an instance that took no target is skipped, first or last, and keeps its number", () => {
+        const first = board(["bear1", "bear2"]);
+        const leading = redirected(first, CHARM, [perm("bear1")], {
+            chosenModeIds: ["kill", "maybe"],
+            modeTargetCounts: [1, 0],
+        });
+        applyOneTargetSelection(first, "p1", pick("bear2"));
+        expect(first.pendingTarget).toBeUndefined();
+        expect(leading.targets).toEqual([perm("bear2")]);
+        expect(leading.modeTargetCounts).toEqual([1, 0]);
+
+        const last = board(["bear1", "bear2"]);
+        const trailing = redirected(last, CHARM, [perm("bear1")], {
+            chosenModeIds: ["maybe", "kill"],
+            modeTargetCounts: [0, 1],
+        });
+        expect(last.pendingTarget?.count).toBe(1);
+        applyOneTargetSelection(last, "p1", pick("bear2"));
+        expect(last.pendingTarget).toBeUndefined();
+        expect(trailing.targets).toEqual([perm("bear2")]);
+        expect(trailing.modeTargetCounts).toEqual([0, 1]);
     });
 
     it("no instance with an alternative raises nothing", () => {
