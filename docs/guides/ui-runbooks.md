@@ -742,7 +742,7 @@ numbers mean, are in [Browser verification](browser-verification.md#the-probe).
 | `tolaria:playerId`         | session player handle                                           |
 | `tolaria:matchSetup`       | the Constructed setup flow's last setup (Last Match replays it) |
 | `tolaria:selectedDeckId`   | deck-detail's `Play` selection (a DB id)                        |
-| `tolaria:aiDifficulty`     | easy / medium / hard / expert                                   |
+| `tolaria:aiDifficulty`     | medium / hard / expert                                          |
 | `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId                    |
 
 There is no player-name key: the nickname comes from the authenticated user.

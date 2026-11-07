@@ -10,7 +10,10 @@ import {
 } from "./deckStore";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
-import { difficultyValidator } from "./limited/botDifficulty";
+import {
+    difficultyValidator,
+    resolveEventBotDifficulty,
+} from "./limited/botDifficulty";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
     getLatestManualState,
@@ -62,7 +65,7 @@ export const getMatchBotDifficulty = query({
         const game = await ctx.db.get(args.gameId);
         if (!game?.matchId) return null;
         const match = await ctx.db.get(game.matchId);
-        return match?.botDifficulty ?? null;
+        return match?.botDifficulty ? resolveEventBotDifficulty(match) : null;
     },
 });
 

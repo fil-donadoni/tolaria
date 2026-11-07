@@ -631,11 +631,27 @@ describe("useVsAiDriver (issue #110)", () => {
         ]);
     });
 
-    it("the default preset does NOT feed the human seat's decklist even though the read would answer it", async () => {
-        // No `storeDifficulty` call — the default preset (`medium`) applies,
-        // proving the gate is the DIFFICULTY, not merely the read answering
-        // null for an unowned seat (the other test above already covers that
-        // path).
+    it("the default preset feeds the human seat's decklist: expert is the default", async () => {
+        // No `storeDifficulty` call — the default preset applies.
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+            { playerId: HUMAN, cardIds: [BEARS] },
+        ]);
+    });
+
+    it("a blind preset does NOT feed the human seat's decklist even though the read would answer it", async () => {
+        // `hard` proves the gate is the DIFFICULTY, not merely the read
+        // answering null for an unowned seat (the other test above already
+        // covers that path).
+        storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
         currentState = botStateWithLibrary(2);
@@ -656,9 +672,10 @@ describe("useVsAiDriver (issue #110)", () => {
         // freezes at whatever the last recomputation saw. The gate therefore
         // lives at the SEARCH SITE, beside `budgetFor`, which already reads the
         // same value the same way. This test is what proves the two agree: the
-        // driver mounts on the default preset, searches blind, then the stored
+        // driver mounts on a blind preset, searches blind, then the stored
         // value flips to `expert` with the component instance untouched, and
         // the NEXT search must carry the human seat.
+        storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
         currentState = botStateWithLibrary(2);
@@ -692,7 +709,7 @@ describe("useVsAiDriver (issue #110)", () => {
     // ── A Limited Event's vs-AI Match plays at the EVENT's difficulty (issue
     //    #6916) ────────────────────────────────────────────────────────────
     it("an event Match's difficulty wins over the lobby's stored one (budget and knowledge mode)", async () => {
-        storeDifficulty("easy");
+        storeDifficulty("medium");
         matchDifficulty = "expert";
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);

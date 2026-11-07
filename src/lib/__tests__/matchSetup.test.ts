@@ -112,7 +112,7 @@ describe("setupSteps / firstOpenStep — what the rail shows", () => {
             "Bot",
             "Premodern · Bo3",
             "Burn",
-            "Mirror · Medium",
+            "Mirror · Expert",
         ]);
         expect(firstOpenStep(steps)).toBe(steps.length);
     });
