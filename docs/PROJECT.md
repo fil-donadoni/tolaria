@@ -818,7 +818,7 @@ useVsAiDriver (hook)          gate sul tick, guardia in volo, firma per-seq
   feature. Le finestre combinatorie sono limitate da `MAX_COMBINATIONS`, con i cap
   documentati e mai silenziosi;
 - **`search`** è ISMCTS a osservatore singolo con determinizzazione. Ogni
-  iterazione ri-determinizza l'informazione nascosta, discende con UCB1 fra le
+  iterazione ri-determinizza l'informazione nascosta, discende con PUCT fra le
   mosse legali _in quel mondo_, espande, esegue un rollout troncato valutato da
   `evaluate`, e backpropaga. **Non modella mai le regole da sé**: applica le mosse
   attraverso la stessa risoluzione GRE del server;
