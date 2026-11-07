@@ -1,6 +1,6 @@
-// The decklist as colour evidence (issue #3533, PRD #3526) — the `expert`
-// sharpening of the opponent colour-demand estimate, and the gate that keeps
-// it out of every other difficulty.
+// The decklist as colour evidence (issue #3533, PRD #3526) — the sharpening of
+// the opponent colour-demand estimate at a level that knows its opponent, and
+// the gate that keeps it out of a blind search.
 //
 // Three things are pinned here, in the order they can break:
 //   1. the derivation itself (`deckColorEvidence`);
@@ -8,9 +8,9 @@
 //      that seat's decklist AND that seat is not the observer. The client
 //      hands over the bot's OWN decklist at every difficulty, so "a decklist
 //      exists" alone is not the gate and a test that only checked that would
-//      pass while `hard` silently changed;
-//   3. the OUTCOME through the real consumer (`observedColorCoverage`), per
-//      difficulty, against the byte-identical blind baseline.
+//      pass while a blind search silently changed;
+//   3. the OUTCOME through the real consumer (`observedColorCoverage`), informed
+//      and blind, against the byte-identical blind baseline.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -33,11 +33,6 @@ import { searchWithTrace } from "../search";
 import { findBladeScenario } from "../ai/blade/registry";
 import { bladeDeckKnowledge, buildBladeState } from "../ai/blade/runner";
 import { seatPlayerId } from "../ai/blade/matcher";
-import {
-    DIFFICULTY_KNOWS_OPPONENT,
-    knowsOpponent,
-    type Difficulty,
-} from "../difficulty";
 import { makeRng } from "../rng";
 import { observedOpponentColors } from "../ai/observedColors";
 import { observedColorCoverage } from "../ai/colorCoverage";
@@ -118,14 +113,14 @@ describe("deckColorEvidence — the decklist lowered into colour mass (issue #35
     });
 });
 
-describe("deckColorsForSearch — the gate that keeps the decklist at `expert` (issue #3533)", () => {
+describe("deckColorsForSearch — the gate that keeps the decklist out of a blind search (issue #3533)", () => {
     it("lowers a NON-OBSERVER seat the search was handed a decklist for", () => {
         expect(deckColorsForSearch(INFORMED, OBSERVER)).toEqual([
             { playerId: "p2", colors: { B: 20 } },
         ]);
     });
 
-    it("lowers NOTHING when the only decklist is the observer's own — the shape every non-expert difficulty sends", () => {
+    it("lowers NOTHING when the only decklist is the observer's own — the blind shape", () => {
         expect(deckColorsForSearch(BLIND, OBSERVER)).toBeUndefined();
         expect(
             deckColorsFor(deckColorsForSearch(BLIND, OBSERVER), OBSERVER)
@@ -224,12 +219,11 @@ describe("searchWithTrace — the ROOT carries the stamp, so the trace reports t
     });
 });
 
-describe("the estimate per difficulty — `expert` differs, the rest are byte-identical (issue #3533)", () => {
+describe("the estimate — informed differs, blind is byte-identical (issue #3533)", () => {
     /** The position as the SEARCH hands it to `evaluate`: the root, stamped
-     *  with whatever `deckColorsForSearch` allows for this difficulty. */
-    function rootFor(difficulty: Difficulty) {
+     *  with whatever `deckColorsForSearch` allows for this knowledge shape. */
+    function rootFor(knowledge: DeckKnowledgeBySeat) {
         const state = boardWithLonePlains();
-        const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
         state.deckColorKnowledge = deckColorsForSearch(knowledge, OBSERVER);
         return state;
     }
@@ -240,38 +234,29 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         expect(blindBaseline).toBe(1);
     });
 
-    it.each(["medium", "hard"] as const)(
-        "%s reads byte-identically to the blind baseline",
-        (difficulty) => {
-            expect(DIFFICULTY_KNOWS_OPPONENT[difficulty]).toBe(false);
-            const state = rootFor(difficulty);
-            expect(state.deckColorKnowledge).toBeUndefined();
-            expect(observedOpponentColors(state, "p2")).toEqual({ W: 1 });
-            expect(coverageOfEstimatedSeat(state)).toBe(blindBaseline);
-        }
-    );
+    it("a blind search reads byte-identically to the blind baseline", () => {
+        const state = rootFor(BLIND);
+        expect(state.deckColorKnowledge).toBeUndefined();
+        expect(observedOpponentColors(state, "p2")).toEqual({ W: 1 });
+        expect(coverageOfEstimatedSeat(state)).toBe(blindBaseline);
+    });
 
-    it("expert VISIBLY differs on the same position — twenty units of uncovered {B} demand", () => {
-        expect(knowsOpponent("expert")).toBe(true);
-        const state = rootFor("expert");
+    it("an informed search VISIBLY differs on the same position — twenty units of uncovered {B} demand", () => {
+        const state = rootFor(INFORMED);
         expect(observedOpponentColors(state, "p2")).toEqual({ W: 1, B: 20 });
         expect(coverageOfEstimatedSeat(state)).toBeCloseTo(1 / 21, 10);
         expect(coverageOfEstimatedSeat(state)).not.toBe(blindBaseline);
     });
 
-    it.each(["medium", "hard"] as const)(
-        "%s leaves the OBSERVER's own seat blind too — the shape that leaks is the bot's own decklist, estimated from the other side",
-        (difficulty) => {
-            const state = rootFor(difficulty);
-            // `materialMargin(state, moverId)` runs `evaluate` from the HUMAN
-            // seat's viewpoint too, which makes the bot's own seat the
-            // ESTIMATED one. The bot's decklist is supplied at every
-            // difficulty, so a gate that asked only "is there a decklist"
-            // would sharpen this reading on `hard` and never touch the
-            // assertions above.
-            expect(observedOpponentColors(state, OBSERVER)).toEqual({});
-        }
-    );
+    it("a blind search leaves the OBSERVER's own seat blind too — the shape that leaks is the bot's own decklist, estimated from the other side", () => {
+        const state = rootFor(BLIND);
+        // `materialMargin(state, moverId)` runs `evaluate` from the HUMAN seat's
+        // viewpoint too, which makes the bot's own seat the ESTIMATED one. The
+        // bot's decklist is always supplied, so a gate that asked only "is
+        // there a decklist" would sharpen this reading on a blind search and
+        // never touch the assertions above.
+        expect(observedOpponentColors(state, OBSERVER)).toEqual({});
+    });
 
     it("still no hand read: two informed boards differing ONLY in the estimated seat's hand read identically", () => {
         // Asserted on the STAMPED boards directly, never through

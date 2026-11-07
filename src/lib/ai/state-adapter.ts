@@ -1,5 +1,5 @@
 // Adapts the bot's projected wire state into a GameState the GRE move enumerator
-// can read (ADR 0001, issue #110).
+// can read (ADR 0001).
 //
 // The brain consumes `projectPublicState(state, seq, botId)` — the SAME wire
 // projection a human client receives (criterion 5): the bot's own hand is
@@ -7,13 +7,13 @@
 // Slim card refs (`card: { id }`) are already structurally valid
 // `CardInstanceState`s — the engine reads only `card.id`.
 //
-// Hands, like libraries, MUST be rebuilt to their wire LENGTH (issue #2006).
+// Hands, like libraries, MUST be rebuilt to their wire LENGTH.
 // This adapter used to `filter(c => c !== null)` the opponent's hand away, on
 // the reasoning that `enumerateMoves` only reads the acting player's hand — but
 // a hand's SIZE is public information (CR 402.2) and the engine reads it at
 // every effect site the search walks through: `ctx.getHandSize` (The Rack,
 // Storm World, Storm Seeker, Ivory Tower) and the Effect Script `count`'s
-// `zone: "hand"` (Dark Suspicions, issue #2006). With the nulls dropped, both
+// `zone: "hand"` (Dark Suspicions). With the nulls dropped, both
 // read 0 for any NON-VIEWER in a client-side engine run, and the sign of the
 // error flips with who owns the card:
 //   * bot controls Dark Suspicions → the human's hand reads 0, so the trigger
@@ -28,7 +28,7 @@
 // player's hand. `determinize` then pools hand+library and re-deals at the same
 // sizes, so the padded hand stays consistent across ISMCTS iterations.
 //
-// Libraries, however, MUST be rebuilt to their wire `count` (issue #136).
+// Libraries, however, MUST be rebuilt to their wire `count`.
 // Enumeration ignores libraries, but the ISMCTS search SIMULATES the game
 // forward — resolving draw spells, the draw step, AND fetch/tutor searches. A
 // draw from an empty library trips the deck-out SBA (CR 704.5b) and returns a
@@ -53,7 +53,7 @@
 // keeps the placeholder path: opaque instances whose id resolves to no
 // `CardDefinition`, so `getLegalActions` never surfaces them as legal moves
 // even after a simulated draw puts one in hand. This blind mode is not a
-// fallback to delete later: the lower difficulty levels use it on purpose.
+// fallback to delete later: a level that does not know its opponent uses it on purpose.
 //
 // WHERE AN INFORMED OPPONENT'S IDENTITIES ACTUALLY COME FROM (issue #2789).
 // Not from here. This adapter reconstructs a library only for a seat whose

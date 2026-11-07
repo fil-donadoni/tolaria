@@ -202,7 +202,7 @@ export const getDefinitionManifest = query({
  *  (`withSeatDefinitionIds`) and stores the result on the seat's manifest row
  *  (`convex/definitionManifest.ts`). Gated on SEAT ownership like
  *  `getSeatDeck` — vs the Bot one user owns both seats, so the driver reads
- *  the human's too, and `expert` alone hands it to the search
+ *  the human's too, and a knowing level hands it to the search
  *  (`convex/gre/difficulty.ts`). `null` for a seat the caller does not own,
  *  a Game not built yet, or a row written before the field (the driver then
  *  falls back to `getSeatDeck`'s entries). One point read, no definition. */

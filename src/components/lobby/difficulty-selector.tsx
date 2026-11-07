@@ -7,16 +7,16 @@ import { DIFFICULTIES, type Difficulty } from "@convex/gre/difficulty";
 import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import { cn } from "~/lib/utils";
 
-/** One plain-language line per level, shown for the currently selected value
- *  so the player is never surprised by what the bot knows (issue #2790,
- *  PRD #2787 — the acceptance criterion is explicit: "the player must not be
- *  surprised by a Bot that appears to read their hand"). `expert` is the only
- *  level that reads the player's decklist; the others say so by omission but
- *  still get a line for consistency. */
+/** Shown whatever level is selected, so the player is never surprised by a Bot
+ *  that appears to read their hand: every level knows the decklist
+ *  (`DIFFICULTY_KNOWS_OPPONENT`, `convex/gre/difficulty.ts`). */
+const OPPONENT_KNOWLEDGE_LINE = "Knows your decklist and plays around it.";
+
+/** Each level's tooltip: what its search budget buys. */
 const DESCRIPTIONS: Record<Difficulty, string> = {
     medium: "A solid, fast opponent that reads clean tactics.",
-    hard: "The deepest blind search — reads tactics perfectly, but does not know your decklist.",
-    expert: "Knows your decklist and plays around it.",
+    hard: "A deep search that reads tactics perfectly.",
+    expert: "The deepest search.",
 };
 
 export default function DifficultySelector({
@@ -63,7 +63,7 @@ export default function DifficultySelector({
                 })}
             </div>
             <span className="text-[11px] text-text-muted">
-                {DESCRIPTIONS[value]}
+                {OPPONENT_KNOWLEDGE_LINE}
             </span>
         </div>
     );

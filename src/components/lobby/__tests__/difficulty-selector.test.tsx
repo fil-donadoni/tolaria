@@ -13,6 +13,18 @@ describe("DifficultySelector (issue #114)", () => {
         expect(getAllByRole("radio")).toHaveLength(DIFFICULTIES.length);
     });
 
+    it.each(DIFFICULTIES)(
+        "shows the decklist-knowledge subtitle with %s selected",
+        (difficulty) => {
+            const { getByText } = render(
+                <DifficultySelector value={difficulty} onChange={() => {}} />
+            );
+            expect(
+                getByText("Knows your decklist and plays around it.")
+            ).toBeTruthy();
+        }
+    );
+
     it("offers no Easy preset", () => {
         const { queryByRole } = render(
             <DifficultySelector value="expert" onChange={() => {}} />

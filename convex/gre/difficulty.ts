@@ -15,10 +15,7 @@
 
 import type { SearchBudget } from "./search";
 
-/** The difficulty levels exposed in the lobby. `expert` is issue #2790,
- *  PRD #2787 — an ADDITIONAL level above `hard`, never a re-point of it: making
- *  `hard` informed would silently change the opponent a player has calibrated
- *  against and delete "thinks deeply but blind" from the ladder of options. */
+/** The difficulty levels exposed in the lobby. */
 export type Difficulty = "medium" | "hard" | "expert";
 
 /** Ordered weakest → strongest, for rendering a selector and for tests that
@@ -53,9 +50,9 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *
  *  `expert` (issue #2790, PRD #2787) amends the module's own criterion: a
  *  preset now carries a budget AND an opponent-knowledge mode
- *  (`DIFFICULTY_KNOWS_OPPONENT` below) — `expert` is the one level that feeds
- *  the search the human seat's real decklist (`deckKnowledge.ts`), so the
- *  Brain stops imagining an opponent who has surrendered.
+ *  (`DIFFICULTY_KNOWS_OPPONENT` below) — a knowing level feeds the search the
+ *  human seat's real decklist (`deckKnowledge.ts`), so the Brain stops
+ *  imagining an opponent who has surrendered.
  *
  *  Its budget is set from a MEASURED per-iteration cost, not a guess (the
  *  PRD's explicit risk: a simulated opponent holding real cards has real
@@ -85,12 +82,14 @@ export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
  *  knowledge (issue #2790, PRD #2787) — the second axis the module's
  *  criterion now names alongside the budget. Absence from
  *  `DeckKnowledgeBySeat` is the engine's own fail-closed discriminator
- *  (`convex/gre/deckKnowledge.ts`), so `medium`/`hard` stay on the
- *  blind path unchanged: this record is consulted ONLY by the client driver
- *  that assembles the knowledge map, never by the search itself. */
+ *  (`convex/gre/deckKnowledge.ts`), so a `false` here keeps a level on the blind
+ *  path: this record is consulted ONLY by the client driver that assembles the
+ *  knowledge map, never by the search itself. For now every level knows, and
+ *  the selector's subtitle (`difficulty-selector.tsx`) says so unconditionally:
+ *  flipping a row owes that line a condition. */
 export const DIFFICULTY_KNOWS_OPPONENT: Record<Difficulty, boolean> = {
-    medium: false,
-    hard: false,
+    medium: true,
+    hard: true,
     expert: true,
 };
 

@@ -13,7 +13,7 @@
 // the page's build (`scripts/lib/vite-brain-worker-chunk.ts`), so the shards
 // it installs are the URLs the page already fetched. It installs only the
 // definitions it may reason about (`./brain-residency`): the Manifest the
-// driver primes it with (its own decklist, plus the human's at `expert`), and
+// driver primes it with (its own decklist, plus the human's at a knowing level), and
 // whatever a request's state names. `handleBrainRequest` reads
 // `getDefinition`/`tryGetDefinition` SYNCHRONOUSLY, so answering before those
 // are resident would be a bot deciding against a half-empty catalogue — which
