@@ -9,6 +9,7 @@ import {
     classifyProduces,
     comboPositionSpec,
     formatComboCensus,
+    playOutCombo,
     summarizeComboCensus,
     type ComboCensusEntry,
     type ComboCensusOptions,
@@ -61,6 +62,11 @@ describe("the readings", () => {
         expect(row.lowestBudget).toBe(100);
     });
 
+    it("a kill on the last ply still resolves, so it counts", () => {
+        const row = censusEntry(KILL, { ...OPTIONS, plyCap: 1 });
+        expect(row.reading).toBe("Executable");
+    });
+
     it("Executable names the lowest budget of the ladder that wins", () => {
         const row = censusEntry(KILL, { ...OPTIONS, budgets: [100, 150] });
         expect(row.lowestBudget).toBe(100);
@@ -103,9 +109,16 @@ describe("the readings", () => {
         expect(row.reading).toBe("Untouched");
     });
 
-    it("two runs read the same row", () => {
-        const options = { ...OPTIONS, plyCap: 4 };
-        expect(censusEntry(LOOP, options)).toEqual(censusEntry(LOOP, options));
+    it("two runs on one seed choose the same line, Move for Move", () => {
+        // Few iterations over many X values: a contested pick at every step, so
+        // an unseeded draw anywhere moves the line.
+        const open = entry(
+            [piece("Fireball", "H"), piece("Grizzly Bears", "B")],
+            "{7}{R}"
+        );
+        const first = playOutCombo(open, 6, 0xb1ade, 6);
+        expect(first.plies).toBeGreaterThan(0);
+        expect(playOutCombo(open, 6, 0xb1ade, 6).line).toEqual(first.line);
     });
 });
 

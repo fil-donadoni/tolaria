@@ -22,6 +22,7 @@ import { makeRng } from "../../rng";
 import {
     advanceToDecision,
     applyMoveInSearch,
+    moveKey,
     searchWithTrace,
 } from "../../search";
 import type { GameState } from "../../state";
@@ -300,6 +301,8 @@ export type ComboPlayOut = {
     touched: boolean;
     /** Decisions the Bot made: the unit of the ply cap. */
     plies: number;
+    /** Every Move the Bot chose, keyed: what "two runs agree" is checked on. */
+    line: string[];
     halt?: ComboHalt;
 };
 
@@ -351,7 +354,7 @@ export function playOutCombo(
     const rng = makeRng(seed);
     let history: RepetitionHistory | undefined;
     let touched = false;
-    let plies = 0;
+    const line: string[] = [];
     let passiveAnswers = 0;
     let halt: ComboHalt | undefined;
     try {
@@ -373,7 +376,7 @@ export function playOutCombo(
             }
             // The cap is read here, at the Bot's next decision, so the last
             // Move it was allowed still resolves: a kill on the last ply counts.
-            if (plies >= plyCap) break;
+            if (line.length >= plyCap) break;
             const move =
                 searchWithTrace(
                     state,
@@ -389,8 +392,8 @@ export function playOutCombo(
             }
             touched ||= pieceIds.some((id) => usesCard(move, id));
             history = recordRepetition(history, state, botId, move);
+            line.push(moveKey(move));
             applyMoveInSearch(state, botId, move);
-            plies++;
             passiveAnswers = 0;
         }
     } catch {
@@ -399,7 +402,8 @@ export function playOutCombo(
     return {
         won: state.gameOver?.winnerId === botId,
         touched,
-        plies,
+        plies: line.length,
+        line,
         ...(halt ? { halt } : {}),
     };
 }
