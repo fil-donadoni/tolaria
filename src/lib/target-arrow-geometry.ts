@@ -195,7 +195,10 @@ export function buildTargetArrows(
 export function buildCombatArrows(
     combat: Combat | undefined,
     anchors: AnchorMap,
-    defenderId?: string | null
+    defenderId?: string | null,
+    /** Attackers whose target is still unchosen (CR 508.1b): no attack
+     *  arrow until it is. */
+    undecidedAttackerIds: readonly string[] = []
 ): TargetArrow[] {
     if (!combat) return [];
     const assignments = combat.blockerAssignments ?? {};
@@ -252,6 +255,7 @@ export function buildCombatArrows(
     // (`combat.attackTargets`), or → the defending player's nameplate anchor.
     // A skipped endpoint (anchor not published yet) skips only that arrow.
     for (const attacker of combat.attackerIds ?? []) {
+        if (undecidedAttackerIds.includes(attacker)) continue;
         const from = anchors.permanent[attacker];
         if (!from) continue;
         const pwId = combat.attackTargets?.[attacker];

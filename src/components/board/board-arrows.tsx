@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StackItem } from "~/types/game";
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
     buildCombatArrows,
     buildManualArrows,
@@ -102,14 +103,20 @@ export default function BoardArrows({
         "[data-controller-bottom-bar]"
     );
 
+    const { undecidedAttackerIds } = useAttackSequence();
     const anchors = registry?.anchors ?? emptyAnchorMap();
     const arrows = useMemo<TargetArrow[]>(
         () => [
             ...buildTargetArrows(stack, anchors),
-            ...buildCombatArrows(combat, anchors, defenderId),
+            ...buildCombatArrows(
+                combat,
+                anchors,
+                defenderId,
+                undecidedAttackerIds
+            ),
             ...buildManualArrows(extraArrows ?? [], anchors),
         ],
-        [stack, combat, anchors, defenderId, extraArrows]
+        [stack, combat, anchors, defenderId, extraArrows, undecidedAttackerIds]
     );
 
     // Passive arrow hover (issue #5853): the board root's pointer position is

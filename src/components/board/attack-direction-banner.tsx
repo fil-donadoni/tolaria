@@ -4,8 +4,8 @@ import { Banner } from "~/components/ui/banner";
 /**
  * Declare-attackers guidance (QA): while the active player is declaring
  * attackers, an info strip spells out what can be selected — your creatures to
- * attack, an enemy planeswalker to direct the most recent attacker at it
- * (CR 508.1a), and where to confirm. Purely informational: pointer-events are
+ * attack, then (CR 508.1b) the enemy planeswalker or player they attack, and
+ * where to confirm. Purely informational: pointer-events are
  * disabled so it never steals a board click.
  *
  * Layout-neutral wording (issue #1762 review) — "click" assumes a mouse;
@@ -14,10 +14,13 @@ import { Banner } from "~/components/ui/banner";
  */
 export default function AttackDirectionBanner({
     planeswalkerPresent,
+    choosingTarget = false,
 }: {
     /** Whether the defending player controls a planeswalker — only then is
      *  the retarget hint relevant. */
     planeswalkerPresent: boolean;
+    /** Creatures are waiting for their attack target. */
+    choosingTarget?: boolean;
 }) {
     return (
         <Banner
@@ -30,11 +33,21 @@ export default function AttackDirectionBanner({
             // value.
             className="panel-physical pointer-events-none max-w-lg"
         >
-            <span className="font-semibold">Declare attackers:</span> select
-            your creatures to send them into combat.
-            {planeswalkerPresent &&
-                " Select an enemy planeswalker to direct your most recent attacker at it — select the attacker again to send it back to the player."}
-            {" Confirm Attackers when done."}
+            {choosingTarget ? (
+                <>
+                    <span className="font-semibold">What do they attack?</span>{" "}
+                    Select an enemy planeswalker or the opponent&apos;s
+                    nameplate for the highlighted creatures.
+                </>
+            ) : (
+                <>
+                    <span className="font-semibold">Declare attackers:</span>{" "}
+                    select your creatures to send them into combat.
+                    {planeswalkerPresent &&
+                        " You then choose whether they attack the player or a planeswalker."}
+                    {" Confirm Attackers when done."}
+                </>
+            )}
         </Banner>
     );
 }

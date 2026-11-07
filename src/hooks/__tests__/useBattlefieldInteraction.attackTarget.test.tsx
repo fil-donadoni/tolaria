@@ -6,10 +6,11 @@
 // hook (its `handleClick`) so the click branch + the canInteract gate + the
 // projected `combat.attackTargets` shape are all exercised together.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
@@ -130,10 +131,12 @@ function player(id: string, battlefield: CardInstance[]): Player {
 
 type Ctx = React.ContextType<typeof GameContext>;
 
-function renderForOpponent(
+function renderWithAwaiting(
     me: Player,
     opp: Player,
-    combatOverrides: Record<string, unknown> = {}
+    s: AttackSequence,
+    combatOverrides: Record<string, unknown>,
+    boardOf: Player
 ) {
     const ctx = {
         gameId: "game-id" as never,
@@ -157,39 +160,166 @@ function renderForOpponent(
         },
     } as unknown as NonNullable<Ctx>;
     const wrapper = ({ children }: { children: ReactNode }) => (
-        <GameContext value={ctx}>{children}</GameContext>
+        <GameContext value={ctx}>
+            <AttackSequenceContext value={s}>{children}</AttackSequenceContext>
+        </GameContext>
     );
-    return renderHook(() => useBattlefieldInteraction(opp), { wrapper });
+    return renderHook(() => useBattlefieldInteraction(boardOf), { wrapper });
 }
 
-describe("useBattlefieldInteraction — attack a planeswalker (#1220, CR 508.1a)", () => {
+describe("useBattlefieldInteraction — attack target choice (issue #8178, CR 508.1b)", () => {
     beforeEach(() => {
         toggleAttacker.mockClear();
     });
 
-    it("clicking a defending planeswalker sends the declared attacker at it", () => {
+    it("a creature click with a defending planeswalker only awaits a target: no mutation", () => {
         const atk = creature();
         const pw = planeswalker();
         const me = player("me", [atk]);
         const opp = player("opp", [pw]);
-        const { result } = renderForOpponent(me, opp);
+        const s = makeAttackSequence();
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: [] },
+            me
+        );
+
+        result.current.handleClick(atk);
+
+        expect(toggleAttacker).not.toHaveBeenCalled();
+        expect(s.toggleAwaiting).toHaveBeenCalledWith("atk1");
+    });
+
+    it("a creature click with NO defending planeswalker declares at once", () => {
+        const atk = creature();
+        const me = player("me", [atk]);
+        const opp = player("opp", []);
+        const s = makeAttackSequence();
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: [] },
+            me
+        );
+
+        result.current.handleClick(atk);
+
+        expect(toggleAttacker).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "atk1",
+        });
+        expect(s.toggleAwaiting).not.toHaveBeenCalled();
+    });
+
+    it("a declared ordinary attacker keeps its deselect click", () => {
+        const atk = creature();
+        const me = player("me", [atk]);
+        const opp = player("opp", [planeswalker()]);
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            makeAttackSequence(),
+            { attackerIds: ["atk1"] },
+            me
+        );
+
+        result.current.handleClick(atk);
+
+        expect(toggleAttacker).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "atk1",
+        });
+    });
+
+    it("a declared must-attack creature awaits a retarget instead of erroring (CR 508.1d)", () => {
+        const atk = creature({ mustAttack: true } as Partial<CardInstance>);
+        const me = player("me", [atk]);
+        const opp = player("opp", [planeswalker()]);
+        const s = makeAttackSequence();
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: ["atk1"] },
+            me
+        );
+
+        result.current.handleClick(atk);
+
+        expect(s.toggleAwaiting).toHaveBeenCalledWith("atk1");
+        expect(toggleAttacker).not.toHaveBeenCalled();
+    });
+
+    it("clicking a planeswalker declares every awaiting creature against it", async () => {
+        const pw = planeswalker();
+        const me = player("me", [creature(), creature({ id: "atk2" })]);
+        const opp = player("opp", [pw]);
+        const s = makeAttackSequence({ awaiting: ["atk1", "atk2"] });
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: [] },
+            opp
+        );
 
         result.current.handleClick(pw);
 
-        expect(toggleAttacker).toHaveBeenCalledTimes(1);
+        expect(toggleAttacker).toHaveBeenCalledTimes(2);
         expect(toggleAttacker).toHaveBeenCalledWith({
             gameId: "game-id",
             playerId: "me",
             cardInstanceId: "atk1",
             planeswalkerId: "pw1",
         });
+        expect(toggleAttacker).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "atk2",
+            planeswalkerId: "pw1",
+        });
+        await waitFor(() => expect(s.resolveAwaiting).toHaveBeenCalledTimes(2));
     });
 
-    it("does not fire when no attacker has been declared", () => {
+    it("a refused creature (CR 508.1d pin) stays awaiting", async () => {
+        toggleAttacker.mockImplementationOnce(() =>
+            Promise.reject(new Error("must attack the player"))
+        );
         const pw = planeswalker();
-        const me = player("me", []);
+        const me = player("me", [creature()]);
         const opp = player("opp", [pw]);
-        const { result } = renderForOpponent(me, opp, { attackerIds: [] });
+        const s = makeAttackSequence({ awaiting: ["atk1"] });
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: [] },
+            opp
+        );
+
+        result.current.handleClick(pw);
+        await waitFor(() => expect(toggleAttacker).toHaveBeenCalled());
+        await Promise.resolve();
+
+        expect(s.resolveAwaiting).not.toHaveBeenCalled();
+    });
+
+    it("with nothing awaiting a planeswalker click does nothing (retarget heuristic retired)", () => {
+        const pw = planeswalker();
+        const me = player("me", [creature()]);
+        const opp = player("opp", [pw]);
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            makeAttackSequence(),
+            { attackerIds: ["atk1"] },
+            opp
+        );
 
         result.current.handleClick(pw);
         expect(toggleAttacker).not.toHaveBeenCalled();
@@ -203,16 +333,13 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
     beforeEach(() => toggleAttacker.mockClear());
 
     function seq(overrides: Partial<AttackSequence> = {}): AttackSequence {
-        return {
+        return makeAttackSequence({
             active: true,
             order: ["atk1", "atk2"],
             index: 0,
             currentAttackerId: "atk1",
-            begin: vi.fn(),
-            advance: vi.fn(),
-            reset: vi.fn(),
             ...overrides,
-        };
+        });
     }
 
     function renderWithSequence(
@@ -252,7 +379,7 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
         return renderHook(() => useBattlefieldInteraction(opp), { wrapper });
     }
 
-    it("targets the current sequence attacker and advances", () => {
+    it("targets the current sequence attacker and advances", async () => {
         const pw = planeswalker();
         const me = player("me", []);
         const opp = player("opp", [pw]);
@@ -267,10 +394,10 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
             cardInstanceId: "atk2",
             planeswalkerId: "pw1",
         });
-        expect(s.advance).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(s.advance).toHaveBeenCalledTimes(1));
     });
 
-    it("does NOT re-toggle an attacker already on that planeswalker (would de-target it)", () => {
+    it("does NOT re-toggle an attacker already on that planeswalker (would de-target it)", async () => {
         // The server reads a repeat `planeswalkerId` for an attacker already
         // attacking that planeswalker as a toggle-OFF back to the defending
         // player. Confirming the existing target mid-sequence must be a no-op
@@ -286,6 +413,6 @@ describe("useBattlefieldInteraction — attack-with-all sequence routing", () =>
         result.current.handleClick(pw);
 
         expect(toggleAttacker).not.toHaveBeenCalled();
-        expect(s.advance).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(s.advance).toHaveBeenCalledTimes(1));
     });
 });

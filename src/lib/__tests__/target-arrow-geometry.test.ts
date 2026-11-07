@@ -530,3 +530,17 @@ describe("hitTestArrows — passive hover proximity (issue #5853)", () => {
         expect(distanceToArrow(dot, { x: 8, y: 9 })).toBe(5);
     });
 });
+
+describe("buildCombatArrows — attackers still choosing a target (CR 508.1b)", () => {
+    it("draws no attack arrow for an undecided attacker, one for a decided one", () => {
+        const c = combat({ attackerIds: ["a1", "a2"], confirmed: false });
+        const map = anchors({
+            permanent: { a1: { x: 1, y: 1 }, a2: { x: 2, y: 2 } },
+            player: { opp: { x: 9, y: 9 } },
+        });
+        const all = buildCombatArrows(c, map, "opp");
+        expect(all.map((a) => a.fromId)).toEqual(["a1", "a2"]);
+        const some = buildCombatArrows(c, map, "opp", ["a1"]);
+        expect(some.map((a) => a.fromId)).toEqual(["a2"]);
+    });
+});
