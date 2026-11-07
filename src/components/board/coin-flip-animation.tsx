@@ -1,77 +1,65 @@
-import { useEffect } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
 import { FLIP_ANIM_MS } from "~/lib/random-reveal-pacing";
+import Coin3D from "~/components/board/coin-3d";
 
 export { FLIP_ANIM_MS };
 
-/** Animated coin (CR 705.2 / ADR 0023). Spins through two landings and settles
- *  on the face parametrized by `result` (1 = heads/WIN, 0 = tails/LOSE), then
- *  fires `onLanded` once the animation completes. Under `prefers-reduced-motion`
- *  the landed face is shown statically for `FLIP_ANIM_MS`, then `onLanded`
- *  fires — same timing, no spin. Pure presentation; the outcome is already
- *  decided server-side and only revealed here. */
+/** One tossed coin (CR 705.2 / ADR 0023): toss, land on `face`, then show the
+ *  halo (`tone`) and the `caption` under the coin — the coin itself never
+ *  carries the outcome. `onLanded` fires exactly once when the toss ends.
+ *  `skipped` (the overlay's click-to-end) jumps straight to the landed state.
+ *  Under `prefers-reduced-motion` there is no toss or spin: the face fades in
+ *  and the same `FLIP_ANIM_MS` pacing elapses before `onLanded`. Pure
+ *  presentation; the outcome is decided server-side. */
 export default function CoinFlipAnimation({
-    result,
     face,
+    tone,
+    caption,
+    skipped = false,
     onLanded,
 }: {
-    /** 0-based index the coin landed on: 1 = heads, 0 = tails. */
-    result: number;
-    /** Label rendered on the landed face (WIN / LOSE or an override). */
-    face: string;
-    /** Fired exactly once when the animation (or reduced-motion hold) ends. */
+    face: "heads" | "tails";
+    tone: "good" | "bad";
+    caption: string;
+    skipped?: boolean;
     onLanded: () => void;
 }) {
-    const reduceMotion = useReducedMotion();
-    const isHeads = result === 1;
+    const reduceMotion = useReducedMotion() ?? false;
+    const [tossEnded, setTossEnded] = useState(false);
+    const landed = tossEnded || skipped;
+    const fired = useRef(false);
 
-    // Reduced motion: hold the static landed face for the same duration, then
-    // signal completion. No spin, identical flow (ADR 0023).
     useEffect(() => {
-        if (!reduceMotion) return;
-        const t = setTimeout(onLanded, FLIP_ANIM_MS);
+        const t = setTimeout(() => setTossEnded(true), FLIP_ANIM_MS);
         return () => clearTimeout(t);
-    }, [reduceMotion, onLanded]);
+    }, []);
 
-    // Two landings: spin past the off-face once, then settle on the result.
-    // Final rotation parametrized by result so the landed face matches the
-    // outcome (heads = even half-turns, tails = odd half-turns).
-    const finalTurns = isHeads ? 4 : 4.5;
+    // Fires exactly once, whether the toss elapsed or the click skipped it.
+    useEffect(() => {
+        if (!landed || fired.current) return;
+        fired.current = true;
+        onLanded();
+    }, [landed, onLanded]);
 
     return (
         <div className="flex flex-col items-center gap-3">
-            <motion.div
-                className="relative flex items-center justify-center"
-                style={{ width: 96, height: 96, perspective: 600 }}
+            <Coin3D
+                face={face}
+                phase={landed ? "landed" : "tossing"}
+                durationMs={FLIP_ANIM_MS}
+                tone={tone}
+                reduceMotion={reduceMotion}
+            />
+            <p
+                data-testid="coin-caption"
+                data-tone={tone}
+                className={`min-h-5 pt-2 text-sm font-semibold ${
+                    tone === "good" ? "text-success-strong" : "text-danger"
+                }`}
             >
-                <motion.div
-                    className={`flex h-24 w-24 items-center justify-center rounded-full border-2 text-display text-lg tracking-wide ${
-                        isHeads
-                            ? "border-accent/70 bg-accent-soft/40 text-accent-strong"
-                            : "border-border-accent/60 bg-surface-elevated/60 text-text-muted"
-                    }`}
-                    initial={reduceMotion ? false : { rotateY: 0, scale: 0.9 }}
-                    animate={
-                        reduceMotion
-                            ? undefined
-                            : {
-                                  rotateY: finalTurns * 360,
-                                  scale: [0.9, 1.15, 1],
-                              }
-                    }
-                    transition={
-                        reduceMotion
-                            ? undefined
-                            : {
-                                  duration: FLIP_ANIM_MS / 1000,
-                                  ease: "easeOut",
-                              }
-                    }
-                    onAnimationComplete={reduceMotion ? undefined : onLanded}
-                >
-                    {face}
-                </motion.div>
-            </motion.div>
+                {landed ? caption : ""}
+            </p>
         </div>
     );
 }

@@ -1,11 +1,13 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { flipCaption, flipTone } from "~/lib/random-reveal-flip";
 import { Panel } from "~/components/ui/panel";
 import CoinFlipAnimation from "~/components/board/coin-flip-animation";
+import RandomRevealSourceRow from "~/components/board/random-reveal-source-row";
 
 /** Center-screen reveal for an engine-drawn random outcome (CR 705.2,
  *  ADR 0023). Mounted by `PendingChoicePrompt` when the head pending choice is
@@ -32,30 +34,29 @@ export default function RandomRevealOverlay({
     // (the engine resume is replay-safe regardless of who acks).
     const isChooser = choice.playerId === playerId;
     const acked = useRef(false);
+    const [skipped, setSkipped] = useState(false);
 
     // CR 705.2 — the overlay shows one coin: the first of the Flip Sequence. A
     // reveal persisted before the list existed carries only `result`.
-    const flip = choice.flips?.[0];
-    const result = flip
-        ? flip.face === "heads"
-            ? 1
-            : 0
-        : (choice.result ?? 0);
-    const won = flip ? flip.outcome === "win" : result === 1;
-    const face = choice.realized?.face ?? (won ? "WIN" : "LOSE");
+    const flip = choice.flips?.[0] ?? {
+        flipperId: choice.playerId,
+        face:
+            (choice.result ?? 0) === 1
+                ? ("heads" as const)
+                : ("tails" as const),
+        outcome:
+            (choice.result ?? 0) === 1 ? ("win" as const) : ("lose" as const),
+        round: 0,
+    };
     const consequence = choice.realized?.consequence ?? "";
-    const chooserName =
-        allPlayers.find((p) => p.id === choice.playerId)?.name ?? "Opponent";
-
-    // Viewer-relative outcome line (user stories 7 / 6): the flipper sees
-    // "You win/lose the flip"; everyone else sees "{Name} wins/loses the flip".
-    const label = isChooser
-        ? won
-            ? "You win the flip"
-            : "You lose the flip"
-        : won
-          ? `${chooserName} wins the flip`
-          : `${chooserName} loses the flip`;
+    const nameOf = (id: string) =>
+        allPlayers.find((p) => p.id === id)?.name ?? "Opponent";
+    const caption = flipCaption(
+        flip,
+        nameOf(flip.flipperId),
+        flip.flipperId === playerId
+    );
+    const source = choice.source;
 
     function handleLanded() {
         if (!isChooser || acked.current) return;
@@ -68,23 +69,44 @@ export default function RandomRevealOverlay({
         });
     }
 
+    // Click-to-end: the local animation jumps to its result. The flipper's
+    // landing acks (via `handleLanded`); a viewer's click never does.
     return (
-        <div className="absolute inset-0 z-modal flex items-center justify-center modal-scrim">
+        <div
+            data-testid="random-reveal-overlay"
+            className="absolute inset-0 z-modal flex cursor-pointer items-center justify-center modal-scrim"
+            onClick={() => setSkipped(true)}
+        >
             <Panel
                 density="compact"
-                className="flex flex-col items-center gap-4 px-8 py-6"
+                className="flex w-[min(94vw,460px)] flex-col items-center gap-4 px-5 py-4"
             >
-                {choice.randomKind === "coin" && (
-                    <CoinFlipAnimation
-                        result={result}
-                        face={face}
-                        onLanded={handleLanded}
+                {source && (
+                    <RandomRevealSourceRow
+                        cardId={source.cardId}
+                        controllerName={nameOf(source.controllerId)}
+                        controllerIsViewer={source.controllerId === playerId}
+                        excerpt={choice.oracleExcerpt}
                     />
                 )}
-
-                <p className="text-display text-sm text-text">{label}</p>
+                {choice.randomKind === "coin" && (
+                    <div className="pt-2">
+                        <CoinFlipAnimation
+                            face={flip.face}
+                            tone={flipTone(flip)}
+                            caption={caption}
+                            skipped={skipped}
+                            onLanded={handleLanded}
+                        />
+                    </div>
+                )}
                 {consequence && (
                     <p className="text-xs text-text-muted">{consequence}</p>
+                )}
+                {!skipped && (
+                    <p className="text-[10px] text-text-disabled">
+                        Click to skip to the result
+                    </p>
                 )}
             </Panel>
         </div>

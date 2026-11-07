@@ -1,0 +1,118 @@
+/* 3D coin (Random Reveal, issue #5518): two embossed faces plus a stack of
+   edge discs for thickness. Every colour derives from design tokens. */
+
+.coin3d {
+    --coin3d-size: 104px;
+    --coin3d-metal: var(--color-accent);
+    --coin3d-metal-hi: color-mix(in oklab, var(--color-accent) 55%, white);
+    --coin3d-metal-lo: color-mix(in oklab, var(--color-accent) 55%, black);
+    --coin3d-ink: color-mix(in oklab, var(--color-accent) 30%, black);
+    position: relative;
+    width: var(--coin3d-size);
+    height: var(--coin3d-size);
+    perspective: 800px;
+}
+
+.coin3d-body {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.coin3d-face,
+.coin3d-edge {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    backface-visibility: hidden;
+}
+
+.coin3d-edge {
+    backface-visibility: visible;
+    background: linear-gradient(
+        90deg,
+        var(--coin3d-metal-lo),
+        color-mix(in oklab, var(--coin3d-metal-lo) 60%, black) 50%,
+        var(--coin3d-metal-lo)
+    );
+}
+
+.coin3d-face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: var(--coin3d-ink);
+    background:
+        radial-gradient(
+            circle at 32% 28%,
+            var(--coin3d-metal-hi) 0%,
+            transparent 45%
+        ),
+        radial-gradient(
+            circle at 50% 50%,
+            var(--coin3d-metal) 0%,
+            var(--coin3d-metal) 58%,
+            var(--coin3d-metal-lo) 100%
+        );
+    box-shadow:
+        inset 0 0 0 calc(var(--coin3d-size) * 0.045) var(--coin3d-metal-lo),
+        inset 0 0 0 calc(var(--coin3d-size) * 0.07) var(--coin3d-metal-hi),
+        inset 0 calc(var(--coin3d-size) * -0.04) calc(var(--coin3d-size) * 0.12)
+            color-mix(in oklab, black 35%, transparent);
+}
+
+/* Engraved inner ring. */
+.coin3d-face::after {
+    content: "";
+    position: absolute;
+    inset: 16%;
+    border-radius: 9999px;
+    border: 1px dashed color-mix(in oklab, var(--coin3d-ink) 45%, transparent);
+}
+
+.coin3d-glyph {
+    width: 38%;
+    height: 38%;
+    filter: drop-shadow(0 1px 0 var(--coin3d-metal-hi));
+}
+
+.coin3d-word {
+    font-family: var(--font-display, inherit);
+    font-size: calc(var(--coin3d-size) * 0.095);
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    text-shadow: 0 1px 0 var(--coin3d-metal-hi);
+}
+
+.coin3d-shadow {
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    bottom: calc(var(--coin3d-size) * -0.16);
+    height: calc(var(--coin3d-size) * 0.1);
+    border-radius: 9999px;
+    background: radial-gradient(
+        closest-side,
+        color-mix(in oklab, black 55%, transparent),
+        transparent
+    );
+}
+
+.coin3d-halo {
+    position: absolute;
+    inset: -10%;
+    border-radius: 9999px;
+    pointer-events: none;
+}
+.coin3d-halo[data-tone="good"] {
+    box-shadow:
+        0 0 0 2px var(--color-success),
+        0 0 28px 4px color-mix(in oklab, var(--color-success) 45%, transparent);
+}
+.coin3d-halo[data-tone="bad"] {
+    box-shadow:
+        0 0 0 2px var(--color-danger),
+        0 0 28px 4px color-mix(in oklab, var(--color-danger) 45%, transparent);
+}

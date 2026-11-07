@@ -1,15 +1,13 @@
-// CoinFlipAnimation reduced-motion path (#301, CR 705 / ADR 0023). Under
-// `prefers-reduced-motion` the coin shows its LANDED face statically (no spin)
-// for `FLIP_ANIM_MS`, then auto-acks via `onLanded` — same timing and flow as
-// the animated path. We mock `motion/react` so `useReducedMotion` returns true
-// and `motion.div` is a plain div (motion's animation lifecycle does not run in
-// jsdom).
+// CoinFlipAnimation (#301, #5518; CR 705 / ADR 0023). The coin shows only its
+// face: the outcome is the halo + caption, which appear on landing. Click-to-end
+// (`skipped`) lands at once; under `prefers-reduced-motion` there is no toss and
+// the same FLIP_ANIM_MS pacing elapses before `onLanded`. `motion/react` is
+// mocked: motion's animation lifecycle does not run in jsdom.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, act } from "@testing-library/react";
 
 let reduceMotion = true;
 
-// Motion-only props React would warn about on a plain DOM element.
 const MOTION_PROPS = new Set([
     "initial",
     "animate",
@@ -43,35 +41,92 @@ import CoinFlipAnimation, {
     FLIP_ANIM_MS,
 } from "~/components/board/coin-flip-animation";
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 beforeEach(() => {
     reduceMotion = true;
     vi.useFakeTimers();
 });
 
-describe("CoinFlipAnimation — reduced motion (#301)", () => {
-    it("shows the landed face statically and auto-acks after FLIP_ANIM_MS", () => {
+describe("CoinFlipAnimation (#5518)", () => {
+    it("reduced motion: no toss, caption + halo and onLanded only after FLIP_ANIM_MS", () => {
         const onLanded = vi.fn();
-        const { getByText } = render(
-            <CoinFlipAnimation result={1} face="WIN" onLanded={onLanded} />
+        const { getByTestId, queryByTestId } = render(
+            <CoinFlipAnimation
+                face="heads"
+                tone="good"
+                caption="You win the flip"
+                onLanded={onLanded}
+            />
         );
-        // Static landed face is rendered immediately.
-        expect(getByText("WIN")).toBeTruthy();
-        // Nothing fires before the hold elapses.
+        expect(getByTestId("coin-3d").getAttribute("data-phase")).toBe(
+            "tossing"
+        );
+        expect(queryByTestId("coin-halo")).toBeNull();
+        expect(getByTestId("coin-caption").textContent).toBe("");
         expect(onLanded).not.toHaveBeenCalled();
         act(() => {
             vi.advanceTimersByTime(FLIP_ANIM_MS);
         });
-        // Auto-ack fires exactly once after the same duration as the spin.
         expect(onLanded).toHaveBeenCalledTimes(1);
-        vi.useRealTimers();
+        expect(getByTestId("coin-3d").getAttribute("data-phase")).toBe(
+            "landed"
+        );
+        expect(getByTestId("coin-halo").getAttribute("data-tone")).toBe("good");
+        expect(getByTestId("coin-caption").textContent).toBe(
+            "You win the flip"
+        );
     });
 
-    it("renders the LOSE face for a tails result", () => {
-        const { getByText } = render(
-            <CoinFlipAnimation result={0} face="LOSE" onLanded={vi.fn()} />
+    it("the lost flip lands on tails with a danger halo", () => {
+        const { getByTestId } = render(
+            <CoinFlipAnimation
+                face="tails"
+                tone="bad"
+                caption="Bot loses the flip"
+                onLanded={vi.fn()}
+            />
         );
-        expect(getByText("LOSE")).toBeTruthy();
-        vi.useRealTimers();
+        act(() => {
+            vi.advanceTimersByTime(FLIP_ANIM_MS);
+        });
+        expect(getByTestId("coin-3d").getAttribute("data-face")).toBe("tails");
+        expect(getByTestId("coin-halo").getAttribute("data-tone")).toBe("bad");
+        expect(getByTestId("coin-caption").getAttribute("data-tone")).toBe(
+            "bad"
+        );
+    });
+
+    it("skipped lands immediately, exactly once", () => {
+        reduceMotion = false;
+        const onLanded = vi.fn();
+        const { getByTestId, rerender } = render(
+            <CoinFlipAnimation
+                face="heads"
+                tone="good"
+                caption="c"
+                onLanded={onLanded}
+            />
+        );
+        expect(onLanded).not.toHaveBeenCalled();
+        rerender(
+            <CoinFlipAnimation
+                face="heads"
+                tone="good"
+                caption="c"
+                skipped
+                onLanded={onLanded}
+            />
+        );
+        expect(onLanded).toHaveBeenCalledTimes(1);
+        expect(getByTestId("coin-3d").getAttribute("data-phase")).toBe(
+            "landed"
+        );
+        act(() => {
+            vi.advanceTimersByTime(FLIP_ANIM_MS * 2);
+        });
+        expect(onLanded).toHaveBeenCalledTimes(1);
     });
 });
