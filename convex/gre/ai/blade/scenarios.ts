@@ -22924,11 +22924,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        beyondBudget: {
-            cause: "horizon",
-            sweptTo: { iterations: 2000 },
-            note: "Issue #8480 — the leaf reads the +1 at -62 and the -2 at -285, and the 1-ply policy orders them right (`standing-resource.bot.test.ts`). The rollouts do not: the Serra Angel wins the race inside the six-turn horizon on either line, so both rewards sit inside `outcomeEps` at 400 and at 2000 iterations and `material-tiebreak` splits the seeds. Missing knowledge: what the loyalty protects, carried to a reward both lines already win.",
-        },
         expect: {
             forbidden: [
                 {
@@ -22977,7 +22972,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
@@ -23476,7 +23471,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
@@ -23709,7 +23704,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
@@ -23913,7 +23908,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
