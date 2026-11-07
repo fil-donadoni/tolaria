@@ -780,6 +780,15 @@ export type EffectSentenceIR =
            * since "other" excludes the source, not the pumped creature).
            */
           readonly perOtherAttacking?: string;
+          /**
+           * CR 613.1f + CR 611.2a — "<subject> gets +N/+N and gains <keyword>
+           * until end of turn": one subject, one duration, two continuous
+           * effects (layer 7c and layer 6). Carried on the pump rather than as
+           * a second sentence because the subject is announced ONCE — two
+           * sentences would each allocate a target slot. The whole registry
+           * row, as on `grant-ability`, so the Guard A census sees it.
+           */
+          readonly grant?: KeywordIR;
       }
     | {
           /**
@@ -5433,6 +5442,8 @@ function playerSubject(span: string, ctx: unknown): PlayerRefIR | null {
  * verb, the one form the corpus prints.
  */
 const PUMP = /^(.+) (gets|get) (an additional )?([+-]\d+)\/([+-]\d+) (.+)$/;
+/** CR 613.1f — a pump's keyword-grant tail: the keyword, then the duration. */
+const PUMP_AND_GAINS = /^and gains (.+) (until .+)$/;
 /** CR 207.2c — the Domain tally a per-step pump scales by. */
 const PUMP_PER_DOMAIN = / for each basic land type among lands you control$/;
 /** CR 508.1 — the attacking-creature tally a pump scales by. */
@@ -8209,6 +8220,31 @@ function effectSentence(
                 return fail(`"${perOther[1]}" is not a creature type`, span);
             if (perDomain) return fail("a pump scales by one tally", span);
         }
+        // CR 613.1f + CR 611.2a — "… and gains <keyword> until end of turn":
+        // the same subject, the same duration, a layer-6 grant beside the
+        // layer-7c pump. One keyword from the registry's closed vocabulary;
+        // a keyword list ("flying and first strike") is another form.
+        const grantTail = tail.match(PUMP_AND_GAINS);
+        let grant: KeywordIR | undefined;
+        if (grantTail !== null) {
+            if (group || subject.value.kind === "mass")
+                return fail(
+                    "a pump-and-grant is read for one announced or named object",
+                    span
+                );
+            if (perDomain || perOther !== null)
+                return fail(
+                    "a scaled pump is read without a keyword grant",
+                    span
+                );
+            grant = KEYWORDS.get(grantTail[1]!.toLowerCase());
+            if (grant === undefined)
+                return fail(
+                    `"${grantTail[1]}" is not a Mechanics Registry keyword`,
+                    span
+                );
+            tail = grantTail[2]!;
+        }
         const duration = durationRule.run(tail, ctx);
         if (!duration.ok) return duration;
         return ok({
@@ -8219,6 +8255,7 @@ function effectSentence(
             duration: duration.value,
             ...(perDomain ? { perDomain: true as const } : {}),
             ...(perOther !== null ? { perOtherAttacking: perOther[1]! } : {}),
+            ...(grant !== undefined ? { grant } : {}),
         } satisfies EffectSentenceIR);
     }
 
