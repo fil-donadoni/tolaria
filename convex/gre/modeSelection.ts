@@ -186,6 +186,80 @@ export function announceableModeCombinations(args: {
     return out;
 }
 
+/** CR 603.3c / 700.2b — every mode list a triggered ability can announce from
+ *  its CHOOSABLE modes (`modes` holds only those). Unlike a spell's announcement
+ *  there is no shortfall to size: with fewer choosable modes than the minimum no
+ *  legal choice exists, so the list is empty and the ability is removed from the
+ *  stack (CR 603.3d). One list = no decision, announced with no prompt. */
+export function choosableModeLists(
+    modes: readonly { id: string }[],
+    selection: ModeSelection | undefined,
+    facts: ModeSelectionFacts
+): string[][] {
+    const bounds = modeSelectionBounds(selection, facts);
+    const reachable = bounds.repeats
+        ? modes.length > 0
+        : modes.length >= bounds.min;
+    if (!reachable) return [];
+    return announceableModeCombinations({
+        modes,
+        selection,
+        facts,
+        isModeLegal: () => true,
+        ownerName: "Triggered ability",
+    });
+}
+
+/** A raised mode announcement as it crosses the wire: the choosable modes, the
+ *  resolved count, and whether a mode may repeat (CR 700.2d). */
+export interface OfferedModeList {
+    options?: readonly { id: string }[];
+    count: number | { min: number; max: number };
+    modeRepeats?: true;
+}
+
+/** The bounds were resolved when the choice was raised; nothing conditional is
+ *  left for these facts to answer. */
+const RESOLVED_BOUNDS_FACTS: ModeSelectionFacts = {
+    controls: () => false,
+    kicked: false,
+};
+
+function offeredSelection(offer: OfferedModeList): ModeSelection {
+    const { min, max } =
+        typeof offer.count === "number"
+            ? { min: offer.count, max: offer.count }
+            : offer.count;
+    return { min, max, ...(offer.modeRepeats ? { repeats: true } : {}) };
+}
+
+/** Every submission a raised mode announcement accepts, in printed order — the
+ *  one enumeration the legal-action list and the Bot's candidates share. */
+export function offeredModeLists(offer: OfferedModeList): string[][] {
+    return choosableModeLists(
+        offer.options ?? [],
+        offeredSelection(offer),
+        RESOLVED_BOUNDS_FACTS
+    );
+}
+
+/** Validates a submission against a raised mode announcement, through the same
+ *  grammar a cast's announcement goes through. Returns the ids in printed order
+ *  (CR 608.2c / 700.2d). */
+export function validateOfferedModes(
+    offer: OfferedModeList,
+    ids: readonly string[]
+): string[] {
+    return validateChosenModeIds({
+        modes: offer.options ?? [],
+        selection: offeredSelection(offer),
+        ids,
+        facts: RESOLVED_BOUNDS_FACTS,
+        isModeLegal: () => true,
+        ownerName: "Triggered ability",
+    });
+}
+
 /** The shape of a mode that declares targets — `SpellMode` and `AbilityMode`
  *  both satisfy it (an ability mode has no additional groups). */
 export interface TargetedMode {
@@ -274,6 +348,36 @@ export function recordModeTargetGroup(
     counts[instance] += picks;
     pt.modeTargetCounts = counts;
     pt.groupModeInstances = rest.length > 0 ? rest : undefined;
+}
+
+/** Locks a raised announcement onto its stack item (CR 700.2b): several
+ *  instances open their per-instance target spans at zero, so a targetless
+ *  instance still owns a span, as `modeInstances` requires. Mutates `item`. */
+export function stampAnnouncedModes(
+    item: { chosenModeIds?: string[]; modeTargetCounts?: number[] },
+    ids: readonly string[]
+): void {
+    Object.assign(
+        item,
+        announcedModeFields({
+            chosenModeIds: ids,
+            modeTargetCounts: ids.length > 1 ? ids.map(() => 0) : undefined,
+        })
+    );
+}
+
+/** A raised selection's last group is complete: credits its picks and writes
+ *  the finished spans onto the stack item. A no-op for a single instance. */
+export function writeFinalModeSpans(
+    item: { modeTargetCounts?: number[] },
+    pt: {
+        groupModeInstances?: number[];
+        modeTargetCounts?: number[];
+        selected: readonly unknown[];
+    }
+): void {
+    recordModeTargetGroup(pt, pt.selected.length);
+    if (pt.modeTargetCounts) item.modeTargetCounts = [...pt.modeTargetCounts];
 }
 
 /** The earlier picks a group's `excludePriorTargets` ("another target", CR

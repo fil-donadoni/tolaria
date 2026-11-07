@@ -18,6 +18,7 @@ import {
 } from "./state";
 import { combinations, MAX_COMBINATIONS } from "./moves";
 import { eligibleZonePickCards } from "./zonePickEligibility";
+import { offeredModeLists } from "./modeSelection";
 import type { ChoiceAction, LegalAction } from "./legalActions";
 
 /** The builders a choice enumerator wraps its answers in: `wrap` tags a
@@ -157,6 +158,16 @@ export function optionPickActions(
     ctx: ChoiceActionContext
 ): LegalAction[] {
     return (head.options ?? []).map((o) => ctx.submit([o.id]));
+}
+
+// CR 603.3c / 700.2 — a modal trigger's announcement: every mode list the
+// choice accepts, one action per list (one mode each, absent `modeSelection`).
+export function triggerModeActions(
+    _state: GameState,
+    head: PendingChoice,
+    ctx: ChoiceActionContext
+): LegalAction[] {
+    return offeredModeLists(head).map((ids) => ctx.submit(ids));
 }
 
 // ADR 0053 (pile division) — pick a pile: exactly one of "A" / "B". Both

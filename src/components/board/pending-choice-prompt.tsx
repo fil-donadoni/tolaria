@@ -40,6 +40,7 @@ import MinimizeChoiceButton, {
     MINIMIZE_BUTTON_INSET,
 } from "~/components/board/minimize-choice-button";
 import TriggerOrderPrompt from "~/components/board/trigger-order-prompt";
+import TriggerModeMultiPick from "~/components/board/trigger-mode-multi-pick";
 
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt and, for the
@@ -467,6 +468,28 @@ export default function PendingChoicePrompt({
                                         Decline
                                     </Button>
                                 </div>
+                            ) : choice.kind === "trigger-mode" && max > 1 ? (
+                                <TriggerModeMultiPick
+                                    key={choice.choiceId}
+                                    choice={choice}
+                                    disabled={isBusy}
+                                    onConfirm={async (ids) => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitResolutionChoice({
+                                                gameId,
+                                                playerId,
+                                                stackItemId: choice.stackItemId,
+                                                step: choice.step,
+                                                choiceId: choice.choiceId,
+                                                cardInstanceIds: ids,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                />
                             ) : isOptionPick ? (
                                 <PendingChoiceOptions
                                     options={choice.options ?? []}

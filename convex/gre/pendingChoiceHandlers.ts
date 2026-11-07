@@ -44,6 +44,7 @@ import {
     pilePickActions,
     randomRevealActions,
     reboundCastActions,
+    triggerModeActions,
     triggerOrderActions,
     zonePickActions,
     type ChoiceActionsHandler,
@@ -130,8 +131,8 @@ export const PENDING_CHOICE_HANDLERS: Record<
         legalActions: optionPickActions,
     },
     "trigger-mode": {
-        submit: counted(submitTriggerMode),
-        legalActions: optionPickActions,
+        submit: submitTriggerMode,
+        legalActions: triggerModeActions,
     },
     "pick-pile": {
         submit: counted(submitPilePick),

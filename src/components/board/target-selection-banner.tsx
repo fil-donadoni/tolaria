@@ -136,7 +136,13 @@ export default function TargetSelectionBanner({
               )?.modes
             : castSource
               ? getDefinition(castSource.card.id).modes
-              : undefined
+              : triggerSource
+                ? tryGetDefinition(
+                      displayCardId(triggerSource)
+                  )?.triggeredAbilities?.find(
+                      (a) => a.id === triggerSource.triggeredAbilityId
+                  )?.modes
+                : undefined
     );
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,

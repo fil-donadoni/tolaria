@@ -119,3 +119,15 @@ both announce sites; `optionChoice` is not extended.**
 - **A closure predicate for the conditional count.** Rejected: the client must
   size the picker before calling the mutation, so a closure moves card code onto
   the client's critical path for a decision that is plain data.
+
+## Amendment (issue #8666): triggered abilities
+
+`TriggeredAbility` takes the same `modeSelection`, read by the same grammar
+(`gre/modeSelection.ts`), so the three announcement sites share one model. The
+trigger differs in two ways. The engine raises the choice, so the count crosses
+the wire on the `trigger-mode` PendingChoice. And there is no CR 609.3 shortfall:
+a cast that can't reach its count is a player's decision to announce less, but
+a trigger with fewer choosable modes than its minimum has no legal choice and is
+removed from the stack (CR 603.3d). A multi-mode trigger declares no ability-level
+target groups, since no instance's script could own their slots; the catalogue
+guard refuses the shape.

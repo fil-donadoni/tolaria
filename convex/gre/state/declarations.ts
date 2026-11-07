@@ -3954,6 +3954,9 @@ export type PendingChoice = {
      *  or one of these player ids. The frontend routes player-life clicks for
      *  this kind; the backend validates the pick against this allow-list. */
     candidatePlayerIds?: string[];
+    /** For `kind: "trigger-mode"` only — CR 700.2d: the mode list allows the
+     *  same mode more than once, so a submission may repeat an id. */
+    modeRepeats?: true;
     /** For `kind: "option-pick"` only — the abstract options the chooser picks
      *  exactly one of (CR 614.12 "as it enters, choose …"). Not zone members;
      *  the submission carries the chosen option `id` verbatim and the backend
@@ -3967,6 +3970,9 @@ export type PendingChoice = {
         id: string;
         label: string;
         color?: Color;
+        /** The mode's full bullet line, for a `trigger-mode` choice that can
+         *  announce several modes (its multi-select rows show it). */
+        oracleText?: string;
         /** Set ONLY when this option is a genuine "protection from the colour
          *  of your choice" pick (CR 702.16a) — `protectionColorModes`
          *  (`cards/abilities/index.ts`), never `colorChoiceModes`/`COLOR_OPTIONS`
