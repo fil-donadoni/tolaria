@@ -61,11 +61,19 @@ export function entersTappedByReplacement(
 
 /** The context an entry condition reads its filter through: the pure
  *  battlefield-scan context, with the live supertype status (CR 205.4c — a
- *  land that lost or gained "basic" is read as it is now, not as printed). */
-const ENTRY_CONDITION_CTX: StaticEffectContext = {
-    ...ATTACK_RESTRICTION_CTX,
-    hasSupertype: hasSupertypeLive,
-};
+ *  land that lost or gained "basic" is read as it is now, not as printed).
+ *  Built on first use, never at module load: a module-scope spread reads
+ *  `ATTACK_RESTRICTION_CTX` the moment `gre/state.ts` imports this file, which
+ *  throws under any `vi.mock` of `attackRestrictions` that omits it (the RED
+ *  of PR #8710, issue #8655). */
+let entryConditionCtx: StaticEffectContext | undefined;
+function getEntryConditionCtx(): StaticEffectContext {
+    entryConditionCtx ??= {
+        ...ATTACK_RESTRICTION_CTX,
+        hasSupertype: hasSupertypeLive,
+    };
+    return entryConditionCtx;
+}
 
 /** Single oracle for "does this permanent enter the battlefield tapped?"
  *  (CR 614.1c), folding together every source of tapped-entry so every ETB
@@ -107,7 +115,7 @@ export function resolveEntersTapped(
             def.entersTappedUnlessControls,
             entering,
             state,
-            ENTRY_CONDITION_CTX
+            getEntryConditionCtx()
         )
     ) {
         return true;
