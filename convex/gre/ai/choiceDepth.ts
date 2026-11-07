@@ -182,6 +182,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     mill: false,
     moveSpellFromStack: false,
     retarget: false,
+    gainControlOfSpell: false,
     // CR 707.10 — deterministic: `requestCopyRetarget` raises a pending target
     // for later, it never returns "suspend" from this executor.
     copyResolvingSpell: false,

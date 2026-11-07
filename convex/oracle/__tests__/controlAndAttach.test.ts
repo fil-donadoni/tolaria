@@ -297,7 +297,6 @@ describe("Control and attachment — refused neighbours", () => {
             "an 'until end of turn' steal (Act of Treason)",
             "Gain control of target creature until end of turn",
         ],
-        ["a spell target (Aethersnatch)", "Gain control of target spell"],
         [
             "a variable-count target group (Mass Manipulation)",
             "Gain control of X target creatures and/or planeswalkers",

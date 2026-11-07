@@ -7296,6 +7296,22 @@ export interface SpellContext {
         requirement?: TargetRequirement
     ) => void;
 
+    /** CR 115.7d — "you may choose new targets for" a spell on the stack: this
+     *  effect's controller is offered every target of the spell over its OWN
+     *  requirement, the number of targets and any division staying what the
+     *  cast fixed (CR 115.7f). Declining leaves them all unchanged, and a spell
+     *  with no other legal target raises nothing. */
+    requestChooseNewTargets: (spellStackItemId: string) => void;
+
+    /** CR 112.2 — a player other than the one who put a spell on the stack
+     *  becomes its controller, so "you" on it, whoever answers its choices and
+     *  the permanent it becomes (CR 110.2b) all read that player. Its owner
+     *  does not change. A no-op for an ability or a spell that left the stack. */
+    gainControlOfSpell: (
+        spellStackItemId: string,
+        controllerId: string
+    ) => void;
+
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 
     /** Requests a player choice during resolution. On first call in a step,
@@ -21666,13 +21682,32 @@ export type EffectOp =
      *  already left the stack (CR 608.2b), and for an ability or a spell that
      *  does not have exactly one target (the printed "with a single target"
      *  restriction, also the announced slot's `spellSingleTarget` filter, CR
-     *  115.7). What it deliberately does
-     *  NOT do: "choose new targets" (CR 115.7d, leaves targets unchanged),
-     *  change an ability's target, or narrow the new target to a kind
-     *  ("the new target must be a player" stays `resolve()`). */
+     *  115.7). `chooseNew` is the other instruction, "you may choose new
+     *  targets for" it (CR 115.7d): through `SpellContext.requestChooseNewTargets`
+     *  a spell qualifies however many targets it has, and declining leaves them
+     *  unchanged, so no `mayPay` gates it. Deliberate limits: a target left
+     *  unchanged while another changes must still be legal to re-pick, a spell
+     *  with several chosen mode instances is not offered, and neither form
+     *  changes an ability's target or narrows the new target to a kind ("the
+     *  new target must be a player" stays `resolve()`). */
     | {
           op: "retarget";
           target: EffectTargetRef;
+          chooseNew?: true;
+      }
+    /** CR 112.2 — "gain control of target spell": `controller` becomes the
+     *  controller of the announced spell, still on the stack, so it resolves
+     *  as theirs and a permanent spell enters under their control (CR 110.2b).
+     *  Its owner stays, so it still goes to its owner's graveyard. Routes
+     *  through `SpellContext.gainControlOfSpell`. A sibling of `gainControl`
+     *  rather than a form of it: that Op is a layer 2 effect on a permanent (CR
+     *  613.1b) with a duration, this one rewrites who controls a stack object.
+     *  Skipped when the target already left the stack (CR 608.2b), and for an
+     *  ability. Choosing new targets is a separate `retarget`. */
+    | {
+          op: "gainControlOfSpell";
+          target: EffectTargetRef;
+          controller: EffectPlayerRef;
       }
     /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
      *  an Op verb: it branches the script on a PREDEFINED predicate form (never

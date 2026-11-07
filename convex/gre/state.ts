@@ -4534,7 +4534,11 @@ function finalizeSpellResolution(
         // `exileOnResolve` — the two redirects are mutually exclusive in
         // practice (no shipped card combines Rebound with a self-exile
         // instruction).
-        if (item.reboundFromHand) {
+        //
+        // "YOUR hand": a spell whose control changed on the stack was cast from
+        // its owner's hand, not its current controller's, and does not rebound
+        // for them.
+        if (item.reboundFromHand && item.castById === item.ownerId) {
             // CR 702.88a — the flag is consumed HERE, not just gated at the
             // cast site: this same CardInstanceState object is the one the
             // later exile recast re-pushes onto the stack (`removeFromZone`
@@ -13099,6 +13103,14 @@ function emitSpellCopiedEvent(
     state.pendingEvents = [...(state.pendingEvents ?? []), event];
 }
 
+/** An in-place retarget of an ORIGINAL spell: who chooses, and whether the
+ *  number of targets is held (see `requestCopyRetargetOn`). */
+type RetargetOffer = {
+    kind: "retarget";
+    playerId: string;
+    keepTargetCount?: boolean;
+};
+
 /** CR 707.10c — offers `copy`'s controller a chance to choose new
  *  targets, by populating `state.pendingTarget` (kind `"copy-retarget"`).
  *  Extracted so both `SpellContext.requestCopyRetarget` (Fork, Chain
@@ -13116,8 +13128,10 @@ export function requestCopyRetargetOn(
     copy: StackItem,
     /** Overrides the producer's defaults — the prompt's `kind` and chooser —
      *  for the in-place retarget of an ORIGINAL spell (CR 115.7a), which
-     *  reuses this requirement-to-PendingTarget translation. */
-    as?: { kind: "retarget"; playerId: string }
+     *  reuses this requirement-to-PendingTarget translation. `keepTargetCount`
+     *  holds a single group to exactly the targets the spell has (CR 115.7d):
+     *  an "up to" requirement would otherwise offer zero, or fewer. */
+    as?: RetargetOffer
 ): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -13137,9 +13151,13 @@ export function requestCopyRetargetOn(
     // missing X here folds to 0 instead of throwing mid-resolve.
     // CR 707.10 — the copy copies "all decisions made for it, including …
     // targets": a text-defined bound keeps the number its cast fixed.
-    const count = resolveTargetRequirementCount(req.count, copy.chosenX, {
-        determinedMax: copy.targets?.length ?? 0,
-    });
+    const additionalGroups = ownAdditionalTargetRequirements(copy);
+    const count =
+        as?.keepTargetCount && additionalGroups.length === 0
+            ? (copy.targets?.length ?? 0)
+            : resolveTargetRequirementCount(req.count, copy.chosenX, {
+                  determinedMax: copy.targets?.length ?? 0,
+              });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = shorthandArray(req.subtypeFilter);
@@ -13183,7 +13201,6 @@ export function requestCopyRetargetOn(
     // and finalization replaces its whole list, so the walk offers every group
     // (the cast path's `advanceTargetGroupOrFinalize` hand-off) rather than
     // only the primary one.
-    const additionalGroups = ownAdditionalTargetRequirements(copy);
     state.pendingTarget = {
         playerId: as?.playerId ?? copy.controllerId,
         cardInstanceId: copy.id,
@@ -13293,7 +13310,7 @@ function ownAdditionalTargetRequirements(
 export function offerRetargetUnlessForced(
     state: GameState,
     copy: StackItem,
-    as?: { kind: "retarget"; playerId: string }
+    as?: RetargetOffer
 ): void {
     const req = ownTargetRequirement(copy);
     if (!req) return; // untargeted (Empty the Warrens) — nothing to offer
@@ -19018,6 +19035,30 @@ export function buildSpellContext(
                       ) as Partial<PendingTarget>)
                     : {}),
             };
+        },
+
+        requestChooseNewTargets(spellStackItemId): void {
+            const spell = state.stack.find((s) => s.id === spellStackItemId);
+            if (!spell || !isSpellStackItem(spell)) return;
+            offerRetargetUnlessForced(state, spell, {
+                kind: "retarget",
+                playerId: item.castById,
+                keepTargetCount: true,
+            });
+        },
+        gainControlOfSpell(spellStackItemId, controllerId): void {
+            const spell = state.stack.find((s) => s.id === spellStackItemId);
+            if (!spell || !isSpellStackItem(spell)) return;
+            // CR 112.2 — both controller fields say the same thing about a
+            // spell, and a layer 2 base an identity swap captured on the stack
+            // names the old controller: left in place, the permanent it becomes
+            // would derive back to them (CR 110.2b). The next derivation
+            // re-captures it. The old controller's controlled-cast prompts go
+            // with the spell.
+            spell.castById = controllerId;
+            spell.controllerId = controllerId;
+            delete spell.baseControllerId;
+            delete spell.actingPlayerId;
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---

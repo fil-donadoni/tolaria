@@ -1930,6 +1930,15 @@ const retarget: Valuer<"retarget"> = (_op, ctx) => ({
     tags: ["disruption", "targeted"],
 });
 
+// CR 112.2 — taking a spell answers it as fully as `counter` does: its caster
+// loses the card's effect. What the taker gains is the spell's own effect, which
+// the spell on the board shows and this context-free valuation does not read, so
+// it prices as the answer alone.
+const gainControlOfSpell: Valuer<"gainControlOfSpell"> = (_op, ctx) => ({
+    points: priced(ctx, "disruption"),
+    tags: ["disruption", "targeted"],
+});
+
 // CR 707.10 — the copy resolves the SAME script, so its consequence is valued
 // by that script's own Ops; the copy node itself carries no material.
 const copyResolvingSpell: Valuer<"copyResolvingSpell"> = () => ZERO_OP_VALUE;
@@ -3550,6 +3559,7 @@ export const OP_VALUERS: {
     counter,
     moveSpellFromStack,
     retarget,
+    gainControlOfSpell,
     copyResolvingSpell,
     mayPay,
     payVariableMana,
@@ -3961,6 +3971,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // target of their own choosing: an attack on the spell's controller, not a
     // gift, so it must not be left to the `?? "neutral"` fallback.
     retarget: "harmful",
+    // CR 112.2 — the spell is taken from its controller: an attack on them,
+    // aimed at someone else's spell like a counter.
+    gainControlOfSpell: "harmful",
     // CR 707.10 — the named player gains a copy of the spell, theirs to
     // retarget (CR 707.10c): a gift to them, like a free spell, never an
     // attack. The copy's own consequences are priced by the script's Ops.

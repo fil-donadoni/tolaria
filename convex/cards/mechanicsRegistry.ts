@@ -3416,7 +3416,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "115.7a",
         binding: "SpellContext.requestRetarget",
-        note: 'Effect Script Op for "change the target of target spell" (CR 115.7a). Routes through `SpellContext.requestRetarget` with NO requirement: the effect\'s controller is raised a `retarget` target selection over the target spell\'s OWN announced requirement (modal-aware), so only a target legal for that spell is offered, and the pick is written onto the ORIGINAL stack item in place. A spell with no other legal target keeps its original (CR 115.7a) and nothing is raised. Skipped when the target already left the stack (CR 608.2b), and for an ability or a spell without exactly one target. The printed "with a single target" restriction is also the announced slot\'s `spellSingleTarget` filter (CR 115.7). Not "choose new targets" (CR 115.7d), and no kind-narrowed new target ("must be a player" stays `resolve()`). Used by Deflection-class spells.',
+        note: 'Effect Script Op for "change the target of target spell" (CR 115.7a). Routes through `SpellContext.requestRetarget` with NO requirement: the effect\'s controller is raised a `retarget` target selection over the target spell\'s OWN announced requirement (modal-aware), so only a target legal for that spell is offered, and the pick is written onto the ORIGINAL stack item in place. A spell with no other legal target keeps its original (CR 115.7a) and nothing is raised. Skipped when the target already left the stack (CR 608.2b), and for an ability or a spell without exactly one target. The printed "with a single target" restriction is also the announced slot\'s `spellSingleTarget` filter (CR 115.7). `chooseNew` is the "you may choose new targets" instruction (CR 115.7d), through `SpellContext.requestChooseNewTargets`: any spell with one announced requirement qualifies, the number of targets and any division (CR 115.7f) stay what the cast fixed, and declining leaves them unchanged. No kind-narrowed new target ("must be a player" stays `resolve()`). Used by Deflection-class spells and the gain-control-of-a-spell line.',
+    },
+    {
+        op: "gainControlOfSpell",
+        status: "implemented",
+        cr: "112.2",
+        binding: "SpellContext.gainControlOfSpell",
+        note: 'Effect Script Op for "gain control of target spell" (CR 112.2). The named player becomes the controller of the announced spell where it sits on the stack: it resolves as theirs, its "you" reads them, and a permanent spell enters under their control (CR 110.2b). The owner does not change, so a spell that leaves the stack still goes to its owner\'s zone. A rebound spell does not rebound for a new controller, because it was not cast from their hand (CR 702.88a). A sibling of `gainControl`, which is a layer 2 effect on a permanent (CR 613.1b). Choosing new targets is a separate `retarget` with `chooseNew`.',
     },
     {
         op: "mayPay",
