@@ -110,6 +110,7 @@ export function cardImageSignature(card: CardLike): string {
     if (card.grantedColors?.length) {
         parts.push(`gc:${card.grantedColors.map((g) => g.color).join(",")}`);
     }
+    if (card.colorSet) parts.push(`cs:${card.colorSet.colors.join(",")}`);
 
     return parts.join("|");
 }

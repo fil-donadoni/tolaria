@@ -186,6 +186,7 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
     "subtype-add",
     "supertype-set",
     "color-grant",
+    "color-set",
 ]);
 
 /** Whether a definition declares a static effect of any kind in `kinds` —

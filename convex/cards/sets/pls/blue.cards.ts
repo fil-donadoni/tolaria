@@ -9,7 +9,10 @@ import {
     BASIC_LAND_SUBTYPES,
     PERMANENT_TYPES,
 } from "../../types";
-import { chooseColorEffects } from "../../abilities/chooseColor";
+import {
+    asEntersColorModes,
+    chooseColorEffects,
+} from "../../abilities/chooseColor";
 import { landTypeChangeEffects } from "../../abilities/chooseLandType";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
@@ -478,27 +481,33 @@ export const seaSnidd = defineCard(() => ({
 }));
 
 // Shifting Sky — {2}{U} Enchantment. "As this enchantment enters, choose a
-// color.\nAll nonland permanents are the chosen color." STOP-AND-ISSUE
-// (gre-development.md § DSL-first authoring): the "choose a color as it
-// enters" half is free (the existing modal-choice machinery, `chosenModeId`
-// — the exact Psychic Allergy shape, `drk/blue.cards.ts`), but "all nonland
-// permanents ARE the chosen color" is a layer-5 color REPLACEMENT
-// (Gatherer: this changes colors, it doesn't add one) applied BOARD-WIDE and
-// continuously — no such static effect kind exists. The layer system has a
-// layer-5 color GRANT (`StaticColorGrant`, additive) and a layer-4 subtype
-// SET with both fixed and per-source-computed forms (`StaticSubtypeSet`,
-// ADR 0050), but no layer-5 color-SET sibling. This is a new continuous
-// STATIC EFFECT KIND (types.ts + two state.ts materialization passes +
-// layers.ts), not a card-shaped `resolve()` gap — a `resolve()` closure
-// cannot express a continuous effect that must keep applying to permanents
-// that enter LATER. tracked-by: #2009
-// export const shiftingSky: CardDefinition = {
-//     id: "1071726d-48f0-46d6-802b-dd9589489580", // PLS 32
-//     name: "Shifting Sky",
-//     rarity: "uncommon",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-// };
+// color.\nAll nonland permanents are the chosen color." CR 614.12a — the colour
+// is chosen as it ENTERS, on every entry path, and lands on `chosenModeId`
+// (Painter's Servant's shape, `shm/colorless.cards.ts`). CR 105.3 — "are the
+// chosen color" with no "in addition": a layer-5 colour SET (`color-set`),
+// replacing every colour a nonland permanent has. CR 611.3a — a static
+// ability, so it keeps applying to a permanent that enters later. The running
+// layer-4 type line (`target.types`) decides "nonland" (CR 613.1d before
+// 613.1e).
+// hand-tail: All nonland permanents are the chosen color. (#2009)
+export const shiftingSky = defineCard(() => ({
+    id: "1071726d-48f0-46d6-802b-dd9589489580", // PLS 32
+    name: "Shifting Sky",
+    rarity: "uncommon",
+    oracleText:
+        "As this enchantment enters, choose a color.\nAll nonland permanents are the chosen color.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    entersWith: { asEnters: [{ kind: "mode" }] },
+    modes: asEntersColorModes(),
+    staticEffects: [
+        {
+            kind: "color-set",
+            applies: (target) => !target.types.includes("Land"),
+            colors: "chosen-color",
+        },
+    ],
+}));
 
 // Sisay's Ingenuity — {U} Enchantment — Aura. "Enchant creature.\nWhen this
 // Aura enters, draw a card.\nEnchanted creature has '{2}{U}: Target creature

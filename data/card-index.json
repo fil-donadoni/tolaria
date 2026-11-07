@@ -70308,6 +70308,14 @@
         "source": "compiled"
     },
     {
+        "name": "Shifting Sky",
+        "scryfallId": "1071726d-48f0-46d6-802b-dd9589489580",
+        "oracleId": "4634fd4e-5b38-4cfb-ab73-bf3b14b3bdee",
+        "firstSet": "pls",
+        "firstPrintId": "1071726d-48f0-46d6-802b-dd9589489580",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Shifting Woodland",
         "scryfallId": "059164e1-894d-4586-9800-e60d6fbd6eb6",
         "oracleId": "7c2a4fe5-43e8-4e20-bef2-0278d18afc4b",

@@ -470,6 +470,11 @@ export interface CardInstance {
      *  filters / target highlighting on the board agree with the server.
      *  Mirrors `CardInstanceState.grantedColors` in `convex/gre/state.ts`. */
     grantedColors?: { color: string; sourceId: string }[];
+    /** Layer 5 colour SET from a static ability (CR 105.3, `color-set` —
+     *  Shifting Sky's "All nonland permanents are the chosen color"):
+     *  `getEffectiveColors` reads `colors` in place of the printed cost's.
+     *  Mirrors `CardInstanceState.colorSet` in `convex/gre/state.ts`. */
+    colorSet?: { colors: string[]; sourceId: string };
     /** CR 205.4a — supertype(s) ADDED to this permanent by a `supertype-set`
      *  static effect or indefinite mutation (Melting / Arcum's Weathervane
      *  making a land snow). Forwarded by `slimCard` (the projection only

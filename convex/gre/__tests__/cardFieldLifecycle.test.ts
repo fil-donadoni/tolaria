@@ -194,6 +194,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
     const REGISTRY_DERIVED: ReadonlySet<OptionalCardInstanceKey> = new Set([
         "abilitiesSuppressedBy",
         "grantedColors",
+        "colorSet",
         "grantedSupertypes",
         "removedSupertypes",
     ]);
@@ -423,6 +424,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "chosenXOnCast",
             "classLevel",
             "colorOverride",
+            "colorSet",
             "controlChanges",
             "counters",
             "countersAtLeave",

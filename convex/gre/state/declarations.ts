@@ -964,6 +964,12 @@ export type CardInstanceState = {
      *  engine imports at all, and seven call sites read a permanent's colours
      *  through it. */
     grantedColors?: { color: string; sourceId: string }[];
+    /** CR 105.3 / 613.1e layer 5 — the colour SET a static ability applies
+     *  (`color-set`, Shifting Sky's "All nonland permanents are the chosen
+     *  color"): `getEffectiveColors` reads `colors` in place of the printed
+     *  ones. DERIVED OUTPUT, written only by `layers2to5DerivedFields`, kept
+     *  materialised for the same reason as `grantedColors` above. */
+    colorSet?: { colors: string[]; sourceId: string };
     /** CR 205.4a layer 4 — supertypes ADDED by a `supertype-set` static effect
      *  or an indefinite `setSupertype` mutation (Arcum's Weathervane's "becomes
      *  snow"). DERIVED OUTPUT, written only by `layers2to5DerivedFields`.

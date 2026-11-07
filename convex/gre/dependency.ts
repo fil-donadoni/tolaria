@@ -114,6 +114,7 @@ export const STATIC_EFFECT_READS: Record<
     "subtype-add": [],
     "supertype-set": [],
     "color-grant": [],
+    "color-set": [],
     "keyword-grant": [],
     "keyword-remove": [],
     "ability-loss": [],
@@ -264,6 +265,9 @@ function writesOf(
                 characteristic: "colors",
                 values: colorGrantColors(effect, template!.source),
             };
+        case "color-set":
+            // CR 105.3 — a replacement, so any colour can disappear.
+            return { characteristic: "colors" };
         case "keyword-grant":
             return { characteristic: "abilities", values: [effect.keyword] };
         case "keyword-remove":
