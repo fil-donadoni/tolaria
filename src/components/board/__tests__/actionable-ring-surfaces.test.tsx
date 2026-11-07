@@ -190,8 +190,39 @@ describe("CardsPile `actionable` ring", () => {
         );
         const ring = container.querySelector("[data-pile-actionable]");
         expect(ring?.className).toContain("card-ring-actionable");
-        expect(ring?.parentElement?.className).toContain("isolate");
+        // Issue #7693 — the ring rides the top card's tilt element, so it
+        // follows hover zoom + tilt; the tile still contains its z-index.
+        expect(ring?.closest("[data-card-tilt]")).not.toBeNull();
+        expect(ring?.closest(".isolate")).not.toBeNull();
     });
+
+    it.each([
+        ["graveyard (top = last)", false, "b"],
+        ["library (topOnRight, top = first)", true, "a"],
+    ])(
+        "paints the collapsed ring inside the top card's tilt element: %s",
+        (_label, topOnRight, topId) => {
+            const { container } = render(
+                <CardsPile
+                    cards={[pileCard("a"), pileCard("b")]}
+                    isFaceDown={false}
+                    title="Pile"
+                    topOnRight={topOnRight}
+                    // A NON-top card is the actionable one: pile semantics
+                    // (#6917) ring on ANY card, the ring sits on the top.
+                    actionableIds={new Set([topId === "a" ? "b" : "a"])}
+                />
+            );
+            const rings = container.querySelectorAll("[data-pile-actionable]");
+            expect(rings).toHaveLength(1);
+            const tilts = container.querySelectorAll("[data-card-tilt]");
+            expect(tilts).toHaveLength(2);
+            // Collapsed stack paints in array order: top = last, except the
+            // library (topOnRight) where cards[0] is the top.
+            const topTilt = topOnRight ? tilts[0] : tilts[1];
+            expect(topTilt.contains(rings[0])).toBe(true);
+        }
+    );
 
     it("does not ring a collapsed pile with no qualifying card", () => {
         const { container } = render(
