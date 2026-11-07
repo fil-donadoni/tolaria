@@ -74,17 +74,20 @@ const CHARM = define("test-keep-charm", {
         {
             id: "kill",
             label: "Destroy target creature.",
+            oracleText: "Destroy target creature.",
             targetRequirement: { type: "Creature", count: 1 },
             effects: DESTROY_FIRST,
         },
         {
             id: "draw",
             label: "Draw a card.",
+            oracleText: "Draw a card.",
             effects: [{ op: "draw", count: 1, player: "controller" }],
         },
         {
             id: "smash",
             label: "Destroy target artifact.",
+            oracleText: "Destroy target artifact.",
             targetRequirement: { type: "Artifact", count: 1 },
             effects: DESTROY_FIRST,
         },
