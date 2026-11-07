@@ -2387,7 +2387,7 @@ function planManaPaymentPass(
  *  parameter's contract.
  *
  *  A source's contribution is the realisation the plan needs (CR 601.2g: the
- *  player picks which mana abilities to activate). The first pass uses each
+ *  player activates mana abilities before paying). The first pass uses each
  *  source's first option per colour, so `{G}` off Fanatic of Rhonas stays its
  *  `{T}: Add {G}`. Only when that finds no plan does a second pass fund the
  *  higher-yield option of the same colour, whose surplus floats (CR 106.4) as it
