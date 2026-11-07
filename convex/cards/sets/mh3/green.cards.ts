@@ -9,6 +9,8 @@ import { ELDRAZI_SPAWN_TOKEN, GREEN_INSECT_TOKEN } from "../../sharedTokens";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 import { eternalizeAbility } from "../../abilities/eternalize";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { adaptAbility } from "../../abilities/adapt";
+import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
 
 /** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
  *  black Token Creature — Zombie Snake Druid). Pinned by hand: an eternalize token
@@ -115,6 +117,64 @@ export const malevolentRumble = defineCard(() => ({
             token: ELDRAZI_SPAWN_TOKEN,
             controller: "controller",
         },
+    ],
+}));
+
+// Basking Broodscale — {1}{G} Creature — Eldrazi Lizard 2/2 (MH3 145).
+// Devoid (CR 702.114a: the object is colorless) is the `devoid` keyword; the
+// Adapt 1 activation is the shared `adaptAbility` (CR 701.46a). The counter
+// trigger is `counterAddedTrigger` scoped to itself and narrowed to "+1/+1"
+// (CR 122.6: counters "put on" an object), its optional "you may create"
+// lowered as a cost-free `mayPay` gating `createToken` with the shared
+// `ELDRAZI_SPAWN_TOKEN` spec.
+// hand-tail: "Whenever one or more +1/+1 counters are put on this creature, you may create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\"" (#8654)
+export const baskingBroodscale = defineCard(() => ({
+    id: "5feba5d6-99a6-4e9b-8a7d-90d955868fc3", // MH3 145
+    rarity: "common",
+    name: "Basking Broodscale",
+    oracleText:
+        'Devoid (This card has no color.)\n{1}{G}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, you may create a 0/1 colorless Eldrazi Spawn creature token with "Sacrifice this token: Add {C}."',
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Eldrazi", "Lizard"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["devoid"],
+    activatedAbilities: [
+        adaptAbility({
+            id: "basking-broodscale-adapt",
+            n: 1,
+            cost: { X: 1, G: 1 },
+            costLabel: "{1}{G}",
+        }),
+    ],
+    triggeredAbilities: [
+        counterAddedTrigger({
+            id: "basking-broodscale-spawn",
+            oracleText:
+                'Whenever one or more +1/+1 counters are put on this creature, you may create a 0/1 colorless Eldrazi Spawn creature token with "Sacrifice this token: Add {C}."',
+            scope: "self",
+            counterType: "+1/+1",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Create an Eldrazi Spawn token?",
+                    bind: "$create",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$create" },
+                    then: [
+                        {
+                            op: "createToken",
+                            token: ELDRAZI_SPAWN_TOKEN,
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
+        }),
     ],
 }));
 

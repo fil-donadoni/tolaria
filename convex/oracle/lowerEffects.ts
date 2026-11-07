@@ -52,6 +52,7 @@ import {
 } from "../cards/abilities";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
 import { empowerJaceOps } from "../cards/abilities/empowerJace";
+import { adaptOps } from "../cards/abilities/adapt";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import type { PermanentSweepSelector } from "./grammar/shared/massSubject";
 import { durationSpec } from "./grammar/shared/duration";
@@ -5861,6 +5862,15 @@ function lowerFrameChain(
                     target: { ref: "$source" },
                     count: frame.count,
                 });
+                break;
+            // CR 701.46a — "this permanent has no +1/+1 counters on it": a
+            // spell's own text has no permanent to adapt.
+            case "adapt":
+                if (site.resolvingSpell === true)
+                    return unlowerable(
+                        "only a permanent's ability has a permanent to adapt"
+                    );
+                ops.push(...adaptOps(frame.count));
                 break;
             // CR 722.3a — "this permanent": a spell's own text has no
             // permanent to prepare. The Op's seam refuses a permanent with no

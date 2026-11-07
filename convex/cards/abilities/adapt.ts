@@ -27,7 +27,7 @@
 // Mechanics Registry (`convex/cards/mechanicsRegistry.ts`) row `id: "adapt"`
 // is the name authority; its `binding` field points back to this factory.
 
-import type { ActivatedAbility, ManaCost } from "../types";
+import type { ActivatedAbility, EffectOp, ManaCost } from "../types";
 
 /** Spelled-out counts for the printed Adapt reminder text (Scryfall renders
  *  "a +1/+1 counter" for N=1 and spells out the numeral for N>1, matching
@@ -80,34 +80,42 @@ export function adaptAbility(args: AdaptArgs): ActivatedAbility {
         oracleText: oracle,
         cost: { mana: args.cost },
         useStack: true,
-        effects: [
-            {
-                op: "if",
-                // CR 701.46a — "if this creature has no +1/+1 counters on
-                // it": a comparison predicate reading the resolving source's
-                // own "+1/+1" counter count (issue #1015's `counters` value
-                // grammar). `lt 1` rather than `eq 0` — a literal `0` is not
-                // a legal EffectValue (CR 107.1's positive-int literal rule,
-                // `isPositiveInt`/`isEffectValue` in `validate.ts`), and
-                // "fewer than one" is exactly "zero" for a non-negative
-                // counter count.
-                predicate: {
-                    left: {
-                        counters: { of: { ref: "$source" }, type: "+1/+1" },
-                    },
-                    op: "lt",
-                    right: 1,
-                },
-                then: [
-                    {
-                        op: "counters",
-                        action: "add",
-                        counter: "+1/+1",
-                        target: { ref: "$source" },
-                        count: args.n,
-                    },
-                ],
-            },
-        ],
+        effects: adaptOps(args.n),
     };
+}
+
+/** The Adapt N keyword action itself (CR 701.46a), as Effect Ops acting on
+ *  the resolving ability's own source. The one authority shared by
+ *  `adaptAbility` and the Oracle compiler's `adapt` Verb Frame
+ *  (`convex/oracle/lowerEffects.ts`), so a compiled "Adapt N." and a
+ *  hand-written `adaptAbility` lower to the same script. */
+export function adaptOps(n: number): EffectOp[] {
+    return [
+        {
+            op: "if",
+            // CR 701.46a — "if this permanent has no +1/+1 counters on it": a
+            // comparison predicate reading the resolving source's own
+            // "+1/+1" counter count (issue #1015's `counters` value grammar).
+            // `lt 1` rather than `eq 0` — a literal `0` is not a legal
+            // EffectValue (CR 107.1's positive-int literal rule,
+            // `isPositiveInt`/`isEffectValue` in `validate.ts`), and "fewer
+            // than one" is exactly "zero" for a non-negative counter count.
+            predicate: {
+                left: {
+                    counters: { of: { ref: "$source" }, type: "+1/+1" },
+                },
+                op: "lt",
+                right: 1,
+            },
+            then: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: n,
+                },
+            ],
+        },
+    ];
 }
