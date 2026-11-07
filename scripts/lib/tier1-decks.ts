@@ -325,3 +325,65 @@ export function summaryLine(report: DeckReport): string {
 export function summaryLines(reports: readonly DeckReport[]): string[] {
     return reports.map(summaryLine);
 }
+
+/** Path of the modern metagame lists (issue #8276, PRD #8445). */
+export const MODERN_METAGAME_DECKS_PATH = "data/modern-metagame-decks.json";
+
+export interface ModernMetagameDeckFile {
+    readonly source: {
+        readonly supplier: string;
+        readonly format: string;
+        readonly note: string;
+    };
+    readonly decks: readonly Tier1Deck[];
+}
+
+/** Parse and VALIDATE the modern lists — the same 60 + 15 discipline. */
+export function parseModernMetagameDecks(
+    text: string,
+    path = MODERN_METAGAME_DECKS_PATH
+): ModernMetagameDeckFile {
+    let doc: ModernMetagameDeckFile;
+    try {
+        doc = JSON.parse(text) as ModernMetagameDeckFile;
+    } catch (err) {
+        throw new Error(`${path} does not parse: ${(err as Error).message}`);
+    }
+    validateDecks(doc.decks, path);
+    return doc;
+}
+
+export function readModernMetagameDecks(root: string): ModernMetagameDeckFile {
+    const path = join(root, MODERN_METAGAME_DECKS_PATH);
+    return parseModernMetagameDecks(
+        readFileSync(path, "utf8"),
+        MODERN_METAGAME_DECKS_PATH
+    );
+}
+
+/**
+ * One archetype's progress row: MAIN names playable / total, the playable
+ * copies of the 60, and the sideboard size. Fail-closed by construction —
+ * `tier1Reports` throws on a name the lockfile cannot resolve, and a card
+ * that is neither `ours` nor `ready` is not counted playable.
+ */
+export function modernDeckLine(deck: Tier1Deck, report: DeckReport): string {
+    const state = new Map(report.cards.map((c) => [c.name, c.state]));
+    const mainNames = new Set(deck.main.map((e) => e.name));
+    let namesPlayable = 0;
+    for (const name of mainNames) {
+        if (PLAYABLE_STATES.includes(state.get(name) as DeckCardState))
+            namesPlayable += 1;
+    }
+    const copiesPlayable = deck.main
+        .filter((e) =>
+            PLAYABLE_STATES.includes(state.get(e.name) as DeckCardState)
+        )
+        .reduce((sum, e) => sum + e.count, 0);
+    return (
+        `${deck.slug.padEnd(26)}` +
+        `${`${namesPlayable}/${mainNames.size}`.padStart(7)} names  ` +
+        `${`${copiesPlayable}/${totalCopies(deck.main)}`.padStart(6)} copies  ` +
+        `side ${totalCopies(deck.sideboard)}`
+    );
+}

@@ -85,6 +85,9 @@ import {
     type RankedGap,
 } from "./lib/grammar-gaps";
 import {
+    modernDeckLine,
+    MODERN_METAGAME_DECKS_PATH,
+    readModernMetagameDecks,
     readTier1Decks,
     summaryLine,
     tier1Reports,
@@ -235,6 +238,24 @@ function reportMetagame(lock: ReturnType<typeof parseLockfile>): void {
             process.stdout.write(`${cardLine(card)}\n`);
         }
     }
+    process.stdout.write("\n");
+}
+
+/**
+ * The modern metagame section (issue #8454, PRD #8445): one row per archetype
+ * over the owner's ten 60 + 15 lists, beside the premodern tables.
+ */
+function reportModernMetagame(lock: ReturnType<typeof parseLockfile>): void {
+    const file = readModernMetagameDecks(ROOT);
+    const reports = tier1Reports(file, lock, poolOracleIds());
+
+    process.stdout.write(
+        `\nModern metagame — per-archetype playable (main names, copies of 60, sideboard)\n` +
+            `${file.decks.length} archetypes from ${file.source.supplier}, stored in ${MODERN_METAGAME_DECKS_PATH}\n\n`
+    );
+    file.decks.forEach((deck, i) => {
+        process.stdout.write(`${modernDeckLine(deck, reports[i])}\n`);
+    });
     process.stdout.write("\n");
 }
 
@@ -768,6 +789,7 @@ async function main(): Promise<void> {
     if (process.argv.includes("--decks")) {
         reportDecks(lock);
         reportMetagame(lock);
+        reportModernMetagame(lock);
         return;
     }
     const targetsAt = process.argv.indexOf("--targets");
