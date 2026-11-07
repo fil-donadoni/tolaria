@@ -2,7 +2,7 @@
  * Whether `health-main` must gate a tip now: the part of its `last.json` the
  * decision reads, and the pure rule over it (issue #4960).
  */
-import type { HealthStatus } from "./health-verdict";
+import { isBrowserStep, type HealthStatus } from "./health-verdict";
 import { isRepairProofGreen, type Verdict } from "./health-verdict-store";
 
 /** A `running` record older than this belongs to a run that died. */
@@ -109,29 +109,47 @@ export function gateSkipReason(input: {
  * browser steps green on that sha. Batch health never runs them (issue
  * #5378), so a batch GREEN owes them before `release` reads it.
  *
- * The offline half stands on this machine's record about the tip — GREEN, or
- * INFRA at a browser step after the offline gates passed (the store keeps
- * the batch GREEN under it: infra never overwrites, and without this the
- * local INFRA would refuse every `release` of the tip) — or, when this
- * machine has no record about the tip, on the store's GREEN. Any other local
- * record decides on its own (`gateSkipReason`): a running one is not raced, a
- * RED one is re-gated whole. A repair proof's GREEN (issue #7657) is not the
- * offline half: `release` gates such a tip whole (ADR 0116).
+ * Offline gates that passed on a sha stay good until the tip changes, however
+ * the browser step ended (issue #8752): it failed, the environment cut it
+ * short, or the run died inside it. So the offline half stands on this
+ * machine's record about the tip — GREEN, or any later end of a run that
+ * passed the offline gates (`offline: "green"`) — or, when this machine has no
+ * record about the tip, on the store: its GREEN, or an INFRA or RED at a browser
+ * step, which only a run past the offline gates can write. A live run is not
+ * raced, and a record whose offline half did not pass gates the tip whole. A
+ * repair proof's GREEN (issue #7657) is not the offline half: `release` gates
+ * such a tip whole (ADR 0116).
  */
 export function browserStepsOwed(input: {
     last: HealthRecord | null;
     tip: string;
     stored?: Verdict | null;
+    now?: number;
+    staleMs?: number;
 }): boolean {
-    const { last, tip, stored } = input;
+    const { last, tip, stored, now = Date.now(), staleMs } = input;
     if (last?.sha === tip) {
         if (last.status === "green")
             return fullGreen(last) && last.browser !== "green";
-        return last.status === "infra" && last.offline === "green";
+        if (last.offline !== "green") return false;
+        if (last.status === "running")
+            return healthRunInFlight(last, now, staleMs) === null;
+        return last.status === "infra" || last.status === "red";
     }
+    if (stored?.sha !== tip) return false;
+    if (stored.status === "green") return !isRepairProofGreen(stored);
     return (
-        stored?.sha === tip &&
-        stored.status === "green" &&
-        !isRepairProofGreen(stored)
+        (stored.status === "infra" || stored.status === "red") &&
+        isBrowserStep(stored.step)
     );
+}
+
+/**
+ * Whether `--retry-infra` re-gates this record: an INFRA proves nothing about
+ * the gates the environment cut short (issue #5467), but one at a browser step
+ * came after the offline gates passed, and those stay good (issue #8752).
+ * Batch health owes no browser step, so it has nothing left to run there.
+ */
+export function infraRetryOwed(last: HealthRecord | null): boolean {
+    return last?.status === "infra" && last.offline !== "green";
 }

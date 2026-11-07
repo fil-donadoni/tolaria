@@ -874,7 +874,8 @@ that gates an unverdicted tip when no event did is the
 [worktree](#g-job-worktree) — the one linked worktree `health-main` accepts;
 its records still go to the [primary checkout](#g-primary-checkout)'s
 `.claude/telemetry/health/`. Unattended, it re-gates an INFRA tip
-(`--retry-infra`) but never one the store holds a RED for: that tip is the
+(`--retry-infra`) unless that INFRA came after the offline gates passed (issue
+#8752), but never one the store holds a RED for: that tip is the
 ladder's, and a repair moves it. No browser walk (a batch owes none, issue
 #5378; `release` walks). A tip already GREEN on the store is skipped in
 seconds.
