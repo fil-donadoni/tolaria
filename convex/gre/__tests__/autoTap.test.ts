@@ -14,7 +14,10 @@ import {
     type AutoTapPlan,
     type AutoTapSource,
     type Demand,
+    withoutSacrificeOptions,
 } from "../autoTap";
+import { TREASURE_TOKEN } from "../../cards/sharedTokens";
+import { createTokenPermanents } from "../state";
 import { evaluateAutoTapPosition } from "../evaluate";
 import type { GameState, ManaSubstitution } from "../state";
 import {
@@ -1086,5 +1089,212 @@ describe("solveSmartAutoTap — board-derived surplus (issue #2247, AC6)", () =>
         const plan = solveSmartAutoTap(p1.manaPool, { X: 1 }, [], sources, []);
         expect(plan).not.toBeNull();
         expect(plan).toEqual([{ cardId: "forest" }]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Treasure tokens (CR 111.10a, CR 601.2g / 605.3a, issue #8317)
+// ---------------------------------------------------------------------------
+
+describe("auto-tap spends Treasure tokens only when needed (CR 111.10a, issue #8317)", () => {
+    const PLAINS = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // {T}: W
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // {T}: R
+    const HOLY_STRENGTH = "e945a4cd-0eb1-4f54-898d-169ce2748a03"; // Aura
+    const LIONS_EYE_DIAMOND = "63bacc32-d6ba-420c-9b49-299c08e5fb39";
+
+    /** p1's board: the given cards plus `treasures` real Treasure tokens,
+     *  created through the engine's own token path and renamed t1, t2, …. */
+    function board(
+        cards: { def: string; id: string }[],
+        treasures: number
+    ): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: cards.map(({ def, id }) =>
+                        makeInstance(def, { id, controllerId: "p1" })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        createTokenPermanents(state, TREASURE_TOKEN, "p1", treasures);
+        let n = 0;
+        for (const card of state.players[0].battlefield) {
+            if (card.isToken) card.id = `t${++n}`;
+        }
+        return state;
+    }
+
+    const treasureOpt = { spendTreasures: {} } as const;
+
+    function plan(
+        state: GameState,
+        cost: Record<string, number>,
+        opts: Parameters<typeof buildAutoTapSources>[4] = treasureOpt,
+        selfSourceId?: string
+    ): AutoTapPlan | null {
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            undefined,
+            undefined,
+            undefined,
+            opts
+        );
+        return solveSmartAutoTap(
+            state.players[0].manaPool,
+            cost,
+            [],
+            sources,
+            [],
+            selfSourceId
+        );
+    }
+
+    const spent = (p: AutoTapPlan | null) =>
+        (p ?? []).map((s) => s.cardId).filter((id) => id.startsWith("t"));
+
+    it("pays a cost only a Treasure can cover, naming the colour index", () => {
+        const state = board([{ def: PLAINS, id: "plains" }], 1);
+        const p = plan(state, { R: 1 });
+        expect(p).toEqual([{ cardId: "t1", manaChoiceIndex: 3 }]); // {R}
+    });
+
+    it("spends no Treasure when lands alone cover the cost", () => {
+        const state = board([{ def: MOUNTAIN, id: "m1" }], 2);
+        expect(spent(plan(state, { R: 1 }))).toEqual([]);
+    });
+
+    it("prefers pure sources even at a higher tap count", () => {
+        const state = board(
+            [
+                { def: MOUNTAIN, id: "m1" },
+                { def: PLAINS, id: "plains" },
+            ],
+            1
+        );
+        const p = plan(state, { R: 1, X: 1 });
+        expect(spent(p)).toEqual([]);
+        expect(p).toHaveLength(2);
+    });
+
+    it("taps the land over a Treasure even when that strands a Demand", () => {
+        const state = board([{ def: MOUNTAIN, id: "m1" }], 1);
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            undefined,
+            undefined,
+            undefined,
+            treasureOpt
+        );
+        const held: Demand = { id: "bolt", cost: { R: 1 } };
+        const p = solveSmartAutoTap({}, { R: 1 }, [], sources, [held]);
+        expect(p).toEqual([{ cardId: "m1" }]);
+    });
+
+    it("{1}{R} with one Plains and two Treasures sacrifices exactly one", () => {
+        const state = board([{ def: PLAINS, id: "plains" }], 2);
+        const p = plan(state, { R: 1, X: 1 });
+        expect(spent(p)).toHaveLength(1);
+        expect(p!.map((s) => s.cardId)).toContain("plains");
+    });
+
+    it("spends the plain Treasure before one with a +1/+1 counter", () => {
+        const state = board([], 2);
+        state.players[0].battlefield.find((c) => c.id === "t1")!.counters = {
+            "+1/+1": 1,
+        };
+        expect(spent(plan(state, { R: 1 }))).toEqual(["t2"]);
+    });
+
+    it("a -1/-1 counter is no positive extra", () => {
+        const state = board([], 2);
+        state.players[0].battlefield.find((c) => c.id === "t1")!.counters = {
+            "-1/-1": 1,
+        };
+        expect(spent(plan(state, { R: 1 }))).toEqual(["t1"]);
+    });
+
+    it("spends the plain Treasure before one wearing your Aura", () => {
+        const state = board([{ def: HOLY_STRENGTH, id: "aura" }], 2);
+        state.players[0].battlefield.find((c) => c.id === "aura")!.attachedTo =
+            "t1";
+        expect(spent(plan(state, { R: 1 }))).toEqual(["t2"]);
+    });
+
+    it("spends the plain Treasure before one with a card type beyond Artifact", () => {
+        const state = board([], 2);
+        const animated = state.players[0].battlefield.find(
+            (c) => c.id === "t1"
+        )!;
+        animated.types.push("Creature");
+        // CR 302.6 — able to pay {T}, or the solver never sees it at all.
+        animated.isSummoningSick = false;
+        expect(spent(plan(state, { R: 1 }))).toEqual(["t2"]);
+    });
+
+    it("still spends one when every Treasure has a positive extra", () => {
+        const state = board([], 2);
+        for (const card of state.players[0].battlefield) {
+            card.counters = { "+1/+1": 1 };
+        }
+        expect(spent(plan(state, { R: 1 }))).toHaveLength(1);
+    });
+
+    it("returns no plan when every Treasure still falls short", () => {
+        const state = board([{ def: PLAINS, id: "plains" }], 1);
+        expect(plan(state, { R: 2, X: 1 })).toBeNull();
+    });
+
+    it("a partial plan never sacrifices a Treasure", () => {
+        const state = board([{ def: PLAINS, id: "plains" }], 1);
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            undefined,
+            undefined,
+            undefined,
+            treasureOpt
+        );
+        const partial = solveAutoTapPartial(
+            {},
+            { R: 2, W: 1 },
+            [],
+            withoutSacrificeOptions(sources)
+        );
+        expect(partial).toEqual([{ cardId: "plains" }]);
+    });
+
+    it("never plans a Treasure named in `except` or the pending activation's source", () => {
+        const state = board([], 2);
+        expect(
+            spent(
+                plan(
+                    state,
+                    { R: 1 },
+                    { spendTreasures: { except: new Set(["t1"]) } }
+                )
+            )
+        ).toEqual(["t2"]);
+        expect(spent(plan(state, { R: 1 }, treasureOpt, "t1"))).toEqual(["t2"]);
+    });
+
+    it("leaves Treasures, Black Lotus and Lion's Eye Diamond out without the opt-in", () => {
+        const state = board(
+            [
+                { def: BLACK_LOTUS, id: "lotus" },
+                { def: LIONS_EYE_DIAMOND, id: "led" },
+            ],
+            1
+        );
+        expect(plan(state, { R: 1 }, {})).toBeNull();
+        // With the opt-in only the Treasure joins: the cards stay manual.
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            undefined,
+            undefined,
+            undefined,
+            treasureOpt
+        );
+        expect(sources.map((s) => s.cardId)).toEqual(["t1"]);
     });
 });

@@ -21,6 +21,7 @@ import {
     type ManaSubstitution,
 } from "./state";
 import { extraTapManaForOption } from "./tapManaBonus";
+import { isTreasureToken, treasureHasPositiveExtra } from "./treasureMana";
 
 /**
  * Auto-tap mana solver (issue #154).
@@ -32,7 +33,10 @@ import { extraTapManaForOption } from "./tapManaBonus";
  * Scope (CR 601.2g — paying costs): only "pure" mana abilities participate.
  * Sources with a side effect on payment are excluded so the player keeps
  * manual control over them:
- *   - sacrifice mana abilities (`ability.cost.sacrifice`, e.g. Black Lotus)
+ *   - sacrifice mana abilities (`ability.cost.sacrifice`, e.g. Black Lotus),
+ *     save a Treasure token's (CR 111.10a) when the caller opts in
+ *     (`AutoTapSourceOptions.spendTreasures`) — spent only when no plan
+ *     without it covers the cost, fewest and plainest first
  *   - damage / life mana abilities (not yet modeled in the LEA set)
  * Cost reduction and alternative costs are out of scope: the solver only
  * sees the already-normalized cost the GRE entered into pendingCast.
@@ -75,7 +79,26 @@ export type AutoTapSource = {
          *  plan context was reaching for (Arena of Glory's haste on a creature
          *  spell). Ranked above an equal-tap-count plan without it. */
         soughtRider?: boolean;
+        /** CR 111.10a / 605.3a — activating this option sacrifices its source:
+         *  a Treasure token's own mana ability, admitted only when the caller
+         *  opted in (`AutoTapSourceOptions.spendTreasures`). Every solver here
+         *  spends such an option only once no plan without it covers the cost
+         *  (`solveSmartAutoTap`), and the partial solver never sees one. */
+        sacrificesSource?: true;
     }[];
+    /** CR 111.10a — set on a source offering a `sacrificesSource` option: true
+     *  when the Treasure carries a positive extra (`treasureHasPositiveExtra`),
+     *  so a plainer Treasure is spent before it. */
+    treasureHasExtra?: boolean;
+};
+
+/** What a caller opts the planner INTO beyond pure mana abilities. Omitted =
+ *  the conservative default every caller but the human Auto-Tap keeps. */
+export type AutoTapSourceOptions = {
+    /** CR 111.10a / 601.2g — admit Treasure tokens' sacrifice mana ability.
+     *  `except` names Treasures already spoken for (a cost pick, a pending
+     *  candidate) that must never be planned as mana. */
+    spendTreasures?: { except?: ReadonlySet<string> };
 };
 
 /** Ordered list of taps to perform (card + chosen mana option). */
@@ -206,15 +229,22 @@ export function buildAutoTapSources(
     context?: ManaTapPlanContext,
     /** CR 106.7 / 614 — the per-turn mana replacements (Deep Water, False
      *  Dawn): the planner counts what a tap WOULD add. */
-    replacements?: ManaReplacementView
+    replacements?: ManaReplacementView,
+    sourceOptions?: AutoTapSourceOptions
 ): AutoTapSource[] {
     const sources: AutoTapSource[] = [];
     for (const card of battlefield) {
         if (card.isTapped) continue;
         const ability = getActivatedManaAbility(card);
+        // CR 111.10a — the one sacrifice mana source a caller may opt into.
+        const spendTreasures = sourceOptions?.spendTreasures;
+        const admitSacrifice =
+            !!spendTreasures &&
+            isTreasureToken(card) &&
+            !spendTreasures.except?.has(card.id);
 
         // Side-effect mana abilities stay manual (sacrifice, e.g. Black Lotus).
-        if (ability?.cost.sacrifice === true) continue;
+        if (ability?.cost.sacrifice === true && !admitSacrifice) continue;
         // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.6) —
         // nor can an animated land whose mana is intrinsic (CR 305.6: a typed
         // dual under Kormus Bell has no printed ability, issue #5623).
@@ -306,7 +336,7 @@ export function buildAutoTapSources(
             .map((opt, index) => ({ opt, index }))
             .filter(
                 ({ opt }) =>
-                    !opt.sacrificesSource &&
+                    (!opt.sacrificesSource || admitSacrifice) &&
                     getManaTapOptionRestriction(card, opt.source) === null &&
                     getManaChoiceCounterCost(card, opt.source) === null &&
                     !manaTapOptionSpendsUnplannedResource(
@@ -316,8 +346,17 @@ export function buildAutoTapSources(
                     )
             );
         if (usable.length === 0) continue; // wholly restricted: leave manual
+        const spendsTreasure = usable.some(({ opt }) => opt.sacrificesSource);
         sources.push({
             cardId: card.id,
+            ...(spendsTreasure
+                ? {
+                      treasureHasExtra: treasureHasPositiveExtra(
+                          card,
+                          battlefield
+                      ),
+                  }
+                : {}),
             options: usable.map(({ opt, index }) => {
                 const manaLeg = getManaTapOptionManaCost(card, opt.source);
                 const normalized = manaLeg
@@ -343,6 +382,9 @@ export function buildAutoTapSources(
                         context
                     )
                         ? { soughtRider: true as const }
+                        : {}),
+                    ...(opt.sacrificesSource
+                        ? { sacrificesSource: true as const }
                         : {}),
                 };
             }),
@@ -982,6 +1024,77 @@ export function solveSmartAutoTap(
     demands: Demand[] = [],
     selfSourceId?: string,
     scorePlan?: PlanPositionScorer
+): AutoTapPlan | null {
+    // CR 602.1 — the permanent whose ability is being paid for is never
+    // sacrificed to pay for it.
+    const candidates =
+        selfSourceId === undefined
+            ? sources
+            : sources.flatMap((src) =>
+                  src.cardId === selfSourceId ? withoutSacrifice(src) : [src]
+              );
+    const treasures = candidates
+        .filter((src) => src.options.some((opt) => opt.sacrificesSource))
+        .sort(
+            (a, b) =>
+                Number(a.treasureHasExtra ?? false) -
+                    Number(b.treasureHasExtra ?? false) ||
+                (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0)
+        );
+    const solve = (admitted: ReadonlySet<string>): AutoTapPlan | null =>
+        solveSmartAutoTapPure(
+            pool,
+            cost,
+            substitutions,
+            candidates.flatMap((src) =>
+                admitted.has(src.cardId) ? [src] : withoutSacrifice(src)
+            ),
+            demands,
+            selfSourceId,
+            scorePlan
+        );
+    // CR 111.10a / 601.2g — the sacrifice is immediate and irreversible, so the
+    // Treasure count outranks the tap count: pure sources first, even when
+    // that strands a Demand; then the fewest Treasures, plainest first, with
+    // the smart ranking choosing everything else among plans spending exactly
+    // those. Treasure options are interchangeable mana, so the first `count`
+    // in plainest-first order is a minimal set whenever any set of that size
+    // covers the cost.
+    for (let count = 0; count <= treasures.length; count++) {
+        const plan = solve(
+            new Set(treasures.slice(0, count).map((src) => src.cardId))
+        );
+        if (plan !== null) return plan;
+    }
+    return null;
+}
+
+/** CR 111.10a — the source with its sacrifice options removed, or nothing when
+ *  it offers no other option. Indices are kept, never renumbered. */
+function withoutSacrifice(src: AutoTapSource): AutoTapSource[] {
+    if (!src.options.some((opt) => opt.sacrificesSource)) return [src];
+    const options = src.options.filter((opt) => !opt.sacrificesSource);
+    return options.length === 0 ? [] : [{ cardId: src.cardId, options }];
+}
+
+/** The sources with every sacrifice option removed: what a PARTIAL plan may
+ *  tap (CR 111.10a — a Treasure is spent only when the plan covers the whole
+ *  cost, never toward a remainder the player still pays by hand). */
+export function withoutSacrificeOptions(
+    sources: AutoTapSource[]
+): AutoTapSource[] {
+    return sources.flatMap(withoutSacrifice);
+}
+
+/** {@link solveSmartAutoTap} over a fixed source set (no Treasure staging). */
+function solveSmartAutoTapPure(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    demands: Demand[],
+    selfSourceId: string | undefined,
+    scorePlan: PlanPositionScorer | undefined
 ): AutoTapPlan | null {
     // Deprioritize the activating permanent's own mana ability (issue #544):
     // first try to cover the cost without it. Only if that is impossible — the
