@@ -16,6 +16,9 @@ const verdicts = await playMisses(misses, {
         process.env.SHARD_PLAYER ?? "./fake-bot-player.ts",
         import.meta.url
     ).href,
+    ...(process.env.SHARD_TIMEOUT_MS === undefined
+        ? {}
+        : { batchTimeoutMs: Number(process.env.SHARD_TIMEOUT_MS) }),
 });
 console.log(
     JSON.stringify({
