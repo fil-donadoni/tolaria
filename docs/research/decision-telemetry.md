@@ -222,3 +222,90 @@ reward signal (truncation with static eval, priors/FPU) compounds it. The
 material tie-break deciding 66% of picks also means the _evaluation's_
 fidelity — not the search's depth — is the binding constraint, exactly the
 map's thesis.
+
+## Re-measure — 2026-11-07, self-play only
+
+**Measured at `3f750884247a` (2026-11-07)**, the production search as live
+play runs it that day: `DEFAULT_EVAL_WEIGHTS` fitted from the Verdict Lock,
+15 `ROOT_DECISION_MECHANISMS`, action priors OFF (issue #2684's PUCT branch is
+`null` without a `SearchVariant`), opponent blind (no deck knowledge, as every
+preset below `expert`). Same runner, same six preset pairings, one game per
+pairing instead of two per shard, seed 1893, 400 iterations, no blade half:
+
+```
+DECISION_CORPUS=1 DECISION_CORPUS_GAMES=1 DECISION_CORPUS_SEED=1893 \
+  DECISION_CORPUS_BLADE=0 DECISION_CORPUS_OUT=<path>.json \
+  bunx vitest run src/lib/ai/selfplay/decisionCorpus.bot.test.ts -t "collects the full corpus"
+```
+
+6 games, all decisive by life, **432 root decisions** (one shard; the July
+corpus had 2833 over 36 games — treat a point or two of difference as noise,
+not a trend). Wall clock 64 min on a machine at load average ~90.
+
+### Which mechanism decides the pick
+
+| mechanism            | 2026-07-29 (n = 2833) | 2026-11-07 (n = 432) |
+| -------------------- | --------------------- | -------------------- |
+| mean-reward          | 19.7%                 | **22.2%** (96)       |
+| material-tiebreak    | 66.0%                 | **57.4%** (248)      |
+| named rules, total   | 14.3%                 | **20.4%** (88)       |
+| free-development     | 5.9%                  | 6.5% (28)            |
+| standing-spend-hold  | — (did not exist)     | 6.3% (27)            |
+| self-harm-removal    | 6.0%                  | 3.0% (13)            |
+| block-quality        | 1.5%                  | 1.9% (8)             |
+| wasteful-attack      | 0.9%                  | 1.2% (5)             |
+| hold-trick           | 0.0%                  | 0.9% (4)             |
+| announcement-variant | —                     | 0.5% (2)             |
+| last-window-deferral | —                     | 0.2% (1)             |
+
+Every named rule fired as a flip (it changed the pick the search's argmax
+would have made: 88/88); the material tie-break flipped 35 of its 248.
+Overall **28.5% of picks differ from the strict mean-reward argmax**;
+75.5% of decisions had more than one `OUTCOME_EPS` contender (July: 79.4%);
+74.8% of final picks coincide with the argmax (July: 74.9%).
+
+### Best-vs-second reward gap (margin points; band edge = 100)
+
+| gap (points) | n   | share |
+| ------------ | --- | ----- |
+| ≤5           | 71  | 16.4% |
+| ≤10          | 56  | 13.0% |
+| ≤25          | 114 | 26.4% |
+| ≤50          | 78  | 18.1% |
+| ≤100         | 7   | 1.6%  |
+| ≤150         | 1   | 0.2%  |
+| ≤250         | 1   | 0.2%  |
+| single-edge  | 104 | 24.1% |
+
+**326 of the 328 multi-edge decisions (99.4%) sit inside the 100-point band**
+(July: 99.5%). The band is as dominant as it was.
+
+### What the 1-ply policy would have picked (new column)
+
+The runner now records whether the greedy one-ply policy (`policyValue`, the
+rollout default and the source of the action prior) agrees with the search's
+final pick: **59.0% overall**; 77% where the search itself decided
+(`mean-reward`, 74/96), 53% where the material tie-break did (131/248), 30%
+where `standing-spend-hold` did (8/27). By move kind: land drops 69%
+(57/83), casts 58% (70/121), attacks 64% (50/78), blocks 50% (13/26), pass
+55% (63/114). This is the quantity issue #8700 (action priors ON) builds
+on: a prior that agrees with the search three times in four on the decisions
+the search can resolve, and that is weakest exactly where the tie-breaks
+rule.
+
+### Reading
+
+- The headline of July stands: roughly four decisions in five are not
+  separated by the search's reward signal. The split inside that four moved —
+  less material tie-break (66% → 57%), more named rules (14% → 20%) — which is
+  the five rules added since (`standing-spend-hold` alone takes 6%) doing
+  what they were written to do, not the search deciding more.
+- `mean-reward` 19.7% → 22.2% is within what a 432-decision sample can tell;
+  the fitted weights did not widen the reward gaps in a visible way (p50 of
+  the gap is still inside ≤25).
+- The structural reading of map issue #1892 is therefore unchanged by this
+  re-measure: the band, not the depth, decides. The levers the owner chose on
+  2026-11-07 (issue #8700 priors ON, issue #8701 policy features, knowledge at
+  every level per issue #8692) all act on how visits are spent inside the
+  band; this table is their baseline. Re-run the command above on their tip
+  and add the column.
