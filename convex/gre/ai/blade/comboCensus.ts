@@ -165,7 +165,8 @@ function sumNeeds(a: ManaNeed, b: ManaNeed): ManaNeed {
 }
 
 /** The name a piece is placed under: a two-faced card's face the combo uses,
- *  else its front (`scenarioBuilder` places a back-face name face up). */
+ *  else its front. `scenarioBuilder` places a modal back face up; a transforming
+ *  back face has no card name, so its entry reads unmeasurable. */
 function pieceCardName(piece: ComboCensusPiece): string {
     const [front, back] = piece.name.split(" // ");
     return piece.state?.usedFace === 2 && back ? back : front;
@@ -176,12 +177,6 @@ function pieceZone(piece: ComboCensusPiece): NonNullable<ScenarioCard["zone"]> {
         ZONE_BY_LETTER.find(([letter]) => piece.zones.includes(letter))?.[1] ??
         "battlefield"
     );
-}
-
-/** The first piece name no card resolves to (a catalogue the corpus has moved
- *  past), or undefined when the entry can be assembled at all. */
-function unresolvedPiece(entry: ComboCensusEntry): string | undefined {
-    return entry.pieces.map(pieceCardName).find((n) => !tryGetCardByName(n));
 }
 
 /** The land base: every colored pip its own basic, the rest cycling through the
@@ -238,7 +233,7 @@ function auraHost(
  * cannot pay for would read as a Bot miss. So the base covers `manaNeeded` AND
  * the hand pieces' own costs. Prose prerequisites are otherwise not read.
  *
- * Throws on a piece no card resolves to (`censusEntry` reads that first).
+ * Throws on a piece no card resolves to (`assemblyFailure` reads that first).
  */
 export function comboPositionSpec(entry: ComboCensusEntry): ScenarioSpec {
     const cards = (name: string): CardDefinition => {
@@ -325,6 +320,18 @@ function passiveMove(state: GameState, playerId: string): Move | undefined {
     );
 }
 
+/** Why the builder refuses this entry's position, or undefined when it builds: a
+ *  piece the catalogue has no card for (a corpus ahead of it, a transforming
+ *  back face), an attachment the engine rejects. */
+function assemblyFailure(entry: ComboCensusEntry): string | undefined {
+    try {
+        buildPositionFromSpec(comboPositionSpec(entry), undefined, entry.id);
+        return undefined;
+    } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+    }
+}
+
 /** Play one entry out at one budget and one seed. */
 export function playOutCombo(
     entry: ComboCensusEntry,
@@ -348,7 +355,7 @@ export function playOutCombo(
     let passiveAnswers = 0;
     let halt: ComboHalt | undefined;
     try {
-        while (plies < plyCap && !state.gameOver) {
+        while (!state.gameOver) {
             const decider = advanceToDecision(state);
             if (state.gameOver) break;
             if (decider === null) {
@@ -364,6 +371,9 @@ export function playOutCombo(
                 applyMoveInSearch(state, decider, answer);
                 continue;
             }
+            // The cap is read here, at the Bot's next decision, so the last
+            // Move it was allowed still resolves: a kill on the last ply counts.
+            if (plies >= plyCap) break;
             const move =
                 searchWithTrace(
                     state,
@@ -457,12 +467,12 @@ export function censusEntry(
             unmeasurableBecause: "no terminal outcome",
         };
     }
-    const unresolved = unresolvedPiece(entry);
-    if (unresolved !== undefined) {
+    const failure = assemblyFailure(entry);
+    if (failure !== undefined) {
         return {
             ...row,
             reading: "unmeasurable",
-            unmeasurableBecause: `no card named "${unresolved}"`,
+            unmeasurableBecause: failure,
         };
     }
     let touched = false;
@@ -556,7 +566,7 @@ export function summarizeComboCensus(
 }
 
 function countsLine(label: string, counts: ClassCounts): string {
-    const cells = COMBO_READINGS.map((r) => String(counts[r]).padStart(12));
+    const cells = COMBO_READINGS.map((r) => String(counts[r]).padStart(13));
     return `  ${label.padEnd(12)} ${String(counts.entries).padStart(7)}${cells.join("")}`;
 }
 
@@ -567,7 +577,7 @@ export function formatComboCensusSummary(
     options: ComboCensusOptions = COMBO_CENSUS_OPTIONS
 ): string {
     const summary = summarizeComboCensus(rows);
-    const header = COMBO_READINGS.map((r) => r.padStart(12)).join("");
+    const header = COMBO_READINGS.map((r) => r.padStart(13)).join("");
     return [
         `== combo census (ADR 0164) — ${rows.length} entries, budgets ${options.budgets.join("/")}, ${options.seeds.length} seeds, ply cap ${options.plyCap}`,
         `  ${"class".padEnd(12)} ${"entries".padStart(7)}${header}`,
