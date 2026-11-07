@@ -36,7 +36,7 @@
  * after the offline gates, off the heavy mutex (their environment scrubs any
  * hold), in their own worktree. A tip whose offline half already stands GREEN
  * — batch health's record, the store's, or a run whose browser step failed
- * (issue #8752) — runs ONLY them (`browserStepsOwed`).
+ * — runs ONLY them (`browserStepsOwed`).
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
@@ -1484,7 +1484,7 @@ async function main(): Promise<void> {
     // passes `--retry-infra` (issue #5467): it re-fires only past its own
     // dedup, and an INFRA tip proves nothing — skipping it would leave the
     // tip unproven until the next landing — unless the INFRA came after the
-    // offline gates passed (issue #8752).
+    // offline gates passed (`infraRetryOwed`).
     const retryInfra =
         process.argv.includes("--retry-infra") && infraRetryOwed(last);
     // A job run is unattended (issue #5645): like the cadence's waiter it
