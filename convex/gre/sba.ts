@@ -22,6 +22,7 @@ import {
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
 import {
+    abilitiesSuppressed,
     isAura,
     isCreature,
     isPlaneswalker,
@@ -298,9 +299,15 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
  * Scope: `attachedTo` is currently set by exactly two attachment kinds — an
  * Aura (handled above) and an Equipment-subtype permanent (Reconfigure
  * today; a future plain-Equip card, #776, reuses this SAME branch with no
- * change). Gating on `subtypes.includes("Equipment")` keeps this SBA a no-op
- * for any future THIRD attachment kind (e.g. Fortification) until it's
- * explicitly added here.
+ * change). A Fortification (CR 704.5n's other kind) has no card here and is
+ * left untouched until it is explicitly added.
+ *
+ * CR 704.5p — every OTHER attached permanent (a battle or creature, or a
+ * permanent that is neither an Aura, an Equipment nor a Fortification) also
+ * becomes unattached and remains on the battlefield. Same detach-in-place
+ * road as the Equipment branch: an Equipment that has become a creature, and
+ * any non-attachment permanent still carrying an `attachedTo` (an Equipment
+ * that lost the subtype, CR 301.5c).
  */
 export function checkAttachmentSBA(state: GameState): boolean {
     const toDetach: string[] = [];
@@ -308,14 +315,20 @@ export function checkAttachmentSBA(state: GameState): boolean {
         for (const card of player.battlefield) {
             if (isAura(card)) continue; // handled by checkAuraAttachmentSBA
             if (!card.attachedTo) continue;
-            if (!card.subtypes.includes("Equipment")) continue;
+            if (card.subtypes.includes("Fortification")) continue;
+            if (!card.subtypes.includes("Equipment")) {
+                // CR 704.5p — not an Aura, Equipment or Fortification.
+                toDetach.push(card.id);
+                continue;
+            }
             const host = findOnBattlefield(state, card.attachedTo);
             if (
-                // CR 301.5c — an Equipment that's also a creature can't equip a
-                // creature. Scoped to an `animation` (a "becomes a creature"
-                // effect, Iron Man Armor): a Reconfigure Equipment's printed
-                // creature type is removed while attached (CR 702.151b) by a
-                // static the raw `types` here do not yet reflect.
+                // CR 704.5p / 301.5c — an Equipment that's also a creature
+                // becomes unattached. Scoped to an `animation` (a "becomes a
+                // creature" effect, Iron Man Armor): a Reconfigure Equipment's
+                // printed creature type is removed while attached (CR
+                // 702.151b) by a static the raw `types` here do not yet
+                // reflect.
                 (card.animation !== undefined && isCreature(card)) ||
                 !host ||
                 !isCreature(host) ||
@@ -460,6 +473,39 @@ export function checkCounterAnnihilationSBA(state: GameState): boolean {
             else delete next["+1/+1"];
             if (minus - n > 0) next["-1/-1"] = minus - n;
             else delete next["-1/-1"];
+            card.counters = Object.keys(next).length > 0 ? next : undefined;
+            changedAny = true;
+        }
+    }
+    return changedAny;
+}
+
+/** CR 704.5r — "If a permanent with an ability that says it can't have more
+ *  than N counters of a certain kind on it has more than N counters of that
+ *  kind on it, all but N of those counters are removed from it." The ability
+ *  is the definition's `counterLimits`; a permanent that has lost all
+ *  abilities (CR 613.1f) has none to enforce. A pure counter mutation, like
+ *  CR 704.5q annihilation, run beside it after the pass's zone changes.
+ *  Returns true if any counters were removed. */
+export function checkCounterLimitSBA(state: GameState): boolean {
+    let changedAny = false;
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const counters = card.counters;
+            if (!counters) continue;
+            const cardId = (card.card as { id?: string }).id;
+            const limits = cardId
+                ? tryGetDefinition(cardId)?.counterLimits
+                : undefined;
+            if (!limits || abilitiesSuppressed(card)) continue;
+            let next: Record<string, number> | null = null;
+            for (const { counter, max } of limits) {
+                if ((counters[counter] ?? 0) <= max) continue;
+                next ??= { ...counters };
+                if (max > 0) next[counter] = max;
+                else delete next[counter];
+            }
+            if (!next) continue;
             card.counters = Object.keys(next).length > 0 ? next : undefined;
             changedAny = true;
         }
@@ -850,7 +896,7 @@ function isWorldPermanent(card: CardInstanceState): boolean {
     );
 }
 
-/** Every World permanent across both players' battlefields (CR 704.5m — the
+/** Every World permanent across both players' battlefields (CR 704.5k — the
  *  world rule is global, unlike the per-controller legend rule). */
 function allWorldPermanents(state: GameState): CardInstanceState[] {
     const result: CardInstanceState[] = [];
@@ -862,7 +908,7 @@ function allWorldPermanents(state: GameState): CardInstanceState[] {
     return result;
 }
 
-/** CR 704.5m — the "world rule." If two or more permanents have the World
+/** CR 704.5k — the "world rule." If two or more permanents have the World
  *  supertype, all except the one that has had the World supertype for the
  *  shortest amount of time are put into their owners' graveyards. In the event
  *  of a tie for the shortest amount of time, ALL tied permanents are put into
@@ -876,7 +922,7 @@ function allWorldPermanents(state: GameState): CardInstanceState[] {
  *  shared maximum encodes the simultaneous-tie case (a single effect ETB-ing
  *  two World permanents), in which the rule destroys all of them.
  *
- *  Fully automatic — no player choice (CR 704.5m), unlike the legend rule.
+ *  Fully automatic — no player choice (CR 704.5k), unlike the legend rule.
  *  Returns true when a permanent was moved (the SBA caller re-runs the sweep
  *  per CR 704.3 until no SBA applies). */
 export function checkWorldRuleSBA(state: GameState): boolean {
@@ -893,7 +939,7 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     // Survivor(s): the permanent(s) with the maximum seq (shortest time).
     const maxSeq = Math.max(...worlds.map((c) => c.worldSeq ?? 0));
     const newest = worlds.filter((c) => (c.worldSeq ?? 0) === maxSeq);
-    // CR 704.5m — if more than one permanent shares the shortest time (a tie),
+    // CR 704.5k — if more than one permanent shares the shortest time (a tie),
     // none survives: every world permanent (including the tied "newest" ones)
     // goes to its owner's graveyard. Otherwise the lone newest survives and
     // every older world permanent is put into its owner's graveyard.
@@ -1019,7 +1065,7 @@ export function checkStateBasedActions(state: GameState): void {
         // death/removal checks and before the world/legend rules: it is an
         // ordinary zone-change SBA whose condition never depends on them.
         acted = checkSagaSacrificeSBA(state) || acted;
-        // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
+        // CR 704.5k — world rule. Fully automatic (no player choice): keeps the
         // newest World permanent and graveyards the rest (all of them on a
         // tie). Runs before the legend-rule prompt so its automatic moves
         // settle before any choice suspends the sweep.
@@ -1046,6 +1092,10 @@ export function checkStateBasedActions(state: GameState): void {
         // after `finalizeLegendKeep` annihilates then, so the legend put
         // into the graveyard by that answer still leaves with its counters.
         acted = checkCounterAnnihilationSBA(state) || acted;
+        // CR 704.5r — a permanent over its own counter cap loses the excess.
+        // Same placement as annihilation: a counter mutation, after the
+        // pass's zone changes (CR 704.8).
+        acted = checkCounterLimitSBA(state) || acted;
         // CR 704.5aa — in the sweep, not after it: a permanent with start your
         // engines! that another SBA of this same check removes still gave its
         // controller speed (CR 704.3 performs them simultaneously).
