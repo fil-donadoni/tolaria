@@ -51,6 +51,11 @@ import {
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 import { pruneDominatedBlocks } from "./ai/blockDominance";
+import {
+    enteringBodyDepartureTiming,
+    fightsBeforeDeparture,
+} from "./ai/doomedEntry";
+import { isEmptyForCaster } from "./ai/oneSidedPut";
 import { isCostUnlockingLandTypeChange } from "./ai/futileShield";
 import type {
     CardInstanceState,
@@ -1614,7 +1619,10 @@ export function rollout(
         // weighs it NOW, and a rollout that takes it later is the `pass`
         // edge paying the cast edge's cost. Never emptying.
         const kept = enumerated.filter(
-            (m) => !isManaBaseSacrificeCast(state, pid, botId, m)
+            (m) =>
+                !isManaBaseSacrificeCast(state, pid, botId, m) &&
+                !isDoomedEntryMove(state, pid, botId, m) &&
+                !isOneSidedPutCast(state, pid, botId, m)
         );
         const moves = kept.length > 0 ? kept : enumerated;
 
@@ -3089,6 +3097,87 @@ export function isManaBaseSacrificeCast(
     return sacrificeCandidates(state, pid, leg.filter).some(isLand);
 }
 
+/** Whether `move` is the bot putting a body onto the battlefield that its own
+ *  script removes before that body could fight (`ai/doomedEntry.ts`). A hand
+ *  card spent for nothing, in this window.
+ *
+ *  The same trade as {@link isManaBaseSacrificeCast}, on the same terms: every
+ *  later decision of the bot's in the `pass` subtree re-offers the move while the
+ *  mana stays open, so `pass`'s mean absorbs the doomed lines, while the move's
+ *  own edge taps the mana and closes them off. Measured on a Sneak Attack after
+ *  combat: holding the card scored 334 at the leaf against 183 for spending it,
+ *  yet the activation out-rewarded `pass` on every seed, by up to 0.056 against
+ *  an `outcomeEps` of 0.05.
+ *
+ *  Dropped from both rollout policies and from the tree below the root, so only
+ *  the root weighs it. The window is read per decision: at the opponent's end
+ *  step the same activation lasts through the bot's next attack (CR 603.7b) and
+ *  stays open. The bot's own moves only.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isDoomedEntryMove(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId) return false;
+    const effects = effectsOfMove(state, pid, move);
+    if (!effects) return false;
+    const timing = enteringBodyDepartureTiming(effects);
+    return timing !== undefined && !fightsBeforeDeparture(state, pid, timing);
+}
+
+/** Whether `move` is the bot casting a spell whose whole script lets each player
+ *  put a card from hand onto the battlefield, holding no card of its own to put
+ *  (`ai/oneSidedPut.ts`). A hand card spent to give the opponent a free permanent.
+ *
+ *  The same trade as {@link isDoomedEntryMove}, on the same terms: `pass` keeps
+ *  the mana open, so its subtree re-offers the cast and its mean absorbs those
+ *  lines, while the cast's own edge taps the mana. Measured on a Show and Tell
+ *  with no permanent card beside it: `pass` and the cast sat within 0.02 of each
+ *  other on the 18 runs dumped, against an `outcomeEps` of 0.05, so the rollouts'
+ *  material margin picked between them, and a refit that moved most weights by
+ *  under 0.06% flipped a seed.
+ *
+ *  Dropped from both rollout policies and from the tree below the root, so only
+ *  the root weighs it. The hand is read per decision, so a card drawn below the
+ *  root reopens the cast. The bot's own moves only.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isOneSidedPutCast(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId || move.kind !== "cast-spell") return false;
+    const effects = effectsOfMove(state, pid, move);
+    return (
+        !!effects && isEmptyForCaster(state, pid, effects, move.cardInstanceId)
+    );
+}
+
+/** The script `move` announces: the activated ability's, or the spell's. */
+function effectsOfMove(
+    state: GameState,
+    pid: string,
+    move: Move
+): readonly EffectOp[] | undefined {
+    if (move.kind === "activate-ability") {
+        const source = state.players
+            .find((p) => p.id === pid)
+            ?.battlefield.find((c) => c.id === move.cardInstanceId);
+        return source
+            ? effectiveAbilityOf(source, move.abilityId)?.effects
+            : undefined;
+    }
+    if (move.kind !== "cast-spell") return undefined;
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    const cardId = (card?.card as { id?: string } | undefined)?.id;
+    return cardId ? tryGetDefinition(cardId)?.effects : undefined;
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -3466,7 +3555,9 @@ function iterate(
                                 bodyCosts
                             ))
                     ) &&
-                    !isManaBaseSacrificeCast(world, pid, botId, k.move)
+                    !isManaBaseSacrificeCast(world, pid, botId, k.move) &&
+                    !isDoomedEntryMove(world, pid, botId, k.move) &&
+                    !isOneSidedPutCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
         }
