@@ -145,6 +145,8 @@ a coin-flip would also pass.
 - Not a demand for a blade entry per card. Most DSL cards on exercised Ops owe
   the one-line "none — …" and nothing else.
 - Not a self-play run. Self-play is not how you debug a decision
-  (`/bot-change` § Verification doctrine); the ladder is for strength claims.
+  (`/bot-change` § Verification doctrine); a strength claim owes a held-out
+  agreement delta plus a green `must` tier, and the ladder is an unowed
+  experiment (ADR 0138).
 - Not a substitute for the existing censuses — it is the layer above them, for
   the reachability they structurally cannot see.

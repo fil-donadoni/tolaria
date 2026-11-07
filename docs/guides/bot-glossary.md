@@ -4,13 +4,18 @@
 `prior`, `leaf`, `rung`, `verdict`. Each entry says what the thing IS, in plain
 words, and then where it lives in this repo. It is a lookup table, not a
 tutorial: read the entry you need and go back to the document you came from.
-The domain terms that are part of the project's shared language (Brain, Blade
-Scenario, Ladder, …) also appear in `GLOSSARY.md`; this file is the wider
-working vocabulary around them, including textbook search terms that
+The domain terms that are part of the project's shared language (Brain, Test
+Position, Verdict, Ladder, …) also appear in `GLOSSARY.md`; this file is the
+wider working vocabulary around them, including textbook search terms that
 `GLOSSARY.md` deliberately leaves out.
 
 Every entry has an anchor (`bot-glossary.md#the-term`) so other documents can
 link a word straight to its meaning.
+
+**This file describes the Bot as it IS, not as a roadmap planned it.** A
+change that moves a default, a knob, a count or a metric named here updates
+the entry in the same PR (CLAUDE.md § Docs follow the change). Last
+reconciled against the code at `3f750884247a` (2026-11-07).
 
 ---
 
@@ -46,16 +51,24 @@ wall-clock cap in milliseconds. Tests and the [ladder](#ladder) always fix
 iterations, never time, so results are reproducible on any machine. Code:
 `SearchBudget` in `convex/gre/search.ts`; presets in `convex/gre/difficulty.ts`.
 
-<a id="difficulty"></a>**Difficulty** — a named [search budget](#search-budget)
-(easy / medium / hard). A stronger Bot is the same Brain given more budget,
-not different logic; there is no "weak bot" code path.
+<a id="difficulty"></a>**Difficulty** — a named preset carrying TWO knobs
+(`convex/gre/difficulty.ts`): a [search budget](#search-budget) and the
+[deck knowledge](#deck-knowledge) the search may hold about the opponent.
+Four presets today — `easy`, `medium` (the default, 400 iterations / 1500 ms),
+`hard` (1200 / 3000 ms), `expert` (1320 / 3300 ms). Only `expert` knows the
+opponent's decklist (`DIFFICULTY_KNOWS_OPPONENT`, issue #2790); every other
+preset searches against an [opponent it cannot see](#deck-knowledge). A
+stronger Bot is the same Brain given more budget and more knowledge, not
+different logic; there is no "weak bot" code path. Issue #8692 (open) makes
+`expert` the default everywhere and removes `easy`.
 
 <a id="time-management"></a>**Time management / early stopping** — spending
 less of the [budget](#search-budget) when the decision is already settled and
 all of it when candidates are close. The settled case is detected in iteration
 counts (one move's visits cannot be overtaken by any other with what remains),
-so it stays deterministic; wall-clock is only the hard ceiling. Not yet built
-in this repo — see the roadmap.
+so it stays deterministic; wall-clock is only the hard ceiling. Built (issue
+#2685): `rootDecisionSettled` in `convex/gre/search.ts`, reported in the
+[DecisionTrace](#decisiontrace) as `stoppedBy: "settled"`.
 
 ## The search
 
@@ -75,6 +88,30 @@ and searches that world; over many iterations the guesses average out. Code:
 hidden information (a shuffled library, a plausible opponent hand) so the
 search can reason about a fully-known position. Re-drawn every iteration.
 Code: `convex/gre/determinize.ts`.
+
+<a id="deck-knowledge"></a><a id="opponent-model"></a>**Deck knowledge /
+opponent model** — what the search is allowed to know about a seat's hidden
+cards, named one seat at a time (`DeckKnowledgeBySeat`, issue #2789). The
+Bot's own library is always rebuilt from its decklist (content public to its
+owner, order hidden). For the OPPONENT there are two worlds:
+
+- **Informed** — the seat's decklist is supplied, so every determinization
+  SAMPLES the opponent's hand and library from the cards that list still
+  admits, and the simulated opponent casts real spells. Live play supplies
+  it only at the `expert` [difficulty](#difficulty) (`useVsAiDriver` builds
+  the `informed` list from the human's seat).
+- **Blind** — no entry for the seat: its hidden cards stay anonymous
+  placeholders that resolve to no card definition, so in every rollout the
+  simulated opponent casts NOTHING from now to the end of the game. A
+  systematic optimism no budget corrects; it is what `easy`, `medium` and
+  `hard` search against today. The ladder's `SearchVariant.opponentModel:
+"blind"` forces this world on purpose (issue #2791), to measure what the
+  knowledge is worth by removing it.
+
+PRD issue #2787 (opponent model) is CLOSED: it delivered the informed seat
+above (issues #2789, #2791). Nothing replaces the placeholders for the blind
+presets; the owner's direction (2026-11-07, issue #8692) is to retire blind
+presets instead — knowledge at every level, budget the only difference.
 
 <a id="iteration"></a>**Iteration** — one pass of the search: pick a path down
 the tree ([selection](#selection)), add one new node ([expansion](#expansion)),
@@ -135,26 +172,45 @@ opponent's edges.
 _average reward so far + c × √(ln(parent visits) / child visits)_. The second
 term is the "curiosity bonus": it shrinks as a child gets visited, so untried
 children get a turn. The constant `c` (`UCB_C = 1.4`) sets how curious the
-search is. This repo's main action space uses UCB1.
+search is. In live play this repo's main action space uses UCB1 plus the
+decaying structural priors below; the PUCT branch exists but is switched off
+(see [PUCT](#puct)).
 
 <a id="prior"></a>**Prior** — a guess, made before any search, of how
-promising each child is — here a cheap one-ply evaluation (`policyValue`) or a
-hand-written heuristic. A prior biases _which children get visited first_; it
-never removes a child. A move with a low prior is visited late, not never.
-Used today only on [choice nodes](#choice-node); the main action space has
-none yet (the roadmap's "priors on the action space").
+promising each child is. A prior biases _which children get visited first_;
+it never removes a child. A move with a low prior is visited late, not never.
+Three kinds exist in the code, and only two are on in live play:
+
+- **Structural priors** (ON): `reactivePrior` adds a bonus that decays as
+  `c / (1 + visits)` to the reactive lines — hold priority with an instant in
+  hand, the attack that baits a block, the response in its window (ADR 0021,
+  issue #223); [choice nodes](#choice-node) carry an ordering prior per
+  candidate (PRD #1423). Both are bias on top of UCB1, not a change of rule.
+- **Action priors from the [policy value](#policy-value)** (BUILT, OFF):
+  `computeActionPriors` normalises each child's one-ply score inside its node
+  (min–max, floor 0.05 on the worst move, summing to 1) and feeds it to a
+  PUCT selection with [FPU](#fpu) (issue #2684, PR #2867). It runs only under
+  `LADDER_VARIANTS["action-priors"]`; `resolveActionPriors` returns `null`
+  for live play. The sweep that landed it found `c = 0.15` the largest value
+  keeping the `must` tier green (at 0.2 the Bot chump-blocks non-lethal
+  damage) and its ladder verdict was INCONCLUSIVE; it has not been re-tried
+  under [held-out agreement](#held-out-agreement).
 
 <a id="puct"></a>**PUCT** — UCB1 with [priors](#prior) folded into the
 curiosity bonus: children with a higher prior get their turn sooner. The
 selection rule AlphaZero-family engines use; at small budgets it is the
-published highest-confidence lever for strength (research `#1894`).
+published highest-confidence lever for strength (research `#1894`). Built in
+`convex/gre/search.ts` (`puctBonus`, `puctDescend`), gated by
+`SearchVariant.actionPriors`, OFF in live play — see [Prior](#prior).
 
 <a id="fpu"></a>**FPU (First-Play Urgency)** — what value to assume for a child
 that has never been visited. Plain UCB1 treats "never tried" as infinitely
 urgent, so every child must be tried once before any gets a second visit —
 ruinous with 80 children and 400 iterations. FPU instead gives an untried
 child a provisional value (typically slightly below its parent's), so the
-search can revisit a good child before it has touched every bad one.
+search can revisit a good child before it has touched every bad one. Built
+beside PUCT (`config.fpu`, parent mean minus a reduction), same gate, same
+OFF-in-live status.
 
 <a id="beam"></a>**Beam / beam search** — keeping only the K best-looking
 candidates at each level and discarding the rest outright. Cheap, but it
@@ -197,8 +253,12 @@ can see; the Bot either freezes or takes an arbitrary default.
 <a id="evaluation"></a>**Evaluation (eval)** — the number that says how good a
 position is for a player: a weighted sum of life, untapped mana, permanents,
 [card value](#card-value) in hand, creature quality, the [danger
-clock](#danger-clock), plus combat terms. Hand-tuned weights, "Forge scale"
-(a vanilla 2/2 ≈ 170 points). Code: `convex/gre/evaluate.ts` (ADR 0018).
+clock](#danger-clock), plus combat terms. "Forge scale" (a vanilla 2/2 ≈ 170
+points). The weights are one data object (`EvalWeights`, issue #2683) FITTED
+from player [Verdicts](#player-verdict) by the Weight Fit (ADR 0124; the
+[fitted evaluation](#fitted-evaluation) entry), no longer hand-tuned. Code:
+`convex/gre/evaluate.ts` (ADR 0018), `convex/gre/ai/evalWeights.ts`,
+`convex/gre/ai/fittedEvalWeights.ts`.
 
 <a id="margin"></a>**Margin** — the Bot's evaluation minus the opponent's: the
 signed number the search actually compares.
@@ -212,27 +272,40 @@ or lost outright, so a win dominates any material count. Code:
 <a id="indifference-band"></a>**Indifference band** — the range of margin
 inside which two root candidates count as tied (`OUTCOME_EPS` on the reward
 scale). Measured at ~100 margin points (≈ 12.5 life, ≈ 0.6 of a vanilla 2/2):
-99.5% of real decisions fall inside it, which is why most picks are made by a
-[tie-break](#tie-break) rather than by the search (`#1893`). The roadmap's
-reward [calibration](#calibration) attacks this directly.
+99.5% of real decisions fell inside it when measured (issue #1893,
+2026-07-29, `docs/research/decision-telemetry.md`), which is why most picks
+were made by a [tie-break](#tie-break) rather than by the search. Reward
+[calibration](#calibration) was tried against it and rejected; the current
+answer is the [fitted evaluation](#fitted-evaluation) plus the
+[decision telemetry](#decision-telemetry) re-measured on the current tip.
 
 <a id="tie-break"></a>**Tie-break (root tie-break)** — a hand-written rule
 that picks among root candidates the search considers tied: prefer more
 material, don't attack for no damage, hold the instant, play the free land…
-Ten exist today (`selectRootMove`, `convex/gre/search.ts`). Each is a correct
-local patch; together they are a hand-written policy, which is the pathology
-the roadmap exists to retire.
+`ROOT_DECISION_MECHANISMS` (`convex/gre/ai/decisionTelemetry.ts`) lists 15
+mechanisms: 2 structural (`mean-reward`, `material-tiebreak`) and 13 named
+rules, FROZEN behind `ROOT_RULE_ALLOWLIST` (ADR 0124 §5, issue #3399). Each is
+a correct local patch; together they are a hand-written policy. A blunder no
+longer becomes a fourteenth rule: it becomes a [Verdict](#player-verdict),
+the weights are re-fitted, and what the fit cannot satisfy is reported as a
+missing evaluation term.
 
 <a id="calibration"></a>**Calibration (margin → win probability)** — fitting,
 on real self-play outcomes, how often a given margin actually ends in a win,
 and using that curve as the [reward](#reward) instead of a hand-picked
-constant (`MATERIAL_FULL = 500`). Stockfish's WDL model is the pattern. Issue
-`#1929`.
+constant (`MATERIAL_FULL = 500`). Stockfish's WDL model is the pattern. Tried
+(issue #1929) and REJECTED on its own evidence
+(`docs/research/reward-calibration.md`, ADR 0138): kept here so the idea is
+not re-proposed as new.
 
-<a id="fitted-evaluation"></a>**Fitted evaluation** — learning the
-[evaluation](#evaluation)'s weights from outcomes (a logistic/linear fit over
-a fixed feature basis) instead of picking them by hand. Linear, tiny, runs in
-the browser — a neural network is out of scope (ADR 0074 budget).
+<a id="fitted-evaluation"></a>**Fitted evaluation** — the
+[evaluation](#evaluation)'s weights learned from player
+[Verdicts](#player-verdict) (each Verdict yields Eval Pairs; the Weight Fit
+moves the weights as little as possible to satisfy as many pairs as it can,
+deterministically, and reports the pairs it cannot — ADR 0124, ADR 0128;
+`bun run verdicts:promote`, `bun run bot:refit`). Linear, tiny, runs in the
+browser. A network over the raw board stays out of scope (ADR 0143); learned
+interactions over the term vector open only on ADR 0138's trigger.
 
 <a id="card-value"></a>**Card value** — one card's worth in evaluation units:
 _latent_ while in hand/library (potential), _realized_ once on the
@@ -324,6 +397,13 @@ is what the search adds or costs. Always printed with `n` and per decision
 class; under n = 100 it is indicative, never a claim. The unseen side is
 immutable: a held-out Verdict never migrates to the fit side, and one the
 owner admits to `must` anyway leaves it for good and is counted as **burned**.
+Where it stands: the Verdict Lock holds 101 Verdicts (last promotion
+2026-10-03), held-out n = 24; the last run (2026-10-11) printed pick agreement
+14/24 = 58.3% (`pass` 6/7, `land-drop` 5/9, `cast` 2/6), stable across eleven
+runs within 13–15. The automatic post-verdict health audit that produced those
+runs has not fired since, and every record it left reads `failed` because the
+vitest runner asserts nothing — the number is in the log, not in
+`health:status`. Run by hand: `bun run verdicts:pick-agreement` (≈ 7 minutes).
 
 <a id="beyond-budget"></a>**Beyond budget** — a test position the Bot solves
 only with more search than a real game grants, recorded with _why_: too many
@@ -443,8 +523,10 @@ breakdown. Shown in the Debug panel; never affects the move.
 ## Naming the failure
 
 <a id="blunder"></a>**Blunder** — a move outside the acceptable set in a
-position where the gap is unambiguous and large. The class the blade suite
-measures; "slightly worse on average" is not a blunder, it is a ladder matter.
+position where the gap is unambiguous and large. The class the `must` tier of
+[test positions](#test-position) measures; "slightly worse on average" is not
+a blunder — it shows up, if anywhere, as a lower
+[held-out agreement](#held-out-agreement).
 
 <a id="tie"></a>**Tie (rollout noise)** — two candidates whose rewards fall
 inside the [indifference band](#indifference-band), so the pick depends on

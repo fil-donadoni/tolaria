@@ -4,6 +4,14 @@
 
 accepted (2026-09-10, "Grill sul game bot" session; map #1892, issue #3393)
 
+Amended by ADR 0138 (2026-09-18): Decision §6 below is superseded — the
+Ladder is no longer the strength metric for anything; strength is held-out
+agreement, and no change owes a ladder run. The rule counts quoted in §5 and
+in Consequences ("eleven", "11-rule chain") are the counts of 2026-09-10;
+the live list is `ROOT_DECISION_MECHANISMS` in
+`convex/gre/ai/decisionTelemetry.ts` (13 rules + 2 structural at
+2026-11-07). Everything else stands.
+
 ## Context
 
 The play Bot's leaf evaluation (`convex/gre/evaluate.ts`, weights in

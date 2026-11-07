@@ -212,6 +212,10 @@ not invariants.
    reachability)
 9. **UI verify** — `bun run check:ui` iff the diff can reach the DOM
    (`.claude/rules/chrome-debug.md`)
+10. **Docs follow the change** (`docs/agents/docs-follow-the-change.md`): a
+    diff moving a default, knob, count, metric or workflow step updates every
+    doc naming it in the SAME PR; PR line `Docs: <files>` / `Docs: none
+(<why>)`; numbers only in `docs/research/`, dated by sha.
 
 ### Quality gates (mandatory, no exceptions)
 

@@ -26,7 +26,8 @@ artefact over the existing term vector, never a framework and never the GPU.
 These are the repo's own, restated so the tables below can cite them.
 
 - The Brain runs client-side in a Web Worker over the real engine; the server
-  only re-validates (ADR 0021, ADR 0074).
+  only re-validates (ADR 0000 for the client-side ISMCTS decision, ADR 0074
+  for the authority boundary).
 - Budget per decision (`convex/gre/difficulty.ts`): `medium` 400 iterations /
   1500 ms, `hard` 1200 / 3000 ms, `expert` 1320 / 3300 ms.
 - Measured cost is about 0.57 ms per iteration on the development machine
