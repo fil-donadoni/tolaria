@@ -218,6 +218,8 @@ interface Accumulator {
     morph?: ManaCost;
     /** CR 702.176a — the card's impending alternative cost. */
     impending?: AlternativeCost;
+    /** CR 702.185a — the card's warp alternative cost. */
+    warp?: AlternativeCost;
     echo?: MayPayCost;
     cumulativeUpkeep?: MayPayCost;
     /** CR 702.6a — the equip line, checked against the Equipment subtype. */
@@ -1012,6 +1014,17 @@ function lowerLine(
             acc.staticAbilities.push(`impending ${ir.count}`);
             return null;
         }
+        case "warp": {
+            if (acc.warp !== undefined)
+                return "a card declares warp twice (CR 702.185a)";
+            acc.warp = {
+                id: "warp",
+                description: ir.description,
+                mana: ir.cost,
+            };
+            acc.staticAbilities.push("warp");
+            return null;
+        }
         case "morph": {
             if (acc.morph !== undefined)
                 return "a card declares morph twice (CR 702.37a)";
@@ -1801,6 +1814,7 @@ export function lowerCard(
     if (acc.miracle !== undefined) definition.miracle = acc.miracle;
     if (acc.morph !== undefined) definition.morph = acc.morph;
     if (acc.impending !== undefined) definition.impending = acc.impending;
+    if (acc.warp !== undefined) definition.warp = acc.warp;
     if (acc.echo !== undefined) definition.echo = acc.echo;
     if (acc.cumulativeUpkeep !== undefined)
         definition.cumulativeUpkeep = acc.cumulativeUpkeep;

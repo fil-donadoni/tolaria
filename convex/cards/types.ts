@@ -3544,6 +3544,7 @@ export type TokenStaticEffectKey =
     | "vigilance-land-creatures-you-control"
     | "cant-block-non-spirit-self"
     | "cant-be-blocked-by-non-spirit-self"
+    | "can-block-only-flying-self"
     | "loyalty-activation-twice"
     | "opponents-cant-cast-during-your-turn";
 
