@@ -19,7 +19,7 @@ import {
     poolArrangementEntryValidator,
     seatSignalStateValidator,
 } from "./limited/eventTypes";
-import { difficultyValidator } from "./limited/botDifficulty";
+import { storedDifficultyValidator } from "./limited/botDifficulty";
 // The persisted Column Layout of a deck row (ADR 0075 §4, issue #1626). Same
 // arrangement, same reason: declared once in the leaf module
 // `convex/deckLayoutStorage.ts` (types + `convex/values` only — the Column
@@ -443,7 +443,7 @@ export default defineSchema({
          *  seat and for "Play vs the Table". The vs-AI driver reads it instead
          *  of browser-local storage; absent (lobby Matches, legacy rows) ⇒ the
          *  driver falls back to the lobby's stored choice. */
-        botDifficulty: v.optional(difficultyValidator),
+        botDifficulty: v.optional(storedDifficultyValidator),
         limitedPairing: v.optional(
             v.object({
                 round: v.number(),
@@ -745,8 +745,8 @@ export default defineSchema({
         // Bot difficulty of every vs-AI Match the event starts (issue #6916),
         // chosen at setup. OPTIONAL for backward compatibility: readers resolve
         // it through `resolveEventBotDifficulty` (`convex/limited/
-        // botDifficulty.ts`), which defaults to "medium".
-        botDifficulty: v.optional(difficultyValidator),
+        // botDifficulty.ts`), which defaults to "expert".
+        botDifficulty: v.optional(storedDifficultyValidator),
         // Pre-rename key of `gamesFormat` (issue #5337). Never written any
         // more; kept so events created earlier keep validating and keep their
         // value — `resolveEventGamesFormat` reads `gamesFormat ?? matchFormat`.

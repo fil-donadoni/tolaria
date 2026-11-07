@@ -5874,7 +5874,7 @@ export type GameState = {
      *  observer — which is true exactly at `expert`
      *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`; the client's `blind`
      *  shape names the bot's OWN seat at every level, so gating on "a decklist
-     *  exists" alone would leak into `easy`/`medium`/`hard`). Every other
+     *  exists" alone would leak into `medium`/`hard`). Every other
      *  difficulty, every server path and every test that stamps nothing reads
      *  `undefined` and behaves exactly as it did before this field existed.
      *

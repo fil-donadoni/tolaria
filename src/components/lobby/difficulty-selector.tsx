@@ -14,7 +14,6 @@ import { cn } from "~/lib/utils";
  *  level that reads the player's decklist; the others say so by omission but
  *  still get a line for consistency. */
 const DESCRIPTIONS: Record<Difficulty, string> = {
-    easy: "Searches only a few moves ahead — genuinely beatable.",
     medium: "A solid, fast opponent that reads clean tactics.",
     hard: "The deepest blind search — reads tactics perfectly, but does not know your decklist.",
     expert: "Knows your decklist and plays around it.",

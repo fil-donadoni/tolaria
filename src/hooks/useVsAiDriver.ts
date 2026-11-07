@@ -317,15 +317,13 @@ export function useVsAiDriver(
         () => seatKnowledge(humanKnowledge, humanDeck),
         [humanKnowledge, humanDeck]
     );
-    // Per-seat deck knowledge (issue #2788, generalised to two seats by
-    // #2790), pre-computed in BOTH shapes so the difficulty gate at the search
+    // Per-seat deck knowledge, pre-computed in BOTH shapes so the difficulty gate at the search
     // site is a choice between two ready values rather than a render-time read
     // of mutable storage:
     //
-    //   `blind`    — the bot's OWN seat only (issue #1509, unrelated to
-    //                difficulty: a bot always knows its own decklist). This is
-    //                byte-for-byte what `easy`/`medium`/`hard` fed the search
-    //                before this issue.
+    //   `blind`    — the bot's OWN seat only (unrelated to difficulty: a bot
+    //                always knows its own decklist). What `medium`/`hard` feed
+    //                the search.
     //   `informed` — plus the human seat, which only `expert` ever receives
     //                (`knowsOpponent`, `convex/gre/difficulty.ts`).
     //

@@ -33,7 +33,11 @@ import { searchWithTrace } from "../search";
 import { findBladeScenario } from "../ai/blade/registry";
 import { bladeDeckKnowledge, buildBladeState } from "../ai/blade/runner";
 import { seatPlayerId } from "../ai/blade/matcher";
-import { DIFFICULTY_KNOWS_OPPONENT, knowsOpponent } from "../difficulty";
+import {
+    DIFFICULTY_KNOWS_OPPONENT,
+    knowsOpponent,
+    type Difficulty,
+} from "../difficulty";
 import { makeRng } from "../rng";
 import { observedOpponentColors } from "../ai/observedColors";
 import { observedColorCoverage } from "../ai/colorCoverage";
@@ -223,7 +227,7 @@ describe("searchWithTrace — the ROOT carries the stamp, so the trace reports t
 describe("the estimate per difficulty — `expert` differs, the rest are byte-identical (issue #3533)", () => {
     /** The position as the SEARCH hands it to `evaluate`: the root, stamped
      *  with whatever `deckColorsForSearch` allows for this difficulty. */
-    function rootFor(difficulty: "easy" | "medium" | "hard" | "expert") {
+    function rootFor(difficulty: Difficulty) {
         const state = boardWithLonePlains();
         const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
         state.deckColorKnowledge = deckColorsForSearch(knowledge, OBSERVER);
@@ -236,7 +240,7 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         expect(blindBaseline).toBe(1);
     });
 
-    it.each(["easy", "medium", "hard"] as const)(
+    it.each(["medium", "hard"] as const)(
         "%s reads byte-identically to the blind baseline",
         (difficulty) => {
             expect(DIFFICULTY_KNOWS_OPPONENT[difficulty]).toBe(false);
@@ -255,7 +259,7 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         expect(coverageOfEstimatedSeat(state)).not.toBe(blindBaseline);
     });
 
-    it.each(["easy", "medium", "hard"] as const)(
+    it.each(["medium", "hard"] as const)(
         "%s leaves the OBSERVER's own seat blind too — the shape that leaks is the bot's own decklist, estimated from the other side",
         (difficulty) => {
             const state = rootFor(difficulty);

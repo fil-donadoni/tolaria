@@ -19,12 +19,11 @@ import type { SearchBudget } from "./search";
  *  PRD #2787 — an ADDITIONAL level above `hard`, never a re-point of it: making
  *  `hard` informed would silently change the opponent a player has calibrated
  *  against and delete "thinks deeply but blind" from the ladder of options. */
-export type Difficulty = "easy" | "medium" | "hard" | "expert";
+export type Difficulty = "medium" | "hard" | "expert";
 
 /** Ordered weakest → strongest, for rendering a selector and for tests that
  *  assert monotonic strength. */
 export const DIFFICULTIES: readonly Difficulty[] = [
-    "easy",
     "medium",
     "hard",
     "expert",
@@ -33,27 +32,17 @@ export const DIFFICULTIES: readonly Difficulty[] = [
 /** Search budget per difficulty. Strictly increasing search effort — and
  *  nothing else — separates the presets. `medium` matches the historical
  *  `DEFAULT_BUDGET` (`{ iterations: 400, timeMs: 1500 }`, ADR 0015's ~1.5s
- *  ceiling for a full-round rollout), so the default-difficulty bot is
- *  exactly as strong as before this slice. Issue #2682 is what fixed this:
- *  before it, `medium.timeMs` was 300 — a stale value nobody had re-derived
- *  against the ADR 0015 rollout, and iterations never actually completed
- *  against the wall clock in a real game (only the untimed blade suite ran
- *  the full 400).
+ *  ceiling for a full-round rollout), so its iterations complete against
+ *  the wall clock in a real game.
  *
- *  `hard.timeMs` keeps its PRE-#2682 ratio to `medium.timeMs` — 600 / 300 =
- *  2× — rather than being bumped by the same +1200ms delta medium got, so
- *  `hard` stays proportionally the deepest search of the three:
- *  `1500 * 2 = 3000`. `easy.timeMs` is untouched (#2682 only re-scales
- *  `medium`/`hard`; `easy`'s 120ms was never claimed to match anything).
- *  Monotonicity (120 < 1500 < 3000) is asserted in `difficulty.bot.test.ts`.
+ *  `hard.timeMs` is twice `medium.timeMs`, so `hard` stays proportionally the
+ *  deepest blind search: `1500 * 2 = 3000`. Monotonicity (1500 < 3000 < 3300) is asserted in
+ *  `difficulty.bot.test.ts`.
  *
- *  `easy` is deliberately SHALLOW: a handful of iterations explores so little of
- *  the tree that the bot misses lines a deeper search finds (it even misreads
- *  some forced tactics), making it genuinely beatable. `medium` and `hard` both
- *  read clean tactics perfectly; `hard`'s extra budget tells in deeper midgame
- *  positions. The strength gradient is verified in `difficulty.test.ts`.
+ *  `medium` and `hard` both read clean tactics perfectly; `hard`'s extra budget
+ *  tells in deeper midgame positions.
  *
- *  EARLY STOP (issue #2685): no preset needs a `minIterations` field — the
+ *  EARLY STOP: no preset needs a `minIterations` field — the
  *  settle rule defaults to active (`minIterations` unset ⇒ 0) and stops a
  *  search early only once the root pick is provably settled. That is what
  *  makes an obvious decision cost ~0s while a contested one still runs to the
@@ -82,12 +71,11 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  (3000 → 3300) rather than trusting the null result exactly, since a real
  *  browser's per-iteration cost can differ from this dev-machine benchmark;
  *  `iterations` gets the same +10% (1200 → 1320) so the preset stays the
- *  strictly deepest of the four when time is not the binding constraint,
- *  preserving the monotonic-budget pattern the other three presets already
+ *  strictly deepest of them all when time is not the binding constraint,
+ *  preserving the monotonic-budget pattern the other presets already
  *  assert. Both stay well under `BRAIN_CONSULT_TIMEOUT_MS` (5000ms,
  *  `src/lib/ai/brain-client.ts`). */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
-    easy: { iterations: 3, timeMs: 120 },
     medium: { iterations: 400, timeMs: 1500 },
     hard: { iterations: 1200, timeMs: 3000 },
     expert: { iterations: 1320, timeMs: 3300 },
@@ -97,18 +85,17 @@ export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
  *  knowledge (issue #2790, PRD #2787) — the second axis the module's
  *  criterion now names alongside the budget. Absence from
  *  `DeckKnowledgeBySeat` is the engine's own fail-closed discriminator
- *  (`convex/gre/deckKnowledge.ts`), so `easy`/`medium`/`hard` stay on the
+ *  (`convex/gre/deckKnowledge.ts`), so `medium`/`hard` stay on the
  *  blind path unchanged: this record is consulted ONLY by the client driver
  *  that assembles the knowledge map, never by the search itself. */
 export const DIFFICULTY_KNOWS_OPPONENT: Record<Difficulty, boolean> = {
-    easy: false,
     medium: false,
     hard: false,
     expert: true,
 };
 
 /** Sensible default when the player has not chosen yet. */
-export const DEFAULT_DIFFICULTY: Difficulty = "medium";
+export const DEFAULT_DIFFICULTY: Difficulty = "expert";
 
 /** Map a difficulty to its search budget, falling back to the default preset
  *  for any unrecognised value (e.g. a stale persisted string). */

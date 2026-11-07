@@ -440,7 +440,7 @@ export const limitedEventViewValidator = v.object({
     // resolves the default, so the client always receives a concrete Bo1/Bo3.
     gamesFormat: gamesFormatValidator,
     // Bot difficulty of the event's vs-AI Matches (issue #6916) — DEFINITE on
-    // the wire (a legacy row resolves to "medium" in `projectLimitedEvent`).
+    // the wire (a legacy row resolves to "expert" in `projectLimitedEvent`).
     botDifficulty: difficultyValidator,
     roundDeadlineMinutes: v.optional(v.number()),
     currentRound: v.optional(v.number()),
@@ -1777,7 +1777,7 @@ export const createLimitedEvent = mutation({
         // that doesn't send it still creates a real-Limited-shaped event.
         gamesFormat: v.optional(gamesFormatValidator),
         // Bot difficulty of the event's vs-AI Matches (issue #6916). Omitted
-        // === "medium", the lobby default.
+        // === "expert", the lobby default.
         botDifficulty: v.optional(difficultyValidator),
         // Optional round deadline in MINUTES (PRD #1628 stories 3-4). Omitted
         // === no deadline; a relaxed table is never cut short by a timer.

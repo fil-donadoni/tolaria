@@ -13,6 +13,13 @@ describe("DifficultySelector (issue #114)", () => {
         expect(getAllByRole("radio")).toHaveLength(DIFFICULTIES.length);
     });
 
+    it("offers no Easy preset", () => {
+        const { queryByRole } = render(
+            <DifficultySelector value="expert" onChange={() => {}} />
+        );
+        expect(queryByRole("radio", { name: "Easy" })).toBeNull();
+    });
+
     it("marks the selected difficulty as checked", () => {
         const { getByRole } = render(
             <DifficultySelector value="hard" onChange={() => {}} />
@@ -21,7 +28,7 @@ describe("DifficultySelector (issue #114)", () => {
             getByRole("radio", { name: "Hard" }).getAttribute("aria-checked")
         ).toBe("true");
         expect(
-            getByRole("radio", { name: "Easy" }).getAttribute("aria-checked")
+            getByRole("radio", { name: "Medium" }).getAttribute("aria-checked")
         ).toBe("false");
     });
 
@@ -30,8 +37,8 @@ describe("DifficultySelector (issue #114)", () => {
         const { getByRole } = render(
             <DifficultySelector value="medium" onChange={onChange} />
         );
-        fireEvent.click(getByRole("radio", { name: "Easy" }));
-        expect(onChange).toHaveBeenCalledWith("easy");
+        fireEvent.click(getByRole("radio", { name: "Expert" }));
+        expect(onChange).toHaveBeenCalledWith("expert");
     });
 
     it("does not fire while disabled", () => {

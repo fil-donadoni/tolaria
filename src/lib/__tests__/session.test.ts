@@ -26,12 +26,12 @@ describe("difficulty persistence (issue #114)", () => {
     it("round-trips a stored difficulty", () => {
         storeDifficulty("hard");
         expect(getStoredDifficulty()).toBe("hard");
-        storeDifficulty("easy");
-        expect(getStoredDifficulty()).toBe("easy");
+        storeDifficulty("medium");
+        expect(getStoredDifficulty()).toBe("medium");
     });
 
-    // issue #2790 — `expert` is a fourth valid value; a hand-maintained
-    // `"easy" | "medium" | "hard"` whitelist here would silently fall back to
+    // issue #2790 — `expert` is a valid value; a hand-maintained
+    // `"medium" | "hard"` whitelist here would silently fall back to
     // the default for it, exactly as if it were a stale string.
     it("round-trips the expert difficulty", () => {
         storeDifficulty("expert");
@@ -41,6 +41,11 @@ describe("difficulty persistence (issue #114)", () => {
     it("falls back to the default for a stale/invalid stored value", () => {
         localStorage.setItem("tolaria:aiDifficulty", "nightmare");
         expect(getStoredDifficulty()).toBe(DEFAULT_DIFFICULTY);
+    });
+
+    it("reads a browser that still stores the retired easy preset as expert", () => {
+        localStorage.setItem("tolaria:aiDifficulty", "easy");
+        expect(getStoredDifficulty()).toBe("expert");
     });
 });
 

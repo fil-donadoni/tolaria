@@ -272,7 +272,7 @@ export function deckColorEvidence(
  *  THE OBSERVER IS EXCLUDED, and that exclusion is the gate, not a tidiness.
  *  The client hands the Bot its OWN decklist at every difficulty (the `blind`
  *  shape in `useVsAiDriver`), so "a decklist exists for this seat" is true on
- *  `easy` as readily as on `expert`. What is true only at `expert`
+ *  `medium` as readily as on `expert`. What is true only at `expert`
  *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`) is that a decklist exists
  *  for a seat the searcher is not sitting in — and `evaluate` runs from BOTH
  *  seats' viewpoints inside one search (`materialMargin(state, moverId)`,
