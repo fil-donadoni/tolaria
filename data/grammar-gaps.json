@@ -46,6 +46,16 @@
         },
         {
             "kind": "bot",
+            "key": "harness-error › sweep worker: no answer within the batch timeout",
+            "issue": 8719
+        },
+        {
+            "kind": "bot",
+            "key": "harness-error › sweep worker: no worker left",
+            "issue": 8718
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Artifact [trample] › if+mayPay+sacrifice",
             "issue": 4825
         },
