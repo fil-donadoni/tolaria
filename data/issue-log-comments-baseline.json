@@ -270,7 +270,6 @@
     "scripts/pr-fixup.ts#5ef8447c7d",
     "scripts/purge-identity-tests.ts#2498981475",
     "scripts/ui-gate/attempt-console.ts#4edf4833a1",
-    "scripts/ui-gate/index.ts#f0fe5c1c83",
     "scripts/ui-gate/parallel.ts#0b2910e7d8",
     "scripts/ui-gate/surfaces.ts#eecfd8e955",
     "scripts/ui-gate/verify-receipt.ts#25569058cc",

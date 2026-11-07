@@ -67,7 +67,7 @@ export const SLOT_SETTLE_REREAD_MS = 450;
  *
  * WHAT RE-READS IT. The `ResizeObserver` keeps the floor true when the slot
  * grows later (a panel opening, an orientation change); `watchDevicePixelRatio`
- * when the RATIO moves with no resize (issue #6940); and a window `resize`
+ * when the RATIO moves with no resize (its own header says why); and a window `resize`
  * listener, read at once and again once the layout has settled. It
  * re-renders only when the derived floor (or 1x box) CHANGES.
  */
@@ -122,7 +122,7 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
         // resize signal. The ratio moves with no layout change at all — the
         // window dragged onto a 2x display, a browser zoom — and a floor
         // computed for the old ratio under-declares until something else
-        // happens to re-measure (issue #6940). `watchDevicePixelRatio` is the
+        // happens to re-measure (the ratio watcher's own header). `watchDevicePixelRatio` is the
         // media-query trick that turns the ratio into an event; armed BEFORE
         // the first read so no change can fall between the two.
         const unwatchDpr = watchDevicePixelRatio(read);
