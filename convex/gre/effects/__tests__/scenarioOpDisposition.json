@@ -155,6 +155,10 @@
         "code": "op-own-tests",
         "reason": "Op \"gainControl\" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests"
     },
+    "gainControlOfSpell": {
+        "code": "op-own-tests",
+        "reason": "Op \"gainControlOfSpell\" targets a spell on the stack — covered by the Op's interpreter tests"
+    },
     "gainLife": "runs",
     "grantAbility": "runs",
     "grantCastFromExile": {

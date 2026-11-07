@@ -177,6 +177,26 @@ describe("TargetSelectionBanner source-name resolution", () => {
         expect(screen.getByText("Lightning Bolt")).toBeTruthy();
     });
 
+    it.each([
+        ["retarget", "Keep targets"],
+        ["copy-retarget", "Keep targets"],
+        ["cast", "Cancel"],
+    ] as const)(
+        "declining a %s selection reads %s (CR 115.7)",
+        (kind, label) => {
+            render(
+                <TargetSelectionBanner
+                    pendingTarget={pending({ kind })}
+                    me={player()}
+                    stack={[]}
+                    gameId={"g1" as never}
+                    playerId="me"
+                />
+            );
+            expect(screen.getByRole("button", { name: label })).toBeTruthy();
+        }
+    );
+
     it("emblem-sourced trigger (kind: 'trigger') → names the emblem, not 'spell'", () => {
         const stack = [
             {

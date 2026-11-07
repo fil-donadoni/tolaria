@@ -1008,6 +1008,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aethersnatch",
+        "scryfallId": "0ce562a9-ca35-4f31-8618-bc26d3d40169",
+        "oracleId": "45892ec2-8996-444f-a61c-5151926baa0b",
+        "firstSet": "c15",
+        "firstPrintId": "0ce562a9-ca35-4f31-8618-bc26d3d40169",
+        "firstPrintSet": "c15",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Affa Guard Hound",
         "scryfallId": "85623f54-1c18-4b1e-a8da-df66de3832a6",
         "oracleId": "3819daab-fe35-4f99-9282-47bd05c7fcd6",
@@ -15023,6 +15033,16 @@
         "firstPrintId": "c4144e98-957e-43ac-b107-8ccf450748df",
         "firstPrintSet": "grn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Commandeer",
+        "scryfallId": "7e6e6204-c622-4efe-ac4f-8195528cec9c",
+        "oracleId": "ad7d854b-d303-40eb-acd6-03a8023e05e7",
+        "firstSet": "csp",
+        "firstPrintId": "7e6e6204-c622-4efe-ac4f-8195528cec9c",
+        "firstPrintSet": "csp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -74370,6 +74390,16 @@
         "source": "compiled"
     },
     {
+        "name": "Soul Spike",
+        "scryfallId": "4b14b97d-122b-453a-9e5f-129404f96440",
+        "oracleId": "be979bfc-998d-43d5-a7a4-44548d9a14c4",
+        "firstSet": "csp",
+        "firstPrintId": "4b14b97d-122b-453a-9e5f-129404f96440",
+        "firstPrintSet": "csp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Soul Warden",
         "scryfallId": "d96266b3-a7cb-40ce-a328-ac13719fe5f0",
         "oracleId": "f3fad295-1af2-4ecc-8546-b121ad6be27b",
@@ -78722,6 +78752,16 @@
         "firstSet": "pip",
         "firstPrintId": "f84a8f54-9ede-40ee-a783-e58a7e4f2e94",
         "firstPrintSet": "pip",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sunscour",
+        "scryfallId": "44c726db-a30a-4e76-9fbf-ec6d5cd7a1ba",
+        "oracleId": "155f14dd-1516-4b9f-ae39-0a6172c69a66",
+        "firstSet": "csp",
+        "firstPrintId": "44c726db-a30a-4e76-9fbf-ec6d5cd7a1ba",
+        "firstPrintSet": "csp",
         "rarity": "rare",
         "source": "compiled"
     },

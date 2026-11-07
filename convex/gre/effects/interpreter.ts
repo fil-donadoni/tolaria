@@ -7589,10 +7589,23 @@ export const OP_EXECUTORS: {
     // CR 115.7a — change the target of the announced spell: raise the
     // `retarget` selection for the effect's controller over the spell's OWN
     // requirement, so only a target legal for it is offered. A silent no-op
-    // when the spell already left the stack (CR 608.2b).
+    // when the spell already left the stack (CR 608.2b). `chooseNew` raises the
+    // CR 115.7d offer over every target instead.
     retarget(ctx, op) {
         const target = resolveTargetRef(ctx, op.target);
-        if (target && target.type === "spell") ctx.requestRetarget(target.id);
+        if (!target || target.type !== "spell") return;
+        if (op.chooseNew) ctx.requestChooseNewTargets(target.id);
+        else ctx.requestRetarget(target.id);
+    },
+    // CR 112.2 — the announced spell changes controller where it is, on the
+    // stack. Skipped when it already left (CR 608.2b) or the player cannot be
+    // resolved.
+    gainControlOfSpell(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (!target || target.type !== "spell") return;
+        const controllerId = resolvePlayerRef(ctx, op.controller);
+        if (controllerId === undefined) return;
+        ctx.gainControlOfSpell(target.id, controllerId);
     },
     // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
     // predefined predicate and runs the matching branch through `runOpList`,

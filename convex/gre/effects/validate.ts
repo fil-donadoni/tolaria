@@ -6909,12 +6909,21 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
         },
     },
-    // CR 115.7a — change the target of the target spell. No fields beyond the
-    // announced slot: the new target is picked at resolution against the
-    // spell's own requirement.
+    // CR 115.7a — change the target of the target spell. The new target is
+    // picked at resolution against the spell's own requirement; `chooseNew`
+    // reads "you may choose new targets" instead (CR 115.7d), and only `true`
+    // is a form.
     retarget: {
         required: {
             target: isTargetRef,
+        },
+        optional: { chooseNew: (v: unknown) => v === true },
+    },
+    // CR 112.2 — the player who gains control of the announced spell.
+    gainControlOfSpell: {
+        required: {
+            target: isTargetRef,
+            controller: isPlayerRef,
         },
     },
     // CR 117.3a / 118.4 (issue #806, #680) — optional "you may pay {cost}",

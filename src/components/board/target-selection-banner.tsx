@@ -307,7 +307,11 @@ export default function TargetSelectionBanner({
                                 }
                             }}
                         >
-                            {isCopyRetarget ? "Keep targets" : "Cancel"}
+                            {/* CR 115.7 — declining an in-place retarget
+                                leaves the targets unchanged too. */}
+                            {isCopyRetarget || pendingTarget.kind === "retarget"
+                                ? "Keep targets"
+                                : "Cancel"}
                         </Button>
                     </div>
                     {divide.active && <DivideTargetList />}

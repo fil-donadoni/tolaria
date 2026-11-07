@@ -2013,7 +2013,8 @@ const STACK_SPELL_MV_AT_MOST =
  * be dropped silently. `null` = not a narrowed stack phrase.
  *
  * NOT part of {@link targetFilterRule}: the phrases are read by the counter
- * verb alone (`effectClause.ts`). A shared reading would hand every stack verb
+ * verb (`effectClause.ts`) and, for "target noncreature spell" alone, the
+ * `gainControlOfSpell` frame (`verbFrames.ts`). A shared reading would hand every stack verb
  * ("target artifact or enchantment spell becomes the color of your choice",
  * "copy target activated or triggered ability") a narrowing it has no
  * fixture for, and the lace templates' refusals would silently turn into
