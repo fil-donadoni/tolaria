@@ -255,6 +255,22 @@ export function tapPaymentSpokenForIds(
     return [...tapPaymentPickIds(sel), ...outstanding];
 }
 
+/** CR 601.2g / 111.10a — what an automatic mana plan must never SACRIFICE while
+ *  this selection is open: every pick, whatever its action, plus every
+ *  candidate of the requirement still awaiting picks. Sacrificing one for mana
+ *  would either spend a permanent already named for the cost or leave the cost
+ *  short of candidates. */
+export function costPickSpokenForIds(
+    state: GameState,
+    sel: SacrificeSelection
+): string[] {
+    const req = nextUnmetRequirement(sel);
+    const outstanding = req
+        ? requirementCandidates(state, sel.playerId, req).map((c) => c.id)
+        : [];
+    return [...sel.picked, ...outstanding];
+}
+
 /** The first requirement whose picked-count is below its `count`. Picks are
  *  allocated to requirements greedily in order. */
 export function nextUnmetRequirement(

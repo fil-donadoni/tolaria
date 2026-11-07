@@ -102,6 +102,7 @@ import {
     isSacrificeCandidateLegal,
     applySacrificeSelection,
     tapPaymentSpokenForIds,
+    costPickSpokenForIds,
     sacrificeSourceSnapshot,
     sacrificeCandidates,
     nextUnmetRequirement,
@@ -113,6 +114,7 @@ import {
     solveAutoTap,
     solveSmartAutoTap,
     solveAutoTapPartial,
+    withoutSacrificeOptions,
     manaFromPlan,
     floatingAfterPlan,
     type AutoTapPlan,
@@ -9544,13 +9546,30 @@ export const autoTapForPayment = mutation({
                         state.pendingCast.sacrificeSelection
                     )
                   : undefined;
+        // CR 111.10a / 601.2g — Auto-Tap may sacrifice a Treasure token, never
+        // one an open cost pick has named or may still name.
+        const costPickSelection =
+            state.pendingActivation?.playerId === args.playerId
+                ? state.pendingActivation.sacrificeSelection
+                : state.pendingCast?.playerId === args.playerId
+                  ? state.pendingCast.sacrificeSelection
+                  : undefined;
         const sources = buildAutoTapSources(
             spokenFor
                 ? player.battlefield.filter((c) => !spokenFor.includes(c.id))
                 : player.battlefield,
             manaGateBattlefields(state),
             planContext,
-            state
+            state,
+            {
+                spendTreasures: {
+                    except: new Set(
+                        costPickSelection
+                            ? costPickSpokenForIds(state, costPickSelection)
+                            : []
+                    ),
+                },
+            }
         );
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
         // cover the cost, prefer the one that best preserves the paying
@@ -9628,11 +9647,12 @@ export const autoTapForPayment = mutation({
         const plan = castCantSpendMana
             ? []
             : (fullPlan ??
+              // CR 111.10a — a partial plan never sacrifices a Treasure.
               solveAutoTapPartial(
                   player.manaPool,
                   pending.manaCost,
                   substitutions,
-                  sources
+                  withoutSacrificeOptions(sources)
               ));
 
         for (const step of plan) {
@@ -12561,18 +12581,26 @@ export const autoTapForAttackTax = mutation({
         const enlisted = new Set(
             (state.combat?.enlists ?? []).map((pair) => pair.enlistedId)
         );
+        // CR 111.10a — Treasure tokens are spent here on the same terms as
+        // `autoTapForPayment`: only toward a plan that covers the whole tax.
         const sources = buildAutoTapSources(
             player.battlefield.filter((c) => !enlisted.has(c.id)),
             manaGateBattlefields(state),
             undefined,
-            state
+            state,
+            { spendTreasures: {} }
         );
         const cost = normalizeManaCost(pending.cost);
         // Prefer a minimal full plan; fall back to the maximal-useful partial
         // (a manual source like Black Lotus still owed) so we tap what we can.
         const plan =
             solveSmartAutoTap(player.manaPool, cost, subs, sources) ??
-            solveAutoTapPartial(player.manaPool, cost, subs, sources);
+            solveAutoTapPartial(
+                player.manaPool,
+                cost,
+                subs,
+                withoutSacrificeOptions(sources)
+            );
         for (const step of plan) {
             const card = player.battlefield.find((c) => c.id === step.cardId);
             if (!card || card.isTapped) continue;
