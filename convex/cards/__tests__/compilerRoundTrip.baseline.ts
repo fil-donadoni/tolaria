@@ -439,7 +439,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Flash",
     "Flash Counter",
     "Flashfires",
-    "Flickerwisp",
     "Flooded Woodlands",
     "Flow of Maggots",
     "Fog",
