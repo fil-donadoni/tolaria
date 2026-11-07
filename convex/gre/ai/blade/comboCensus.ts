@@ -432,29 +432,53 @@ export type ComboCensusRow = {
 };
 
 export type ComboCensusOptions = {
-    /** Ascending: the first at which every seed wins is the row's budget. */
+    /** Ascending. Walked from the top: see {@link censusEntry}. */
     budgets: readonly number[];
     seeds: readonly number[];
     plyCap: number;
 };
 
-/** The top budget is `difficulty.ts`'s `medium` preset, the default Bot, and the
- *  one below it a quarter of that, so a row's budget says how easily the combo
- *  falls. Two seeds, the first the blade's own default, so a win is not one lucky
- *  rollout. Sixteen Bot decisions are about one round: its whole first turn, with
- *  all the position's mana, and the opponent's turn. That also keeps a plain
- *  attack out of Executable unless one swing kills. */
+/** The top budget is half `difficulty.ts`'s `medium` preset and the one below it
+ *  a quarter of that: at the default Bot's 400 a corpus run outlasts a batch by
+ *  hours, and a short kill is found well below it, so a miss here understates the
+ *  Bot on the safe side of a gate. Two seeds, the first the blade's own default,
+ *  so a win is not one lucky rollout. Twelve Bot decisions cover about its whole
+ *  first turn, with all the position's mana. That also keeps a plain attack out
+ *  of Executable unless one swing kills. */
 export const COMBO_CENSUS_OPTIONS: ComboCensusOptions = {
-    budgets: [100, 400],
+    budgets: [50, 200],
     seeds: [0xb1ade, 0xc0b0],
-    plyCap: 16,
+    plyCap: 12,
 };
 
-/** Read one entry. Executable: every seed wins at some budget. Otherwise
- *  Initiated when any play-out used a piece, else Untouched. A non-terminal
- *  `produces` has nothing a play-out could read until the loop detector emits
- *  a certificate (ADR 0164 § 2), and a lock stays measured because the census is
- *  what surfaces it as Untouched (ADR 0164 § Consequences). */
+/** Every seed wins at this budget; `touched` learns what the play-outs did. A
+ *  loss on a seed once a piece was used ends the budget: nothing left to read. */
+function everySeedWins(
+    entry: ComboCensusEntry,
+    iterations: number,
+    options: ComboCensusOptions,
+    seen: { touched: boolean; halts: number }
+): boolean {
+    let allWon = true;
+    for (const seed of options.seeds) {
+        const out = playOutCombo(entry, iterations, seed, options.plyCap);
+        seen.touched ||= out.touched;
+        if (out.halt) seen.halts++;
+        if (!out.won) {
+            allWon = false;
+            if (seen.touched) break;
+        }
+    }
+    return allWon;
+}
+
+/** Read one entry. Executable: every seed wins at the top budget, and the row
+ *  names the lowest budget reached by walking down while every seed still wins,
+ *  so a miss pays for one rung only. Otherwise Initiated when a play-out used a
+ *  piece, else Untouched. A non-terminal `produces` has nothing a play-out could
+ *  read until the loop detector emits a certificate (ADR 0164 § 2), and a lock
+ *  stays measured because the census is what surfaces it as Untouched (ADR 0164
+ *  § Consequences). */
 export function censusEntry(
     entry: ComboCensusEntry,
     options: ComboCensusOptions = COMBO_CENSUS_OPTIONS
@@ -479,34 +503,20 @@ export function censusEntry(
             unmeasurableBecause: failure,
         };
     }
-    let touched = false;
-    let halts = 0;
-    for (const iterations of options.budgets) {
-        let allWon = true;
-        for (const seed of options.seeds) {
-            const out = playOutCombo(entry, iterations, seed, options.plyCap);
-            touched ||= out.touched;
-            if (out.halt) halts++;
-            if (!out.won) {
-                allWon = false;
-                // Touched is settled: the remaining seeds could change nothing
-                // this budget reads.
-                if (touched) break;
-            }
-        }
-        if (allWon) {
-            return {
-                ...row,
-                reading: "Executable",
-                lowestBudget: iterations,
-                ...(halts > 0 ? { halts } : {}),
-            };
-        }
+    const seen = { touched: false, halts: 0 };
+    let lowestBudget: number | undefined;
+    for (const iterations of [...options.budgets].reverse()) {
+        if (!everySeedWins(entry, iterations, options, seen)) break;
+        lowestBudget = iterations;
+    }
+    const halts = seen.halts > 0 ? { halts: seen.halts } : {};
+    if (lowestBudget !== undefined) {
+        return { ...row, reading: "Executable", lowestBudget, ...halts };
     }
     return {
         ...row,
-        reading: touched ? "Initiated" : "Untouched",
-        ...(halts > 0 ? { halts } : {}),
+        reading: seen.touched ? "Initiated" : "Untouched",
+        ...halts,
     };
 }
 
