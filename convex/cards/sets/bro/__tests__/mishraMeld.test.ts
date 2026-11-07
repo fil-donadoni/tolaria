@@ -5,7 +5,7 @@
 // the melded Mishra, Lost to Phyrexia announces three modes as it enters.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 import { meldResultDefinitionId } from "../../../meld";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import {
@@ -21,8 +21,8 @@ import {
     type GameState,
 } from "../../../../gre/state";
 
-const MISHRA = getCardByName("Mishra, Claimed by Gix").id;
-const ENGINE = getCardByName("Phyrexian Dragon Engine").id;
+const MISHRA = "a469d7ec-42de-45de-9d8f-469bb979de58"; // Mishra, Claimed by Gix
+const ENGINE = "e2b826be-4256-4fd6-ad4d-6c80933ee940"; // Phyrexian Dragon Engine
 
 function attacker(defId: string, id: string): CardInstanceState {
     const card = makeInstance(defId, {
