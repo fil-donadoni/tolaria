@@ -456,9 +456,8 @@ export type Node = {
     children: Map<string, Edge>;
     /** RAW `policyValue` per tree key, memoized for this node (issue #2684).
      *
-     *  Only ever populated when a variant turns `actionPriors` on — the field
-     *  stays `undefined` in production, so the node costs exactly what it did
-     *  before. The cache is what makes the knob affordable: `policyValue`
+     *  Populated whenever `actionPriors` is on, which is live play since issue
+     *  #8700. The cache is what makes the knob affordable: `policyValue`
      *  clones the world and runs a full `evaluate()` per candidate, and a main
      *  phase offers 75–90 of them, so recomputing at every visit of every node
      *  would cost far more than the search it improves. Keyed by tree key, so

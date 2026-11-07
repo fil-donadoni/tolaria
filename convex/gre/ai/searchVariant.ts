@@ -357,7 +357,10 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
      *  `fpu` changed no blade verdict at any `c` in that sweep — those boards
      *  offer 2–6 legal moves, so there is barely anything to widen INTO. It
      *  bites on the 75–90-move main phases this ticket is actually about,
-     *  which is exactly where the ladder measures. */
+     *  which is exactly where the ladder measures.
+     *
+     *  This is the live default since issue #8700, so as a ladder candidate it
+     *  now plays itself: the A/B is `no-action-priors`. */
     "action-priors": {
         name: "action-priors",
         actionPriors: { source: "policyValue", c: 0.15, fpu: 0.15 },

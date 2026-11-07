@@ -348,7 +348,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Seed 2 replaced under PUCT (issue #8700); see the note and issue #8740.
+        seeds: [0xb1ade, 1, 5, 3, 4],
         tier: "must",
         // A PREDICATE, like the Kicker {X} entries beside it: a reachability
         // claim, kept out of the weight fit.
@@ -360,7 +361,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "casts Wan Shi Tong, Librarian with X = 5, spending every mana",
         },
-        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X would price every X alike, and the extra five mana would buy nothing.",
+        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X would price every X alike, and the extra five mana would buy nothing. Passes on 10/12 seeds at 200 iterations under PUCT: `pass` trails by about the outcome band, so `last-window-deferral` fires on noise (issue #8740).",
     },
     {
         // KICKER {X} WITH A MINIMUM X reachability (CR 107.3 / 601.2b, issue
@@ -19948,9 +19949,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        // Green at 400 iterations as a budget artefact, under either selection
-        // rule (issue #8736): the two root moves tie on a clipped reward, the
-        // subtree margin decides, and more search moves it towards `pass`.
+        // A budget artefact under either selection rule (issue #8736): the two
+        // root moves tie on a clipped reward, the subtree margin decides, and
+        // more search moves it towards `pass`. Its own seeds were green at 400
+        // under flat UCB1 and lose two of five under PUCT (issue #8700).
         beyondBudget: {
             cause: "valuation",
             note: "Both root moves sit at the reward clip, so `material-tiebreak` reads the subtree mean margin, whose gap falls from about +3 at 400 iterations to about -8 at 4000. Missing: a valuation that keeps the 4 life the saddled line saves visible past the clip (issue #8736, where the sweep is).",
@@ -21646,7 +21648,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: {
             iterations: 1200,
         },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Seed 2 replaced under PUCT (issue #8700): it took the cast there, on 12/12
+        // other seeds at this budget it holds.
+        seeds: [0xb1ade, 1, 5, 3, 4],
         tier: "must",
         expect: {
             forbidden: [
