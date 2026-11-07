@@ -109,7 +109,7 @@ export const lionSash = defineCard(() => ({
 //   −1 — a 2/2 white Samurai token with vigilance (NEO token print, resolved
 //   off the creator's print, ADR 0140).
 //   −2 — "target tapped creature" (any controller's), then 2 life.
-// compiler-gap: "As long as {self} entered this turn, you may activate her loyalty abilities any time you could cast an instant" (#8501)
+// compiler-gap: "As long as {self} entered this turn, you may activate her loyalty abilities any time you could cast an instant" (#8493)
 export const theWanderingEmperor = defineCard(() => ({
     id: "fab2d8a9-ab4c-4225-a570-22636293c17d",
     name: "The Wandering Emperor",
