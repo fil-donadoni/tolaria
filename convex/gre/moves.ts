@@ -1510,9 +1510,9 @@ function planManaPaymentPass(
          *  ended up storing, so the selection below can take it first. */
         let sourceIsCosted = false;
         const options = new Map<Color, PlanOption>();
-        /** The largest yield of any ONE realisation of this permanent the plan
-         *  can reach — its whole contribution to `capacity`, since only one
-         *  activation per permanent is ever executed (issue #3027). */
+        /** The largest yield of any ONE realisation stored on this permanent —
+         *  its whole contribution to `capacity`, since only one activation per
+         *  permanent is ever executed (issue #3027). */
         let permCapacity = 0;
         if (mayBeNonTap || !sick) {
             const abilities = mayBeNonTap
@@ -1718,20 +1718,16 @@ function planManaPaymentPass(
                     };
                 }
                 let stored = false;
-                let reachesHigherYield = false;
                 for (const c of MANA_COLORS) {
                     if ((opt.mana[c] ?? 0) <= 0) continue;
                     const held = options.get(c);
                     // A higher-yield `{T}` option of a colour already held waits
-                    // for the second pass: a plan the smaller option covers keeps
-                    // it, and the capacity reject below counts it either way.
+                    // for the second pass, whose `capacity` then counts it: a
+                    // plan the smaller option covers keeps the smaller option.
                     const higherYield =
                         held !== undefined &&
                         isHigherYieldTap(realisation, held);
-                    if (higherYield) {
-                        reachesHigherYield = true;
-                        pass.higherYieldOptionSeen = true;
-                    }
+                    if (higherYield) pass.higherYieldOptionSeen = true;
                     // FIRST option wins — except that an admitted COSTED option
                     // replaces the free one it shares a colour with (issue
                     // #3359). Without the exception Arena of Glory's "{T}: Add
@@ -1755,7 +1751,7 @@ function planManaPaymentPass(
                     options.set(c, realisation);
                     stored = true;
                 }
-                if (stored || reachesHigherYield) {
+                if (stored) {
                     if (realisation.via === "costed-tap") sourceIsCosted = true;
                     const y = optionYieldTotal(realisation);
                     if (y > permCapacity) permCapacity = y;
