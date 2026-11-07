@@ -593,7 +593,7 @@ function staticConditionHolds(
     return controlsHolds(condition, source, state, ctx);
 }
 
-function controlsHolds(
+export function controlsHolds(
     condition: CompiledControlsCondition,
     source: PermanentView,
     state: StaticEffectStateView,

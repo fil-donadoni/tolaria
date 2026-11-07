@@ -12,9 +12,13 @@
 
 import { tryGetDefinition } from ".";
 import { ATTACK_RESTRICTION_CTX } from "./attackRestrictions";
+import { controlsHolds } from "./compiledStatics";
+import type { CompiledControlsCondition } from "./compiledTriggers";
+import { hasSupertypeLive } from "./snowReads";
 import type {
     LandEntryStateView,
     PermanentView,
+    StaticEffectContext,
     StaticEffectStateView,
 } from "./types";
 
@@ -55,6 +59,22 @@ export function entersTappedByReplacement(
     return false;
 }
 
+/** The context an entry condition reads its filter through: the pure
+ *  battlefield-scan context, with the live supertype status (CR 205.4c — a
+ *  land that lost or gained "basic" is read as it is now, not as printed).
+ *  Built on first use, never at module load: a module-scope spread reads
+ *  `ATTACK_RESTRICTION_CTX` the moment `gre/state.ts` imports this file, which
+ *  throws under any `vi.mock` of `attackRestrictions` that omits it (the RED
+ *  of PR #8710, issue #8655). */
+let entryConditionCtx: StaticEffectContext | undefined;
+function getEntryConditionCtx(): StaticEffectContext {
+    entryConditionCtx ??= {
+        ...ATTACK_RESTRICTION_CTX,
+        hasSupertype: hasSupertypeLive,
+    };
+    return entryConditionCtx;
+}
+
 /** Single oracle for "does this permanent enter the battlefield tapped?"
  *  (CR 614.1c), folding together every source of tapped-entry so every ETB
  *  site (played land, resolved spell, reanimation, token creation) asks the
@@ -62,6 +82,8 @@ export function entersTappedByReplacement(
  *   1. the card's own unconditional `entersTapped: true` (Nevinyrral's Disk);
  *   2. the card's own conditional `entersTappedUnless` predicate (fast lands,
  *      Arena of Glory, Starting Town) — taps unless the predicate holds;
+ *      and its JSON-pure twin `entersTappedUnlessControls` (CR 614.1d, "unless
+ *      you control a basic land");
  *   3. a battlefield-scanned opponent-forced replacement (Kismet).
  *  `def` is looked up by the caller (from `entering`'s card id) so this stays
  *  usable both where a full `CardDefinition` is already in hand and where only
@@ -74,6 +96,7 @@ export function resolveEntersTapped(
                   view: LandEntryStateView,
                   controllerId: string
               ) => boolean;
+              entersTappedUnlessControls?: CompiledControlsCondition;
           }
         | undefined,
     entering: PermanentView,
@@ -83,6 +106,17 @@ export function resolveEntersTapped(
     if (
         def?.entersTappedUnless &&
         !def.entersTappedUnless(state, entering.controllerId)
+    ) {
+        return true;
+    }
+    if (
+        def?.entersTappedUnlessControls &&
+        !controlsHolds(
+            def.entersTappedUnlessControls,
+            entering,
+            state,
+            getEntryConditionCtx()
+        )
     ) {
         return true;
     }
