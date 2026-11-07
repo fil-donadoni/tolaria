@@ -120,11 +120,11 @@ export const robberOfTheRich = defineCard(() => ({
 // CR 603.2b / 115.5 — "Whenever this creature becomes the target of a spell"
 // is the `BECAME_TARGET` event Ward (CR 702.21a) and Leovold already read,
 // narrowed twice: to THIS permanent (`event.target.id === self.id`, the
-// Sleeping Potion / Ward shape) and to `sourceKind === "spell"` — the Oracle
-// text says "a spell", not "a spell or ability", so an activated or triggered
-// ability that targets the Giant must NOT ping (issue #2360 is exactly why the
-// event carries that discriminator, and why it is required rather than
-// defaulted).
+// Sleeping Potion / Ward shape) and to the two spell `sourceKind`s, a cast spell
+// and a spell on the stack taking a new target — the Oracle text says "a spell",
+// not "a spell or ability", so an activated or triggered ability that targets
+// the Giant must NOT ping (issue #2360 is exactly why the event carries that
+// discriminator, and why it is required rather than defaulted).
 //
 // "That spell's controller" is the event's own `sourceControllerId`, read
 // through the `$event.sourceController` field row this slice censuses
@@ -163,7 +163,8 @@ export const bonecrusherGiant = defineCard(() => ({
             event: "BECAME_TARGET",
             matches: (event, self) =>
                 event.type === "BECAME_TARGET" &&
-                event.sourceKind === "spell" &&
+                (event.sourceKind === "spell" ||
+                    event.sourceKind === "spell-new-target") &&
                 event.target.type === "permanent" &&
                 event.target.id === self.id,
             oracleText:

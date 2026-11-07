@@ -8606,8 +8606,9 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
  *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`).
  *
  *  `sourceKind` (issue #2360) is the caller's own declaration of WHAT is
- *  announcing these targets — a cast spell, an activated ability or a
- *  triggered ability. It is a required parameter precisely so every present
+ *  announcing these targets — a cast spell, an activated ability, a
+ *  triggered ability or a spell already on the stack taking new targets. It is
+ *  a required parameter precisely so every present
  *  and future producer must answer: a trigger scoped to "whenever you CAST A
  *  SPELL that targets…" (Dack Fayden's emblem) reads it and fires only for
  *  `"spell"`, and an unclassified new emitter would not compile rather than
