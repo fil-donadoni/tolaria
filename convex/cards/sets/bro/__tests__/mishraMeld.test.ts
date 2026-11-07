@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName, getDefinition } from "../../../index";
 import { meldResultDefinitionId } from "../../../meld";
+import { validateEffectScript } from "../../../../gre/effects/validate";
 import {
     makeInstance,
     makePlayer,
@@ -126,11 +127,11 @@ describe("Mishra, Claimed by Gix — attack drain and meld (CR 701.42, 508.4)", 
 });
 
 describe("Phyrexian Dragon Engine — enters from your graveyard (CR 603.2)", () => {
-    function enter(fromGraveyard: boolean): GameState {
+    function enter(fromGraveyard: boolean, ownerId = "p1"): GameState {
         const engine = makeInstance(ENGINE, {
             id: "engine",
             controllerId: "p1",
-            ownerId: "p1",
+            ownerId,
         });
         const state = makeState({
             phase: "PRECOMBAT_MAIN",
@@ -159,5 +160,30 @@ describe("Phyrexian Dragon Engine — enters from your graveyard (CR 603.2)", ()
     it("entering from the graveyard triggers; entering from anywhere else does not", () => {
         expect(enter(true).stack).toHaveLength(1);
         expect(enter(false).stack).toHaveLength(0);
+    });
+
+    it('"your graveyard": entering from an opponent\'s graveyard does not trigger', () => {
+        expect(enter(true, "p2").stack).toHaveLength(0);
+    });
+});
+
+describe("Mishra, Lost to Phyrexia — mode scripts", () => {
+    it("every mode's Effect Script passes validation (the catalogue sweep does not reach a back face)", () => {
+        const modes =
+            getDefinition(meldResultDefinitionId(MISHRA))!
+                .triggeredAbilities![0].modes ?? [];
+        expect(modes).toHaveLength(6);
+        for (const mode of modes) {
+            expect(validateEffectScript(mode.effects ?? []), mode.id).toEqual(
+                []
+            );
+        }
+    });
+
+    it("the opponent mode cannot target its own controller", () => {
+        const modes =
+            getDefinition(meldResultDefinitionId(MISHRA))!
+                .triggeredAbilities![0].modes ?? [];
+        expect(modes[0].targetRequirement?.controller).toBe("opponent");
     });
 });

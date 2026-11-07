@@ -39,7 +39,11 @@ export const mishraLostToPhyrexiaFace: CardBackFace = {
                     id: "discard-two",
                     label: "Target opponent discards two cards",
                     oracleText: "Target opponent discards two cards.",
-                    targetRequirement: { type: "player", count: 1 },
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        controller: "opponent",
+                    },
                     effects: [
                         {
                             op: "choice",

@@ -39,6 +39,7 @@ import {
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
 import { UNTIL_NEXT_TURN_ATTACK_WATCHES } from "../attackWatch";
+import type { ManaRestriction } from "../types";
 import { activationConditionErrors } from "../activationPrecondition";
 import {
     CREATURE_SUBTYPES,
@@ -1069,6 +1070,17 @@ function isTokenAbilityCost(value: unknown): boolean {
  *  engine change was needed once this allowlist accepts the field; see
  *  `tokenManaChoicesTapUntap.test.ts` for the round-trip proof through the
  *  real tap-for-mana commit path. */
+/** Every `ManaRestriction` literal — a `Record` so a new member reds `tsc` here
+ *  (issue #8176: a token's mana ability may carry one, e.g. Powerstone). */
+const MANA_RESTRICTIONS: Record<ManaRestriction, true> = {
+    "creature-spell": true,
+    "artifact-spell": true,
+    "cumulative-upkeep": true,
+    "artifact-ability": true,
+    "legendary-spell": true,
+    "not-nonartifact-spell": true,
+};
+
 function isTokenActivatedAbility(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -1082,6 +1094,9 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "effects",
         "manaChoices",
         "manaProduced",
+        // CR 106.6 (issue #8176) — Powerstone's "This mana can't be spent to
+        // cast a nonartifact spell": a plain string literal, survives the DB.
+        "manaRestriction",
         // CR 111.10 / 601.2c / 602.3b (issue #2376) — the Map token's "{1},
         // {T}, Sacrifice this token: TARGET CREATURE YOU CONTROL explores.
         // ACTIVATE ONLY AS A SORCERY." Both fields are plain data (a
@@ -1151,6 +1166,15 @@ function isTokenActivatedAbility(value: unknown): boolean {
     // `false` is the shape that reads as "I considered the restriction" while
     // encoding its absence — omit the field instead.
     if ("sorcerySpeedOnly" in a && a.sorcerySpeedOnly !== true) return false;
+    if (
+        "manaRestriction" in a &&
+        !(
+            typeof a.manaRestriction === "string" &&
+            Object.hasOwn(MANA_RESTRICTIONS, a.manaRestriction)
+        )
+    ) {
+        return false;
+    }
     return true;
 }
 

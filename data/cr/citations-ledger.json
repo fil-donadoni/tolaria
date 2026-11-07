@@ -5289,6 +5289,7 @@
         {"id":"101.4","line":"* 2. a mid-resolution PendingChoice (CR 608.2 / 101.4) suspends the engine","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"// The third site is a TRIGGER's targets (CR 603.3d): its","sites":1,"status":"confirmed","ruleHash":"ebc2c87f28be3a1e"},
         {"id":"119.4","line":"// (CR 119.4, `libraryTopCastLifeCost`) when the grant replaces the mana","sites":1,"status":"baseline"},
+        {"id":"106.6","line":"// CR 106.6 (issue #8176) — Powerstone's \"This mana can't be spent to","sites":1,"status":"confirmed","ruleHash":"02766bfce30bc2c6"},
         {"id":"605","line":"// CR 605 — this is NOT a mana ability; it uses the stack (can be","sites":1,"status":"baseline"},
         {"id":"702.131","line":"// counts for p1 (\"permanents you control\", CR 702.131).","sites":1,"status":"baseline"},
         {"id":"701.22","line":"// Ordered top-of-library placement — Scry (CR 701.22), Surveil (CR 701.25),","sites":1,"status":"baseline"},
