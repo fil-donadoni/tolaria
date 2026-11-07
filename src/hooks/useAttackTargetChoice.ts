@@ -4,7 +4,10 @@ import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isPlaneswalker } from "~/lib/card-utils";
-import { trackGameIntent } from "~/lib/pending-intent-store";
+import {
+    hasPendingGameIntent,
+    trackGameIntent,
+} from "~/lib/pending-intent-store";
 import type { Player } from "~/types/game";
 
 /** CR 508.1b — the attack target is a real choice only when the defending
@@ -69,6 +72,10 @@ export function useAttackTargetChooser(): AttackTargetChooser {
     }
 
     function assign(choice: AttackTargetChoice) {
+        // A second click inside the first one's round trip still sees the old
+        // combat and cursor: it would re-send the same creature (a repeated
+        // planeswalker reads as toggle-off) and double-advance the sequence.
+        if (hasPendingGameIntent()) return;
         const ids = [...choosers];
         for (const id of ids) {
             const extra = mutationFor(id, choice);

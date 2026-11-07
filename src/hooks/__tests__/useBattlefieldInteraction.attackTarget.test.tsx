@@ -309,6 +309,30 @@ describe("useBattlefieldInteraction — attack target choice (issue #8178, CR 50
         expect(s.resolveAwaiting).not.toHaveBeenCalled();
     });
 
+    it("a second planeswalker click inside the first one's round trip is dropped", async () => {
+        let release: () => void = () => {};
+        toggleAttacker.mockImplementationOnce(
+            () => new Promise<void>((r) => (release = r))
+        );
+        const pw = planeswalker();
+        const me = player("me", [creature()]);
+        const opp = player("opp", [pw]);
+        const s = makeAttackSequence({ awaiting: ["atk1"] });
+        const { result } = renderWithAwaiting(
+            me,
+            opp,
+            s,
+            { attackerIds: [] },
+            opp
+        );
+
+        result.current.handleClick(pw);
+        result.current.handleClick(pw);
+        expect(toggleAttacker).toHaveBeenCalledTimes(1);
+        release();
+        await waitFor(() => expect(s.resolveAwaiting).toHaveBeenCalledTimes(1));
+    });
+
     it("with nothing awaiting a planeswalker click does nothing (retarget heuristic retired)", () => {
         const pw = planeswalker();
         const me = player("me", [creature()]);
