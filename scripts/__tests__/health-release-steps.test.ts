@@ -467,7 +467,9 @@ describe("release runs check:game-download, never a check:ui walk (issue #6143)"
         const cut = await release({ exit: 2, output: "sign-in failed" });
         expect(cut.code, cut.out).toBe(1);
         fs.rmSync(path.join(tmp, "offline-ran.txt"));
-        git(["commit", "--allow-empty", "-q", "-m", "moved"], primary);
+        fs.writeFileSync(path.join(primary, "moved.txt"), "moved\n");
+        git(["add", "moved.txt"], primary);
+        commit("moved");
         git(["push", "-q", "origin", BASE_BRANCH], primary);
         const r = await release({ exit: 0 });
         expect(r.code, r.out).toBe(0);
