@@ -35,11 +35,13 @@ import type {
     GameState,
     PendingTarget,
     PendingTargetFilterKey,
+    StackItem,
     TargetCountAnnouncement,
 } from "./state";
 import {
     PENDING_TARGET_FILTER_KEYS,
     emitBecameTargetEvents,
+    processPendingActionTriggers,
     raiseQueuedCopyRetarget,
     resolveTargetRequirementCount,
 } from "./state";
@@ -329,6 +331,40 @@ function keepDivisionByPosition(
     return kept;
 }
 
+/** CR 115.7 / 707.10c — the "becomes the target" events of writing `targets`
+ *  onto `item`, a spell already on the stack. Call BEFORE the write: only an
+ *  object the spell did not already target becomes its target (CR 603.2e), so a
+ *  target left unchanged, or one that only moved to another slot (CR 115.7e),
+ *  fires nothing. */
+function emitNewlyTargeted(
+    state: GameState,
+    item: StackItem,
+    targets: readonly TargetSelection[]
+): void {
+    const key = (t: TargetSelection) => `${t.type}:${t.id}`;
+    const already = new Set((item.targets ?? []).map(key));
+    emitBecameTargetEvents(
+        state,
+        targets.filter((t) => !already.has(key(t))),
+        item.controllerId,
+        item.id,
+        "spell-new-target"
+    );
+}
+
+/** The player answered, or declined, a `"copy-retarget"` / `"retarget"` offer.
+ *  CR 707.10c — the next copy of the same resolution is answered before anyone
+ *  receives priority. Otherwise the resolving effect has finished, so a fresh
+ *  priority round begins with the active player; CR 603.3 puts what triggered
+ *  on the stack first, the mutation that got here scans nothing afterwards. */
+export function continueAfterRetargetOffer(state: GameState): void {
+    if (raiseQueuedCopyRetarget(state)) return;
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    processPendingActionTriggers(state);
+    drainAutoPasses(state);
+}
+
 /** Commit a completed ENGINE-RAISED target selection (`"copy-retarget"` /
  *  `"retarget"` / `"trigger"`). Returns `true` when it handled `pt` — an
  *  ANNOUNCED origin returns `false` untouched, leaving `state.pendingTarget`
@@ -364,31 +400,23 @@ export function applyRaisedTargetFinalization(
 
     // Copy-retarget branch (CR 707.10c — Fork's "you may choose new targets
     // for the copy"). The targets are written onto the spell COPY already on
-    // the stack; nothing is cast and no cost is paid. After the choice, the
-    // resolving spell (Fork) has finished, so a fresh priority round begins
-    // with the active player and the copy on top of the stack.
+    // the stack; nothing is cast and no cost is paid.
     if (kind === "copy-retarget") {
         const copy = state.stack.find((s) => s.id === cardInstanceId);
         if (copy) {
+            emitNewlyTargeted(state, copy, targets);
             copy.targets = targets;
             // CR 608.2b (issue #2985) — new targets, so any earlier
             // illegal-slot verdict is void.
             delete copy.illegalTargetSlots;
         }
-        // CR 707.10c — the next copy of the same resolution is answered before
-        // anyone receives priority.
-        if (raiseQueuedCopyRetarget(state)) return true;
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+        continueAfterRetargetOffer(state);
         return true;
     }
 
     // Retarget branch (CR 115.7 — Reflecting Mirror's "change the target of
     // target spell"). The new target is written onto the ORIGINAL spell already
-    // on the stack (not a copy). The resolving Reflecting Mirror ability has
-    // finished, so a fresh priority round begins with the active player and the
-    // retargeted spell still on the stack.
+    // on the stack (not a copy).
     if (kind === "retarget") {
         const spell = state.stack.find((s) => s.id === cardInstanceId);
         // CR 115.7d — the number of targets is the one the cast fixed: a walk
@@ -404,13 +432,12 @@ export function applyRaisedTargetFinalization(
                     targets
                 );
             }
+            emitNewlyTargeted(state, spell, targets);
             spell.targets = targets;
             // CR 608.2b (issue #2985) — see the copy branch above.
             delete spell.illegalTargetSlots;
         }
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+        continueAfterRetargetOffer(state);
         return true;
     }
 
