@@ -2289,7 +2289,7 @@ const pump: Valuer<"pump"> = (op, ctx) => {
 
 /** Parse a P/T counter type (e.g. "+1/+1", "-1/-1", "+2/+0") into signed stat
  *  deltas; returns null for a non-P/T counter (charge, loyalty, …). */
-function parsePtCounter(
+export function parsePtCounter(
     counter: string
 ): { power: number; toughness: number } | null {
     const m = /^([+-]\d+)\/([+-]\d+)$/.exec(counter);
