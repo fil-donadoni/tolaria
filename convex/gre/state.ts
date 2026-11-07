@@ -8587,7 +8587,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     collectCastTriggers(state, item, event);
 }
 
-/** Emits a BECAME_TARGET event (CR 603.2b / 115.5, issue #1265) per PERMANENT
+/** Emits a BECAME_TARGET event (CR 603.2 / 115.1) per PERMANENT
  *  or PLAYER target in `targets` — the target-declaration signal that drives
  *  "whenever you or a permanent you control becomes the target of a spell or
  *  ability an opponent controls" triggers (Leovold, Emissary of Trest). The
@@ -8598,16 +8598,17 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
  *  skipped — they are neither a player nor a permanent under anyone's control.
  *  No-op for an absent/empty target list (a non-targeted spell or ability).
  *
- *  `sourceInstanceId` (issue #1361) is the stack-item id of the spell/ability
+ *  `sourceInstanceId` is the stack-item id of the spell/ability
  *  whose targets are being locked — carried onto each emitted event so a
  *  reflexive "counter that spell or ability" trigger (Ward, CR 702.21a/e) can
  *  pin its own target to the EXACT causing object instead of any object that
  *  merely also targets the same permanent (the two-simultaneous-targeters
  *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`).
  *
- *  `sourceKind` (issue #2360) is the caller's own declaration of WHAT is
- *  announcing these targets — a cast spell, an activated ability or a
- *  triggered ability. It is a required parameter precisely so every present
+ *  `sourceKind` is the caller's own declaration of WHAT is
+ *  announcing these targets — a cast spell, an activated ability, a
+ *  triggered ability or a spell already on the stack taking new targets. It is
+ *  a required parameter precisely so every present
  *  and future producer must answer: a trigger scoped to "whenever you CAST A
  *  SPELL that targets…" (Dack Fayden's emblem) reads it and fires only for
  *  `"spell"`, and an unclassified new emitter would not compile rather than

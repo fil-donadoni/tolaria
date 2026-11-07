@@ -13227,11 +13227,16 @@ export interface PermanentBecameMonstrousEvent {
  *     onto the stack (CR 602.2b), immediately or after deferred payment.
  *   - `"triggered-ability"` — a triggered ability's targets are chosen as it is
  *     put onto the stack (CR 603.3d), by the player or auto-selected when
- *     exactly one legal target exists. */
+ *     exactly one legal target exists.
+ *   - `"spell-new-target"` — a spell ALREADY on the stack takes a target it did
+ *     not have: its targets are changed (CR 115.7) or a copy of it gets new
+ *     ones (CR 707.10c). It is a spell, so "the target of a spell" reads it, but
+ *     it isn't being cast, so "whenever you cast a spell that targets" doesn't. */
 export type BecameTargetSourceKind =
     | "spell"
     | "activated-ability"
-    | "triggered-ability";
+    | "triggered-ability"
+    | "spell-new-target";
 
 export interface BecameTargetEvent {
     type: "BECAME_TARGET";

@@ -85,7 +85,6 @@ import {
     loseLifeEmitting,
     endGame,
     payLifeCost,
-    raiseQueuedCopyRetarget,
 } from "./gre/state";
 import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
@@ -286,6 +285,7 @@ import { castProhibitionReason } from "./cards/castRestrictions";
 import {
     announcedTargetCount,
     applyRaisedTargetFinalization,
+    continueAfterRetargetOffer,
     divideAmountsForCommit,
     pendingTargetCountMaxReached,
     resolveDivideTotal,
@@ -11400,13 +11400,7 @@ export const cancelTarget = mutation({
             cancelKind === "copy-retarget" || cancelKind === "retarget";
         clearDeclinedExileRoute(state, state.pendingTarget.cardInstanceId);
         state.pendingTarget = undefined;
-        // CR 707.10c — the next copy of the same resolution is answered before
-        // anyone receives priority.
-        if (wasRetarget && !raiseQueuedCopyRetarget(state)) {
-            state.priorityPlayerId = state.activePlayerId;
-            state.passCount = 0;
-            drainAutoPasses(state);
-        }
+        if (wasRetarget) continueAfterRetargetOffer(state);
 
         await saveGameState(
             ctx,
