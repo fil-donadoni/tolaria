@@ -196,7 +196,7 @@ describe("Malevolent Rumble (CR 401.4 reveal/dig, CR 707.2 token, issue #1531)",
 });
 
 // ===========================================================================
-// Fanatic of Rhonas — Ferocious (CR 613.4 / 602.5b)
+// Fanatic of Rhonas — Ferocious (CR 613.4 / 602.1b)
 //
 // "Activate only if you control a creature with power 4 or greater" reads the
 // creature's EFFECTIVE power: layer 7 is applied at read time, never baked into
@@ -359,7 +359,7 @@ describe("Fanatic of Rhonas — Ferocious reads effective power (CR 613.4)", () 
         expect(pumped.state.players[0]!.manaPool.G).toBe(4);
 
         const plain = board([makeInstance(THREE_THREE, { id: "giant" })]);
-        // CR 605.1a — one option left: a stale index taps for the one it has.
+        // One option left: a stale index taps for the one it has.
         tapSourceIntoPayment(
             plain.state,
             plain.state.players[0]!,

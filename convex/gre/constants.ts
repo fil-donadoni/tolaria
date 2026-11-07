@@ -905,7 +905,7 @@ export function getFixedManaAmount(
  *  `playerId` and `battlefield` are required, so a site holding one player's
  *  permanents can still ask a question; `manaGateBattlefields` fills the rest,
  *  which is what lets every planner path along the way forward the whole board
- *  without naming it (CR 613.4: "the same effective values at every site"). */
+ *  without naming it. */
 export type ManaBattlefield = {
     playerId: string;
     battlefield: readonly CardInstanceState[];
@@ -1635,7 +1635,7 @@ export function getEffectiveManaChoices(
         continuousEffects
     );
     if (dynamic) return dynamic;
-    // CR 602.5b (issue #947) — gate on the ability's own `canActivate` using
+    // CR 602.1b (issue #947) — gate on the ability's own `canActivate` using
     // the battlefields already available here.
     const ability = getActivatedManaAbility(
         card,
@@ -1749,7 +1749,7 @@ export function manaGateStateView(state: GameState): TriggerStateView {
     return minimalManaGateView(manaGateBattlefields(state));
 }
 
-/** The `TriggerStateView` a mana ability's own `canActivate` gate (CR 602.5b) is
+/** The `TriggerStateView` a mana ability's own `canActivate` gate (CR 602.1b) is
  *  evaluated against, at every site that enumerates mana-tap options — including
  *  the auto-tap planner (`getProducibleManaOptions`), which holds battlefields
  *  rather than a `GameState`. Its rows are `buildTriggerStateView`'s rows
@@ -1767,7 +1767,7 @@ export function manaGateStateView(state: GameState): TriggerStateView {
  *  - `lifeGainedThisTurn` reads as nothing gained, so an "if you gained life"
  *    gate stays shut; no mana ability declares one.
  *  - `cannotActivateAbilitiesThisTurn` locks only abilities that aren't mana
- *    abilities (CR 602.1), so a mana gate has no use for it.
+ *    abilities (CR 602.5), so a mana gate has no use for it.
  *  - `enteredThisTurn` / `controlledSinceTurnStart` need the client's `turnState`
  *    and stay undefined, exactly as `buildTriggerStateView` leaves them without
  *    one. */

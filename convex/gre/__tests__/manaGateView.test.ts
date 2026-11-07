@@ -1,4 +1,4 @@
-// CR 602.5b / 613.4 — the `TriggerStateView` a mana ability's `canActivate` gate
+// CR 602.1b / 613.4 — the `TriggerStateView` a mana ability's `canActivate` gate
 // is evaluated against carries the characteristics the rest of the engine reads,
 // whatever the source of each. Nothing here is keyed to a particular card with
 // such a gate: the predicates are synthetic, the fixtures are plain creatures.
@@ -164,7 +164,7 @@ describe("the mana-gate view's P/T are the layer system's (CR 613.4)", () => {
     }
 });
 
-describe("the mana-gate view's player state is real (CR 602.5b)", () => {
+describe("the mana-gate view's player state is real (CR 602.1b)", () => {
     it("carries life, hand size, graveyard and the active player", () => {
         const state = makeState({
             players: [
@@ -291,7 +291,7 @@ describe("a mana gate reading P/T sees effective values at every reader", () => 
     });
 });
 
-describe("a hand-built board keeps working (CR 602.5b)", () => {
+describe("a hand-built board keeps working (CR 602.1b)", () => {
     it("reads counters and statics off the rows it was given", () => {
         const subject = makeInstance(LIONS, {
             id: "subject",

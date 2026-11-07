@@ -1,4 +1,4 @@
-// CR 613.4 / 602.5b — the Bot's mana-payment planner reads the same effective
+// CR 613.4 / 602.1b — the Bot's mana-payment planner reads the same effective
 // power the tap mutation does, so a spell funded only by a power-gated mana
 // ability is enumerated exactly when the server would pay for it. The pump is a
 // registry entry on purpose: `planManaPayment` threads no registry argument, so

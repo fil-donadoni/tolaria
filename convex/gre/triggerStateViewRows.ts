@@ -11,7 +11,7 @@ type TriggerViewGraveyardCard = NonNullable<
 >[number];
 
 /** One battlefield row of a `TriggerStateView`, the shape a `canActivate`
- *  predicate reads (CR 602.5b). The ONE row both builders fill — the client's
+ *  predicate reads (CR 602.1b). The ONE row both builders fill — the client's
  *  `buildTriggerStateView` and the server's `minimalManaGateView` — so the two
  *  views of one board cannot disagree on which fields are live.
  *
@@ -41,7 +41,7 @@ export function triggerViewPermanent(
         // CR 702.171b — the saddled designation, for a cost filter narrowed by
         // it (none shipped; populated so it never fails open).
         saddled: c.saddled === true,
-        // CR 202.2 / 613.1d — effective colours for a tapOtherFilter colour
+        // CR 202.2 / 613.1e — effective colours for a tapOtherFilter colour
         // clause (Hand of Justice), via the single colour authority: layer-5
         // override SETS, `grantedColors` UNION.
         colors: getEffectiveColors(c as unknown as PermanentView),
@@ -59,7 +59,7 @@ export function triggerViewPermanent(
         // (Melting / Arcum's Weathervane), which the server's cost resolution
         // honours through this same `liveSupertypesOf`.
         supertypes: liveSupertypesOf(c),
-        // CR 111.5 / 701.21 — token-ness, for a `sacrificeFilter` activation
+        // CR 111.1 / 701.21 — token-ness, for a `sacrificeFilter` activation
         // cost narrowed by `isToken` (Thopter Foundry's "sacrifice a NONTOKEN
         // artifact", Caribou Range's "sacrifice a Caribou TOKEN"). Left
         // unpopulated it reads `undefined`, which `matchesPermanentFilter`
@@ -71,7 +71,7 @@ export function triggerViewPermanent(
         // `isToken` above.
         isAttacking: c.isAttacking === true,
         isBlocking: c.isBlocking === true,
-        // CR 111 / 707.1 — token provenance, for a `sacrificeFilter` scoped to
+        // CR 111.1 — token provenance, for a `sacrificeFilter` scoped to
         // "tokens created with <this>" (Tetravus-style).
         createdBy: c.createdBy,
         // CR 307.1 / 117.1a — the cast-time snapshot a CR 603.4 check-time
@@ -89,9 +89,9 @@ export function triggerViewPermanent(
     };
 }
 
-/** One graveyard row of a `TriggerStateView`. CR 118.5 — graveyard contents
+/** One graveyard row of a `TriggerStateView`. CR 118.1 — graveyard contents
  *  feed the exile-from-graveyard activation-cost affordability hint (Grim
- *  Lavamancer, Night Soil); CR 701.59b — collect evidence prices the pile by
+ *  Lavamancer, Night Soil); CR 701.59a — collect evidence prices the pile by
  *  mana value, read off the definition id (`gre/collectEvidence.ts`). */
 export function triggerViewGraveyardCard(
     c: CardInstanceState

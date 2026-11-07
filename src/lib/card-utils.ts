@@ -165,7 +165,7 @@ import {
 /** A player as the mana helpers below read it. Only `id` and `battlefield` are
  *  required so a caller holding less can still ask; the rest becomes the real
  *  player state and layer input of the `canActivate` gate
- *  (`minimalManaGateView`, CR 602.5b), the same view the server evaluates. */
+ *  (`minimalManaGateView`, CR 602.1b), the same view the server evaluates. */
 export type ManaGatePlayer = {
     id: string;
     battlefield: CardInstance[];

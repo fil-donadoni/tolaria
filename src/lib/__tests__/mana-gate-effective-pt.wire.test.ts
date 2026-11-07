@@ -1,4 +1,4 @@
-// CR 613.4 / 602.5b — a mana ability's `canActivate` gate through the wire. The
+// CR 613.4 / 602.1b — a mana ability's `canActivate` gate through the wire. The
 // board crosses the real projection and the client's own mana-choice helper,
 // which must produce the list the server resolves the submitted index against.
 // A server-only test passes while the prompt offers the wrong amounts.
@@ -177,7 +177,7 @@ const NOT_OFFERED: ReadonlyArray<[string, () => ReturnType<typeof bothSides>]> =
         ],
     ];
 
-describe("Ferocious through projectPublicState (CR 613.4 / 602.5b)", () => {
+describe("Ferocious through projectPublicState (CR 613.4 / 602.1b)", () => {
     for (const [name, build] of OFFERED) {
         it(`${name}: server and client both list {G} and {G}{G}{G}{G}`, () => {
             const { server, client } = build();
@@ -190,7 +190,7 @@ describe("Ferocious through projectPublicState (CR 613.4 / 602.5b)", () => {
         it(`${name}: neither lists {G}{G}{G}{G}, so no prompt opens`, () => {
             const { server, client } = build();
             expect(server).toEqual([GREEN]);
-            // CR 605.1a — one option is a plain tap: `manaTapNeedsChoice` and
+            // One option is a plain tap: `manaTapNeedsChoice` and
             // `getManaChoices` both skip the prompt.
             expect(client).toBeNull();
         });
@@ -226,7 +226,7 @@ describe("Ferocious through projectPublicState (CR 613.4 / 602.5b)", () => {
     });
 });
 
-describe("the two view builders agree on one board (CR 602.5b)", () => {
+describe("the two view builders agree on one board (CR 602.1b)", () => {
     it("every row of the server's gate view equals the client's", () => {
         const { state, players, projected } = bothSides(
             [
