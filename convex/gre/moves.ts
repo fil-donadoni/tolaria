@@ -18,6 +18,7 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
+import { isAlreadySelectedTarget } from "./targetFilters";
 import { activationEvidenceUnpayable } from "./collectEvidence";
 import { findPermanent } from "./lookup";
 import type {
@@ -150,6 +151,7 @@ import {
     announcedTargetCount,
     pendingTargetCountMaxReached,
     pendingTargetOrigin,
+    keepableTargets,
     raisedPendingTargetOwedBy,
     requirementFromPendingTarget,
 } from "./pendingTargetOrigin";
@@ -3220,7 +3222,7 @@ export function enumerateRaisedTargetMoves(
     if (!pt) return [];
 
     const already = pt.selected.length;
-    const legal = getLegalTargets(
+    const newlyLegal = getLegalTargets(
         state,
         requirementFromPendingTarget(pt),
         // CR 702.16b / 611 — protection and `cantBeTargeted` guards read the
@@ -3232,6 +3234,13 @@ export function enumerateRaisedTargetMoves(
         // excluded by `getLegalTargets` itself (the single authority).
         pt.selected
     );
+    // CR 115.7d / 707.10c — a current target may stay even if illegal by now.
+    const kept = keepableTargets(state, pt);
+    const legal = [
+        ...newlyLegal,
+        ...kept.filter((t) => !isAlreadySelectedTarget(t, newlyLegal)),
+    ];
+    const isKept = (t: TargetSelection) => isAlreadySelectedTarget(t, kept);
 
     const minTotal = typeof pt.count === "number" ? pt.count : pt.count.min;
     const rawMax =
@@ -3273,7 +3282,12 @@ export function enumerateRaisedTargetMoves(
             // CR 601.2c (issue #1104) — `sameController` is a COMBINATORIAL
             // constraint `getLegalTargets` cannot see per-candidate; mirror the
             // post-filter `enumerateTargetTuples` applies for casts.
-            if (pt.sameController && !comboSharesController(state, combo)) {
+            // Targets all left unchanged owe it nothing (CR 115.7d).
+            if (
+                pt.sameController &&
+                !combo.every(isKept) &&
+                !comboSharesController(state, combo)
+            ) {
                 continue;
             }
             moves.push({

@@ -4447,6 +4447,12 @@ export type PendingTarget = {
      *  `modeTargetCounts` at finalization. Undefined unless more than one
      *  instance was chosen. */
     modeTargetCounts?: number[];
+    /** CR 115.7d / 707.10c — a raised "choose new targets" offer: the targets
+     *  the spell holds in the group being answered, then in each queued group
+     *  (`remainingRequirements` order). The chooser may leave any of them
+     *  unchanged even if illegal by now, or gone; `keepableTargets`
+     *  (`pendingTargetOrigin.ts`) is the authority on what may be kept. */
+    keepableTargetGroups?: TargetSelection[][];
     /** CR 601.2c (issue #4193) — which half of the effect each announced
      *  target of the CURRENT group will receive, index-aligned with the
      *  group's slots ("returned to its owner's hand", "dealt 2 damage" for a
