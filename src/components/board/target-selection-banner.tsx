@@ -85,6 +85,9 @@ export default function TargetSelectionBanner({
     // targets, so the source line reads "Copy" and Cancel reads "Keep
     // targets" to convey the optionality.
     const isCopyRetarget = pendingTarget.kind === "copy-retarget";
+    // CR 115.7 — declining an in-place retarget leaves the spell's targets
+    // unchanged too: nothing is being cast, so there is nothing to cancel.
+    const keepsTargets = isCopyRetarget || pendingTarget.kind === "retarget";
     const cardInHand = me?.hand.find(
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
@@ -307,7 +310,7 @@ export default function TargetSelectionBanner({
                                 }
                             }}
                         >
-                            {isCopyRetarget ? "Keep targets" : "Cancel"}
+                            {keepsTargets ? "Keep targets" : "Cancel"}
                         </Button>
                     </div>
                     {divide.active && <DivideTargetList />}

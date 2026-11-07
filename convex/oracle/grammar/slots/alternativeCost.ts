@@ -79,6 +79,9 @@ const ALTERNATIVE_COST =
 /** CR 701.13 — "exile a <colour> card from your hand". */
 const EXILE_COLOURED = /^exile an? (\w+) card from your hand$/;
 
+/** CR 701.13 — "exile two <colour> cards from your hand". */
+const EXILE_COLOURED_MANY = /^exile ([a-z]+) (\w+) cards from your hand$/;
+
 /** CR 701.13 / 404.2 — "exile the top three black cards of your graveyard". */
 const EXILE_GRAVEYARD_TOP =
     /^exile the top ([a-z]+) (\w+) cards of your graveyard$/;
@@ -110,6 +113,21 @@ function readBody(body: string): AlternativeCostIR | null {
             hand: {
                 action: "exile",
                 requirements: [{ filter: { color: colour }, count: 1 }],
+            },
+        };
+    }
+    const many = EXILE_COLOURED_MANY.exec(body);
+    if (many !== null) {
+        const count = readNumberWord(many[1]!);
+        const colour = COLOR_WORDS.get(many[2]!);
+        // "cards" is plural: a count of one is a line we have misread.
+        if (count === null || count < 2 || colour === undefined) return null;
+        return {
+            id: `pitch-exile-${many[1]}-${many[2]}`,
+            description: `Exile ${body.slice("exile ".length)}`,
+            hand: {
+                action: "exile",
+                requirements: [{ filter: { color: colour }, count }],
             },
         };
     }

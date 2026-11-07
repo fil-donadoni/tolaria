@@ -1798,6 +1798,12 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "retarget" targets a spell on the stack — covered by the Op's interpreter tests`,
     },
+    // `gainControlOfSpell` (CR 112.2) targets a SPELL on the stack, the same
+    // reason as `retarget`: the canned generator seeds no second spell.
+    gainControlOfSpell: {
+        code: "op-own-tests",
+        reason: `Op "gainControlOfSpell" targets a spell on the stack — covered by the Op's interpreter tests`,
+    },
     // The `if` construct branches on a runtime predicate (issue #806).
     // The taken branch — and thus the observable outcome — depends on
     // a live may-pay outcome or a runtime snapshot the generator does

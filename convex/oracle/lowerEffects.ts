@@ -6113,6 +6113,38 @@ function lowerFrameChain(
                     prompt: `Reveal ${frame.phrase} you own from outside the game.`,
                 });
                 break;
+            // CR 112.2 — the announced spell moves to the resolving controller.
+            case "gainControlOfSpell": {
+                const target = spellSelector(
+                    { kind: "target", requirement: frame.requirement },
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                if ("ref" in target.value)
+                    return unlowerable("gain control names an announced spell");
+                ops.push({
+                    op: "gainControlOfSpell",
+                    target: target.value,
+                    controller: "controller",
+                });
+                break;
+            }
+            // CR 115.7d — "it" reads the one spell announced before it. No
+            // "may" gate: declining the offer leaves the targets unchanged.
+            case "chooseNewTargets": {
+                const announced = walk.targets.requirements();
+                if (announced.length !== 1 || announced[0]!.type !== "spell")
+                    return unlowerable(
+                        '"new targets for it" names one announced spell'
+                    );
+                ops.push({
+                    op: "retarget",
+                    target: { target: 0 },
+                    chooseNew: true,
+                });
+                break;
+            }
         }
     }
     if (voted !== null)

@@ -313,6 +313,22 @@ export function divideAmountsForCommit(
         : undefined;
 }
 
+/** CR 115.7f — a division re-keyed from `from` onto `to`, position by position
+ *  (the two lists are the same length). */
+function keepDivisionByPosition(
+    amounts: Record<string, number>,
+    from: readonly TargetSelection[],
+    to: readonly TargetSelection[]
+): Record<string, number> {
+    const kept: Record<string, number> = {};
+    to.forEach((target, i) => {
+        const old = from[i]!;
+        kept[`${target.type}:${target.id}`] =
+            amounts[`${old.type}:${old.id}`] ?? 0;
+    });
+    return kept;
+}
+
 /** Commit a completed ENGINE-RAISED target selection (`"copy-retarget"` /
  *  `"retarget"` / `"trigger"`). Returns `true` when it handled `pt` — an
  *  ANNOUNCED origin returns `false` untouched, leaving `state.pendingTarget`
@@ -375,7 +391,19 @@ export function applyRaisedTargetFinalization(
     // retargeted spell still on the stack.
     if (kind === "retarget") {
         const spell = state.stack.find((s) => s.id === cardInstanceId);
-        if (spell) {
+        // CR 115.7d — the number of targets is the one the cast fixed: a walk
+        // over a variable-count group that ended on another number changes
+        // nothing.
+        if (spell && targets.length === (spell.targets?.length ?? 0)) {
+            // CR 115.7f — the original division can't be changed: each new
+            // target takes the amount of the target it replaces.
+            if (spell.targetAmounts) {
+                spell.targetAmounts = keepDivisionByPosition(
+                    spell.targetAmounts,
+                    spell.targets ?? [],
+                    targets
+                );
+            }
             spell.targets = targets;
             // CR 608.2b (issue #2985) — see the copy branch above.
             delete spell.illegalTargetSlots;

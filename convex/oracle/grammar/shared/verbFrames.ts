@@ -50,6 +50,13 @@
  *                 pick, the reveal and the move, because outside the game is
  *                 not a zone (CR 400.11) and no `choice`/`moveZone` pair can
  *                 name it. It produces no referent for a later frame.
+ *  - `gainControlOfSpell` — "Gain control of target spell" and "… target
+ *                 noncreature spell" (CR 112.2), by exact spelling: the narrowed
+ *                 phrase is a facet beside `type: "spell"`, so only the phrases
+ *                 a card prints with this verb are read.
+ *  - `chooseNewTargets` — "You may choose new targets for it" (CR 115.7d), the
+ *                 `retarget` Op's `chooseNew` form. "It" is the one spell the
+ *                 line announced, which the lowering confirms.
  *
  * The `moveZone` frame's OBJECT argument classes (issue #6631), each a
  * fixture in `verbFrames.test.ts`:
@@ -149,6 +156,7 @@ import {
     descriptorRule,
     type DescriptorIR,
     librarySearchFilterFromDescriptor,
+    narrowedStackRequirement,
     opensTargetPhrase,
     ownPermanentChoiceFilterFromDescriptor,
     sacrificeFilterFromDescriptor,
@@ -627,6 +635,15 @@ export type FrameIR =
           readonly filter: EffectCardFilter;
           /** The description as printed, kept for the prompt. */
           readonly phrase: string;
+      }
+    | {
+          /** CR 112.2 — the announced spell whose control changes. */
+          readonly frame: "gainControlOfSpell";
+          readonly requirement: TargetRequirement;
+      }
+    | {
+          /** CR 115.7d — new targets for the spell the line announced. */
+          readonly frame: "chooseNewTargets";
       };
 
 /**
@@ -826,6 +843,14 @@ export const VERB_FRAMES: readonly {
         // The comma is the specified player's, not a member join: the piece
         // behind it opens no member, so `splitMembers` rejoins the two.
         opens: /^starting with you, each player votes for /i,
+    },
+    {
+        name: "gainControlOfSpell",
+        opens: /^gain control of target (?:noncreature )?spell$/i,
+    },
+    {
+        name: "chooseNewTargets",
+        opens: /^you may choose new targets for it$/i,
     },
 ];
 
@@ -2362,6 +2387,23 @@ function readMember(
             referent,
         };
     }
+    if (opensFrame("gainControlOfSpell", lower)) {
+        const phrase = lower.slice("gain control of ".length);
+        return {
+            frames: [
+                {
+                    frame: "gainControlOfSpell",
+                    requirement: narrowedStackRequirement(phrase) ?? {
+                        type: "spell",
+                        count: 1,
+                    },
+                },
+            ],
+            referent,
+        };
+    }
+    if (opensFrame("chooseNewTargets", lower))
+        return { frames: [{ frame: "chooseNewTargets" }], referent };
     // A member a frame opens but reads no form of: the shuffle and the Wish
     // frames refuse it; a move or sacrifice member is the table's to read.
     if (
