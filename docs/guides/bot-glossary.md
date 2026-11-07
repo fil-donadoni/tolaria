@@ -172,36 +172,37 @@ opponent's edges.
 _average reward so far + c × √(ln(parent visits) / child visits)_. The second
 term is the "curiosity bonus": it shrinks as a child gets visited, so untried
 children get a turn. The constant `c` (`UCB_C = 1.4`) sets how curious the
-search is. In live play this repo's main action space uses UCB1 plus the
-decaying structural priors below; the PUCT branch exists but is switched off
-(see [PUCT](#puct)).
+search is. Live play's main action space no longer selects by UCB1 alone: it
+runs [PUCT](#puct), which keeps this term and adds a prior's. Flat UCB1 plus the
+decaying structural priors below survives as the `no-action-priors` control arm
+of an A/B.
 
 <a id="prior"></a>**Prior** — a guess, made before any search, of how
 promising each child is. A prior biases _which children get visited first_;
 it never removes a child. A move with a low prior is visited late, not never.
-Three kinds exist in the code, and only two are on in live play:
+Three kinds exist in the code, all on in live play:
 
-- **Structural priors** (ON): `reactivePrior` adds a bonus that decays as
+- **Structural priors**: `reactivePrior` adds a bonus that decays as
   `c / (1 + visits)` to the reactive lines — hold priority with an instant in
   hand, the attack that baits a block, the response in its window (ADR 0021,
   issue #223); [choice nodes](#choice-node) carry an ordering prior per
-  candidate (PRD #1423). Both are bias on top of UCB1, not a change of rule.
-- **Action priors from the [policy value](#policy-value)** (BUILT, OFF):
+  candidate (PRD #1423).
+- **Action priors from the [policy value](#policy-value)**:
   `computeActionPriors` normalises each child's one-ply score inside its node
   (min–max, floor 0.05 on the worst move, summing to 1) and feeds it to a
-  PUCT selection with [FPU](#fpu) (issue #2684, PR #2867). It runs only under
-  `LADDER_VARIANTS["action-priors"]`; `resolveActionPriors` returns `null`
-  for live play. The sweep that landed it found `c = 0.15` the largest value
-  keeping the `must` tier green (at 0.2 the Bot chump-blocks non-lethal
-  damage) and its ladder verdict was INCONCLUSIVE; it has not been re-tried
-  under [held-out agreement](#held-out-agreement).
+  PUCT selection with [FPU](#fpu) (issue #2684, PR #2867; live since issue
+  #8700, `DEFAULT_ACTION_PRIORS`). The sweep that landed it found `c = 0.15`
+  the largest value keeping the `must` tier green (at 0.2 the Bot chump-blocks
+  non-lethal damage). `LADDER_VARIANTS["no-action-priors"]` turns them off.
 
 <a id="puct"></a>**PUCT** — UCB1 with [priors](#prior) folded into the
 curiosity bonus: children with a higher prior get their turn sooner. The
 selection rule AlphaZero-family engines use; at small budgets it is the
 published highest-confidence lever for strength (research `#1894`). Built in
-`convex/gre/search.ts` (`puctBonus`, `puctDescend`), gated by
-`SearchVariant.actionPriors`, OFF in live play — see [Prior](#prior).
+`convex/gre/search.ts` (`puctBonus`, `puctDescend`), ON in live play at
+`c = 0.15` (issue #8700); [UCB1](#ucb1)'s term stays, this one is added to it.
+The [DecisionTrace](#decisiontrace) names the rule that ran
+(`selectionRule`) — see [Prior](#prior).
 
 <a id="fpu"></a>**FPU (First-Play Urgency)** — what value to assume for a child
 that has never been visited. Plain UCB1 treats "never tried" as infinitely
@@ -209,8 +210,8 @@ urgent, so every child must be tried once before any gets a second visit —
 ruinous with 80 children and 400 iterations. FPU instead gives an untried
 child a provisional value (typically slightly below its parent's), so the
 search can revisit a good child before it has touched every bad one. Built
-beside PUCT (`config.fpu`, parent mean minus a reduction), same gate, same
-OFF-in-live status.
+beside PUCT (`config.fpu`, parent mean minus a reduction), ON in live play at
+`fpu = 0.15` (issue #8700).
 
 <a id="beam"></a>**Beam / beam search** — keeping only the K best-looking
 candidates at each level and discarding the rest outright. Cheap, but it
