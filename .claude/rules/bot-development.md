@@ -21,8 +21,9 @@ You are in the Bot — read `/bot-change` first (full seam map + doctrine).
   identical-vector proof (both candidates, ONE feature vector, EVERY term);
   retiring one needs BOTH `flipped` = 0 on the corpus AND `must` green under
   `BLADE_VARIANT=no-rule:<mechanism>`; its blade entries stay.
-- Ladder only for STRENGTH claims (declare rung + pairing dynamics), never to
-  explain WHY a decision happened.
+- Strength number = Held-out Agreement (PRD issue #3980): a claim owes its
+  delta + green `must`. Ladder = unowed experiment (ADR 0138), by hand, large
+  claim only, never to explain WHY a decision happened.
 - Tests are `*.bot.test.ts` (`bot-suite-boundary.test.ts`).
 - A new `EvalTerms` key needs its row in `src/lib/ai/eval-term-labels.ts`, the
   ONE table the DecisionTrace line and legend render from
