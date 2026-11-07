@@ -66,6 +66,8 @@ import type {
     CardDefinition,
     DamageLifeFloor,
     KickerCost,
+    ManaCost,
+    SelfCostReduction,
 } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
@@ -141,6 +143,10 @@ export interface LoweredStatic {
     readonly shuffleFromAnywhere?: true;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
     readonly castAsThoughFlash?: true;
+    /** CR 601.3c — the additional cost of casting outside sorcery timing. */
+    readonly flashSurcharge?: ManaCost;
+    /** CR 601.2f — the spell's own reduction, read as it is cast. */
+    readonly selfCostReduction?: SelfCostReduction;
     /** CR 603.7a — triggered abilities the clause arms, as descriptors. */
     readonly triggeredAbilities?: readonly CompiledTriggeredAbility[];
     /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
@@ -995,6 +1001,23 @@ export function lowerStaticClause(
                 lowered: {
                     castAsThoughFlash: true,
                     triggeredAbilities: [flashCastCleanupSacrifice(nextId)],
+                },
+            };
+        case "flash-surcharge":
+            return {
+                ok: true,
+                lowered: { flashSurcharge: { X: clause.generic } },
+            };
+        case "domain-self-cost-reduction":
+            return {
+                ok: true,
+                lowered: {
+                    selfCostReduction: {
+                        costReduction: {
+                            perCount: { X: clause.generic },
+                            countMode: "domain",
+                        },
+                    },
                 },
             };
         case "damage-prevention-counter-removal":
