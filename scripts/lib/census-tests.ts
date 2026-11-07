@@ -118,6 +118,12 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/census-tests.test.ts",
         admits: /^scripts\/__tests__\//,
     },
+    // convex/ and src/ — nothing reaches the Combo Corpus; scripts/, .github/,
+    // .husky/, .githooks/ and package.json — nothing runs its import (issue #8416)
+    {
+        test: "scripts/__tests__/combo-corpus-seam.test.ts",
+        admits: /^(convex|src|scripts|\.github|\.husky|\.githooks)\/|^package\.json$/,
+    },
     // src/ entries and their convex/ import closure
     {
         test: "scripts/__tests__/client-bundle-purity.test.ts",

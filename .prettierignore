@@ -77,6 +77,10 @@ data/cr/citations-ledger.json
 # Prettier explodes each row across ten lines (measured: 816 -> 6,407), and the
 # command's own output would then never reproduce the committed bytes.
 data/bot-reach-findings.json
+
+# The Combo Corpus (issue #8416, ADR 0164 § 1). Same rationale: `combos:import`
+# writes ONE COMBO PER LINE, so a re-import is a diff of combos.
+data/combos/corpus.json
 # Regenerated artifacts (scripts/lib/generated-artifacts.ts, issue #6116):
 # the generator's bytes ARE the committed bytes, so a regeneration — by hand
 # or by the rebase resolver — never needs a format step.
