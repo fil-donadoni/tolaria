@@ -60584,6 +60584,7 @@
         {"id":"307.1","line":"/** CR 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time timing","sites":1,"status":"confirmed","ruleHash":"d476073b3ea516d8"},
         {"id":"400.7e","line":"// CR 400.7e + CR 701.9 — \"that card\": the discarded card, now in its","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"712.12","line":"keeps producing the gap it produces today. That is the CR 712.12 class exactly,","sites":1,"status":"baseline"},
+        {"id":"302.6","line":"// CR 302.6 — able to pay {T}, or the solver never sees it at all.","sites":1,"status":"confirmed","ruleHash":"c432b8106e4836fc"},
         {"id":"701.20a","line":"// CR 701.20a — a PUBLIC reveal makes information common knowledge and","sites":1,"status":"baseline"},
         {"id":"508.1a","line":"/** CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — what has already","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"* `raiseTriggerTargetSelection` can drive the CR 603.3d target choice.","sites":1,"status":"baseline"},
