@@ -361,21 +361,28 @@ function lowerCondition(
     switch (condition.kind) {
         case "kicked-permanent": {
             // CR 702.33e/f — a NAMED kicker's payment record, read off the
-            // permanent entering. An unnamed "if it was kicked" is the
-            // aggregate tally, which no check-time gate expresses there.
+            // permanent entering. An unnamed "if it was kicked" reads the same
+            // record when the card prints one single kicker: paying that cost
+            // is all "kicked" can mean there (CR 702.33d).
             // CR 702.33d — behind "when you cast this spell" the record is the
             // spell's own, and both forms read it.
             const casting = head.kind === "spell-cast" && head.scope === "self";
             if (!casting && (head.kind !== "enters" || head.scope !== "self"))
                 return '"if it was kicked" needs a head that fires when this permanent enters';
-            if (condition.kicked.kind === "any" && !casting)
-                return 'only "if it was kicked with its {A} kicker" is a check-time gate';
             if (condition.kicked.kind === "evidence" && casting)
                 return '"if evidence was collected" is no gate behind a cast head';
             const value = kickedValue(condition.kicked, kickers);
             if (!value.ok) return value.reason;
-            if (condition.kicked.kind === "any")
-                return { kind: "spell-kicked" };
+            if (condition.kicked.kind === "any") {
+                if (casting) return { kind: "spell-kicked" };
+                const [lone, ...others] = kickers;
+                return lone !== undefined &&
+                    others.length === 0 &&
+                    lone.multi !== true &&
+                    lone.keyword === undefined
+                    ? { kind: "kicker-paid", kickerId: lone.id }
+                    : 'an unnamed "if it was kicked" gates a permanent only behind one single kicker (CR 702.33d)';
+            }
             const paid = value.value as { additionalCostPaid?: string };
             if (paid.additionalCostPaid === undefined)
                 return "a named kicker reads its own payment record";

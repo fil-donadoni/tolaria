@@ -230,14 +230,6 @@ describe("cast-self kicked gate — refusals (fail-closed)", () => {
         ).toBe(false);
     });
 
-    it("keeps refusing the unnamed gate behind the entered head (CR 702.33e)", () => {
-        expect(
-            unparsed(
-                `${KICKER}When this creature enters, if it was kicked, exile target land.`
-            )
-        ).toBe(true);
-    });
-
     it("refuses the gate behind a cast head that watches other spells (CR 702.33d)", () => {
         for (const head of [
             "Whenever you cast a spell",

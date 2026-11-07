@@ -9237,6 +9237,321 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.33e + CR 603.4 — the unnamed "if it was kicked" on a card printing one single kicker, an untargeted body. Exhibits the lone kicker's payment amount, which the canned smoke scenario casts unkicked.
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Krosan Druid",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Centaur Druid",
+            oracleText:
+                "Kicker {4}{G} (You may pay an additional {4}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, you gain 10 life.",
+            power: "2",
+            toughness: "3",
+            oracleId: "1fbed9e4-86f6-4115-8468-8593e340701f",
+            layout: "normal",
+        },
+        expected: {
+            name: "Krosan Druid",
+            types: ["Creature"],
+            subtypes: ["Centaur", "Druid"],
+            manaCost: { X: 2, G: 1 },
+            power: 2,
+            toughness: 3,
+            oracleText:
+                "Kicker {4}{G} (You may pay an additional {4}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, you gain 10 life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "krosan-druid-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked, you gain 10 life.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "gainLife",
+                                    player: "controller",
+                                    amount: 10,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {4}{G}",
+                    mana: { X: 4, G: 1 },
+                },
+            ],
+        },
+    },
+    // CR 702.33e + CR 603.4 — the same gate over a body announcing a target (CR 603.3d), here in a graveyard: the slot's zone is part of the form.
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Excavation Elephant",
+            manaCost: "{4}{W}",
+            typeLine: "Creature — Elephant",
+            oracleText:
+                "Kicker {1}{W} (You may pay an additional {1}{W} as you cast this spell.)\nWhen this creature enters, if it was kicked, return target artifact card from your graveyard to your hand.",
+            power: "3",
+            toughness: "5",
+            oracleId: "45fa04ee-3b5c-45b3-8c09-bda08cca3630",
+            layout: "normal",
+        },
+        expected: {
+            name: "Excavation Elephant",
+            types: ["Creature"],
+            subtypes: ["Elephant"],
+            manaCost: { X: 4, W: 1 },
+            power: 3,
+            toughness: 5,
+            oracleText:
+                "Kicker {1}{W} (You may pay an additional {1}{W} as you cast this spell.)\nWhen this creature enters, if it was kicked, return target artifact card from your graveyard to your hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "excavation-elephant-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked, return target artifact card from your graveyard to your hand.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker" },
+                    targetRequirement: {
+                        type: "Artifact",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { target: 0 },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {1}{W}",
+                    mana: { X: 1, W: 1 },
+                },
+            ],
+        },
+    },
+    // CR 702.33e + CR 611.2a — the same gate over a grant to the entering permanent itself, the `$source` grant the smoke scenario leaves to a per-card test.
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Scorch Rider",
+            manaCost: "{3}{R}",
+            typeLine: "Creature — Human Warrior",
+            oracleText:
+                "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nWhen this creature enters, if it was kicked, it gains haste until end of turn.",
+            power: "4",
+            toughness: "3",
+            oracleId: "8165acd4-ac62-47f1-97dd-01860aee29ee",
+            layout: "normal",
+        },
+        expected: {
+            name: "Scorch Rider",
+            types: ["Creature"],
+            subtypes: ["Human", "Warrior"],
+            manaCost: { X: 3, R: 1 },
+            power: 4,
+            toughness: 3,
+            oracleText:
+                "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nWhen this creature enters, if it was kicked, it gains haste until end of turn.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "scorch-rider-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked, it gains haste until end of turn.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "grantAbility",
+                                    target: { ref: "$source" },
+                                    ability: "haste",
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {1}{R}",
+                    mana: { X: 1, R: 1 },
+                },
+            ],
+        },
+    },
+    // CR 702.33e + CR 611.2c — the same gate over a mass grant to the creatures you control, the `$each` grant.
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Bog Badger",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Badger",
+            oracleText:
+                "Kicker {B} (You may pay an additional {B} as you cast this spell.)\nWhen this creature enters, if it was kicked, creatures you control gain menace until end of turn. (A creature with menace can't be blocked except by two or more creatures.)",
+            power: "3",
+            toughness: "3",
+            oracleId: "6d8e464c-9df1-46b1-88e6-dcc7fe7b7caa",
+            layout: "normal",
+        },
+        expected: {
+            name: "Bog Badger",
+            types: ["Creature"],
+            subtypes: ["Badger"],
+            manaCost: { X: 2, G: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Kicker {B} (You may pay an additional {B} as you cast this spell.)\nWhen this creature enters, if it was kicked, creatures you control gain menace until end of turn. (A creature with menace can't be blocked except by two or more creatures.)",
+            compiledTriggeredAbilities: [
+                {
+                    id: "bog-badger-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked, creatures you control gain menace until end of turn.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Creature" },
+                                    },
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$each" },
+                                            ability: "menace",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "kicker", description: "Kicker {B}", mana: { B: 1 } },
+            ],
+        },
+    },
+    // CR 702.33e + CR 611.2c — the same gate over a mass grant excluding the source ("other creatures you control").
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Blood-Sport Champion",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Klingon Warrior",
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDeathtouch\nWhen this creature enters, if it was kicked, other creatures you control gain deathtouch until end of turn.",
+            power: "2",
+            toughness: "2",
+            oracleId: "9d08cc9b-2b26-49de-80aa-962a358bfc1a",
+            layout: "normal",
+        },
+        expected: {
+            name: "Blood-Sport Champion",
+            types: ["Creature"],
+            subtypes: ["Klingon", "Warrior"],
+            manaCost: { X: 1, B: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDeathtouch\nWhen this creature enters, if it was kicked, other creatures you control gain deathtouch until end of turn.",
+            staticAbilities: ["deathtouch"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "blood-sport-champion-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked, other creatures you control gain deathtouch until end of turn.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Creature" },
+                                        excludeSource: true,
+                                    },
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$each" },
+                                            ability: "deathtouch",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+            ],
+        },
+    },
     // CR 702.33e + CR 702.33f + CR 603.4 — "When this creature enters, if it was kicked with its {R} kicker, …": a check-time gate on ONE named kicker plus the resolution-time `additionalCostPaid` branch. Exhibits a kicker-payment amount the canned smoke scenario casts unkicked (issue #4571).
     {
         rule: "kicked trigger condition",
