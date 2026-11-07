@@ -31,10 +31,7 @@ import type {
 } from "../cards/types";
 import { SELF_MARKER } from "./normalize";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
-import type {
-    CompiledControlsCondition,
-    CompiledTriggeredAbility,
-} from "../cards/compiledTriggers";
+import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { asEntersColorModes } from "../cards/abilities/chooseColor";
 import { lowerActivatedAbility, lowerManaAbility } from "./lowerActivated";
 import {
@@ -113,8 +110,6 @@ interface Accumulator {
     entersTapped: boolean;
     /** CR 614.12 — the shockland pay-choice. */
     entersTappedUnlessPay?: { life: number };
-    /** CR 614.1d — "enters tapped unless you control …". */
-    entersTappedUnlessControls?: CompiledControlsCondition;
     /** CR 722.3a — "This creature enters prepared." */
     entersPrepared: boolean;
     drawStepReplacement: boolean;
@@ -696,8 +691,6 @@ function lowerLine(
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.entersTappedUnlessPay !== undefined)
                 acc.entersTappedUnlessPay = out.entersTappedUnlessPay;
-            if (out.entersTappedUnlessControls !== undefined)
-                acc.entersTappedUnlessControls = out.entersTappedUnlessControls;
             if (out.entersPrepared === true) acc.entersPrepared = true;
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
@@ -1395,9 +1388,6 @@ export function lowerCard(
     // CR 614.12 — the shockland pay-choice, applied AS the land enters.
     if (acc.entersTappedUnlessPay)
         definition.entersTappedUnlessPay = acc.entersTappedUnlessPay;
-    // CR 614.1d — the board-conditional sibling, read AS the land enters.
-    if (acc.entersTappedUnlessControls)
-        definition.entersTappedUnlessControls = acc.entersTappedUnlessControls;
     // CR 722.3a — "enters prepared", the same as-it-enters slot.
     if (acc.entersPrepared) definition.entersPrepared = true;
     // CR 614.10 — "Skip your draw step" is a replacement effect the phase code
