@@ -463,7 +463,7 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         );
         const sweep = script.slice(script.indexOf('"--replay-bot"]'));
         const refusal = sweep.match(
-            /sweepPoolLosses\(swept\.cards\);\s+if \(poolLosses > SWEEP_POOL_LOSS_TOLERANCE\) \{[^}]*return 1;/
+            /sweepPoolLosses\(swept\.cards\);\s+if \(poolLosses > SWEEP_POOL_LOSS_TOLERANCE\) \{[\s\S]*?return 1;/
         );
         expect(refusal).not.toBeNull();
         expect(sweep.indexOf(refusal![0])).toBeLessThan(
