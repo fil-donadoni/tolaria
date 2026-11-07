@@ -116,6 +116,11 @@ describe("Skullclamp's minimal pair: the opponent's life flips the equip (issue 
         const result = runBladeScenario(entry(label));
         expect(result.failureMessage).toBe("");
         expect(result.ok).toBe(true);
+        // The search's own reading, not a tie-break over a position where every
+        // line already reads as won or the equip buys nothing.
+        expect(result.seeds.map((s) => s.mechanism)).toEqual(
+            result.seeds.map(() => "mean-reward")
+        );
     });
 });
 
