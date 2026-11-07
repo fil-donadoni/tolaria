@@ -15,16 +15,20 @@
  * Compiled (`ready`) cube cards are not scanned: they reach the pool through
  * the lockfile, and the lane's test covers them.
  *
+ * The file's keys stay sorted (ADR 0165): a tail append is the conflict every
+ * other card PR's tail append collides with. `--sort` puts them in order.
+ *
  * Offline, ~1 s. Runs in `check:lane` on a diff that can move it
  * (`CHEAP_GUARDS`, issue #4963) and in `health`.
  *
- * Run: bun run check:cube-ratings
+ * Run: bun run check:cube-ratings [--sort]
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { VINTAGE_CUBE_NAMES } from "../convex/cubes/vintageCubeNames";
 import { CARD_ANCHOR, scanCardAnchors } from "./lib/compiler-gap-markers";
 import { collectSetFiles } from "./lib/divergence-markers";
+import { canonicalKeyedMapText } from "./lib/key-set-merge";
 
 const RATINGS_PATH = "data/pick-ratings/vintage-cube.json";
 /** An `id:` property: a string literal or a same-file string constant. */
@@ -118,8 +122,22 @@ export function missingCubeRatings(
     return reds;
 }
 
+/** The red line for a ratings file out of canonical order; `null` = green. */
+export function ratingsOrderRed(text: string): string | null {
+    return canonicalKeyedMapText(JSON.parse(text)) === text
+        ? null
+        : `${RATINGS_PATH} is not in canonical key order (ADR 0165) — fix: bun run check:cube-ratings --sort`;
+}
+
 if (import.meta.main) {
     const root = process.cwd();
+    if (process.argv.includes("--sort")) {
+        const path = join(root, RATINGS_PATH);
+        writeFileSync(
+            path,
+            canonicalKeyedMapText(JSON.parse(readFileSync(path, "utf8")))
+        );
+    }
     const cards = collectSetFiles(
         join(root, "convex", "cards", "sets")
     ).flatMap((file) =>
@@ -128,12 +146,15 @@ if (import.meta.main) {
             relative(root, file)
         )
     );
-    const { ratings } = JSON.parse(
-        readFileSync(join(root, RATINGS_PATH), "utf8")
-    ) as {
+    const ratingsText = readFileSync(join(root, RATINGS_PATH), "utf8");
+    const { ratings } = JSON.parse(ratingsText) as {
         ratings: Record<string, number>;
     };
-    const reds = missingCubeRatings(cards, VINTAGE_CUBE_NAMES, ratings);
+    const orderRed = ratingsOrderRed(ratingsText);
+    const reds = [
+        ...missingCubeRatings(cards, VINTAGE_CUBE_NAMES, ratings),
+        ...(orderRed === null ? [] : [orderRed]),
+    ];
     for (const red of reds) console.error(`✗ ${red}`);
     if (reds.length > 0) process.exit(1);
     console.log(

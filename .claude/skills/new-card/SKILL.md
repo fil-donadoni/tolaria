@@ -330,8 +330,9 @@ discipline, unchanged:
 \"<NEW_CARD_ID>\"" convex/cards/sets/`, uncomment the whole `CardPrint` block,
   drop the trailing ` (stub)`.
 - **A Vintage Cube card owes a Pick Rating** (0–5) in
-  `data/pick-ratings/vintage-cube.json`: `bun run check:cube-ratings`
-  (issue #7629; the lane's test alone reds late, PR #7579).
+  `data/pick-ratings/vintage-cube.json`, keys sorted (`--sort`, ADR 0165):
+  `bun run check:cube-ratings` (issue #7629; the lane's test alone reds late,
+  PR #7579).
 - **Frontend wiring walk** (mandatory, `.claude/rules/gre-development.md`): a
   new activation-cost shape goes into
   `src/lib/__tests__/activation-affordability.catalogue.test.ts`'s `Shape`

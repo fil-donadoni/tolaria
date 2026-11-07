@@ -706,7 +706,7 @@ describe("the ledger file", () => {
     const b = cite(BACK_FACE, "back face");
     const citations = citationsOf([{ file: FILE, text: `${b}\n${a}` }]);
 
-    it("serializes one entry per line, sorted by id then line, and parses back", () => {
+    it("serializes one entry per line and parses back", () => {
         const { ledger } = confirmLine(
             initialLedger(citations),
             citationsOf([{ file: FILE, text: a }]),
@@ -716,11 +716,11 @@ describe("the ledger file", () => {
         const text = serializeLedger(ledger);
         const rows = text.split("\n").filter((l) => l.startsWith("        {"));
         expect(rows).toHaveLength(2);
-        expect(rows[0]).toContain(`"id":"${ONCE}"`);
-        expect(rows[0]).toContain('"sites":1,"status":"confirmed"');
-        expect(rows[1]).toContain(`"id":"${BACK_FACE}"`);
-        expect(rows[1]).toContain('"sites":1,"status":"baseline"');
-        expect(rows[1]).not.toContain("ruleHash");
+        const once = rows.find((r) => r.includes(`"id":"${ONCE}"`));
+        const backFace = rows.find((r) => r.includes(`"id":"${BACK_FACE}"`));
+        expect(once).toContain('"sites":1,"status":"confirmed"');
+        expect(backFace).toContain('"sites":1,"status":"baseline"');
+        expect(backFace).not.toContain("ruleHash");
         expect(serializeLedger(parseLedger(text))).toBe(text);
     });
 

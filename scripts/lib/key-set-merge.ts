@@ -167,9 +167,8 @@ function parseMap(text: string, side: string): KeyedMap | string {
  * value is an object on every side that holds it — so `{ setCode, ratings }`
  * merges `ratings` per Scryfall id. A key only one side changed takes that
  * side, both changed identically takes it once, both changed DIFFERENTLY is a
- * real disagreement. Order is canonical: the base's keys in the base's order,
- * then every new key sorted — so tail appends never reorder the file and the
- * next merge starts from the same form.
+ * real disagreement. Order here is the base's keys, then every new key sorted;
+ * {@link canonicalKeyedMap} then gives the file its canonical form.
  */
 function mergeMaps(
     base: KeyedMap,
@@ -207,6 +206,36 @@ function mergeMaps(
     return { ok: true, map: merged };
 }
 
+/**
+ * The canonical form of a keyed map: the top level as written (`setCode`, then
+ * `ratings`), every map below it sorted by key. A rating keyed by a Scryfall id
+ * so lands at a random place in `ratings` instead of on the tail every other
+ * card PR appends to, and GitHub, which runs no driver, sees no conflict
+ * (ADR 0165).
+ */
+export function canonicalKeyedMap(map: KeyedMap): KeyedMap {
+    const sorted = (m: KeyedMap): KeyedMap =>
+        Object.fromEntries(
+            Object.keys(m)
+                .sort()
+                .map((k) => {
+                    const v = m[k];
+                    return [k, isPlainObject(v) ? sorted(v) : v];
+                })
+        );
+    return Object.fromEntries(
+        Object.entries(map).map(([k, v]) => [
+            k,
+            isPlainObject(v) ? sorted(v) : v,
+        ])
+    );
+}
+
+/** A keyed-map file's bytes in {@link canonicalKeyedMap}'s form. */
+export function canonicalKeyedMapText(map: KeyedMap): string {
+    return `${JSON.stringify(canonicalKeyedMap(map), null, 4)}\n`;
+}
+
 /** Merge three texts of a keyed-map file; canonical four-space JSON out. */
 export function mergeKeyedMapFile(
     baseText: string,
@@ -227,7 +256,7 @@ export function mergeKeyedMapFile(
         sides.theirs as KeyedMap,
         ""
     );
-    return r.ok ? { ok: true, text: `${JSON.stringify(r.map, null, 4)}\n` } : r;
+    return r.ok ? { ok: true, text: canonicalKeyedMapText(r.map) } : r;
 }
 
 /**

@@ -68,8 +68,8 @@ convex/gre/ai/blade/scenarios.ts merge=append-only
 convex/oracle/grammar/fixtures.ts merge=append-only
 
 # The Pick Ratings seed layer (issue #7871): a keyed map `{ setCode, ratings }`
-# every card PR appends a rating to at the tail of `ratings`, so two PRs
-# conflict on the moved trailing comma. The same `key-set` driver merges it
-# key by key. One row per file: a new ratings file classifies itself there.
+# card PRs insert a rating into. Sorted keys keep them apart (ADR 0165); when
+# two PRs still collide, the same `key-set` driver merges it key by key. One row
+# per file: a new ratings file classifies itself there.
 data/pick-ratings/lea.json merge=key-set
 data/pick-ratings/vintage-cube.json merge=key-set

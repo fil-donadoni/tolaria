@@ -1,5 +1,5 @@
 /**
- * The CR citation ledger (ADR 0133, issue #3674) — pure over its inputs.
+ * The CR citation ledger (ADR 0133) — pure over its inputs.
  *
  * `check-cr-citations.ts` proves a cited id EXISTS; the keyword scan and the
  * targeted scans prove, for a few known shapes, that it means what the line
@@ -16,7 +16,7 @@
  *   - `id`      — the cited rule id;
  *   - `line`    — the NORMALIZED text of the PHYSICAL line the id sits on
  *                 (whitespace collapsed, trimmed) — for a citation wrapped
- *                 across two comment lines (`cr-lines.ts`, issue #2514), the
+ *                 across two comment lines (`cr-lines.ts`), the
  *                 line carrying the id, not the joined text the scans read.
  *                 Never a file or a line number: moving the comment keeps its
  *                 entry, EDITING it reopens the citation — on purpose, because
@@ -51,7 +51,7 @@
  *   - `grown`      — a `baseline` entry the base branch's ledger does not have.
  *     The baseline SHRINKS by default: nothing enters unchecked under that
  *     status, and `confirm` never writes it. The one licensed growth is a
- *     TOKENIZER WIDENING (issue #3697): when the diff changes what counts as
+ *     TOKENIZER WIDENING: when the diff changes what counts as
  *     a citation, the citations the new tokenizer sees on the MERGE-BASE tree
  *     that the merge-base ledger lacks are what the widening uncovered — they
  *     predate the branch and were invisible, not unchecked. `cr:ledger widen`
@@ -78,14 +78,17 @@
  * finding 1). No suppressed citation outside the exempt files existed when
  * this was decided.
  *
- * Shape of the committed file: one entry per line, sorted by id then line,
- * fixed key order, no header hash or tally — so a confirmation is ONE changed
- * line in review (the `generated-artifacts.ts` discriminator: no whole-file
- * state, hence nothing to regenerate). That shape was also read as immunity to
- * conflicts, and it is not: rows sort by id, so two branches confirming two
- * different citations under the SAME id land in the same hunk. That is what
- * {@link mergeLedgers} and the `merge=cr-ledger` driver resolve (issue #3768).
+ * Shape of the committed file: one entry per line, sorted by a HASH of the
+ * entry's key, fixed key order, no header hash or tally — so a confirmation is
+ * ONE changed line in review (the `generated-artifacts.ts` discriminator: no
+ * whole-file state, hence nothing to regenerate). The hash order is what keeps
+ * two branches off the same gap of the file (ADR 0165): sorted by id then line,
+ * correlated rows of a hot id landed side by side and GitHub, which runs no
+ * driver, dequeued the PR. It lowers those conflicts and does not end them, so
+ * {@link mergeLedgers} and the `merge=cr-ledger` driver still resolve what is
+ * left (issue #3768).
  */
+import { createHash } from "node:crypto";
 import { printedRule, ruleHash, type Rule } from "./cr-rules.ts";
 
 import { LEDGER_PATH } from "./cr-ledger-path.ts";
@@ -275,15 +278,25 @@ export function parseLedger(text: string): Ledger {
 }
 
 /**
- * Deterministic serializer: one entry per line, sorted by id then line, fixed
- * key order — so a confirmation is one changed line in review, and so the
- * `merge=cr-ledger` driver can write a merged entry set here and get bytes
- * indistinguishable from the ones `cr:ledger` itself would commit.
+ * Where an entry sits in the file: a hash of its key, so a branch's new rows
+ * spread uniformly over the file's gaps whatever their rule id or text
+ * (ADR 0165).
+ */
+function ledgerOrderKey(e: LedgerEntry): string {
+    return createHash("sha256").update(`${e.id}\0${e.line}`).digest("hex");
+}
+
+/**
+ * Deterministic serializer: one entry per line, sorted by the hash of its key
+ * (ADR 0165), fixed key order — so a confirmation is one changed line in
+ * review, and so the `merge=cr-ledger` driver can write a merged entry set here
+ * and get bytes indistinguishable from the ones `cr:ledger` itself would commit.
  */
 export function serializeLedger(ledger: Ledger): string {
-    const rows = [...ledger.entries]
-        .sort((a, b) => compare(a.id, b.id) || compare(a.line, b.line))
-        .map((e) =>
+    const rows = ledger.entries
+        .map((e) => ({ e, at: ledgerOrderKey(e) }))
+        .sort((a, b) => compare(a.at, b.at))
+        .map(({ e }) =>
             JSON.stringify({
                 id: e.id,
                 line: e.line,
@@ -817,9 +830,8 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
  *
  * WHY A DRIVER AT ALL. The sorted, per-row shape was read as immunity: "two
  * branches confirming two different citations touch disjoint lines". They do
- * not. Rows are sorted by rule id and a hot id carries hundreds of them, so
- * two confirmations UNDER THE SAME ID land in the same sorted hunk and git
- * reports a textual conflict with no semantic content at all.
+ * not. Hash order (ADR 0165) makes two rows in one gap rare, not impossible,
+ * and git then reports a textual conflict with no semantic content at all.
  *
  * WHY NOT THE `regenerated` DRIVER. That one's contract is "take a side, then
  * re-run the generator at the rebased tip", and this file has no generator:
