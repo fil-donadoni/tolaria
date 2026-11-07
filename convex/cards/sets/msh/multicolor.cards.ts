@@ -4,6 +4,9 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
+import type { EffectOp, EffectPredicate } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import { opponentsCantCastDuringYourTurn } from "../../tokenStaticEffects";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -187,3 +190,194 @@ export const absorbingMan = defineCard(() => ({
         }),
     ],
 }));
+
+// Cloak and Dagger, Entwined — {1}{W}{B} Legendary Creature — Human Hero, 2/2
+// (MSH, issue #8172). "Deathtouch, lifelink\nWhen Cloak and Dagger enter,
+// choose target opponent and up to one target creature they control. They
+// reveal their hand. You may exile a nonland card from their hand or the
+// chosen creature until Cloak and Dagger leave the battlefield."
+//
+// Two independent target groups announced as the trigger goes on the stack
+// (CR 603.3d -> CR 601.2c, issue #8475): the opponent is `{ target: 0 }`, the
+// "up to one" creature they control `{ target: 1 }` (CR 608.2b: nothing chosen
+// resolves to nothing).
+//
+// The exile is "a nonland card from their hand OR the chosen creature": one
+// pick: a cost-free `mayPay` (the "may"), then an `optionChoice` between the
+// two sides only when BOTH exist; each side is gated by an `if` so a missing
+// option raises no redundant prompt (a hand with only lands, no creature
+// chosen). The hand count sits right after the `reveal` (CR 701.20a), which
+// is what makes the filtered read legal.
+//   - Hand branch: Deep-Cavern Bat's `choice` `choose-hand-card` + `moveZone`
+//     with `linkToSource` (CR 607 linked abilities) and `untilSourceLeaves`
+//     (CR 610.3b: the source already left before this trigger resolved, so the
+//     card does not move). The `reveal` of the hand is its own game action
+//     (CR 701.20a) and happens regardless.
+//   - Creature branch: `exileWithAttachments` over `{ target: 1 }` (Aang's
+//     Iceberg, ADR 0028); it refuses a departed source itself (CR 610.3b).
+// The leave trigger runs BOTH returns: the linked hand card goes to its
+// owner's hand (CR 400.7), the held creature returns to the battlefield. Each
+// is keyed to its own store (`exiledBySourceId` vs the `exileHeld` bundle), so
+// neither picks up the other's object, and a side that holds nothing is a
+// CR 608.2b no-op.
+//
+// The "until" return is a leaves-the-battlefield trigger, the same model
+// Deep-Cavern Bat and Aang's Iceberg ship (CR 610.3).
+// hand-tail: Choose target opponent and up to one target creature they control (#8172)
+export const cloakAndDaggerEntwined = defineCard(() => {
+    const exileFromHand: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zoneOwnerId: { target: 0 },
+            zone: "hand",
+            filter: { excludeType: "Land" },
+            count: { min: 1, max: 1 },
+            prompt: "Exile a nonland card from their hand.",
+            bind: "$taken",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$taken" },
+            player: { target: 0 },
+            from: "hand",
+            to: "exile",
+            linkToSource: true,
+            untilSourceLeaves: true,
+        },
+    ];
+    const exileCreature: EffectOp[] = [
+        { op: "exileWithAttachments", target: { target: 1 } },
+    ];
+    const handModeLabel = "Exile a nonland card from their hand";
+    const creatureModeLabel = "Exile the chosen creature";
+    const hasNonlandInHand: EffectPredicate = {
+        left: {
+            count: {
+                zone: "hand",
+                controller: { target: 0 },
+                filter: { excludeType: "Land" },
+            },
+        },
+        op: "ge",
+        right: 1,
+    };
+    const hasChosenCreature: EffectPredicate = {
+        objectMatchesFilter: { target: 1 },
+        filter: { type: "Creature" },
+    };
+    return {
+        id: "fa01d35f-1064-4a7c-9475-4504566df850",
+        name: "Cloak and Dagger, Entwined",
+        rarity: "rare",
+        oracleText:
+            "Deathtouch, lifelink\nWhen Cloak and Dagger enter, choose target opponent and up to one target creature they control. They reveal their hand. You may exile a nonland card from their hand or the chosen creature until Cloak and Dagger leave the battlefield.",
+        manaCost: { generic: 1, W: 1, B: 1 },
+        types: ["Creature"],
+        supertypes: ["Legendary"],
+        subtypes: ["Human", "Hero"],
+        power: 2,
+        toughness: 2,
+        staticAbilities: ["deathtouch", "lifelink"],
+        triggeredAbilities: [
+            enteredTrigger({
+                id: "cloak-and-dagger-entwined-exile",
+                oracleText:
+                    "When Cloak and Dagger enter, choose target opponent and up to one target creature they control. They reveal their hand. You may exile a nonland card from their hand or the chosen creature until Cloak and Dagger leave the battlefield.",
+                scope: "self",
+                targetRequirement: {
+                    type: "player",
+                    count: 1,
+                    controller: "opponent",
+                },
+                additionalTargetRequirements: [
+                    {
+                        type: "Creature",
+                        count: { min: 0, max: 1 },
+                        controller: "opponent",
+                    },
+                ],
+                effects: [
+                    { op: "reveal", player: { target: 0 }, zone: "hand" },
+                    {
+                        op: "if",
+                        predicate: hasNonlandInHand,
+                        then: [
+                            {
+                                op: "mayPay",
+                                player: "controller",
+                                prompt: "Exile a nonland card from their hand or the chosen creature?",
+                                bind: "$exile",
+                            },
+                            {
+                                op: "if",
+                                predicate: { binding: "$exile" },
+                                then: [
+                                    {
+                                        op: "if",
+                                        predicate: hasChosenCreature,
+                                        then: [
+                                            {
+                                                op: "optionChoice",
+                                                prompt: "Exile a nonland card from their hand or the chosen creature?",
+                                                modes: [
+                                                    {
+                                                        id: "hand",
+                                                        label: handModeLabel,
+                                                        effects: exileFromHand,
+                                                    },
+                                                    {
+                                                        id: "creature",
+                                                        label: creatureModeLabel,
+                                                        effects: exileCreature,
+                                                    },
+                                                ],
+                                            },
+                                        ],
+                                        else: exileFromHand,
+                                    },
+                                ],
+                            },
+                        ],
+                        else: [
+                            {
+                                op: "if",
+                                predicate: hasChosenCreature,
+                                then: [
+                                    {
+                                        op: "mayPay",
+                                        player: "controller",
+                                        prompt: "Exile the chosen creature?",
+                                        bind: "$exileCreature",
+                                    },
+                                    {
+                                        op: "if",
+                                        predicate: {
+                                            binding: "$exileCreature",
+                                        },
+                                        then: exileCreature,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }),
+            leftTrigger({
+                id: "cloak-and-dagger-entwined-return",
+                oracleText:
+                    "When Cloak and Dagger leave the battlefield, return the exiled card to its owner's hand and the exiled creature to the battlefield under its owner's control.",
+                scope: "self",
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { exiledWithSource: true },
+                        to: "hand",
+                    },
+                    { op: "returnExiledForSource" },
+                ],
+            }),
+        ],
+    };
+});
