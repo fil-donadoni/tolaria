@@ -259,7 +259,11 @@ export function runBounded(
         stdio?: "ignore" | "capture" | "inherit";
     }
 ): BoundedResult {
-    const capture = options.stdio === undefined || options.stdio === "capture";
+    const stdio =
+        options.stdio === "ignore" || options.stdio === "inherit"
+            ? options.stdio
+            : "pipe";
+    const capture = stdio === "pipe";
     // The child leads a group of its own, made by `perl` before it `exec`s the
     // command: Bun's `spawnSync` ignores `detached`, and a child left in the
     // caller's group is one `killTree` must protect, so nothing would be
@@ -272,7 +276,7 @@ export function runBounded(
             cwd: options.cwd,
             env: options.env,
             encoding: "utf8",
-            stdio: capture ? "pipe" : options.stdio,
+            stdio,
             timeout: options.timeoutMs,
             killSignal: "SIGKILL",
             maxBuffer: 64 * 1024 * 1024,
