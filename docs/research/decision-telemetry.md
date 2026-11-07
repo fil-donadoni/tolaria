@@ -309,8 +309,8 @@ rule.
 
 ## With action priors — 2026-11-07, issue #8700
 
-**Measured at `2c299dea7b96` (2026-11-07)**, both arms on that one tree: the
-command of § Re-measure, the control arm with
+**Measured on the issue #8700 branch over base `d3cac821f` (2026-11-07)**, both
+arms on that one tree: the command of § Re-measure, the control arm with
 `DECISION_CORPUS_VARIANT=no-action-priors`. The control arm reproduces
 § Re-measure's split row for row, so it is the old rule. Live play runs the
 other arm since issue #8700 (PUCT, `c = 0.15`, `fpu = 0.15`). One seed and 432
