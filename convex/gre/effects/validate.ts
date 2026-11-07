@@ -5622,11 +5622,16 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
     },
     // CR 701.42a (issue #3341) — the counterpart a meld ability names. A
-    // battlefield selector, so its battlefield-only filter fields are admitted.
+    // battlefield selector, so its battlefield-only filter fields are admitted;
+    // live combat state included (issue #8176: Mishra, Claimed by Gix melds only
+    // with a Phyrexian Dragon Engine that is ATTACKING).
     meld: {
         required: {
             partner: (value: unknown) =>
-                isCardFilter(value, { allowControlledSinceTurnStart: true }),
+                isCardFilter(value, {
+                    allowControlledSinceTurnStart: true,
+                    allowLiveState: true,
+                }),
         },
         // CR 508.4 — "It enters tapped and attacking".
         optional: {
