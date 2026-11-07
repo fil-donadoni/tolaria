@@ -61,7 +61,7 @@ export const mishraLostToPhyrexiaFace: CardBackFace = {
                     oracleText: "Mishra deals 3 damage to any target.",
                     targetRequirement: { type: "any", count: 1 },
                     effects: [
-                        { op: "dealDamage", target: { target: 0 }, amount: 3 },
+                        { op: "dealDamage", to: { target: 0 }, amount: 3 },
                     ],
                 },
                 {

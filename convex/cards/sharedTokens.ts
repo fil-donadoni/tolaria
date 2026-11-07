@@ -789,7 +789,7 @@ export const INKLING_TOKEN: EffectTokenSpec = {
     staticAbilities: ["flying"],
 };
 
-/** Powerstone token (CR 111 / 707.2, issue #8176). "Artifact — Powerstone"
+/** Powerstone token (issue #8176). "Artifact — Powerstone"
  *  with "{T}: Add {C}. This mana can't be spent to cast a nonartifact spell."
  *  A fixed-output mana ability (CR 605.1a): `manaProduced` is the descriptor
  *  every mana authority reads, and `manaRestriction` is the same restriction

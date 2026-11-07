@@ -50045,6 +50045,14 @@
         "source": "compiled"
     },
     {
+        "name": "Mishra, Claimed by Gix",
+        "scryfallId": "a469d7ec-42de-45de-9d8f-469bb979de58",
+        "oracleId": "26a623a1-60c9-47e3-af96-616e29551865",
+        "firstSet": "bro",
+        "firstPrintId": "a469d7ec-42de-45de-9d8f-469bb979de58",
+        "firstPrintSet": "bro"
+    },
+    {
         "name": "Mishra's Bauble",
         "scryfallId": "8a720448-017f-4f4a-9501-678245eaed17",
         "oracleId": "63afc3d1-7653-476e-838f-fc18d4a62a21",
@@ -57153,6 +57161,14 @@
         "firstPrintSet": "mbs",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Phyrexian Dragon Engine",
+        "scryfallId": "e2b826be-4256-4fd6-ad4d-6c80933ee940",
+        "oracleId": "022b42a6-ee0f-4080-b973-c1b68938c3be",
+        "firstSet": "bro",
+        "firstPrintId": "e2b826be-4256-4fd6-ad4d-6c80933ee940",
+        "firstPrintSet": "bro"
     },
     {
         "name": "Phyrexian Dreadnought",
