@@ -11,6 +11,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { applyPlayLand } from "../playLand";
+import type { CardInstanceState } from "../state";
 
 describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
     it("a land with entersTapped: true enters tapped when played", () => {
@@ -66,5 +67,61 @@ describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
         const played = applyPlayLand(state, player, fastLand.id)!;
 
         expect(played.isTapped).toBe(true);
+    });
+});
+
+// CR 614.1d — the JSON-pure `entersTappedUnlessControls` condition, read off a
+// real card ("This land enters tapped unless you control a basic land"). What
+// "you control" and "basic" mean here is the whole of the clause: the would-be
+// controller's permanents (CR 109.5), by the live supertype (CR 205.4c).
+describe("entersTappedUnlessControls at land-play (CR 614.1d)", () => {
+    const ABANDONED_AIR_TEMPLE = "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9";
+    const ISLAND = "90a57c0e-fa61-45ef-955d-d296403967d5";
+
+    function played(mine: CardInstanceState[], theirs: CardInstanceState[]) {
+        const land = makeInstance(ABANDONED_AIR_TEMPLE, { zone: "hand" });
+        const player = makePlayer("p1", { battlefield: mine, hand: [land] });
+        const state = makeState({
+            players: [player, makePlayer("p2", { battlefield: theirs })],
+        });
+        return applyPlayLand(state, player, land.id)!;
+    }
+
+    function island(controllerId: string, fields = {}) {
+        return makeInstance(ISLAND, {
+            controllerId,
+            ownerId: controllerId,
+            ...fields,
+        });
+    }
+
+    it("an opponent's basic land does not count (CR 109.5)", () => {
+        expect(played([], [island("p2")]).isTapped).toBe(true);
+    });
+
+    it("counts a basic land you control but do not own", () => {
+        const stolen = island("p1", { ownerId: "p2" });
+        expect(played([stolen], []).isTapped).toBe(false);
+    });
+
+    it("a basic land that lost the supertype no longer counts (CR 205.4c, live read)", () => {
+        const stripped = island("p1", {
+            removedSupertypes: [{ supertype: "Basic", sourceId: "src" }],
+        });
+        expect(played([stripped], []).isTapped).toBe(true);
+    });
+
+    it("a land granted the supertype counts (CR 205.4c, live read)", () => {
+        const granted = makeInstance(ABANDONED_AIR_TEMPLE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            grantedSupertypes: [{ supertype: "Basic", sourceId: "src" }],
+        });
+        expect(played([granted], []).isTapped).toBe(false);
+    });
+
+    it("a basic non-land does not satisfy the land half of the filter", () => {
+        const notALand = island("p1", { types: ["Creature"] });
+        expect(played([notALand], []).isTapped).toBe(true);
     });
 });

@@ -6,12 +6,17 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
+    resolveTopOfStack,
 } from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
-import { getPlayer } from "../../../../gre/state";
-import { getEffectivePower } from "../../../../gre/layers";
+import { getPlayer, removePermanentTo } from "../../../../gre/state";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, preloadDefinitions } from "../../../index";
+import { baSingSe } from "../colorless.cards";
 
 const abandonedAirTemple = getDefinition(
     "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9"
@@ -148,5 +153,82 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
             (c) => c.id === "bear"
         )!;
         expect(getEffectivePower(projected, bearLive)).toBe(3);
+    });
+});
+
+// Ba Sing Se — Land (CR 614.1d conditional tapped entry; CR 701.66a Earthbend 2
+// on an activated ability). A hand-tail card on a clean tree is not in the
+// catalogue's registry yet, so the definition is preloaded.
+describe("Ba Sing Se (CR 614.1d conditional tapped entry; CR 701.66a Earthbend 2)", () => {
+    const city = baSingSe();
+    preloadDefinitions([city]);
+
+    function earthbent() {
+        const source = makeInstance(city.id, {
+            id: "city",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const home = makeInstance(island.id, {
+            id: "home",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source, home] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, source, "ba-sing-se-earthbend", [
+            { type: "permanent", id: "home" },
+        ]);
+        return state;
+    }
+
+    it("enters UNTAPPED beside a basic land, TAPPED without one", () => {
+        const inHand = () =>
+            makeInstance(city.id, { id: "city", zone: "hand" });
+        const basic = makeInstance(island.id, { id: "isl" });
+        const withBasic = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [basic], hand: [inHand()] }),
+                makePlayer("p2"),
+            ],
+        });
+        const alone = makeState({
+            players: [makePlayer("p1", { hand: [inHand()] }), makePlayer("p2")],
+        });
+        expect(
+            applyPlayLand(withBasic, getPlayer(withBasic, "p1"), "city")!
+                .isTapped
+        ).toBe(false);
+        expect(
+            applyPlayLand(alone, getPlayer(alone, "p1"), "city")!.isTapped
+        ).toBe(true);
+    });
+
+    it("Earthbend 2 makes the target land a 0/0 haste creature with two +1/+1 counters, through the wire", () => {
+        const state = earthbent();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "home"
+        )!;
+        expect(slim.types).toContain("Creature");
+        expect(slim.types).toContain("Land");
+        expect(slim.staticAbilities).toContain("haste");
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    it("the earthbent land returns tapped when it dies", () => {
+        const state = earthbent();
+        removePermanentTo(state, "home", "graveyard");
+        resolveTopOfStack(state);
+        const back = state.players[0].battlefield.find((c) => c.id === "home")!;
+        expect(back.isTapped).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "home")).toBe(
+            false
+        );
     });
 });
