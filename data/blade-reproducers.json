@@ -1703,6 +1703,12 @@
         "libraryCount": 0,
         "cards": [
             {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
                 "name": "Skullclamp",
                 "owner": "me",
                 "zone": "battlefield"
