@@ -24,6 +24,8 @@ export const mishraLostToPhyrexiaFace: CardBackFace = {
     triggeredAbilities: [
         {
             id: "mishra-lost-to-phyrexia-trigger",
+            // Also fires on attack, so it is not an ETB-only ability.
+            etbAbility: false,
             oracleText: MISHRA_LOST_TO_PHYREXIA_TRIGGER_TEXT,
             event: ["PERMANENT_ENTERED", "ATTACKERS_DECLARED"],
             matches: (event, self) =>

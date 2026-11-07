@@ -224,6 +224,8 @@ export const phyrexianDragonEngine = defineCard(() => ({
     triggeredAbilities: [
         {
             id: "phyrexian-dragon-engine-etb",
+            // CR 603.6a: fired by its OWN permanent entering and nothing else.
+            etbAbility: true,
             oracleText:
                 "When this creature enters from your graveyard, you may discard your hand. If you do, draw three cards.",
             event: "PERMANENT_ENTERED",
