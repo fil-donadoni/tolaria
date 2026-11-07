@@ -874,6 +874,12 @@ export default function CardsPile({
         : cards.slice(firstVisible);
     const topIndex = topOnRight ? 0 : cards.length - 1;
 
+    // Issue #6917 — the collapsed pile rings when ANY card in it has a legal
+    // action. Issue #7693 — the ring is painted INSIDE the top card's tilt
+    // element so it follows hover zoom + tilt instead of staying at the tile.
+    const pileActionable =
+        !!actionableIds && cards.some((c) => actionableIds.has(c.id));
+
     const pileCards = visibleCards.map((cardInstance: CardInstance, i) => {
         const cardIndex = firstVisible + i;
         // Library (topOnRight): in the small collapsed board slot a full-library
@@ -911,6 +917,13 @@ export default function CardsPile({
                     // slot: keep `thumb`, hint at the upper bound.
                     <CardImage card={cardInstance} sizes="96px" />
                 )}
+                {pileActionable && cardIndex === topIndex && (
+                    <div
+                        data-pile-actionable
+                        aria-hidden
+                        className={`pointer-events-none absolute inset-0 ${actionableRingClass(true)}`}
+                    />
+                )}
             </CardTilt3D>
         );
 
@@ -936,8 +949,6 @@ export default function CardsPile({
     });
 
     const dialogTitle = `${title || "Cards"} (${cards.length})`;
-    const pileActionable =
-        !!actionableIds && cards.some((c) => actionableIds.has(c.id));
 
     return (
         <PileActionableContext.Provider value={actionableIds ?? NO_ACTIONABLE}>
@@ -982,16 +993,6 @@ export default function CardsPile({
                     ) : (
                         <>
                             {pileCards}
-                            {/* Issue #6917 — the collapsed pile rings when ANY
-                                card in it has a legal action; the cards ring
-                                individually inside the opened dialog. */}
-                            {pileActionable && (
-                                <div
-                                    data-pile-actionable
-                                    aria-hidden
-                                    className={`pointer-events-none absolute inset-0 ${actionableRingClass(true)}`}
-                                />
-                            )}
                             {/* Count badge (ADR 0103, issue #2727): "piles as
                                 card thumbs with a count badge" — the depth of
                                 a zone used to be legible only by opening it
