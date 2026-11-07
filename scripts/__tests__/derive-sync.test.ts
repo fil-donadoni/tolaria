@@ -445,14 +445,18 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         // The base carries 7,056 such rows when this lands: they are not this
         // play's, and refusing on them would freeze every drift sweep.
         it("is read over the misses: an older sweep's carried losses refuse nothing", () => {
-            const lock = buildLockfile(cards(), {
+            // Past the tolerance even without the one row the play replaces.
+            const older = [...cards(), vanilla(SWEEP_POOL_LOSS_TOLERANCE + 2)];
+            const lock = buildLockfile(older, {
                 botReach: playingBotReach(null, BOT, poolDead),
             });
-            const corpus = [...cards().slice(1), vanilla(1, "3")];
+            const corpus = [...older.slice(1), vanilla(1, "3")];
             const run = fixtureIo({ lock, corpus }, spyPlayer());
-            expect(sweepPoolLosses(lock.cards)).toBe(corpus.length);
             expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
             expect(run.calls.carry).toBe(0);
+            expect(sweepPoolLosses(run.disk().cards)).toBeGreaterThan(
+                SWEEP_POOL_LOSS_TOLERANCE
+            );
         });
     });
 
