@@ -3965,6 +3965,60 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 613.1f + CR 611.2a — "gets +1/+0 and gains first strike until end of
+    // turn" under Overload: the pump-and-grant's `grantAbility` reads `$each`
+    // inside the announced-set sweep, the body form the canned scenario cannot
+    // seed (the pump beside it is Stirring Address's form).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2c46bc05-1133-4eaf-8865-eb8a1d880bd9",
+            name: "Weapon Surge",
+            manaCost: "{R}",
+            typeLine: "Instant",
+            oracleText:
+                'Target creature you control gets +1/+0 and gains first strike until end of turn.\nOverload {1}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            layout: "normal",
+        },
+        expected: {
+            name: "Weapon Surge",
+            types: ["Instant"],
+            manaCost: { R: 1 },
+            oracleText:
+                'Target creature you control gets +1/+0 and gains first strike until end of turn.\nOverload {1}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            overload: {
+                id: "overload",
+                description: "Overload {1}{R}",
+                mana: { X: 1, R: 1 },
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$each" },
+                            ability: "first strike",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+        },
+    },
     // "Untap up to three lands": a sweep over the set a `choice` just bound. The
     // canned scenario answers no choice, so the bound set stays unseeded and
     // this row is the evidence the clause is emitted as written.
