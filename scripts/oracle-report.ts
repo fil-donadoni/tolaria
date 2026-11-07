@@ -87,7 +87,6 @@ import {
 import {
     modernDeckLine,
     MODERN_METAGAME_DECKS_PATH,
-    readModernMetagameDecks,
     readTier1Decks,
     summaryLine,
     tier1Reports,
@@ -96,7 +95,10 @@ import {
     type DeckCardState,
     PLAYABLE_STATES,
 } from "./lib/tier1-decks";
-import { readMetagameDecks } from "./premodern-metagame-import";
+import {
+    readMetagameDecks,
+    readModernMetagameDecks,
+} from "./premodern-metagame-import";
 import {
     COVERAGE_STATES,
     readTargetRegistry,

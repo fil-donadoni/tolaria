@@ -8,11 +8,13 @@ import { dirname, join } from "node:path";
 import { parseLockfile } from "../lib/oracle-lockfile";
 import {
     modernDeckLine,
-    parseModernMetagameDecks,
-    readModernMetagameDecks,
     tier1Reports,
     type Tier1Deck,
 } from "../lib/tier1-decks";
+import {
+    parseMetagameDecks,
+    readModernMetagameDecks,
+} from "../premodern-metagame-import";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..", "..");
 const lock = parseLockfile(
@@ -75,6 +77,6 @@ describe("modern metagame report rows", () => {
                 },
             ],
         });
-        expect(() => parseModernMetagameDecks(text)).toThrow(/not 60 \+ 15/);
+        expect(() => parseMetagameDecks(text)).toThrow(/not 60 \+ 15/);
     });
 });

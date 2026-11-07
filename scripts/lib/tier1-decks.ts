@@ -329,38 +329,6 @@ export function summaryLines(reports: readonly DeckReport[]): string[] {
 /** Path of the modern metagame lists (issue #8276, PRD #8445). */
 export const MODERN_METAGAME_DECKS_PATH = "data/modern-metagame-decks.json";
 
-export interface ModernMetagameDeckFile {
-    readonly source: {
-        readonly supplier: string;
-        readonly format: string;
-        readonly note: string;
-    };
-    readonly decks: readonly Tier1Deck[];
-}
-
-/** Parse and VALIDATE the modern lists — the same 60 + 15 discipline. */
-export function parseModernMetagameDecks(
-    text: string,
-    path = MODERN_METAGAME_DECKS_PATH
-): ModernMetagameDeckFile {
-    let doc: ModernMetagameDeckFile;
-    try {
-        doc = JSON.parse(text) as ModernMetagameDeckFile;
-    } catch (err) {
-        throw new Error(`${path} does not parse: ${(err as Error).message}`);
-    }
-    validateDecks(doc.decks, path);
-    return doc;
-}
-
-export function readModernMetagameDecks(root: string): ModernMetagameDeckFile {
-    const path = join(root, MODERN_METAGAME_DECKS_PATH);
-    return parseModernMetagameDecks(
-        readFileSync(path, "utf8"),
-        MODERN_METAGAME_DECKS_PATH
-    );
-}
-
 /**
  * One archetype's progress row: MAIN names playable / total, the playable
  * copies of the 60, and the sideboard size. Fail-closed by construction —

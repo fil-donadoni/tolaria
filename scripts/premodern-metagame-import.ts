@@ -47,6 +47,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
+    MODERN_METAGAME_DECKS_PATH,
     totalCopies,
     validateDecks,
     TIER1_MAIN_SIZE,
@@ -192,6 +193,12 @@ export function parseMetagameDecks(
     }
     validateDecks(doc.decks, path);
     return doc;
+}
+
+/** The modern lists (issue #8276): the same shape and 60 + 15 validation. */
+export function readModernMetagameDecks(root: string): MetagameDeckFile {
+    const path = join(root, MODERN_METAGAME_DECKS_PATH);
+    return parseMetagameDecks(readFileSync(path, "utf8"), path);
 }
 
 export function readMetagameDecks(root: string): MetagameDeckFile {
