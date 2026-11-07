@@ -144,7 +144,7 @@ describe("modal trigger cardinality — the Bot answers it (CR 700.2)", () => {
                     target: { target: 0 },
                     power: 2,
                     toughness: 2,
-                    duration: "eot",
+                    duration: { phase: "end-of-turn" },
                 },
             ],
         };
