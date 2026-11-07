@@ -1027,6 +1027,8 @@ export const rasputinDreamweaver = defineCard(() => ({
     power: 4,
     toughness: 1,
     entersWith: { counters: [{ type: "dream", count: 7 }] },
+    // CR 704.5r — "can't have more than seven dream counters on it".
+    counterLimits: [{ counter: "dream", max: 7 }],
     activatedAbilities: [
         {
             id: "rasputin-dream-mana",
@@ -1068,31 +1070,15 @@ export const rasputinDreamweaver = defineCard(() => ({
             scope: "your",
             // CR 603.4 — only if it started the turn untapped.
             interveningIf: (_event, self) => self.startedTurnUntapped === true,
-            // Migrated resolve()→effects[] (ADR 0045): the stale blocker (no
-            // counter-count predicate) is resolved — the `counters` EffectValue
-            // member (issue #1015) reads the LIVE "dream" counter count on
-            // `$source` directly in an `if` comparison predicate (The Fallen
-            // shape, `drk/black.ts`), gating the add at the CR 122 seven-counter
-            // cap.
+            // The counter goes on even at seven: the cap is the CR 704.5r
+            // state-based action (`counterLimits` above), not this trigger.
             effects: [
                 {
-                    op: "if",
-                    predicate: {
-                        left: {
-                            counters: { of: { ref: "$source" }, type: "dream" },
-                        },
-                        op: "lt",
-                        right: 7,
-                    },
-                    then: [
-                        {
-                            op: "counters",
-                            action: "add",
-                            counter: "dream",
-                            target: { ref: "$source" },
-                            count: 1,
-                        },
-                    ],
+                    op: "counters",
+                    action: "add",
+                    counter: "dream",
+                    target: { ref: "$source" },
+                    count: 1,
                 },
             ],
         }),

@@ -1361,7 +1361,7 @@ describe("Arcades Sabboth (anthem + {W} pump, CR 613.4c / 611.1, issue #1830)", 
 });
 
 describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent removal, capped regrow, CR 122)", () => {
-    it("the upkeep regrow is capped at seven and gated on starting the turn untapped", () => {
+    it("the upkeep regrow at seven puts an eighth counter on, removed by the seven-counter cap (CR 704.5r)", () => {
         const rasputin = makeInstance(rasputinDreamweaver.id, {
             id: "ras",
             controllerId: "p1",
@@ -1374,13 +1374,16 @@ describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent re
                 makePlayer("p2"),
             ],
         });
-        // At the cap → intervening-if true (started untapped) but resolve no-ops.
+        // At the cap → the trigger still puts a counter on (8); the CR 704.5r
+        // state-based action then removes all but seven.
         resolveTrigger(
             state,
             rasputin,
             "rasputin-upkeep-regrow",
             UPKEEP_C5("p1")
         );
+        expect(rasputin.counters?.dream).toBe(8);
+        checkStateBasedActions(state);
         expect(rasputin.counters?.dream).toBe(7);
     });
 

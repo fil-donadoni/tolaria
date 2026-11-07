@@ -23174,6 +23174,13 @@ export interface CardDefinition {
      *  card's `resolve()`. Looked up by id when a queued instance fires. */
     delayedTriggers?: DelayedTriggerDef[];
     sbaMods?: string[];
+    /** CR 704.5r — "this permanent can't have more than N counters of a
+     *  certain kind on it": a static ability, enforced as a state-based
+     *  action by `checkCounterLimitSBA` (`gre/sba.ts`), which removes all but
+     *  `max` of that kind. Counters may still be put on above the cap; the
+     *  excess goes at the next check. Read off the permanent's definition, so
+     *  it stops applying while the permanent has lost all abilities. */
+    counterLimits?: { counter: string; max: number }[];
     /** Additional costs to cast this spell (CR 118.8 / 601.2f). Paid at cast
      *  time, NOT at resolve. The chooser picks a permanent matching
      *  `sacrificeFilter` on their own battlefield; the cast is illegal if no

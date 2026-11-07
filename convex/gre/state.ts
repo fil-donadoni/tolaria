@@ -3950,8 +3950,8 @@ function shuffleAfterGraveyardBoundLibraryRedirect(
  *  paths, the plain spell-resolves path, and `SpellContext.counter`'s
  *  default destination. */
 function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
-    // CR 707.10a — a copy of a spell is not a card: off the stack it ceases to
-    // exist, whichever zone the card would have gone to.
+    // CR 707.10a / 704.5e — a copy of a spell is not a card: off the stack it
+    // ceases to exist, whichever zone the card would have gone to.
     if (item.isCopy) return;
     const owner = getPlayer(state, item.ownerId);
     // CR 708.9 (issue #2705) — "If a face-down spell moves from the stack to
