@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { StateDesignationDefinition } from "@convex/cards/designations";
-import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
-import useCardSlotFloor from "~/hooks/useCardSlotFloor";
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 import { buildDesignationPreviewBody } from "~/lib/preview-body";
 import CardPreview from "../cards/card-preview";
 
@@ -23,14 +22,20 @@ export default function BoardDesignation({
     testId: string;
 }) {
     const imageId = designation.imagePrintId;
-    // WebP → jpg fallback, keyed off the image id (mirrors CardImage). `loaded`
-    // hides the raw box while the bitmap streams in.
-    const [jpgFallback, setJpgFallback] = useState(false);
+    // `loaded` hides the raw box while the bitmap streams in.
     const [loaded, setLoaded] = useState(false);
     // The tile's own box is the slot — measured, never a hand-written hint
-    // (issue #3553). No source until the first measurement: see
-    // `useCardSlotFloor`.
-    const { slotRef, floor, measured } = useCardSlotFloor<HTMLDivElement>();
+    // (issue #3553); the one printed-face source contract (issue #8321)
+    // owns the srcset, the 1x bitmap and the WebP → jpg fallback. No source
+    // until the first measurement: see `useCardSlotFloor`.
+    const { slotRef, attrs, onError, onLoad } =
+        usePrintedFaceSource<HTMLDivElement>({
+            imageId,
+            fallbackSizes: "200px",
+            fallbackIncludeThumb: false,
+            onLoad: () => setLoaded(true),
+            onExhausted: () => setLoaded(true),
+        });
 
     return (
         <CardPreview
@@ -47,28 +52,16 @@ export default function BoardDesignation({
                     ref={slotRef}
                     className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base"
                 >
-                    {measured && (
+                    {attrs && (
                         <img
                             data-card-face="printed"
-                            {...(jpgFallback
-                                ? { src: getImageFallbackUrl(imageId) }
-                                : {
-                                      src: getImageUrl(imageId),
-                                      srcSet: getImageSrcSet(imageId, {
-                                          includeThumb:
-                                              floor?.includeThumb ?? false,
-                                      }),
-                                      sizes: floor?.sizes ?? "200px",
-                                  })}
+                            {...attrs}
                             className="w-full h-full object-cover block select-none"
                             alt={designation.name}
                             decoding="async"
                             draggable={false}
-                            onLoad={() => setLoaded(true)}
-                            onError={() => {
-                                if (!jpgFallback) setJpgFallback(true);
-                                else setLoaded(true);
-                            }}
+                            onLoad={onLoad}
+                            onError={onError}
                         />
                     )}
                     {!loaded && (

@@ -4,9 +4,11 @@ import { createContext, runInContext } from "node:vm";
 import path from "node:path";
 import { Window } from "happy-dom";
 import {
+    CARD_ALIAS_MAX,
     CARD_BLUR_MAX,
     blurredOf,
     describeRaster,
+    softWhy,
     type BlurExample,
 } from "../ui-gate/raster.ts";
 import {
@@ -149,6 +151,7 @@ const sample = (over: Partial<BlurExample>): BlurExample => ({
     h: 291,
     dpr: 2,
     blur: 0.1,
+    alias: 0,
     shot: 9,
     ref: 10,
     half: 5,
@@ -158,6 +161,22 @@ const sample = (over: Partial<BlurExample>): BlurExample => ({
 });
 
 describe("blurredOf — the samples the cardsSoft Floor counts", () => {
+    it("counts the samples over CARD_ALIAS_MAX — energy above the reference is grain, not sharpness (issue #8321)", () => {
+        const samples = [
+            sample({ alias: 0 }),
+            sample({ alias: CARD_ALIAS_MAX }),
+            sample({ alias: CARD_ALIAS_MAX + 0.01, t: "Island" }),
+            sample({ alias: 0.45, t: "Lightning Bolt" }),
+        ];
+        expect(blurredOf(samples).map((s) => s.t)).toEqual([
+            "Island",
+            "Lightning Bolt",
+        ]);
+        expect(softWhy(sample({ alias: 0.45, blur: 0 }))).toBe("alias0.45");
+        expect(softWhy(sample({ alias: 0, blur: 0.8 }))).toBe("blur0.80");
+        expect(softWhy(sample({ blank: true }))).toBe("BLANK");
+    });
+
     it("counts exactly the samples over CARD_BLUR_MAX", () => {
         const samples = [
             sample({ blur: 0 }),
@@ -237,7 +256,22 @@ describe("describeRaster — the cell line", () => {
         expect(line).toContain("blur1[");
         expect(line).toContain("Brainstorm 208px@2x dec208px grid blur0.87");
         expect(line).toContain("shot6.1/ref10/half5.5");
-        expect(line).toContain("rasterN1{208px@2x grid:0.87(s6.1/r10/h5.5)}");
+        expect(line).toContain(
+            "rasterN1{208px@2x grid:0.87/0.00(s6.1/r10/h5.5)}"
+        );
+    });
+
+    it("carries the census flags — faded, scaled or rotated, promoted — on each sample (issue #8321)", () => {
+        const line = describeRaster({
+            samples: [
+                sample({ faded: true, promoted: true, w: 112 }),
+                sample({ kind: "rotated", w: 64, alias: 0.3 }),
+            ],
+            skipped: [],
+        });
+        expect(line).toContain("112px@2x[fp] grid:0.10/0.00(");
+        expect(line).toContain("64px@2x[r] grid:0.10/0.30(");
+        expect(line).toContain("Brainstorm 64px@2x[r] dec208px grid alias0.30");
     });
 
     it("prints blur0 and the per-sample indexes when nothing is blurred, and names a skip", () => {
@@ -246,18 +280,22 @@ describe("describeRaster — the cell line", () => {
             skipped: [{ t: "Island", w: 44, why: "too small" }],
         });
         expect(line).toContain(" blur0 ");
-        expect(line).toContain("rasterN1{96px@2x grid:0.05(");
+        expect(line).toContain("rasterN1{96px@2x grid:0.05/0.00(");
         expect(line).toContain("rasterSkip1[Island 44px: too small]");
     });
 });
 
-describe("raster.js — the candidate filters that keep a sharp face from reading as blurred", () => {
+describe("raster.js — the candidate filters, and what is measured rather than skipped (issue #8321)", () => {
     type Filters = {
-        fadedOrFiltered: (e: Element) => boolean;
-        transformed: (
+        filteredOrBlended: (e: Element) => boolean;
+        compositedOpacity: (e: Element) => number;
+        transformKind: (
             e: { offsetWidth: number; offsetHeight: number },
             r: { width: number; height: number }
-        ) => boolean;
+        ) => "none" | "scaled" | "rotated" | "other";
+        promotedAncestor: (e: Element) => boolean;
+        renditionOf: (url: string) => string | null;
+        referenceSourceOf: (e: Element, deviceW: number) => string | null;
     };
     function filters(bodyHtml: string): { f: Filters; doc: Document } {
         const window = new Window({ url: "http://localhost/" });
@@ -271,32 +309,170 @@ describe("raster.js — the candidate filters that keep a sharp face from readin
         };
     }
 
-    it("rejects a face whose ANCESTOR is translucent — the pending pick's opacity-60, the drag's opacity-30", () => {
+    it("reads a face's composited opacity down to the root — a faded face is measured, not skipped", () => {
         const { f, doc } = filters(
-            `<div style="opacity: 0.6"><div><img id="a" src="x"></div></div>` +
+            `<div style="opacity: 0.6"><div style="opacity: 0.5"><img id="a" src="x"></div></div>` +
                 `<div style="opacity: 1"><img id="b" src="x"></div>`
         );
-        expect(f.fadedOrFiltered(doc.getElementById("a")!)).toBe(true);
-        expect(f.fadedOrFiltered(doc.getElementById("b")!)).toBe(false);
+        expect(f.compositedOpacity(doc.getElementById("a")!)).toBeCloseTo(0.3);
+        expect(f.compositedOpacity(doc.getElementById("b")!)).toBe(1);
     });
 
-    it("rejects a filtered face and keeps an unfiltered one", () => {
+    it("rejects a filtered or blended face and keeps an unfiltered one", () => {
         const { f, doc } = filters(
             `<img id="a" src="x" style="filter: blur(2px)">` +
+                `<div style="mix-blend-mode: multiply"><img id="c" src="x"></div>` +
                 `<img id="b" src="x" style="filter: none">`
         );
-        expect(f.fadedOrFiltered(doc.getElementById("a")!)).toBe(true);
-        expect(f.fadedOrFiltered(doc.getElementById("b")!)).toBe(false);
+        expect(f.filteredOrBlended(doc.getElementById("a")!)).toBe(true);
+        expect(f.filteredOrBlended(doc.getElementById("c")!)).toBe(true);
+        expect(f.filteredOrBlended(doc.getElementById("b")!)).toBe(false);
     });
 
-    it("rejects a face whose screen box is not its layout box (a scaled or rotated ancestor), not a translated one", () => {
+    it("classes a face's on-screen box: translated is none, a uniform scale is scaled, a quarter turn is rotated, a tilt is other", () => {
         const { f } = filters("");
         const layout = { offsetWidth: 100, offsetHeight: 140 };
-        expect(f.transformed(layout, { width: 105, height: 147 })).toBe(true);
-        expect(f.transformed(layout, { width: 140, height: 100 })).toBe(true);
-        expect(f.transformed(layout, { width: 100.4, height: 140.6 })).toBe(
-            false
+        expect(f.transformKind(layout, { width: 100.4, height: 140.6 })).toBe(
+            "none"
         );
+        expect(f.transformKind(layout, { width: 105, height: 147 })).toBe(
+            "scaled"
+        );
+        expect(f.transformKind(layout, { width: 140, height: 100 })).toBe(
+            "rotated"
+        );
+        expect(f.transformKind(layout, { width: 126, height: 90 })).toBe(
+            "rotated"
+        );
+        expect(f.transformKind(layout, { width: 120, height: 150 })).toBe(
+            "other"
+        );
+    });
+
+    it("reports a standing compositor promotion above the face — will-change or a 3D transform on an ancestor", () => {
+        const { f, doc } = filters(
+            `<div style="will-change: transform"><div><img id="a" src="x"></div></div>` +
+                `<div style="transform: translateZ(0)"><img id="c" src="x"></div>` +
+                `<div style="transform: translate(3px, 4px)"><img id="b" src="x"></div>`
+        );
+        expect(f.promotedAncestor(doc.getElementById("a")!)).toBe(true);
+        expect(f.promotedAncestor(doc.getElementById("c")!)).toBe(true);
+        expect(f.promotedAncestor(doc.getElementById("b")!)).toBe(false);
+    });
+
+    it("builds the reference from the clean rendition of the SAME art — grid, or display past grid's width — and from data-art-src for a bitmap face", () => {
+        const { f, doc } = filters(
+            `<img id="a" src="https://cards.scryfall.io/thumb/front/d/5/d573ef03.webp">` +
+                `<img id="b" src="blob:http://localhost/abc" data-art-src="https://cards.scryfall.io/grid/front/d/5/d573ef03.webp">` +
+                `<img id="c" src="blob:http://localhost/def">`
+        );
+        expect(f.referenceSourceOf(doc.getElementById("a")!, 112)).toBe(
+            "https://cards.scryfall.io/grid/front/d/5/d573ef03.webp"
+        );
+        expect(f.referenceSourceOf(doc.getElementById("a")!, 600)).toBe(
+            "https://cards.scryfall.io/display/front/d/5/d573ef03.webp"
+        );
+        expect(f.referenceSourceOf(doc.getElementById("b")!, 112)).toBe(
+            "https://cards.scryfall.io/grid/front/d/5/d573ef03.webp"
+        );
+        expect(f.referenceSourceOf(doc.getElementById("c")!, 112)).toBeNull();
+        expect(f.renditionOf("blob:http://localhost/abc")).toBe("bitmap");
+        expect(
+            f.renditionOf("https://cards.scryfall.io/thumb/front/d/5/x.webp")
+        ).toBe("thumb");
+    });
+});
+
+describe("raster.js — the two-sided index and the box-filtered reference (issue #8321)", () => {
+    type Math2 = {
+        aliasIndex: (shot: number, ref: number) => number | null;
+        boxDownscale: (
+            src: number[] | Uint8ClampedArray,
+            sw: number,
+            sh: number,
+            win: number[],
+            dw: number,
+            dh: number
+        ) => Uint8ClampedArray;
+        upscale2x: (
+            src: Uint8ClampedArray,
+            w: number,
+            h: number
+        ) => Uint8ClampedArray;
+        rotate90: (
+            src: number[] | Uint8ClampedArray,
+            w: number,
+            h: number
+        ) => Uint8ClampedArray;
+        coverWindow: (nw: number, nh: number, W: number, H: number) => number[];
+        gradientEnergy: (
+            data: number[] | Uint8ClampedArray,
+            w: number,
+            h: number,
+            inset: number
+        ) => number;
+    };
+    const m = (() => {
+        const window = new Window({ url: "http://localhost/" });
+        const context = createContext(window as unknown as object);
+        runInContext(RASTER_SOURCE, context);
+        return (window as unknown as { __tolariaRasterMath: Math2 })
+            .__tolariaRasterMath;
+    })();
+
+    it("reads 0 at or below the reference and the excess fraction above it", () => {
+        expect(m.aliasIndex(10, 10)).toBe(0);
+        expect(m.aliasIndex(8, 10)).toBe(0);
+        expect(m.aliasIndex(13.5, 10)).toBeCloseTo(0.35);
+        expect(m.aliasIndex(5, 0)).toBeNull();
+    });
+
+    it("box-downscales to the exact area mean — a 2×2 checker becomes one mid-grey pixel, never a sampled corner", () => {
+        const checker = [
+            255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255,
+        ];
+        const one = m.boxDownscale(checker, 2, 2, [0, 0, 2, 2], 1, 1);
+        expect([...one.subarray(0, 3)]).toEqual([128, 128, 128]);
+        // A 4×2 stripe pair averaged into 2×1: each column pair its own mean.
+        const stripes4 = [
+            200, 200, 200, 255, 100, 100, 100, 255, 0, 0, 0, 255, 50, 50, 50,
+            255, 200, 200, 200, 255, 100, 100, 100, 255, 0, 0, 0, 255, 50, 50,
+            50, 255,
+        ];
+        const two = m.boxDownscale(stripes4, 4, 2, [0, 0, 4, 2], 2, 1);
+        expect([two[0], two[4]]).toEqual([150, 25]);
+    });
+
+    it("a quarter turn swaps the buffer's sides and keeps its gradient energy", () => {
+        const sharp = stripes(40, 28, 4);
+        const turned = m.rotate90(sharp, 40, 28);
+        expect(turned.length).toBe(40 * 28 * 4);
+        const e0 = m.gradientEnergy(sharp, 40, 28, 0);
+        const e1 = m.gradientEnergy(turned, 28, 40, 0);
+        expect(e1).toBeGreaterThan(e0 * 0.9);
+        expect(e1).toBeLessThan(e0 * 1.1);
+    });
+
+    it("upscales 2× bilinearly and centres the cover crop", () => {
+        const small = m.boxDownscale(
+            stripes(8, 8, 2),
+            8,
+            8,
+            [0, 0, 8, 8],
+            4,
+            4
+        );
+        expect(m.upscale2x(small, 4, 4).length).toBe(8 * 8 * 4);
+        // A 488×680 art into a 100×140 box: near-same aspect, a 1px trim.
+        expect(m.coverWindow(488, 680, 100, 140).map(Math.round)).toEqual([
+            1, 0, 486, 680,
+        ]);
+        // A wider box crops the top and bottom.
+        const [sx, sy, sw, sh] = m.coverWindow(488, 680, 200, 200);
+        expect(Math.round(sx)).toBe(0);
+        expect(Math.round(sw)).toBe(488);
+        expect(Math.round(sh)).toBe(488);
+        expect(Math.round(sy)).toBe(96);
     });
 });
 
@@ -305,11 +481,11 @@ describe("describeRaster — a cell with no sample says what its faces were", ()
         const none = describeRaster({
             samples: [],
             skipped: [],
-            rejected: { occluded: 12, faded: 1 },
+            rejected: { occluded: 12, filtered: 1 },
             printed: 13,
         });
         expect(none).toContain(" rasterN0");
-        expect(none).toContain("rasterRejected{occluded:12,faded:1} of 13");
+        expect(none).toContain("rasterRejected{occluded:12,filtered:1} of 13");
         const some = describeRaster({
             samples: [sample({ blur: 0.01 })],
             skipped: [],

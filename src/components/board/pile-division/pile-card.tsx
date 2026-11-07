@@ -2,7 +2,7 @@
 // the layout map; the only mid-drag mutation is its transform (stable DOM node,
 // so pointer capture is never dropped). Transform transitions when settling
 // into a zone, snaps instantly while dragging.
-import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 import type { CardInstance } from "~/types/game";
 import { CARD_W, CARD_H } from "./layout";
 
@@ -22,6 +22,14 @@ export default function PileCard({
     onPointerDown: (e: React.PointerEvent) => void;
 }) {
     const defId = card.card.id;
+    // The image IS the slot: its source comes from the one printed-face
+    // contract (issue #3553, issue #8321) — the measured srcset hint, the 1x
+    // bitmap, the WebP → jpg fallback — never a hand-declared hint.
+    const { slotRef, attrs, onError } = usePrintedFaceSource<HTMLImageElement>({
+        imageId: defId,
+        fallbackSizes: `${CARD_W}px`,
+        fallbackIncludeThumb: true,
+    });
     return (
         <div
             onPointerDown={onPointerDown}
@@ -40,17 +48,10 @@ export default function PileCard({
             }}
         >
             <img
+                ref={slotRef}
                 data-card-face="printed"
-                src={getImageUrl(defId)}
-                srcSet={getImageSrcSet(defId)}
-                sizes={`${CARD_W}px`}
-                onError={(e) => {
-                    const fallback = getImageFallbackUrl(defId);
-                    if (e.currentTarget.src !== fallback) {
-                        e.currentTarget.srcset = "";
-                        e.currentTarget.src = fallback;
-                    }
-                }}
+                {...(attrs ?? {})}
+                onError={onError}
                 alt=""
                 draggable={false}
                 className="pointer-events-none select-none card-corner border border-border object-cover shadow-md"

@@ -206,6 +206,8 @@ export interface Evaluation {
     unmeasuredSurfaces: string[];
     /** The diff scope the run was started under; null unless the diff scoped it. */
     diffScope: DiffScope | null;
+    /** Why the run is DIAGNOSTIC regardless of its surfaces, when it is. */
+    diagnosticReason?: string;
     /** Diagnostic block: every measured cell's Shape Readings. */
     shapes: ShapeRow[];
     /** Diagnostic block: every INFRA cell with its load and reason. */
@@ -224,6 +226,13 @@ export interface EvaluateInput {
     definedSurfaceIds: readonly string[];
     /** The Viewport Matrix (ADR 0101), in its order. */
     viewportIds: readonly string[];
+    /** The viewports ONE surface owes, in matrix order (ADR 0168, issue
+     *  #8321): a `cardsOnly` viewport is owed only by a surface that draws
+     *  printed card faces. Absent, every surface owes every viewport. The
+     *  walk, this evaluation and the receipt re-derivation all read the same
+     *  rule (`viewports.ts` `viewportWalks`), so a cell the walk never
+     *  attempts is never a missing row. */
+    viewportsOf?: (surface: string) => readonly string[];
     unwalked: readonly UnwalkedSurface[];
     diffScope?: DiffScope | null;
     /** The labels each surface PROMISES, in declaration order
@@ -231,6 +240,10 @@ export interface EvaluateInput {
      *  outcome: a label listed here and missing from a cell's results is a
      *  FAIL, so a walk that silently stopped evaluating cannot read as green. */
     assertsBySurface?: Record<string, readonly string[]>;
+    /** Set, the run is DIAGNOSTIC whatever its surfaces, for this reason — a
+     *  `--viewport=` subset (issue #8321): a block missing a viewport's rows
+     *  is no receipt, and must not print as one. */
+    diagnosticReason?: string;
 }
 
 /** The detail of a `PASS` row — constant, so the verdict block is too. */
@@ -298,7 +311,7 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
         );
 
         let surfaceComplete = true;
-        for (const viewport of viewportIds) {
+        for (const viewport of input.viewportsOf?.(surface) ?? viewportIds) {
             const m = measured.get(viewport);
             if (!m) {
                 surfaceComplete = false;
@@ -393,11 +406,9 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
         if (surfaceComplete) measuredSurfaces++;
     }
 
-    const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
-        knownSurfaceIds,
-        definedSurfaceIds,
-        diffScope
-    );
+    const kindOf = receiptKindOf(knownSurfaceIds, definedSurfaceIds, diffScope);
+    const receiptKind = input.diagnosticReason ? "DIAGNOSTIC" : kindOf.kind;
+    const unmeasuredSurfaces = kindOf.unmeasuredSurfaces;
 
     return {
         rows,
@@ -413,6 +424,9 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
         shapes,
         infra,
         unreachable,
+        ...(input.diagnosticReason
+            ? { diagnosticReason: input.diagnosticReason }
+            : {}),
     };
 }
 
@@ -469,6 +483,9 @@ export function receiptKindLine(ev: Evaluation): string {
             `SCOPED — diff base ${base}, ${ev.knownSurfaces} surface(s) in scope: ` +
             `${(ev.diffScope?.surfaces ?? []).join(", ")} ${counts}`
         );
+    }
+    if (ev.diagnosticReason) {
+        return `DIAGNOSTIC — NOT a PR receipt: ${ev.diagnosticReason}`;
     }
     return (
         `DIAGNOSTIC — NOT a PR receipt: ${ev.unmeasuredSurfaces.length} surface(s) ` +
