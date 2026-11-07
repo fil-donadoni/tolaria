@@ -232,7 +232,9 @@ export const phyrexianDragonEngine = defineCard(() => ({
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id &&
-                event.enteredFromGraveyard === true,
+                event.enteredFromGraveyard === true &&
+                // "your graveyard": a card entering from its OWNER's graveyard.
+                self.ownerId === self.controllerId,
             effects: [
                 {
                     op: "mayPay",
