@@ -439,12 +439,11 @@ export type ComboCensusOptions = {
 };
 
 /** The top budget is half `difficulty.ts`'s `medium` preset and the one below it
- *  a quarter of that: at the default Bot's 400 a corpus run outlasts a batch by
- *  hours, and a short kill is found well below it, so a miss here understates the
- *  Bot on the safe side of a gate. Two seeds, the first the blade's own default,
- *  so a win is not one lucky rollout. Twelve Bot decisions cover about its whole
- *  first turn, with all the position's mana. That also keeps a plain attack out
- *  of Executable unless one swing kills. */
+ *  a quarter of that, to keep a corpus run affordable: a win needs every seed, so
+ *  a miss here understates the Bot, the safe side of a gate. Two seeds, the first
+ *  the blade's own default, so a win is not one lucky rollout. Twelve Bot decisions
+ *  cover about its whole first turn, with all the position's mana. That also keeps
+ *  a plain attack out of Executable unless one swing kills. */
 export const COMBO_CENSUS_OPTIONS: ComboCensusOptions = {
     budgets: [50, 200],
     seeds: [0xb1ade, 0xc0b0],
