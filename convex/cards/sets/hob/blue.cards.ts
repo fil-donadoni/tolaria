@@ -12,11 +12,13 @@ import { defineCard } from "../../types";
 //     the cast happens during this resolution (CR 608.2g). The pick refuses a
 //     land, which is played and never cast (CR 116.2a), artifact lands included.
 //   CR 614.1a: "If an instant or sorcery spell cast this way would be put into
-//     your graveyard, exile it instead" scopes the `exilesOnResolve` rider with
-//     an `if`: a countered artifact spell still goes to the graveyard.
-// DIVERGENCE (tracked-by: #8463): the pick and the rider read a card's printed
-//   types, so a qualifying Adventure or back face of a card whose printed face
-//   does not qualify is not offered.
+//     your graveyard, exile it instead" scopes the `exilesOnResolve` rider to
+//     the face cast (`exilesOnResolveForTypes`): a countered artifact spell
+//     still goes to the graveyard.
+//   CR 709.3a / 712.11c / 715.3a: "an artifact, instant, or sorcery spell" is
+//     asked per face — the pick (`castFaceType`), the offer rows and the Op's
+//     `spellTypes` — so an Adventure instant on a creature card is castable as
+//     the Adventure alone.
 // hand-tail: Whenever {self} attacks, you may cast an artifact, instant, or sorcery spell from your graveyard. If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead. (#7227)
 export const bilboThiefInTheNight = defineCard(() => ({
     id: "484c7f83-8339-4ae1-8350-68ce1f7d05a3",
@@ -54,7 +56,7 @@ export const bilboThiefInTheNight = defineCard(() => ({
                     player: "controller",
                     zone: "graveyard",
                     filter: {
-                        type: ["Artifact", "Instant", "Sorcery"],
+                        castFaceType: ["Artifact", "Instant", "Sorcery"],
                         excludeType: "Land",
                     },
                     count: { min: 0, max: 1 },
@@ -62,29 +64,13 @@ export const bilboThiefInTheNight = defineCard(() => ({
                     bind: "$picked",
                 },
                 {
-                    op: "if",
-                    predicate: {
-                        picksMatchFilter: { ref: "$picked" },
-                        player: "controller",
-                        filter: { type: ["Instant", "Sorcery"] },
-                    },
-                    then: [
-                        {
-                            op: "castDuringResolution",
-                            card: { ref: "$picked" },
-                            player: "controller",
-                            source: "graveyard",
-                            exilesOnResolve: true,
-                        },
-                    ],
-                    else: [
-                        {
-                            op: "castDuringResolution",
-                            card: { ref: "$picked" },
-                            player: "controller",
-                            source: "graveyard",
-                        },
-                    ],
+                    op: "castDuringResolution",
+                    card: { ref: "$picked" },
+                    player: "controller",
+                    source: "graveyard",
+                    spellTypes: ["Artifact", "Instant", "Sorcery"],
+                    exilesOnResolve: true,
+                    exilesOnResolveForTypes: ["Instant", "Sorcery"],
                 },
             ],
         },

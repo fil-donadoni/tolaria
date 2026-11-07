@@ -102,6 +102,7 @@ import type {
     GainControlDuration,
     ManaCost,
     MayPayCost,
+    CardType,
     MillRepeatCondition,
     MovableZone,
     PermanentFilter,
@@ -1742,6 +1743,10 @@ function matchesCardFilter(
     card: {
         name?: string;
         types: readonly string[];
+        // CR 709.3a / 712.11c / 715.3a — the types of each spell the card can
+        // be cast as, for `castFaceType`. Absent on a shape with no such
+        // slot: fails CLOSED below.
+        faceTypes?: readonly (readonly string[])[];
         subtypes: readonly string[];
         supertypes?: readonly string[];
         colors?: readonly string[];
@@ -1784,6 +1789,17 @@ function matchesCardFilter(
                 ? filter.name
                 : resolveNameRef(ctx, filter.name.ref);
         if (wanted === undefined || card.name !== wanted) return false;
+    }
+    // CR 709.3a / 712.11c / 715.3a — "an instant or sorcery spell" is asked of
+    // each spell the card can be cast as, not of its printed type line.
+    const castFaceTypes = asFilterArray(filter.castFaceType);
+    if (
+        castFaceTypes !== undefined &&
+        !(card.faceTypes ?? []).some((face) =>
+            face.some((t) => castFaceTypes.includes(t as CardType))
+        )
+    ) {
+        return false;
     }
     const types = asFilterArray(filter.type);
     const excludeTypes = asFilterArray(filter.excludeType);
@@ -9679,12 +9695,17 @@ function runCastDuringResolution(
             ? ctx.getCastFaceOptions(playerId, cardInstanceId, sourceZone, {
                   free: op.free,
                   manaValueBelow: faceManaValueBelow,
+                  spellTypes: op.spellTypes,
               })
             : [];
+    // CR 709.3a / 712.11c / 715.3a — a permission naming spell types asks the
+    // printed face too, by its own types.
     const printedCastable = ctx.getChosenCardCastable(
         playerId,
         cardInstanceId,
-        sourceZone
+        sourceZone,
+        undefined,
+        op.spellTypes
     );
     // CR 406.3 — face rows are the offer's only for a card already public: the
     // options cross the wire unredacted, and a row on a hidden card would name
@@ -9822,6 +9843,7 @@ function runCastDuringResolution(
             sourceZone,
             choiceId: "cdr:face",
             free: op.free,
+            spellTypes: op.spellTypes,
         });
         if (face === undefined) return "suspend";
         if (!face.cast) {
@@ -9847,6 +9869,14 @@ function runCastDuringResolution(
         castInstanceId = copyId;
     }
 
+    // CR 614.1a — the rider follows the spell actually cast: scoped to spell
+    // types, it asks the announced face (`faceId`, omitted = the printed cast).
+    const exilesOnResolve =
+        op.exilesOnResolve === true &&
+        (op.exilesOnResolveForTypes === undefined ||
+            ctx
+                .getCastFaceTypes(playerId, cardInstanceId, sourceZone, faceId)
+                .some((t) => op.exilesOnResolveForTypes?.includes(t)));
     switch (
         castPickedCard(
             ctx,
@@ -9857,7 +9887,7 @@ function runCastDuringResolution(
             "",
             op.alternativeCost,
             faceId,
-            op.exilesOnResolve
+            exilesOnResolve
         )
     ) {
         case "suspend":

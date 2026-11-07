@@ -46,6 +46,7 @@ const COVERAGE: Record<keyof EffectCardFilter, Coverage> = {
     colorCountAtLeast: "battlefield",
     manaValueAtMost: "battlefield",
     manaValueEquals: "battlefield",
+    castFaceType: "hidden-zone-only",
     manaCostEquals: "hidden-zone-only",
     hasFlashback: "hidden-zone-only",
     hasCounter: "hidden-zone-only",
@@ -176,6 +177,7 @@ describe("hidden-zone-only fields are refused on a battlefield choice", () => {
         manaCostEquals: { R: 1 },
         hasFlashback: true,
         hasCounter: { type: "void" },
+        castFaceType: "Instant",
     };
     const choiceOn = (zone: string, filter: Record<string, unknown>) => ({
         id: "t1904-host",

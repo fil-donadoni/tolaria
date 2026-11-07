@@ -133,6 +133,7 @@ import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { commitCast } from "./castCommit";
 import {
     castFaceMarkers,
+    castFaceTypeSets,
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
@@ -20294,6 +20295,7 @@ export function buildSpellContext(
             id: string;
             name: string;
             types: CardType[];
+            faceTypes: CardType[][];
             subtypes: string[];
             supertypes: CardSupertype[];
             manaValue: number;
@@ -20315,6 +20317,9 @@ export function buildSpellContext(
                     // Knowledge's "each other card named ~", issue #985).
                     name: def?.name ?? "",
                     types: zc?.types ?? def?.types ?? c.types,
+                    // CR 709.3a / 712.11c / 715.3a — the spells it can be cast
+                    // as, for `EffectCardFilter.castFaceType`.
+                    faceTypes: castFaceTypeSets(def ?? undefined),
                     subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                     // CR 205.4a (issue #2711) — supertypes (Basic) from the
                     // registry; graveyard cards carry none on the instance.
@@ -20729,7 +20734,8 @@ export function buildSpellContext(
             playerId,
             cardInstanceId,
             sourceZone,
-            alternativeCostId
+            alternativeCostId,
+            spellTypes
         ) {
             // CR 608.2f / 305.1 (issue #1477) — the card must still be in the
             // named source zone (CR 608.2b — an empty/absent source silently
@@ -20769,6 +20775,14 @@ export function buildSpellContext(
             // evaluated to see if it can be cast.
             const subject = castSubjectDefinition(def, alternativeCostId);
             if ((subject?.types ?? []).includes("Land")) return false;
+            // CR 709.3a / 712.11c / 715.3a — a permission that names spell
+            // types is asked of the face being cast alone.
+            if (
+                spellTypes !== undefined &&
+                !(subject?.types ?? []).some((t) => spellTypes.includes(t))
+            ) {
+                return false;
+            }
             // CR 601.3a — and the cast must not be FORBIDDEN. The commit path
             // (`castChosenSpell`) enforces the same shared gate authoritatively;
             // asking it HERE too is what keeps the Op's contract honest instead
@@ -20790,6 +20804,15 @@ export function buildSpellContext(
                 ) === undefined
             );
         },
+        getCastFaceTypes(playerId, cardInstanceId, _sourceZone, faceId) {
+            // CR 709.3a / 712.11c / 715.3a — the announced face's own types.
+            return [
+                ...(castSubjectDefinition(
+                    getHandCardDef(state, playerId, cardInstanceId),
+                    faceId
+                )?.types ?? []),
+            ];
+        },
         getCastFaceOptions(playerId, cardInstanceId, sourceZone, opts) {
             // CR 709.3 / 712.11b / 715.3 — the faces a cast during resolution
             // (CR 608.2g) can announce, each judged against its own subject
@@ -20804,8 +20827,9 @@ export function buildSpellContext(
             )[sourceZone].find((c) => c.id === cardInstanceId);
             if (!found) return [];
             const def = getHandCardDef(state, playerId, cardInstanceId);
-            // The resolving effect's permission names the card and no
-            // characteristic of it, so it reaches every face: CR 712.11c for a
+            // Unless the permission names spell types (`opts.spellTypes`, asked
+            // of each face below), it names the card and no characteristic of
+            // it, so it reaches every face: CR 712.11c for a
             // modal back face, and CR 715.3d's "other effects that allow a
             // player to cast it may allow a player to cast it as an Adventure"
             // for a card its own Adventure exiled.
@@ -20820,7 +20844,8 @@ export function buildSpellContext(
                             playerId,
                             cardInstanceId,
                             sourceZone,
-                            alt.id
+                            alt.id,
+                            opts?.spellTypes
                         )
                     ) {
                         return false;
@@ -20870,12 +20895,14 @@ export function buildSpellContext(
                 casterId,
                 cardInstanceId,
                 sourceZone,
-                { free: req.free }
+                { free: req.free, spellTypes: req.spellTypes }
             );
             const printed = ctx.getChosenCardCastable(
                 casterId,
                 cardInstanceId,
-                sourceZone
+                sourceZone,
+                undefined,
+                req.spellTypes
             );
             if (faces.length === 0) return { cast: printed };
             // Arena parity — one reachable face is no decision, so no prompt.
