@@ -31,7 +31,7 @@ export const SELF_DRAIN_SORCERY: CardDefinition = {
     rarity: "common",
     manaCost: { B: 1 },
     types: ["Sorcery"],
-    effects: [{ op: "loseLife", player: "controller", amount: 5 }],
+    effects: [{ op: "loseLife", player: "controller", amount: 15 }],
 };
 
 /** CR 115.1 / 601.2c — a targeted spell with no legal target in the

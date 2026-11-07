@@ -19947,7 +19947,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
+        // Green at 400 iterations as a budget artefact, under either selection
+        // rule (issue #8736): the two root moves tie on a clipped reward, the
+        // subtree margin decides, and more search moves it towards `pass`.
+        beyondBudget: {
+            cause: "valuation",
+            note: "Both root moves sit at the reward clip, so `material-tiebreak` reads the subtree mean margin, whose gap falls from about +3 at 400 iterations to about -8 at 4000. Missing: a valuation that keeps the 4 life the saddled line saves visible past the clip (issue #8736, where the sweep is).",
+        },
         expect: {
             moves: [{ kind: "activate-ability", card: "Caustic Bronco" }],
         },
