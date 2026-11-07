@@ -1691,9 +1691,11 @@ UTC midnight; `--until` defaults to now. It prints, per merged PR:
 
 - [`queue-lane`](#queue-lane) runs, by conclusion (`running` = no conclusion yet);
 - [`pr-refresh`](#pr-refresh) runs (one per push to the base);
-- Mergify dequeues, by cause read off the comment's `## Reason`:
-  `checks-failed`, `conflict`, `manually-updated`, `interrupted`, `other`
-  (e.g. the `ready-to-land` label removed).
+- Mergify dequeues, by cause read off the comment's Mergify Payload
+  (`dequeue_reason.code`; for `PR_DEQUEUED`, the unchecked queue conditions):
+  `checks-failed`, `checks-timeout`, `conflict`, `ready-to-land-gone`,
+  `manually-updated`, `interrupted`, `other`. A comment older than the code
+  (before 2026-10-22) is read off its `## Reason` text.
 
 Every slice of issue #6164 reports before/after against it. Baseline,
 `--since 2026-10-20 --until 2026-10-20T15:00:00Z`: 14 merges, 30 `queue-lane`
