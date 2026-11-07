@@ -1170,7 +1170,10 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "manaRestriction" in a &&
         !(
             typeof a.manaRestriction === "string" &&
-            Object.hasOwn(MANA_RESTRICTIONS, a.manaRestriction)
+            Object.prototype.hasOwnProperty.call(
+                MANA_RESTRICTIONS,
+                a.manaRestriction
+            )
         )
     ) {
         return false;

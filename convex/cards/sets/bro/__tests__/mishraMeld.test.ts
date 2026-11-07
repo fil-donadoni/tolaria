@@ -174,9 +174,14 @@ describe("Mishra, Lost to Phyrexia — mode scripts", () => {
                 .triggeredAbilities![0].modes ?? [];
         expect(modes).toHaveLength(6);
         for (const mode of modes) {
-            expect(validateEffectScript(mode.effects ?? []), mode.id).toEqual(
-                []
-            );
+            expect(
+                validateEffectScript({
+                    id: mode.id,
+                    name: mode.id,
+                    effects: mode.effects,
+                } as never),
+                mode.id
+            ).toEqual([]);
         }
     });
 
