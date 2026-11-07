@@ -800,6 +800,21 @@ export function kickedCastOffered(card: string, offered: boolean) {
     };
 }
 
+/** CR 601.2f — the enumerator offers no cast of `card` at all. Asserted on the
+ *  LEGAL SET: an unpayable cost decides whether the Move exists, which a seat
+ *  that merely declined to cast it would also satisfy on the picked move. */
+export function castNotEnumerated(card: string) {
+    return (
+        _move: Move | null,
+        state: Parameters<typeof enumerateMoves>[0]
+    ): boolean => {
+        const ids = instanceIdsForName(state, card);
+        return !enumerateMoves(state, state.players[0].id).some(
+            (m) => m.kind === "cast-spell" && ids.has(m.cardInstanceId)
+        );
+    };
+}
+
 /** CR 118.9d / 601.2f — whether the enumerator offers `card` by the alternative
  *  cost `altCostId`. Asserted on the LEGAL SET: an alternative cost's permanent
  *  leg priced beside the cast's own sacrifice decides whether the Move exists. */
