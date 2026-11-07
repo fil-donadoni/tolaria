@@ -14,6 +14,10 @@
  *                                                   → the same, turn-gated
  *   "Spells you cast from anywhere other than your hand cost {N} less to cast"
  *                                                   → the same, zone-gated
+ *   "Domain — This spell costs {N} less to cast for each basic land type among
+ *    lands you control"                             → CR 601.2f `domain-self-cost-reduction`
+ *   "You may cast this spell as though it had flash if you pay {N} more to
+ *    cast it"                                       → CR 601.3c `flash-surcharge`
  *   "Activated abilities of <permanents> cost {N} more to activate"
  *                                                   → CR 602.2b `cost-modifier`
  *   "Creatures can't attack you unless their controller pays {N} for each
@@ -449,6 +453,14 @@ export type StaticClauseIR =
      *  beginning of the next cleanup step." Lowered to `castAsThoughFlash`
      *  and an entered trigger gated on the cast-time timing snapshot. */
     | { readonly kind: "flash-cast-cleanup-sacrifice" }
+    /** CR 601.3c — "You may cast this spell as though it had flash if you pay
+     *  {N} more to cast it." Lowered to `flashSurcharge`, the additional cost
+     *  charged only on a cast outside sorcery timing. */
+    | { readonly kind: "flash-surcharge"; readonly generic: number }
+    /** CR 601.2f + CR 305.6 — "Domain — This spell costs {N} less to cast for
+     *  each basic land type among lands you control." Lowered to a
+     *  `selfCostReduction` on the domain census. */
+    | { readonly kind: "domain-self-cost-reduction"; readonly generic: number }
     /** CR 614.1a — "If <self> would be put into a graveyard from anywhere,
      *  reveal <self> and shuffle it into its owner's library instead".
      *  Lowered to `shuffleFromAnywhere`. */
@@ -1017,6 +1029,38 @@ export const nonHandCastCostReductionRule: Rule<StaticClauseIR> = pattern(
             amount: Number(match[1]),
             onlyOutsideAnnouncersHand: true as const,
         })
+);
+
+/**
+ * CR 601.2f + CR 305.6 — the spell's own reduction, counted by the basic land
+ * types among its caster's lands. CR 207.2c gives "Domain" no rules meaning, so
+ * the census comes from the words after it; the head is still part of the
+ * anchor because every printed copy carries it. Another census ("for each
+ * artifact you control") or another subject has no fixture and stays refused.
+ */
+export const domainSelfCostReductionRule: Rule<StaticClauseIR> = pattern(
+    "domain self cost reduction",
+    /^Domain \u2014 This spell costs \{(\d+)\} less to cast for each basic land type among lands you control$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "domain-self-cost-reduction" as const,
+            generic: Number(match[1]),
+        })
+);
+
+/**
+ * CR 601.3c — "You may cast this spell as though it had flash if you pay {N}
+ * more to cast it." A permission priced by the timing used: the surcharge is
+ * owed only on a cast a sorcery could not have made. The sibling riders
+ * conditioned on the board or on a non-mana cost ("if you control a Human", "if
+ * you behold a Dragon as an additional cost") differ from the anchored text and
+ * stay refused.
+ */
+export const flashSurchargeRule: Rule<StaticClauseIR> = pattern(
+    "flash surcharge",
+    /^You may cast this spell as though it had flash if you pay \{(\d+)\} more to cast it$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({ kind: "flash-surcharge" as const, generic: Number(match[1]) })
 );
 
 /**
@@ -2815,6 +2859,8 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         fullTextEffectRule,
         costModifierRule,
         nonHandCastCostReductionRule,
+        domainSelfCostReductionRule,
+        flashSurchargeRule,
         loyaltyActivationAllowanceRule,
         offTurnCostModifierRule,
         abilityCostModifierRule,

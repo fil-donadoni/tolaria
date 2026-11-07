@@ -2552,7 +2552,7 @@
         {
             "kind": "grammar",
             "key": "triggered › condition › it was kicked",
-            "issue": 4584
+            "issue": 2058
         },
         {
             "kind": "grammar",
@@ -4973,6 +4973,11 @@
             "kind": "hand-tail",
             "key": "Scarred Puma",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scion of Draco",
+            "issue": 8670
         },
         {
             "kind": "hand-tail",

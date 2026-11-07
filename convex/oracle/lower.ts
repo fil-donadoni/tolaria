@@ -24,6 +24,7 @@ import type {
     ManaCost,
     MayPayCost,
     ModeSelection,
+    SelfCostReduction,
     SpellMode,
     TargetRequirement,
     ChapterAbilityDefinition,
@@ -117,6 +118,10 @@ interface Accumulator {
     playsFromLibraryTop: boolean;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
     castAsThoughFlash: boolean;
+    /** CR 601.3c — "… as though it had flash if you pay {N} more to cast it." */
+    flashSurcharge: ManaCost | undefined;
+    /** CR 601.2f — the spell's own cost reduction. */
+    selfCostReduction: SelfCostReduction | undefined;
     damagePreventionCounterRemoval: boolean;
     preventsDamageToController: boolean;
     damageLifeFloor: DamageLifeFloor | undefined;
@@ -735,6 +740,10 @@ function lowerLine(
             if (out.shuffleFromAnywhere === true)
                 acc.shuffleFromAnywhere = true;
             if (out.castAsThoughFlash === true) acc.castAsThoughFlash = true;
+            if (out.flashSurcharge !== undefined)
+                acc.flashSurcharge = out.flashSurcharge;
+            if (out.selfCostReduction !== undefined)
+                acc.selfCostReduction = out.selfCostReduction;
             if (out.playsFromLibraryTop === true)
                 acc.playsFromLibraryTop = true;
             acc.compiledTriggeredAbilities.push(
@@ -1197,6 +1206,8 @@ export function lowerCard(
         shuffleFromAnywhere: false,
         playsFromLibraryTop: false,
         castAsThoughFlash: false,
+        flashSurcharge: undefined,
+        selfCostReduction: undefined,
         damagePreventionCounterRemoval: false,
         preventsDamageToController: false,
         damageLifeFloor: undefined,
@@ -1379,6 +1390,13 @@ export function lowerCard(
     // CR 702.8a — the card-level flash permission the timing authority reads
     // (`castTimingBaseLegal`, `gre/rules.ts`); not the keyword (CR 604.1).
     if (acc.castAsThoughFlash) definition.castAsThoughFlash = true;
+    // CR 601.3c — the timing authority (`castTimingBaseLegal`) and the charge
+    // (`flashSurchargeRequired`) both read this field off the card.
+    if (acc.flashSurcharge !== undefined)
+        definition.flashSurcharge = acc.flashSurcharge;
+    // CR 601.2f — folded by `getCostModifiers` as the spell is announced.
+    if (acc.selfCostReduction !== undefined)
+        definition.selfCostReduction = acc.selfCostReduction;
     // CR 615 — likewise a closure pair; `expandDefinition` rebuilds it.
     if (acc.damagePreventionCounterRemoval)
         definition.damagePreventionCounterRemoval = true;
