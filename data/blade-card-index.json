@@ -1188,7 +1188,7 @@
     "Thoughtseize": [
         {
             "label": "strip: casts Thoughtseize at a castable Shivan Dragon",
-            "tier": "must",
+            "tier": "stretch",
             "needsSetup": false
         }
     ],

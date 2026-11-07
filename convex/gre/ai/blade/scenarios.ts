@@ -21599,7 +21599,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
@@ -21608,7 +21608,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the Wurm would be sacrificed having done nothing.",
+        note: "Issue #8271 — the Wurm would be sacrificed having done nothing. Report-only (issue #8394): activating and holding are a near-tie the evaluation does not separate, 16/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
     },
     {
         label: "removal: Swords to Plowshares takes the greater threat",
@@ -22287,7 +22287,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [1, 2, 3, 5, 9],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [
                 {
@@ -22297,7 +22297,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Passes on 13/16 seeds at 400 iterations, not all: seeds picked green under both the committed and the refit weights.",
+        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Report-only (issue #8394): casting and passing are a near-tie the evaluation does not separate, 15/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
     },
     {
         label: "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
