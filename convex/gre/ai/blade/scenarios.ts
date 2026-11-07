@@ -18,6 +18,7 @@ import { SPLICE_COST_ID_PREFIX } from "../../splice";
 import { isCategorizedPickLegal } from "../../categorizedPick";
 import { damageSplitAtDamageStep } from "./damageSplitProbe";
 import {
+    castNotEnumerated,
     castsCardNamed,
     MOUNTAINS_5,
     NINJUTSU_LANDS_4,
@@ -9198,6 +9199,79 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             forbidden: [{ kind: "cast-spell", card: "Incinerate" }],
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "burst mana: kills with a two-mana spell off a single Black Lotus". Neither half is meaningful alone (ADR 0070 §1: a `forbidden` entry a never-casting bot also satisfies asserts nothing by itself). One untapped Mox Ruby makes exactly one mana, so {1}{R} cannot be paid and the cast must stay unenumerated. Measured under a deliberate break that made the planner floating pool unbounded (issue #3027 proof-of-failure): this half stayed GREEN, because the census (`canPotentiallyPayCost`) refuses the cast before the planner is ever consulted. So what this half pins is that the difference between the two halves is the SOURCE and not an appetite for Incinerate; the PLANNER upper bound is pinned instead by the unit tests in `burstManaSources.bot.test.ts` ("cannot pay a FOURTH pip", "Sol Ring pays {2} off one tap and stops at {3}"), both proven red under that same break.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #8571).
+        // PAIRED WITH: "higher-yield mana option: holds the two-drop beside no
+        // creature of power 4".
+        //
+        // No lands. Fanatic of Rhonas is the whole mana base and a tapped Serra
+        // Angel switches Ferocious on, so the only way to pay {1}{G} is the
+        // Fanatic's {G}{G}{G}{G} option. The tap keeps the Angel out of combat:
+        // the cast is the one thing this turn can do.
+        label: "higher-yield mana option: casts the two-drop off Ferocious",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Fanatic of Rhonas", owner: "me", zone: "battlefield" },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                castsCardNamed(move, state, "Grizzly Bears"),
+            describe:
+                "the Bot casts Grizzly Bears off Fanatic of Rhonas's {G}{G}{G}{G} option",
+        },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "higher-yield mana option: holds the two-drop beside no creature of power 4". While the planner kept the first option per colour, `getLegalActions` said cast, `planManaPayment` returned null for {1}{G} and the move was never enumerated.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #8571).
+        // PAIRED WITH: "higher-yield mana option: casts the two-drop off
+        // Ferocious". The same board with a power-3 creature: Ferocious is off,
+        // the Fanatic makes one mana, and {1}{G} is genuinely unpayable.
+        label: "higher-yield mana option: holds the two-drop beside no creature of power 4",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Fanatic of Rhonas", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: castNotEnumerated("Grizzly Bears"),
+            describe:
+                "Grizzly Bears is not enumerated when Ferocious is off and the Fanatic makes one mana",
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "higher-yield mana option: casts the two-drop off Ferocious". What it pins is that the difference between the halves is the option being live, not an appetite for the Bears (ADR 0070 §1).',
     },
     {
         // The Underworld Breach probe, reduced to one root decision.
