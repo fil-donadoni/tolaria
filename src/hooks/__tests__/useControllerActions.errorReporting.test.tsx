@@ -13,6 +13,7 @@ import {
     AttackSequenceContext,
     type AttackSequence,
 } from "~/hooks/useAttackSequence";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 
 const MENACE_ERROR = new Error(
     "Skeleton can't be blocked except by 2 or more creatures (menace)"
@@ -75,15 +76,7 @@ function player(id: string): Player {
     } as Player;
 }
 
-const SEQUENCE: AttackSequence = {
-    active: false,
-    order: [],
-    index: 0,
-    currentAttackerId: undefined,
-    begin: vi.fn(),
-    advance: vi.fn(),
-    reset: vi.fn(),
-};
+const SEQUENCE: AttackSequence = makeAttackSequence();
 
 function renderCtrl() {
     const ctx = {
