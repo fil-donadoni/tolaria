@@ -6111,6 +6111,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"pump\" acts on a $source its host makes a non-creature (Artifact) — the primitive refuses it, so the canned run has no outcome to assert",
+            "issue": 8819
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"pump\" targets $source/$each — covered by the card's own per-card test",
             "issue": 6453
         },
