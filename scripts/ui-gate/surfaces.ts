@@ -158,16 +158,15 @@ export interface Surface {
      * thread; `ui-gate-viewports.test.ts` pins the surfaces it must cover.
      *
      * NOT YET FLAGGED, with their last DPR 1 reading (issue #8321's final
-     * census, the residue the PR states): `game-board` and `game-combat`
-     * (hand faces 0.91–0.92 of the reference, green, but 2–4 faces whose
-     * first bitmap was made before the slot's layout settled),
-     * `game-source-choice` (a 64px stack face with a 28px bitmap),
-     * `game-choice-prompt` (five faces pending at the 30 s settle mark,
-     * unsettled), `dlg-exile-cost` (a 60px tile with a 7px bitmap) and
-     * `pick-selectable-card` (158px, 51px bitmap). The hook now refuses a
-     * bitmap that is not the slot's size and times a pending face out to
-     * the srcset, so those cells draw today's srcset faces; they join the
-     * flag once a DPR 1 run reads them green.
+     * census, the residue the PR states): `game-choice-prompt` — with the
+     * bitmap path OFF the cell settles and the probe reads the reported
+     * defect itself (`Grizzly Bears 112px grid alias 0.55`); with it ON the
+     * cell reads "a measured box kept moving" for 30 s with no face pending
+     * and no console error, not yet attributed (`docs/findings/`), while the
+     * same walk at DPR 2 settles in 23 s — and `game-combat`, never walked
+     * at DPR 1. `game-board` (hand 120px scaled slot, bitmap 0.18/0.00) and
+     * `game-source-choice` (120px scaled bitmap 0.09/0.00; its 64px stack
+     * face falls to `grid`, 0.06/0.00) joined the flag on that census.
      */
     cards?: boolean;
     /**
@@ -4866,6 +4865,7 @@ export const SURFACES: readonly Surface[] = [
         // leave the typical board — three lands, a creature or two, a
         // four-card hand — unmeasured. The two rows are complementary.
         id: "game-board",
+        cards: true,
         needsGame: true,
         settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -5361,6 +5361,7 @@ export const SURFACES: readonly Surface[] = [
         // ability's own stack row is not a candidate (an ability is not a
         // source), which is why the walk can demand exactly one enabled row.
         id: "game-source-choice",
+        cards: true,
         needsGame: true,
         settleTargets: [GAME_STACK],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],

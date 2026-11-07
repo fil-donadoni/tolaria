@@ -26,12 +26,21 @@ export type PrintedFaceAttrs =
     | { src: string; "data-art-src": string }
     | { src: typeof PENDING_FACE_SRC; "data-face-pending": "" };
 
-/** The source a pending face shows: one transparent pixel, so the element
+/** The source a pending face shows: a transparent SVG with the CARD's
+ *  intrinsic size (every Scryfall front rendition is 488:680), so the element
  *  is a replaced box of its CSS size (an `<img>` with no `src` lays out as
  *  its alt text and moved the tiles around it — measured on this lane as a
- *  choice dialog that never settled) and paints nothing. */
+ *  choice dialog that never settled) and paints nothing. The aspect is not
+ *  a nicety: a content-sized slot — the hand card, the picker tile — takes
+ *  its height from the image's intrinsic ratio, and a 1×1 pixel there turned
+ *  a 120×167 hand card into a 120×120 one, re-measured, re-keyed and made a
+ *  square bitmap; a `height` attribute copied from the measured box fed the
+ *  measurement back into itself and grew the tile 5px a round (the DPR 1
+ *  census of issue #8321: "a measured box kept moving"). The placeholder,
+ *  the rendition and the bitmap (made for the measured box) all lay out at
+ *  the same height, so the swap moves nothing. */
 export const PENDING_FACE_SRC =
-    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='488' height='680'/%3E";
 
 export interface PrintedFaceSourceOptions {
     /** The Scryfall print to draw; `null` draws nothing (a token with no

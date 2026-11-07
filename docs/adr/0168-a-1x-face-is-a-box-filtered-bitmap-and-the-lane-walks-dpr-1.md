@@ -89,9 +89,13 @@ it 1:1. The face names its art in `data-art-src`.
   rastered at scale 1 and composited down. A scaled board slot draws a
   layout-size bitmap through its scale — one compositor step, the residue
   below.
-- Until the bitmap lands the element is on the page with its `alt` and the
-  `data-face-pending` marker and no source: the srcset would paint the frame
-  this path exists to remove. A lazy grid's face waits until its slot nears
+- Until the bitmap lands the element is on the page with its `alt`, the
+  `data-face-pending` marker and a transparent SVG of the card's own aspect
+  (488:680) as its source: the srcset would paint the frame this path exists
+  to remove, and a 1×1 pixel re-shaped every content-sized slot (a hand card
+  measured 120×167 became 120×120, re-keyed and made a square bitmap; a
+  `height` attribute copied from the box fed the measurement back and grew a
+  picker tile 5px a round). A lazy grid's face waits until its slot nears
   the viewport first.
 - Entries are reference-counted and LRU-evicted past 400; a URL a mounted
   face shows is never revoked. Everything fails open to the srcset path.

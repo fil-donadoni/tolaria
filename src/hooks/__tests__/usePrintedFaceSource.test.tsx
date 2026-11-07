@@ -38,13 +38,20 @@ const GRID = `https://cards.scryfall.io/grid/front/d/5/${PRINT}.webp`;
 
 const loads = { real: 0 };
 
-function Face({ bitmap = true }: { bitmap?: boolean }) {
+function Face({
+    bitmap = true,
+    lazy = false,
+}: {
+    bitmap?: boolean;
+    lazy?: boolean;
+}) {
     const { slotRef, attrs, onError, onLoad } =
         usePrintedFaceSource<HTMLDivElement>({
             imageId: PRINT,
             fallbackSizes: "112px",
             fallbackIncludeThumb: true,
             bitmap,
+            lazy,
             onLoad: () => loads.real++,
         });
     return (
@@ -138,6 +145,55 @@ describe("usePrintedFaceSource — the 1x bitmap path (issue #8321)", () => {
         expect(img.getAttribute("data-art-src")).toBe(GRID);
         expect(img.getAttribute("srcset")).toBeNull();
         expect(img.hasAttribute("data-face-pending")).toBe(false);
+    });
+
+    it("the placeholder is a transparent image of the card's own aspect — never a square pixel, never the measured box", async () => {
+        const { container } = render(<Face />);
+        const img = () => container.querySelector("img")!;
+        // 488:680 is every Scryfall front rendition; a content-sized slot
+        // (hand card, picker tile) keeps its height through the swap.
+        expect(PENDING_FACE_SRC).toMatch(/width='488' height='680'/);
+        expect(img().getAttribute("src")).toBe(PENDING_FACE_SRC);
+        expect(img().hasAttribute("width")).toBe(false);
+        expect(img().hasAttribute("height")).toBe(false);
+        await act(async () => {
+            bitmaps.resolve!("blob:test/4");
+        });
+        expect(img().hasAttribute("width")).toBe(false);
+        expect(img().hasAttribute("height")).toBe(false);
+    });
+
+    it("a lazy face waits, source-less, until its slot nears the viewport, then makes its bitmap", async () => {
+        const observers: Array<(near: boolean) => void> = [];
+        const RealIO = globalThis.IntersectionObserver;
+        class FakeIO {
+            constructor(cb: (entries: { isIntersecting: boolean }[]) => void) {
+                observers.push((near) => cb([{ isIntersecting: near }]));
+            }
+            observe() {}
+            disconnect() {}
+        }
+        globalThis.IntersectionObserver =
+            FakeIO as unknown as typeof IntersectionObserver;
+        try {
+            const { container } = render(<Face lazy />);
+            const img = () => container.querySelector("img")!;
+            expect(img().getAttribute("src")).toBe(PENDING_FACE_SRC);
+            // Not near yet: nothing acquired — the hundreds of faces of a
+            // search grid must not resample at mount.
+            expect(bitmaps.resolve).toBeNull();
+            expect(observers.length).toBeGreaterThan(0);
+            await act(async () => {
+                for (const fire of observers) fire(true);
+            });
+            expect(bitmaps.resolve).not.toBeNull();
+            await act(async () => {
+                bitmaps.resolve!("blob:test/5");
+            });
+            expect(img().getAttribute("src")).toBe("blob:test/5");
+        } finally {
+            globalThis.IntersectionObserver = RealIO;
+        }
     });
 
     it("swallows the placeholder's load and forwards the face's", async () => {
