@@ -145,8 +145,12 @@ function boardOnWire(sourceCardId: string, pumpBy: number) {
     return { me, source, continuousEffects: wire.continuousEffects };
 }
 
-function renderInteraction(board: ReturnType<typeof boardOnWire>) {
+function renderInteraction(
+    board: ReturnType<typeof boardOnWire>,
+    fields: Record<string, unknown> = {}
+) {
     const ctx = {
+        ...fields,
         gameId: "game-id" as never,
         playerId: "me",
         activePlayerId: "me",
@@ -200,6 +204,50 @@ describe("the hooks read a power gate through the board's layer input (CR 613.4)
 
         expect(tapUntap).toHaveBeenCalledTimes(1);
         expect(document.querySelectorAll("button")).toHaveLength(0);
+    });
+
+    it("a board-gated chooser stays clickable while paying a cost (CR 605.3a)", () => {
+        const artifactOf = (id: string) =>
+            makeInstance(getCardByName("Ankh of Mishra").id, {
+                id,
+                controllerId: "me",
+                ownerId: "me",
+            });
+        const state = makeState({
+            players: [
+                makePlayer("me", {
+                    battlefield: [
+                        makeInstance(getCardByName("Mox Opal").id, {
+                            id: "source",
+                            controllerId: "me",
+                            ownerId: "me",
+                        }),
+                        artifactOf("ankh-1"),
+                        artifactOf("ankh-2"),
+                    ],
+                }),
+                makePlayer("them"),
+            ],
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+        });
+        const wire = projectPublicState(state, 1, "me");
+        const me = wire.players[0] as unknown as Player;
+        const source = me.battlefield.find(
+            (c) => c.id === "source"
+        ) as CardInstance;
+        const handle = renderInteraction(
+            { me, source, continuousEffects: undefined },
+            {
+                pendingCast: {
+                    playerId: "me",
+                    cardInstanceId: "spell-1",
+                    manaCost: { R: 1 },
+                    tappedLandIds: [],
+                },
+            }
+        );
+        expect(handle.current.canInteract(source)).toBe(true);
     });
 
     it("a source whose only mana ability is gated reads as interactable under the pump", () => {

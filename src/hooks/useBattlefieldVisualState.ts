@@ -697,7 +697,7 @@ export function useBattlefieldVisualState(
                       // the mid-cast activation CR 605.3a grants is
                       // unreachable by a click.
                       hasFilteredGiveUpManaAbility(card, manaGateView) ||
-                      getManaChoices(card) !== null;
+                      getManaChoices(card, manaPlayers) !== null;
         }
         // CR 605.3b: mana abilities require priority (outside payment). The
         // player Assist named never holds it (CR 702.132a: the caster does, and
