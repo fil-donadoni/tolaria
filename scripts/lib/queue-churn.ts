@@ -34,14 +34,18 @@ export interface ChurnFacts {
 
 export type DequeueCause =
     | "checks-failed"
+    | "checks-timeout"
     | "conflict"
+    | "ready-to-land-gone"
     | "manually-updated"
     | "interrupted"
     | "other";
 
 export const DEQUEUE_CAUSES: readonly DequeueCause[] = [
     "checks-failed",
+    "checks-timeout",
     "conflict",
+    "ready-to-land-gone",
     "manually-updated",
     "interrupted",
     "other",
@@ -75,11 +79,56 @@ function ratio(n: number, merges: number): number | null {
 }
 
 /** Only the `## Reason` section says why; the status header above it names
- *  the state of every dequeue alike. */
-function reasonText(body: string): string {
+ *  the state of every dequeue alike. Comments before 2026-10-22 carry no
+ *  `dequeue_reason`, and the issue #6164 baseline window reads them. */
+function legacyReasonText(body: string): string {
     const at = body.indexOf("## Reason");
     return at === -1 ? "" : body.slice(at);
 }
+
+/** `dequeue_reason.code` from the Mergify Payload, when the comment has one. */
+function dequeueReasonCode(body: string): string | null {
+    const payload =
+        /-\*- Mergify Payload -\*-\s*([\s\S]*?)\s*-\*- Mergify Payload End/.exec(
+            body
+        );
+    if (!payload) return null;
+    try {
+        const parsed = JSON.parse(payload[1]) as {
+            dequeue_reason?: { code?: unknown };
+        };
+        const code = parsed.dequeue_reason?.code;
+        return typeof code === "string" ? code : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Queue conditions Mergify left unticked: the block-quoted checklist only, as
+ *  the plain list further down names unmet MERGE conditions instead. */
+function unmetQueueConditions(body: string): Set<string> {
+    return new Set(
+        [...body.matchAll(/^>\s*- \[ \] `([^`]+)`/gm)].map((m) => m[1])
+    );
+}
+
+/** `PR_DEQUEUED` says only "Queue conditions are not satisfied". A conflict
+ *  outranks the label: a PR can show both, and the conflict is what it must fix. */
+function queueConditionsCause(body: string): DequeueCause {
+    const unmet = unmetQueueConditions(body);
+    if (unmet.has("-conflict")) return "conflict";
+    if (unmet.has("label=ready-to-land")) return "ready-to-land-gone";
+    return "other";
+}
+
+/** Only codes seen on real comments; any other reads `other`, never a guess. */
+const CAUSE_BY_CODE: Readonly<Record<string, DequeueCause>> = {
+    CHECKS_FAILED: "checks-failed",
+    CHECKS_TIMEOUT: "checks-timeout",
+    CHECKS_INTERRUPTED: "interrupted",
+    CONFLICT_WITH_BASE_BRANCH: "conflict",
+    PULL_REQUEST_UPDATED: "manually-updated",
+};
 
 export function isDequeueComment(body: string): boolean {
     return (
@@ -88,16 +137,20 @@ export function isDequeueComment(body: string): boolean {
     );
 }
 
-/** The cause a Mergify "dequeued" comment gives, read off its `## Reason`. */
+/** The cause a Mergify "dequeued" comment gives: its payload's
+ *  `dequeue_reason.code`, or the text of a comment that predates the code. */
 export function dequeueCause(body: string): DequeueCause {
-    const reason = reasonText(body);
+    const code = dequeueReasonCode(body);
+    if (code === "PR_DEQUEUED") return queueConditionsCause(body);
+    if (code !== null) return CAUSE_BY_CODE[code] ?? "other";
+    const reason = legacyReasonText(body);
     if (/failing checks|checks? (has|have) failed/i.test(reason))
         return "checks-failed";
-    if (/`-conflict`|conflicts? with the base/i.test(reason)) return "conflict";
+    if (/conflicts? with the base/i.test(reason)) return "conflict";
     if (/manually updated|manual update/i.test(reason))
         return "manually-updated";
     if (/interrupted/i.test(reason)) return "interrupted";
-    return "other";
+    return queueConditionsCause(reason);
 }
 
 export function queueChurn(f: ChurnFacts): Churn {
