@@ -1224,9 +1224,12 @@ describe("auto-tap spends Treasure tokens only when needed (CR 111.10a, issue #8
 
     it("spends the plain Treasure before one with a card type beyond Artifact", () => {
         const state = board([], 2);
-        state.players[0].battlefield
-            .find((c) => c.id === "t1")!
-            .types.push("Creature");
+        const animated = state.players[0].battlefield.find(
+            (c) => c.id === "t1"
+        )!;
+        animated.types.push("Creature");
+        // CR 302.6 — able to pay {T}, or the solver never sees it at all.
+        animated.isSummoningSick = false;
         expect(spent(plan(state, { R: 1 }))).toEqual(["t2"]);
     });
 
