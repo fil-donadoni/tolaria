@@ -49,7 +49,8 @@
  */
 
 import { tryGetDefinition } from "../cards";
-import type { AlternativeCost, CardDefinition } from "../cards/types";
+import type { AlternativeCost, CardDefinition, CardType } from "../cards/types";
+import { offersPrintedCast } from "../cards/splitCard";
 import { applyBestowCharacteristics } from "./bestow";
 import { turnFaceDown } from "./faceDown";
 import {
@@ -458,6 +459,33 @@ export function castSubjectDefinition(
     const mode = castModeOf(def, alternativeCostId);
     return mode ? CAST_MODE_CENSUS[mode].subject(def) : def;
 }
+
+/** CR 709.3a / 712.11c / 715.3a — the card types of every spell `def` can be
+ *  cast as: the printed card (unless it is a split card, which has no printed
+ *  cast) and each face choice (an Adventure, a split half, a modal back face),
+ *  one list per face. Definition-level: whether the caster can legally cast a
+ *  face right now is a later question, so a filter on this asks only whether a
+ *  qualifying spell exists. */
+export function castFaceTypeSets(
+    def: CardDefinition | undefined
+): CardType[][] {
+    if (!def) return [];
+    const faces: CardType[][] = offersPrintedCast(def)
+        ? [[...(def.types ?? [])]]
+        : [];
+    for (const mode of FACE_CHOICE_MODES) {
+        if (CAST_MODE_CENSUS[mode].idOf(def) === undefined) continue;
+        faces.push([...(CAST_MODE_CENSUS[mode].subject(def)?.types ?? [])]);
+    }
+    return faces;
+}
+
+const FACE_CHOICE_MODES: readonly CastMode[] = [
+    "adventure",
+    "split-left",
+    "split-right",
+    "modal-back",
+];
 
 /** The INSTANCE-level twin of {@link castSubjectDefinition}: `card` as the
  *  announced cast sees it, for the readers that take a `CardInstanceState`

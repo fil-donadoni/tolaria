@@ -8144,6 +8144,9 @@ export interface SpellContext {
         id: string;
         name: string;
         types: CardType[];
+        /** CR 709.3a / 712.11c / 715.3a — the types of each spell the card can
+         *  be cast as (`EffectCardFilter.castFaceType`). */
+        faceTypes?: CardType[][];
         subtypes: string[];
         supertypes: CardSupertype[];
         manaValue: number;
@@ -8465,8 +8468,20 @@ export interface SpellContext {
         sourceZone: "hand" | "graveyard" | "exile",
         /** CR 709.3a / 712.11c / 715.3a — ask of this announced face alone.
          *  Omitted = the printed cast, which a split card does not have. */
-        alternativeCostId?: string
+        alternativeCostId?: string,
+        /** The spell types the permission names: a face whose own types share
+         *  none is no cast to offer (CR 709.3a / 712.11c / 715.3a). */
+        spellTypes?: CardType[]
     ) => boolean;
+    /** CR 709.3a / 712.11c / 715.3a — the card types of the spell `faceId`
+     *  names (omitted = the printed cast), for a rider scoped to the spell
+     *  actually cast. */
+    getCastFaceTypes: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile",
+        faceId?: string
+    ) => CardType[];
     /** CR 709.3 / 712.11b / 715.3 — the faces of the chosen card a cast during
      *  resolution (CR 608.2g) can announce: its Adventure, split halves or modal
      *  back face, as `{ id, label }` rows where `id` is the
@@ -8483,6 +8498,9 @@ export interface SpellContext {
             /** CR 702.85a — withhold a face whose resulting spell's mana value
              *  is not below this. */
             manaValueBelow?: number;
+            /** CR 709.3a / 712.11c / 715.3a — withhold a face whose own types
+             *  share none of these (the permission names spell types). */
+            spellTypes?: CardType[];
         }
     ) => { id: string; label: string }[];
     /** CR 709.3 / 712.11b / 715.3 — ask `chooserId` which face `casterId` casts,
@@ -8496,6 +8514,8 @@ export interface SpellContext {
         sourceZone: "hand" | "graveyard" | "exile";
         choiceId: string;
         free?: boolean;
+        /** As {@link getCastFaceOptions}'s `spellTypes`, for every row. */
+        spellTypes?: CardType[];
     }) => { cast: boolean; alternativeCostId?: string } | undefined;
     /** CR 406.3 / ADR 0026 (issue #3413) — the card DEFINITION id it is safe to
      *  DISCLOSE for `cardInstanceId` in `playerId`'s `zone`, or `undefined`
@@ -15418,6 +15438,13 @@ export interface EffectCountSpec {
  *  present (an unlikely but not-forbidden combination). */
 export interface EffectCardFilter {
     type?: CardType | CardType[];
+    /** CR 709.3a / 712.11c / 715.3a — the card can be cast as a SPELL of (any)
+     *  one of these types: asked of each face it can be cast as (the printed
+     *  card, an Adventure, a split half, a modal back face), never of the
+     *  printed type line alone ("an instant or sorcery spell" reaches a
+     *  creature card with an instant Adventure). Read only from a graveyard
+     *  snapshot that carries `faceTypes`; any other card shape fails CLOSED. */
+    castFaceType?: CardType | CardType[];
     /** CR 205.3 — the card has (any) one of these subtypes. A FIXED literal
      *  subtype or array of them, OR (issue #3721) a bare `{ ref: "$binding" }`
      *  naming a `chooseCreatureType` Op's chosen-type binding — Tsabo's
@@ -17769,6 +17796,19 @@ export type EffectOp =
            *  returned to a hand or library still goes there. Not valid with
            *  `anyNumber` (validator-enforced). */
           exilesOnResolve?: boolean;
+          /** CR 709.3a / 712.11c / 715.3a — the permission names spell types
+           *  ("an artifact, instant, or sorcery spell"): asked of each face the
+           *  card can be cast as, so an Adventure instant on a creature card is
+           *  offered as the Adventure alone, and a qualifying printed face never
+           *  offers a non-qualifying one. Omitted = the permission names the
+           *  card and no characteristic of it. Not valid with `anyNumber`,
+           *  `includesLand` or `alternativeCost` (validator-enforced). */
+          spellTypes?: CardType[];
+          /** CR 614.1a — scopes `exilesOnResolve` to a spell of one of these
+           *  types, read off the face actually cast ("If an instant or sorcery
+           *  spell cast this way would be put into your graveyard, exile it
+           *  instead"). Requires `exilesOnResolve`. */
+          exilesOnResolveForTypes?: CardType[];
       }
     /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
      *  ability, in one Op: "exile cards from the top of your library until you
