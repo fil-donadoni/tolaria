@@ -48,7 +48,6 @@ export const lavaSpike = defineCard(() => ({
 // as any Arcane spell is cast (Lava Spike above is the shipped pairing).
 //
 // compiler-gap: "You may put a creature card from your hand onto the battlefield. That creature gains haste. Sacrifice that creature at the beginning of the next end step." (#2693)
-// compiler-gap: "Splice onto Arcane {2}{R}{R}" (#2693)
 export const throughTheBreach = defineCard(() => ({
     id: "6da09e6a-2965-4855-bd41-41b41ba188fb", // CHK 193
     rarity: "rare",

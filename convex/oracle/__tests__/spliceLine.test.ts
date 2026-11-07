@@ -96,6 +96,24 @@ describe("Splice line — refusals (fail-closed)", () => {
         expect(parsed.ok).toBe(false);
     });
 
+    it("Evermind: an instant with no mana cost stays unparsed (CR 118.6)", () => {
+        // Its only line the grammar could not read was the splice line; with
+        // it read, the card would compile — and the engine casts an absent
+        // mana cost for {0}, turning an uncastable card into a free draw.
+        const outcome = compileCard(
+            arcaneInstant(
+                "Evermind",
+                "",
+                `(Nonexistent mana costs can't be paid.)\nDraw a card.\nSplice onto Arcane {1}{U}${SPLICE_REMINDER}`
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(JSON.stringify(outcome.gaps)).toContain(
+            "an instant or sorcery with no mana cost (CR 118.6)"
+        );
+    });
+
     it("Glacial Ray: a targeting splice card stays unparsed (CR 702.47b/d)", () => {
         // The engine announces ONE target requirement, the main spell's, so a
         // reveal of a targeting card is never offered (`gre/splice.ts`

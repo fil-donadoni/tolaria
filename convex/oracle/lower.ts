@@ -1003,7 +1003,7 @@ function lowerLine(
         }
         case "splice": {
             if (acc.splice !== undefined)
-                return "a card declares splice twice (CR 702.47a)";
+                return "a card declares splice on two lines (one splice ability per card definition)";
             acc.splice = {
                 subtype: ir.subtype,
                 cost: { mana: ir.cost },
