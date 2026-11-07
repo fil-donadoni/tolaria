@@ -219,7 +219,7 @@ describe("autoTapForPayment spends a Treasure only when needed (CR 111.10a, issu
     });
 });
 
-describe("autoTapForAttackTax spends a Treasure on the same terms (CR 508.1g / 111.10a)", () => {
+describe("autoTapForAttackTax spends a Treasure on the same terms (CR 508.1h / 111.10a)", () => {
     function taxed(cost: Record<string, number>, lands: CardInstanceState[]) {
         const state = makeState({
             phase: "DECLARE_ATTACKERS",
