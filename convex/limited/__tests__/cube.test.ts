@@ -65,10 +65,13 @@ describe("buildCubePool (ADR 0062: implemented subset of the cube list)", () => 
         expect(new Set(pool)).toEqual(expected);
     });
 
-    it("drops unimplemented cube names (pool is a strict subset of the list)", () => {
-        // Some cube names are not implemented yet — the pool must be smaller
-        // than the full list, proving the filter actually drops them.
-        expect(buildCubePool().length).toBeLessThan(CUBE_CARD_NAMES.length);
+    it("never exceeds the cube list (the pool is a subset of the list)", () => {
+        // The pool is the implemented subset: it can reach the full list once
+        // every cube name is implemented (issue #8176 landed the last one), but
+        // never exceed it.
+        expect(buildCubePool().length).toBeLessThanOrEqual(
+            CUBE_CARD_NAMES.length
+        );
     });
 
     it("includes a canonical always-implemented cube card (Black Lotus)", () => {
