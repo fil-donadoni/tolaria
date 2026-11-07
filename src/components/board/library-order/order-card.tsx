@@ -1,8 +1,10 @@
 // A single face-up card in the ordered picker. Presentational: renders the card
 // art from its definition id (the picker tracks the INSTANCE id separately for
 // ordering/submit). Pointer events are owned by the picker's strip container, so
-// the image itself is inert.
-import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
+// the image itself is inert. The image IS the slot: its source comes from the
+// one printed-face contract (issue #3553, issue #8321) — the measured srcset
+// hint, the 1x bitmap, the WebP → jpg fallback — never a hand-declared hint.
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 import {
     CARD_W as CARD_W_NATURAL,
     CARD_H as CARD_H_NATURAL,
@@ -20,22 +22,17 @@ export default function OrderCard({
     cardW?: number;
     cardH?: number;
 }) {
+    const { slotRef, attrs, onError } = usePrintedFaceSource<HTMLImageElement>({
+        imageId: defId,
+        fallbackSizes: `${cardW}px`,
+        fallbackIncludeThumb: true,
+    });
     return (
         <img
+            ref={slotRef}
             data-card-face="printed"
-            src={getImageUrl(defId)}
-            srcSet={getImageSrcSet(defId)}
-            sizes={`${cardW}px`}
-            onError={(e) => {
-                // WebP rendition missing → retry as jpg. srcset must be
-                // cleared too (it outranks src) and the guard stops the swap
-                // loop when the jpg is missing as well.
-                const fallback = getImageFallbackUrl(defId);
-                if (e.currentTarget.src !== fallback) {
-                    e.currentTarget.srcset = "";
-                    e.currentTarget.src = fallback;
-                }
-            }}
+            {...(attrs ?? {})}
+            onError={onError}
             alt=""
             draggable={false}
             className="pointer-events-none select-none card-corner border border-border object-cover shadow-md"

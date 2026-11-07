@@ -995,6 +995,11 @@
         "reason": "Census guard: the it.each over specimen rows would pass vacuously on an empty table (issue #4913)."
     },
     {
+        "file": "scripts/__tests__/ui-gate-viewports.test.ts",
+        "test": "the Viewport Matrix (ADR 0101, ADR 0168) > the surface table flags the surfaces that draw printed faces, and no specimen that draws none",
+        "reason": "Census / partition check: which SURFACES entries declare `cards` (owe the DPR 1 cell, ADR 0168) against the DPR 1 census that set the flag; relates the surface table to a measured list, not a literal to itself."
+    },
+    {
         "file": "scripts/__tests__/health-step.test.ts",
         "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > leaves check:convex-heap to the maintenance tier, never gated",
         "reason": "Partition check across three independently declared tiers (HEALTH_SCRIPTS, HEALTH_ONLY_GUARDS, MAINTENANCE_SCRIPTS): the member lives in exactly one."

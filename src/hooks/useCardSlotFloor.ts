@@ -1,10 +1,26 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cardSlotFloor, type CardSlotFloor } from "~/lib/images";
+import { faceBitmapWanted } from "~/lib/faceBitmaps";
 import { watchDevicePixelRatio } from "~/lib/watchDevicePixelRatio";
+
+/** The slot's DRAWN box in DEVICE pixels, exact — what a 1x face is
+ *  resampled to (issue #8321). `null` on a display the srcset path serves
+ *  (DPR ≥ 1.5), so a Retina slot re-renders only when its quantised floor
+ *  moves. */
+export interface CardSlotBox {
+    w: number;
+    h: number;
+    dpr: number;
+}
+
+/** How long after a window resize the slot is read again: a spatial zone
+ *  re-lays its slots out after the resize event, and a read before that
+ *  would size the bitmap to the old placement. */
+export const SLOT_SETTLE_REREAD_MS = 450;
 
 /**
  * Measures a card slot and derives the srcset hint it actually needs
- * (issue #3553).
+ * (issue #3553), and on a 1x display its exact drawn device box (issue #8321).
  *
  * WHY IT MEASURES. The responsive candidate a browser resolves is decided by
  * `sizes × devicePixelRatio`, and `sizes` used to be a HAND-WRITTEN CONSTANT
@@ -30,11 +46,30 @@ import { watchDevicePixelRatio } from "~/lib/watchDevicePixelRatio";
  * them differently: the first withholds the image, the second falls back to
  * the call site's declared hint so tests and degenerate layouts keep working.
  *
- * The `ResizeObserver` keeps the floor true when the slot grows later (a panel
- * opening, an orientation change), and `watchDevicePixelRatio` when the RATIO
- * moves with no resize (issue #6940). It re-renders only when the derived
- * floor CHANGES — `CARD_SLOT_QUANTUM_PX` is what makes that rare — so a
- * drag-resize does not repaint every mounted card.
+ * WHY AN EXACT BOX TOO, AND ONLY AT 1x. The floor is quantised
+ * (`CARD_SLOT_QUANTUM_PX`) so a drag-resize does not re-render every card;
+ * the 1x bitmap (`~/lib/faceBitmaps.ts`) must be the slot's size to the
+ * pixel or the compositor resamples it again — which is the defect. The box
+ * is the LAYOUT box, like the floor: never the bounding rect, which mid-way
+ * through a dialog's `zoom-in-95`, a zone's reflow spring or a `motion` FLIP
+ * is a size the card is only passing through (measured on this lane:
+ * rect-sized bitmaps came out 106px for a 112px tile and read as upscaled);
+ * and never an ancestor's transform scale, inline or computed — a `motion`
+ * entrance running `scale` from 0.1 to 1 gave a 64px face an 8px bitmap from
+ * its first frame, and the spatial slot's standing `scale()` read against
+ * its promoted layer (rastered at scale 1, then composited down) gave a
+ * bitmap of the drawn size that read SOFTER than one of the layout size
+ * (0.69 against the box-filtered reference, issue #8321's census). A
+ * scaled spatial slot therefore draws a layout-size bitmap through its
+ * scale: one compositor step down, the residue ADR 0168 states. The box
+ * exists only where the bitmap path runs — on a Retina display the state
+ * carries no box and a sub-quantum resize still re-renders nothing.
+ *
+ * WHAT RE-READS IT. The `ResizeObserver` keeps the floor true when the slot
+ * grows later (a panel opening, an orientation change); `watchDevicePixelRatio`
+ * when the RATIO moves with no resize (its own header says why); and a window `resize`
+ * listener, read at once and again once the layout has settled. It
+ * re-renders only when the derived floor (or 1x box) CHANGES.
  */
 export default function useCardSlotFloor<T extends HTMLElement>(): {
     /** Attach to the element whose box IS the slot (the wrapper the image
@@ -42,14 +77,18 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
     slotRef: React.RefObject<T | null>;
     /** The measured floor, or `null` when the slot has no usable box. */
     floor: CardSlotFloor | null;
+    /** The slot's exact drawn device box on a 1x display; `null` elsewhere,
+     *  and `null` while the slot has no usable box. */
+    box: CardSlotBox | null;
     /** `false` until the first measurement has run — the caller renders no
      *  image source while it is false. */
     measured: boolean;
 } {
     const slotRef = useRef<T | null>(null);
-    const [state, setState] = useState<{ floor: CardSlotFloor | null } | null>(
-        null
-    );
+    const [state, setState] = useState<{
+        floor: CardSlotFloor | null;
+        box: CardSlotBox | null;
+    } | null>(null);
 
     useLayoutEffect(() => {
         const el = slotRef.current;
@@ -61,23 +100,29 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
             // its own horizontal axis still spans the layout width. The ui-gate
             // probe measures the same quantity for the same reason.
             const width = el ? el.offsetWidth : 0;
-            const next =
-                width > 0
-                    ? cardSlotFloor(width, window.devicePixelRatio || 1)
+            const height = el ? el.offsetHeight : 0;
+            const dpr = window.devicePixelRatio || 1;
+            const floor = width > 0 ? cardSlotFloor(width, dpr) : null;
+            const box =
+                el && width > 0 && height > 0 && faceBitmapWanted(dpr)
+                    ? drawnBox(el, width, height, dpr)
                     : null;
             setState((prev) =>
                 prev &&
-                prev.floor?.sizes === next?.sizes &&
-                prev.floor?.includeThumb === next?.includeThumb
+                prev.floor?.sizes === floor?.sizes &&
+                prev.floor?.includeThumb === floor?.includeThumb &&
+                prev.box?.w === box?.w &&
+                prev.box?.h === box?.h &&
+                prev.box?.dpr === box?.dpr
                     ? prev
-                    : { floor: next }
+                    : { floor, box }
             );
         };
         // The floor is `width × devicePixelRatio`, and only the width has a
         // resize signal. The ratio moves with no layout change at all — the
         // window dragged onto a 2x display, a browser zoom — and a floor
         // computed for the old ratio under-declares until something else
-        // happens to re-measure (issue #6940). `watchDevicePixelRatio` is the
+        // happens to re-measure (the ratio watcher's own header). `watchDevicePixelRatio` is the
         // media-query trick that turns the ratio into an event; armed BEFORE
         // the first read so no change can fall between the two.
         const unwatchDpr = watchDevicePixelRatio(read);
@@ -85,11 +130,43 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
         if (!el || typeof ResizeObserver === "undefined") return unwatchDpr;
         const observer = new ResizeObserver(read);
         observer.observe(el);
+        let settleTimer: ReturnType<typeof setTimeout> | null = null;
+        const onWindowResize = () => {
+            read();
+            if (settleTimer !== null) clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+                settleTimer = null;
+                read();
+            }, SLOT_SETTLE_REREAD_MS);
+        };
+        window.addEventListener("resize", onWindowResize);
         return () => {
             observer.disconnect();
             unwatchDpr();
+            window.removeEventListener("resize", onWindowResize);
+            if (settleTimer !== null) clearTimeout(settleTimer);
         };
     }, []);
 
-    return { slotRef, floor: state?.floor ?? null, measured: state !== null };
+    return {
+        slotRef,
+        floor: state?.floor ?? null,
+        box: state?.box ?? null,
+        measured: state !== null,
+    };
+}
+
+/** The slot's box in device pixels: its layout box, exact. */
+function drawnBox(
+    el: HTMLElement,
+    layoutW: number,
+    layoutH: number,
+    dpr: number
+): CardSlotBox {
+    void el;
+    return {
+        w: Math.max(1, Math.round(layoutW * dpr)),
+        h: Math.max(1, Math.round(layoutH * dpr)),
+        dpr,
+    };
 }

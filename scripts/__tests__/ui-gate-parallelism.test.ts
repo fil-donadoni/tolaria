@@ -26,10 +26,12 @@ const readings = (n: number): Measurement["readings"] =>
 const GIB = 1024 ** 3;
 
 describe("viewportParallelism (issue #3653, re-sized by issue #4687)", () => {
-    it("gives the 8-core / 16 GiB machine every viewport at once — the load is not an input", () => {
-        expect(viewportParallelism(8, 16 * GIB)).toBe(MAX_PARALLELISM);
+    it("gives the machine its cores past the reserve, every viewport at once on 16 cores — the load is not an input", () => {
+        // Six viewports since ADR 0168 (issue #8321): the 8-core machine
+        // walks five at once (its cores past the reserve), a 16-core one all six.
+        expect(viewportParallelism(8, 16 * GIB)).toBe(8 - RESERVED_CORES);
         expect(viewportParallelism(16, 64 * GIB)).toBe(MAX_PARALLELISM);
-        expect(8 - RESERVED_CORES).toBeGreaterThanOrEqual(MAX_PARALLELISM);
+        expect(MAX_PARALLELISM).toBe(6);
     });
 
     it("spends the cores past the lane's own reserve", () => {
@@ -68,7 +70,10 @@ describe("viewportParallelism under a heavy-gate holder (issue #4941)", () => {
     });
 
     it("sizes from the machine as before when no heavy holder is live", () => {
-        expect(viewportParallelism(8, 16 * GIB, false)).toBe(MAX_PARALLELISM);
+        expect(viewportParallelism(8, 16 * GIB, false)).toBe(
+            8 - RESERVED_CORES
+        );
+        expect(viewportParallelism(16, 64 * GIB, false)).toBe(MAX_PARALLELISM);
     });
 });
 
@@ -81,7 +86,14 @@ describe("--parallel=", () => {
     });
 
     it("refuses anything else rather than falling back to the sized count", () => {
-        for (const raw of ["0", "6", "-1", "2.5", "", "all"]) {
+        for (const raw of [
+            "0",
+            String(MAX_PARALLELISM + 1),
+            "-1",
+            "2.5",
+            "",
+            "all",
+        ]) {
             expect(() => parseParallelOverride(raw)).toThrow(/--parallel=/);
         }
     });
@@ -157,13 +169,8 @@ function collect(results: readonly ViewportResult[]) {
 describe("collectRun (the receipt cannot tell what N was)", () => {
     it("folds results into viewport order however they arrived", () => {
         const inOrder = VIEWPORT_IDS.map((v) => result(v));
-        const shuffled = [
-            inOrder[3],
-            inOrder[0],
-            inOrder[4],
-            inOrder[2],
-            inOrder[1],
-        ];
+        // Every viewport, in an order the matrix never prints.
+        const shuffled = [...inOrder.slice(1).reverse(), inOrder[0]];
         expect(collect(shuffled)).toEqual(collect(inOrder));
         for (const walk of collect(shuffled).walks) {
             if (walk.status !== "measured")
@@ -412,7 +419,7 @@ describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
                 sizedFrom: "sized",
             })
         ).toBe(
-            "viewport parallelism: 1 → 5 of 5 at a time, 5 lane account(s) — grew at 4m12s: heavy holder pid 4242 (git rebase origin/staging) released"
+            `viewport parallelism: 1 → 5 of ${MAX_PARALLELISM} at a time, 5 lane account(s) — grew at 4m12s: heavy holder pid 4242 (git rebase origin/staging) released`
         );
         expect(
             parallelismLine({

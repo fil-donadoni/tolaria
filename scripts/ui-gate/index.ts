@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * `bun run check:ui` — the headless five-viewport + axe lane (issue #2580,
- * base slice #2512).
+ * `bun run check:ui` — the headless six-viewport + axe lane (issue #2580,
+ * base slice #2512; the sixth viewport since issue #8321).
  *
  * WHY THIS EXISTS. `.claude/rules/chrome-debug.md` demands a browser receipt
  * for any diff that can change what a user sees, and until now that rule was
@@ -18,18 +18,18 @@
  *   1. checks the Convex deployment answers (fail fast, never hang);
  *   2. starts its OWN Vite on 127.0.0.1 and a free port, waits for readiness,
  *      and tears it down on exit — the repo's `dev` script is left alone;
- *   3. registers the run's OWN throwaway account (`lane-account.ts`, issue
- *      #3626), signs every viewport in as it, and destroys it — with every
+ *   3. registers the run's OWN throwaway account (`lane-account.ts`), signs every viewport in as it, and destroys it — with every
  *      row it owns — however the run ends;
- *   4. for each of the five Viewport Matrix viewports (ADR 0101), walks every
- *      surface in `surfaces.ts`, runs the occlusion probe (`probe.js`, the
- *      same file the manual runbook points at) and axe-core;
+ *   4. for each of the six Viewport Matrix viewports (ADR 0101; the DPR 1
+ *      desktop on the `cards` surfaces only, in the full Chromium, ADR 0168),
+ *      walks every surface in `surfaces.ts`, runs the occlusion probe
+ *      (`probe.js`, the same file the manual runbook points at) and axe-core;
  *   5. holds every Floor at zero (`floors.ts`, ADR 0132) and exits non-zero on
  *      a broken Floor OR on a coverage hole. Shape Readings are printed, never
  *      compared;
  *   6. screenshots a FAILING cell only, its offenders outlined, and posts the
  *      run's shots as one comment on the branch's PR or issue
- *      (`failure-shot.ts`, `publish-shots.ts`, issue #6145) — never a verdict.
+ *      (`failure-shot.ts`, `publish-shots.ts`) — never a verdict.
  *
  * COVERAGE IS AN ASSERTION, NOT A BEST EFFORT. A surface that could not be
  * reached — the scenario row is missing, an active game blocks the route,
@@ -44,7 +44,7 @@
  * Readings, infra signatures, load, console errors, wall time — which it never
  * reads.
  *
- * THE MACHINE IS NOT THE TREE (issue #3644). A walk cut short by the machine —
+ * THE MACHINE IS NOT THE TREE. A walk cut short by the machine —
  * a backend function past its execution limit, a Convex server error, a
  * navigation or step timeout, a screen that never settled — is classified by
  * its signature (`infra-verdict.ts`) and retried after the 1-minute load drops,
@@ -78,11 +78,16 @@
  *   bun run check:ui -- --no-publish                     # keep failure shots
  *                                                        # local (no PR/issue
  *                                                        # comment)
+ *   bun run check:ui -- --viewport=1440x900x1            # a matrix subset:
+ *                                                        # DIAGNOSTIC, never
+ *                                                        # a receipt
+ *   bun run check:ui -- --raster-dump=<dir>              # 3× crops of every
+ *                                                        # sampled face
  *
- * SPEED IS SIZED TO THE MACHINE (issue #3653, re-sized in #4687). The five
+ * SPEED IS SIZED TO THE MACHINE (`parallel.ts`). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
  * five contexts on an 8-core box, never fewer than two (`MIN_PARALLELISM`)
- * — except ONE while a heavy gate holds the machine (issue #4941),
+ * — except ONE while a heavy gate holds the machine,
  * the load average not consulted — each in its own browser context, each parallel LANE
  * signed in as its own lane account (a lane walks its viewports one after
  * another, so the account is the LANE's), because the one-game-per-account
@@ -91,7 +96,7 @@
  * collected and printed in the fixed Viewport Matrix order (`parallel.ts`), so
  * the verdict block `land` re-derives is byte-identical whatever N was.
  *
- * SCOPE (issues #3627, #3628; ADR 0131). Every run starts by printing which
+ * SCOPE (ADR 0131). Every run starts by printing which
  * surfaces the diff against the base branch can reach
  * (`scripts/lib/ui-scope.ts`), or FULL and why. A run started with neither
  * `--surface=` nor `--all` walks exactly that scope: FULL prints `RECEIPT`, a
@@ -101,7 +106,7 @@
  * `SCOPED` receipt that does not match it. A hand-picked `--surface=` subset
  * is still a `DIAGNOSTIC`. A specimen row (`Surface.specimen`) is scoped by
  * its section + mount, not by the design-system page's whole closure, and a
- * type-only import is no edge (issue #4913). `--all` is what batch health
+ * type-only import is no edge. `--all` is what batch health
  * runs, as its last step (`HEALTH_SCRIPTS`): the every-surface walk backstops
  * what a scoped PR receipt accepts not to see, and never runs on a PR.
  *
@@ -117,8 +122,8 @@
  *   2  usage, configuration, or any other fatal error
  *   3  `DEPLOYMENT_DOWN_EXIT` (`lib/convex-reachable.ts`): the deployment at
  *      VITE_CONVEX_URL did not answer. Its own code so the health gate records
- *      `infra`, never a RED tip (issue #4943); `bun run convex:ensure` starts it.
- *   4  `DEPLOYMENT_SKEW_EXIT` (`lib/deployment-skew.ts`, issues #6132, #6133):
+ *      `infra`, never a RED tip; `bun run convex:ensure` starts it.
+ *   4  `DEPLOYMENT_SKEW_EXIT` (`lib/deployment-skew.ts`):
  *      the deployment serves the primary checkout's convex/ tree, and that is
  *      not this tree's (outside its own diff) — before the first cell, or
  *      mid-walk. INFRA with the reason, never `unsettled` cells.
@@ -141,8 +146,8 @@ import {
     type SquareExample,
     type SoftExample,
 } from "./floors.ts";
-import { blurredOf, describeRaster } from "./raster.ts";
-import { measureRaster } from "./raster-measure.ts";
+import { blurredOf, describeRaster, softWhy } from "./raster.ts";
+import { measureRaster, type RasterDump } from "./raster-measure.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
     DIGEST_HEADER,
@@ -169,7 +174,14 @@ import {
     type Surface,
     type WalkContext,
 } from "./surfaces.ts";
-import { VIEWPORTS, VIEWPORT_IDS, type Viewport } from "./viewports.ts";
+import {
+    VIEWPORTS,
+    VIEWPORT_IDS,
+    rendererOf,
+    viewportIdsFor,
+    viewportWalks,
+    type Viewport,
+} from "./viewports.ts";
 import {
     createLaneFleet,
     installSignalTeardown,
@@ -360,18 +372,33 @@ function machineLoadLine(start: number, end: number): string {
 function evaluate(
     knownIds: readonly string[],
     walks: readonly SurfaceWalk[],
-    diffScope: DiffScope | null
+    diffScope: DiffScope | null,
+    matrix: readonly Viewport[] = VIEWPORTS
 ): Evaluation {
+    const viewportsOf = (surface: string) =>
+        viewportIdsFor(SURFACE_BY_ID.get(surface) ?? {}, matrix);
     return evaluateRun({
-        knownSurfaceIds: knownIds,
+        // A surface owing no cell in this matrix (a `cardsOnly`-only
+        // `--viewport=` subset) is outside the run, not unwalked.
+        knownSurfaceIds: knownIds.filter((id) => viewportsOf(id).length > 0),
         walks,
         definedSurfaceIds: SURFACE_IDS,
-        viewportIds: VIEWPORT_IDS,
+        viewportIds: matrix.map((v) => v.id),
+        viewportsOf,
         unwalked: UNWALKED_SURFACES,
         diffScope,
         assertsBySurface: assertLabelsBySurface(SURFACES),
+        // A viewport subset is never a receipt (issue #8321): the rows it
+        // owes are fewer than the scope's, and `land` would refuse them.
+        ...(matrix.length !== VIEWPORTS.length
+            ? {
+                  diagnosticReason: `--viewport= subset (${matrix.map((v) => v.id).join(", ")}) — the scope owes every viewport`,
+              }
+            : {}),
     });
 }
+
+const SURFACE_BY_ID = new Map(SURFACES.map((s) => [s.id, s] as const));
 
 /**
  * Print the receipt — the verdict block, the separator, the diagnostic block
@@ -598,10 +625,24 @@ async function startAppServer(
     };
 }
 
-async function launchBrowser(headed: boolean): Promise<Browser> {
+/**
+ * One Chromium per renderer (ADR 0168, issue #8321): the headless SHELL the
+ * five DPR 2/3 viewports walk in, and the FULL binary (`channel: "chromium"`,
+ * Playwright's new headless) the DPR 1 viewport walks in — the shell rasters
+ * an `<img>` with the same resampler the raster probe's reference uses and
+ * so cannot see the 1x resampling defect class at all; the full binary mips
+ * the resource the way a desktop Chrome does (`viewports.ts`).
+ */
+async function launchBrowser(
+    headed: boolean,
+    renderer: "shell" | "chrome" = "shell"
+): Promise<Browser> {
     const { chromium } = await import("playwright");
     try {
-        return await chromium.launch({ headless: !headed });
+        return await chromium.launch({
+            headless: !headed,
+            ...(renderer === "chrome" ? { channel: "chromium" } : {}),
+        });
     } catch (err) {
         throw new FatalError(
             `could not launch Chromium: ${(err as Error).message}\n` +
@@ -815,6 +856,12 @@ interface Options {
     /** `--no-publish`: keep the failure shots local instead of commenting
      *  them on the PR or issue (issue #6145). */
     publish: boolean;
+    /** `--raster-dump=<dir>`: write a 3× crop of every face the raster probe
+     *  samples, screen beside reference (issue #8321). Diagnostic. */
+    rasterDump: string | null;
+    /** `--viewport=<id,…>`: walk a subset of the Viewport Matrix — to
+     *  reproduce one cell, never a receipt (issue #8321). */
+    viewports: string[] | null;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -828,6 +875,8 @@ function parseArgs(argv: string[]): Options {
         base: ORIGIN_BASE,
         serve: DEFAULT_SERVE,
         publish: true,
+        rasterDump: null,
+        viewports: null,
     };
     for (const arg of argv) {
         // `--record` and `--accept=` died with the budget file (ADR 0132): a
@@ -839,6 +888,22 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--no-publish") opts.publish = false;
         else if (arg.startsWith("--base=")) {
             opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--raster-dump=")) {
+            opts.rasterDump = path.resolve(arg.slice("--raster-dump=".length));
+        } else if (arg.startsWith("--viewport=")) {
+            opts.viewports = arg
+                .slice("--viewport=".length)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const unknown = opts.viewports.filter(
+                (id) => !VIEWPORT_IDS.includes(id)
+            );
+            if (unknown.length || opts.viewports.length === 0) {
+                throw new FatalError(
+                    `--viewport= takes ids from the Viewport Matrix (${VIEWPORT_IDS.join(", ")}); got ${unknown.join(", ") || "nothing"}`
+                );
+            }
         } else if (arg.startsWith("--serve=")) {
             const mode = arg.slice("--serve=".length);
             if (mode !== "dev" && mode !== "build") {
@@ -1086,6 +1151,7 @@ async function main(): Promise<number> {
     // the outer `finally`'s read to `never`.
     let server = null as AppServer | null;
     let browser: Browser | null = null;
+    let chrome: Browser | null = null;
     /** Set when the deployment watch aborted the walk (issue #6081): the
      *  abandoned cells may hold the renderers, and the lane is released only
      *  once the browser close returns. */
@@ -1132,6 +1198,18 @@ async function main(): Promise<number> {
                 // see `Browser | null`.
                 const openBrowser = await launchBrowser(opts.headed);
                 browser = openBrowser;
+                // The full binary, for the viewports that ask for it (ADR
+                // 0168): a second instance beside the shell, closed with it.
+                const openChrome = VIEWPORTS.some(
+                    (v) => rendererOf(v) === "chrome"
+                )
+                    ? await launchBrowser(opts.headed, "chrome")
+                    : null;
+                chrome = openChrome;
+                const browserFor = (viewport: Viewport): Browser =>
+                    rendererOf(viewport) === "chrome" && openChrome
+                        ? openChrome
+                        : openBrowser;
 
                 // The settle predicate, proven in THIS Chromium before any
                 // reading depends on it (issue #3644): a predicate that returns
@@ -1192,7 +1270,14 @@ async function main(): Promise<number> {
                     progress.set(viewportId, doing);
                     activity.set(viewportId, { doing, sinceMs: Date.now() });
                 };
-                const cellsTotal = walkable.length * VIEWPORTS.length;
+                const matrix: readonly Viewport[] = opts.viewports
+                    ? VIEWPORTS.filter((v) => opts.viewports!.includes(v.id))
+                    : VIEWPORTS;
+                const matrixIds = matrix.map((v) => v.id);
+                const cellsTotal = walkable.reduce(
+                    (n, s) => n + viewportIdsFor(s, matrix).length,
+                    0
+                );
                 let cellsDone = 0;
                 const reported = new Set<string>();
                 const finished: ViewportResult[] = [];
@@ -1252,16 +1337,17 @@ async function main(): Promise<number> {
                     /** Every cell's phase timings (issue #4687), diagnostic. */
                     const timings: CellTiming[] = [];
 
-                    const context: BrowserContext =
-                        await openBrowser.newContext({
-                            viewport: {
-                                width: viewport.width,
-                                height: viewport.height,
-                            },
-                            deviceScaleFactor: viewport.dpr,
-                            isMobile: viewport.mobile,
-                            hasTouch: viewport.mobile,
-                        });
+                    const context: BrowserContext = await browserFor(
+                        viewport
+                    ).newContext({
+                        viewport: {
+                            width: viewport.width,
+                            height: viewport.height,
+                        },
+                        deviceScaleFactor: viewport.dpr,
+                        isMobile: viewport.mobile,
+                        hasTouch: viewport.mobile,
+                    });
                     // Before any app code: the settle predicate counts the Convex
                     // requests in flight through this (`settle.ts`).
                     await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
@@ -1407,8 +1493,15 @@ async function main(): Promise<number> {
                                 // the ones the probe already proved resolved.
                                 // Its blurred faces join the probe's offenders
                                 // so the failure shot outlines them.
+                                const dump: RasterDump | null = opts.rasterDump
+                                    ? {
+                                          dir: opts.rasterDump,
+                                          surface: surface.id,
+                                          viewport: viewport.id,
+                                      }
+                                    : null;
                                 probe.raster = await timed(t, "probe", () =>
-                                    measureRaster(p)
+                                    measureRaster(p, dump)
                                 );
                                 for (const b of blurredOf(
                                     probe.raster.samples
@@ -1421,7 +1514,7 @@ async function main(): Promise<number> {
                                         y: b.y,
                                         w: b.w,
                                         h: b.h,
-                                        why: `rasterised soft: blur ${b.blur.toFixed(2)} over its ${b.src}`,
+                                        why: `rasterised ${softWhy(b)} over its ${b.src}`,
                                     });
                                 }
                                 measured = { probe, axe };
@@ -1725,7 +1818,12 @@ async function main(): Promise<number> {
                     // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
                     // once a session exists, and `ensureSignedIn` navigates back to
                     // the app root itself, so this costs the signed-in walks nothing.
-                    for (const surface of walkable.filter((s) => s.preAuth)) {
+                    // The surfaces THIS viewport owes (ADR 0168): a
+                    // `cardsOnly` viewport walks only the ones drawing cards.
+                    const owed = walkable.filter((s) =>
+                        viewportWalks(viewport, s)
+                    );
+                    for (const surface of owed.filter((s) => s.preAuth)) {
                         await measure(surface);
                     }
 
@@ -1741,7 +1839,7 @@ async function main(): Promise<number> {
                         `ui-gate: ${viewport.id} (${viewport.label}) — signed in`
                     );
 
-                    for (const surface of walkable.filter((s) => !s.preAuth)) {
+                    for (const surface of owed.filter((s) => !s.preAuth)) {
                         await measure(surface);
                     }
 
@@ -1816,7 +1914,7 @@ async function main(): Promise<number> {
                         withDeadline(
                             () =>
                                 runPool(
-                                    VIEWPORTS,
+                                    matrix,
                                     poolSize.limit,
                                     async (viewport, _index, lane) => {
                                         setProgress(
@@ -1894,7 +1992,7 @@ async function main(): Promise<number> {
                     });
                 const collected = collectRun({
                     knownSurfaceIds: knownIds,
-                    viewportIds: VIEWPORT_IDS,
+                    viewportIds: matrixIds,
                     results,
                 });
                 for (const line of collected.lines) log(line);
@@ -1912,7 +2010,7 @@ async function main(): Promise<number> {
                         : `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`;
                 const wallMs = Date.now() - startedAt;
                 const exitCode = printReceipt(
-                    evaluate(knownIds, collected.walks, diffScope),
+                    evaluate(knownIds, collected.walks, diffScope, matrix),
                     [
                         machineLoadLine(loadAtStart, loadAverage()),
                         parallelLine(
@@ -1955,8 +2053,9 @@ async function main(): Promise<number> {
                 // subscribed to rows the teardown is deleting.
                 // Bounded (issue #4912): a browser whose renderer stalled can
                 // stall its own close, and the teardown after it must run.
-                if (browser) {
-                    const closing = browser;
+                for (const open of [browser, chrome]) {
+                    if (!open) continue;
+                    const closing = open;
                     await withDeadline(
                         () => closing.close(),
                         deploymentAborted ? 10_000 : CELL_DEADLINE_MS,

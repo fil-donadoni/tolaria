@@ -1159,6 +1159,69 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
         expect(r.cardsSoft[0]!.have).toBe(146);
     });
 
+    it("holds a 1x bitmap face to its DRAWN box, counts a pending or undecoded one as pending (issue #8321)", () => {
+        const html = `
+        <div id="board">
+            <img id="a" alt="Bolt" data-card-face="printed" src="blob:http://x/1"
+                 data-art-src="${cdn("grid")}" />
+            <img id="b" alt="Bolt" data-card-face="printed" src="blob:http://x/2"
+                 data-art-src="${cdn("grid")}" />
+            <img id="c" alt="Bolt" data-card-face="printed" src="data:image/gif;base64,R0lGOD"
+                 data-face-pending="" />
+            <img id="d" alt="Bolt" data-card-face="printed" src="blob:http://x/3"
+                 data-art-src="${cdn("grid")}" />
+        </div>`;
+        const window = new Window({ url: "http://localhost/" });
+        const context = createContext(window as unknown as object);
+        const doc = window.document;
+        doc.body.innerHTML = html;
+        Object.defineProperty(window, "innerWidth", { value: 1440 });
+        Object.defineProperty(window, "innerHeight", { value: 900 });
+        Object.defineProperty(window, "devicePixelRatio", { value: 1 });
+        const stub = (
+            id: string,
+            rect: StubRect,
+            layoutW: number,
+            natural: number
+        ) => {
+            const el = doc.getElementById(id)!;
+            el.getBoundingClientRect = () => fullRect(rect) as never;
+            Object.defineProperty(el, "offsetWidth", { value: layoutW });
+            Object.defineProperty(el, "naturalWidth", { value: natural });
+            Object.defineProperty(el, "currentSrc", {
+                value: el.getAttribute("src"),
+            });
+        };
+        // a: a 120px slot drawn at scale 0.775 — the bitmap is 93px, the rect 93px.
+        stub("a", { left: 0, top: 0, width: 93, height: 130 }, 120, 93);
+        // b: the same slot with an 8px bitmap (a transient scale): soft.
+        stub("b", { left: 200, top: 0, width: 93, height: 130 }, 120, 8);
+        // c: the pending placeholder; d: a bitmap not yet decoded.
+        stub("c", { left: 400, top: 0, width: 112, height: 157 }, 112, 1);
+        stub("d", { left: 600, top: 0, width: 112, height: 157 }, 112, 0);
+        doc.elementFromPoint = (() => null) as never;
+        runInContext(PROBE_SOURCE, context);
+        runInContext("globalThis.__result = window.__tolariaProbe();", context);
+        const r = (
+            window as unknown as {
+                __result: {
+                    cardsSoftN: number;
+                    cardsSoftPending: number;
+                    cardsSoftUnknown: number;
+                    cardsSoft: { have: number; need: number; src: string }[];
+                };
+            }
+        ).__result;
+        expect(r.cardsSoftN).toBe(1);
+        expect(r.cardsSoft[0]).toMatchObject({
+            have: 8,
+            need: 93,
+            src: "bitmap",
+        });
+        expect(r.cardsSoftPending).toBe(2);
+        expect(r.cardsSoftUnknown).toBe(0);
+    });
+
     it("does not flag a slot whose resolved candidate covers its device width", () => {
         // Same slot, `grid` 488w resolved: 488 >= 360.
         const r = probeSoft({

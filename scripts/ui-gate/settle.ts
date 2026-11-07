@@ -48,7 +48,10 @@ export interface SettleSample {
     ready: boolean;
     /** Running animations with a finite end. */
     animations: number;
-    /** Backend requests in flight, plus a connecting socket or loading fonts. */
+    /** Backend requests in flight, plus a connecting socket, loading fonts,
+     *  or a printed face whose 1x bitmap is still being made (issue #8321:
+     *  `img[data-face-pending]`, the face the app withholds until its
+     *  resample lands — measured before it lands, it is no picture at all). */
     inflight: number;
     /** What `inflight` is made of, for the reason an unsettled screen prints. */
     why?: string;
@@ -297,8 +300,12 @@ export function sampleSource(targets: readonly string[]): string {
         }
         const net = window.__tolariaNet;
         const fonts = document.fonts && document.fonts.status === "loading" ? 1 : 0;
-        const inflight = (net ? net.inflight() : 0) + fonts;
-        const why = (net ? net.detail() : "no instrument") + ", " + fonts + " font load";
+        let faces = 0;
+        for (const img of document.querySelectorAll('img[data-card-face="printed"]')) {
+            if (img.hasAttribute("data-face-pending") || (img.src.startsWith("blob:") && !img.complete)) faces++;
+        }
+        const inflight = (net ? net.inflight() : 0) + fonts + faces;
+        const why = (net ? net.detail() : "no instrument") + ", " + fonts + " font load, " + faces + " face bitmap(s) pending";
         // The URL first: a client-side navigation still resolving is a
         // screen still moving, even before any box has changed.
         const parts = [location.href, Math.round(window.scrollX), Math.round(window.scrollY)];

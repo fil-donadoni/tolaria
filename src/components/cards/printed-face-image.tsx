@@ -1,11 +1,5 @@
-import { useState } from "react";
-import {
-    getImageFallbackUrl,
-    getImageSrcSet,
-    getImageUrl,
-    type CardImageFace,
-} from "~/lib/images";
-import useCardSlotFloor from "~/hooks/useCardSlotFloor";
+import type { CardImageFace } from "~/lib/images";
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 
 /**
  * The PRINTED full card face, rendered responsively into whatever slot it is
@@ -55,8 +49,26 @@ export default function PrintedFaceImage({
      *  carries no styling. */
     backFaceMarker?: boolean;
 }) {
-    const { slotRef, floor, measured } = useCardSlotFloor<HTMLImageElement>();
-    const [jpgFallback, setJpgFallback] = useState(false);
+    // The element IS the slot. No source until it has been measured (and, on
+    // a 1x display, resampled to it — issue #8321): a hint applied after the
+    // browser has already resolved a candidate cannot un-resolve it, and
+    // first paint is the whole point. A slot that could not be measured keeps
+    // the widest hint rather than the narrowest: this component only ever
+    // renders into large panels, so over-declaring is the safe direction.
+    const {
+        slotRef,
+        attrs,
+        onError,
+        onLoad: onFaceLoad,
+    } = usePrintedFaceSource<HTMLImageElement>({
+        imageId,
+        face,
+        fallbackSizes: "672px",
+        fallbackIncludeThumb: false,
+        onLoad,
+        // A second failure still ends the caller's loader.
+        onExhausted: onLoad,
+    });
     return (
         <img
             ref={slotRef}
@@ -64,37 +76,13 @@ export default function PrintedFaceImage({
             {...(backFaceMarker
                 ? { "data-card-preview-back-face-printed": true }
                 : {})}
-            // No source until the slot has been measured: a hint applied after
-            // the browser has already resolved a candidate cannot un-resolve
-            // it, and first paint is the whole point. `useLayoutEffect` runs
-            // before paint, so this costs one commit, never a visible frame.
-            {...(measured
-                ? jpgFallback
-                    ? { src: getImageFallbackUrl(imageId, face) }
-                    : {
-                          src: getImageUrl(imageId, face),
-                          srcSet: getImageSrcSet(imageId, {
-                              includeThumb: floor?.includeThumb ?? false,
-                              face,
-                          }),
-                          // A slot that could not be measured keeps the widest
-                          // hint rather than the narrowest: this component only
-                          // ever renders into large panels, so over-declaring
-                          // is the safe direction here.
-                          sizes: floor?.sizes ?? "672px",
-                      }
-                : {})}
+            {...(attrs ?? {})}
             alt={alt}
             className={className}
             decoding="async"
             draggable={false}
-            onLoad={onLoad}
-            onError={() => {
-                // WebP missing (spoiler / lowres printing) → retry as jpg; a
-                // second failure still ends the caller's loader.
-                if (!jpgFallback) setJpgFallback(true);
-                else onLoad?.();
-            }}
+            onLoad={onFaceLoad}
+            onError={onError}
         />
     );
 }
