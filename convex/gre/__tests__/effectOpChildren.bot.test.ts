@@ -61,7 +61,6 @@ describe("childOpArrays — every nesting shape (CR 608.2c, issue #4477)", () =>
         const hosts = new Set<string>(NESTING_SHAPES.map((s) => s.hostOp));
         expect([...hosts].sort()).toEqual([
             "coinFlip",
-            "coinFlipSync",
             "delayedTrigger",
             "divideIntoPiles",
             "forEach",

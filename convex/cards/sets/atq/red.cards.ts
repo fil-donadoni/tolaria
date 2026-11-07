@@ -107,11 +107,11 @@ export const artifactBlast = defineCard(() => ({
 // 705.2 / ADR 0023 `random-reveal` Pending Choice, i.e. the one every other
 // coin-flip card in the catalogue uses (Chaos Orb, Goblin Bomb, Ice Cauldron,
 // Rejuvenate) and the one the client animates (`random-reveal-overlay.tsx`).
-// It was briefly migrated onto the synchronous sibling `coinFlipSync`, which
-// skips that reveal — the flip resolved invisibly and the animation was gone.
-// `coinFlipSync` draws from the SAME seeded PRNG, so the only difference is
-// whether the player gets to see the flip; for a card whose whole text is
-// "Flip a coin", that is the card.
+// It was briefly migrated onto a synchronous sibling Op, which skipped that
+// reveal — the flip resolved invisibly and the animation was gone. That Op drew
+// from the SAME seeded PRNG, so the only difference was whether the player got
+// to see the flip; for a card whose whole text is "Flip a coin", that is the
+// card. Issue #5521 retired the sibling Op: no single-flip path skips the reveal.
 //
 // DIVERGENCE (flagged, tracked #974): the printed "that isn't the target of an
 // ability from another creature named Goblin Artisans" multi-copy clause is

@@ -61,7 +61,7 @@ export type TokenCatalogueEntry = {
 /** Recursively collect every `createToken` Op's spec out of an Op list,
  *  descending into every nested script through `childOpArrays` — the ONE
  *  enumeration of the DSL's nesting constructs (issue #4442: the hand-written
- *  copy this replaced had never learned `coinFlipSync`, `reflexiveTrigger` or
+ *  copy this replaced had never learned `reflexiveTrigger` or
  *  `divideIntoPiles`). */
 export function collectTokenSpecs(ops: readonly EffectOp[]): EffectTokenSpec[] {
     const specs: EffectTokenSpec[] = [];

@@ -3673,7 +3673,7 @@ export const OP_VALUERS: {
 /** The structural constructs the WALKER handles by recursion — never a leaf
  *  valuer. They branch/iterate over nested Op lists (`if`.then/else,
  *  `forEach`.effects, `optionChoice`.modes,
- *  `coinFlip`/`coinFlipSync`.win/loss) rather than contributing intrinsic
+ *  `coinFlip`.win/loss) rather than contributing intrinsic
  *  material. The coverage guard treats these as covered (they are
  *  exhaustively handled in `valueOp` below) — they belong on neither
  *  `OP_VALUERS` nor the backfill allowlist. */
@@ -3682,7 +3682,6 @@ export const STRUCTURAL_CONSTRUCTS = new Set<EffectOp["op"]>([
     "forEach",
     "optionChoice",
     "coinFlip",
-    "coinFlipSync",
 ]);
 
 /** The sum of two values — points add, tags union. Exported for the
@@ -3759,12 +3758,8 @@ export function valueOp(
             }
             return best;
         }
-        case "coinFlip":
-        case "coinFlipSync": {
-            // Even odds — the expected value of the two branches. Same walk
-            // for both Ops: `coinFlipSync` (issue #1281) only skips the
-            // reveal-ack suspension, the win/loss branch shape and the
-            // even-odds valuation are identical.
+        case "coinFlip": {
+            // Even odds — the expected value of the two branches.
             const win = valueEffectScript(op.win.effects, ctx, scope);
             const loss = valueEffectScript(op.loss.effects, ctx, scope);
             return {

@@ -104,7 +104,6 @@ export const SCRIPT_HOST_FIELDS = {
     forEach: ["effects"],
     optionChoice: ["modes"],
     coinFlip: ["win", "loss"],
-    coinFlipSync: ["win", "loss"],
     delayedTrigger: ["effects"],
     reflexiveTrigger: ["effects"],
     divideIntoPiles: ["chosenEffect", "otherEffect"],
@@ -149,7 +148,6 @@ export function childOpArrays(op: EffectOp): readonly Script[] {
         case "optionChoice":
             return op.modes.map((mode) => mode.effects);
         case "coinFlip":
-        case "coinFlipSync":
             return [op.win.effects, op.loss.effects];
         case "delayedTrigger":
         case "reflexiveTrigger":

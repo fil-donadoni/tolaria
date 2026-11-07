@@ -7,7 +7,7 @@ confidence: medium
 
 **What is wrong.** A determinized search state keeps the real `rngSeed` /
 `rngCounter` (`convex/gre/ai/determinize.ts` never reseeds). A simulated
-`coinFlip` / `coinFlipSync` / `coinFlipSeries` or shuffle therefore draws
+`coinFlip` / `coinFlipSeries` or shuffle therefore draws
 exactly the bits the real game will draw. On Squee's Revenge the Bot answers
 the `number-pick` nomination (candidates 0, 1, 2, mid, max) by searching each
 one, so it can choose exactly the number of upcoming wins: perfect foresight
