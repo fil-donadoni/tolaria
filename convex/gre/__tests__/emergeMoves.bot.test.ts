@@ -262,6 +262,24 @@ describe("Emerge beside Drought's tax — the Bot plans and pays the pair (CR 11
         ]);
     });
 
+    it("with a fungible victim auto-resolved, the plan's next picks pay the tax", () => {
+        // Battlefield order auto-resolves tris-b, and `largestEmergeVictim`
+        // breaks the tie on id: tris-a, which cannot pay for a Swamp.
+        const state = droughtBoard([
+            own(triskelion().id, "tris-b", true),
+            own(triskelion().id, "tris-a", true),
+            own(swamp().id, "swamp-0"),
+            own(swamp().id, "swamp-1", true),
+            own(swamp().id, "swamp-2"),
+        ]);
+        const [cast] = probeCasts(state);
+        expect(cast.castCostPicks?.announcedSacrificeIds).toEqual(["tris-b"]);
+        expect(cast.castCostPicks?.sacrificeIds).toEqual([
+            "swamp-0",
+            "swamp-1",
+        ]);
+    });
+
     it("the plan matches what the announcement parks, so the executor's submissions complete it", async () => {
         const state = droughtBoard([
             own(swamp().id, "swamp-0"),
