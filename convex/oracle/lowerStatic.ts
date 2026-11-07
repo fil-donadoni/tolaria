@@ -114,6 +114,8 @@ export interface LoweredStatic {
     readonly entersTappedUnlessPay?: { readonly life: number };
     /** CR 722.3a — "This creature enters prepared." */
     readonly entersPrepared?: true;
+    /** CR 113.6g — "This spell can't be countered." */
+    readonly cantBeCountered?: true;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
     /**
@@ -656,6 +658,8 @@ export function lowerStaticClause(
             };
         case "enters-prepared":
             return { ok: true, lowered: { entersPrepared: true } };
+        case "cant-be-countered":
+            return { ok: true, lowered: { cantBeCountered: true } };
         case "ability-loss-pt-set":
             // CR 613.1f + 613.4b — one clause, two layers, one scope.
             return {
