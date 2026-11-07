@@ -15,7 +15,7 @@
 //   - protection from a colour (CR 702.16a): it matters only against sources
 //     of that colour — read off the colours the opponent has SHOWN
 //     (`observedOpponentColors`: battlefield, graveyard, stack, the decklist
-//     at `expert`) plus every colour a mana source they control can produce,
+//     when the search was granted it) plus every colour a mana source they control can produce,
 //     tapped or not (a tapped Mountain still says "red").
 //
 // Such a keyword is INERT and its table bonus is taken back, so it is worth

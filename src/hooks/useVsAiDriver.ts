@@ -322,9 +322,8 @@ export function useVsAiDriver(
     // of mutable storage:
     //
     //   `blind`    — the bot's OWN seat only (unrelated to difficulty: a bot
-    //                always knows its own decklist). What `medium`/`hard` feed
-    //                the search.
-    //   `informed` — plus the human seat, which only `expert` ever receives
+    //                always knows its own decklist).
+    //   `informed` — plus the human seat, which only a knowing level receives
     //                (`knowsOpponent`, `convex/gre/difficulty.ts`).
     //
     // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/gameLifecycle.ts`)

@@ -5906,11 +5906,11 @@ export type GameState = {
      *  ABSENCE IS THE GATE, and it is the same fail-closed discriminator
      *  `DeckKnowledgeBySeat` already is: `determinize` stamps a seat here only
      *  when it was handed that seat's decklist AND that seat is not the search
-     *  observer — which is true exactly at `expert`
+     *  observer — which is true exactly at a knowing level
      *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`; the client's `blind`
      *  shape names the bot's OWN seat at every level, so gating on "a decklist
-     *  exists" alone would leak into `medium`/`hard`). Every other
-     *  difficulty, every server path and every test that stamps nothing reads
+     *  exists" alone would leak into a blind search). A blind
+     *  search, every server path and every test that stamps nothing reads
      *  `undefined` and behaves exactly as it did before this field existed.
      *
      *  Small by construction — at most five numbers per seat — because the

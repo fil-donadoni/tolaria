@@ -26,6 +26,10 @@ import {
     computeOwedPlayerIds,
 } from "@convex/gre/expectedInput";
 import { storeDifficulty } from "~/lib/session";
+import {
+    DIFFICULTIES,
+    DIFFICULTY_KNOWS_OPPONENT,
+} from "@convex/gre/difficulty";
 import type { Difficulty } from "@convex/gre";
 
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -447,6 +451,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // issue #2790 — a test that opts into `expert` via `storeDifficulty`
         // must not leak it to the next one, which assumes the default.
         localStorage.removeItem("tolaria:aiDifficulty");
+        DIFFICULTY_KNOWS_OPPONENT.hard = true;
         adapterCalls.length = 0;
         heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
@@ -606,32 +611,35 @@ describe("useVsAiDriver (issue #110)", () => {
         ]);
     });
 
-    // ── Expert difficulty also feeds the HUMAN seat's decklist (issue #2790,
+    // ── A knowing level also feeds the HUMAN seat's decklist (issue #2790,
     //    PRD #2787) ───────────────────────────────────────────────────────
     //
-    // `expert` is the one level that amends the #2788 per-seat shape's
-    // criterion by populating a SECOND entry — the opponent's — so the
-    // search stops imagining a human who has surrendered. The other three
-    // levels must keep reproducing today's behaviour exactly: the human seat
-    // stays absent from `deckKnowledge` regardless of whether the read would
+    // It populates a SECOND entry — the opponent's — so the search stops
+    // imagining a human who has surrendered. Every level knows today; the tests
+    // that pin the gate itself make `hard` blind for their own duration
+    // (restored in `beforeEach`), because a level that does not know must keep
+    // the human seat absent from `deckKnowledge` whether or not the read would
     // answer for it.
-    it("expert also feeds the human seat's decklist into the search adapter", async () => {
-        storeDifficulty("expert");
-        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
-        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS, WURM]);
-        currentState = botStateWithLibrary(2);
-        renderHook(() => useVsAiDriver(GAME, BOT));
-        await settleDriver();
+    it.each(DIFFICULTIES)(
+        "%s feeds the human seat's decklist into the search adapter",
+        async (difficulty) => {
+            storeDifficulty(difficulty);
+            seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+            seatKnowledge[HUMAN] = knows(HUMAN, [BEARS, WURM]);
+            currentState = botStateWithLibrary(2);
+            renderHook(() => useVsAiDriver(GAME, BOT));
+            await settleDriver();
 
-        const searched = searchAdapterCalls();
-        expect(searched.length).toBeGreaterThan(0);
-        expect(searched[0].deckKnowledge).toEqual([
-            { playerId: BOT, cardIds: [MOUNTAIN] },
-            { playerId: HUMAN, cardIds: [BEARS, WURM] },
-        ]);
-    });
+            const searched = searchAdapterCalls();
+            expect(searched.length).toBeGreaterThan(0);
+            expect(searched[0].deckKnowledge).toEqual([
+                { playerId: BOT, cardIds: [MOUNTAIN] },
+                { playerId: HUMAN, cardIds: [BEARS, WURM] },
+            ]);
+        }
+    );
 
-    it("the default preset feeds the human seat's decklist: expert is the default", async () => {
+    it("the default preset feeds the human seat's decklist", async () => {
         // No `storeDifficulty` call — the default preset applies.
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
@@ -648,9 +656,10 @@ describe("useVsAiDriver (issue #110)", () => {
     });
 
     it("a blind preset does NOT feed the human seat's decklist even though the read would answer it", async () => {
-        // `hard` proves the gate is the DIFFICULTY, not merely the read
-        // answering null for an unowned seat (the other test above already
-        // covers that path).
+        // Proves the gate is the DIFFICULTY, not merely the read answering
+        // null for an unowned seat (the other test above already covers that
+        // path).
+        DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
@@ -675,6 +684,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // driver mounts on a blind preset, searches blind, then the stored
         // value flips to `expert` with the component instance untouched, and
         // the NEXT search must carry the human seat.
+        DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
@@ -727,7 +737,8 @@ describe("useVsAiDriver (issue #110)", () => {
         ]);
     });
 
-    it("an event Match at hard stays blind even when the lobby's stored difficulty is expert", async () => {
+    it("an event Match at a blind level stays blind even when the lobby's stored difficulty knows", async () => {
+        DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("expert");
         matchDifficulty = "hard";
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);

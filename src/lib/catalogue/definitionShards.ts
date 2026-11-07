@@ -21,8 +21,8 @@
 //     debug placement before the widened Manifest arrives, or a card fetched
 //     from outside the game (CR 400.11), loads on demand with the board held
 //     back. The Brain worker runs this mode over ITS Manifest — its own
-//     decklist, plus the human's at `expert` — and what each request names
-//     (`./residentFor`, issue #5617).
+//     decklist, plus the human's at a knowing level — and what each request names
+//     (`./residentFor`).
 //
 // `getDefinition` stays synchronous (ADR 0113 §1). For a card whose shard is
 // not resident the catalogue answers nothing: `tryGetDefinition` returns

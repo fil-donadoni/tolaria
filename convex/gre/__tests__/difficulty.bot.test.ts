@@ -72,7 +72,7 @@ describe("difficulty presets — one knob (issue #114)", () => {
 describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
     it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
         expect(knowsOpponent("expert")).toBe(true);
-        expect(knowsOpponent("hard")).toBe(false);
+        expect(knowsOpponent("hard")).toBe(true);
         expect(knowsOpponent(null)).toBe(
             DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );

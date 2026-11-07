@@ -7,7 +7,7 @@
 // Manifest (`gameReads.getDefinitionManifest`: both maindecks, both
 // companions, the bot's sideboard) — what any card either deck puts on the
 // board needs RESIDENT, whatever the search may KNOW (the human's decklist
-// reaches the search at `expert` only, `convex/gre/difficulty.ts`). The driver
+// reaches the search at a knowing level only, `convex/gre/difficulty.ts`). The driver
 // primes it as soon as it lands, so the install overlaps the game's setup.
 // A REQUEST then names what it names: every card its public state carries —
 // zones, stack, the printed card a copy or a transformed face stands in for,
