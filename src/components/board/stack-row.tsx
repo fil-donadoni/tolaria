@@ -24,6 +24,7 @@ import { SLOT_SPRING } from "~/lib/board-motion";
 import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
 import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
+import ControllerChip from "./controller-chip";
 import StackYieldToggle from "./stack-yield-toggle";
 import StackCardImage from "../cards/stack-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
@@ -36,7 +37,7 @@ const KIND_LABEL: Record<AbilityKind, string> = {
     delayed: "Delayed trigger",
 };
 
-function ControllerChip({
+function StackControllerChip({
     item,
     allPlayers,
     viewerId,
@@ -45,25 +46,9 @@ function ControllerChip({
     allPlayers: Player[];
     viewerId: string;
 }) {
-    const mine = item.castById === viewerId;
     const name =
         allPlayers.find((p) => p.id === item.castById)?.name ?? item.castById;
-    return (
-        <span
-            className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                mine
-                    ? "bg-signal-self/15 text-signal-self-strong"
-                    : "bg-signal-opponent/15 text-signal-opponent-strong"
-            }`}
-        >
-            <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                    mine ? "bg-signal-self" : "bg-signal-opponent"
-                }`}
-            />
-            {name}
-        </span>
-    );
+    return <ControllerChip name={name} mine={item.castById === viewerId} />;
 }
 
 /** One card-forward row of the readable stack list (phase 2, winner B): art
@@ -293,7 +278,7 @@ export default function StackRow({
                                 )}
                             </span>
                         )}
-                        <ControllerChip
+                        <StackControllerChip
                             item={item}
                             allPlayers={allPlayers}
                             viewerId={viewerId}
