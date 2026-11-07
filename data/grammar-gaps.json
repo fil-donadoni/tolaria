@@ -6627,6 +6627,10 @@
             "issue": 5210
         },
         {
+            "kind": "hand-tail",
+            "issue": 8668
+        },
+        {
             "kind": "mechanic",
             "issue": 4747
         },
