@@ -4,7 +4,6 @@
 import { useEffect } from "react";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
-import CardProfileOracleText from "~/components/lobby/card-profile-oracle-text";
 import type { ProfilesProtoApi } from "./card-profiles-prototype";
 import type { ProtoCard } from "./proto-data";
 import { ArtTile, ManaCost, StatusBadge } from "./proto-bits";
@@ -101,7 +100,7 @@ export default function ProfilesFocusDialog({
             {card && (
                 <div
                     className="grid gap-6"
-                    style={{ gridTemplateColumns: "16rem minmax(0, 1fr)" }}
+                    style={{ gridTemplateColumns: "15rem minmax(0, 1fr)" }}
                 >
                     <div className="flex flex-col gap-3">
                         <ArtTile
@@ -115,9 +114,6 @@ export default function ProfilesFocusDialog({
                         </div>
                     </div>
                     <div className="flex min-w-0 flex-col gap-4">
-                        <div className="text-sm">
-                            <CardProfileOracleText cardId={card.cardId} />
-                        </div>
                         {card.rationale && (
                             <blockquote className="border-l-2 border-accent-strong/60 pl-3 text-sm leading-snug text-text">
                                 <span className="block text-[10px] tracking-wide text-text-muted uppercase">
@@ -126,8 +122,6 @@ export default function ProfilesFocusDialog({
                                 {card.rationale}
                             </blockquote>
                         )}
-                    </div>
-                    <div className="col-span-2 border-t border-border-subtle/30 pt-4">
                         <ProtoPickerMatrix card={card} api={api} />
                     </div>
                 </div>
