@@ -50,6 +50,7 @@ import {
 import { triskelion, ornithopter } from "../../cards/sets/atq/colorless.cards";
 import { crawWurm } from "../../cards/sets/lea/green.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
+import { drought } from "../../cards/sets/ice/white.cards";
 
 // Crabomination's numbers: printed {4}{B}{B}, "Emerge from artifact {5}{B}{B}".
 const ARTIFACT_PROBE_ID = "test:emerge-from-artifact-probe";
@@ -401,6 +402,171 @@ describe("Emerge — the chosen victim must still be there to pay (CR 601.2h / 7
         expect(getPlayer(state, "p1").hand.some((c) => c.id === "probe")).toBe(
             true
         );
+    });
+});
+
+describe("Emerge beside Drought's tax — one selection, victim first (CR 118.9d / 601.2f)", () => {
+    const droughtOf = () =>
+        makeInstance(drought().id, {
+            id: "drought",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+    const swampOf = (id: string, isTapped = false) =>
+        makeInstance(swamp().id, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped,
+        });
+
+    it("a forced victim and fungible Swamps pay at announcement: the reduction reads the victim, not a Swamp", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                board({
+                    battlefield: [
+                        droughtOf(),
+                        tappedOf(triskelion().id, "tris"),
+                        swampOf("swamp-0"),
+                        swampOf("swamp-1"),
+                    ],
+                    pool: { B: 2 },
+                })
+            ),
+        ]);
+        await announceEmerge(harness);
+
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        const p1 = getPlayer(state, "p1");
+        expect(p1.manaPool.B).toBe(0);
+        expect(p1.graveyard.map((c) => c.id).sort()).toEqual([
+            "swamp-0",
+            "swamp-1",
+            "tris",
+        ]);
+        expect(state.stack.map((s) => s.id)).toEqual(["probe"]);
+    });
+
+    it("a real victim choice parks unreduced, and the first pick pays the emerge leg", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                board({
+                    battlefield: [
+                        droughtOf(),
+                        swampOf("swamp-0"),
+                        swampOf("swamp-1"),
+                        tappedOf(solRing().id, "ring"),
+                        tappedOf(triskelion().id, "tris"),
+                    ],
+                    pool: { B: 2 },
+                })
+            ),
+        ]);
+        await announceEmerge(harness);
+
+        const parked = harness.state().pendingCast;
+        expect(parked?.sacrificeSelection?.picked).toEqual([]);
+        expect(parked?.sacrificeSelection?.requirements[0].count).toBe(1);
+        expect(parked?.emergeReductionOwed).toBe(true);
+
+        // A Swamp is not a legal emerge victim: the leg comes first.
+        await expect(pickVictim(harness, "swamp-0")).rejects.toThrow(
+            /not a legal sacrifice/
+        );
+        await pickVictim(harness, "tris");
+        await pickVictim(harness, "swamp-0");
+        await pickVictim(harness, "swamp-1");
+
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        const p1 = getPlayer(state, "p1");
+        expect(p1.manaPool.B).toBe(0);
+        expect(p1.battlefield.some((c) => c.id === "ring")).toBe(true);
+        expect(p1.graveyard.map((c) => c.id).sort()).toEqual([
+            "swamp-0",
+            "swamp-1",
+            "tris",
+        ]);
+    });
+
+    it("a forced victim beside a real Swamp choice stays owed, and reduces by the victim once the Swamps land", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                board({
+                    battlefield: [
+                        droughtOf(),
+                        tappedOf(triskelion().id, "tris"),
+                        swampOf("swamp-0"),
+                        swampOf("swamp-1", true),
+                        swampOf("swamp-2"),
+                    ],
+                    pool: { B: 2 },
+                })
+            ),
+        ]);
+        await announceEmerge(harness);
+
+        const parked = harness.state().pendingCast;
+        expect(parked?.sacrificeSelection?.picked).toEqual(["tris"]);
+        expect(parked?.emergeReductionOwed).toBe(true);
+        expect(parked?.manaCost).toEqual({ X: 5, B: 2 });
+
+        await pickVictim(harness, "swamp-1");
+        await pickVictim(harness, "swamp-2");
+
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        expect(getPlayer(state, "p1").manaPool.B).toBe(0);
+    });
+
+    it("the live fallback answers the Swamps, not the largest victim, once a fungible victim is picked", async () => {
+        // Battlefield order auto-resolves tris-b; `largestEmergeVictim` breaks
+        // the mana-value tie on id, naming tris-a, which is no Swamp.
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                board({
+                    battlefield: [
+                        droughtOf(),
+                        tappedOf(triskelion().id, "tris-b"),
+                        tappedOf(triskelion().id, "tris-a"),
+                        swampOf("swamp-0"),
+                        swampOf("swamp-1", true),
+                        swampOf("swamp-2"),
+                    ],
+                    pool: { B: 2 },
+                })
+            ),
+        ]);
+        await announceEmerge(harness);
+        const state = harness.state();
+        expect(state.pendingCast?.sacrificeSelection?.picked).toEqual([
+            "tris-b",
+        ]);
+        const owed = nextOwedPayment(state, "p1");
+        const answer = pickForOwedPayment(state, "p1", owed!);
+        expect(answer).toMatchObject({
+            cardInstanceIdEach: ["swamp-0", "swamp-1"],
+        });
+    });
+
+    it("refuses a board the Swamps cannot cover, with nothing parked (CR 601.2h)", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(
+                board({
+                    battlefield: [
+                        droughtOf(),
+                        tappedOf(triskelion().id, "tris"),
+                        swampOf("swamp-0"),
+                    ],
+                    pool: { B: 2 },
+                })
+            ),
+        ]);
+        await expect(announceEmerge(harness)).rejects.toThrow(
+            /not enough permanents to sacrifice/
+        );
+        expect(harness.state().pendingCast).toBeUndefined();
     });
 });
 

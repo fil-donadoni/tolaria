@@ -36,7 +36,7 @@ import { manaValue } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { effectivePermanentView } from "./permanentView";
 import { handCardMatchesFilter } from "./alternativeCost";
-import { largestEmergeVictim } from "./emerge";
+import { emergeVictimOf, largestEmergeVictim } from "./emerge";
 import { liveSupertypesOf } from "./snow";
 import {
     isTapOtherSelectionComplete,
@@ -616,8 +616,12 @@ export function pickForOwedPayment(
             // CR 702.119a — an emerge victim still to pick buys a reduction
             // by its mana value, so the fallback names the LARGEST one, the
             // victim the Bot's tap plan was priced with (`planCastCostPicks`).
+            // Once the victim is picked the reduction can still be owed, for a
+            // later own sacrifice, whose pick is not the emerge leg's to name.
             const emergeAlt =
-                kind === "cast:sacrificeSelection" && pc?.emergeReductionOwed
+                kind === "cast:sacrificeSelection" &&
+                pc?.emergeReductionOwed &&
+                emergeVictimOf(trial) === undefined
                     ? emergeAltCostOf(pc.cardInstanceId, player)
                     : undefined;
             const emergeVictim = emergeAlt
@@ -626,7 +630,7 @@ export function pickForOwedPayment(
             const submitted = completeSacrificeSelection(
                 state,
                 trial,
-                emergeVictim && !trial.picked.includes(emergeVictim.id)
+                emergeVictim
                     ? player.battlefield.find((c) => c.id === emergeVictim.id)
                     : undefined
             );

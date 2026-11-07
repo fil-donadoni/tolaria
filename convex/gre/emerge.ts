@@ -107,10 +107,10 @@ export function emergeReductionForVictim(
 
 /** CR 702.119c — the emerge victim recorded on a cast's permanent-cost
  *  selection. The emerge leg is that selection's FIRST requirement
- *  (`buildCastPermanentCostChoice` declares the alternative cost's leg before
- *  any Kicker's) and has a count of one, and picks are allocated to
- *  requirements in order, so the first pick is the victim. `undefined` while
- *  nothing is picked yet. */
+ *  (`resolveCastPermanentSelection` declares the alternative cost's leg before
+ *  the own sacrifices and any Kicker's) and has a count of one, and picks are
+ *  allocated to requirements in order, so the first pick is the victim.
+ *  `undefined` while nothing is picked yet. */
 export function emergeVictimOf(sel: SacrificeSelection): string | undefined {
     return sel.picked[0];
 }

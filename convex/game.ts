@@ -5819,7 +5819,11 @@ export function finalizeTargetSelection(
         cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker"),
         cardInHand
     );
-    const castSac = resolveCastPermanentSelection(castPermSel, additionalSac);
+    const castSac = resolveCastPermanentSelection(
+        state,
+        castPermSel,
+        additionalSac
+    );
     // CR 702.119a / 702.119c — an emerge cast's total is reduced by its
     // victim's mana value, applied to the already-modified total (CR 601.2f).
     // A forced victim is picked by now and reduces here; a real choice parks
@@ -7770,7 +7774,11 @@ export const announceCast = mutation({
             // alt-cost cast (no Kicker, no permanent leg of its own — Snuff
             // Out's is life-only) silently dropped `ownSac`, i.e. Drought's
             // "Sacrifice a Swamp" (CR 118.8) went unpaid and unchecked.
-            const castSac = resolveCastPermanentSelection(altChoice, ownSac);
+            const castSac = resolveCastPermanentSelection(
+                state,
+                altChoice,
+                ownSac
+            );
             // CR 702.119a / 702.119c — the emerge reduction, on the same terms
             // as `finalizeTargetSelection`'s: forced victim → reduce now, real
             // choice → reduce when the pick lands.
@@ -8182,7 +8190,11 @@ export const announceCast = mutation({
             cardDef.name ?? "Kicker",
             cardInHand
         );
-        const castSac = resolveCastPermanentSelection(kickerPermSel, ownSac);
+        const castSac = resolveCastPermanentSelection(
+            state,
+            kickerPermSel,
+            ownSac
+        );
         // CR 118.8 / 701.9 / 702.81a — the card's OWN "discard a card"
         // additional cost AND a retrace cast's "discard a land card" join the
         // cast's single hand-cost picker, exactly as they do on the targeted

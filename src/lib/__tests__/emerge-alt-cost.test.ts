@@ -19,7 +19,12 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
-import { solRing, grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import {
+    solRing,
+    grizzlyBears,
+    swamp,
+} from "@convex/cards/sets/lea/index.cards";
+import { drought } from "@convex/cards/sets/ice/white.cards";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 
@@ -46,7 +51,10 @@ const emergeProbe: CardDefinition = {
 };
 registerTokenDefinition(emergeProbe);
 
-function emergeOptionOffered(permanentCardId: string): boolean {
+function emergeOptionOffered(
+    permanentCardId: string,
+    others: string[] = []
+): boolean {
     const probeInst = makeInstance(EMERGE_PROBE_ID, {
         id: "probe",
         controllerId: "p1",
@@ -60,7 +68,19 @@ function emergeOptionOffered(permanentCardId: string): boolean {
     });
     const state = makeState({
         players: [
-            makePlayer("p1", { hand: [probeInst], battlefield: [permanent] }),
+            makePlayer("p1", {
+                hand: [probeInst],
+                battlefield: [
+                    permanent,
+                    ...others.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `other-${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                ],
+            }),
             makePlayer("p2"),
         ],
         activePlayerId: "p1",
@@ -88,5 +108,23 @@ describe("affordableAltCostsForCard — Emerge cast-option picker gate (CR 702.1
 
     it("withholds it when the only permanent is not an artifact", () => {
         expect(emergeOptionOffered(grizzlyBears().id)).toBe(false);
+    });
+
+    // CR 118.9d / 601.2f — the probe's {B}{B} owes two Swamps under Drought, on
+    // top of the artifact, and the picker prices the two costs together.
+    it("offers it under Drought when the Swamps cover the tax beside the artifact", () => {
+        expect(
+            emergeOptionOffered(solRing().id, [
+                drought().id,
+                swamp().id,
+                swamp().id,
+            ])
+        ).toBe(true);
+    });
+
+    it("withholds it under Drought when the Swamps cover only part of the tax", () => {
+        expect(
+            emergeOptionOffered(solRing().id, [drought().id, swamp().id])
+        ).toBe(false);
     });
 });
