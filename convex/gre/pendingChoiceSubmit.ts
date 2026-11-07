@@ -712,10 +712,10 @@ export type RandomRevealAckArgs = {
 
 /** Resumes a suspended `random-reveal` flip (CR 705.2, ADR 0023). The outcome
  *  was already drawn ONCE and persisted into the stack item's
- *  `collectedChoices` by `requestCoinFlip`; this carries NO choice data — it
+ *  `collectedChoices` by `requestFlipSequence`; this carries NO choice data — it
  *  only means "the animation finished, resume". Validates the queue head is a
  *  `random-reveal` for this player/stack item, removes it, and re-enters
- *  resolution; the replayed step reads the persisted bit back (no re-roll) and
+ *  resolution; the replayed step reads the persisted faces back (no re-roll) and
  *  applies the consequence. The same generic mutation serves coins and future
  *  dice. Mutates `state` in place; throws on a mismatched/missing head. */
 export function applyRandomRevealAck(
@@ -734,8 +734,8 @@ export function applyRandomRevealAck(
     if (head.choiceId !== args.choiceId) {
         throw new Error("Choice id mismatch");
     }
-    // The realized bit already lives in `collectedChoices` (written by
-    // requestCoinFlip). The ack only drops the head and resumes — replay-safe
+    // The realized faces already live in `collectedChoices` (written by
+    // requestFlipSequence). The ack only drops the head and resumes — replay-safe
     // regardless of which client acks (the chooser auto-acks; the gate avoids
     // a double submit, but a duplicate is harmless because the choice is gone).
     dequeueHead(state, queue);

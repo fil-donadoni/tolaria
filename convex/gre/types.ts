@@ -326,6 +326,39 @@ export type RealizedOutcome = {
     consequence: string;
 };
 
+/** The side a flipped coin landed on (CR 705.1). */
+export type FlipFace = "heads" | "tails";
+
+/** What a flip meant for its flipper (CR 705.2): `win` / `lose` when the flipper
+ *  called it, `none` for an effect that only reads the face. */
+export type FlipOutcome = "win" | "lose" | "none";
+
+/** One coin of a Flip Sequence, as the Random Reveal carries it. `round` groups
+ *  the coins flipped together: 0-based, one record per flipper per round. */
+export type FlipRecord = {
+    flipperId: string;
+    face: FlipFace;
+    outcome: FlipOutcome;
+    round: number;
+};
+
+/** When a Flip Sequence ends. `count`: after that many rounds. `untilLoss`:
+ *  after the first round holding a lost flip, or after `maxRounds` ("that many
+ *  times or until you lose a flip"). `until`: after the first round the
+ *  caller's predicate holds for ("until both coins come up heads"). */
+export type FlipStopRule =
+    | { kind: "count"; count: number }
+    | { kind: "untilLoss"; maxRounds?: number }
+    | { kind: "until"; stop: (round: readonly FlipRecord[]) => boolean };
+
+/** The object a Random Reveal comes from: `cardId` names the card its art, name
+ *  and mana cost are read from, `controllerId` who controls the resolving item.
+ *  Public, like the flip itself. */
+export type RandomRevealSource = {
+    cardId: string;
+    controllerId: string;
+};
+
 /** Spend restriction on a unit of mana (CR 106.6). Mana carrying a
  *  restriction can only pay for costs the restriction permits; it still
  *  empties at end of step/phase like any other mana (CR 500.5).
