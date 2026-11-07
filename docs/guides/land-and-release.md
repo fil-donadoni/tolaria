@@ -206,8 +206,9 @@ production deploy.
    and a long step prints `… — still running, 5m00s elapsed`
    every minute. The full child output still goes only to the per-sha log.
 4. Reads `.claude/telemetry/health/last.json` and releases **only** if the
-   record is GREEN and about exactly the tip being promoted. A record about
-   another sha, a RED, or a run still marked `running` refuses with the reason.
+   record is about exactly the tip being promoted and is GREEN, or INFRA at the
+   browser step, with a warning (issue #8760). A record about another sha, a RED,
+   any other INFRA, or a run still marked `running` refuses with the reason.
 5. On RED — and only on RED — hands the tip to the [fix loop](#g-fix-loop)
    below, then gates again. Everything else refuses.
 6. `git push origin <sha>:refs/heads/<release>` — a plain refspec, so git

@@ -1006,9 +1006,10 @@ So the full gate moved. `tolaria.config.json` names a **base** branch
 | `bun run health`  | the same full gate, by hand, on the base tip                           | either machine    | ~13 min              |
 
 A PR whose base is not the base branch is refused (the API merge lands
-wherever the PR points). `release` moves the release branch only on a GREEN
-record about exactly the tip it gated, by plain-refspec push. A RED blocks the
-release, not development.
+wherever the PR points). `release` moves the release branch only on a record
+about exactly the tip it gated, by plain-refspec push: GREEN, or INFRA at a
+browser step, with a warning (issue #8760). A RED blocks the release, not
+development.
 
 ### The batch cadence (ADR 0136 §6)
 
@@ -1409,9 +1410,11 @@ survive for `check:game-download`, which speaks `check:ui`'s exit contract:
    anything was measured), exit 3 (deployment down), and an exit 1 whose
    failing rows are ALL `INFRA` (`walkRunVerdict`,
    `scripts/ui-gate/infra-verdict.ts`) record `infra` (`browser-step`): no
-   marker, and the next `release` re-runs the step alone — the store keeps
-   the batch GREEN under it (infra never overwrites). Anything else is the
-   tree's: `RED`, and `bun run release` reads only `GREEN`.
+   marker, and the store keeps the batch GREEN under it (infra never
+   overwrites). Anything else is the tree's: `RED`. `bun run release` promotes
+   on `GREEN`, or on an `infra` at the browser step with a warning: that step
+   measured nothing, and the offline gates had passed (issue #8760, ADR 0116's
+   amendment).
 3. **Offline gates that passed stay good until the tip changes** (issue #8752).
    However the browser step ended — `RED`, `infra`, or a run killed inside it —
    the next `release` on that sha runs the step alone, and batch health's
