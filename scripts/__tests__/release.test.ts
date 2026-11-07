@@ -17,6 +17,7 @@ import {
     reconcileRecord,
     recordRoot,
     releaseDecision,
+    skippedBrowserProof,
     type HealthRecord,
     type LoopInputs,
 } from "../release";
@@ -100,6 +101,76 @@ describe("release — releaseDecision", () => {
             reason: expect.stringMatching(/INFRA/),
             red: false,
         });
+    });
+
+    it("promotes on an INFRA at a browser step: it measured nothing, and the offline gates passed (issue #8760)", () => {
+        const infra: HealthRecord = {
+            sha: tip,
+            status: "infra",
+            failedStep: "check:game-download",
+        };
+        expect(releaseDecision(tip, infra)).toEqual({
+            kind: "release",
+            sha: tip,
+        });
+        expect(pushRefusal(tip, infra)).toBeNull();
+        expect(skippedBrowserProof(infra)).toBe("check:game-download");
+        // A verdict only the store holds reads the same way.
+        expect(
+            releaseDecision(
+                tip,
+                reconcileRecord(tip, null, {
+                    sha: tip,
+                    status: "infra",
+                    step: "check:game-download",
+                })
+            )
+        ).toEqual({ kind: "release", sha: tip });
+    });
+
+    it("still refuses what is no skipped browser proof (issue #8760)", () => {
+        const at = (failedStep?: string) => ({ failedStep, sha: tip });
+        // The tree failed the browser step: a RED, handed to the fixer.
+        expect(
+            releaseDecision(tip, {
+                ...at("check:game-download"),
+                status: "red",
+            })
+        ).toMatchObject({ kind: "refuse", red: true });
+        // An INFRA before the browser step ran: nothing proves the offline half.
+        for (const step of ["test", "worktree:init", undefined]) {
+            const infra: HealthRecord = { ...at(step), status: "infra" };
+            expect(skippedBrowserProof(infra), String(step)).toBeNull();
+            expect(pushRefusal(tip, infra), String(step)).toMatch(/INFRA/);
+        }
+        // About another sha: no evidence about this tip.
+        expect(
+            pushRefusal(tip, {
+                sha: "b".repeat(40),
+                status: "infra",
+                failedStep: "check:game-download",
+            })
+        ).toMatch(/not the base tip/);
+        expect(skippedBrowserProof(null)).toBeNull();
+    });
+
+    it("a skipped browser proof promotes without the fixer, even with --no-fix off (issue #8760)", () => {
+        const decision = releaseDecision(tip, {
+            sha: tip,
+            status: "infra",
+            failedStep: "check:game-download",
+        });
+        expect(
+            loopDecision({
+                tip,
+                decision,
+                verdict: null,
+                attempt: 1,
+                maxAttempts: 3,
+                interactive: true,
+                fixEnabled: true,
+            })
+        ).toEqual({ kind: "release", sha: tip });
     });
 
     it("refuses a still-running record — never races another health run", () => {

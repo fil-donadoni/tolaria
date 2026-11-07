@@ -1147,7 +1147,8 @@ the same, ADR 0116's green-at-release unchanged).
 checkout (which holds the Convex deployment its browser step needs), `release`
 gates `origin/staging`'s tip with `health-main --release`: the full offline
 gate AND `check:game-download` — never a `check:ui` walk (issue #6143). Only a
-GREEN verdict about that exact sha lets it
+GREEN verdict about that exact sha, or an INFRA at that browser step with a
+warning (issue #8760), lets it
 push `<sha>:refs/heads/<release>` — a plain refspec, so git itself refuses a
 non-fast-forward; nothing passes `--force`. `pushRefusal` re-asks of the
 record the push acts on, right before it. The verdict goes to the store like
@@ -1155,7 +1156,8 @@ any health run's.
 
 **Dry run.** `dry_run: true` (the default) runs everything except the push
 (`--gate-only`): the gate, the verdict, the decision. It prints
-`--gate-only — <sha> is GREEN; <release> left where it is`, or the refusal.
+`--gate-only — <sha> is GREEN; <release> left where it is`, its
+`offline GREEN, <step> INFRA` form, or the refusal.
 
 **No fixer.** The job has no terminal: a RED is a failed job (GitHub's
 failed-run email), `--no-fix` says so. The repair is
