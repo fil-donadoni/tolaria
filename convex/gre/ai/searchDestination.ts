@@ -212,6 +212,27 @@ function choiceOpFor(
     return found;
 }
 
+/** Whether `choice` picks the cards its script discards (CR 701.9): a pick
+ *  bound by a `choice` Op and read by a `discard` Op of the same resolution.
+ *  False for a choice the script does not name, and for a pick the script moves
+ *  anywhere else. Pure. */
+export function choicePicksADiscard(
+    state: GameState,
+    choice: PendingChoice
+): boolean {
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    const script = item && resolvingEffectScript(item);
+    if (!script) return false;
+    const ops = flattenOps(script, []);
+    const picked = choiceOpFor(ops, choice.choiceId);
+    if (!picked) return false;
+    return ops.some(
+        (op) =>
+            op.op === "discard" &&
+            (op as { cards?: { ref?: string } }).cards?.ref === picked.bind
+    );
+}
+
 /** The zone the `moveZone` Ops consuming `bind` send the picks to, when they
  *  all agree on ONE zone. Zero consumers (the picks feed a `reveal` and nothing
  *  else) or two consumers disagreeing both read as "undeterminable": the

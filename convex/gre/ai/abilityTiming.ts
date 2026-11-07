@@ -41,8 +41,14 @@
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { animatePermanentAsCreature, payRemoveCounterCost } from "../state";
-import { validateBlockerEligibility } from "../combat";
+import {
+    validateAttackerEligibility,
+    validateBlockerEligibility,
+} from "../combat";
+import { matchesPermanentFilter } from "../../cards/filters";
+import { effectivePermanentView } from "../permanentView";
 import { permanentGiveUpCostLegs } from "../constants";
+import { BODY_COUNTER_TYPES } from "./bodyCounters";
 import { cloneGameState } from "../clone";
 import { checkStateBasedActions } from "../sba";
 import { getEffectivePT } from "../layers";
@@ -207,6 +213,14 @@ const COMBAT_STEPS: ReadonlySet<GameState["phase"]> = new Set([
     "FIRST_STRIKE_DAMAGE",
     "COMBAT_DAMAGE",
     "END_OF_COMBAT",
+]);
+
+/** The steps with combat damage still to come for a declared fight. */
+const FIGHT_AHEAD_PHASES: ReadonlySet<string> = new Set([
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
 ]);
 
 /** Whether this turn still has an attack declaration AHEAD of it: before the
@@ -388,6 +402,80 @@ export function animationHasCombatWindow(
         pid
     );
     return canBlockADeclaredAttacker(world, body);
+}
+
+/** Whether paying `ability`'s tap-other leg (crew, CR 702.122a) on the mover's
+ *  own turn gives up at least as much attack as the body it buys (issue #8294).
+ *
+ *  The payers that could not attack anyway pay first, for nothing. What they
+ *  leave short is paid by the smallest attackers, and the power those would
+ *  have swung with is what the animated body has to beat. A body that cannot
+ *  do so only swaps one attacker for a smaller one. */
+export function animationForfeitsBiggerAttack(
+    state: GameState,
+    pid: string,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    const leg = ability.cost.tapOtherFilter;
+    if (!leg || pid !== state.activePlayerId) return false;
+    if (!attackDeclarationAhead(state)) return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    const payers = player.battlefield.filter(
+        (c) =>
+            c.id !== source.id &&
+            !c.isTapped &&
+            matchesPermanentFilter(
+                effectivePermanentView(state, c),
+                leg.filter,
+                {
+                    selfControllerId: pid,
+                }
+            )
+    );
+    const powerOf = (c: CardInstanceState) => getEffectivePT(state, c).power;
+    const attacks = (c: CardInstanceState) =>
+        validateAttackerEligibility(c, undefined, state).eligible;
+    let owed = leg.totalPower ?? 0;
+    for (const idle of payers.filter((c) => !attacks(c))) owed -= powerOf(idle);
+    let forfeited = 0;
+    for (const attacker of payers
+        .filter(attacks)
+        .sort((a, b) => powerOf(a) - powerOf(b))) {
+        if (owed <= 0) break;
+        owed -= powerOf(attacker);
+        forfeited += powerOf(attacker);
+    }
+    return forfeited > 0 && forfeited >= powerOf(source);
+}
+
+/** Whether `ability` pays with a counter that is neither body nor mana fuel: a
+ *  creature's body counters spend the body, and a mana ability's window is the
+ *  spell it pays for. */
+export function spendsStandingCounter(ability: ActivatedAbility): boolean {
+    const leg = ability.cost.removeCounter;
+    return (
+        !!leg &&
+        !BODY_COUNTER_TYPES.has(leg.type) &&
+        ability.useStack !== false &&
+        !producesMana(ability)
+    );
+}
+
+/** Whether a standing counter ({@link spendsStandingCounter}) is spent in a window
+ *  with no fight left and nothing on the stack to answer (issue #8294). The same
+ *  activation stays available in every later window, and the counter does not
+ *  come back. */
+export function isIdleCounterSpend(
+    state: GameState,
+    ability: ActivatedAbility
+): boolean {
+    return (
+        spendsStandingCounter(ability) &&
+        state.stack.length === 0 &&
+        !FIGHT_AHEAD_PHASES.has(state.phase)
+    );
 }
 
 function grantsHaste(ability: ActivatedAbility): boolean {
@@ -652,7 +740,7 @@ function paymentLowersBody(
  *  the fail-CLOSED one for the caller: it leaves the deferral rule applying to
  *  a card it could not read, and `isDeferrableStackAbility` still gates on
  *  `useStack`. */
-function producesMana(ability: ActivatedAbility): boolean {
+export function producesMana(ability: ActivatedAbility): boolean {
     return ability.effects !== undefined && opsAddMana(ability.effects);
 }
 

@@ -146,6 +146,7 @@ import {
 } from "./activationCommit";
 import { applyPlayLandFromAnyZone } from "./playLand";
 import {
+    availableManaUnitsFor,
     evaluate,
     evaluateBreakdown,
     evaluateWithMargin,
@@ -193,6 +194,7 @@ import {
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
 import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
+import { firesStormBeforeItsSpells, isStormCard } from "./ai/heldStorm";
 import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
@@ -206,7 +208,10 @@ import {
 // activation could just as well happen in a later, better-informed window.
 import {
     animatedBodyCannotFight,
+    animationForfeitsBiggerAttack,
     animationHasCombatWindow,
+    isIdleCounterSpend,
+    spendsStandingCounter,
     costShrinksSource,
     effectiveAbilityOf,
     effectiveActivatedAbilityEntryOf,
@@ -1635,6 +1640,8 @@ export function rollout(
             const drawn = moves.filter(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
+                    !isOptionNoise(state, pid, m) &&
+                    !isIdleManaSpellCast(state, pid, m) &&
                     !isSourceConfinedSacrificeConversion(state, pid, m) &&
                     !isRemovalExchangeSacrifice(state, pid, botId, m) &&
                     !isDiscardExchangeSacrifice(state, pid, botId, m) &&
@@ -1861,11 +1868,67 @@ function isPointlessSelfAnimation(
     // source of the activation's mana is the land it animates.
     if (
         animatedBodyCannotFight(state, pid, mover, moverAbility) ||
+        animationForfeitsBiggerAttack(state, pid, mover, moverAbility) ||
         move.tapPlan.some((t) => t.cardInstanceId === mover.id)
     ) {
         return true;
     }
     return !animationHasCombatWindow(state, pid, mover, moverAbility);
+}
+
+/** Whether `move` spends a resource the mover is keeping for nothing the rest
+ *  of the line can use: a counter paid out with no fight left to serve
+ *  (`isIdleCounterSpend`) or pointed at the wrong side
+ *  (`misdirectedTargetCount`, a -1/-1 on the mover's own creature), a storm spell
+ *  fired ahead of the spells it can follow (`firesStormBeforeItsSpells`).
+ *
+ *  Below the root this is the option a kept resource leaves open, and every
+ *  visit it draws lowers the edge that kept the resource, never the edge that
+ *  already spent it, so holding read as the worse line. The root still weighs
+ *  each of them: the filter only stops holding from being charged for them. Pure. */
+function isOptionNoise(state: GameState, pid: string, move: Move): boolean {
+    if (move.kind === "activate-ability") {
+        const source = findPermanent(state, move.cardInstanceId);
+        const ability = source && effectiveAbilityOf(source, move.abilityId);
+        if (!ability || !spendsStandingCounter(ability)) return false;
+        return (
+            isIdleCounterSpend(state, ability) ||
+            (move.targets.length > 0 &&
+                misdirectedTargetCount(state, move, pid) > 0)
+        );
+    }
+    if (move.kind !== "cast-spell") return false;
+    const player = state.players.find((p) => p.id === pid);
+    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+    return (
+        !!player &&
+        !!card &&
+        isStormCard(card) &&
+        firesStormBeforeItsSpells(
+            state,
+            player,
+            card,
+            availableManaUnitsFor(state, player).now.length
+        )
+    );
+}
+
+/** A spell from hand whose whole script adds mana (CR 106.4), cast with none
+ *  floating yet: below the root nothing has planned for it, and its mana empties
+ *  at the end of the step (CR 500.5). A line the root opened with one still
+ *  chains the next, on the mana it floated. Pure. */
+function isIdleManaSpellCast(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player || floatingManaOf(state, pid) > 0) return false;
+    const card = player.hand.find((c) => c.id === move.cardInstanceId);
+    const effects =
+        card && tryGetDefinition(String(card.card.id ?? ""))?.effects;
+    return !!effects?.length && effects.every((op) => op.op === "addMana");
 }
 
 /** The ONE authority both consumers of the pointless-activation reading ask
@@ -3422,6 +3485,8 @@ function iterate(
             const kept = keyed.filter(
                 (k) =>
                     !isDeferrableTransientSacrifice(world, pid, k.move) &&
+                    !isOptionNoise(world, pid, k.move) &&
+                    !isIdleManaSpellCast(world, pid, k.move) &&
                     !(
                         world.stack.length === 0 &&
                         (isSourceConfinedSacrificeConversion(
