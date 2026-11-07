@@ -148,6 +148,16 @@ export interface Surface {
      */
     needsGame?: boolean;
     /**
+     * The walk puts PRINTED CARD FACES on screen (issue #8321, ADR 0167):
+     * the surface is walked at the DPR 1 desktop viewport too, the one
+     * viewport that can show the 1x resampling defect class. A surface
+     * without the flag owes that viewport no cell. The flag is a claim the
+     * probe can contradict: a flagged surface whose cell reports no printed
+     * face, or an unflagged one whose DPR 2 cells do, is a wrong flag, and
+     * `ui-gate-surface-entries.test.ts` pins the set.
+     */
+    cards?: boolean;
+    /**
      * Selectors whose boxes (and scroll offsets) must hold still, beside the
      * main region and any open dialog, before the surface is a Settled Screen
      * (`settle.ts`). The elements the surface exists to measure.
@@ -1623,11 +1633,15 @@ interface DialogSpecimen {
     layer: string;
     layerAssert: NamedAssertion;
     entry: NamedAssertion;
+    /** The specimen puts printed card faces on screen (`Surface.cards`,
+     *  issue #8321): walked at the DPR 1 desktop viewport too. */
+    cards?: boolean;
 }
 
 const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     {
         slug: "activatable-ability",
+        cards: true,
         module: "board/activatable-ability-menu.tsx",
         label: "Activatable abilities (ActionSheet)",
         layer: "[data-action-sheet]",
@@ -1647,6 +1661,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "attack-all",
+        cards: true,
         module: "board/attack-all-confirm-dialog.tsx",
         label: "Attack with all",
         layer: "[role=dialog]",
@@ -1663,6 +1678,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "cast-alt-hand-cost",
+        cards: true,
         module: "board/cast-alternative-hand-cost-dialog.tsx",
         label: "Alternative hand cost",
         layer: "[role=dialog]",
@@ -1679,6 +1695,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "cast-exile-cost",
+        cards: true,
         module: "board/cast-exile-cost-dialog.tsx",
         label: "Flashback exile cost",
         layer: "[role=dialog]",
@@ -1711,6 +1728,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "convoke",
+        cards: true,
         module: "board/convoke-creature-dialog.tsx",
         label: "Convoke tapper",
         layer: "[role=dialog]",
@@ -1730,6 +1748,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "discard-cost",
+        cards: true,
         module: "board/discard-cost-dialog.tsx",
         label: "Discard cost",
         layer: "[role=dialog]",
@@ -1746,6 +1765,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "exile-cost",
+        cards: true,
         module: "board/exile-cost-dialog.tsx",
         label: "Exile cost",
         layer: "[role=dialog]",
@@ -1778,6 +1798,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "graveyard-target",
+        cards: true,
         module: "board/graveyard-target-dialog.tsx",
         label: "Graveyard target picker",
         layer: "[role=dialog]",
@@ -1798,6 +1819,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "hand-card-actions",
+        cards: true,
         module: "board/hand-card-action-menu.tsx",
         label: "Hand card actions (ActionSheet)",
         layer: "[data-action-sheet]",
@@ -1814,6 +1836,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "mana-choice",
+        cards: true,
         module: "board/mana-choice-picker.tsx",
         label: "Mana choice picker",
         layer: '[data-slot="dialog-content"]',
@@ -1836,6 +1859,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "mana-spend",
+        cards: true,
         module: "board/mana-spend-choice-dialog.tsx",
         label: "Mana spend chooser",
         layer: "[role=dialog]",
@@ -1853,6 +1877,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "restricted-x-split",
+        cards: true,
         module: "board/restricted-x-split-dialog.tsx",
         label: "Restricted X split chooser",
         layer: "[role=dialog]",
@@ -1937,6 +1962,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "sideboarding",
+        cards: true,
         module: "board/sideboarding-dialog.tsx",
         label: "Sideboarding",
         layer: "[role=dialog]",
@@ -2004,6 +2030,7 @@ const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "inspect-overlay",
+        cards: true,
         module: "editing/inspect-overlay.tsx",
         label: "Inspect overlay",
         layer: "[data-inspect-overlay]",
@@ -2077,6 +2104,7 @@ const ANCHORED = '[data-slot="dialog-content"]';
 const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     {
         slug: "additional-cost",
+        cards: true,
         module: "cards/additional-cost-picker.tsx",
         label: "Additional cost picker",
         layer: ANCHORED,
@@ -2093,6 +2121,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "alt-cost",
+        cards: true,
         module: "cards/alt-cost-picker.tsx",
         label: "Alternative cost picker",
         layer: ANCHORED,
@@ -2109,6 +2138,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "card-preview-yield",
+        cards: true,
         module: "cards/card-preview-yield-menu.tsx",
         label: "Card preview with a Yield",
         layer: ANCHORED,
@@ -2125,6 +2155,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "cast-cost",
+        cards: true,
         module: "cards/cast-cost-dialog.tsx",
         label: "Cast cost dialog",
         layer: "[role=dialog]",
@@ -2145,6 +2176,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "mode",
+        cards: true,
         module: "cards/mode-picker.tsx",
         label: "Mode picker (anchored)",
         layer: ANCHORED,
@@ -2161,6 +2193,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "multi-mode",
+        cards: true,
         module: "cards/multi-mode-picker.tsx",
         label: "Multi-mode picker",
         layer: "[role=dialog]",
@@ -2179,6 +2212,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "phyrexian",
+        cards: true,
         module: "cards/phyrexian-picker.tsx",
         label: "Phyrexian mana picker",
         layer: ANCHORED,
@@ -2195,6 +2229,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "selectable-card",
+        cards: true,
         module: "cards/selectable-card.tsx",
         label: "Selectable card",
         layer: "[data-selectable-card-specimen]",
@@ -2354,6 +2389,7 @@ function dialogSpecimenSurface(
         asserts: [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
         specimen: { section: section.module },
+        ...(spec.cards ? { cards: true } : {}),
         settleTargets: [spec.layer],
         async cleanup(page) {
             await closeSpecimenLayer(page, spec.layer);
@@ -2633,6 +2669,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "lobby",
+        cards: true,
         entries: ["src/routes/lobby.route.tsx"],
         label: "Lobby home (/)",
         /**
@@ -2758,6 +2795,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder",
+        cards: true,
         entries: ["src/routes/deck-builder.route.tsx"],
         label: "Constructed deck builder (/decks/create)",
         /**
@@ -2941,6 +2979,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-import",
+        cards: true,
         // The import dialog, open with a PREVIEW at measurement (issue #4421).
         // The `deck-builder` row opens the same dialog and confirms through it
         // — this one stops on it, after the preview has filled the body.
@@ -2999,6 +3038,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-banlist",
+        cards: true,
         // The Format's official banlist, open at measurement (issue #4421).
         mounts: ["src/components/lobby/deck-builder/deck-banlist-panel.tsx"],
         entries: ["src/routes/deck-builder.route.tsx"],
@@ -3032,6 +3072,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-printing-picker",
+        cards: true,
         // The visual printing picker, open at measurement (issue #4122): a
         // result cell's footer opens a GameDialog grid of the card's printing
         // images, with the Set text filter and the kind chips above it. The
@@ -3109,6 +3150,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-filters",
+        cards: true,
         // The card filters, open at measurement (issue #4421). VIEWPORT-SPLIT
         // by design (issue #2585), like `draft-pool-peek`: on a phone
         // `DeckFiltersButton` opens its BottomSheet — the censused layer this
@@ -3147,6 +3189,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-basics",
+        cards: true,
         // The basic-lands sheet, open at measurement where the layout folds
         // the bar into it (issue #4421). VIEWPORT-SPLIT, three regimes
         // (`deck-builder-shell.tsx`): portrait opens `DeckBasicsSheet` from
@@ -3215,6 +3258,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-columns",
+        cards: true,
         // The Zone's Columns sheet, open at measurement (issue #3677).
         // VIEWPORT-SPLIT like `deck-builder-filters`: the `Columns` trigger
         // (inside the `View` fold on a phone) exists on the coarse surfaces
@@ -3269,6 +3313,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-zone-colors",
+        cards: true,
         // The Zone colour filter sheet, open at measurement (issue #3678).
         // VIEWPORT-SPLIT like `deck-builder-columns`: the `Colors` trigger
         // (inside the `View` fold on a phone) exists on the coarse surfaces
@@ -3317,6 +3362,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-stats",
+        cards: true,
         // The Stats dialog over the lane's own deck, open at measurement
         // (issue #4421) — a real Maindeck, so the curve, the pips and the type
         // band all paint.
@@ -3353,6 +3399,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-builder-delete-confirm",
+        cards: true,
         // `deck-builder.tsx`'s own inline confirm, open at measurement (issue
         // #4421). It exists only in user-EDIT mode — the route passes
         // `onDelete` nowhere else — hence the lane's own deck.
@@ -3390,6 +3437,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-detail",
+        cards: true,
         entries: ["src/routes/deck-detail.route.tsx"],
         label: "Deck detail (/decks/mono-red-burn)",
         /**
@@ -3448,6 +3496,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-detail-delete-confirm",
+        cards: true,
         // `deck-detail.tsx`'s own inline confirm, open at measurement (issue
         // #4421), over the lane's own deck: `Delete` renders for a deck the
         // viewer may delete, and the walk never presses the confirm's plate.
@@ -3493,6 +3542,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "join-table",
+        cards: true,
         // The invite antechamber in its JOINABLE state (issue #4670): the
         // run's HOST account opened an unlisted table at bootstrap
         // (`LANE_JOIN_TABLE_NAME`), so this lane — not seated there — gets the
@@ -3567,6 +3617,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "design-system",
+        cards: true,
         entries: [
             "src/routes/admin/admin-layout.route.tsx",
             "src/routes/design-system.route.tsx",
@@ -3612,6 +3663,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "design-system-dialog",
+        cards: true,
         entries: [
             "src/routes/admin/admin-layout.route.tsx",
             "src/routes/design-system.route.tsx",
@@ -3724,6 +3776,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "match-setup",
+        cards: true,
         entries: ["src/routes/match-setup.route.tsx"],
         label: "Constructed setup (/play/constructed, Bot deck step)",
         // The Constructed setup flow (PRD #5334, issues #5340/#5341): the
@@ -3772,6 +3825,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "match-setup-import",
+        cards: true,
         // The strict Import deck dialog of steps 4–5 (PRD #5334, issue
         // #5343), opened over the Bot deck step with a refused paste showing.
         mounts: ["src/components/lobby/match-setup/import-deck-dialog.tsx"],
@@ -4011,6 +4065,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-deck-archive",
+        cards: true,
         entries: ["src/routes/limited-decks.route.tsx"],
         // Issue #8409. A fresh lane account owns no Limited deck, and a deck of
         // the run's own fixture seat is the honest way to make one: the same
@@ -4071,6 +4126,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-deck-detached-build",
+        cards: true,
         entries: ["src/routes/deck-builder.route.tsx"],
         // ADR 0106: a saved `limited` deck opened by its own URL lands in the
         // pool builder over its Deck Pool, with no Seat involved. A fresh lane
@@ -4158,6 +4214,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-antechamber",
+        cards: true,
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -4224,6 +4281,7 @@ export const SURFACES: readonly Surface[] = [
         // `limited-antechamber` measures its OPENER and never the ring).
         // Read-only: the ring lists seats and offers no action.
         id: "limited-table-ring",
+        cards: true,
         mounts: ["src/components/limited/limited-table-ring.tsx"],
         entries: [
             "src/routes/limited-events.route.tsx",
@@ -4334,6 +4392,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-build",
+        cards: true,
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -4419,6 +4478,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-build-split",
+        cards: true,
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -4497,6 +4557,7 @@ export const SURFACES: readonly Surface[] = [
         // #3644): the probe measures only once no measured box has moved for a
         // quiet window.
         id: "draft-pick",
+        cards: true,
         settleTargets: [DRAFT_PICK_TILE],
         entries: [
             "src/routes/limited-events.route.tsx",
@@ -4574,6 +4635,7 @@ export const SURFACES: readonly Surface[] = [
         // Fixture, not a declared position — see `draft-pick` above for why a
         // `ScenarioSpec` cannot describe a draft (ADR 0132 §4, issue #3652).
         id: "draft-pool-stop",
+        cards: true,
         settleTargets: [DRAFT_SNAP_SCROLLER, DRAFT_POOL],
         entries: [
             "src/routes/limited-events.route.tsx",
@@ -4638,6 +4700,7 @@ export const SURFACES: readonly Surface[] = [
         // Fixture, not a declared position — see `draft-pick` above for why a
         // `ScenarioSpec` cannot describe a draft (ADR 0132 §4, issue #3652).
         id: "draft-pool-peek",
+        cards: true,
         // The Pool's `DeckZonePeek` rail, mounted on the two phone viewports
         // this row is viewport-SPLIT across (issue #2861) — the desktop
         // bucket measures the card menu instead, and the rail's own layout is
@@ -4726,6 +4789,7 @@ export const SURFACES: readonly Surface[] = [
         // an open `[data-action-sheet]`, so every cell measures the same
         // kind of layer, and the claim is honest on three of five.
         id: "draft-pool-move-sheet",
+        cards: true,
         mounts: ["src/components/limited/limited-draft-table.tsx"],
         settleTargets: [ACTION_SHEET],
         entries: [
@@ -4772,6 +4836,7 @@ export const SURFACES: readonly Surface[] = [
         // FIRST among the game rows on purpose: it needs a game at its
         // pregame, and every row below it leaves one past it.
         id: "game-pregame",
+        cards: true,
         needsGame: true,
         settleTargets: [PREGAME_GATE_BOX],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -4823,6 +4888,7 @@ export const SURFACES: readonly Surface[] = [
         // leave the typical board — three lands, a creature or two, a
         // four-card hand — unmeasured. The two rows are complementary.
         id: "game-board",
+        cards: true,
         needsGame: true,
         settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -4854,6 +4920,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "game-concede-confirm",
+        cards: true,
         needsGame: true,
         // The lobby's active-game notice, its `Concede match?` confirm open at
         // measurement (issue #4421). `concedeLaneGame` clicks THROUGH this
@@ -4914,6 +4981,7 @@ export const SURFACES: readonly Surface[] = [
         // rule skips a disabled control, and `contrast` fails closed on a
         // subtree it could not judge.
         id: "game-zone-pile",
+        cards: true,
         // `CardsPile` renders the open pile dialog this row measures
         // (issue #3420).
         mounts: ["src/components/board/cards-pile.tsx"],
@@ -4963,6 +5031,7 @@ export const SURFACES: readonly Surface[] = [
         // tree) at every viewport, which is what makes one budget row per
         // viewport comparable.
         id: "game-card-preview",
+        cards: true,
         needsGame: true,
         settleTargets: [HAND_CARD, PREVIEW_ANCHORED],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -5058,6 +5127,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "game-stress",
+        cards: true,
         needsGame: true,
         settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -5108,6 +5178,7 @@ export const SURFACES: readonly Surface[] = [
         // it would end the window and leave the next viewport a different
         // board.
         id: "game-combat",
+        cards: true,
         needsGame: true,
         // PLAIN CSS, always: a settle target is handed to `querySelectorAll`
         // inside the page (`settle.ts`'s `sampleSource`), which knows nothing
@@ -5196,6 +5267,7 @@ export const SURFACES: readonly Surface[] = [
         // Seven candidates, five of them eligible under the spell's own
         // filter, so the grid has something to scroll at phone width.
         id: "game-choice-prompt",
+        cards: true,
         // The modal picker IS `CardsPile` under `forceOpen` (issue #3420) —
         // same module as `game-zone-pile`, a different state of it.
         mounts: ["src/components/board/cards-pile.tsx"],
@@ -5317,6 +5389,7 @@ export const SURFACES: readonly Surface[] = [
         // ability's own stack row is not a candidate (an ability is not a
         // source), which is why the walk can demand exactly one enabled row.
         id: "game-source-choice",
+        cards: true,
         needsGame: true,
         settleTargets: [GAME_STACK],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -5410,6 +5483,7 @@ export const SURFACES: readonly Surface[] = [
         // into: the lobby rows of the next viewport pass refuse to start while
         // the account still holds a game the lane did not create there.
         id: "game-manage-yields",
+        cards: true,
         // The yields box is open over the board at measurement (issue #3420).
         mounts: ["src/components/board/manage-yields-dialog.tsx"],
         needsGame: true,

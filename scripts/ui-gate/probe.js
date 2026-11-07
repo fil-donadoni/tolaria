@@ -547,9 +547,15 @@ window.__tolariaProbe = () => {
             softPending++;
             continue;
         }
-        // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`
-        const variant = url.split("/")[3];
-        const have = RENDITION_W[variant];
+        // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`,
+        // or a `blob:` the app resampled itself to the slot's exact device
+        // size (issue #8321): no srcset there, so `naturalWidth` IS the
+        // bitmap's width, and the face names its art in `data-art-src`.
+        const bitmap = url.startsWith("blob:");
+        const variant = bitmap ? "bitmap" : url.split("/")[3];
+        const have = bitmap
+            ? e.getAttribute("data-art-src") && e.naturalWidth
+            : RENDITION_W[variant];
         if (!have) {
             softUnknown++;
             offend("cardsSoft", e, r, "unknown rendition " + variant);
