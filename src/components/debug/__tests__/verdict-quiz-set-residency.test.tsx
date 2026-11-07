@@ -36,6 +36,7 @@ import { listTokenCatalogue } from "@convex/cards/tokenCatalogue";
 import { makeState } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { buildStateFromScenario } from "@convex/gre/scenarioBuilder";
+import type { TokenSpec } from "@convex/cards/types";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { CardInstanceState, GameState } from "@convex/gre/state";
 import { installShards, isSetResident } from "~/lib/catalogue/definitionShards";
@@ -124,7 +125,7 @@ describe("the verdict quiz with only the game's Sets resident (issue #8728)", ()
             seat.battlefield.push({
                 ...GOBLIN_TOKEN,
                 id: "token-instance",
-                card: { id: tokenDefinitionId(GOBLIN_TOKEN) },
+                card: { id: tokenDefinitionId(GOBLIN_TOKEN as TokenSpec) },
                 isToken: true,
                 controllerId: seat.id,
                 ownerId: seat.id,

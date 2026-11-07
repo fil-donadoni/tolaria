@@ -22,6 +22,7 @@ vi.mock("~/lib/clipboard", () => ({ copyMinified }));
 import { tokenDefinitionId } from "@convex/cards";
 import { GOBLIN_TOKEN } from "@convex/cards/sharedTokens";
 import { makeState } from "@convex/cards/__tests__/setup.helper";
+import type { TokenSpec } from "@convex/cards/types";
 import type { FullGameState } from "@convex/gameProjections";
 import type { CardInstanceState } from "@convex/gre/state";
 import { installShards, isSetResident } from "~/lib/catalogue/definitionShards";
@@ -44,7 +45,7 @@ describe("Copy as scenario with only the game's Sets resident (issue #8728)", ()
             seat.battlefield.push({
                 ...GOBLIN_TOKEN,
                 id: "token-instance",
-                card: { id: tokenDefinitionId(GOBLIN_TOKEN) },
+                card: { id: tokenDefinitionId(GOBLIN_TOKEN as TokenSpec) },
                 isToken: true,
                 controllerId: seat.id,
                 ownerId: seat.id,
