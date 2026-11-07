@@ -201,6 +201,8 @@ export async function playMisses(
                 } satisfies WorkerRequest);
             };
             worker.on("message", (response: WorkerResponse) => {
+                // Past the watchdog: the batch is already another worker's.
+                if (settled) return;
                 answered = true;
                 if (inFlight !== null && "error" in response)
                     fail(inFlight.batch, response.error);
@@ -218,7 +220,9 @@ export async function playMisses(
         });
 
     /** A slot keeps its worker alive: a dead one is replaced, until replacing
-     *  stops helping — that many in a row died with no answer at all. */
+     *  stops helping — that many in a row died with no answer at all. Three
+     *  really hanging cards in a row read the same; all slots lost that way is
+     *  a sweep `derive:sync` refuses, never one that lands. */
     const slot = async () => {
         let barren = 0;
         while (barren < MAX_BARREN_WORKERS) {
