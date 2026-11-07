@@ -113,6 +113,7 @@ import {
     choiceFindDestination,
     choicePicksOnlyMoved,
     searchFindDestination,
+    choicePicksADiscard,
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 import { findPermanent } from "../lookup";
@@ -1435,9 +1436,10 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  this note is the mandatory discard.
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
- *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
- *  mandatory own-hand picks are costs, and making them search nodes is a wider
- *  change). But the 1-ply policy probe's settle stopped THERE and scored the
+ *  chooses), or a mandatory `choose-hand-card` whose pick its script discards
+ *  (a loot, "each player discards a card"), is no in-tree node, deliberately
+ *  (see `handPickCandidates`: mandatory own-hand picks are costs, and making
+ *  them search nodes is a wider change). But the 1-ply policy probe's settle stopped THERE and scored the
  *  position one Op into the resolution: the discard spell spent, the mana
  *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
  *  Answered here with the chooser's own best keep: it sheds its `min` least
@@ -1464,7 +1466,16 @@ export function forcedChoiceAnswer(
     if (choice.kind === "discard-hand" && choice.asEntersKind === "discard") {
         return asEntersDiscardAnswer(state, choice);
     }
-    if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
+    if (
+        (choice.kind !== "discard-hand" &&
+            !(
+                choice.kind === "choose-hand-card" &&
+                choicePicksADiscard(state, choice)
+            )) ||
+        choice.asEntersKind
+    ) {
+        return null;
+    }
     const min = getPendingChoiceMin(choice.count);
     if (min <= 0) return null;
     const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);

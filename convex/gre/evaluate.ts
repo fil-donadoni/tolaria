@@ -65,6 +65,8 @@ import {
     isDeferrableStackAbility,
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
+import { standingCounterWorth } from "./ai/standingCounters";
+import { heldStormCopiesWorth } from "./ai/heldStorm";
 import {
     asEventualCreature,
     isCounterClockCreature,
@@ -586,7 +588,7 @@ export type EvalTerms = {
  *
  *  `memo` (issue #4461) is the evaluation's own: the combat terms ask the
  *  same seat's census again, and read it from there. */
-function availableManaUnitsFor(
+export function availableManaUnitsFor(
     state: GameState,
     player: PlayerState,
     memo?: ManaCensusMemo
@@ -1646,7 +1648,9 @@ function nonCreatureBodyValue(
                 weights.latent,
                 pass
             )
-        ) * loyaltyRealizationRatio(perm)
+        ) *
+            loyaltyRealizationRatio(perm) +
+        standingCounterWorth(state, perm, weights.latent)
     );
 }
 
@@ -2098,6 +2102,13 @@ function playerTerms(
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `manaCensus.now`.
     terms.mana = manaSourceTermFor(state, player, weights, pass);
+    // CR 702.40a — a held storm spell's copies still to come.
+    terms.hand += heldStormCopiesWorth(
+        state,
+        player,
+        manaCensus.now.length,
+        weights.latent
+    );
     // Issue #7791 — the board the pending returns restore: the mana sources
     // and the curve they give back are read where the material aggregates
     // read the battlefield (see `stateWithPendingReturns`).
