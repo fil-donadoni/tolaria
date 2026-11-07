@@ -76,6 +76,66 @@ describe("sacrificeChoice (CR 701.21a)", () => {
         expect(isSacrificeSelectionComplete(sel)).toBe(false);
     });
 
+    // CR 601.2h — picks are allocated to requirements in order, so a later
+    // requirement is never pre-filled while an earlier one still owes picks.
+    describe("autoResolveFungible stops at the first requirement still owing picks (CR 601.2h)", () => {
+        const creatureThenLand = (creatures: number): SacrificeSelection => ({
+            playerId: "p1",
+            reason: "Test",
+            requirements: [
+                { filter: { types: ["Creature"] }, count: creatures },
+                { filter: { types: ["Land"] }, count: 1 },
+            ],
+            picked: [],
+        });
+
+        it("a real choice leaves a later forced requirement unfilled", () => {
+            const bears = makeInstance(BEARS, { controllerId: "p1" });
+            const tappedBears = makeInstance(BEARS, {
+                controllerId: "p1",
+                isTapped: true,
+            });
+            const forest = makeInstance(FOREST, { controllerId: "p1" });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [bears, tappedBears, forest],
+                    }),
+                ],
+            });
+            const sel = creatureThenLand(1);
+            autoResolveFungible(state, sel);
+            expect(sel.picked).toEqual([]);
+            expect(nextUnmetRequirement(sel)?.filter).toEqual({
+                types: ["Creature"],
+            });
+        });
+
+        it("too few candidates leave a later forced requirement unfilled", () => {
+            const bears = makeInstance(BEARS, { controllerId: "p1" });
+            const forest = makeInstance(FOREST, { controllerId: "p1" });
+            const state = makeState({
+                players: [makePlayer("p1", { battlefield: [bears, forest] })],
+            });
+            const sel = creatureThenLand(2);
+            autoResolveFungible(state, sel);
+            expect(sel.picked).toEqual([bears.id]);
+            expect(isSacrificeSelectionComplete(sel)).toBe(false);
+        });
+
+        it("a settled requirement still lets the next one collapse", () => {
+            const bears = makeInstance(BEARS, { controllerId: "p1" });
+            const forest = makeInstance(FOREST, { controllerId: "p1" });
+            const state = makeState({
+                players: [makePlayer("p1", { battlefield: [bears, forest] })],
+            });
+            const sel = creatureThenLand(1);
+            autoResolveFungible(state, sel);
+            expect(sel.picked).toEqual([bears.id, forest.id]);
+            expect(isSacrificeSelectionComplete(sel)).toBe(true);
+        });
+    });
+
     it("isSacrificeCandidateLegal accepts a filter match, rejects a non-match", () => {
         const forest = makeInstance(FOREST, { controllerId: "p1" });
         const bears = makeInstance(BEARS, { controllerId: "p1" });

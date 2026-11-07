@@ -218,6 +218,41 @@ describe("cast-side payment parks travel on the move (issue #2135)", () => {
         expect(botOf(tree).graveyard.map((c) => c.id)).toEqual(["swamp"]);
     });
 
+    it("Drought behind a real creature choice — the move names the creature, then the Swamp, and the search charges both (CR 601.2f / 601.2h)", () => {
+        const state = makeState({
+            players: [
+                makePlayer(OPP, {
+                    battlefield: [bf(DROUGHT.id, "drought", OPP)],
+                }),
+                makePlayer(BOT, {
+                    hand: [
+                        inZone(
+                            getCardByName("Altar's Reap").id,
+                            "reap",
+                            "hand"
+                        ),
+                    ],
+                    battlefield: [
+                        bf(BEAR, "bear"),
+                        bf(WURM, "wurm"),
+                        bf(SWAMP, "swamp"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 2, R: 0, G: 0, C: 0 },
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        const move = castOf(state, "reap");
+        expect(move?.castCostPicks?.sacrificeIds).toEqual(["bear", "swamp"]);
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        expect(botOf(tree).battlefield.map((c) => c.id)).toEqual(["wurm"]);
+    });
+
     it("Drought unpayable — a black spell with no Swamp is not enumerated (no move the executor cannot pay)", () => {
         const state = makeState({
             players: [
