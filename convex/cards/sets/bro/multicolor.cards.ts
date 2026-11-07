@@ -5,7 +5,7 @@ import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { urzaPlaneswalkerFace } from "./urzaPlaneswalkerFace.cards";
 import { mishraLostToPhyrexiaFace } from "./mishraLostToPhyrexiaFace.cards";
 
-// CR 506.2: "the number of attacking creatures" counts every attacker on the board.
+// "The number of attacking creatures": every attacker on the battlefield.
 const ATTACKING_CREATURES = {
     count: {
         zone: "battlefield" as const,

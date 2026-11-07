@@ -203,8 +203,8 @@ export const theMightstoneAndWeakstone = defineCard(() => ({
 // half of the Mishra meld pair that carries no meld ability (CR 712.4a).
 // "Double strike. When this creature enters from your graveyard, you may discard
 // your hand. If you do, draw three cards. Unearth {3}{R}{R}"
-// The trigger is intervening on the `PERMANENT_ENTERED.enteredFromGraveyard`
-// provenance flag (CR 603.4, issue #1533), checked at trigger time; "if you do"
+// The trigger fires on the `PERMANENT_ENTERED.enteredFromGraveyard`
+// provenance flag (issue #1533), checked at trigger time; "if you do"
 // reads the `mayPay` boolean (CR 608.2c). Unearth is the shared factory
 // (CR 702.84a, issue #8165).
 // compiler-gap: Unearth {3}{R}{R} (#8165)
