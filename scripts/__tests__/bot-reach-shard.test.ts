@@ -3,6 +3,8 @@
 // spawns a Bun driver instead of loading the pool into vitest's node.
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sweepWorkerCount } from "../lib/bot-reach-shard";
 
@@ -107,5 +109,54 @@ describe("the sharded sweep is deterministic across worker counts", () => {
         expect(
             out.corpusOrder.every(([, v]) => v?.cause === "harness-error")
         ).toBe(true);
+    }, 90_000);
+});
+
+describe("a worker that dies is replaced (issue #8718)", () => {
+    const dying = (timeoutMs: number) => ({
+        SHARD_PLAYER: "./dying-bot-player.ts",
+        SHARD_TIMEOUT_MS: String(timeoutMs),
+        SHARD_MARKS: mkdtempSync(join(tmpdir(), "shard-marks-")),
+    });
+    const gaps = (out: DriverOut) =>
+        out.corpusOrder.filter(([, v]) => v?.outcome !== "played");
+
+    // The 2026-11-07 shape: all four workers silent at once, every card
+    // innocent. Before the fix: `no answer…` for 32, `no worker left` for the
+    // rest of the queue.
+    it("plays every card when all workers time out at once on innocent cards", async () => {
+        // Ten-odd ids apart in the queue's order: four batches, not one.
+        const stalls = [1, 3, 5, 7].map((n) => `card-${n}-stall`);
+        const out = await drive(4, 96, stalls, dying(8_000));
+        expect(gaps(out)).toEqual([]);
+        expect(out.corpusOrder).toHaveLength(100);
+    }, 90_000);
+
+    it("blames only the card that hangs alone, and plays the rest", async () => {
+        const out = await drive(2, 96, ["wedge-1"], dying(8_000));
+        expect(gaps(out)).toEqual([
+            [
+                "wedge-1",
+                expect.objectContaining({
+                    cause: "harness-error",
+                    form: "sweep worker: no answer within the batch timeout",
+                }),
+            ],
+        ]);
+    }, 90_000);
+
+    it("gives up when no worker ever answers: a verdict per card, and it returns", async () => {
+        const out = await drive(2, 40, [], {
+            SHARD_PLAYER: "./hanging-bot-player.ts",
+            SHARD_TIMEOUT_MS: "1500",
+        });
+        expect(out.corpusOrder).toHaveLength(40);
+        expect(
+            out.corpusOrder.every(([, v]) => v?.cause === "harness-error")
+        ).toBe(true);
+        const forms = out.corpusOrder.map(
+            ([, v]) => (v as { form?: string } | null)?.form
+        );
+        expect(forms).toContain("sweep worker: no worker left");
     }, 90_000);
 });

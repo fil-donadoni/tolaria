@@ -170,6 +170,21 @@ export function renderDriftSweep(sweep: DriftSweep): {
     return { line, summary };
 }
 
+/** How a verdict the worker POOL produced reads in a Bot Gap key — a verdict
+ *  on the sweep, not on the card (`lib/bot-reach-shard.ts`). */
+const SWEEP_WORKER_GAP = "harness-error › sweep worker: ";
+/** Cards a sweep may lose to its pool and still land. A card that hangs alone
+ *  is real and ships as its own Bot Gap; `SWEEP_BATCH` of them is what one
+ *  dead batch used to cost. Past it the sweep measured the machine, not the
+ *  Bot: 7,088 cards on 2026-11-07, pushed as verdicts (issue #8718). */
+export const SWEEP_POOL_LOSS_TOLERANCE = 8;
+
+/** How many of `rows` carry a verdict the worker pool gave them. */
+export function sweepPoolLosses(rows: readonly ReplayRow[]): number {
+    return rows.filter((r) => r.botGap?.startsWith(SWEEP_WORKER_GAP) === true)
+        .length;
+}
+
 /** The drift sweep's I/O, injected: the script wires the generators and the
  *  lockfile on disk, a test a fixture. */
 export interface DriftSweepIo {
@@ -183,6 +198,9 @@ export interface DriftSweepIo {
     /** `oracle:compile --play-misses`: plays exactly the misses, drift
      *  and graduation alike (a bare run would carry the drift, issue #6688). */
     readonly play: () => boolean;
+    /** Puts back the lockfile `play` found on disk: what a pool loss wrote
+     *  must not be what the carry then carries (issue #8718). */
+    readonly restore: () => void;
     /** `oracle:index`: a row for every card newly `ready`. */
     readonly index: () => boolean;
     readonly acknowledged: ReadonlySet<string>;
@@ -211,7 +229,8 @@ export interface DriftSweepResult {
  * exit 77, Scryfall) falls back to the carry: the header and catalogue
  * commit must still land — a stale verdict never holds the deployment (ADR
  * 0158 § 2b) — and the misses stay stale, which health reports as late
- * through `--settled` (an issue past the grace, never a RED: ADR 0159).
+ * through `--settled` (an issue past the grace, never a RED: ADR 0159). A play
+ * that lost its worker pool (`sweepPoolLosses`) failed the same way.
  * `lost` is read over the misses only:
  * a card that left `ready` for a compiler or registry reason is not the
  * sweep's.
@@ -244,6 +263,16 @@ export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     const started = io.now();
     if (!io.play()) return carried("the drift sweep's compile failed");
     const after = io.readRows();
+    // Over the misses only: the rows it carried are an older sweep's.
+    const poolLosses = sweepPoolLosses(
+        after.filter((r) => misses.has(r.oracleId))
+    );
+    if (poolLosses > SWEEP_POOL_LOSS_TOLERANCE) {
+        io.restore();
+        return carried(
+            `the drift sweep's worker pool lost ${poolLosses} card(s)`
+        );
+    }
     const outcome = botReplayOutcome(before, after, io.acknowledged);
     io.report(
         renderDriftSweep({

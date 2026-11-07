@@ -10,9 +10,14 @@
  * walks the corpus, so the lockfile bytes are the same for any `W`.
  *
  * A worker that dies — a throw outside the player's own catch, an OOM, an
- * exit — is the sweep's `harness-error` for the batch it held, never a lost
- * run. With every worker dead, what is left of the queue is `harness-error`
- * too: a verdict per card, and the lockfile is still written.
+ * exit, a batch silent past the timeout — is replaced, and the cards it held
+ * are played again one by one: a card that dies ALONE is that card's
+ * `harness-error`, never a lost run. On 2026-11-07 a machine under load timed
+ * out all four workers 1,437 cards in; nothing replaced them, and 7,056 cards
+ * shipped `no worker left` (issue #8718). A slot gives up only after
+ * `MAX_BARREN_WORKERS` that never answered; with every slot gone, what is left
+ * of the queue is `harness-error` too — a verdict per card, and the lockfile
+ * is still written, for `derive:sync` to refuse (`sweepPoolLosses`).
  */
 import { Worker } from "node:worker_threads";
 import { availableParallelism } from "node:os";
@@ -40,6 +45,9 @@ export const MIN_MISSES_PER_WORKER = 16;
  *  (a hung import, a busy loop) — `harness-error`, not a sweep that never
  *  ends. */
 export const BATCH_TIMEOUT_MS = 10 * 60 * 1000;
+/** Workers in a row a slot may lose before any of them answers: past this the
+ *  Bot is not loading at all, and respawning would never end (issue #8718). */
+export const MAX_BARREN_WORKERS = 3;
 
 /** The player module a worker loads: exports `createBotPlayer`. */
 export const DEFAULT_PLAYER_MODULE = new URL(
@@ -77,7 +85,18 @@ export interface ShardOptions {
     readonly onPlay?: (oracleId: string) => void;
     /** Module exporting `createBotPlayer`; a test points it at a fake. */
     readonly playerModule?: string;
+    /** Overrides `BATCH_TIMEOUT_MS`; a test cannot wait ten minutes. */
+    readonly batchTimeoutMs?: number;
 }
+
+type Batch = WorkerRequest["batch"];
+/** What a worker holds: `retried` is a card played again, alone, after a
+ *  worker died holding it — dying now is that card's verdict. */
+interface Assignment {
+    readonly batch: Batch;
+    readonly retried: boolean;
+}
+type WorkerEnd = "drained" | "died" | "died-barren";
 
 /**
  * Plays every miss and returns `oracleId → verdict`. One effective worker
@@ -118,72 +137,100 @@ export async function playMisses(
         return verdicts;
     }
 
+    const batchTimeoutMs = options.batchTimeoutMs ?? BATCH_TIMEOUT_MS;
     let next = 0;
-    const take = (): WorkerRequest["batch"] => {
+    // Cards a dead worker held, one per entry: each is played again alone.
+    const retries: Batch[] = [];
+    const take = (): Assignment | null => {
+        const retry = retries.shift();
+        if (retry !== undefined) return { batch: retry, retried: true };
+        if (next >= queue.length) return null;
         const batch = queue.slice(next, next + SWEEP_BATCH);
         next += batch.length;
-        return batch;
+        return { batch, retried: false };
     };
-    const fail = (batch: WorkerRequest["batch"], why: string) => {
+    const fail = (batch: Batch, why: string) => {
         for (const [id] of batch) {
             verdicts.set(id, harnessErrorVerdict(`sweep worker: ${why}`));
             options.onPlay?.(id);
         }
     };
+    // A batch's death does not say which card (or whether any card) did it: a
+    // loaded machine times out every worker at once. Only a card that dies
+    // alone earns the verdict.
+    const lose = ({ batch, retried }: Assignment, why: string) => {
+        if (retried) fail(batch, why);
+        else for (const entry of batch) retries.push([entry]);
+    };
 
-    await Promise.all(
-        Array.from(
-            { length: width },
-            () =>
-                new Promise<void>((done) => {
-                    const worker = new Worker(WORKER_ENTRY, {
-                        workerData: { playerModule },
-                    });
-                    let inFlight: WorkerRequest["batch"] = [];
-                    let settled = false;
-                    let watchdog: ReturnType<typeof setTimeout> | undefined;
-                    const settle = (why?: string) => {
-                        if (settled) return;
-                        settled = true;
-                        clearTimeout(watchdog);
-                        if (why !== undefined) fail(inFlight, why);
-                        inFlight = [];
-                        void worker.terminate();
-                        // The last worker standing leaves nothing queued.
-                        done();
-                    };
-                    const dispatch = () => {
-                        clearTimeout(watchdog);
-                        inFlight = take();
-                        if (inFlight.length === 0) return settle();
-                        watchdog = setTimeout(
-                            () => settle("no answer within the batch timeout"),
-                            BATCH_TIMEOUT_MS
-                        );
-                        worker.postMessage({
-                            batch: inFlight,
-                        } satisfies WorkerRequest);
-                    };
-                    worker.on("message", (response: WorkerResponse) => {
-                        if ("error" in response) fail(inFlight, response.error);
-                        else
-                            for (const [id, verdict] of response.results) {
-                                verdicts.set(id, verdict);
-                                options.onPlay?.(id);
-                            }
-                        inFlight = [];
-                        dispatch();
-                    });
-                    worker.on("error", (error) => settle(error.message));
-                    worker.on("exit", (code) =>
-                        settle(`exited with code ${code}`)
-                    );
-                    dispatch();
-                })
-        )
-    );
-    // Every worker dead before the queue drained: nothing may stay unplayed.
+    /** One worker's life: serves the queue until drained, or until it dies. */
+    const serve = () =>
+        new Promise<WorkerEnd>((done) => {
+            const worker = new Worker(WORKER_ENTRY, {
+                workerData: { playerModule },
+            });
+            let inFlight: Assignment | null = null;
+            let answered = false;
+            let settled = false;
+            let watchdog: ReturnType<typeof setTimeout> | undefined;
+            const settle = (why?: string) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(watchdog);
+                if (why !== undefined && inFlight !== null) lose(inFlight, why);
+                inFlight = null;
+                void worker.terminate();
+                done(
+                    why === undefined
+                        ? "drained"
+                        : answered
+                          ? "died"
+                          : "died-barren"
+                );
+            };
+            const dispatch = () => {
+                clearTimeout(watchdog);
+                inFlight = take();
+                if (inFlight === null) return settle();
+                watchdog = setTimeout(
+                    () => settle("no answer within the batch timeout"),
+                    batchTimeoutMs
+                );
+                worker.postMessage({
+                    batch: inFlight.batch,
+                } satisfies WorkerRequest);
+            };
+            worker.on("message", (response: WorkerResponse) => {
+                answered = true;
+                if (inFlight !== null && "error" in response)
+                    fail(inFlight.batch, response.error);
+                else if ("results" in response)
+                    for (const [id, verdict] of response.results) {
+                        verdicts.set(id, verdict);
+                        options.onPlay?.(id);
+                    }
+                inFlight = null;
+                dispatch();
+            });
+            worker.on("error", (error) => settle(error.message));
+            worker.on("exit", (code) => settle(`exited with code ${code}`));
+            dispatch();
+        });
+
+    /** A slot keeps its worker alive: a dead one is replaced, until replacing
+     *  stops helping — that many in a row died with no answer at all. */
+    const slot = async () => {
+        let barren = 0;
+        while (barren < MAX_BARREN_WORKERS) {
+            const end = await serve();
+            if (end === "drained") return;
+            barren = end === "died" ? 0 : barren + 1;
+        }
+    };
+    await Promise.all(Array.from({ length: width }, slot));
+
+    // Every slot gave up before the queue drained: nothing may stay unplayed.
+    fail(retries.flat(), "no worker left");
     fail(queue.slice(next), "no worker left");
-    next = queue.length;
     return verdicts;
 }
