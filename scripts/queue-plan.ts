@@ -188,6 +188,53 @@ export function issuesWithOpenPr(): number[] {
         .map(Number);
 }
 
+/**
+ * Head commit date of each open PR (issue #8258), by PR number. A separate
+ * GraphQL read of `commits(last: 1)`: `gh pr list --json commits` expands every
+ * commit's authors and exceeds GitHub's node limit at 100 PRs, which would
+ * empty `openPrFiles` altogether. Total: a failed read is an empty map, so
+ * no PR reads as stalled (fail closed).
+ */
+function openPrHeadDates(): Map<number, string> {
+    const out = new Map<number, string>();
+    try {
+        const doc = JSON.parse(
+            gh([
+                "api",
+                "graphql",
+                "-f",
+                "query=query($o:String!,$n:String!){repository(owner:$o,name:$n){pullRequests(states:OPEN,first:100){nodes{number commits(last:1){nodes{commit{committedDate}}}}}}}",
+                "-F",
+                "o={owner}",
+                "-F",
+                "n={repo}",
+            ])
+        ) as {
+            data: {
+                repository: {
+                    pullRequests: {
+                        nodes: {
+                            number: number;
+                            commits: {
+                                nodes: { commit: { committedDate: string } }[];
+                            };
+                        }[];
+                    };
+                };
+            };
+        };
+        for (const pr of doc.data.repository.pullRequests.nodes) {
+            const d = pr.commits.nodes[0]?.commit.committedDate;
+            if (d) out.set(pr.number, d);
+        }
+    } catch (err) {
+        console.error(
+            `queue:plan: could not read PR head dates (${(err as Error).message.split("\n")[0]}) — no PR reads as stalled`
+        );
+    }
+    return out;
+}
+
 /** Each open issue PR's number and changed files (issue #6195) — the real
  *  blast radius of an in-flight issue. Total: unreadable = nothing known, and
  *  the in-flight set then falls back to the declared `Target files`. Shared
@@ -198,6 +245,7 @@ export function openPrFiles(): {
     facts: OpenPrFact[];
 } {
     const facts: OpenPrFact[] = [];
+    const heads = openPrHeadDates();
     const byIssue: Record<number, number> = {};
     const files: Record<number, string[]> = {};
     try {
@@ -208,7 +256,7 @@ export function openPrFiles(): {
                 "--state",
                 "open",
                 "--json",
-                "number,headRefName,files,labels,commits",
+                "number,headRefName,files,labels",
                 "--limit",
                 "100",
             ])
@@ -217,25 +265,18 @@ export function openPrFiles(): {
             headRefName: string;
             files: { path: string }[];
             labels?: { name: string }[];
-            commits?: { committedDate?: string }[];
         }[];
         for (const r of rows) {
             const n = /^(?:feat|fix)\/issue-(\d+)$/.exec(r.headRefName)?.[1];
             if (n === undefined) continue;
             byIssue[Number(n)] = r.number;
             files[r.number] = r.files.map((f) => f.path);
-            const dates = (r.commits ?? [])
-                .map((c) => Date.parse(c.committedDate ?? ""))
-                .filter(Number.isFinite);
             facts.push({
                 number: r.number,
                 issue: Number(n),
                 labels: (r.labels ?? []).map((l) => l.name),
                 files: files[r.number],
-                headCommittedAt:
-                    dates.length > 0
-                        ? new Date(Math.max(...dates)).toISOString()
-                        : null,
+                headCommittedAt: heads.get(r.number) ?? null,
             });
         }
     } catch (err) {
