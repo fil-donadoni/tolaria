@@ -108,6 +108,22 @@ describe("root predicates, through the real search (issue #8271)", () => {
     });
 });
 
+describe("Skullclamp's minimal pair: the opponent's life flips the equip (issue #8298)", () => {
+    it.each([
+        "equipment: Skullclamp equips the 1-toughness creature and draws",
+        "equipment: Skullclamp stays off the 1-toughness attacker with lethal on board",
+    ])("%s", (label) => {
+        const result = runBladeScenario(entry(label));
+        expect(result.failureMessage).toBe("");
+        expect(result.ok).toBe(true);
+        // The search's own reading, not a tie-break over a position where every
+        // line already reads as won or the equip buys nothing.
+        expect(result.seeds.map((s) => s.mechanism)).toEqual(
+            result.seeds.map(() => "mean-reward")
+        );
+    });
+});
+
 describe("matcher: `x` and `ability` (issue #8271)", () => {
     it("`x` compares the announced X exactly, `ability` the activated ability's id", () => {
         const state = buildBladeState(entry(DELUGE));

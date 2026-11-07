@@ -74,29 +74,29 @@ Such a row still owes its missing half. Everything else is new.
 
 ## Aggro and equipment
 
-| Card                     | Right                                                   | Wrong: must not                        | Has |
-| ------------------------ | ------------------------------------------------------- | -------------------------------------- | --- |
-| Ragavan, Nimble Pilferer | an empty opposing board: attack                         | attack into a blocker that eats it     |     |
-| Umezawa's Jitte          | equip, spend counters to win the combat                 | keep counters and lose the creature    |     |
-| Skullclamp               | a 1-toughness creature: equip and draw                  | equip a creature it merely weakens     |     |
-| Smuggler's Copter        | a spare creature: crew and attack, loot                 | crew with the only attacker worth more |     |
-| Goblin Bombardment       | a creature about to die anyway: sacrifice it for damage | sacrifice attackers with no gain       |     |
+| Card                     | Right                                                   | Wrong: must not                         | Has |
+| ------------------------ | ------------------------------------------------------- | --------------------------------------- | --- |
+| Ragavan, Nimble Pilferer | an empty opposing board: attack                         | attack into a blocker that eats it      |     |
+| Umezawa's Jitte          | equip, spend counters to win the combat                 | keep counters and lose the creature     |     |
+| Skullclamp               | a 1-toughness creature: equip and draw                  | equip the attacker with lethal on board |     |
+| Smuggler's Copter        | a spare creature: crew and attack, loot                 | crew with the only attacker worth more  |     |
+| Goblin Bombardment       | a creature about to die anyway: sacrifice it for damage | sacrifice attackers with no gain        |     |
 
 ## Storm and combo
 
-| Card               | Right                                                 | Wrong: must not                                           | Has |
-| ------------------ | ----------------------------------------------------- | --------------------------------------------------------- | --- |
-| Tendrils of Agony  | storm count is lethal: cast it                        | fire it early for a little life                           |     |
-| Yawgmoth's Will    | a full graveyard: cast it, then replay                | cast it with an empty graveyard                           |     |
-| Underworld Breach  | a graveyard that pays escape: cast it and escape      | cast it with nothing to escape, then die to the sacrifice |     |
-| Bolas's Citadel    | life to spare, a live top card: play from the top     | pay life down to lethal                                   |     |
-| Dark Ritual        | it enables a spell this turn: cast it                 | cast it with nothing to spend on                          | yes |
-| Thassa's Oracle    | the alternate win is on: cast it                      | cast it when the devotion check fails                     | yes |
-| Flash              | a fatty in hand: cast it for the enter effect         | cast it for a body it cannot pay or use                   | yes |
-| Oath of Druids     | the opponent has more creatures: cast it              | cast it when it feeds only the opponent                   |     |
-| Natural Order      | a poor green creature: sacrifice it for the strongest | sacrifice a stronger creature for a weaker one            |     |
-| Green Sun's Zenith | the X that finds the creature it needs                | spend more X than the find needs                          |     |
-| Walking Ballista   | shoot to close the game                               | shoot off counters with no gain                           | yes |
+| Card               | Right                                                 | Wrong: must not                                               | Has |
+| ------------------ | ----------------------------------------------------- | ------------------------------------------------------------- | --- |
+| Tendrils of Agony  | storm count is lethal: cast it                        | fire it early for a little life                               |     |
+| Yawgmoth's Will    | a full graveyard: cast it, then replay                | cast it with an empty graveyard                               |     |
+| Underworld Breach  | a graveyard that pays escape: cast it and escape      | cast it with nothing to escape, then die to the sacrifice     |     |
+| Bolas's Citadel    | life to spare, a live top card: play from the top     | pay life down to lethal                                       |     |
+| Dark Ritual        | it enables a spell this turn: cast it                 | cast it with nothing to spend on                              | yes |
+| Thassa's Oracle    | the alternate win is on: cast it                      | Demonic Consultation first, into a counterspell (issue #8709) | yes |
+| Flash              | a fatty in hand: cast it for the enter effect         | cast it for a body it cannot pay or use                       | yes |
+| Oath of Druids     | the opponent has more creatures: cast it              | cast it when it feeds only the opponent                       |     |
+| Natural Order      | a poor green creature: sacrifice it for the strongest | sacrifice a stronger creature for a weaker one                |     |
+| Green Sun's Zenith | the X that finds the creature it needs                | spend more X than the find needs                              |     |
+| Walking Ballista   | shoot to close the game                               | shoot off counters with no gain                               | yes |
 
 ## Lands
 
