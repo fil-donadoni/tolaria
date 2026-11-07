@@ -398,6 +398,18 @@ export type BladeSetupStep =
           of?: BladeSeat;
           knower?: BladeSeat;
       }
+    /** ADR 0026 — the card at `position` of a library (1 = the top, the same
+     *  counting as a spec card's `position`) was put there in full view:
+     *  everyone knows it and where it is, whatever sits above it. Goes through
+     *  `recordPublicLibraryPlacement`, the stamp a public insert ends in; casting
+     *  the insert would make its target a decision of the fixture. `of` is the
+     *  library's owner (default `me`). Throws on a position the library does
+     *  not have. */
+    | {
+          kind: "witness-library-placement";
+          position: number;
+          of?: BladeSeat;
+      }
     /** CR 603.6a (issue #2707) — fire the "at the beginning of [step]"
      *  triggers of the phase the position is in, through the engine's OWN
      *  collection + placement chokepoint (`collectTriggers` +
