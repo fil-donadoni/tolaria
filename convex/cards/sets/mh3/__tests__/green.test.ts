@@ -26,7 +26,6 @@ import {
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import {
-    getCardByName,
     getDefinition,
     getInstanceManaCost,
     registerTokenDefinition,
@@ -204,11 +203,11 @@ describe("Malevolent Rumble (CR 401.4 reveal/dig, CR 707.2 token, issue #1531)",
 // the board `manaGateBattlefields` builds has to carry it.
 // ===========================================================================
 describe("Fanatic of Rhonas — Ferocious reads effective power (CR 613.4)", () => {
-    const BIG_PRINTED = getCardByName("Serra Angel").id; // 4/4
-    const THREE_THREE = getCardByName("Hill Giant").id;
+    const BIG_PRINTED = "f8ac5006-91bd-4803-93da-f87cf196dd2f"; // Serra Angel, 4/4
+    const THREE_THREE = "0ddb98e8-13fe-4786-83f7-b72c56db135a"; // Hill Giant, 3/3
     const GREEN = { G: 1 };
     const FEROCIOUS = { G: 4 };
-    const CRUSADE = getCardByName("Crusade").id;
+    const CRUSADE = "057986c7-20c0-4157-b4df-beae4ef5c66d"; // "White creatures get +1/+1."
 
     function layer7(
         sublayer: "7b" | "7c" | "7d",
@@ -265,7 +264,9 @@ describe("Fanatic of Rhonas — Ferocious reads effective power (CR 613.4)", () 
     it("an anthem-style static effect (7c): both options", () => {
         // Savannah Lions 2/1, white, under two Crusades.
         const { options } = board([
-            makeInstance(getCardByName("Savannah Lions").id, { id: "lions" }),
+            makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+                id: "lions",
+            }),
             makeInstance(CRUSADE, { id: "anthem-1" }),
             makeInstance(CRUSADE, { id: "anthem-2" }),
         ]);
