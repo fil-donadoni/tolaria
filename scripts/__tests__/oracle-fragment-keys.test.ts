@@ -501,6 +501,47 @@ describe("two branches moving two cards merge into the regenerated lockfile (git
         expect(lockfileStructureProblems(parseLockfile(merged))).toEqual([]);
     });
 
+    it("two branches editing ADJACENT card rows merge with no driver, as GitHub merges them (ADR 0166)", () => {
+        const base = buildLockfile(corpus(X, Y));
+        const renamed = (at: number): Lockfile => ({
+            ...base,
+            cards: base.cards.map((row, i) =>
+                i === at ? { ...row, name: `${row.name} edited` } : row
+            ),
+        });
+        const ours = renamed(4);
+        const theirs = renamed(5);
+        for (const [name, lock] of [
+            ["base", base],
+            ["ours", ours],
+            ["theirs", theirs],
+        ] as const)
+            writeFileSync(join(dir, name), serializeLockfile(lock));
+        const r = spawnSync(
+            "git",
+            [
+                "merge-file",
+                "-p",
+                "--diff-algorithm=histogram",
+                join(dir, "ours"),
+                join(dir, "base"),
+                join(dir, "theirs"),
+            ],
+            { encoding: "utf8" }
+        );
+        expect(r.status).toBe(0);
+        expect(r.stdout).toBe(
+            serializeLockfile({
+                ...base,
+                cards: base.cards.map((row, i) =>
+                    i === 4 || i === 5
+                        ? { ...row, name: `${row.name} edited` }
+                        : row
+                ),
+            })
+        );
+    });
+
     it("both branches moving a card onto ONE line merge cleanly into a count the structure check rejects", () => {
         // Both bump Filler 05 from 1 to 2 — the same edit, kept once; the
         // true count is 3. Only the structure check can tell.
