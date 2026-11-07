@@ -51,8 +51,12 @@ import type {
 } from "./state/declarations";
 import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
-import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
+import { STATIC_EFFECT_CTX, beginLayer7Pass, getEffectivePT } from "./layers";
 import type { LayerStateView } from "./layers";
+import {
+    triggerViewGraveyardCard,
+    triggerViewPermanent,
+} from "./triggerStateViewRows";
 import {
     MANA_COLORS,
     COLORED_MANA_COLORS,
@@ -897,46 +901,56 @@ export function getFixedManaAmount(
     return produced?.[color] ?? 1;
 }
 
-/** Builds a minimal CR 611/613 `LayerStateView` from whatever battlefield data
- *  a mana-ability call site has on hand, so `manaAmount` / `getManaChoices`
- *  hooks can read the source's CURRENT effective power/toughness (CR 613.4)
- *  rather than its base printed stats (issue #927 — Vivi Ornitier's mana
- *  ability scales with her own +1/+1 counters). Graveyards aren't tracked by
- *  these battlefields-only call sites, so a source whose OWN power is itself a
- *  graveyard-counting CDA (layer 7a) wouldn't resolve correctly through this
- *  path — no shipped mana ability needs that combination today; a future one
- *  would need a real `GameState` threaded to this call site instead. */
+/** One player's slice of the board a mana read is evaluated against. Only
+ *  `playerId` and `battlefield` are required, so a site holding one player's
+ *  permanents can still ask a question; `manaGateBattlefields` fills the rest,
+ *  which is what lets every planner path along the way forward the whole board
+ *  without naming it (CR 613.4: "the same effective values at every site"). */
+export type ManaBattlefield = {
+    playerId: string;
+    battlefield: readonly CardInstanceState[];
+    life?: number;
+    hand?: { readonly length: number };
+    graveyard?: readonly CardInstanceState[];
+    drawnThisTurn?: ReadonlyArray<string>;
+    leftGraveyardThisTurn?: number;
+    /** The board's real layer input: the `GameState` itself on the server, the
+     *  client's `toLayerState` on the wire. A layer read through it is literally
+     *  `getEffectivePT`'s, emblems and until-boundary entries included. */
+    layers?: LayerStateView;
+};
+
+/** The CR 611/613 `LayerStateView` a mana read goes through, so a gate or a
+ *  `manaAmount` / `getManaChoices` hook reads CURRENT effective power/toughness
+ *  (CR 613.4) rather than base printed stats (issue #927 — Vivi Ornitier's mana
+ *  ability scales with her own +1/+1 counters). The rows' own `layers` when they
+ *  carry one; otherwise hand-built from the rows, which sees counters and static
+ *  effects on those battlefields, and no emblem: a site with a single player's
+ *  permanents has nothing better to read. */
 function manaLayerView(
-    battlefields: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>,
-    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry.
-     *  Layer 7's until-boundary modifications are ENTRIES since S6, and this is
-     *  the one `LayerStateView` in the codebase that is HAND-BUILT rather than
-     *  being a `GameState`, so it is the one place `tsc` cannot force the
-     *  threading. Omitted, a Viridian Joiner under a Giant Growth reports its
-     *  BASE power and taps for one mana instead of four. */
+    battlefields: ReadonlyArray<ManaBattlefield>,
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry, for
+     *  the hand-built view only. Layer 7's until-boundary modifications are
+     *  ENTRIES since S6, and a hand-built view is the one place `tsc` cannot
+     *  force the threading. Omitted, a Viridian Joiner under a Giant Growth
+     *  reports its BASE power and taps for one mana instead of four. */
     continuousEffects?: readonly ContinuousEffect[]
 ): LayerStateView {
+    const carried = battlefields[0]?.layers;
+    if (carried) return carried;
     return {
         continuousEffects,
         players: battlefields.map((b) => ({
             id: b.playerId,
             battlefield: b.battlefield as unknown as readonly PermanentView[],
-            graveyard: [],
-            // Not tracked by this battlefields-only view: `hand` is OPTIONAL
-            // on `StaticEffectStateView` precisely for call sites like this
-            // one (issue #1379 review finding) that have no real hand data.
-            // `{ length: 0 }` used to be fabricated here, which is NOT inert
-            // like the empty `graveyard` above — 0 is the TRUE answer to "≤ N
-            // cards in hand" for any N ≥ 0, so a hand-size `condition` would
-            // read as silently SATISFIED at this mana-ability call site
-            // rather than "unknown". Omitting the field lets every
-            // `condition` closure see `undefined` and resolve conservatively
-            // (false) instead. A future mana ability whose scaling genuinely
-            // depends on hand size would need a real `GameState` threaded to
-            // this call site instead of this battlefields-only shortcut.
+            graveyard: b.graveyard ?? [],
+            // `hand` is OPTIONAL on `StaticEffectStateView` precisely for a row
+            // with no hand data. Fabricating `{ length: 0 }` is NOT inert like
+            // an empty graveyard — 0 is the TRUE answer to "≤ N cards in hand"
+            // for any N ≥ 0, so a hand-size `condition` would read as silently
+            // SATISFIED. Omitted, every `condition` closure sees `undefined`
+            // and resolves conservatively (false).
+            ...(b.hand ? { hand: b.hand } : {}),
         })),
     };
 }
@@ -1611,10 +1625,7 @@ export function getDynamicManaChoices(
 export function getEffectiveManaChoices(
     card: CardInstanceState,
     controllerId: string,
-    battlefields: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>,
+    battlefields: ReadonlyArray<ManaBattlefield>,
     continuousEffects?: readonly ContinuousEffect[]
 ): ManaCost[] | null {
     const dynamic = getDynamicManaChoices(
@@ -1625,11 +1636,10 @@ export function getEffectiveManaChoices(
     );
     if (dynamic) return dynamic;
     // CR 602.5b (issue #947) — gate on the ability's own `canActivate` using
-    // the battlefields already available here (Chrome Mox's imprint gate
-    // needs no more than `source.counters`, see `minimalManaGateView`).
+    // the battlefields already available here.
     const ability = getActivatedManaAbility(
         card,
-        minimalManaGateView(battlefields)
+        minimalManaGateView(battlefields, continuousEffects)
     );
     return ability?.manaChoices ?? null;
 }
@@ -1716,52 +1726,81 @@ function manaCostKey(mana: ManaCost): string {
  *  `manaTapBattlefields` in game.ts, moves.ts); this is now the one place
  *  that does, called from all three so the invariant is enforced by
  *  construction instead of by convention. */
-export function manaGateBattlefields(state: GameState): ReadonlyArray<{
-    playerId: string;
-    battlefield: readonly CardInstanceState[];
-}> {
+export function manaGateBattlefields(
+    state: GameState
+): ReadonlyArray<ManaBattlefield> {
     return state.players.map((p) => ({
         playerId: p.id,
         battlefield: p.battlefield,
+        life: p.life,
+        hand: p.hand,
+        graveyard: p.graveyard,
+        drawnThisTurn: p.drawnThisTurn,
+        leftGraveyardThisTurn: p.leftGraveyardThisTurn,
+        layers: state,
     }));
 }
 
-/** Minimal `TriggerStateView` built from whatever board data a mana-tap
- *  resolution site has on hand, so an ability's own `canActivate` gate (CR
- *  602.5b, issue #947) can be evaluated at every site that enumerates
- *  mana-tap options — including the snapshot-free affordability / auto-tap
- *  planner (`getProducibleManaOptions`), which never threads a full
- *  `GameState`. `battlefields` (when supplied) becomes the view's per-player
- *  permanent list; `life`/`hand` aren't tracked by any battlefields-only
- *  caller so they're zeroed out. Safe today because the only mana ability
- *  declaring `canActivate` (Chrome Mox's imprint gate) reads only
- *  `source.counters`, ignoring `state` entirely — a future mana ability whose
- *  gate genuinely needs life/hand would need real `GameState` threaded to its
- *  call site instead of leaning on this fallback. */
-function minimalManaGateView(
-    battlefields?: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>
+/** The {@link minimalManaGateView} of a whole `GameState`, for a mana-ability
+ *  site holding the state itself. A raw `GameState` is a structurally valid
+ *  `TriggerStateView`, but its instances carry BASE P/T (CR 613.4), so handing
+ *  it to `getActivatedManaAbility` / `hasManaAbility` skips the layers. */
+export function manaGateStateView(state: GameState): TriggerStateView {
+    return minimalManaGateView(manaGateBattlefields(state));
+}
+
+/** The `TriggerStateView` a mana ability's own `canActivate` gate (CR 602.5b) is
+ *  evaluated against, at every site that enumerates mana-tap options — including
+ *  the auto-tap planner (`getProducibleManaOptions`), which holds battlefields
+ *  rather than a `GameState`. Its rows are `buildTriggerStateView`'s rows
+ *  (`gre/triggerStateViewRows.ts`), so a predicate reads the same effective
+ *  characteristics on the server and on the client: P/T through the layer system
+ *  (CR 613.4), `types`/`subtypes` as the layer-4 walk stamped them on the
+ *  instance (CR 613.1d).
+ *
+ *  What stays absent, each failing CLOSED for the only predicate shape that
+ *  would read it:
+ *  - `life` and `hand`, on a hand-built row with no player state (the single-row
+ *    boards `getManaTapOptions` callers without a `GameState` pass), read 0: a
+ *    gate asking for "N or more" stays shut. `manaGateBattlefields` rows and the
+ *    client's rows carry the real values.
+ *  - `lifeGainedThisTurn` reads as nothing gained, so an "if you gained life"
+ *    gate stays shut; no mana ability declares one.
+ *  - `cannotActivateAbilitiesThisTurn` locks only abilities that aren't mana
+ *    abilities (CR 602.1), so a mana gate has no use for it.
+ *  - `enteredThisTurn` / `controlledSinceTurnStart` need the client's `turnState`
+ *    and stay undefined, exactly as `buildTriggerStateView` leaves them without
+ *    one. */
+export function minimalManaGateView(
+    battlefields?: ReadonlyArray<ManaBattlefield>,
+    /** CR 613 — the registry, for a hand-built board. See `manaLayerView`. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): TriggerStateView {
     if (!battlefields) return { players: [] };
+    const layerView = manaLayerView(battlefields, continuousEffects);
+    const pass = beginLayer7Pass(layerView);
     return {
         players: battlefields.map((b) => ({
             id: b.playerId,
-            life: 0,
-            hand: { length: 0 },
-            battlefield: b.battlefield.map((c) => ({
-                id: c.id,
-                controllerId: c.controllerId,
-                ownerId: c.ownerId,
-                types: c.types ?? [],
-                subtypes: c.subtypes ?? [],
-                staticAbilities: c.staticAbilities ?? [],
-                power: c.power,
-                toughness: c.toughness,
-                isTapped: c.isTapped === true,
-            })),
+            life: b.life ?? 0,
+            hand: { length: b.hand?.length ?? 0 },
+            // CR 121.1 / 400.7 — the two per-turn player tallies a CR 603.4
+            // intervening-if reads; forwarded as `buildTriggerStateView` does.
+            ...(b.drawnThisTurn ? { drawnThisTurn: b.drawnThisTurn } : {}),
+            ...(b.leftGraveyardThisTurn !== undefined
+                ? { leftGraveyardThisTurn: b.leftGraveyardThisTurn }
+                : {}),
+            graveyard: (b.graveyard ?? []).map(triggerViewGraveyardCard),
+            battlefield: b.battlefield.map((c) =>
+                triggerViewPermanent(
+                    c,
+                    getEffectivePT(layerView, c as unknown as PermanentView, {
+                        pass,
+                    })
+                )
+            ),
         })),
+        activePlayerId: layerView.activePlayerId,
     };
 }
 
@@ -2415,10 +2454,7 @@ export function manaTapSacrificesSource(
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,
     controllerId?: string,
-    battlefields?: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>,
+    battlefields?: ReadonlyArray<ManaBattlefield>,
     opts?: {
         requireTap?: boolean;
         boardScan?: ManaBoardScan;
@@ -2511,12 +2547,19 @@ export function getManaTapOptionsDetailed(
             // CR 602.5b (issue #947) — an ability whose own `canActivate`
             // precondition is false is not a usable mana-tap option at all
             // (an un-imprinted Chrome Mox has no active mana ability, not
-            // merely one with an empty choice list).
+            // merely one with an empty choice list). `source` carries effective
+            // P/T like every row of the view (CR 613.4), so a gate reading its
+            // own power is as trustworthy as one reading a neighbour's.
             if (
                 ability.canActivate &&
                 !ability.canActivate(
-                    card as unknown as PermanentView,
-                    minimalManaGateView(battlefields)
+                    battlefields
+                        ? withEffectivePT(
+                              card,
+                              manaLayerView(battlefields, continuousEffects)
+                          )
+                        : (card as unknown as PermanentView),
+                    minimalManaGateView(battlefields, continuousEffects)
                 )
             ) {
                 continue;

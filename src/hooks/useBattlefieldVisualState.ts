@@ -16,6 +16,7 @@ import {
     isSkulkBarred,
     isTurnEvasionBarred,
     hasManaAbility,
+    withManaLayers,
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
@@ -165,7 +166,16 @@ export function useBattlefieldVisualState(
         emblems
     );
 
-    // CR 106.1 (issue #1889) — `allPlayers` is also handed to `hasManaAbility`
+    // CR 613.4 — every player with the board's layer input, so the mana helpers
+    // below read the P/T the server's own option list reads.
+    const manaPlayers = withManaLayers(
+        allPlayers,
+        activePlayerId,
+        emblems,
+        continuousEffects
+    );
+
+    // CR 106.1 (issue #1889) — `manaPlayers` is also handed to `hasManaAbility`
     // below, so a source whose CURRENT unified tap option list is empty (an
     // Everflowing Chalice with no charge counters) stops reading as a tappable
     // payment source here, off the same list the server resolves the index
@@ -628,7 +638,7 @@ export function useBattlefieldVisualState(
             isMe &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView, allPlayers) &&
+            !hasManaAbility(card, manaGateView, manaPlayers) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
@@ -640,7 +650,7 @@ export function useBattlefieldVisualState(
                 : pendingCastRemainingGeneric(pendingCast) > 0;
         }
 
-        if (!isMe || !hasManaAbility(card, manaGateView, allPlayers))
+        if (!isMe || !hasManaAbility(card, manaGateView, manaPlayers))
             return false;
         // CR 302.6 — summoning sickness gates an ability whose cost contains
         // the tap (or untap) symbol, and nothing else, so the gate asks
@@ -722,7 +732,7 @@ export function useBattlefieldVisualState(
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const manaSource = hasManaAbility(card, manaGateView, allPlayers);
+        const manaSource = hasManaAbility(card, manaGateView, manaPlayers);
 
         const isValidTarget =
             isSelectingTarget &&

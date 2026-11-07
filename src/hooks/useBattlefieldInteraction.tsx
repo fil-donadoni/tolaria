@@ -34,6 +34,7 @@ import {
     isTapLockedBySummoningSickness,
     manaActivationRequiresTap,
     clickTapsSubstituteForMana,
+    withManaLayers,
     hasManaAbility,
     matchesPermanentFilter,
     pendingCastHasImprovise,
@@ -426,7 +427,16 @@ export function useBattlefieldInteraction(player: Player) {
         emblems
     );
 
-    // CR 106.1 (issue #1889) — `allPlayers` is handed to `hasManaAbility` below
+    // CR 613.4 — every player with the board's layer input, so the mana helpers
+    // below read the P/T the server's own option list reads.
+    const manaPlayers = withManaLayers(
+        allPlayers,
+        activePlayerId,
+        emblems,
+        continuousEffects
+    );
+
+    // CR 106.1 (issue #1889) — `manaPlayers` is handed to `hasManaAbility` below
     // (the same list `getManaChoices` already gets), so this branch agrees with
     // `useBattlefieldVisualState`'s matching gate on a source whose current tap
     // option list is empty (an Everflowing Chalice with no charge counters).
@@ -543,7 +553,7 @@ export function useBattlefieldInteraction(player: Player) {
             matchesPermanentFilter(card, toc.filter, controlContinuity) &&
             // An offer means no mana is owed, so there is no mana tap to prefer.
             (!!pendingActivation?.genericSubstitutionOffer ||
-                !clickTapsSubstituteForMana(card, manaGateView, allPlayers))
+                !clickTapsSubstituteForMana(card, manaGateView, manaPlayers))
         );
     };
 
@@ -808,7 +818,7 @@ export function useBattlefieldInteraction(player: Player) {
             isInPayment &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView, allPlayers) &&
+            !hasManaAbility(card, manaGateView, manaPlayers) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
@@ -841,7 +851,7 @@ export function useBattlefieldInteraction(player: Player) {
                 );
                 return;
             }
-            const choices = getManaChoices(card, allPlayers);
+            const choices = getManaChoices(card, manaPlayers);
             if (choices) {
                 setManaChoiceState({
                     cardId: card.id,
@@ -875,7 +885,7 @@ export function useBattlefieldInteraction(player: Player) {
             }
         } else {
             // Check for mana choices (e.g. Black Lotus) — show picker
-            const choices = getManaChoices(card, allPlayers);
+            const choices = getManaChoices(card, manaPlayers);
             if (choices && !card.isTapped) {
                 // No mouse event here — omit `position` so the picker centres
                 // on screen instead of pinning to the top-left corner.
@@ -940,7 +950,7 @@ export function useBattlefieldInteraction(player: Player) {
             handleClick(card);
             return;
         }
-        const choices = getManaChoices(card, allPlayers);
+        const choices = getManaChoices(card, manaPlayers);
         if (isMe && choices && !card.isTapped && canInteract(card)) {
             setManaChoiceState({
                 cardId: card.id,
@@ -1242,7 +1252,7 @@ export function useBattlefieldInteraction(player: Player) {
                     });
                     return;
                 }
-                const nonTapChoices = getNonTapManaChoices(card, allPlayers);
+                const nonTapChoices = getNonTapManaChoices(card, manaPlayers);
                 if (nonTapChoices) {
                     setManaChoiceState({
                         cardId: card.id,
@@ -1264,7 +1274,7 @@ export function useBattlefieldInteraction(player: Player) {
             }
             // Board-conditional choosers (Fellwar Stone) derive their colours
             // from every player's battlefield, so pass `allPlayers` (CR 106.1).
-            const choices = getManaChoices(card, allPlayers);
+            const choices = getManaChoices(card, manaPlayers);
             if (choices) {
                 setManaChoiceState({
                     cardId: card.id,
@@ -1355,7 +1365,7 @@ export function useBattlefieldInteraction(player: Player) {
                   .find((c) => c.id === manaChoiceState.cardId)
             : undefined;
     const manaChoiceSacrificeFlags = manaChoiceSource
-        ? getManaChoiceSacrificeFlags(manaChoiceSource, allPlayers)
+        ? getManaChoiceSacrificeFlags(manaChoiceSource, manaPlayers)
         : undefined;
 
     // --- Overlays (mana-choice picker + validation toast) ---

@@ -465,6 +465,7 @@ import {
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
+    manaGateStateView,
     resolvePendingTargetKind,
 } from "./gre/constants";
 import type { ManaTapPlanContext } from "./gre/constants";
@@ -1958,7 +1959,7 @@ export function tapSourceIntoPayment(
     // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
     // precondition so an un-imprinted Chrome Mox is treated as having no
     // usable mana ability at all.
-    const ability = getActivatedManaAbility(card, state);
+    const ability = getActivatedManaAbility(card, manaGateStateView(state));
 
     // CR 302.6 — a mana ability paid PURELY by sacrificing the source has no
     // {T} leg and nothing to untap, so "already tapped" — a statement about
@@ -2629,7 +2630,7 @@ function filterCostManaAbilityForTap(
                   ...(choiceIndex !== undefined ? { choiceIndex } : {}),
               }
             : null;
-    const first = getActivatedManaAbility(card, state);
+    const first = getActivatedManaAbility(card, manaGateStateView(state));
     if (
         manaTapTakesChoiceBranch(
             card,
@@ -8575,7 +8576,7 @@ export const tapForPayment = mutation({
             // no usable mana ability at all; reject cleanly rather than
             // falling through to a mana-choice resolution that has nothing
             // to resolve.
-            if (!hasManaAbility(card, state)) {
+            if (!hasManaAbility(card, manaGateStateView(state))) {
                 throw new Error("Card has no mana ability to tap");
             }
             // Issue #1779 review finding 1 — the SHARED per-item tap
@@ -14446,11 +14447,11 @@ export const tapUntap = mutation({
         // precondition so an un-imprinted Chrome Mox (or any source whose
         // mana ability currently fails its gate) reads as having no mana
         // ability at all, not merely one with an empty choice list.
-        if (!hasManaAbility(card, state)) {
+        if (!hasManaAbility(card, manaGateStateView(state))) {
             throw new Error("Card has no mana ability to tap/untap");
         }
 
-        const ability = getActivatedManaAbility(card, state);
+        const ability = getActivatedManaAbility(card, manaGateStateView(state));
         // CR 605.1a / 606 — a NON-tap mana ability whose cost is mana
         // (Farrelite Priest "{1}: Add {W}") has no tap toggle to flip: it can be
         // activated repeatedly and may carry a side effect (a conditional
