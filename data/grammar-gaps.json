@@ -741,6 +741,11 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › a splice card whose text is not one untargeted Effect Script (CR 702.47b)",
+            "issue": 8805
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › layout \"class\" is not in grammar v0 (multi-faced cards)",
             "issue": 8046
         },
@@ -4123,6 +4128,11 @@
             "kind": "hand-tail",
             "key": "Goham Djinn",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Goryo's Vengeance",
+            "issue": 8806
         },
         {
             "kind": "hand-tail",

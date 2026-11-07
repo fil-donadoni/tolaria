@@ -26,6 +26,7 @@ import type {
     ModeSelection,
     SelfCostReduction,
     SpellMode,
+    SpliceAbility,
     TargetRequirement,
     ChapterAbilityDefinition,
 } from "../cards/types";
@@ -58,6 +59,7 @@ import { lowerTriggeredAbility } from "./lowerTriggered";
 import { linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
+import { spliceCardIsSupported } from "../gre/splice";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
@@ -217,6 +219,8 @@ interface Accumulator {
     foretell?: ManaCost;
     /** CR 702.94a — the cost a card revealed for miracle is cast for. */
     miracle?: ManaCost;
+    /** CR 702.47a — the card's splice ability (quality + cost). */
+    splice?: SpliceAbility;
     /** CR 702.96a — the card's overload alternative cost. */
     overload?: AlternativeCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
@@ -995,6 +999,16 @@ function lowerLine(
             if (acc.miracle !== undefined)
                 return "a card declares miracle twice (CR 702.94a)";
             acc.miracle = ir.cost;
+            return null;
+        }
+        case "splice": {
+            if (acc.splice !== undefined)
+                return "a card declares splice on two lines (one splice ability per card definition)";
+            acc.splice = {
+                subtype: ir.subtype,
+                cost: { mana: ir.cost },
+                description: ir.description,
+            };
             return null;
         }
         case "overload": {
@@ -1828,6 +1842,36 @@ export function lowerCard(
     if (acc.echo !== undefined) definition.echo = acc.echo;
     if (acc.cumulativeUpkeep !== undefined)
         definition.cumulativeUpkeep = acc.cumulativeUpkeep;
+    if (acc.splice !== undefined) {
+        const spliced: CompiledDefinition = {
+            ...definition,
+            splice: acc.splice,
+        };
+        if (!isRevealableSpliceCard(spliced))
+            return {
+                ok: false,
+                reason: "a splice card whose text is not one untargeted Effect Script (CR 702.47b)",
+                fragment: card.oracleText,
+            };
+        definition.splice = acc.splice;
+    }
+    // CR 118.6 — "Some objects have no mana cost. This represents an
+    // unpayable cost." The engine reads an absent `manaCost` as {0} at cast
+    // time, so an instant or sorcery with none would compile into a FREE
+    // spell. Instants and sorceries only: a face lowered on its own (a
+    // transform back face, a meld result) has no mana cost and is never cast
+    // from hand, and every such face is a permanent. Checked last, after
+    // every other refusal, so it names only cards that would otherwise compile.
+    if (
+        definition.manaCost === undefined &&
+        (typeLine.types.includes("Instant") ||
+            typeLine.types.includes("Sorcery"))
+    )
+        return {
+            ok: false,
+            reason: "an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}",
+            fragment: card.oracleText,
+        };
 
     return {
         ok: true,
@@ -1835,4 +1879,40 @@ export function lowerCard(
         plannedMechanics: acc.plannedMechanics,
         ungrantableKeywords: acc.ungrantableKeywords,
     };
+}
+
+/**
+ * The fields a revealable splice card's Compiled Definition may carry: its
+ * characteristics, its one Effect Script, and the splice ability itself.
+ *
+ * CR 702.47a adds the card's rules text to the spell it is spliced onto, and
+ * `gre/splice.ts` adds exactly the `effects` list — so any other field the
+ * card's text lowered to (a target, a mode, a trigger, an additional cost) is
+ * text a reveal would be paid for and then not deliver. Listed by what is
+ * ALLOWED rather than by what is not, so a field the lowering learns later is
+ * refused here until someone decides a reveal carries it.
+ */
+const REVEALABLE_SPLICE_FIELDS: ReadonlySet<string> = new Set([
+    "name",
+    "types",
+    "supertypes",
+    "subtypes",
+    "manaCost",
+    "oracleText",
+    "effects",
+    "destroysAllLands",
+    "splice",
+]);
+
+/** CR 702.47b — "You can't choose to use a splice ability if you can't make
+ *  the required choices (targets, etc.) for that card's rules text": is this
+ *  compiled splice card one the engine can reveal end to end? The engine's
+ *  own predicate (`spliceCardIsSupported`) is the authority on the hydrated
+ *  shape; the field allowlist closes the compiled-only fields it never sees. */
+function isRevealableSpliceCard(definition: CompiledDefinition): boolean {
+    return (
+        Object.keys(definition).every((key) =>
+            REVEALABLE_SPLICE_FIELDS.has(key)
+        ) && spliceCardIsSupported(definition as CardDefinition)
+    );
 }
