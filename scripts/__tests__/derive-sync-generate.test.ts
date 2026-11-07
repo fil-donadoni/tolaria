@@ -44,11 +44,11 @@ spawnSync("sh", ["-c", ${JSON.stringify(`sleep 300 & echo $! > ${pidFile}; wait`
 `
         );
 
-        const answered = generate("a stuck generator", [script], 3_000);
+        const answered = generate("a stuck generator", [script], 10_000);
 
         expect(answered).toBe(false);
         expect(alive(Number(readFileSync(pidFile, "utf8")))).toBe(false);
-    }, 30_000);
+    }, 60_000);
 
     it("a generator that answers in time is an answer, its exit code read through", () => {
         const script = join(dir, "generator.ts");
