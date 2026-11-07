@@ -21658,7 +21658,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the cast would only help the opponent. Issue #8394: `pass` kept the mana open, so every later decision below it re-offered the cast and its mean absorbed those lines, and a refit flipped seed 2. The tree and the rollouts now drop the move while the Bot holds no card to put (`ai/oneSidedPut.ts`); the added seeds are the ones that failed before.",
+        note: "Issue #8271 — the cast would only help the opponent. Issue #8394: `pass` kept the mana open, so every later decision below it re-offered the cast and its mean absorbed those lines, and a refit flipped seed 2. The tree and the rollouts now drop the move while the Bot holds no card to put (`ai/oneSidedPut.ts`); the added seeds are the ones that failed before, and seed 2 is the one that took the cast under PUCT (issue #8700) until the drop.",
     },
     {
         label: "cheat into play: activates Sneak Attack at the beginning of combat",
