@@ -20272,6 +20272,7 @@
         {"id":"113.7a","line":"it(\"rebuilds the ability item with the source permanent's own id (CR 113.7a)\", () => {","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — the DESCRIPTOR is what every mana authority","sites":1,"status":"baseline"},
         {"id":"305.7","line":"describe(\"Touch of Darkness (creatures become black EOT, CR 305.7 layer 5)\", () => {","sites":1,"status":"baseline"},
+        {"id":"613.1f","line":"describe(\"pump and grant — Guard A census (CR 613.1f)\", () => {","sites":1,"status":"confirmed","ruleHash":"5989d9ab6130f2aa"},
         {"id":"601.2","line":"* ability is never a mandatory cost (CR 601.2 — the player chose to activate","sites":1,"status":"baseline"},
         {"id":"122.1","line":"describe(\"Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 702.36)\", () => {","sites":1,"status":"baseline"},
         {"id":"701.9","line":"// CR 701.9 / 118.3 (issue #899) — a may-pay discard leg with a real card","sites":2,"status":"baseline"},

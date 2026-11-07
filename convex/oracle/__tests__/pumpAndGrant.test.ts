@@ -10,8 +10,11 @@
 //  2. REFUSALS — the neighbours this rule must NOT read: a keyword LIST
 //     ("flying and first strike") and a keyword CHOICE ("your choice of
 //     deathtouch or lifelink"), each its own form.
+//  3. GUARD A — the granted keyword is censused like a bare grant's: a
+//     `planned` keyword quarantines the card instead of shipping it inert.
 
 import { describe, expect, it } from "vitest";
+import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
@@ -145,5 +148,32 @@ describe("pump and grant — refused neighbours (fail-closed)", () => {
         expect(compileCard(instant(name, manaCost, oracleText)).state).toBe(
             "unparsed"
         );
+    });
+});
+
+describe("pump and grant — Guard A census (CR 613.1f)", () => {
+    it("quarantines a pump that grants a planned keyword", () => {
+        // Read from the registry, not named: whichever keyword is planned
+        // today is the one the census must catch.
+        const planned = MECHANICS_REGISTRY.find(
+            (row) => row.kind === "keyword-ability" && row.status === "planned"
+        )?.name.toLowerCase();
+        expect(planned).toBeDefined();
+        const outcome = compileCard(
+            instant(
+                "Planned Grant",
+                "{R}",
+                `Target creature gets +1/+0 and gains ${planned} until end of turn.`
+            )
+        );
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state === "quarantine")
+            expect(
+                outcome.reasons.some(
+                    (r) =>
+                        r.kind === "planned-mechanic" &&
+                        r.detail.includes(`"${planned}"`)
+                )
+            ).toBe(true);
     });
 });
