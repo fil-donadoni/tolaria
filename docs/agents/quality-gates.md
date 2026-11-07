@@ -1412,6 +1412,11 @@ survive for `check:game-download`, which speaks `check:ui`'s exit contract:
    marker, and the next `release` re-runs the step alone — the store keeps
    the batch GREEN under it (infra never overwrites). Anything else is the
    tree's: `RED`, and `bun run release` reads only `GREEN`.
+3. **Offline gates that passed stay good until the tip changes** (issue #8752).
+   However the browser step ended — `RED`, `infra`, or a run killed inside it —
+   the next `release` on that sha runs the step alone, and batch health's
+   `--retry-infra` has nothing to re-run. A moved tip is a different sha, gated
+   whole.
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check

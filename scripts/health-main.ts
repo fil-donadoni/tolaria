@@ -35,8 +35,8 @@
  * gates from the browser steps. Only `--release` runs the browser steps:
  * after the offline gates, off the heavy mutex (their environment scrubs any
  * hold), in their own worktree. A tip whose offline half already stands GREEN
- * — batch health's record, or the store's — runs ONLY them
- * (`browserStepsOwed`).
+ * — batch health's record, the store's, or a run whose browser step failed
+ * — runs ONLY them (`browserStepsOwed`).
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
@@ -202,7 +202,11 @@ import {
     type Verdict,
 } from "./lib/health-verdict-store";
 import { publishRunMarker } from "./lib/health-pivot";
-import { browserStepsOwed, gateSkipReason } from "./lib/health-gate-skip";
+import {
+    browserStepsOwed,
+    gateSkipReason,
+    infraRetryOwed,
+} from "./lib/health-gate-skip";
 import {
     appendFileSync,
     existsSync,
@@ -1449,10 +1453,14 @@ async function main(): Promise<void> {
     const stored = readStoredVerdict(root, tip);
     const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
     // A tip whose offline half already stands GREEN without its browser
-    // steps — batch health's, here or on the store — owes only them. No
-    // Convex preflight nor machine wait here: both guard ~40 minutes of
-    // gates, and a down backend still ends `infra` on the step's own exit.
-    if (release && browserStepsOwed({ last, tip, stored })) {
+    // steps — batch health's, here or on the store, or a run whose browser
+    // step failed (issue #8752) — owes only them. No Convex preflight nor
+    // machine wait here: both guard ~40 minutes of gates, and a down backend
+    // still ends `infra` on the step's own exit.
+    if (
+        release &&
+        browserStepsOwed({ last, tip, stored, staleMs: STALE_RUNNING_MS })
+    ) {
         console.log(
             `health-main: tip ${tip.slice(0, 8)}'s offline half stands GREEN — running only ${browser.join(", ")}`
         );
@@ -1475,9 +1483,10 @@ async function main(): Promise<void> {
     // tip is re-gated on purpose (issue #4960). The health runner's waiter
     // passes `--retry-infra` (issue #5467): it re-fires only past its own
     // dedup, and an INFRA tip proves nothing — skipping it would leave the
-    // tip unproven until the next landing.
+    // tip unproven until the next landing — unless the INFRA came after the
+    // offline gates passed (`infraRetryOwed`).
     const retryInfra =
-        process.argv.includes("--retry-infra") && last?.status === "infra";
+        process.argv.includes("--retry-infra") && infraRetryOwed(last);
     // A job run is unattended (issue #5645): like the cadence's waiter it
     // re-gates an INFRA only on `--retry-infra`, and never a stored RED.
     const skip =

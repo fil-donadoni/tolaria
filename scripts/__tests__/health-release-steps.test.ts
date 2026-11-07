@@ -6,7 +6,7 @@ import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
 import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
-import { browserStepsOwed } from "../lib/health-gate-skip";
+import { browserStepsOwed, infraRetryOwed } from "../lib/health-gate-skip";
 import { PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
 import { fakeGh, type FakeGh } from "./fake-gh";
 
@@ -254,16 +254,79 @@ describe("browserStepsOwed — when --release runs only the browser steps (issue
         expect(browserStepsOwed({ last: infra, tip })).toBe(false);
     });
 
-    it("a running or RED record about the tip decides on its own", () => {
-        for (const status of ["running", "red"] as const)
+    it("a RED at a browser step keeps the offline half until the tip changes (issue #8752)", () => {
+        const red = { sha: tip, status: "red" as const, startedAt: at };
+        expect(
+            browserStepsOwed({
+                last: { ...red, offline: "green", browser: "red" },
+                tip,
+            })
+        ).toBe(true);
+        // A RED in the offline gates, or a record that names no halves.
+        expect(
+            browserStepsOwed({
+                last: { ...red, offline: "red", browser: "not run" },
+                tip,
+            })
+        ).toBe(false);
+        expect(browserStepsOwed({ last: red, tip })).toBe(false);
+    });
+
+    it("a run that died in its browser step keeps the offline half; a live one is not raced (issue #8752)", () => {
+        const now = Date.parse(at);
+        const running = (ageMs: number, offline?: string) => ({
+            sha: tip,
+            status: "running" as const,
+            startedAt: new Date(now - ageMs).toISOString(),
+            offline,
+        });
+        const staleMs = 1000;
+        const owed = (last: ReturnType<typeof running>) =>
+            browserStepsOwed({ last, tip, now, staleMs });
+        expect(owed(running(staleMs, "green"))).toBe(true);
+        expect(owed(running(staleMs - 1, "green"))).toBe(false);
+        // Died inside the offline gates: nothing was proved.
+        expect(owed(running(staleMs))).toBe(false);
+    });
+
+    it("with no local record, the store's INFRA or RED at a browser step stands for the offline half (issue #8752)", () => {
+        for (const status of ["infra", "red"] as const) {
             expect(
                 browserStepsOwed({
-                    last: { sha: tip, status, startedAt: at, offline: "green" },
+                    last: null,
                     tip,
-                    stored: { sha: tip, status: "green" },
+                    stored: { sha: tip, status, step: "check:game-download" },
                 }),
-                status
+                `${status} at the browser step`
+            ).toBe(true);
+            expect(
+                browserStepsOwed({
+                    last: null,
+                    tip,
+                    stored: { sha: tip, status, step: "test:app" },
+                }),
+                `${status} at an offline step`
             ).toBe(false);
+        }
+        expect(
+            browserStepsOwed({
+                last: null,
+                tip,
+                stored: {
+                    sha: other,
+                    status: "red",
+                    step: "check:game-download",
+                },
+            })
+        ).toBe(false);
+    });
+
+    it("--retry-infra re-gates an INFRA only when the offline gates did not pass (issue #8752)", () => {
+        const infra = { sha: tip, status: "infra" as const, startedAt: at };
+        expect(infraRetryOwed(infra)).toBe(true);
+        expect(infraRetryOwed({ ...infra, offline: "infra" })).toBe(true);
+        expect(infraRetryOwed({ ...infra, offline: "green" })).toBe(false);
+        expect(infraRetryOwed(null)).toBe(false);
     });
 
     it("with no local record about the tip, the store's GREEN stands for the offline half", () => {
@@ -385,6 +448,32 @@ describe("release runs check:game-download, never a check:ui walk (issue #6143)"
         expect(offlineRan()).toBe(false);
         expect(downloadRuns()).toBe(2);
         expect(lastJson()).toMatchObject({ status: "green", browser: "green" });
+    }, 240_000);
+
+    it("a red browser step re-runs alone on the next --release, and its GREEN replaces the RED (issue #8752)", async () => {
+        const red = await release({ exit: 1, output: "over budget" });
+        expect(red.code, red.out).toBe(1);
+        expect(lastJson()).toMatchObject({ status: "red", offline: "green" });
+        expect(offlineRan()).toBe(true);
+        fs.rmSync(path.join(tmp, "offline-ran.txt"));
+        const r = await release({ exit: 0 });
+        expect(r.code, r.out).toBe(0);
+        expect(offlineRan()).toBe(false);
+        expect(downloadRuns()).toBe(2);
+        expect(lastJson()).toMatchObject({ status: "green", browser: "green" });
+    }, 240_000);
+
+    it("a moved tip is a different sha: its --release gates whole (issue #8752)", async () => {
+        const cut = await release({ exit: 2, output: "sign-in failed" });
+        expect(cut.code, cut.out).toBe(1);
+        fs.rmSync(path.join(tmp, "offline-ran.txt"));
+        fs.writeFileSync(path.join(primary, "moved.txt"), "moved\n");
+        git(["add", "moved.txt"], primary);
+        commit("moved");
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+        const r = await release({ exit: 0 });
+        expect(r.code, r.out).toBe(0);
+        expect(offlineRan()).toBe(true);
     }, 240_000);
 
     it("an infra browser step under a standing RED keeps the red record the marker names", async () => {

@@ -572,7 +572,8 @@ function main(): void {
     for (let attempt = 1; promote === null; attempt++) {
         // A RED another machine wrote for this tip is the verdict: re-gating
         // it here would spend a heavy-mutex slot to learn nothing (issue
-        // #5466). A RED from THIS machine is re-gated, as before.
+        // #5466). A RED from THIS machine is re-gated: whole, or only its
+        // browser step when the offline gates had passed (issue #8752).
         const known = readStored(store, sha);
         const foreignRed =
             known?.status === "red" &&
