@@ -161,6 +161,23 @@ describe("subtype-add ends with the departing target (CR 400.7, CR 613.1d)", () 
         expect(findIn(state, "target-a", "hand").subtypes).toEqual(["Swamp"]);
     });
 
+    it.each(DEPARTURES)(
+        "a resolved subtype add does not follow a Swamp to %s",
+        (zone) => {
+            const { state } = makeBoard(blackLotus().id);
+            const onBoard = onBattlefield(state, "target-a");
+            onBoard.subtypeAddHolds = [{ subtype: "Forest", seq: 99 }];
+            syncLayers2to5(state);
+            expect(onBoard.subtypes).toContain("Forest");
+
+            removePermanentTo(state, "target-a", zone);
+
+            const gone = findIn(state, "target-a", zone);
+            expect(gone.subtypes).toEqual(["Swamp"]);
+            expect(gone.subtypeAddHolds).toBeUndefined();
+        }
+    );
+
     it("the projected card reads printed subtypes, the other target its grant", () => {
         const { state } = makeBoard(yavimayaCradleOfGrowth().id);
         removePermanentTo(state, "target-a", "hand");
