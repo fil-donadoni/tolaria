@@ -192,10 +192,10 @@ All of those guards live in the **bot suite**, which `test:app` and an
 3. **Self-play is NOT how you debug a decision** (`feedback_single_scenarios_over_selfplay`).
    A bad pick reproduced in a 200-game run tells you nothing about _why_.
    Reproduce it as one preset scenario + one deterministic unit test.
-4. **The ladder (`src/lib/ai/selfplay/ladder.ts`) is for STRENGTH claims only** —
-   paired-design A/B where control and candidate are two config variants of the
-   same engine, one per seat, in one process, seeded. Use it to answer "is this
-   change stronger?", never "why did it do that?".
+4. **Strength = Held-out Agreement** (PRD issue #3980,
+   `bun run verdicts:pick-agreement`): a claim owes its delta + green `must`.
+   **The ladder (`src/lib/ai/selfplay/ladder.ts`) is an unowed experiment** (ADR
+   0138): by hand, large claim only, never to answer "why did it do that?".
 5. **Decision telemetry** (`decisionTelemetry.ts` + `decisionCorpus.ts`) when
    you need a distribution over many root decisions rather than one verdict.
 
