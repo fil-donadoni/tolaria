@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { DragDropManager } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
@@ -21,6 +21,7 @@ import {
     manualColumnIdForLabel,
     normalizeManualColumnLabel,
     parseColumnId,
+    pinCardToColumn,
     removeColumn,
     renameManualColumn,
     storeZoneLayout,
@@ -60,6 +61,7 @@ import {
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
 import { flyDeckCard } from "./deckCardFly";
+import { detachedZones, offPoolEntryIndex } from "./detachedPoolDeck";
 import { maindeckPaneIdFor } from "./deckPanes";
 import type { DeckZoneSelection } from "./deckZoneSelection";
 import { isCreatureCard } from "./deckZoneFilter";
@@ -165,6 +167,33 @@ function savedWorkingDeck(
     };
 }
 
+/** A saved deck rebuilt from its Deck Pool alone (ADR 0106): no Seat, so its
+ *  Pins are the ones the deck row stores. */
+function detachedWorkingDeck(
+    existingDeck: UserLobbyDeck,
+    pool: readonly LimitedPoolCard[]
+): WorkingDeck {
+    const zones = detachedZones(pool, {
+        cards: existingDeck.cards,
+        sideboard: existingDeck.sideboard ?? [],
+        layout: existingDeck.layout,
+    });
+    return {
+        name: existingDeck.name,
+        format: "limited",
+        cards: toZoneCards(zones.cards),
+        sideboard: toZoneCards(zones.sideboard),
+        layout: existingDeck.layout,
+    };
+}
+
+/** No Seat, no Pool Arrangement: a stable empty one for the detached builder. */
+const NO_ARRANGEMENT: PoolArrangementEntry[] = [];
+
+function withoutEntry(zone: ZoneCard[], index: number): ZoneCard[] {
+    return zone.filter((_, i) => i !== index);
+}
+
 function applySplit(deck: WorkingDeck, split: SideboardSplit): WorkingDeck {
     return { ...deck, cards: split.cards, sideboard: split.sideboard };
 }
@@ -186,10 +215,22 @@ function strippedCard(card: ZoneCard): DeckCard {
           };
 }
 
-interface PoolDeckBuilderFormProps {
+interface PoolDeckBuilderCommonProps {
+    /** The card universe: the Seat's Pool in an event, else the Deck Pool. */
+    pool: readonly LimitedPoolCard[];
+    /** dnd-kit manager, forwarded to the shell. Omitted in the app (the
+     *  provider makes its own); the mounted drag tests inject one so they can
+     *  drive REAL drag operations against the REAL droppable registry — jsdom
+     *  has no layout, so a pointer-driven drag can never resolve a drop target
+     *  there. Same escape hatch `DeckBuilder` carries. */
+    manager?: DragDropManager;
+}
+
+/** Built at a Seat of a live event: the Seat's Pool, its Pool Arrangement. */
+interface SeatBoundPoolBuilderProps extends PoolDeckBuilderCommonProps {
+    detached?: false;
     eventId: Id<"limitedEvents">;
     seatIndex: number;
-    pool: readonly LimitedPoolCard[];
     existingDeck: UserLobbyDeck | null;
     /** Draft vs Sealed — decides the initial working-deck SEED when there's no
      *  saved deck yet: a Draft carries its Pool Arrangement over
@@ -207,13 +248,19 @@ interface PoolDeckBuilderFormProps {
      *  `setPoolArrangementEntry` reflects back reactively AND survives reload
      *  (issue #1575). Empty for a seat nobody has arranged yet. */
     poolArrangement: PoolArrangementEntry[];
-    /** dnd-kit manager, forwarded to the shell. Omitted in the app (the
-     *  provider makes its own); the mounted drag tests inject one so they can
-     *  drive REAL drag operations against the REAL droppable registry — jsdom
-     *  has no layout, so a pointer-driven drag can never resolve a drop target
-     *  there. Same escape hatch `DeckBuilder` carries. */
-    manager?: DragDropManager;
 }
+
+/** A saved deck rebuilt from its Deck Pool, outside any event (ADR 0106): it
+ *  reads and writes no Seat state, and its whole Column Layout, Pins included,
+ *  lives on the deck row. The row already exists, so nothing is ever created. */
+interface DetachedPoolBuilderProps extends PoolDeckBuilderCommonProps {
+    detached: true;
+    existingDeck: UserLobbyDeck;
+}
+
+type PoolDeckBuilderFormProps =
+    | SeatBoundPoolBuilderProps
+    | DetachedPoolBuilderProps;
 
 /**
  * The **Limited** entry point of the unified deckbuilder (ADR 0075 §1, issue
@@ -231,19 +278,20 @@ interface PoolDeckBuilderFormProps {
  *    Pool injected as the `ResolvePool`;
  *  - plus the basics bar and the uncapped Sideboard's copy.
  *
+ * `detached` runs it with no Seat (ADR 0106): the sinks above reduce to the deck
+ * row, legality to the Deck Pool, and a card outside that Pool can be removed.
+ *
  * Everything else — toolbar, zones, split, drag context, legality panel, save
  * bar, autosave — is the shell's and `useDeckWorkspace`'s.
  */
-export default function PoolDeckBuilderForm({
-    eventId,
-    seatIndex,
-    pool,
-    existingDeck,
-    eventType,
-    packSlots,
-    poolArrangement,
-    manager,
-}: PoolDeckBuilderFormProps) {
+export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
+    const { pool, existingDeck, manager } = props;
+    const detached = props.detached === true;
+    const eventId = props.detached ? undefined : props.eventId;
+    const seatIndex = props.detached ? undefined : props.seatIndex;
+    const poolArrangement = props.detached
+        ? NO_ARRANGEMENT
+        : props.poolArrangement;
     const navigate = useNavigate();
     const { create, update } = useUserDeckMutations();
     const { setPoolArrangementEntry } = useLimitedEventMutations();
@@ -265,6 +313,9 @@ export default function PoolDeckBuilderForm({
             const cards = pending.cards.map(strippedCard);
             const sideboard = pending.sideboard.map(strippedCard);
             if (identity === null) {
+                if (eventId === undefined || seatIndex === undefined) {
+                    throw new Error("A Limited deck is created at its Seat.");
+                }
                 const id = await create({
                     name: pending.name,
                     format: "limited",
@@ -301,6 +352,9 @@ export default function PoolDeckBuilderForm({
             initialIdentity: existingDeck?.userDeckId ?? null,
             save,
             initial: () => {
+                if (props.detached) {
+                    return detachedWorkingDeck(props.existingDeck, pool);
+                }
                 if (existingDeck) {
                     return savedWorkingDeck(
                         existingDeck,
@@ -310,12 +364,27 @@ export default function PoolDeckBuilderForm({
                 }
                 // A new deck is named after its Limited Origin (ADR 0106 §6,
                 // issue #5393) — the same derivation the server stores the key by.
-                const name = limitedEventName({ type: eventType, packSlots });
-                return eventType === "draft"
+                const name = limitedEventName({
+                    type: props.eventType,
+                    packSlots: props.packSlots,
+                });
+                return props.eventType === "draft"
                     ? continuousWorkingDeck(pool, poolArrangement, name)
                     : defaultWorkingDeck(pool, name);
             },
         });
+
+    // Pool copies the row did not place were just added to the Sideboard, and
+    // the row stays illegal until that is written (`pool-card-unplaced`): the
+    // deck must not depend on the player making an unrelated edit first.
+    const [savesPlacementOnOpen] = useState(
+        () =>
+            detached &&
+            deck.sideboard.length > (existingDeck?.sideboard?.length ?? 0)
+    );
+    useEffect(() => {
+        if (savesPlacementOnOpen) updateDeck((d) => ({ ...d }));
+    }, [savesPlacementOnOpen, updateDeck]);
 
     /** Removes exactly one copy of a Basic land SUBTYPE from the Maindeck
      *  (issue #1627, PR #2320 review B1/NB1) — shared by a direct tap on a
@@ -362,6 +431,12 @@ export default function PoolDeckBuilderForm({
                 return;
             }
             updateDeck((d) => {
+                const offPool = detached
+                    ? offPoolEntryIndex(d.cards, cardId, pinKey)
+                    : -1;
+                if (offPool >= 0) {
+                    return { ...d, cards: withoutEntry(d.cards, offPool) };
+                }
                 const split = moveToSideboard(
                     { cards: d.cards, sideboard: d.sideboard },
                     cardId,
@@ -370,7 +445,7 @@ export default function PoolDeckBuilderForm({
                 return applySplit(d, split);
             });
         },
-        [updateDeck, handleRemoveBasic, deck.cards]
+        [updateDeck, handleRemoveBasic, deck.cards, detached]
     );
 
     // Sideboard-zone click/drop: always moves the card into the Maindeck
@@ -379,6 +454,15 @@ export default function PoolDeckBuilderForm({
     const handleSideClick = useCallback(
         (cardId: string, pinKey?: string) => {
             updateDeck((d) => {
+                const offPool = detached
+                    ? offPoolEntryIndex(d.sideboard, cardId, pinKey)
+                    : -1;
+                if (offPool >= 0) {
+                    return {
+                        ...d,
+                        sideboard: withoutEntry(d.sideboard, offPool),
+                    };
+                }
                 const split = moveToMaindeck(
                     { cards: d.cards, sideboard: d.sideboard },
                     cardId,
@@ -387,21 +471,23 @@ export default function PoolDeckBuilderForm({
                 return applySplit(d, split);
             });
         },
-        [updateDeck]
+        [updateDeck, detached]
     );
 
     // A CLICK flies the card to the zone it lands in (issue #5395); a drop
     // does not — the card is already under the pointer. The fly is started
-    // BEFORE the move and never defers it (`cardFly.ts`). A Maindeck Basic is
-    // removed, not moved, so it has nowhere to fly.
+    // BEFORE the move and never defers it (`cardFly.ts`). A Maindeck Basic or an
+    // off-Pool card is removed, not moved, so it has nowhere to fly.
     const moveMainToSideboard = useCallback(
         (cardId: string, hint: BasicLandIdentity, pinKey?: string) => {
-            if (basicLandSubtypeOf(cardId, hint) === null) {
+            const offPool =
+                detached && offPoolEntryIndex(deck.cards, cardId, pinKey) >= 0;
+            if (basicLandSubtypeOf(cardId, hint) === null && !offPool) {
                 flyDeckCard("maindeck", "sideboard", pinKey ?? cardId);
             }
             handleMainClick(cardId, pinKey);
         },
-        [handleMainClick]
+        [handleMainClick, detached, deck.cards]
     );
     // With Split creatures on, the Maindeck has a Creatures and a
     // Non-creatures pane (phone portrait): a card landing in a pane that is
@@ -409,15 +495,20 @@ export default function PoolDeckBuilderForm({
     const [splitCreatures] = useSplitCreatures();
     const moveSideToMaindeck = useCallback(
         (cardId: string, pinKey?: string) => {
-            flyDeckCard(
-                "sideboard",
-                "maindeck",
-                pinKey ?? cardId,
-                maindeckPaneIdFor(isCreatureCard(cardId), splitCreatures)
-            );
+            const offPool =
+                detached &&
+                offPoolEntryIndex(deck.sideboard, cardId, pinKey) >= 0;
+            if (!offPool) {
+                flyDeckCard(
+                    "sideboard",
+                    "maindeck",
+                    pinKey ?? cardId,
+                    maindeckPaneIdFor(isCreatureCard(cardId), splitCreatures)
+                );
+            }
             handleSideClick(cardId, pinKey);
         },
-        [handleSideClick, splitCreatures]
+        [handleSideClick, splitCreatures, detached, deck.sideboard]
     );
     const handleMainCardClick = useCallback(
         (card: ZoneCard) => moveMainToSideboard(card.cardId, card, card.pinKey),
@@ -488,7 +579,8 @@ export default function PoolDeckBuilderForm({
     //    LIVE (not just at seed time) so a persisted column drag reflects back
     //    reactively, survives a reload, and carries the draft-phase
     //    arrangement straight over (ADR 0060). Per COPY, so two physical
-    //    copies of one card stay individually placeable.
+    //    copies of one card stay individually placeable. Detached there is no
+    //    Seat: the deck row's own Pins stand, under the same per-copy key.
     //
     // The Sideboard has no Pins of its own — a drop there means "out of the
     // deck", never a Pin. Rebuilt on every change, so there is no separate
@@ -498,6 +590,7 @@ export default function PoolDeckBuilderForm({
             maindeck: mainView,
             sideboard: sideView,
         });
+        if (detached) return base;
         return {
             ...base,
             maindeck: {
@@ -505,7 +598,7 @@ export default function PoolDeckBuilderForm({
                 pins: pinsByPoolIndex(pool, poolArrangement),
             },
         };
-    }, [deck.layout, pool, poolArrangement, mainView, sideView]);
+    }, [deck.layout, pool, poolArrangement, mainView, sideView, detached]);
 
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("maindeck", grouping);
@@ -524,6 +617,35 @@ export default function PoolDeckBuilderForm({
         setSideView((v) => ({ ...v, ordering }));
     }, []);
 
+    // Manual Columns (ADR 0075 §2, issue #1626). They persist on the SEAT'S
+    // DECK ROW, not on the Pool Arrangement: the Arrangement is a per-card
+    // record and a Column is not a card. `includePins: false` is what keeps
+    // the two homes from both claiming the Pins — at a Seat this zone's Pins
+    // are the Arrangement's, merged in at render time only. Detached, the row
+    // is their one home and they are stored with it.
+    const updateMaindeckLayout = useCallback(
+        (edit: (layout: ColumnLayout) => ColumnLayout) => {
+            updateDeck((d) => {
+                const current = fromStoredDeckColumnLayout(d.layout, {
+                    maindeck: mainView,
+                    sideboard: sideView,
+                }).maindeck;
+                const next = edit(current);
+                if (next === current) return d;
+                return {
+                    ...d,
+                    layout: storeZoneLayout(
+                        d.layout,
+                        "maindeck",
+                        next,
+                        detached
+                    ),
+                };
+            });
+        },
+        [updateDeck, mainView, sideView, detached]
+    );
+
     // Column drag: persist the Pin on the seat's Pool Arrangement (the SAME
     // store + mutation the draft Pool uses, ADR 0060), for the COPY that was
     // dragged. The `poolIndex` arrives on the drag payload as the pin key
@@ -537,7 +659,8 @@ export default function PoolDeckBuilderForm({
     // The namespaced Column id travels WHOLE (issue #1624): the mutation's
     // `column` arg speaks the engine's full vocabulary, so a drop onto a
     // `color:`/`type:`/`custom:` Column persists in its own Pin namespace
-    // exactly as an `mv:` drop always has.
+    // exactly as an `mv:` drop always has. Detached there is no Seat to write
+    // to, so the Pin rides the deck row's Column Layout instead.
     const handlePin = useCallback(
         (_cardId: string, columnId: ColumnId, pinKey: string) => {
             // The Catch-All (and grouping `none`'s single Column) carry no
@@ -546,36 +669,19 @@ export default function PoolDeckBuilderForm({
             if (!parseColumnId(columnId)) return;
             const poolIndex = Number(pinKey);
             if (!Number.isInteger(poolIndex)) return;
+            if (eventId === undefined) {
+                updateMaindeckLayout((current) =>
+                    pinCardToColumn(current, pinKey, columnId)
+                );
+                return;
+            }
             void setPoolArrangementEntry({
                 eventId,
                 poolIndex,
                 column: columnId,
             }).catch(() => {});
         },
-        [setPoolArrangementEntry, eventId]
-    );
-
-    // Manual Columns (ADR 0075 §2, issue #1626). They persist on the SEAT'S
-    // DECK ROW, not on the Pool Arrangement: the Arrangement is a per-card
-    // record and a Column is not a card. `includePins: false` is what keeps
-    // the two homes from both claiming the Pins — this zone's Pins are the
-    // Arrangement's, merged in at render time only.
-    const updateMaindeckLayout = useCallback(
-        (edit: (layout: ColumnLayout) => ColumnLayout) => {
-            updateDeck((d) => {
-                const current = fromStoredDeckColumnLayout(d.layout, {
-                    maindeck: mainView,
-                    sideboard: sideView,
-                }).maindeck;
-                const next = edit(current);
-                if (next === current) return d;
-                return {
-                    ...d,
-                    layout: storeZoneLayout(d.layout, "maindeck", next, false),
-                };
-            });
-        },
-        [updateDeck, mainView, sideView]
+        [setPoolArrangementEntry, eventId, updateMaindeckLayout]
     );
 
     const handleAddColumn = useCallback(
@@ -606,19 +712,32 @@ export default function PoolDeckBuilderForm({
         [updateMaindeckLayout]
     );
 
+    // Back to wherever this deck was opened from: its event, or (detached) its
+    // own detail page.
+    const leave = useCallback(() => {
+        if (eventId !== undefined) {
+            void navigate({ to: "/limited/$eventId", params: { eventId } });
+        } else if (existingDeck) {
+            void navigate({
+                to: "/decks/$slug",
+                params: { slug: existingDeck.userDeckId },
+            });
+        }
+    }, [navigate, eventId, existingDeck]);
+
     const handleDone = useCallback(async () => {
         try {
             await flush();
         } catch {
             return; // `saveError` tells the player; the edit stays pending.
         }
-        void navigate({ to: "/limited/$eventId", params: { eventId } });
-    }, [flush, navigate, eventId]);
+        leave();
+    }, [flush, leave]);
 
     const handleLeaveWithoutSaving = useCallback(() => {
         discard();
-        void navigate({ to: "/limited/$eventId", params: { eventId } });
-    }, [discard, navigate, eventId]);
+        leave();
+    }, [discard, leave]);
 
     // The Stats toolbar action (issue #1631): the header's full-size copy
     // and SaveDeckBar's short-viewport-only compact twin (issue #1631
@@ -743,15 +862,13 @@ export default function PoolDeckBuilderForm({
                 {
                     cards: deck.cards,
                     sideboard: deck.sideboard,
-                    limitedEventId: eventId,
-                    limitedSeatId: String(seatIndex),
                 },
                 "limited",
                 printResolver,
                 undefined,
                 () => poolFromLimitedPoolCards(pool)
             ),
-        [deck.cards, deck.sideboard, eventId, seatIndex, pool, printResolver]
+        [deck.cards, deck.sideboard, pool, printResolver]
     );
 
     // A Basic re-arted by the art picker holds a printing the registry does not
@@ -763,8 +880,8 @@ export default function PoolDeckBuilderForm({
 
     return (
         <DeckBuilderShell
-            title="Build Limited Deck"
-            backLabel="← Back to Event"
+            title={detached ? "Edit Limited Deck" : "Build Limited Deck"}
+            backLabel={detached ? "← Back to Deck" : "← Back to Event"}
             onDone={() => void handleDone()}
             saveFailure={
                 saveError === null

@@ -101,6 +101,11 @@ const SURFACES: SurfaceRow[] = [
         requires: ["LoadingScreen", "EmptyState", "ErrorState"],
     },
     {
+        surface: "Pool deck builder (detached from its event)",
+        file: "src/components/deckbuilder/detached-pool-deck-builder.tsx",
+        requires: ["LoadingScreen", "ErrorState"],
+    },
+    {
         surface: "Constructed deck builder",
         file: "src/routes/deck-builder.route.tsx",
         requires: ["LoadingScreen", "ErrorState"],
