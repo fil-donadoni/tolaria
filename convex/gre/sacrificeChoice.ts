@@ -326,33 +326,31 @@ export function autoResolveFungible(
 ): void {
     const used = new Set(sel.picked);
     for (const req of sel.requirements) {
-        // `break`, not `continue`: picks are allocated to requirements GREEDILY
-        // IN ORDER (`countPicksFor`), so pre-filling a LATER requirement while
-        // this one is still empty would mis-allocate those picks to this one.
-        // Producers therefore declare auto-resolvable requirements FIRST
-        // (`buildCostLegsPermanentChoice`), which keeps every historical
-        // single-requirement producer's behaviour identical.
+        // Every stop below is a `break`, never a `continue`: picks are allocated
+        // to requirements GREEDILY IN ORDER (`countPicksFor`), so pre-filling a
+        // LATER requirement while this one still owes picks would charge those
+        // picks to this one: Altar's Reap under Drought would spend the Swamp on
+        // "sacrifice a creature", and either the Swamp leg is then unpayable or
+        // no creature is ever paid (CR 601.2h, partial payments are not allowed
+        // and unpayable costs can't be paid). A later requirement waits for its
+        // turn at the picker, forced or not.
         if (req.explicit) break;
         const need = req.count - countPicksFor(sel, req);
         if (need <= 0) continue;
         const cands = requirementCandidates(state, sel.playerId, req).filter(
             (c) => !used.has(c.id)
         );
-        if (cands.length <= need) {
-            for (const c of cands) {
-                sel.picked.push(c.id);
-                used.add(c.id);
-            }
-            continue;
+        const forced = cands.length <= need;
+        const fungible =
+            new Set(cands.map((c) => identityKey(state, c))).size === 1;
+        // A real choice remains: leave it, and all that follows, for the client.
+        if (!forced && !fungible) break;
+        for (const c of cands.slice(0, need)) {
+            sel.picked.push(c.id);
+            used.add(c.id);
         }
-        const distinct = new Set(cands.map((c) => identityKey(state, c)));
-        if (distinct.size === 1) {
-            for (let i = 0; i < need; i++) {
-                sel.picked.push(cands[i].id);
-                used.add(cands[i].id);
-            }
-        }
-        // else: a real choice remains — leave unresolved for the client.
+        // Too few candidates: this requirement still owes picks.
+        if (cands.length < need) break;
     }
 }
 
