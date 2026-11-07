@@ -399,7 +399,7 @@ export function serializeLockfile(lock: Lockfile): string {
     lines.push(...rowsOf(lock.botGaps));
     lines.push(`    ],`);
     lines.push(`    "cards": [`);
-    lines.push(...rowsOf(lock.cards));
+    lines.push(...spacedRows(lock.cards));
     lines.push(`    ]`);
     lines.push("}");
     return lines.join("\n") + "\n";
@@ -416,6 +416,16 @@ export function rowsOf(rows: readonly unknown[]): string[] {
         (row, i) =>
             `        ${JSON.stringify(row)}${i === rows.length - 1 ? "" : ","}`
     );
+}
+
+/**
+ * {@link rowsOf} with a blank line between rows (ADR 0166). A card row is
+ * edited in place, and `git merge-tree`, the merge GitHub performs, calls two
+ * edits to ADJACENT lines a conflict although neither touches the other's
+ * row. The blank line is the unchanged line that keeps them apart.
+ */
+function spacedRows(rows: readonly unknown[]): string[] {
+    return rowsOf(rows).flatMap((row, i) => (i === 0 ? [row] : ["", row]));
 }
 
 /** Re-indent a `JSON.stringify(x, null, 4)` block that starts mid-line. */
