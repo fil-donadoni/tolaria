@@ -28,16 +28,25 @@ describe("AttackDirectionBanner wording (issue #1762)", () => {
         expect(screen.queryByText(/Click/)).toBeNull();
     });
 
-    it("renders the full longest prompt (planeswalker retarget hint) without truncation, and never mentions 'phase pod'", () => {
-        // Longest of the three concatenated strings in this banner (~135
-        // chars) — the worst-case wrap candidate at a 390px viewport.
+    it("renders the full longest prompt (planeswalker target hint) without truncation, and never mentions 'phase pod'", () => {
+        // Longest of the concatenated strings in this banner — the worst-case
+        // wrap candidate at a 390px viewport.
         const { container } = render(
             <AttackDirectionBanner planeswalkerPresent={true} />
         );
         expect(container.textContent).toContain(
-            "Select an enemy planeswalker to direct your most recent attacker at it — select the attacker again to send it back to the player."
+            "You then choose whether they attack the player or a planeswalker."
         );
         expect(container.textContent).not.toMatch(/phase pod/i);
+        expect(container.textContent).not.toMatch(/click/i);
+    });
+
+    it("asks what the awaiting creatures attack, naming the nameplate and planeswalkers", () => {
+        const { container } = render(
+            <AttackDirectionBanner planeswalkerPresent choosingTarget />
+        );
+        expect(container.textContent).toContain("What do they attack?");
+        expect(container.textContent).toMatch(/planeswalker or the opponent/);
         expect(container.textContent).not.toMatch(/click/i);
     });
 });
