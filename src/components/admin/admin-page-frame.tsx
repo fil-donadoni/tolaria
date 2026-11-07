@@ -15,17 +15,25 @@ export default function AdminPageFrame({
     title,
     description,
     children,
+    wide = false,
 }: {
     title: string;
     description?: string;
     children: ReactNode;
+    /** PROTOTYPE — throwaway: lets a tool page use the desktop width. */
+    wide?: boolean;
 }) {
     useDocumentTitle(title);
 
     return (
         <div className="relative">
             <AmbientPageGround />
-            <div className="relative z-10 mx-auto max-w-6xl px-6 py-8">
+            <div
+                className={
+                    "relative z-10 mx-auto px-6 py-8 " +
+                    (wide ? "max-w-[1680px]" : "max-w-6xl")
+                }
+            >
                 <header>
                     <Link
                         to="/admin"
