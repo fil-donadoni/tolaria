@@ -173,6 +173,7 @@ import { overlayBranchVerdicts } from "./lib/oracle-verdict-overlay";
 import { readCorpus } from "./oracle-corpus";
 import { PACKED_CORPUS_PATH } from "./lib/packed-corpus";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { runBounded } from "./lib/process-tree";
 import { commitOnScratchIndex } from "./lib/commit-tree";
 import { SEARCH_INDEX_PATH } from "./lib/search-index";
 import {
@@ -431,9 +432,10 @@ function openLateIssues(): { number: number; title: string }[] {
     }
 }
 
-/** A refit's wall: the fit and the pins measured ~30 s at load 25 (issue
- *  #7653); a cold worktree pays its module graph once. */
-const REFIT_WALL_MS = 10 * 60_000;
+/** A refit's wall: a median of ~50 s and a p90 of ~3 min over 402 runs of
+ *  `housekeeping.log`, but 1,006 s and 1,157 s at load ~100 (issue #8693): the
+ *  old 10 min killed the only two runs that outgrew it, both of them healthy. */
+const REFIT_WALL_MS = 25 * 60_000;
 
 /** One `bot:refit --check` step's wall inside `--settled`: health kills
  *  the whole predicate at 10 min (`judgeDerivedTip`) and reads the kill as
@@ -451,17 +453,14 @@ function refitLag(): string[] {
     const failed: string[] = [];
     for (const step of refitPlan(["--check"])) {
         const [cmd, ...rest] = step.argv;
-        const r = spawnSync(cmd!, rest, {
+        const r = runBounded(cmd!, rest, {
             cwd: ROOT,
-            encoding: "utf8",
-            maxBuffer: 64 * 1024 * 1024,
             env: { ...process.env, ...step.env },
-            timeout: REFIT_CHECK_STEP_WALL_MS,
-            killSignal: "SIGKILL",
+            timeoutMs: REFIT_CHECK_STEP_WALL_MS,
         });
         if (r.status === 0) continue;
         failed.push(r.status === null ? `${step.id} (no answer)` : step.id);
-        const tail = `${r.stdout ?? ""}${r.stderr ?? ""}`
+        const tail = `${r.stdout}${r.stderr}`
             .trimEnd()
             .split("\n")
             .slice(-15)
@@ -578,17 +577,35 @@ function ensureCorpus(): boolean {
 }
 
 /** One generator, inheriting stdio: its own lines are the log. `signal` is
- *  what the wall sends: SIGKILL reaches the direct child only, so a generator
- *  that re-runs itself under the heavy gate (`oracle:compile`'s sweep,
- *  `lib/heavy-admission.ts`) takes SIGTERM, which it forwards to the gate
- *  and the gate reaps its group — an orphaned sweep would keep the mutex
- *  and write into a tree this run has already moved. */
-function generate(
+ *  what the wall sends. SIGKILL takes the whole tree, seen gone before this
+ *  returns (`runBounded`): killing the direct child alone left `bot:refit`'s
+ *  vitest running, reparented to pid 1, recording pins into a tree this run
+ *  had already put back to HEAD and was about to commit from (issue #8693).
+ *  A generator that re-runs itself under the heavy gate (`oracle:compile`'s
+ *  sweep, `lib/heavy-admission.ts`) takes SIGTERM, which it forwards to the
+ *  gate and the gate reaps its group. */
+export function generate(
     label: string,
     argv: string[],
     wallMs: number = GENERATOR_WALL_MS,
     signal: NodeJS.Signals = "SIGKILL"
 ): boolean {
+    const failure = (exit: number | string | null): boolean => {
+        complain(
+            exit === "wall"
+                ? `${label} gave no answer within ${wallMs / 1000}s`
+                : `${label} failed (exit ${exit ?? "?"})`
+        );
+        return false;
+    };
+    if (signal === "SIGKILL") {
+        const r = runBounded("bun", argv, {
+            cwd: ROOT,
+            stdio: "inherit",
+            timeoutMs: wallMs,
+        });
+        return r.status === 0 || failure(r.timedOut ? "wall" : r.status);
+    }
     const r = spawnSync("bun", argv, {
         cwd: ROOT,
         stdio: "inherit",
@@ -596,13 +613,11 @@ function generate(
         killSignal: signal,
     });
     if (r.status === 0) return true;
-    complain(
-        r.error !== undefined &&
-            (r.error as { code?: string }).code === "ETIMEDOUT"
-            ? `${label} gave no answer within ${wallMs / 1000}s`
-            : `${label} failed (exit ${r.status ?? r.signal ?? "?"})`
+    return failure(
+        (r.error as { code?: string } | undefined)?.code === "ETIMEDOUT"
+            ? "wall"
+            : (r.status ?? r.signal)
     );
-    return false;
 }
 
 /** Each derived path's blob on HEAD beside the blob of the regenerated file. */
