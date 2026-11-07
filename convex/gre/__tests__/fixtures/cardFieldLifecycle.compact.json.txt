@@ -205,7 +205,8 @@
             {
               "colors": [
                 "B"
-              ]
+              ],
+              "seq": 3
             },
             {
               "colors": [
@@ -213,7 +214,8 @@
               ],
               "duration": {
                 "phase": "end-of-turn"
-              }
+              },
+              "seq": 7
             }
           ],
           "sourceTappedPTMods": [
@@ -256,6 +258,7 @@
           "colorOverride": [
             "R"
           ],
+          "colorOverrideSeq": 7,
           "grantedColors": [
             {
               "color": "U",
@@ -683,7 +686,8 @@
         {
           "colors": [
             "B"
-          ]
+          ],
+          "seq": 3
         },
         {
           "colors": [
@@ -691,7 +695,8 @@
           ],
           "duration": {
             "phase": "end-of-turn"
-          }
+          },
+          "seq": 7
         }
       ],
       "sourceTappedPTMods": [
@@ -734,6 +739,7 @@
       "colorOverride": [
         "R"
       ],
+      "colorOverrideSeq": 7,
       "grantedColors": [
         {
           "color": "U",
