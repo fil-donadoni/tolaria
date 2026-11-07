@@ -86,6 +86,7 @@ import {
     hybridCostKey,
     isSpellStackItem,
     normalizedHybridPips,
+    type ManaBattlefield,
 } from "@convex/gre/constants";
 import type {
     CardInstanceState,
@@ -151,7 +152,58 @@ import {
     toPermanentView,
     type LayerPlayersInput,
 } from "./effective-stats";
-import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    type LayerStateView,
+} from "@convex/gre/layers";
+import {
+    triggerViewGraveyardCard,
+    triggerViewPermanent,
+} from "@convex/gre/triggerStateViewRows";
+
+/** A player as the mana helpers below read it. Only `id` and `battlefield` are
+ *  required so a caller holding less can still ask; the rest becomes the real
+ *  player state and layer input of the `canActivate` gate
+ *  (`minimalManaGateView`, CR 602.1b), the same view the server evaluates. */
+export type ManaGatePlayer = {
+    id: string;
+    battlefield: CardInstance[];
+    life?: number;
+    hand?: { readonly length: number };
+    graveyard?: CardInstance[];
+    drawnThisTurn?: ReadonlyArray<string>;
+    leftGraveyardThisTurn?: number;
+    layers?: LayerStateView;
+};
+
+/** The client's twin of `manaGateBattlefields`: every player with the board's
+ *  layer input attached, so each mana helper handed the result reads effective
+ *  P/T (CR 613.4) with emblems and until-boundary entries included, the inputs
+ *  a client player alone does not carry. */
+export function withManaLayers<P extends LayerPlayersInput[number]>(
+    players: readonly P[],
+    activePlayerId: string | undefined,
+    emblems: EmblemInstance[] | undefined,
+    continuousEffects: readonly ContinuousEffect[] | undefined
+): Array<P & { layers: LayerStateView }> {
+    const layers: LayerStateView = {
+        ...toLayerState(players, emblems, continuousEffects),
+        activePlayerId,
+    };
+    return players.map((p) => ({ ...p, layers }));
+}
+
+function toManaBattlefields(
+    players: ReadonlyArray<ManaGatePlayer>
+): ManaBattlefield[] {
+    return players.map((p) => ({
+        ...p,
+        playerId: p.id,
+        battlefield: p.battlefield as unknown as CardInstanceState[],
+        graveyard: p.graveyard as unknown as CardInstanceState[] | undefined,
+    }));
+}
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -536,7 +588,7 @@ function isManaActivationRestricted(
 export function hasManaAbility(
     card: CardInstance,
     stateView?: TriggerStateView,
-    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+    players?: ReadonlyArray<ManaGatePlayer>
 ): boolean {
     // Intrinsic land mana (CR 305.6) is a mana ability too.
     if (isManaActivationRestricted(card, stateView)) return false;
@@ -554,11 +606,7 @@ export function hasManaAbility(
             getManaTapOptions(
                 card as unknown as CardInstanceState,
                 card.controllerId,
-                players.map((p) => ({
-                    playerId: p.id,
-                    battlefield:
-                        p.battlefield as unknown as CardInstanceState[],
-                }))
+                toManaBattlefields(players)
             ).length === 0
         ) {
             return false;
@@ -576,7 +624,7 @@ export function hasManaAbility(
 export function clickTapsSubstituteForMana(
     card: CardInstance,
     stateView?: TriggerStateView,
-    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+    players?: ReadonlyArray<ManaGatePlayer>
 ): boolean {
     if (!hasManaAbility(card, stateView, players)) return false;
     if (isTapLockedBySummoningSickness(card)) return false;
@@ -710,15 +758,12 @@ export function canRefundManaTap(
  *  valid `CardInstanceState` here. */
 export function getManaChoices(
     card: CardInstance,
-    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+    players?: ReadonlyArray<ManaGatePlayer>
 ): ManaCost[] | null {
     const options = getManaTapOptions(
         card as unknown as CardInstanceState,
         card.controllerId,
-        players?.map((p) => ({
-            playerId: p.id,
-            battlefield: p.battlefield as unknown as CardInstanceState[],
-        }))
+        players && toManaBattlefields(players)
     );
     // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability
     // prompts exactly like a printed one, keeping this in lockstep with the
@@ -743,15 +788,12 @@ export function getManaChoices(
  *  it as a bare second amount. */
 export function getManaChoiceSacrificeFlags(
     card: CardInstance,
-    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+    players?: ReadonlyArray<ManaGatePlayer>
 ): boolean[] {
     return getManaTapOptionsDetailed(
         card as unknown as CardInstanceState,
         card.controllerId,
-        players?.map((p) => ({
-            playerId: p.id,
-            battlefield: p.battlefield as unknown as CardInstanceState[],
-        }))
+        players && toManaBattlefields(players)
     ).map((o) => o.sacrificesSource === true);
 }
 
@@ -769,7 +811,7 @@ export function getManaChoiceSacrificeFlags(
  *  613.4 — Vivi's list is derived from her CURRENT effective power). */
 export function getNonTapManaChoices(
     card: CardInstance,
-    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+    players?: ReadonlyArray<ManaGatePlayer>
 ): ManaCost[] | null {
     // POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — the gate matches the
     // effective list `getEffectiveManaChoices` below resolves against, so a
@@ -788,10 +830,7 @@ export function getNonTapManaChoices(
     return getEffectiveManaChoices(
         card as unknown as CardInstanceState,
         card.controllerId,
-        (players ?? []).map((p) => ({
-            playerId: p.id,
-            battlefield: p.battlefield as unknown as CardInstanceState[],
-        }))
+        toManaBattlefields(players ?? [])
     );
 }
 
@@ -1932,17 +1971,9 @@ export function buildTriggerStateView(
             ...(p.leftGraveyardThisTurn !== undefined
                 ? { leftGraveyardThisTurn: p.leftGraveyardThisTurn }
                 : {}),
-            // CR 118.5 — graveyard contents feed the exile-from-graveyard
-            // activation-cost affordability hint (Grim Lavamancer, Night Soil)
-            // in `getStackAbilities`; without it the ability is wrongly hidden.
-            graveyard: (p.graveyard ?? []).map((c) => ({
-                // CR 701.59b — collect evidence prices the pile by mana value,
-                // read off the definition id (`gre/collectEvidence.ts`).
-                card: c.card,
-                id: c.id,
-                ownerId: c.ownerId,
-                types: c.types ?? [],
-            })),
+            graveyard: (p.graveyard ?? []).map((c) =>
+                triggerViewGraveyardCard(c as unknown as CardInstanceState)
+            ),
             battlefield: p.battlefield.map((c) => {
                 // ONE projection per permanent, read by both P/T lookups
                 // below — `toPermanentView` spreads the whole instance, so
@@ -1950,96 +1981,15 @@ export function buildTriggerStateView(
                 // on the board for nothing (issue #3190).
                 const permanentView = toPermanentView(c);
                 return {
-                    id: c.id,
-                    controllerId: c.controllerId,
-                    ownerId: c.ownerId,
-                    types: c.types ?? [],
-                    subtypes: c.subtypes ?? [],
-                    staticAbilities: c.staticAbilities ?? [],
-                    // CR 613.4 — EFFECTIVE P/T, not the instance's base values.
-                    // Counters (layer 7c) and anthems/pump (7d) are applied at
-                    // READ time by the layer system and are never baked into
-                    // `c.power`, so weighing the base value here made the crew
-                    // affordability hint disagree with the server's own
-                    // `getEffectivePower` (a creature pumped over the Crew N
-                    // threshold had the ability hidden; a shrunk one was offered
-                    // and then rejected). Same computation as the server's, via
-                    // the shared client-side layer projection.
-                    power: getEffectivePower(layerState, permanentView),
-                    toughness: getEffectiveToughness(layerState, permanentView),
-                    isTapped: c.isTapped === true,
-                    // CR 702.171b — the saddled designation, for a cost filter
-                    // narrowed by it (none shipped; populated so it never
-                    // fails open).
-                    saddled: c.saddled === true,
-                    // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
-                    // colour clause (Hand of Justice), via the single colour
-                    // authority: layer-5 override SETS, `grantedColors` UNION.
-                    colors: getEffectiveColors(c as unknown as PermanentView),
-                    // CR 702.122b — "crews Vehicles as though its power were N
-                    // greater" (Shorikai's Pilot token) feeds the Crew N
-                    // affordability hint below; without it a board that CAN crew
-                    // only thanks to the bonus would never be offered the ability.
-                    crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
-                    // CR 205.4a — LIVE supertypes, for a `sacrificeFilter`
-                    // activation cost narrowed by supertype (Sunstone / Glacial
-                    // Crevasses / Whiteout's "sacrifice a snow land"). Printed
-                    // supertypes ALONE (`tryGetDefinition(...).supertypes`) missed
-                    // a snow status granted by a `supertype-set` static effect or
-                    // indefinite mutation (Melting / Arcum's Weathervane) — the
-                    // server resolves the cost via `liveSupertypesOf`
-                    // (`activateAbilityOnState`, game.ts), so a Weathervane'd land
-                    // was a dead affordance: the server would activate the
-                    // ability, the client gate would hide it (issue #2235
-                    // review). `liveSupertypesOf` reads `grantedSupertypes`/
-                    // `removedSupertypes`, which cross the wire unchanged
-                    // (`slimCard` only strips `card`/`knownTo`).
-                    supertypes: liveSupertypesOf(c),
-                    // CR 111.5 / 701.21 — token-ness, for a `sacrificeFilter`
-                    // activation cost narrowed by `isToken` (Thopter Foundry's
-                    // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
-                    // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
-                    // persisted/wire field (unlike `supertypes`/`colors` above,
-                    // which need a registry lookup) — read it straight off the
-                    // instance rather than the definition. Omitting this left
-                    // every view entry reading `isToken: undefined`, which
-                    // `matchesPermanentFilter` treats as `false` — silently
-                    // hiding a token-sacrifice ability with tokens on board and
-                    // silently OFFERING a nontoken-only sacrifice ability whose
-                    // only candidates were tokens (issue #1951 review, round 2).
-                    isToken: c.isToken === true,
-                    // CR 508/509 — combat-role filters (a `sacrificeFilter`/
-                    // `tapOtherFilter` scoped to attackers/blockers). Same
-                    // fail-closed-vs-fail-open class as `isToken` above: an
-                    // unpopulated `isAttacking`/`isBlocking` reads as `false`
-                    // regardless of reality (issue #1951 review round 3, MAJOR 5
-                    // — "fix the class, not the field").
-                    isAttacking: c.isAttacking === true,
-                    isBlocking: c.isBlocking === true,
-                    // CR 111 / 707.1 — token provenance, for a `sacrificeFilter`
-                    // scoped to "tokens created with <this>" (Tetravus-style).
-                    // Direct wire field, same as `isToken`, no registry lookup.
-                    createdBy: c.createdBy,
-                    // CR 307.1 / 117.1a — the cast-time snapshot a CR 603.4
-                    // check-time condition reads off the permanent itself
-                    // (Necromancy's "if you cast it any time a sorcery couldn't
-                    // have been cast", issue #2392). Same fail-silent class as
-                    // `isToken`/`isAttacking` above: an unpopulated flag reads
-                    // `undefined`, which every `=== true` condition treats as
-                    // "cast at sorcery speed" — the wrong answer for EVERY
-                    // off-window cast, with nothing to distinguish it from a
-                    // genuine one. `CardInstanceState.castOffSorceryTiming` is a
-                    // real persisted/wire field (`slimCard` only strips
-                    // `card`/`knownTo`), so it is read straight off the instance.
-                    castOffSorceryTiming: c.castOffSorceryTiming === true,
-                    // CR 602.5 — the definition reference and the CR 613.1f
-                    // suppression list an `activation-restriction` scan reads
-                    // to find a Cursed Totem on either battlefield
-                    // (`activationRestrictionViolation`). Both cross the wire
-                    // (`card` slimmed to `{ id }`); dropping them hides the
-                    // lock from every affordance built on this view.
-                    card: c.card,
-                    abilitiesSuppressedBy: c.abilitiesSuppressedBy,
+                    ...triggerViewPermanent(c as unknown as CardInstanceState, {
+                        // Same computation as the server's, via the shared
+                        // client-side layer projection.
+                        power: getEffectivePower(layerState, permanentView),
+                        toughness: getEffectiveToughness(
+                            layerState,
+                            permanentView
+                        ),
+                    }),
                     // CR 400.7 / Keldon Twilight-style continuity filters. Only
                     // meaningful with `turnState` (mirrors `toMatchablePermanent`
                     // exactly); omitted, both stay undefined — fail-closed, same

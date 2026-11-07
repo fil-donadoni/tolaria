@@ -35,11 +35,19 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { manaValue } from "../../../../gre/constants";
+import {
+    getManaTapOptionsDetailed,
+    manaGateBattlefields,
+    manaValue,
+} from "../../../../gre/constants";
+import { buildAutoTapSources } from "../../../../gre/autoTap";
+import type { ContinuousEffect } from "../../../../gre/continuousEffects";
+import type { CardInstanceState } from "../../../../gre/state";
 import {
     abandonPendingPayment,
     activateAbilityOnState,
     buildPendingActivation,
+    tapSourceIntoPayment,
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 
@@ -183,6 +191,204 @@ describe("Malevolent Rumble (CR 401.4 reveal/dig, CR 707.2 token, issue #1531)",
         expect(projectedToken!.subtypes).toEqual(["Eldrazi", "Spawn"]);
         expect(projectedToken!.power).toBe(0);
         expect(projectedToken!.toughness).toBe(1);
+    });
+});
+
+// ===========================================================================
+// Fanatic of Rhonas — Ferocious (CR 613.4 / 602.1b)
+//
+// "Activate only if you control a creature with power 4 or greater" reads the
+// creature's EFFECTIVE power: layer 7 is applied at read time, never baked into
+// the instance. The option list asked directly, with no registry argument, so
+// the board `manaGateBattlefields` builds has to carry it.
+// ===========================================================================
+describe("Fanatic of Rhonas — Ferocious reads effective power (CR 613.4)", () => {
+    const BIG_PRINTED = "f8ac5006-91bd-4803-93da-f87cf196dd2f"; // Serra Angel, 4/4
+    const THREE_THREE = "0ddb98e8-13fe-4786-83f7-b72c56db135a"; // Hill Giant, 3/3
+    const GREEN = { G: 1 };
+    const FEROCIOUS = { G: 4 };
+    const CRUSADE = "057986c7-20c0-4157-b4df-beae4ef5c66d"; // "White creatures get +1/+1."
+
+    function layer7(
+        sublayer: "7b" | "7c" | "7d",
+        payload: ContinuousEffect["payload"],
+        instanceId: string
+    ): ContinuousEffect {
+        return {
+            id: `ce-${sublayer}`,
+            layer: 7,
+            sublayer,
+            timestamp: 10,
+            expiry: { kind: "indefinite", controllerId: "p1" },
+            affected: { kind: "instances", instanceIds: [instanceId] },
+            payload,
+            characteristicDefining: false,
+        } as ContinuousEffect;
+    }
+
+    function board(
+        battlefield: CardInstanceState[],
+        continuousEffects: ContinuousEffect[] = []
+    ) {
+        const fanatic = makeInstance(fanaticOfRhonas.id, { id: "fanatic" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fanatic, ...battlefield] }),
+                makePlayer("p2"),
+            ],
+            continuousEffects,
+        });
+        const options = getManaTapOptionsDetailed(
+            fanatic,
+            "p1",
+            manaGateBattlefields(state)
+        ).map((o) => o.mana);
+        return { state, fanatic, options };
+    }
+
+    it("a printed 4-power creature: both options", () => {
+        const { options } = board([makeInstance(BIG_PRINTED, { id: "angel" })]);
+        expect(options).toEqual([GREEN, FEROCIOUS]);
+    });
+
+    it("a 3/3 with two +1/+1 counters (7c): both options", () => {
+        const { options } = board([
+            makeInstance(THREE_THREE, {
+                id: "giant",
+                counters: { "+1/+1": 2 },
+            }),
+        ]);
+        expect(options).toEqual([GREEN, FEROCIOUS]);
+    });
+
+    it("an anthem-style static effect (7c): both options", () => {
+        // Savannah Lions 2/1, white, under two Crusades.
+        const { options } = board([
+            makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+                id: "lions",
+            }),
+            makeInstance(CRUSADE, { id: "anthem-1" }),
+            makeInstance(CRUSADE, { id: "anthem-2" }),
+        ]);
+        expect(options).toEqual([GREEN, FEROCIOUS]);
+    });
+
+    it("a set-P/T effect (7b): both options", () => {
+        const giant = makeInstance(THREE_THREE, { id: "giant" });
+        const { options } = board(
+            [giant],
+            [layer7("7b", { kind: "pt-set", power: 5 }, giant.id)]
+        );
+        expect(options).toEqual([GREEN, FEROCIOUS]);
+    });
+
+    it("Fanatic itself, switched to 4/1 (7d): both options", () => {
+        const { options } = board(
+            [],
+            [layer7("7d", { kind: "pt-switch" }, "fanatic")]
+        );
+        expect(options).toEqual([GREEN, FEROCIOUS]);
+    });
+
+    it("a printed 4-power creature shrunk below 4 (7c): not offered", () => {
+        const angel = makeInstance(BIG_PRINTED, { id: "angel" });
+        const { options } = board(
+            [angel],
+            [
+                layer7(
+                    "7c",
+                    { kind: "pt-modify", power: -1, toughness: -1 },
+                    angel.id
+                ),
+            ]
+        );
+        expect(options).toEqual([GREEN]);
+    });
+
+    it("a printed 4-power creature set below 4 (7b): not offered", () => {
+        const angel = makeInstance(BIG_PRINTED, { id: "angel" });
+        const { options } = board(
+            [angel],
+            [layer7("7b", { kind: "pt-set", power: 1 }, angel.id)]
+        );
+        expect(options).toEqual([GREEN]);
+    });
+
+    it("an opponent's big creature does not count (CR 109.5)", () => {
+        const fanatic = makeInstance(fanaticOfRhonas.id, { id: "fanatic" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fanatic] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BIG_PRINTED, {
+                            id: "angel",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        expect(
+            getManaTapOptionsDetailed(
+                fanatic,
+                "p1",
+                manaGateBattlefields(state)
+            ).map((o) => o.mana)
+        ).toEqual([GREEN]);
+    });
+
+    it("the server tap adds {G}{G}{G}{G} under a pump and only {G} without one", () => {
+        const giant = makeInstance(THREE_THREE, { id: "giant" });
+        const pumped = board(
+            [giant],
+            [
+                layer7(
+                    "7c",
+                    { kind: "pt-modify", power: 1, toughness: 1 },
+                    giant.id
+                ),
+            ]
+        );
+        tapSourceIntoPayment(
+            pumped.state,
+            pumped.state.players[0]!,
+            pumped.fanatic,
+            1,
+            []
+        );
+        expect(pumped.state.players[0]!.manaPool.G).toBe(4);
+
+        const plain = board([makeInstance(THREE_THREE, { id: "giant" })]);
+        // One option left: a stale index taps for the one it has.
+        tapSourceIntoPayment(
+            plain.state,
+            plain.state.players[0]!,
+            plain.fanatic,
+            1,
+            []
+        );
+        expect(plain.state.players[0]!.manaPool.G).toBe(1);
+    });
+
+    it("the auto-tap planner enumerates the same list as the tap (CR 605.1a)", () => {
+        const giant = makeInstance(THREE_THREE, { id: "giant" });
+        const { state, fanatic, options } = board(
+            [giant],
+            [
+                layer7(
+                    "7c",
+                    { kind: "pt-modify", power: 1, toughness: 1 },
+                    giant.id
+                ),
+            ]
+        );
+        const sources = buildAutoTapSources(
+            state.players[0]!.battlefield,
+            manaGateBattlefields(state)
+        );
+        const source = sources.find((s) => s.cardId === fanatic.id)!;
+        expect(source.options.map((o) => o.mana)).toEqual(options);
     });
 });
 
