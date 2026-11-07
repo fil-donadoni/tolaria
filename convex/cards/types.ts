@@ -2795,10 +2795,7 @@ export type { PermanentFilter, SpellFilter } from "./filters";
 // here, this imports the descriptor shape from there, and neither import
 // survives compilation.
 
-import type {
-    CompiledControlsCondition,
-    CompiledTriggeredAbility,
-} from "./compiledTriggers";
+import type { CompiledTriggeredAbility } from "./compiledTriggers";
 export type {
     CompiledTriggerCondition,
     CompiledTriggeredAbility,
@@ -22910,13 +22907,6 @@ export interface CardDefinition {
         view: LandEntryStateView,
         controllerId: string
     ) => boolean;
-    /** CR 614.1d — the JSON-pure twin of {@link entersTappedUnless} a compiled
-     *  card can carry (a compiled definition holds no closure, ADR 0045): this
-     *  permanent enters tapped unless its would-be controller (CR 109.5)
-     *  controls at least `atLeast` permanents matching `filter`. Read by
-     *  `resolveEntersTapped`, against live supertypes (CR 205.4c). Same timing
-     *  as the predicate: the entering permanent is not on the battlefield yet. */
-    entersTappedUnlessControls?: CompiledControlsCondition;
     /** CR 614.12 land-entry pay-choice (shock lands — Steam Vents "as it
      *  enters, you may pay 2 life; if you don't, it enters tapped"). Unlike
      *  `entersTappedUnless` (a deterministic board predicate), this suspends

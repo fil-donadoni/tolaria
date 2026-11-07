@@ -14956,6 +14956,7 @@
         {"key":"99baec4c8dc4","text":"This land enters tapped unless you control a Swamp or a Forest.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp or a Forest"}},
         {"key":"9147ca0e1580","text":"This land enters tapped unless you control a Swamp or a Mountain.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp or a Mountain"}},
         {"key":"d1fa2d5c3fab","text":"This land enters tapped unless you control a Swamp.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp"}},
+        {"key":"188af6601c9d","text":"This land enters tapped unless you control a basic land.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a basic land"}},
         {"key":"406b7c65aec7","text":"This land enters tapped unless you control a legendary creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a legendary creature"}},
         {"key":"798f2c89f144","text":"This land enters tapped unless you control a legendary green creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a legendary green creature"}},
         {"key":"6c2e7cde37e8","text":"This land enters tapped unless you control a planeswalker.","reason":"no slot consumed the line","cards":10,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a planeswalker"}},
@@ -39281,7 +39282,7 @@
 
         {"oracleId":"22d059fc-4e47-44b5-9e21-4a56f1dff6a7","name":"Explosive Prodigy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9e532b462dab"]},
 
-        {"oracleId":"22d0a848-2126-48f0-9050-38daaf93b1d0","name":"Agna Qel'a","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["choice","discard","draw"],"definition":{"name":"Agna Qel'a","types":["Land"],"oracleText":"This land enters tapped unless you control a basic land.\n{T}: Add {U}.\n{2}{U}, {T}: Draw a card, then discard a card.","activatedAbilities":[{"id":"agna-qel-a-mana","oracleText":"{T}: Add {U}.","cost":{"tap":true},"useStack":false,"manaProduced":{"U":1}},{"id":"agna-qel-a-ability-2","oracleText":"{2}{U}, {T}: Draw a card, then discard a card.","cost":{"mana":{"X":2,"U":1},"tap":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}]}],"entersTappedUnlessControls":{"kind":"controls","filter":{"types":["Land"],"supertypes":["Basic"]},"atLeast":1}},"botReach":"played"},
+        {"oracleId":"22d0a848-2126-48f0-9050-38daaf93b1d0","name":"Agna Qel'a","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["188af6601c9d"]},
 
         {"oracleId":"22d57bc8-e473-47c5-8e48-c0fb98e66948","name":"Protomatter Powder","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["moveZone"],"definition":{"name":"Protomatter Powder","types":["Artifact"],"manaCost":{"X":2,"U":1},"oracleText":"{4}{W}, {T}, Sacrifice this artifact: Return target artifact card from your graveyard to the battlefield.","activatedAbilities":[{"id":"protomatter-powder-ability","oracleText":"{4}{W}, {T}, Sacrifice this artifact: Return target artifact card from your graveyard to the battlefield.","cost":{"mana":{"X":4,"W":1},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"moveZone","target":{"target":0},"to":"battlefield"}],"targetRequirement":{"type":"Artifact","count":1,"zone":"graveyard","controller":"you"}}]},"botReach":"played"},
 
@@ -70939,7 +70940,7 @@
 
         {"oracleId":"957413ae-e756-4afe-886a-b57bf59d5f8d","name":"Feather, Radiant Arbiter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bd43f3558e50"]},
 
-        {"oracleId":"9575d7ce-f26d-4b90-87a3-6329e9799572","name":"Abandoned Air Temple","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["52ead7576b92"]},
+        {"oracleId":"9575d7ce-f26d-4b90-87a3-6329e9799572","name":"Abandoned Air Temple","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["188af6601c9d","52ead7576b92"]},
 
         {"oracleId":"957ba875-b8d4-48e2-bbd7-993694a936f3","name":"Wild Crocodile","state":"unparsed","gaps":["c3b5293eb8ef"]},
 
@@ -81245,7 +81246,7 @@
 
         {"oracleId":"bb9bb65e-504f-4edd-8d47-d0efa03e7d17","name":"Spectral Deluge","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e8851152d614"]},
 
-        {"oracleId":"bb9ce416-eef1-49e8-89a0-2b6837505070","name":"Realm of Koh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["defdbde8e6e8"]},
+        {"oracleId":"bb9ce416-eef1-49e8-89a0-2b6837505070","name":"Realm of Koh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["188af6601c9d","defdbde8e6e8"]},
 
         {"oracleId":"bb9e1d12-ebcc-4a8a-baef-9f69638a51cd","name":"Thoughts of Ruin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e3e096b70aa1"]},
 
@@ -90927,7 +90928,7 @@
 
         {"oracleId":"de1ad369-5aa3-4c54-8fb1-30b7f1d4d542","name":"Rapid Rescue","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8e6efccde420"]},
 
-        {"oracleId":"de1ae205-ca5b-4d26-8194-ca85f1406e53","name":"Ba Sing Se","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5328f62f0e62"]},
+        {"oracleId":"de1ae205-ca5b-4d26-8194-ca85f1406e53","name":"Ba Sing Se","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["188af6601c9d","5328f62f0e62"]},
 
         {"oracleId":"de1ca6ed-b275-4f62-ba05-f31b3659b352","name":"Windgrace's Judgment","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["99cfcce07309"]},
 
@@ -96543,7 +96544,7 @@
 
         {"oracleId":"f1ff7a67-1add-4de1-bc25-62f63626c43a","name":"Catapult Squad","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["afb5689e1170"]},
 
-        {"oracleId":"f2000fb8-39c6-4ad6-a020-5245faaa1eba","name":"Fire Nation Palace","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cfcd816fdfea"]},
+        {"oracleId":"f2000fb8-39c6-4ad6-a020-5245faaa1eba","name":"Fire Nation Palace","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["188af6601c9d","cfcd816fdfea"]},
 
         {"oracleId":"f2025f2e-c931-48dd-af21-8f0a591befb4","name":"Escape from Orthanc","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["bbd3d2e78887"]},
 

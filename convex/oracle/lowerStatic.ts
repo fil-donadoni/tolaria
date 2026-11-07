@@ -58,10 +58,7 @@ import {
     MATERIALISED_FILTER_FIELDS,
     type CompiledStaticEffect,
 } from "../cards/compiledStatics";
-import type {
-    CompiledControlsCondition,
-    CompiledTriggeredAbility,
-} from "../cards/compiledTriggers";
+import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { PERMANENT_TYPES, type FullTextEffect } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
@@ -115,8 +112,6 @@ export interface LoweredStatic {
     readonly entersTapped?: true;
     /** CR 614.12 — the shockland pay-choice (`entersTappedUnlessPay`). */
     readonly entersTappedUnlessPay?: { readonly life: number };
-    /** CR 614.1d — "enters tapped unless you control …" (`entersTappedUnlessControls`). */
-    readonly entersTappedUnlessControls?: CompiledControlsCondition;
     /** CR 722.3a — "This creature enters prepared." */
     readonly entersPrepared?: true;
     /** CR 113.6g — "This spell can't be countered." */
@@ -660,11 +655,6 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: { entersTappedUnlessPay: { life: clause.life } },
-            };
-        case "enters-tapped-unless-controls":
-            return {
-                ok: true,
-                lowered: { entersTappedUnlessControls: clause.condition },
             };
         case "enters-prepared":
             return { ok: true, lowered: { entersPrepared: true } };
