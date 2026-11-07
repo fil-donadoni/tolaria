@@ -952,7 +952,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Sinister Strength",
     "Siren's Call",
     "Skeleton Ship",
-    "Skitter Eel",
     "Skittish Kavu",
     "Skizzik",
     "Skullclamp",

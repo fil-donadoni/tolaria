@@ -12610,6 +12610,65 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.46a — "Adapt N": an `if` gated on the source's own +1/+1
+    // counter count, which the canned smoke generator does not size.
+    {
+        rule: "verb frame",
+        card: {
+            oracleId: "a0cd19c1-9125-4627-83ba-d42c489b4e7d",
+            name: "Aeromunculus",
+            manaCost: "{1}{G}{U}",
+            typeLine: "Creature — Homunculus Mutant",
+            oracleText:
+                "Flying\n{2}{G}{U}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)",
+            power: "2",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Aeromunculus",
+            types: ["Creature"],
+            subtypes: ["Homunculus", "Mutant"],
+            manaCost: { X: 1, U: 1, G: 1 },
+            power: 2,
+            toughness: 3,
+            oracleText:
+                "Flying\n{2}{G}{U}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "aeromunculus-ability",
+                    oracleText: "{2}{G}{U}: Adapt 1.",
+                    cost: { mana: { X: 2, U: 1, G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    counters: {
+                                        of: { ref: "$source" },
+                                        type: "+1/+1",
+                                    },
+                                },
+                                op: "lt",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$source" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 400.3 + CR 401.2 — an own permanent returned to its owner's hand (the chooser's `forEach { set: "bound" }`), and two chosen hand cards put on the bottom of the library behind a ", then" chain (issue #6631).
     {
         rule: "verb frame",

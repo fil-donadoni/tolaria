@@ -479,6 +479,15 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.46a — "Adapt N": if the permanent the ability is printed
+           * on has no +1/+1 counters on it, put N +1/+1 counters on it. A
+           * printed count only.
+           */
+          readonly frame: "adapt";
+          readonly count: number;
+      }
+    | {
+          /**
            * CR 722.3a — "<this permanent> becomes prepared": the permanent the
            * ability is printed on gains the prepared designation. Self only —
            * no printed card prepares another permanent.
@@ -781,6 +790,7 @@ export const VERB_FRAMES: readonly {
     { name: "manifestDread", opens: /^manifest dread\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
+    { name: "adapt", opens: /^adapt \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
     { name: "transform", opens: /^transform \S/i },
     { name: "tapOrUntap", opens: /^you may tap or untap /i },
@@ -933,6 +943,8 @@ const WIN_GAME = "you win the game";
 const MANIFEST_DREAD = "manifest dread";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
 const MONSTROSITY = /^monstrosity (\S+)$/;
+/** CR 701.46a — the keyword action and its count, nothing trailing. */
+const ADAPT = /^adapt (\S+)$/;
 /** CR 701.38a — an OBJECT vote: "a"/"an" and one permanent descriptor. */
 const VOTE_FOR = /^starting with you, each player votes for (an? (.+))$/;
 /** CR 701.38 — the vote's outcome, as the sentence after it names it. */
@@ -2196,6 +2208,14 @@ function readMember(
                 refused: `"${member}" — only a printed count is read ("Monstrosity X" names its X elsewhere)`,
             };
         return { frames: [{ frame: "monstrosity", count }], referent };
+    }
+    if (opensFrame("adapt", lower)) {
+        const count = readNumberWord(lower.match(ADAPT)![1]!);
+        if (count === null)
+            return {
+                refused: `"${member}" — only a printed count is read`,
+            };
+        return { frames: [{ frame: "adapt", count }], referent };
     }
     if (opensFrame("becomePrepared", lower)) {
         const subject = lower.match(BECOMES_PREPARED)![1]!;
