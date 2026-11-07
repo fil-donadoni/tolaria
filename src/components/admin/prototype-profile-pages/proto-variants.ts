@@ -3,6 +3,7 @@ export const PROTO_VARIANTS = [
     { key: "A", name: "Workbench — rail · table · inspector" },
     { key: "B", name: "Sweep board — one catalogue row at a time" },
     { key: "C", name: "Focus — one card, queue below" },
+    { key: "D", name: "Workbench + focus dialog, collapsible rail" },
 ] as const;
 
 export type ProtoVariantKey = (typeof PROTO_VARIANTS)[number]["key"];

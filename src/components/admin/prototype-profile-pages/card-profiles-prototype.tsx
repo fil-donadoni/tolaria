@@ -11,6 +11,7 @@ import { toProtoCard, type ProtoCard, type ProtoProfile } from "./proto-data";
 import ProfilesVariantAWorkbench from "./profiles-variant-a-workbench";
 import ProfilesVariantBSweep from "./profiles-variant-b-sweep";
 import ProfilesVariantCFocus from "./profiles-variant-c-focus";
+import ProfilesVariantDDialog from "./profiles-variant-d-dialog";
 
 export interface ProfilesProtoApi {
     scopes: { setCode: string; label: string }[];
@@ -128,6 +129,7 @@ export default function CardProfilesPrototype() {
         <>
             {variant === "A" && <ProfilesVariantAWorkbench api={api} />}
             {variant === "B" && <ProfilesVariantBSweep api={api} />}
+            {variant === "D" && <ProfilesVariantDDialog api={api} />}
             {variant === "C" && <ProfilesVariantCFocus api={api} />}
             <PrototypeSwitcher
                 variants={[...PROTO_VARIANTS]}

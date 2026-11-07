@@ -9,6 +9,7 @@ import { toProtoRatingCard, type ProtoRatingCard } from "./proto-data";
 import RatingsVariantAWorkbench from "./ratings-variant-a-workbench";
 import RatingsVariantBTiers from "./ratings-variant-b-tiers";
 import RatingsVariantCFocus from "./ratings-variant-c-focus";
+import RatingsVariantDDialog from "./ratings-variant-d-dialog";
 
 export interface RatingsProtoApi {
     scopes: { setCode: string; label: string }[];
@@ -84,6 +85,7 @@ export default function PickRatingsPrototype() {
         <>
             {variant === "A" && <RatingsVariantAWorkbench api={api} />}
             {variant === "B" && <RatingsVariantBTiers api={api} />}
+            {variant === "D" && <RatingsVariantDDialog api={api} />}
             {variant === "C" && <RatingsVariantCFocus api={api} />}
             <PrototypeSwitcher
                 variants={[...PROTO_VARIANTS]}

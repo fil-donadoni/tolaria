@@ -301,7 +301,7 @@ export default function ProfilesVariantAWorkbench({
     );
 }
 
-function RailGroup({
+export function RailGroup({
     title,
     rows,
     active,
@@ -489,7 +489,7 @@ function Inspector({
     );
 }
 
-function ChipGroup({
+export function ChipGroup({
     legend,
     ids,
     value,
