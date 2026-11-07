@@ -150,6 +150,8 @@ export function advancePendingTargetGroup(
     recordModeTargetGroup(pt, pt.selected.length);
     pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
     pt.remainingRequirements = rest.length > 0 ? rest : undefined;
+    // CR 115.7d — what the next group may leave unchanged.
+    pt.keepableTargetGroups = pt.keepableTargetGroups?.slice(1);
     // ADR 0094 — with several mode instances, the earlier picks a group
     // sees are its own instance's: the slots its script reads at
     // resolution.
@@ -174,6 +176,15 @@ export function advancePendingTargetGroup(
         instancePrior,
         triggerLegality?.sourcePower
     );
+    // CR 115.7d / ADR 0094 — a retarget, or a walk over mode instances, holds
+    // each group to the number of targets it has: the spans must still cover
+    // the list at resolution.
+    if (
+        pt.keepableTargetGroups &&
+        (pt.kind === "retarget" || pt.groupModeInstances)
+    ) {
+        pt.count = pt.keepableTargetGroups[0]?.length ?? 0;
+    }
     // CR 601.2c — one announcement, one set of targets: a requirement the
     // earlier groups left unobeyed follows the walk into this one, and the
     // ids it narrows to are this group's, not the previous group's.

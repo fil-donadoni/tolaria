@@ -54,6 +54,11 @@ import {
 import { resolvePendingTargetKind } from "./constants";
 import { advancePendingTargetGroup } from "./targetGroupWalk";
 import { writeFinalModeSpans } from "./modeSelection";
+import { findPermanent } from "./lookup";
+import {
+    isAlreadySelectedTarget,
+    siblingControllerIdFor,
+} from "./targetFilters";
 
 /** Whether the player who owes a `PendingTarget` opened it themselves
  *  (`"announced"`) or the engine opened it at them (`"raised"`). */
@@ -352,6 +357,64 @@ function emitNewlyTargeted(
     );
 }
 
+/** CR 115.7d — would a new target the player already chose make `kept` illegal?
+ *  Only the constraints that read a sibling can: "another target" (CR 115.3,
+ *  lowered to `excludeInstanceIds`), a graveyard named by an earlier pick
+ *  (`zoneOwnerId`), and "same controller" within the group. */
+function newTargetsBreakKept(
+    state: GameState,
+    pt: PendingTarget,
+    kept: TargetSelection,
+    newInGroup: readonly TargetSelection[]
+): boolean {
+    if (pt.excludeInstanceIds?.includes(kept.id)) return true;
+    if (
+        kept.type === "graveyard-card" &&
+        pt.zoneOwnerId !== undefined &&
+        kept.playerId !== pt.zoneOwnerId
+    ) {
+        return true;
+    }
+    const sibling = siblingControllerIdFor(
+        state,
+        pt.sameController,
+        newInGroup
+    );
+    if (sibling === undefined) return false;
+    const controller =
+        kept.type === "graveyard-card"
+            ? kept.playerId
+            : kept.type === "permanent"
+              ? findPermanent(state, kept.id)?.controllerId
+              : undefined;
+    return controller !== undefined && controller !== sibling;
+}
+
+/** CR 115.7d / 707.10c — the current targets the pick being made may leave
+ *  unchanged, "even if those targets would be illegal": they bypass legality,
+ *  not the rule's last clause, that new targets "must not cause any unchanged
+ *  targets to become illegal". An object may stay only in its own group, once.
+ *
+ *  SINGLE AUTHORITY: the accepted set (`applyOneTargetSelection`) and the
+ *  offered sets (`legalActions`, `enumerateRaisedTargetMoves`) all read this. */
+export function keepableTargets(
+    state: GameState,
+    pt: PendingTarget
+): TargetSelection[] {
+    const group = pt.keepableTargetGroups?.[0];
+    if (!group) return [];
+    const original =
+        state.stack.find((s) => s.id === pt.cardInstanceId)?.targets ?? [];
+    const isNew = (t: TargetSelection) => !isAlreadySelectedTarget(t, original);
+    const anyNew = [...(pt.priorSelected ?? []), ...pt.selected].some(isNew);
+    const newInGroup = pt.selected.filter(isNew);
+    return group.filter(
+        (t) =>
+            !isAlreadySelectedTarget(t, pt.selected) &&
+            !(anyNew && newTargetsBreakKept(state, pt, t, newInGroup))
+    );
+}
+
 /** The player answered, or declined, a `"copy-retarget"` / `"retarget"` offer.
  *  CR 707.10c — the next copy of the same resolution is answered before anyone
  *  receives priority. Otherwise the resolving effect has finished, so a fresh
@@ -406,6 +469,7 @@ export function applyRaisedTargetFinalization(
         if (copy) {
             emitNewlyTargeted(state, copy, targets);
             copy.targets = targets;
+            writeFinalModeSpans(copy, pt); // ADR 0094
             // CR 608.2b (issue #2985) — new targets, so any earlier
             // illegal-slot verdict is void.
             delete copy.illegalTargetSlots;
@@ -434,6 +498,7 @@ export function applyRaisedTargetFinalization(
             }
             emitNewlyTargeted(state, spell, targets);
             spell.targets = targets;
+            writeFinalModeSpans(spell, pt); // ADR 0094
             // CR 608.2b (issue #2985) — see the copy branch above.
             delete spell.illegalTargetSlots;
         }
