@@ -467,6 +467,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "the metagame import's fetch pin (`fetchedAt`)",
     },
     {
+        pattern: "data/combos/corpus.json",
+        kind: "not-offline",
+        why: "the explicit Commander Spellbook import downloads its bulk export (ADR 0164 § 1)",
+    },
+    {
         pattern: "data/cr/VERSION.json",
         kind: "not-offline",
         why: "`cr:sync` downloads the Comprehensive Rules (ADR 0098)",
@@ -480,6 +485,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         pattern: "data/verdicts.lock.json",
         kind: "not-offline",
         why: "`verdicts:promote` derives it from self-play and blade runs",
+    },
+    {
+        pattern: "data/combos/README.md",
+        kind: "human-input",
+        why: "prose a person wrote: the corpus's credit and usage terms",
     },
     {
         pattern: "data/oracle-retirements.json",
