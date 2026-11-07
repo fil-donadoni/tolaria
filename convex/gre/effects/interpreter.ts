@@ -6450,7 +6450,16 @@ export const OP_EXECUTORS: {
     // on resolution: false, or no counterpart, exiles nothing. A token copy
     // passes it (a token has an owner), which is how CR 701.42c's exile-and-stay
     // case is reached, inside the primitive.
+    //
+    // CR 614.12a / ADR 0100 D5 — REPLAY SAFETY. An `entersAttacking` entry parks
+    // on the CR 508.4 `attack-target` choice and the resume re-executes this Op.
+    // The melded permanent then passes the gate above as the holder again, so
+    // without the done-marker a second counterpart on the board would be melded
+    // with it. Written after the primitive, never before: a replay of the
+    // `meld-partner` pick has not melded yet.
     meld(ctx, op) {
+        const doneKey = `#meld:${ctx.getScriptCheckpoint() ?? 0}`;
+        if (ctx.recallChoice(doneKey) !== undefined) return;
         const holder = ctx.sourceInstanceId;
         if (holder === undefined) return;
         const you = ctx.controller;
@@ -6481,7 +6490,11 @@ export const OP_EXECUTORS: {
             if (picks[0] === undefined) return;
             partner = picks[0];
         }
-        ctx.meldPermanents(holder, partner);
+        ctx.meldPermanents(holder, partner, {
+            entersTapped: op.entersTapped,
+            entersAttacking: op.entersAttacking,
+        });
+        ctx.noteChoice(doneKey, [holder]);
     },
     // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
     // skin over the single SpellContext primitive `createToken`, ONE execution

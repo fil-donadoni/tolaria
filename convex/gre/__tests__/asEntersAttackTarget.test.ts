@@ -328,6 +328,23 @@ describe("CR 508.4 — a token entering attacking chooses what it attacks (issue
     });
 });
 
+describe("CR 506.3a — a noncreature token entering attacking", () => {
+    it("enters, owes no choice, and is never an attacking permanent", () => {
+        const state = combatWithScript(MAKE_ONE, [planeswalker("pw-1", "p2")]);
+        state.stack.pop();
+        const [id] = createTokenPermanents(
+            state,
+            { name: "Relic", types: ["Artifact"], entersAttacking: true },
+            "p1"
+        );
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const token = tokensOf(state, "p1").find((t) => t.id === id)!;
+        expect(token.isAttacking).toBeFalsy();
+        expect(state.combat!.attackerIds).toEqual(["atk1"]);
+    });
+});
+
 describe("CR 508.4a / 506.3c — joinCombatAttacking refuses a defender that is no longer legal", () => {
     function enteringToken(stamp: string): CardInstanceState {
         const token = makeInstance(grizzlyBears().id, {

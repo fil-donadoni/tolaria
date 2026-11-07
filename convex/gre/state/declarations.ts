@@ -14,6 +14,7 @@ import type { PlayLandFace } from "../../cards/modalDfc";
 import type { SplitHalfSide } from "../../cards/splitCard";
 import type {
     AsEntersChoice,
+    AuthoredEntryState,
     CardSupertype,
     CardType,
     Color,
@@ -6238,11 +6239,13 @@ export interface StagedEntry {
      *  (`createTokenPermanents`'s per-token loop body after the chokepoint),
      *  which cannot be re-derived from the instance alone. JSON-pure so the
      *  staged entry survives the DB round-trip. */
-    tokenEntry?: {
+    tokenEntry?: AuthoredEntryState & {
         entryCounters?: Record<string, number>;
-        entersTapped?: boolean;
-        entersAttacking?: boolean;
     };
+    /** CR 508.4 — `origin: "effect"` only: the putting effect's "tapped and
+     *  attacking" (a melded permanent), part of HOW it enters, so it rides the
+     *  park to the deferred tail like `entryCounters`. */
+    authoredEntry?: AuthoredEntryState;
     /** `origin: "play"` only (issue #2672) — where the played land was lifted
      *  from, so the entry tail can put it back and replay the play from that
      *  zone. `sourcePlayerId` names the player whose zone held it: the player
