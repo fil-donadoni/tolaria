@@ -178,9 +178,12 @@ describe("RandomRevealOverlay (#301)", () => {
             expect(getByTestId("coin-anim").textContent).toBe(
                 "You win the flip"
             );
+            act(() => {
+                vi.advanceTimersByTime(REVEAL_FINAL_HOLD_MS - 1);
+            });
             expect(submitRandomRevealAck).not.toHaveBeenCalled();
             act(() => {
-                vi.advanceTimersByTime(REVEAL_FINAL_HOLD_MS);
+                vi.advanceTimersByTime(1);
             });
             expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
             expect(submitRandomRevealAck).toHaveBeenCalledWith({
@@ -294,6 +297,8 @@ describe("RandomRevealOverlay (#301)", () => {
         expect(getByTestId("coin-anim").getAttribute("data-skipped")).toBe(
             "true"
         );
+        // A second click on the landed result still never acks for a viewer.
+        fireEvent.click(getByTestId("random-reveal-overlay"));
         expect(submitRandomRevealAck).not.toHaveBeenCalled();
     });
 });
