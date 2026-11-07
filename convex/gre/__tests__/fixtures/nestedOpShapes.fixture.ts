@@ -91,26 +91,6 @@ export const NESTING_SHAPES: readonly NestingShape[] = [
         }),
     },
     {
-        label: "coinFlipSync.win",
-        hostOp: "coinFlipSync",
-        key: "win",
-        nest: (inner) => ({
-            op: "coinFlipSync",
-            win: { consequence: "Win", effects: inner },
-            loss: { consequence: "Lose", effects: [] },
-        }),
-    },
-    {
-        label: "coinFlipSync.loss",
-        hostOp: "coinFlipSync",
-        key: "loss",
-        nest: (inner) => ({
-            op: "coinFlipSync",
-            win: { consequence: "Win", effects: [] },
-            loss: { consequence: "Lose", effects: inner },
-        }),
-    },
-    {
         label: "delayedTrigger.effects",
         hostOp: "delayedTrigger",
         key: "effects",

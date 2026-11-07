@@ -2091,21 +2091,10 @@ const SCENARIO_SKIPS = {
         code: "suspends-for-input",
         reason: `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`,
     },
-    // CR 705 (issue #1281) — a synchronous coin flip draws a RANDOM
-    // bit from the seeded PRNG; unlike `coinFlip` it never suspends,
-    // but the outcome is still non-deterministic across seeds — a
-    // canned generator run has no fixed seed to assert a specific
-    // branch against. Explicit skip — the flip and both branches are
-    // covered by the Op's own interpreter tests (per-Op regime;
-    // mirrors the `coinFlip` skip above, minus the suspend reasoning).
-    coinFlipSync: {
-        code: "randomness",
-        reason: `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`,
-    },
     // CR 705 (issue #3813, ADR 0144) — a series of RANDOM bits from the
     // seeded PRNG; the number of flips, and so every count it binds,
     // differs across seeds, so a canned run has no fixed outcome to
-    // assert. Explicit skip, the `coinFlipSync` reasoning — the series
+    // assert. Explicit skip, the `coinFlip` reasoning — the series
     // and its bindings are covered by the Op's own interpreter tests.
     coinFlipSeries: {
         code: "randomness",

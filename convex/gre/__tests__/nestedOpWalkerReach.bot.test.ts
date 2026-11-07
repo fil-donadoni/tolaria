@@ -140,7 +140,7 @@ const WITHOUT_TRIGGER_BODIES = ALL.filter(
 describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)", () => {
     // The first commit of this file pinned the reach sets BEFORE the walkers
     // were unified — the proof they disagreed: the token catalogue missed
-    // `coinFlipSync`, `reflexiveTrigger` and `divideIntoPiles`; beneficence
+    // `reflexiveTrigger` and `divideIntoPiles`; beneficence
     // and both ability-timing predicates missed `delayedTrigger`,
     // `reflexiveTrigger` and `divideIntoPiles`.
     it("every walker reaches every nesting shape", () => {
@@ -183,7 +183,6 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             | "forEach"
             | "optionChoice"
             | "coinFlip"
-            | "coinFlipSync"
             | "delayedTrigger"
             | "reflexiveTrigger"
             | "divideIntoPiles"
@@ -193,7 +192,6 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             "forEach",
             "optionChoice",
             "coinFlip",
-            "coinFlipSync",
             "delayedTrigger",
             "reflexiveTrigger",
             "divideIntoPiles",

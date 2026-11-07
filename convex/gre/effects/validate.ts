@@ -3820,8 +3820,7 @@ function isModeList(value: unknown): boolean {
     });
 }
 
-/** A `coinFlip` / `coinFlipSync` Op's `win` / `loss` branch (issue #851 /
- *  #1281, shared shape) — SHAPE only: `{ consequence: <non-empty string>,
+/** A `coinFlip` Op's `win` / `loss` branch (issue #851) — SHAPE only: `{ consequence: <non-empty string>,
  *  effects: <Op list> }`. `effects` MAY be the empty list — a deliberate
  *  no-op branch (issue #1367): a card whose flip only does something on ONE
  *  outcome (Mana Crypt — "if you LOSE, deal 3 damage", the win branch does
@@ -5774,19 +5773,6 @@ const OP_SCHEMAS: OpSchemaTable = {
     // optionChoice mode); `player` (optional) names the flipping player (default
     // the resolving controller).
     coinFlip: {
-        required: {
-            win: isCoinFlipBranch,
-            loss: isCoinFlipBranch,
-        },
-        optional: { player: isPlayerRef },
-    },
-    // CR 705 (issue #1281) — flip a coin INLINE, no reveal-ack suspension
-    // (the synchronous sibling of `coinFlip`). Same shape as `coinFlip`: `win`
-    // / `loss` are each `{ consequence, effects }` (SHAPE checked here; each
-    // branch's Op-list validity is checked by the recursive branch pass);
-    // `player` (optional) names the flipping player (default the resolving
-    // controller).
-    coinFlipSync: {
         required: {
             win: isCoinFlipBranch,
             loss: isCoinFlipBranch,
@@ -9122,12 +9108,12 @@ function checkOpListRefs(
             });
         }
 
-        // Recurse into each `coinFlip` / `coinFlipSync` branch with a CLONED
-        // scope (issue #851 / #1281): a branch sees the bindings declared
+        // Recurse into each `coinFlip` branch with a CLONED
+        // scope (issue #851): a branch sees the bindings declared
         // BEFORE the flip, but a branch-local `bind` does not leak past it
         // (only one branch runs — like an `if` branch / optionChoice mode,
         // CR 705).
-        if (entry.op === "coinFlip" || entry.op === "coinFlipSync") {
+        if (entry.op === "coinFlip") {
             for (const key of ["win", "loss"] as const) {
                 const branch = entry[key] as { effects?: unknown } | undefined;
                 if (branch && Array.isArray(branch.effects)) {
@@ -9787,11 +9773,10 @@ function validateOpSchema(
             }
         });
     }
-    // Recurse into each `coinFlip` / `coinFlipSync` branch's body (issue #851 /
-    // #1281) — win / loss are nested Op lists validated at their own paths,
+    // Recurse into each `coinFlip` branch's body (issue #851) — win / loss are nested Op lists validated at their own paths,
     // exactly like an optionChoice mode. `inForEach` / `inDelayed` thread
     // through so nesting bans still apply.
-    if (entry.op === "coinFlip" || entry.op === "coinFlipSync") {
+    if (entry.op === "coinFlip") {
         for (const key of ["win", "loss"] as const) {
             const branch = entry[key] as { effects?: unknown } | undefined;
             if (branch && Array.isArray(branch.effects)) {

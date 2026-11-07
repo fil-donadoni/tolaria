@@ -8,11 +8,6 @@
             "issue": 5186
         },
         {
-            "key": "(op) › coinFlipSync",
-            "op": "coinFlipSync",
-            "issue": 4537
-        },
-        {
             "key": "(op) › extraCombat",
             "op": "extraCombat",
             "issue": 4535

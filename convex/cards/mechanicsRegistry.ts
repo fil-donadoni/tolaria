@@ -3965,21 +3965,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "705.2",
         binding: "SpellContext.requestCoinFlip",
-        note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023: `requestFlipSequence` as a sequence of one), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll, CR 608.3). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only — and the DEFAULT for every coin-flip card, because this is the Op the client animates. Goblin Artisans briefly used the sibling `coinFlipSync` (issue #1281) and lost its animation as a result; it is back on this Op. The TRUE repeat-until-lose / doubling-stake loop cards (Mana Clash, Game of Chaos) are still NOT folded by either coinFlip Op: they need an unbounded loop + arithmetic value the frozen grammar does not carry, so they stay resolve() until demanded. Note Mijae Djinn / Ydwen Efreet use THIS same `requestCoinFlip` primitive (not a separate synchronous flip) yet remain resolve() for an unrelated reason — they are blocked on combat-manipulation Ops (removeFromCombat / unblock), not on the coin flip. A branch's `effects` MAY be empty (issue #1367) — a deliberate no-op for a flip that only does something on ONE outcome (Mana Crypt — 'if you LOSE, deal 3 damage', win branch does nothing); before this relaxation the only workaround was padding the otherwise-empty branch with a placeholder Op (Chaotic Strike's unconditional draw riding in both branches, `inv/red.ts`, left as-is — retiring that workaround is a separate, behaviour-sensitive cleanup).",
-    },
-    {
-        op: "coinFlipSync",
-        status: "implemented",
-        cr: "705.2",
-        binding: "SpellContext.flipCoin",
-        note: "Flip a coin INLINE with no reveal-ack suspension (issue #1281) — the synchronous sibling of `coinFlip`. A thin declarative skin over the single SpellContext primitive `flipCoin` (the SAME seeded-PRNG bit `requestCoinFlip` draws internally — no new random source; this Op only skips `requestCoinFlip`'s ADR 0023 reveal-overlay suspend), one execution path (ADR 0045): the bit is drawn and the matching `win` / `loss` branch's `effects` runs in the SAME interpreter pass, through the SAME `runOpList` path a `coinFlip` branch / `if` branch uses, so a branch composes bind / ref / if / forEach and even a further suspending Op. `win` / `loss` are each `{ consequence, effects }`, identical shape to `coinFlip`'s branches (`consequence` is unused UI copy here — no reveal overlay shows it, kept only for shape parity and forward compatibility with a future summary surface). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `coinFlip` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception). Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #1281): for cards whose flip has no interactive reveal UX to preserve — migrating a card off this Op onto `coinFlip` (or the reverse) is a resolution-shape change, not a value-preserving refactor, so pick one deliberately per card. NO SHIPPED CARD CURRENTLY USES THIS OP, and a new coin-flip card should default to `coinFlip`: skipping the reveal skips the coin-flip ANIMATION, so the player never sees the flip happen. Goblin Artisans (`atq/red.ts`) was the first (and only) user and has been moved back to `coinFlip` for exactly that reason — QA reported its animation as lost. Reach for `coinFlipSync` only for a flip that is genuinely not a moment in the game (a bulk/automated flip inside a larger effect), never merely to keep a per-card test synchronous.",
+        note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023: `requestFlipSequence` as a sequence of one), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll: the engine runs each instruction once; CR 608.2c orders them). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the player who flips and calls (CR 705.2) — the resolving `\"controller\"` by default; an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only — and the DEFAULT for every coin-flip card, because this is the Op the client animates. Goblin Artisans briefly used a synchronous sibling Op (issue #1281, retired by issue #5521) and lost its animation as a result; it is back on this Op. The TRUE repeat-until-lose / doubling-stake loop cards (Mana Clash, Game of Chaos) are still NOT folded by this Op: they need an unbounded loop + arithmetic value the frozen grammar does not carry, so they stay resolve() until demanded. Note Mijae Djinn / Ydwen Efreet use THIS same `requestCoinFlip` primitive (not a separate synchronous flip) yet remain resolve() for an unrelated reason — they are blocked on combat-manipulation Ops (removeFromCombat / unblock), not on the coin flip. A branch's `effects` MAY be empty (issue #1367) — a deliberate no-op for a flip that only does something on ONE outcome (Mana Crypt — 'if you LOSE, deal 3 damage', win branch does nothing); before this relaxation the only workaround was padding the otherwise-empty branch with a placeholder Op (Chaotic Strike's unconditional draw riding in both branches, `inv/red.ts`, left as-is — retiring that workaround is a separate, behaviour-sensitive cleanup).",
     },
     {
         op: "coinFlipSeries",
         status: "implemented",
         cr: "705.2",
         binding: "SpellContext.flipCoin",
-        note: 'Flip a SERIES of coins and bind its results as numbers (CR 705.1\u2013705.2, issue #3813, ADR 0144) \u2014 "flip a coin that many times or until you lose a flip" (Squee\'s Revenge), "flip a coin until you lose a flip", "flip X coins". The bounded loop lives INSIDE this Op, never in the grammar: ADR 0045\'s four structural constructs stay frozen, and the payoff is written with them (`if` over a comparison on the bound counts, a `scaled` value reading them). A thin declarative skin over the single SpellContext primitive `flipCoin` (the SAME seeded-PRNG bit `coinFlipSync` draws), one execution path (ADR 0045). Ends after `count` flips or, with `untilLoss`, at the first lost flip; binds `bindFlips` / `bindWins` / `bindLosses` as NUMBER bindings (the `chooseNumber` family). A leaf: a re-walk skips it by position, so it never re-flips (the engine runs each instruction once; CR 608.2c orders them). Deliberately NOT: a per-flip body, a voluntary stop (Fiery Gambit), a no-call heads flip (CR 705.2), a reveal overlay.',
+        note: 'Flip a SERIES of coins and bind its results as numbers (CR 705.1\u2013705.2, issue #3813, ADR 0144) \u2014 "flip a coin that many times or until you lose a flip" (Squee\'s Revenge), "flip a coin until you lose a flip", "flip X coins". The bounded loop lives INSIDE this Op, never in the grammar: ADR 0045\'s four structural constructs stay frozen, and the payoff is written with them (`if` over a comparison on the bound counts, a `scaled` value reading them). A thin declarative skin over the single SpellContext primitive `flipCoin` (the SAME seeded-PRNG bit `requestCoinFlip` draws), one execution path (ADR 0045). Ends after `count` flips or, with `untilLoss`, at the first lost flip; binds `bindFlips` / `bindWins` / `bindLosses` as NUMBER bindings (the `chooseNumber` family). A leaf: a re-walk skips it by position, so it never re-flips (the engine runs each instruction once; CR 608.2c orders them). Deliberately NOT: a per-flip body, a voluntary stop (Fiery Gambit), a no-call heads flip (CR 705.2), a reveal overlay.',
     },
     {
         op: "bringFromOutsideGame",
@@ -4352,61 +4345,61 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  EFFECT_OP_REGISTRY row. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
-    // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
-    // (issue #839) — both moved to EFFECT_OP_REGISTRY above.
+    // delayedTrigger SHIPPED (ADR 0048) and moveZone SHIPPED
+    // — both moved to EFFECT_OP_REGISTRY above.
     // --- High-frequency skins (by blocked-closure count) ---
-    // pump SHIPPED (issue #840) — addTemporaryPTBuff is now COVERED live via
+    // pump SHIPPED — addTemporaryPTBuff is now COVERED live via
     // EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    // counters SHIPPED (issue #841) — addCounter / removeCounter are now
+    // counters SHIPPED — addCounter / removeCounter are now
     // COVERED live via EFFECT_OP_REGISTRY; row moved there with status
     // "implemented".
-    // tapUntap SHIPPED (issue #842) — tap / untap are now COVERED live via
+    // tapUntap SHIPPED — tap / untap are now COVERED live via
     // EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    // grantAbility SHIPPED (issue #843) — grantStaticAbility is now COVERED
+    // grantAbility SHIPPED — grantStaticAbility is now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
     // Ability removal / loss (`removeStaticAbilities`, a predicate closure)
     // stays residual — not JSON-expressible as an Op.
-    // libraryLook SHIPPED (issue #844) — shuffleLibrary is now COVERED live
+    // libraryLook SHIPPED — shuffleLibrary is now COVERED live
     // via EFFECT_OP_REGISTRY; row moved there with status "implemented". Only
     // the shuffle primitive was folded (the one pure declarative library
     // primitive); peekLibraryTop / reorderLibraryTop stayed backlogged as
-    // scryReorder — which SHIPPED (issue #885) as TWO orthogonal Ops now live
+    // scryReorder — which SHIPPED as TWO orthogonal Ops now live
     // in EFFECT_OP_REGISTRY: `scryReorder` (the choice-driven look/reorder skin
     // over SpellContext.orderTop — Ponder, Preordain, Surveil) and `mill` (the
     // deterministic library→graveyard loop — Millstone, Thought Scour).
-    // preventDamage SHIPPED (issue #845) — preventNextNDamageToTarget /
+    // preventDamage SHIPPED — preventNextNDamageToTarget /
     // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    // regenerate SHIPPED (issue #846) — applyRegenerationShield is now COVERED
+    // regenerate SHIPPED — applyRegenerationShield is now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    // createToken SHIPPED (issue #847) — the plain spec-driven `createToken`
+    // createToken SHIPPED — the plain spec-driven `createToken`
     // primitive is now COVERED live via EFFECT_OP_REGISTRY with status
     // "implemented". Only the JSON-pure spec form was folded.
-    // createTokenCopy SHIPPED (issue #1459) — the copy form
+    // createTokenCopy SHIPPED — the copy form
     // (`createTokenCopyOf`, a runtime source read driving the Clone copy path)
     // is now COVERED live via EFFECT_OP_REGISTRY with status "implemented";
     // row moved there. Dance of Many migrated to `effects[]` as the consumer.
-    // gainControl SHIPPED (issue #848) — SpellContext.gainControl is now COVERED
+    // gainControl SHIPPED — SpellContext.gainControl is now COVERED
     // live via EFFECT_OP_REGISTRY with status "implemented". The full duration
     // grammar the primitive's ControlChangeCondition supports (indefinite + the
     // three "for as long as" conditions) is folded; an "until end of turn"
     // control change with a tap rider (Ray of Command / Magus of the Unseen)
-    // has no ControlChangeCondition variant and stays resolve() (issue #730).
-    // optionChoice SHIPPED (issue #849) — SpellContext.requestOptionChoice is
+    // has no ControlChangeCondition variant and stays resolve().
+    // optionChoice SHIPPED — SpellContext.requestOptionChoice is
     // now COVERED live via EFFECT_OP_REGISTRY with status "implemented". The
     // "choose one" modal form is folded (each mode a nested EffectOp[] run
     // through the same runOpList path an `if` branch uses). A PRINTED
     // "choose two" / "choose one or more" / repeatable mode list is
     // announce-time cardinality — `ModeSelection` (ADR 0094,
     // gre/modeSelection.ts) — not a count on this Op.
-    // addMana SHIPPED (issue #850) — SpellContext.addManaTo / addMana are now
+    // addMana SHIPPED — SpellContext.addManaTo / addMana are now
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only the
     // fixed-produced-mana forms were folded (a ritual's static per-colour
     // amount). "Add one mana of any colour" (a runtime colour choice) and the
     // spend-restriction rider (addRestrictedMana, "spend only on …") are NOT
     // folded — the former is not a static amount, the latter has no free card
     // demanding it this wave; both stay resolve() until a card needs them.
-    // coinFlip SHIPPED (issue #851) — SpellContext.requestCoinFlip is now
+    // coinFlip SHIPPED — SpellContext.requestCoinFlip is now
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only the
     // suspending reveal flip (`requestCoinFlip`) is folded (win / loss each a
     // nested EffectOp[] run through the same runOpList path an `if` branch uses).
@@ -4414,7 +4407,7 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // loop cards (Mana Clash, Game of Chaos) stay resolve() — they need an
     // unbounded loop + arithmetic value the frozen grammar does not carry.
     // Goblin Artisans (single win/loss, no loop) briefly shipped a synchronous
-    // flip via the sibling `coinFlipSync` Op (issue #1281) and lost its
+    // flip via a since-retired sibling Op and lost its
     // coin-flip animation as a result; it is back on `coinFlip`, which is the
     // default for any card that flips. Mijae Djinn / Ydwen Efreet DO use this same `requestCoinFlip`
     // primitive but stay resolve() for a different reason: they are blocked on
@@ -4422,16 +4415,16 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
     //     of Scope — recorded as reservations, filed as issues only on demand
     //     past wave-1). ---
-    // `reveal` SHIPPED (issue #920 / #682, extended #945) —
+    // `reveal` SHIPPED —
     // SpellContext.markKnownToAll is now COVERED live via EFFECT_OP_REGISTRY
     // with status "implemented". The ALL-PLAYERS reveal is folded in two
     // shapes: the whole-hand reveal (`zone: "hand"` — Thoughtseize / Duress /
     // Inquisition of Kozilek / Grief) and the searched-and-found card reveal
-    // (`cards: <picks ref>` — the tutor "reveal it" clause, issue #945:
+    // (`cards: <picks ref>` — the tutor "reveal it" clause:
     // Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map).
     // A private single-knower "look" (Word of Command) and a library-top
     // reveal (Caustic Bronco-class) are NOT folded — see the registry note.
-    // `setColor` SHIPPED (issue #1083) — SpellContext.setColorOverride is now
+    // `setColor` SHIPPED — SpellContext.setColorOverride is now
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Unblocks
     // Blind Seer / Rainbow Crow / Tidal Visionary / Metathran Transport / Sway
     // of Illusion (INV) via a "choose one of five colors" `optionChoice` +
@@ -4439,7 +4432,7 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // needed). `setSubtype` (land-type-change twin, `setSubtypesUntil`) SHIPPED
     // alongside it in the same slice — see the EFFECT_OP_REGISTRY row; it was
     // never reserved in this backlog under its own name (Dream Thrush).
-    // `nameCard` SHIPPED (issue #1085) — SpellContext.requestNameCard is now
+    // `nameCard` SHIPPED — SpellContext.requestNameCard is now
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Unblocks
     // Desperate Research (INV) paired with the new `digMatchingToHand` Op
     // (also shipped in the same slice, never reserved here under its own

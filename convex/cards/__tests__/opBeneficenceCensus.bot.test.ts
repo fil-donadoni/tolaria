@@ -17,7 +17,7 @@
 //     signs from their own fields (`pump`, `counters`, `addPlayerCounter`,
 //     `tapUntap`, `scryReorder`), OR
 //   • membership of `STRUCTURAL_CONSTRUCTS` — `if`/`forEach`/`optionChoice`/
-//     `coinFlip`/`coinFlipSync`, which `collectScriptSigns`
+//     `coinFlip`, which `collectScriptSigns`
 //     (`convex/gre/ai/beneficence.ts`) recurses into rather than signing.
 //
 // There is deliberately NO allowlist. The `OP_VALUER_BACKFILL` shape does not
