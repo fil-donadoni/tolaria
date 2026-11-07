@@ -97,20 +97,20 @@ owner, order hidden). For the OPPONENT there are two worlds:
 - **Informed** — the seat's decklist is supplied, so every determinization
   SAMPLES the opponent's hand and library from the cards that list still
   admits, and the simulated opponent casts real spells. Live play supplies
-  it only at the `expert` [difficulty](#difficulty) (`useVsAiDriver` builds
-  the `informed` list from the human's seat).
+  it at every [difficulty](#difficulty) (`useVsAiDriver` builds the `informed`
+  list from the human's seat).
 - **Blind** — no entry for the seat: its hidden cards stay anonymous
   placeholders that resolve to no card definition, so in every rollout the
   simulated opponent casts NOTHING from now to the end of the game. A
-  systematic optimism no budget corrects; it is what `easy`, `medium` and
-  `hard` search against today. The ladder's `SearchVariant.opponentModel:
-"blind"` forces this world on purpose (issue #2791), to measure what the
-  knowledge is worth by removing it.
+  systematic optimism no budget corrects, so no preset searches against it
+  today. The ladder's `SearchVariant.opponentModel: "blind"` forces this world
+  on purpose (issue #2791), to measure what the knowledge is worth by removing
+  it.
 
 PRD issue #2787 (opponent model) is CLOSED: it delivered the informed seat
-above (issues #2789, #2791). Nothing replaces the placeholders for the blind
-presets; the owner's direction (2026-11-07, issue #8692) is to retire blind
-presets instead — knowledge at every level, budget the only difference.
+above (issues #2789, #2791). Nothing replaces the placeholders; the owner's
+decision (2026-11-07, issue #8692) retired the blind presets instead —
+knowledge at every level, budget the only difference.
 
 <a id="iteration"></a>**Iteration** — one pass of the search: pick a path down
 the tree ([selection](#selection)), add one new node ([expansion](#expansion)),
