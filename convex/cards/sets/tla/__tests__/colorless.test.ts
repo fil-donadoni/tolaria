@@ -6,10 +6,14 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-    resolveTopOfStack,
 } from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
-import { getPlayer, removePermanentTo } from "../../../../gre/state";
+import {
+    getPlayer,
+    processPendingActionTriggers,
+    removePermanentTo,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -224,6 +228,7 @@ describe("Ba Sing Se (CR 614.1d conditional tapped entry; CR 701.66a Earthbend 2
     it("the earthbent land returns tapped when it dies", () => {
         const state = earthbent();
         removePermanentTo(state, "home", "graveyard");
+        processPendingActionTriggers(state);
         resolveTopOfStack(state);
         const back = state.players[0].battlefield.find((c) => c.id === "home")!;
         expect(back.isTapped).toBe(true);

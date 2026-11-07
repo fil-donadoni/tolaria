@@ -1202,6 +1202,16 @@
         "source": "compiled"
     },
     {
+        "name": "Agna Qel'a",
+        "scryfallId": "6b885829-a323-4f7d-87c9-aa4615dcbe5c",
+        "oracleId": "22d0a848-2126-48f0-9050-38daaf93b1d0",
+        "firstSet": "tla",
+        "firstPrintId": "6b885829-a323-4f7d-87c9-aa4615dcbe5c",
+        "firstPrintSet": "tla",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Agonizing Demise",
         "scryfallId": "539ac5e1-4bad-4f70-abac-e70c406bebec",
         "oracleId": "41681a1f-0777-4b96-8c7e-d6a5d1b1c8fc",
@@ -5330,6 +5340,14 @@
         "firstPrintSet": "m12",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Ba Sing Se",
+        "scryfallId": "bdf3b2be-d0cd-4a3c-a10e-82d32c12d3bd",
+        "oracleId": "de1ae205-ca5b-4d26-8194-ca85f1406e53",
+        "firstSet": "tla",
+        "firstPrintId": "bdf3b2be-d0cd-4a3c-a10e-82d32c12d3bd",
+        "firstPrintSet": "tla"
     },
     {
         "name": "Back to Nature",
