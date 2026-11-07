@@ -99,6 +99,7 @@ describe("Mishra, Claimed by Gix — attack drain and meld (CR 701.42, 508.4)", 
         expect(choice!.kind).toBe("trigger-mode");
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.pendingChoices?.[0]?.options).toHaveLength(6);
+        expect(projected.pendingChoices?.[0]?.count).toBe(3);
     });
 
     it("the Engine is not attacking: drains, but nothing melds", () => {
