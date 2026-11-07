@@ -9,8 +9,8 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // Pinnacle Emissary — {1}{U}{R} Artifact Creature — Robot, 3/3 (EOE, issue
 // #8652). The Drone's quoted restriction is the data form Brazen Borrower
 // declares (CR 509.1b), carried as a token static key so it survives the
-// content-derived token id. "Warp {U/R}": the mana leg is a guild-hybrid pip,
-// payable with either colour (CR 702.185a).
+// content-derived token id. "Warp {U/R}" is CR 702.185a's cost with a hybrid
+// pip, payable with either colour (CR 107.4e).
 // hand-tail: "Whenever you cast an artifact spell, create a 1/1 colorless Drone artifact creature token with flying and "This token can block only creatures with flying."" (#8652)
 export const pinnacleEmissary = defineCard(() => ({
     id: "3c922347-f05f-40a4-bbee-6bc02a1e0de5",

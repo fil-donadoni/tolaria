@@ -95,8 +95,7 @@ export const consultTheStarCharts = defineCard(() => ({
 // every later card of the same instruction. Total: N + 1, the CR answer. The
 // agreement is a consequence of THIS card's condition, not of the seam, which
 // is why `__tests__/blue.test.ts` asserts the multi-card total explicitly.
-// compiler-gap: "As long as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards plus one instead." (#2693)
-// compiler-gap: "Warp {1}{U}" (#2693)
+// hand-tail: "As long as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards plus one instead." (#8652)
 export const quantumRiddler = defineCard(() => ({
     id: "120be808-ff3b-4fca-96a1-4db6b9825856",
     rarity: "mythic",

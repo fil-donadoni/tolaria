@@ -154,7 +154,7 @@ describe("Warp — the alternative cast cost (CR 702.185a, CR 118.9)", () => {
         expect(state.players[0].spellsWarpedThisTurn).toBe(1);
     });
 
-    // CR 202.1a — the mana leg of an alternative cost is a mana cost like any
+    // CR 107.4e — the mana leg of an alternative cost is a mana cost like any
     // other: "Warp {U/R}" (Pinnacle Emissary) takes either colour, and only those.
     describe("a guild-hybrid warp cost", () => {
         preloadDefinitions([pinnacleEmissary()]);
