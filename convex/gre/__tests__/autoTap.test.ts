@@ -1178,6 +1178,20 @@ describe("auto-tap spends Treasure tokens only when needed (CR 111.10a, issue #8
         expect(p).toHaveLength(2);
     });
 
+    it("taps the land over a Treasure even when that strands a Demand", () => {
+        const state = board([{ def: MOUNTAIN, id: "m1" }], 1);
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            undefined,
+            undefined,
+            undefined,
+            treasureOpt
+        );
+        const held: Demand = { id: "bolt", cost: { R: 1 } };
+        const p = solveSmartAutoTap({}, { R: 1 }, [], sources, [held]);
+        expect(p).toEqual([{ cardId: "m1" }]);
+    });
+
     it("{1}{R} with one Plains and two Treasures sacrifices exactly one", () => {
         const state = board([{ def: PLAINS, id: "plains" }], 2);
         const p = plan(state, { R: 1, X: 1 });
