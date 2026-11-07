@@ -22,7 +22,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 //     the RECIPIENT. "For each land you control" is a battlefield `count`
 //     read at resolution, so "you" is the walker's controller (the granter's
 //     controller, which the grant's `applies` pins to).
-// hand-tail: Landfall — Whenever a land you control enters, empower Jace N (#7225)
+// compiler-gap: "Landfall — Whenever a land you control enters, empower Jace N" (#8495)
 export const avatarOfBurgeoningEchoes = defineCard(() => ({
     id: "5905995b-7a20-4602-a7cc-90aa5089a082",
     name: "Avatar of Burgeoning Echoes",
