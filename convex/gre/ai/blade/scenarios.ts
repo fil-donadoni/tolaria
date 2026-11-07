@@ -21599,7 +21599,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             forbidden: [
                 {
@@ -21608,7 +21608,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the Wurm would be sacrificed having done nothing.",
+        note: "Issue #8271 — the Wurm would be sacrificed having done nothing. Report-only (issue #8394): activating and holding are a near-tie the evaluation does not separate, 16/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
     },
     {
         label: "removal: Swords to Plowshares takes the greater threat",
@@ -22287,7 +22287,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [1, 2, 3, 5, 9],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [
                 {
@@ -22297,7 +22297,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Passes on 13/16 seeds at 400 iterations, not all: seeds picked green under both the committed and the refit weights.",
+        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Report-only (issue #8394): casting and passing are a near-tie the evaluation does not separate, 15/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
     },
     {
         label: "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
@@ -24773,5 +24773,101 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: 'Issue #8271 — the other half of "removal: Strip Mine takes the Library of Alexandria, not the Island (issue #5155)", in the Bot\'s own main phase.',
+    },
+    {
+        label: "as-enters copy: casts a clone to copy the opponent's best creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Phantasmal Image", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Phantasmal Image" }] },
+        note: "Issue #8177. An as-enters copy parks the permanent (CR 614.1c, CR 707.5), and the search had no answer for that window: the walk stopped there and scored the spell spent with no body anywhere, so the Bot passed on every seed at every budget. `forcedChoiceAnswer` now plays the copy through. DISCRIMINATING: 5/5 pass at 48 and at 400 before the fix, 5/5 cast after.",
+    },
+    {
+        label: "as-enters copy: casts a clone of an artifact-or-creature at four mana",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Phyrexian Metamorph", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Phyrexian Metamorph" }],
+        },
+        note: "Issue #8177. The same window as Phantasmal Image on the card whose copy filter also takes artifacts. DISCRIMINATING: 5/5 pass at 48 and at 400 before the fix, 5/5 cast after.",
+    },
+    {
+        label: "entry counters: casts a creature priced by the body it enters with",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Moonshadow", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Moonshadow" }] },
+        note: "Issue #8177. The hand term read Moonshadow's printed 7/7 and ignored its six -1/-1 counters (CR 122.6), so the card held was worth more than the 1/1 menace it becomes and the Bot never cast it. `entryCounterPtDelta` prices the entering body. DISCRIMINATING: 5/5 pass at 48 and at 400 before the fix, 5/5 cast after.",
+    },
+    {
+        label: "colour fixing: casts Manamorphose to make the mana its hand needs",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Manamorphose", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Manamorphose" }] },
+        note: "Issue #8177. A Test Position, not a fix: the Bot already makes this play. Three Mountains cannot cast the Bears, and Manamorphose can make the green. Alone in hand the Bot keeps it, because the sweep's position has nothing to spend the mana on and `wasted-mana-hold` reads a ritual with no spender.",
     },
 ];

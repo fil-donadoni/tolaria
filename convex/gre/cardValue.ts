@@ -37,6 +37,7 @@ import {
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
 } from "./ai";
+import { parsePtCounter } from "./ai/opValuers";
 import type { LatentLens } from "./ai/grounding";
 import { declaresDamageShield } from "./ai/replacementPricing";
 import {
@@ -710,6 +711,25 @@ export function dslEtbAbilityInFlightValueById(
         : 0;
 }
 
+/** CR 122.6 / CR 614.1c — what the counters a creature enters with add to its
+ *  printed P/T, so its worth off the battlefield is the body it will really
+ *  have: a printed 7/7 entering with six -1/-1 counters is held as a 1/1, and
+ *  reading it as a 7/7 made the Bot keep it in hand for good (issue #8177). A
+ *  count fixed at cast time (X, kicker, sunburst) is not known in hand and
+ *  reads as nothing; a counter that is not a P/T one moves no stat. */
+export function entryCounterPtDelta(
+    def: Pick<CardDefinition, "entersWith"> | null | undefined
+): { power: number; toughness: number } {
+    const delta = { power: 0, toughness: 0 };
+    for (const { type, count } of def?.entersWith?.counters ?? []) {
+        const pt = typeof count === "number" ? parsePtCounter(type) : null;
+        if (!pt || typeof count !== "number") continue;
+        delta.power += pt.power * count;
+        delta.toughness += pt.toughness * count;
+    }
+    return delta;
+}
+
 /** Latent worth of a card from its registry id alone — the resolution-choice
  *  entry point (ADR 0018, issue #197), and the Bot Drafter Pick Heuristic's
  *  card-quality term (issue #1113, PRD #1107 story 29). Derives the value from
@@ -730,12 +750,13 @@ export function cardValueById(
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def) return 0;
+    const entry = entryCounterPtDelta(def);
     return latentValue({
         creatureDiscount: discounts?.creature,
         flashCreatureDiscount: discounts?.flash,
         isCreature: def.types.includes("Creature"),
-        power: def.power ?? 0,
-        toughness: def.toughness ?? 0,
+        power: (def.power ?? 0) + entry.power,
+        toughness: (def.toughness ?? 0) + entry.toughness,
         manaValue: manaValue(def.manaCost),
         staticAbilities: def.staticAbilities ?? [],
         aiValue: def.aiValue,
