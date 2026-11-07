@@ -761,8 +761,18 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › mana ability cost leg \"tapOtherFilter\" has no payment site beside a tap, sacrifice or filtered give-up leg: those routes never pick the permanents to tap",
+            "issue": 8579
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope",
             "issue": 7200
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › split card with Fuse (CR 702.102) is out of scope",
+            "issue": 8574
         },
         {
             "kind": "grammar",
@@ -926,6 +936,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Copy target instant or sorcery spell you control",
+            "issue": 8580
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Create a Food token",
             "issue": 8498
         },
@@ -953,6 +968,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › Look at the top card of target player's library",
             "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Permanents your opponents control lose hexproof and indestructible until end of turn",
+            "issue": 8588
         },
         {
             "kind": "grammar",
@@ -1271,6 +1291,11 @@
         },
         {
             "kind": "grammar",
+            "key": "keyword-line › keyword ability › Firebending N",
+            "issue": 8575
+        },
+        {
+            "kind": "grammar",
             "key": "keyword-line › keyword ability › Flashback—{…}",
             "issue": 6401
         },
@@ -1278,6 +1303,11 @@
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Foretell {…}",
             "issue": 2096
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Harmonize {…}",
+            "issue": 8578
         },
         {
             "kind": "grammar",
@@ -1333,6 +1363,11 @@
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Splice onto Arcane {…}",
             "issue": 8497
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Transmute {…}",
+            "issue": 8577
         },
         {
             "kind": "grammar",
@@ -1736,6 +1771,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Then discard two cards unless you discard a creature card",
+            "issue": 8589
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Then that permanent's controller may sacrifice a land of their choice",
             "issue": 5604
         },
@@ -1753,6 +1793,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities",
             "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Until the end of your next turn, you may play those cards",
+            "issue": 8572
         },
         {
             "kind": "grammar",
@@ -1856,6 +1901,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › duration › and gains first strike until end of turn",
+            "issue": 8573
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › duration › and gains flying and first strike until end of turn",
             "issue": 4594
         },
@@ -1863,6 +1913,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › each creature",
             "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature and each planeswalker",
+            "issue": 8581
         },
         {
             "kind": "grammar",
@@ -2076,6 +2131,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Activated abilities of sources with the chosen name can't be activated unless they're mana abilities",
+            "issue": 8585
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Activated abilities of white enchantments cost {…} more to activate",
             "issue": 4560
         },
@@ -2176,6 +2236,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Each player can't cast more than one spell each turn",
+            "issue": 8582
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Each spell costs {…} more to cast except during its controller's turn",
             "issue": 4560
         },
@@ -2216,6 +2281,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › If this card is in your opening hand, you may begin the game with it on the battlefield",
+            "issue": 8576
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › If this land would enter, sacrifice a Forest instead. If you do, put this land onto the battlefield. If you don't, put it into its owner's graveyard",
             "issue": 5705
         },
@@ -2233,6 +2303,16 @@
             "kind": "grammar",
             "key": "static › static clause › Islands don't untap during their controllers' untap steps",
             "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Lands you control are every basic land type in addition to their other types",
+            "issue": 8590
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Lands you control enter untapped",
+            "issue": 8586
         },
         {
             "kind": "grammar",
@@ -2288,6 +2368,11 @@
             "kind": "grammar",
             "key": "static › static clause › Terravore's power and toughness are each equal to the number of land cards in all graveyards",
             "issue": 5375
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This artifact enters with X charge counters on it",
+            "issue": 8584
         },
         {
             "kind": "grammar",
@@ -2483,6 +2568,11 @@
             "kind": "grammar",
             "key": "triggered › condition › it's on the battlefield",
             "issue": 5238
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › no mana was spent to cast it",
+            "issue": 8591
         },
         {
             "kind": "grammar",
@@ -2696,6 +2786,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Target creature an opponent controls doesn't untap during its controller's next untap step",
+            "issue": 8592
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Target opponent reveals their hand and you choose a nonland card from it",
             "issue": 4566
         },
@@ -2778,6 +2873,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › enchanted creature",
             "issue": 4583
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › equipped creature",
+            "issue": 8593
         },
         {
             "kind": "grammar",
@@ -2921,6 +3021,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of your next upkeep",
+            "issue": 8583
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When a creature with mana value N or greater enters",
             "issue": 5204
         },
@@ -2983,6 +3088,11 @@
             "kind": "grammar",
             "key": "triggered › trigger head › When {self} is put into a graveyard from anywhere",
             "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a Forest you control enters",
+            "issue": 8587
         },
         {
             "kind": "grammar",
@@ -3211,6 +3321,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Aftermath Analyst",
+            "issue": 8605
+        },
+        {
+            "kind": "hand-tail",
             "key": "Agonizing Demise",
             "issue": 4596
         },
@@ -3241,6 +3356,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Amulet of Vigor",
+            "issue": 8606
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ancient Stirrings",
+            "issue": 8607
+        },
+        {
+            "kind": "hand-tail",
             "key": "Andradite Leech",
             "issue": 4596
         },
@@ -3253,6 +3378,16 @@
             "kind": "hand-tail",
             "key": "Arctic Merfolk",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Artist's Talent",
+            "issue": 8595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ashiok, Dream Render",
+            "issue": 8596
         },
         {
             "kind": "hand-tail",
@@ -3331,6 +3466,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Blood Moon",
+            "issue": 8594
+        },
+        {
+            "kind": "hand-tail",
             "key": "Bloodchief's Thirst",
             "issue": 8505
         },
@@ -3376,6 +3516,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Break the Ice",
+            "issue": 8608
+        },
+        {
+            "kind": "hand-tail",
             "key": "Brightglass Gearhulk",
             "issue": 8505
         },
@@ -3406,6 +3551,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Cavern of Souls",
+            "issue": 8609
+        },
+        {
+            "kind": "hand-tail",
             "key": "Celestial Colonnade",
             "issue": 8505
         },
@@ -3433,6 +3583,11 @@
             "kind": "hand-tail",
             "key": "City of Traitors",
             "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Clarion Conqueror",
+            "issue": 8610
         },
         {
             "kind": "hand-tail",
@@ -3516,6 +3671,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Cultivator Colossus",
+            "issue": 8611
+        },
+        {
+            "kind": "hand-tail",
             "key": "Cut Down",
             "issue": 1352
         },
@@ -3526,8 +3686,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Dalkovan Encampment",
+            "issue": 8597
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Damping Sphere",
+            "issue": 8612
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dark Depths",
             "issue": 7230
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dark Matter Manipulator",
+            "issue": 8613
         },
         {
             "kind": "hand-tail",
@@ -3583,6 +3758,11 @@
             "kind": "hand-tail",
             "key": "Detective's Phoenix",
             "issue": 7723
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Devourer of Destiny",
+            "issue": 8598
         },
         {
             "kind": "hand-tail",
@@ -3646,8 +3826,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Echoing Deeps",
+            "issue": 8614
+        },
+        {
+            "kind": "hand-tail",
             "key": "Eladamri's Call",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Eldrazi Temple",
+            "issue": 8615
         },
         {
             "kind": "hand-tail",
@@ -3688,6 +3878,11 @@
             "kind": "hand-tail",
             "key": "Empress Galina",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Emrakul, the Promised End",
+            "issue": 8616
         },
         {
             "kind": "hand-tail",
@@ -3743,6 +3938,11 @@
             "kind": "hand-tail",
             "key": "Fact or Fiction",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Faithful Mending",
+            "issue": 8617
         },
         {
             "kind": "hand-tail",
@@ -3836,8 +4036,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Galvanic Blast",
+            "issue": 8618
+        },
+        {
+            "kind": "hand-tail",
             "key": "Galvanic Discharge",
             "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Galvanic Relay",
+            "issue": 8619
         },
         {
             "kind": "hand-tail",
@@ -3848,6 +4058,11 @@
             "kind": "hand-tail",
             "key": "Garruk, Curse Breaker",
             "issue": 8174
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gemstone Caverns",
+            "issue": 8620
         },
         {
             "kind": "hand-tail",
@@ -3881,6 +4096,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Glistening Deluge",
+            "issue": 8621
+        },
+        {
+            "kind": "hand-tail",
             "key": "Global Ruin",
             "issue": 4596
         },
@@ -3898,6 +4118,11 @@
             "kind": "hand-tail",
             "key": "Goham Djinn",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Grafdigger's Cage",
+            "issue": 8599
         },
         {
             "kind": "hand-tail",
@@ -3931,6 +4156,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Hanweir Battlements",
+            "issue": 8600
+        },
+        {
+            "kind": "hand-tail",
             "key": "Harrow",
             "issue": 4596
         },
@@ -3948,6 +4178,11 @@
             "kind": "hand-tail",
             "key": "Heroic Defiance",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hex Magic",
+            "issue": 8622
         },
         {
             "kind": "hand-tail",
@@ -4091,6 +4326,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Ketramose, the New Dawn",
+            "issue": 8623
+        },
+        {
+            "kind": "hand-tail",
             "key": "Knight of the Reliquary",
             "issue": 7238
         },
@@ -4098,6 +4338,11 @@
             "kind": "hand-tail",
             "key": "Kolaghan's Command",
             "issue": 2266
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kozilek's Command",
+            "issue": 8624
         },
         {
             "kind": "hand-tail",
@@ -4216,6 +4461,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "March of Otherworldly Light",
+            "issue": 8625
+        },
+        {
+            "kind": "hand-tail",
             "key": "Memory Jar",
             "issue": 8505
         },
@@ -4291,8 +4541,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Murktide Regent",
+            "issue": 8626
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mystic Forge",
             "issue": 7241
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mystical Dispute",
+            "issue": 8627
         },
         {
             "kind": "hand-tail",
@@ -4303,6 +4563,11 @@
             "kind": "hand-tail",
             "key": "Natural Emergence",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Nature's Claim",
+            "issue": 8601
         },
         {
             "kind": "hand-tail",
@@ -4343,6 +4608,11 @@
             "kind": "hand-tail",
             "key": "Obsidian Acolyte",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Obsidian Charmaw",
+            "issue": 8628
         },
         {
             "kind": "hand-tail",
@@ -4413,6 +4683,11 @@
             "kind": "hand-tail",
             "key": "Paradoxical Outcome",
             "issue": 7245
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Past in Flames",
+            "issue": 8629
         },
         {
             "kind": "hand-tail",
@@ -4556,6 +4831,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Ral, Monsoon Mage // Ral, Leyline Prodigy",
+            "issue": 8630
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ranger-Captain of Eos",
+            "issue": 8631
+        },
+        {
+            "kind": "hand-tail",
             "key": "Razing Snidd",
             "issue": 4595
         },
@@ -4578,6 +4863,11 @@
             "kind": "hand-tail",
             "key": "Remand",
             "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Rest in Peace",
+            "issue": 8602
         },
         {
             "kind": "hand-tail",
@@ -4673,6 +4963,11 @@
             "kind": "hand-tail",
             "key": "Sawtooth Loon",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scapeshift",
+            "issue": 8632
         },
         {
             "kind": "hand-tail",
@@ -4821,6 +5116,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Spell Snare",
+            "issue": 8603
+        },
+        {
+            "kind": "hand-tail",
             "key": "Sphinx of False Conclusions",
             "issue": 7250
         },
@@ -4881,6 +5181,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Stormscale Scion",
+            "issue": 8633
+        },
+        {
+            "kind": "hand-tail",
             "key": "Stormscape Familiar",
             "issue": 4595
         },
@@ -4891,8 +5196,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Street Wraith",
+            "issue": 8634
+        },
+        {
+            "kind": "hand-tail",
             "key": "Strength of Unity",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Strix Serenade",
+            "issue": 8635
         },
         {
             "kind": "hand-tail",
@@ -4933,6 +5248,11 @@
             "kind": "hand-tail",
             "key": "Suppress",
             "issue": 4342
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Surgical Extraction",
+            "issue": 8604
         },
         {
             "kind": "hand-tail",
@@ -4996,6 +5316,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Territorial Kavu",
+            "issue": 8636
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Test of Talents",
+            "issue": 8637
+        },
+        {
+            "kind": "hand-tail",
             "key": "Thassa's Oracle",
             "issue": 8505
         },
@@ -5026,6 +5356,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Thief of Existence",
+            "issue": 8638
+        },
+        {
+            "kind": "hand-tail",
             "key": "Thieving Skydiver",
             "issue": 3248
         },
@@ -5048,6 +5383,11 @@
             "kind": "hand-tail",
             "key": "Thornspire Verge",
             "issue": 8505
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thraben Charm",
+            "issue": 8639
         },
         {
             "kind": "hand-tail",
@@ -5076,6 +5416,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Trinisphere",
+            "issue": 8640
+        },
+        {
+            "kind": "hand-tail",
             "key": "Tsabo's Assassin",
             "issue": 4596
         },
@@ -5093,6 +5438,11 @@
             "kind": "hand-tail",
             "key": "Turf Wound",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ugin's Labyrinth",
+            "issue": 8641
         },
         {
             "kind": "hand-tail",
@@ -5136,8 +5486,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Valakut Awakening // Valakut Stoneforge",
+            "issue": 8642
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Veil of Summer",
+            "issue": 8643
+        },
+        {
+            "kind": "hand-tail",
             "key": "Verdeloth the Ancient",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Vesuva",
+            "issue": 8644
         },
         {
             "kind": "hand-tail",
@@ -5171,6 +5536,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Warping Wail",
+            "issue": 8645
+        },
+        {
+            "kind": "hand-tail",
             "key": "Wash Out",
             "issue": 4596
         },
@@ -5186,8 +5556,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Weapons Manufacturing",
+            "issue": 8646
+        },
+        {
+            "kind": "hand-tail",
             "key": "Well-Laid Plans",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Whipflare",
+            "issue": 8647
         },
         {
             "kind": "hand-tail",
@@ -5206,6 +5586,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Wish",
+            "issue": 8648
+        },
+        {
+            "kind": "hand-tail",
             "key": "Wishclaw Talisman",
             "issue": 8505
         },
@@ -5218,6 +5603,11 @@
             "kind": "hand-tail",
             "key": "Worldly Counsel",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wrath of the Skies",
+            "issue": 8649
         },
         {
             "kind": "hand-tail",
