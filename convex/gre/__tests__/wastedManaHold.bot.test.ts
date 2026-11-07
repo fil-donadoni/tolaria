@@ -106,13 +106,7 @@ describe("wasted-mana hold (CR 106.4)", () => {
             landCount: 4,
             libraryCount: 20,
         });
-        // The hold or the search's own argmax: with no spender the pass edge
-        // no longer pays for a Ritual below the root (`isIdleManaSpellCast`).
-        const records = recordsOf(state, SEED);
-        expect(records.length).toBeGreaterThan(0);
-        for (const record of records) {
-            expect(record.moveKind).toBe("pass");
-        }
+        expect(mechanismsOf(state, SEED)).toContain("wasted-mana-hold");
     }, 120000);
 
     it("NEGATIVE CONTROL: the hold stays silent when Dark Ritual turns on a Craw Wurm", () => {
