@@ -469,7 +469,6 @@ export function applyRaisedTargetFinalization(
         if (copy) {
             emitNewlyTargeted(state, copy, targets);
             copy.targets = targets;
-            writeFinalModeSpans(copy, pt); // ADR 0094
             // CR 608.2b (issue #2985) — new targets, so any earlier
             // illegal-slot verdict is void.
             delete copy.illegalTargetSlots;
@@ -498,7 +497,6 @@ export function applyRaisedTargetFinalization(
             }
             emitNewlyTargeted(state, spell, targets);
             spell.targets = targets;
-            writeFinalModeSpans(spell, pt); // ADR 0094
             // CR 608.2b (issue #2985) — see the copy branch above.
             delete spell.illegalTargetSlots;
         }
