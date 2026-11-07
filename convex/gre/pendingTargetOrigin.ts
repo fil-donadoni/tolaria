@@ -54,6 +54,11 @@ import {
 import { resolvePendingTargetKind } from "./constants";
 import { advancePendingTargetGroup } from "./targetGroupWalk";
 import { writeFinalModeSpans } from "./modeSelection";
+import { findPermanent } from "./lookup";
+import {
+    isAlreadySelectedTarget,
+    siblingControllerIdFor,
+} from "./targetFilters";
 
 /** Whether the player who owes a `PendingTarget` opened it themselves
  *  (`"announced"`) or the engine opened it at them (`"raised"`). */
@@ -349,6 +354,72 @@ function emitNewlyTargeted(
         item.controllerId,
         item.id,
         "spell-new-target"
+    );
+}
+
+/** CR 115.7d — would a new target the player already chose make `kept` illegal?
+ *  Only the constraints that read a sibling can: "another target" (CR 115.3,
+ *  lowered to `excludeInstanceIds`), a graveyard named by an earlier pick
+ *  (`zoneOwnerId`), and "same controller" within the group. */
+function newTargetsBreakKept(
+    state: GameState,
+    pt: PendingTarget,
+    kept: TargetSelection,
+    newInGroup: readonly TargetSelection[]
+): boolean {
+    if (pt.excludeInstanceIds?.includes(kept.id)) return true;
+    if (
+        kept.type === "graveyard-card" &&
+        pt.zoneOwnerId !== undefined &&
+        kept.playerId !== pt.zoneOwnerId
+    ) {
+        return true;
+    }
+    const sibling = siblingControllerIdFor(
+        state,
+        pt.sameController,
+        newInGroup
+    );
+    if (sibling === undefined) return false;
+    const controller =
+        kept.type === "graveyard-card"
+            ? kept.playerId
+            : kept.type === "permanent"
+              ? findPermanent(state, kept.id)?.controllerId
+              : undefined;
+    return controller !== undefined && controller !== sibling;
+}
+
+/** CR 115.7d / 707.10c — the current targets the pick being made may leave
+ *  unchanged, "even if those targets would be illegal": they bypass legality,
+ *  not the rule's last clause, that new targets "must not cause any unchanged
+ *  targets to become illegal". An object may stay only in its own group, once.
+ *
+ *  SINGLE AUTHORITY: the accepted set (`applyOneTargetSelection`) and the
+ *  offered sets (`legalActions`, `enumerateRaisedTargetMoves`) all read this. */
+export function keepableTargets(
+    state: GameState,
+    pt: PendingTarget
+): TargetSelection[] {
+    const group = pt.keepableTargetGroups?.[0];
+    if (!group) return [];
+    // "New" is per group: an object moved in from another group's slot changed,
+    // even though the spell already targets it (CR 115.7e). Groups cut the flat
+    // list in order, so the earlier groups held exactly its first picks.
+    const prior = pt.priorSelected ?? [];
+    const heldEarlier = (
+        state.stack.find((s) => s.id === pt.cardInstanceId)?.targets ?? []
+    ).slice(0, prior.length);
+    const newInGroup = pt.selected.filter(
+        (t) => !isAlreadySelectedTarget(t, group)
+    );
+    const anyNew =
+        newInGroup.length > 0 ||
+        prior.some((t) => !isAlreadySelectedTarget(t, heldEarlier));
+    return group.filter(
+        (t) =>
+            !isAlreadySelectedTarget(t, pt.selected) &&
+            !(anyNew && newTargetsBreakKept(state, pt, t, newInGroup))
     );
 }
 
