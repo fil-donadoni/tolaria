@@ -882,6 +882,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aeromunculus",
+        "scryfallId": "671c94c1-df52-4985-ad78-3e1c9c78df18",
+        "oracleId": "a0cd19c1-9125-4627-83ba-d42c489b4e7d",
+        "firstSet": "rna",
+        "firstPrintId": "671c94c1-df52-4985-ad78-3e1c9c78df18",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aeronaut Admiral",
         "scryfallId": "ff15c06c-160d-4960-92d5-6f8e7b33f051",
         "oracleId": "dcde1a62-33a5-4454-a389-9bf7a3521a4c",
@@ -6220,6 +6230,14 @@
         "firstPrintSet": "wwk",
         "rarity": "rare",
         "source": "compiled"
+    },
+    {
+        "name": "Basking Broodscale",
+        "scryfallId": "5feba5d6-99a6-4e9b-8a7d-90d955868fc3",
+        "oracleId": "a7c69802-99c4-4778-934e-cc09ba58c267",
+        "firstSet": "mh3",
+        "firstPrintId": "5feba5d6-99a6-4e9b-8a7d-90d955868fc3",
+        "firstPrintSet": "mh3"
     },
     {
         "name": "Basking Rootwalla",
@@ -67082,6 +67100,16 @@
         "firstSet": "j25",
         "firstPrintId": "b32224ef-cfd4-42ef-857a-24386590c360",
         "firstPrintSet": "j25",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sauroform Hybrid",
+        "scryfallId": "2f7ecad5-8bb5-416f-b8ef-a04aba4dc4b5",
+        "oracleId": "559c9949-faaf-41bc-9349-b6738b4763a2",
+        "firstSet": "rna",
+        "firstPrintId": "2f7ecad5-8bb5-416f-b8ef-a04aba4dc4b5",
+        "firstPrintSet": "rna",
         "rarity": "common",
         "source": "compiled"
     },
