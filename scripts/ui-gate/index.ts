@@ -18,8 +18,7 @@
  *   1. checks the Convex deployment answers (fail fast, never hang);
  *   2. starts its OWN Vite on 127.0.0.1 and a free port, waits for readiness,
  *      and tears it down on exit — the repo's `dev` script is left alone;
- *   3. registers the run's OWN throwaway account (`lane-account.ts`, issue
- *      #3626), signs every viewport in as it, and destroys it — with every
+ *   3. registers the run's OWN throwaway account (`lane-account.ts`), signs every viewport in as it, and destroys it — with every
  *      row it owns — however the run ends;
  *   4. for each of the six Viewport Matrix viewports (ADR 0101; the DPR 1
  *      desktop on the `cards` surfaces only, in the full Chromium, ADR 0168),
@@ -30,7 +29,7 @@
  *      compared;
  *   6. screenshots a FAILING cell only, its offenders outlined, and posts the
  *      run's shots as one comment on the branch's PR or issue
- *      (`failure-shot.ts`, `publish-shots.ts`, issue #6145) — never a verdict.
+ *      (`failure-shot.ts`, `publish-shots.ts`) — never a verdict.
  *
  * COVERAGE IS AN ASSERTION, NOT A BEST EFFORT. A surface that could not be
  * reached — the scenario row is missing, an active game blocks the route,
@@ -45,7 +44,7 @@
  * Readings, infra signatures, load, console errors, wall time — which it never
  * reads.
  *
- * THE MACHINE IS NOT THE TREE (issue #3644). A walk cut short by the machine —
+ * THE MACHINE IS NOT THE TREE. A walk cut short by the machine —
  * a backend function past its execution limit, a Convex server error, a
  * navigation or step timeout, a screen that never settled — is classified by
  * its signature (`infra-verdict.ts`) and retried after the 1-minute load drops,
@@ -85,10 +84,10 @@
  *   bun run check:ui -- --raster-dump=<dir>              # 3× crops of every
  *                                                        # sampled face
  *
- * SPEED IS SIZED TO THE MACHINE (issue #3653, re-sized in #4687). The five
+ * SPEED IS SIZED TO THE MACHINE (`parallel.ts`). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
  * five contexts on an 8-core box, never fewer than two (`MIN_PARALLELISM`)
- * — except ONE while a heavy gate holds the machine (issue #4941),
+ * — except ONE while a heavy gate holds the machine,
  * the load average not consulted — each in its own browser context, each parallel LANE
  * signed in as its own lane account (a lane walks its viewports one after
  * another, so the account is the LANE's), because the one-game-per-account
@@ -97,7 +96,7 @@
  * collected and printed in the fixed Viewport Matrix order (`parallel.ts`), so
  * the verdict block `land` re-derives is byte-identical whatever N was.
  *
- * SCOPE (issues #3627, #3628; ADR 0131). Every run starts by printing which
+ * SCOPE (ADR 0131). Every run starts by printing which
  * surfaces the diff against the base branch can reach
  * (`scripts/lib/ui-scope.ts`), or FULL and why. A run started with neither
  * `--surface=` nor `--all` walks exactly that scope: FULL prints `RECEIPT`, a
@@ -107,7 +106,7 @@
  * `SCOPED` receipt that does not match it. A hand-picked `--surface=` subset
  * is still a `DIAGNOSTIC`. A specimen row (`Surface.specimen`) is scoped by
  * its section + mount, not by the design-system page's whole closure, and a
- * type-only import is no edge (issue #4913). `--all` is what batch health
+ * type-only import is no edge. `--all` is what batch health
  * runs, as its last step (`HEALTH_SCRIPTS`): the every-surface walk backstops
  * what a scoped PR receipt accepts not to see, and never runs on a PR.
  *
@@ -123,8 +122,8 @@
  *   2  usage, configuration, or any other fatal error
  *   3  `DEPLOYMENT_DOWN_EXIT` (`lib/convex-reachable.ts`): the deployment at
  *      VITE_CONVEX_URL did not answer. Its own code so the health gate records
- *      `infra`, never a RED tip (issue #4943); `bun run convex:ensure` starts it.
- *   4  `DEPLOYMENT_SKEW_EXIT` (`lib/deployment-skew.ts`, issues #6132, #6133):
+ *      `infra`, never a RED tip; `bun run convex:ensure` starts it.
+ *   4  `DEPLOYMENT_SKEW_EXIT` (`lib/deployment-skew.ts`):
  *      the deployment serves the primary checkout's convex/ tree, and that is
  *      not this tree's (outside its own diff) — before the first cell, or
  *      mid-walk. INFRA with the reason, never `unsettled` cells.
