@@ -456,6 +456,21 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         });
     });
 
+    it("the replay reads the pool's losses over the whole sweep and exits 1 before anything can be pushed", () => {
+        const script = readFileSync(
+            join(import.meta.dirname, "..", "derive-sync.ts"),
+            "utf8"
+        );
+        const sweep = script.slice(script.indexOf('"--replay-bot"]'));
+        const refusal = sweep.match(
+            /sweepPoolLosses\(swept\.cards\);\s+if \(poolLosses > SWEEP_POOL_LOSS_TOLERANCE\) \{[^}]*return 1;/
+        );
+        expect(refusal).not.toBeNull();
+        expect(sweep.indexOf(refusal![0])).toBeLessThan(
+            sweep.indexOf("commitAndPush(")
+        );
+    });
+
     it("the write path plays the misses through --play-misses, never a bare compile (which would carry them)", () => {
         const script = readFileSync(
             join(import.meta.dirname, "..", "derive-sync.ts"),
