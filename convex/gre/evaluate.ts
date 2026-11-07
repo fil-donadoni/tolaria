@@ -1682,8 +1682,9 @@ function withEngineRead<T>(
 /** Issue #5164 (ADR 0151) — the board a permanent carrying a standing
  *  engine on every player's step (`carriesEachStepEngine`, Howling Mine) is
  *  read against, from its controller's seat — the same lens its hand face
- *  takes in the `hand` term, so the two faces are one number. `undefined`
- *  for every other permanent: its board face stays context-free. */
+ *  takes in the `hand` term, so both read one Differential (the hand credits
+ *  its share of it, issue #8295). `undefined` for every other permanent: its
+ *  board face stays context-free. */
 function standingEngineLens(
     state: GameState,
     perm: CardInstanceState,

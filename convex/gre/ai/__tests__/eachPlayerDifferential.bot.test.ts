@@ -29,7 +29,7 @@ import { dslSpellScriptValue } from "../cardScriptValue";
 import { contextFreeLatentLens } from "../grounding";
 import { wheelOfFortune } from "../../../cards/sets/lea/red.cards";
 import { timetwister } from "../../../cards/sets/lea/blue.cards";
-import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { grizzlyBears, regrowth } from "../../../cards/sets/lea/green.cards";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { innocentBlood } from "../../../cards/sets/ody/black.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
@@ -41,6 +41,7 @@ interface Side {
     hand?: readonly string[];
     board?: readonly string[];
     library?: readonly string[];
+    graveyard?: readonly string[];
 }
 
 /** The script reading of `cardId` held by p1, on the board `own` / `opp`
@@ -70,6 +71,7 @@ function readOnBoard(
                 hand: [held, ...at("p1", own.hand)],
                 battlefield: at("p1", own.board, "battlefield"),
                 library: at("p1", own.library, "library"),
+                graveyard: at("p1", own.graveyard, "graveyard"),
             }),
             makePlayer("p2", {
                 hand: at("p2", opp.hand),
@@ -283,9 +285,24 @@ describe("a body the Differential cannot attribute keeps today's reading (issue 
     });
 
     it("a body with an Op it cannot attribute is fail-closed", () => {
-        // Timetwister also shuffles each graveyard into its library — a
-        // graveyard term the hand read does not cover.
-        expectRepresentative(timetwister());
+        // A graveyard exiled rather than shuffled in: no later draw finds it,
+        // and the hand read does not cover it.
+        const def = sorcery("graveyard-exile", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: { ref: "$each" },
+                        from: "graveyard",
+                        to: "exile",
+                    },
+                    { op: "draw", player: { ref: "$each" }, count: 1 },
+                ],
+            },
+        ]);
+        withTemporaryDefinition(def, () => expectRepresentative(def));
     });
 });
 
@@ -366,6 +383,43 @@ describe("a held Differential is a fitted fraction of the swing (issue #5560)", 
             9
         );
         expect(held.value).toBeLessThan(full.value!);
+    });
+});
+
+describe("a graveyard shuffled in is what a later draw finds (issue #8295)", () => {
+    const twister = timetwister().id;
+    const bear = grizzlyBears().id;
+    const dragon = shivanDragon().id;
+    const land = forest().id;
+
+    it("reads each side's graveyard into its library", () => {
+        // CR 121.1 — the seven are drawn from the library the
+        // reshuffle leaves, so the side with the better graveyard draws more.
+        const library = cards(10, land);
+        const opp = { library, hand: cards(7, bear) };
+        const bare = readOnBoard(twister, { library }, opp);
+        const rich = readOnBoard(
+            twister,
+            { library, graveyard: cards(5, dragon) },
+            opp
+        );
+        expect(bare.measured && rich.measured).toBe(true);
+        expect(rich.value).toBeGreaterThan(bare.value!);
+    });
+
+    it("a graveyard its owner can still spend voids the side", () => {
+        // Priced as free cards it would read as a gain the reshuffle costs.
+        const library = cards(10, land);
+        const side = { library, graveyard: cards(5, dragon) };
+        const opp = { library, hand: cards(7, bear) };
+        const free = readOnBoard(twister, side, opp);
+        const spendable = readOnBoard(
+            twister,
+            { ...side, hand: [regrowth().id] },
+            opp
+        );
+        expect(free.measured).toBe(true);
+        expect(spendable.measured).toBe(false);
     });
 });
 

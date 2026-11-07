@@ -197,7 +197,7 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
         expect(oathWorth(even)).toBeCloseTo(0, 9);
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
+    it("at fraction 1 the hand reads the board Differential, a negative one reading 0", () => {
         const faces = (own: number, opp: number) => {
             const held = board(
                 { creatures: own, libraryCreatures: 4, oath: "hand" },
@@ -210,7 +210,10 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace: oathWorth(
                     board(
@@ -224,7 +227,7 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
         expect(digs.handFace).toBeGreaterThan(0);
         expect(digs.handFace).toBeCloseTo(digs.boardFace, 6);
         const feeds = faces(2, 0);
-        expect(feeds.handFace).toBeLessThan(0);
-        expect(feeds.handFace).toBeCloseTo(feeds.boardFace, 6);
+        expect(feeds.handFace).toBe(0);
+        expect(feeds.boardFace).toBeLessThan(0);
     });
 });

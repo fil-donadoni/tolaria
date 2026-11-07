@@ -279,8 +279,9 @@ export type EvalWeights = {
      *  a FRACTION below 1 makes it worth most when taken now. A negative
      *  reading stays floored at zero in hand (`latentValue`): the card held is
      *  an option, and casting it realises the loss the floor declines. A
-     *  standing each-step engine's Differential (issue #5164) is NOT scaled:
-     *  it recurs, and its hand and board faces are one number. */
+     *  standing each-step engine recurs, so its board face is whole; in HAND
+     *  it takes this share of that reading and a negative one reads 0, or
+     *  casting ties holding. */
     heldDifferentialFraction: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
