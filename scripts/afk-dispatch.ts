@@ -51,8 +51,11 @@ import {
     type OpenPrRow,
 } from "./lib/claim-verdict";
 import {
+    DEFAULT_STALLED_PR_HOURS,
     parseAreaModels,
+    parseStalledPrHours,
     repairItems,
+    stalledPrLine,
     type PlanConfig,
     type RepairItem,
 } from "./lib/queue-plan";
@@ -738,10 +741,12 @@ async function main(): Promise<void> {
     // Area routing (issue #7654): an unreadable or malformed table degrades
     // to the default tier, loudly — it never fails the pick.
     let areaModels: Record<string, string> | undefined;
+    let stalledPrHours = DEFAULT_STALLED_PR_HOURS;
     try {
         const doc = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
         dispatchConfig = parseAfkDispatchConfig(doc);
         areaModels = parseAreaModels(doc);
+        stalledPrHours = parseStalledPrHours(doc);
     } catch (err) {
         say(
             `config unreadable (${(err as Error).message.split("\n")[0]}) — queue limits ${dispatchConfig.queueMax}/${dispatchConfig.failedMax}, NO area model routing (default tier)`
@@ -768,6 +773,7 @@ async function main(): Promise<void> {
         staleClaimHours: DEFAULTS.staleClaimHours,
         defaultImplModel: DEFAULTS.defaultImplModel,
         areaModels,
+        stalledPrHours,
         now: new Date(now).toISOString(),
         excludeHitl: true,
     };
@@ -775,6 +781,7 @@ async function main(): Promise<void> {
     const picked = pick({
         prFiles: prs.files,
         prByIssue: prs.byIssue,
+        prFacts: prs.facts,
         issues,
         config,
         port: liveQueuePort(),
@@ -824,6 +831,8 @@ async function main(): Promise<void> {
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
         budgetLine,
+        // A warning, never a failure or an edit of the PR (issue #8258).
+        ...(picked.plan.stalledPrs ?? []).map(stalledPrLine),
     ];
     for (const l of lines) say(l);
     if (DRY_RUN) {

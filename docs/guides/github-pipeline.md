@@ -1336,6 +1336,18 @@ next enabled run resumes or releases it.
 A dry run prints the plan without claiming, releasing or dispatching, on a
 machine with the owner's `gh` login: `bun run afk:dispatch --dry-run`.
 
+**A stalled PR warns instead of occupying files** (issue #8258). The in-flight
+set counts every open PR's changed files as occupied, except a _stalled_ PR:
+open, not in the queue (no `ready-to-land`, not `land-failed`), head commit
+unmoved for `queuePlan.stalledPrHours` in `tolaria.config.json` (default 6),
+and no live pass on its issue — all three. It occupies nothing, so overlapping
+candidates are admitted and a candidate that lands first is the stalled PR's
+rebase to pay. `queue:plan` (the `stalledPrs` list in its JSON, plus a stderr
+line) and this job's summary name each: PR, issue, hours stalled, overlapping
+candidates. A warning only — the PR is never closed, relabelled or edited. An
+unreadable head date reads as not stalled. Every other open PR keeps
+occupying its files.
+
 ### afk-pass
 
 `.github/workflows/afk-pass.yml` runs ONE [pass](#g-pass): `bun run afk:pass`

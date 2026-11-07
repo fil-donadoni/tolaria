@@ -58,6 +58,10 @@ import {
     planBatch,
     planFilename,
     inFlightSet,
+    parseStalledPrHours,
+    stalledPrLine,
+    stalledPrsOf,
+    type OpenPrFact,
     isStaleClaim,
     type BoardPriority,
     type HealthMarker,
@@ -191,7 +195,9 @@ export function issuesWithOpenPr(): number[] {
 export function openPrFiles(): {
     byIssue: Record<number, number>;
     files: Record<number, string[]>;
+    facts: OpenPrFact[];
 } {
+    const facts: OpenPrFact[] = [];
     const byIssue: Record<number, number> = {};
     const files: Record<number, string[]> = {};
     try {
@@ -202,7 +208,7 @@ export function openPrFiles(): {
                 "--state",
                 "open",
                 "--json",
-                "number,headRefName,files",
+                "number,headRefName,files,labels,commits",
                 "--limit",
                 "100",
             ])
@@ -210,19 +216,34 @@ export function openPrFiles(): {
             number: number;
             headRefName: string;
             files: { path: string }[];
+            labels?: { name: string }[];
+            commits?: { committedDate?: string }[];
         }[];
         for (const r of rows) {
             const n = /^(?:feat|fix)\/issue-(\d+)$/.exec(r.headRefName)?.[1];
             if (n === undefined) continue;
             byIssue[Number(n)] = r.number;
             files[r.number] = r.files.map((f) => f.path);
+            const dates = (r.commits ?? [])
+                .map((c) => Date.parse(c.committedDate ?? ""))
+                .filter(Number.isFinite);
+            facts.push({
+                number: r.number,
+                issue: Number(n),
+                labels: (r.labels ?? []).map((l) => l.name),
+                files: files[r.number],
+                headCommittedAt:
+                    dates.length > 0
+                        ? new Date(Math.max(...dates)).toISOString()
+                        : null,
+            });
         }
     } catch (err) {
         console.error(
             `queue:plan: could not read open PR files (${(err as Error).message.split("\n")[0]}) — in-flight files fall back to \`Target files\``
         );
     }
-    return { byIssue, files };
+    return { byIssue, files, facts };
 }
 
 /** When the issue's last comment (the hand-back) was posted, ms epoch. */
@@ -881,6 +902,9 @@ function main(): void {
         areaModels: parseAreaModels(
             JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
         ),
+        stalledPrHours: parseStalledPrHours(
+            JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+        ),
         now: new Date().toISOString(),
         inferredTargetFiles: inferredTargetFiles(),
         // Opt-in, and only the AFK driver passes it (#3088): an interactive
@@ -918,11 +942,34 @@ function main(): void {
             )
         )
             occupying.add(i.number);
+    // Stalled PRs (issue #8258): occupy nothing, reported in the plan. The
+    // live passes are the claims counted above (claimed and not stale).
+    const liveIssues = new Set(
+        issues
+            .filter(
+                (i) =>
+                    i.labels.some((l) => l.name === "in-progress") &&
+                    !isStaleClaim(
+                        i,
+                        port.issuesWithOpenPr,
+                        config.now,
+                        config.staleClaimHours
+                    )
+            )
+            .map((i) => i.number)
+    );
+    config.stalledPrs = stalledPrsOf(
+        prs.facts,
+        liveIssues,
+        config.now,
+        config.stalledPrHours
+    );
     config.inFlight = inFlightSet(
         [...occupying].map((n) => ({ issue: n, pr: prs.byIssue[n] ?? null })),
         prs.files,
         (n) => port.issueDetail(n).body,
-        config.inferredTargetFiles
+        config.inferredTargetFiles,
+        new Set(config.stalledPrs.map((p) => p.pr))
     );
 
     const plan = planBatch(
@@ -1020,6 +1067,10 @@ function main(): void {
     }
 
     writePlanArtefact(plan, config.now, lineage);
+
+    // A warning, never a failure (issue #8258).
+    for (const s of plan.stalledPrs ?? [])
+        console.error(`queue:plan: ${stalledPrLine(s)}`);
 
     process.stdout.write(
         JSON.stringify(plan, null, process.argv.includes("--pretty") ? 2 : 0) +
