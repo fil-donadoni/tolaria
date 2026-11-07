@@ -20,4 +20,4 @@ reduction, which is why nothing has caught it.
 **Why it may not deserve its own issue.** It is a one-word fix on one card, but it
 needs its own behaviour test, and a sweep for other "whenever you cast" cards on
 `scope: "self"` found no second one by text search only; `gold.test.ts` cannot see
-it while the card stays Hand Tail.
+it while the card stays unparsed.
