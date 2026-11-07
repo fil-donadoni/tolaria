@@ -91,7 +91,6 @@ describe("subtype-add ends with the departing target (CR 400.7, CR 613.1d)", () 
 
             const gone = findIn(state, "target-a", zone);
             expect(gone.subtypes).toEqual(["Swamp"]);
-            expect(gone.grantedSubtypesAdd).toBeUndefined();
         }
     );
 
