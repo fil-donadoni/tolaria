@@ -1,5 +1,16 @@
 # Decision telemetry — what decides a root pick? (issue #1893, map #1892)
 
+> **Measured at** the pre-#1887 selection code, **2026-07-29**, 36 self-play
+> games + 11 blade scenarios, 400 iterations. **Dated:** `selectRootMove` has
+> since grown from 8 to 15 `ROOT_DECISION_MECHANISMS` (frozen, ADR 0124 §5),
+> the blade registry from 11 scenarios to several hundred, and the weights
+> are now fitted from Verdicts (ADR 0124). The map these numbers served was
+> re-chartered as Roadmap v3 (ADR 0138). A re-measure on the 2026-11-07 tip
+> (`3f750884247a`, 6 self-play games, seed 1893, 400 iterations, no blade
+> half) was started that day and lands as a § Re-measure section when it
+> completes; it is the baseline issue #8700 (action priors ON) measures
+> against. Until then every percentage below is three months old.
+
 **Question.** What share of the bot's real decisions is actually decided by
 the search (mean reward), and what share falls to the material tie-break or
 to one of the six named tie-break rules in `selectRootMove`

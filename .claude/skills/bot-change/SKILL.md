@@ -8,13 +8,13 @@ description: "Implement or review a change to the play Bot or draft Bot: maps th
 There are **two** bots. They share no code and fail differently — say which one
 you are changing before anything else.
 
-|          | **Play Bot** ("the Brain")                                                           | **Draft Bot**                                             |
-| -------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| Decides  | which Move to make in a game                                                         | which card to pick from a booster                         |
-| Lives in | `convex/gre/` (pure engine) + `src/lib/ai/` (client host)                            | `convex/limited/`                                         |
-| Core     | ISMCTS over a determinized tree (`search.ts`), leaf-scored by `evaluate.ts`          | `botDrafter.ts` over `cardProfiles.ts` + `cardRatings.ts` |
-| Runs     | **client-side**, in a Worker (`brain.worker.ts`) — never server authority (ADR 0074) | client + server                                           |
-| Metric   | the **blade suite** (`convex/gre/ai/blade/`)                                         | pick-rating tests + draft sims                            |
+|          | **Play Bot** ("the Brain")                                                                                                 | **Draft Bot**                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Decides  | which Move to make in a game                                                                                               | which card to pick from a booster                         |
+| Lives in | `convex/gre/` (pure engine) + `src/lib/ai/` (client host)                                                                  | `convex/limited/`                                         |
+| Core     | ISMCTS over a determinized tree (`search.ts`), leaf-scored by `evaluate.ts`                                                | `botDrafter.ts` over `cardProfiles.ts` + `cardRatings.ts` |
+| Runs     | **client-side**, in a Worker (`brain.worker.ts`) — never server authority (ADR 0074)                                       | client + server                                           |
+| Metric   | **held-out agreement** with player Verdicts (ADR 0138); the `must` tier of `convex/gre/ai/blade/` is the correctness FLOOR | pick-rating tests + draft sims                            |
 
 ## Play Bot — the pipeline, in order
 
@@ -40,9 +40,12 @@ Two invariants worth internalising:
   application from the real GRE. A bot bug is almost never "the search is
   wrong" — it is a Move that was never enumerated, a value the evaluator can't
   see, or a choice kind with no candidate generator.
-- **Difficulty is one knob.** `difficulty.ts` presets differ only by
-  `SearchBudget` (iterations / timeMs). There is no weak-bot code path; never
-  add one.
+- **Difficulty is budget plus knowledge, never logic.** `difficulty.ts`
+  presets differ by `SearchBudget` (iterations / timeMs) and by
+  `DIFFICULTY_KNOWS_OPPONENT` (today only `expert` searches with the
+  opponent's decklist; the others face an opponent whose hidden cards are
+  placeholders that never get cast — `determinize.ts`). There is no weak-bot
+  code path; never add one. Issue #8692 moves the default to `expert`.
 
 ## Phase 0 — "the bot did something stupid" (symptom-driven entry)
 
@@ -202,8 +205,8 @@ All of those guards live in the **bot suite**, which `test:app` and an
 ## Rules that catch the recurring bugs
 
 - **Name a test `*.bot.test.ts`.** The bot suite runs as a separate vitest
-  invocation because bot tests lose the CPU race inside the ~770-file app suite
-  and time out. `scripts/__tests__/bot-suite-boundary.test.ts` fails the app
+  invocation because bot tests lose the CPU race inside the app suite and time
+  out. `scripts/__tests__/bot-suite-boundary.test.ts` fails the app
   suite if a plain `*.test.ts` imports a bot-only module.
 - **Determinism is a hard requirement.** Every random draw goes through the
   seeded stream (`makeRng(seed)`); iterations, never wall-clock, in any test.
@@ -236,25 +239,15 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
-## Oracle lockfile — a bare compile never replays for your Bot
+## Oracle lockfile
 
-A bare `bun run oracle:compile` plays only the cards it graduates to
-`ready` and carries drift verdicts `botStale` for the base to replay
-(issue #6688), header on the committed Bot hash. The whole replay under your Bot
-(`--replay-bot`, 20–47 min) runs ONCE on the base after your PR merges
-(`derive:sync --replay-bot`, the `bot-replay` job): no card left `ready` →
-swept lockfile pushed; a card your change froze → a `bug` (`area:game-bot`)
-naming it and your commit range, never a silent lockfile write.
-
-Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
-about, or whose `frozen` status the change should flip)?
-`bun run oracle:compile --carry-bot --replay-card "<name>"` (repeatable,
-issue #4957): every other verdict is carried, only the named cards are
-played, and the header Bot hash stays the committed one. An unknown name, or
-a card that does not compile `ready`, exits non-zero and writes nothing.
+A bare `bun run oracle:compile` never replays cards under YOUR Bot; a blade
+`moves` entry, a refit or a `frozen` flip reads `oracle-lockfile.md` (beside
+this file) for `--carry-bot --replay-card`.
 
 ## Reference
 
 - Play bot: `convex/gre/{search,evaluate,moves,applyMove,determinize,difficulty,describeMove}.ts`, `convex/gre/ai/**`, `src/lib/ai/**`
 - Draft bot: `convex/limited/{botDrafter,cardProfiles,cardRatings,capabilityRegistry}.ts`
-- Wayfinder map #1254 (bot AI programme), PRD #1423 (DSL semantic layer), ADR 0001 (bot architecture), ADR 0074 (authority boundary)
+- Wayfinder map #1254 (bot AI programme), map #1892 (strength, Roadmap v3), PRD #1423 (DSL semantic layer), ADR 0000 (bot architecture), ADR 0074 (authority boundary), ADR 0124 / 0138 (Verdicts, held-out agreement)
+- Docs owed (CLAUDE.md step 10): `docs/guides/bot-glossary.md`, `GLOSSARY.md`, this skill — reconciled in the same PR.

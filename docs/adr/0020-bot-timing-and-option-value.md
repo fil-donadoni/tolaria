@@ -1,8 +1,12 @@
 # ADR 0020 — Bot timing & option-value awareness
 
-**Status:** Proposed (2026-06-16)
+**Status:** Accepted and shipped (proposed 2026-06-16; the levers live in
+`convex/gre/search.ts` — `isDiscouragedRolloutMove`, `reactivePrior`, the
+hold-trick and land-drop root rules). Code names have moved since: the rollout
+policy is `selectRolloutMove` and `ROLLOUT_EPSILON` is `weights.rolloutEpsilon`
+(same value, 0.25). Status line added 2026-11-07.
 
-**Refines:** [ADR 0001](0001-ai-opponent-client-side-ismcts.md) (the client-side
+**Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the client-side
 ISMCTS opponent), [ADR 0015](0015-rollout-terminates-at-turn-boundary.md) (the
 turn-boundary rollout horizon), and [ADR 0018](0018-forge-style-evaluation-enrichment.md)
 (the Forge-scale leaf evaluation). It addresses a class of misplay those ADRs

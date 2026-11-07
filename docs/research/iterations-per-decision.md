@@ -1,5 +1,13 @@
 # Real iterations per decision, in the browser (issue #2682)
 
+> **Measured at** `medium` (400 / 1500 ms), 2026-08 (first section) and
+> **2026-09-29** (issue #4458 re-measure, first 60 `must` positions). **Dated:**
+> covers `medium` only; `hard` (1200 / 3000 ms) and `expert` (1320 / 3300 ms,
+> informed opponent — `expert-informed-iteration-cost.md`) are not measured
+> here, the `must` set has grown since, and `src/lib/ai/brain.ts` line numbers
+> quoted below have moved (look the symbol up, not the line). Four positions
+> were measured plus the mulligan bucket, which is N/A by construction.
+
 **Question.** `medium` caps the ISMCTS search at `{ iterations: 400, timeMs:
 1500 }`. Nobody had measured, in an actual browser tab, whether a real
 decision at `medium` completes the full 400-iteration budget or gets cut

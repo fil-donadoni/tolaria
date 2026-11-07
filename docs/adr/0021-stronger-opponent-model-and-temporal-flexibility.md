@@ -1,8 +1,12 @@
 # ADR 0021 — Stronger opponent model & temporal flexibility
 
-**Status:** Proposed (2026-06-17)
+**Status:** Accepted and shipped (proposed 2026-06-17; `reactivePrior`, the
+hold-priority shapes and the instant-timing levers live in
+`convex/gre/search.ts`). The opponent-knowledge half was later re-decided per
+difficulty preset (issue #2790, `DIFFICULTY_KNOWS_OPPONENT`) and the informed
+sampling by PRD #2787 / issue #2789. Status line added 2026-11-07.
 
-**Refines:** [ADR 0001](0001-ai-opponent-client-side-ismcts.md) (the client-side
+**Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the client-side
 ISMCTS opponent), [ADR 0015](0015-rollout-terminates-at-turn-boundary.md) (the
 turn-boundary rollout horizon), [ADR 0018](0018-forge-style-evaluation-enrichment.md)
 (the Forge-scale leaf evaluation), and [ADR 0020](0020-bot-timing-and-option-value.md)

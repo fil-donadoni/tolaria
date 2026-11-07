@@ -16,7 +16,7 @@ an agent's context automatically — these are read on demand.
 | [Land and release](land-and-release.md)               | Ship a change: `wt:new`, the PR, `land:ready` to the merge queue; then `release` to production — every phase, every refusal                                                                                   |
 | [Browser verification](browser-verification.md)       | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                                                                                 |
 | [UI runbooks](ui-runbooks.md)                         | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                                                                                  |
-| [Bot glossary](bot-glossary.md)                       | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, blade, ladder, rungs                                                                                        |
+| [Bot glossary](bot-glossary.md)                       | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, deck knowledge, Verdicts, held-out agreement, test positions, ladder                                        |
 | [Verdict Store](verdict-store.md)                     | Provision the private GCS bucket the Verdict corpus lives in: its two service accounts, where each key lands, how to check the bucket is private                                                              |
 | [Catalogue cloud latency](catalogue-cloud-latency.md) | Measure what a request pays for the packed catalogue on Convex cloud: create a throwaway deployment, sweep block sizes, read the verdict, delete the project                                                  |
 | [Bot reachability](bot-reachability.md)               | Prove a new card/mechanic is one the Bot can actually PLAY: the three seams, what the existing guards are blind to, what to declare in the PR                                                                 |
@@ -28,17 +28,18 @@ an agent's context automatically — these are read on demand.
 
 Not every document is a guide. Where to look for the other kinds:
 
-| You want                                         | Look in                                                                                                                   |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                            |
-| Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                                                               |
-| Domain vocabulary                                | `GLOSSARY.md`                                                                                                             |
-| What the quality gates are and why               | `docs/agents/quality-gates.md`                                                                                            |
-| How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                            |
-| What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                                                                 |
-| How to watch or stop the AFK passes              | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md)) |
-| What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                                                           |
-| The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                   |
+| You want                                            | Look in                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| The norms an agent must follow                      | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                            |
+| Why a decision was made                             | `docs/adr/` — index at `docs/adr/README.md`                                                                               |
+| Domain vocabulary                                   | `GLOSSARY.md`                                                                                                             |
+| What the quality gates are and why                  | `docs/agents/quality-gates.md`                                                                                            |
+| Which docs a change owes, and why prose enforces it | `docs/agents/docs-follow-the-change.md`                                                                                   |
+| How the issue queue and its labels work             | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                            |
+| What the loop costs, measured                       | `docs/agents/workflow-token-economics.md`                                                                                 |
+| How to watch or stop the AFK passes                 | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md)) |
+| What a subagent noticed but was not asked to fix    | `docs/findings/` — read with `bun run findings`                                                                           |
+| The workflow skills themselves                      | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                   |
 
 ## Every guide carries a glossary
 
