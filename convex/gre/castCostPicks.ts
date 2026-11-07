@@ -41,7 +41,7 @@ import {
     paidCollectEvidence,
     type KickerPayments,
 } from "./kicker";
-import { largestEmergeVictim } from "./emerge";
+import { emergeVictimOf, largestEmergeVictim } from "./emerge";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
@@ -127,6 +127,13 @@ export type CastCostPicks = {
      *  server-side at announcement (`autoResolveFungible`), and those victims
      *  are already recorded, so re-naming them would be rejected. */
     sacrificeIds?: string[];
+    /** CR 118.9d / 601.2f — an alternative cost's permanent leg beside an own
+     *  sacrifice (Drought's tax): the victims the announcement auto-resolves,
+     *  which `sacrificeIds` never names. The sandbox pays them from here, because
+     *  it charges the leg after the tap plan, and a tapped land splits a pool of
+     *  interchangeable victims (`identityKey`) so it could no longer re-derive
+     *  them. Never submitted. */
+    announcedSacrificeIds?: string[];
     /** CR 701.13 / 118.8 — the single permanent exiled to pay `additionalCosts
      *  .exileFilter` (Soul Exchange). */
     additionalCostCardId?: string;
@@ -275,12 +282,14 @@ export function canPayKickerAlongsideCastSacrifices(
             def,
             payments,
             selection?.requirements ?? [],
-            card
+            card,
+            undefined
         )
     ) {
         return false;
     }
     const merged = resolveCastPermanentSelection(
+        state,
         buildCastPermanentCostChoice(
             state,
             player.id,
@@ -293,6 +302,37 @@ export function canPayKickerAlongsideCastSacrifices(
         selection
     );
     return !merged || completeSacrificeSelection(state, merged) !== null;
+}
+
+/** CR 118.9d / 601.2f — can the caster pay the alternative cost's permanent leg
+ *  on top of the sacrifices this cast already owes (Drought's tax)? The
+ *  offer-side twin of `assertCastPermanentCostsPayable`, read by the cast-option
+ *  picker so no row is a click the announcement refuses. A cost with no permanent
+ *  leg earns no refusal here. */
+export function canPayAlternativeCostAlongsideCastSacrifices(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition,
+    altCost: CostLegs
+): boolean {
+    if (!altCost.permanent) return true;
+    const { selection } = buildCastCostSelection(
+        state,
+        player,
+        card,
+        def.additionalCosts,
+        def.name ?? "Sacrifice"
+    );
+    return canPayKickerLegsAlongside(
+        state,
+        player.id,
+        def,
+        undefined,
+        selection?.requirements ?? [],
+        card,
+        altCost
+    );
 }
 
 /** Pay a cast's sacrifice legs on a SEARCH SANDBOX state: every permanent that
@@ -405,42 +445,54 @@ export function planCastCostPicks(
     // via `applyCastSacrificeVictims`.
     let owesSacrifice = false;
 
-    // CR 601.2f / 118.9 (issue #4935) — an alternative cost's permanent leg
-    // beside the cast's own sacrifice (Drought's tax) is refused by the server
-    // at announcement (`assertCastPermanentCostsPayable`): fail CLOSED rather
-    // than offer it.
+    // CR 601.2f / 118.9d — an alternative cost's permanent leg and the cast's own
+    // sacrifice (Drought's tax) are one selection, exactly as the announcement
+    // merges them (`resolveCastPermanentSelection`), so the plan names what the
+    // server parks for.
     if (def && opts?.altCost?.permanent) {
-        if (selection) return null;
-        const altSelection = buildCastPermanentCostChoice(
+        const merged = resolveCastPermanentSelection(
             state,
-            player.id,
-            opts.altCost,
-            def,
-            undefined,
-            def.name ?? "Alternative cost",
-            card
+            buildCastPermanentCostChoice(
+                state,
+                player.id,
+                opts.altCost,
+                def,
+                undefined,
+                def.name ?? "Alternative cost",
+                card
+            ),
+            selection
         );
-        if (altSelection) {
+        if (merged) {
             // CR 702.119a — the emerge victim is the LARGEST-mana-value match,
             // the one whose reduction `moves.ts` prices the tap plan with; any
-            // other alternative cost keeps the cheapest-first default.
+            // other alternative cost keeps the cheapest-first default. Named
+            // only for the leg's own pick: once an auto-resolved victim holds
+            // it, the next pick pays a later requirement.
             const emergeVictim =
-                def.emerge !== undefined && opts.altCost === def.emerge
+                def.emerge !== undefined &&
+                opts.altCost === def.emerge &&
+                emergeVictimOf(merged) === undefined
                     ? largestEmergeVictim(player, def.emerge)
                     : undefined;
+            const announced = [...merged.picked];
             const submitted = completeSacrificeSelection(
                 state,
-                altSelection,
-                emergeVictim && !altSelection.picked.includes(emergeVictim.id)
+                merged,
+                emergeVictim
                     ? player.battlefield.find((c) => c.id === emergeVictim.id)
                     : undefined
             );
             if (submitted === null) return null;
             if (submitted.length > 0) picks.sacrificeIds = submitted;
+            if (selection) {
+                owesSacrifice = true;
+                if (announced.length > 0) {
+                    picks.announcedSacrificeIds = announced;
+                }
+            }
         }
-    }
-
-    if (selection) {
+    } else if (selection) {
         owesSacrifice = true;
         const submitted = completeSacrificeSelection(state, selection);
         if (submitted === null) return null;

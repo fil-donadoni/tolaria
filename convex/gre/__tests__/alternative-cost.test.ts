@@ -523,7 +523,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             "Alternative cost",
             undefined
         );
-        return resolveCastPermanentSelection(altChoice, ownSac);
+        return resolveCastPermanentSelection(state, altChoice, ownSac);
     }
 
     it("builds and applies the board-wide Forest sacrifice for a leg-free alt-cost cast", () => {

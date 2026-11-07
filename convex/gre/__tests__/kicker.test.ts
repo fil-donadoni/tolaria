@@ -20,12 +20,15 @@ import {
     selectSacrificeOnState,
 } from "../../game";
 import {
+    buildCastPermanentCostChoice,
     canPayKickerLegs,
     kickerLifeCost,
     kickerPaidCount,
+    resolveCastPermanentSelection,
     resolveKickerPayments,
     totalKickerCount,
 } from "../kicker";
+import { applySacrificeSelection } from "../sacrificeChoice";
 import {
     getLegalTargets,
     getLegalActions,
@@ -65,6 +68,7 @@ import {
     grizzlyBears,
     blackLotus,
     forest,
+    solRing,
     swamp,
 } from "../../cards/sets/lea/index.cards";
 
@@ -1281,17 +1285,66 @@ describe("Kicker alongside an own sacrifice — the targeted path (CR 601.2f)", 
     });
 });
 
-// tracked-by: issue #8259 — an alternative cost's permanent leg beside an own
-// sacrifice stays refused until the merge keeps the emerge victim first.
-describe("an alternative cost's permanent leg beside an own sacrifice fails CLOSED (CR 118.9)", () => {
-    it("refuses Crabomination's emerge cast under Drought rather than misread its victim", () => {
+describe("an alternative cost's permanent leg is paid beside an own sacrifice (CR 118.9d)", () => {
+    function artifactOnBoard(id: string) {
+        return makeInstance(solRing().id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+        });
+    }
+
+    function announceEmerge(state: GameState) {
+        const player = getPlayer(state, "p1");
+        assertKickerAnnouncementLegal(
+            state,
+            crabomination(),
+            player.hand[0],
+            player,
+            undefined,
+            "hand",
+            undefined,
+            crabomination().emerge
+        );
+    }
+
+    it("accepts Crabomination's emerge cast under Drought when the board covers both", () => {
         const state = castBoard(crabomination().id, [
             droughtOnBoard(),
             swampOnBoard("swamp1"),
             swampOnBoard("swamp2"),
-            bearOnBoard("bear"),
+            artifactOnBoard("ring"),
+        ]);
+        expect(() => announceEmerge(state)).not.toThrow();
+    });
+
+    it("refuses it when the Swamps cover only part of the tax (CR 601.2h)", () => {
+        const state = castBoard(crabomination().id, [
+            droughtOnBoard(),
+            swampOnBoard("swamp1"),
+            artifactOnBoard("ring"),
+        ]);
+        expect(() => announceEmerge(state)).toThrow(
+            /not enough permanents to sacrifice/
+        );
+    });
+
+    it("the leg and the tax must come from DISTINCT permanents (CR 601.2f)", () => {
+        // Crabomination's {B}{B} owes two Swamps; a leg that also takes a Swamp
+        // owes a third, though two Swamps pass each half alone.
+        const state = castBoard(crabomination().id, [
+            droughtOnBoard(),
+            swampOnBoard("swamp1"),
+            swampOnBoard("swamp2"),
         ]);
         const player = getPlayer(state, "p1");
+        const swampLeg = {
+            permanent: {
+                action: "sacrifice" as const,
+                count: 1,
+                filter: { subtypes: "Swamp" },
+            },
+        };
         expect(() =>
             assertKickerAnnouncementLegal(
                 state,
@@ -1301,8 +1354,74 @@ describe("an alternative cost's permanent leg beside an own sacrifice fails CLOS
                 undefined,
                 "hand",
                 undefined,
-                crabomination().emerge
+                swampLeg
             )
-        ).toThrow(/alternative cost cannot be paid/);
+        ).toThrow(/not enough permanents to sacrifice/);
+    });
+
+    it("declares the alternative leg first and auto-resolves the merge once, as a whole", () => {
+        const state = castBoard(crabomination().id, [
+            droughtOnBoard(),
+            swampOnBoard("swamp1"),
+            swampOnBoard("swamp2"),
+            artifactOnBoard("ring"),
+        ]);
+        const merged = resolveCastPermanentSelection(
+            state,
+            buildCastPermanentCostChoice(
+                state,
+                "p1",
+                crabomination().emerge,
+                crabomination(),
+                undefined,
+                "Crabomination",
+                undefined
+            ),
+            {
+                playerId: "p1",
+                reason: "Drought",
+                requirements: [{ filter: { subtypes: "Swamp" }, count: 2 }],
+                // The own side's own auto-resolve, which allocated these picks
+                // to a selection with no alternative leg ahead of it.
+                picked: ["swamp1", "swamp2"],
+            }
+        );
+        expect(merged?.requirements.map((r) => r.count)).toEqual([1, 2]);
+        expect(merged?.picked).toEqual(["ring", "swamp1", "swamp2"]);
+    });
+
+    it("a RETURN leg beside a sacrifice tax returns its pick and sacrifices the other (CR 118.9)", () => {
+        const state = castBoard(crabomination().id, [
+            swampOnBoard("swamp1"),
+            artifactOnBoard("ring"),
+        ]);
+        const merged = resolveCastPermanentSelection(
+            state,
+            buildCastPermanentCostChoice(
+                state,
+                "p1",
+                {
+                    permanent: {
+                        action: "return",
+                        count: 1,
+                        filter: { types: "Artifact" },
+                    },
+                },
+                crabomination(),
+                undefined,
+                "Return",
+                undefined
+            ),
+            {
+                playerId: "p1",
+                reason: "Tax",
+                requirements: [{ filter: { subtypes: "Swamp" }, count: 1 }],
+                picked: [],
+            }
+        )!;
+        applySacrificeSelection(state, merged);
+        const player = getPlayer(state, "p1");
+        expect(player.hand.map((c) => c.id)).toContain("ring");
+        expect(player.graveyard.map((c) => c.id)).toEqual(["swamp1"]);
     });
 });

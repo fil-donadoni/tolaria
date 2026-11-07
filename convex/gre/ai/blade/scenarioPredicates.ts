@@ -800,6 +800,27 @@ export function kickedCastOffered(card: string, offered: boolean) {
     };
 }
 
+/** CR 118.9d / 601.2f — whether the enumerator offers `card` by the alternative
+ *  cost `altCostId`. Asserted on the LEGAL SET: an alternative cost's permanent
+ *  leg priced beside the cast's own sacrifice decides whether the Move exists. */
+export function altCostCastOffered(
+    card: string,
+    altCostId: string,
+    offered: boolean
+) {
+    return (
+        _move: Move | null,
+        state: Parameters<typeof enumerateMoves>[0]
+    ): boolean => {
+        const ids = instanceIdsForName(state, card);
+        const casts = enumerateMoves(state, state.players[0].id).filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" && ids.has(m.cardInstanceId)
+        );
+        return casts.some((m) => m.alternativeCostId === altCostId) === offered;
+    };
+}
+
 /** Issue #6985 — a cast of `card`, if the move is one, names none of `seat`'s
  *  own permanents. Any other move passes: whether to act at all is not the
  *  question (issue #6913), where a harmful one-shot points is. */

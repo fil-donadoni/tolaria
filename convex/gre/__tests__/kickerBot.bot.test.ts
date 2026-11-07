@@ -621,6 +621,7 @@ describe("a permanent-leg Kicker is priced ON TOP of a board-wide static additio
             "Bog Down"
         ).selection;
         const merged = resolveCastPermanentSelection(
+            state,
             buildCastPermanentCostChoice(
                 state,
                 BOT,
