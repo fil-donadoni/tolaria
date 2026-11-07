@@ -573,6 +573,34 @@ export const miracleRule: Rule<SlotIR> = rule("miracle", (span) => {
     return ok({ kind: "miracle" as const, cost: cost.value });
 });
 
+// ── Splice onto <quality> <cost> (CR 702.47) ──────────────────────────────
+
+/** The one quality a printed splice ability names (CR 702.47a's
+ *  "[quality]"): every splice card ever printed splices onto Arcane. */
+const SPLICE_ONTO_ARCANE_HEAD = "Splice onto Arcane ";
+
+/**
+ * CR 702.47a — "Splice onto Arcane [cost]": the cost its owner pays to reveal
+ * the card from hand as they cast an Arcane spell, which then gains this
+ * card's rules text. The engine reads it off `CardDefinition.splice`
+ * (`gre/splice.ts`), which synthesizes the per-cast additional cost; whether
+ * the card's own text is one a reveal can add is the whole card's question,
+ * answered in `lower.ts`.
+ *
+ * Refused: a non-mana splice cost ("Splice onto Arcane—Sacrifice two
+ * Mountains"), any other quality, every cost {@link costParameter} refuses.
+ */
+export const spliceRule: Rule<SlotIR> = rule("splice", (span) => {
+    const cost = costParameter(SPLICE_ONTO_ARCANE_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({
+        kind: "splice" as const,
+        subtype: "Arcane",
+        cost: cost.value,
+        description: span,
+    });
+});
+
 /**
  * CR 702.96a — "Overload [cost]": the alternative cost that makes the spell
  * affect each object instead of a target. The engine reads it off
@@ -914,7 +942,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, mobilize, ward life, impending, warp, equip,
+ * foretell, splice, overload, morph, fading, mobilize, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -932,6 +960,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     plotRule,
     foretellRule,
     miracleRule,
+    spliceRule,
     overloadRule,
     morphRule,
     echoRule,

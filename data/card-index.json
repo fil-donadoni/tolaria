@@ -20068,6 +20068,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Desperate Ritual",
+        "scryfallId": "c8bdb92a-7bdb-434b-8cc0-873969faf566",
+        "oracleId": "3620ab8f-b693-4225-bb96-5ca3cb3fa465",
+        "firstSet": "chk",
+        "firstPrintId": "c8bdb92a-7bdb-434b-8cc0-873969faf566",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Despise",
         "scryfallId": "ee7bfcd3-9f2b-41f5-93b4-8c1ee6ba4d88",
         "oracleId": "b13b40f1-1b1f-40e8-989b-ef24dc05007a",
@@ -37489,6 +37499,16 @@
         "firstPrintId": "216e8047-6f54-49ce-bf86-27dc8fc8c8f7",
         "firstPrintSet": "dgm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hideous Laughter",
+        "scryfallId": "941fd135-1c5a-4650-8faf-dfa2c93ec8c9",
+        "oracleId": "e9022d1c-2f5c-4a1f-a44e-0e4f9651e729",
+        "firstSet": "chk",
+        "firstPrintId": "941fd135-1c5a-4650-8faf-dfa2c93ec8c9",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -88677,6 +88697,16 @@
         "firstPrintId": "273b982d-bca2-4418-8618-c711d28fc901",
         "firstPrintSet": "nph",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Vital Surge",
+        "scryfallId": "ba28f326-67d1-4afb-90fe-e9f036210942",
+        "oracleId": "e19c0205-67e3-4e44-995b-751e18fdaafd",
+        "firstSet": "bok",
+        "firstPrintId": "ba28f326-67d1-4afb-90fe-e9f036210942",
+        "firstPrintSet": "bok",
+        "rarity": "common",
         "source": "compiled"
     },
     {

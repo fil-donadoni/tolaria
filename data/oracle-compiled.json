@@ -16,6 +16,7 @@
     },
     "fragments": [
         {"key":"2155ed88b55c","text":"\"Until end of turn\" and \"this turn\" effects don't end.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"\"Until end of turn\" and \"this turn\" effects don't end"}},
+        {"key":"33a170b653d8","text":"(Nonexistent mana costs can't be paid.)\nDraw a card.\nSplice onto Arcane {1}{U} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
         {"key":"dbff5d05fef8","text":"+ {1} — All creatures lose all abilities until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"+ {1} — All creatures lose all abilities until end of turn"}},
         {"key":"bdf13e719764","text":"+ {1} — Change the target of target spell or ability with a single target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"+ {1} — Change the target of target spell or ability with a single target"}},
         {"key":"e1eab6e3c612","text":"+ {1} — Choose a creature you control. It gains indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"+ {1} — Choose a creature you control"}},
@@ -6242,6 +6243,7 @@
         {"key":"a71d1a80b46b","text":"Destroy target artifact or enchantment and up to one other target artifact or enchantment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"artifact or enchantment and up to one other target artifact or enchantment"}},
         {"key":"a5d790dad915","text":"Destroy target artifact or enchantment if its mana value is less than or equal to the number of cards in your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"artifact or enchantment if its mana value is less than or equal to the number of cards in your hand"}},
         {"key":"a45659b69a4b","text":"Destroy target artifact or enchantment, then populate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"artifact or enchantment, then populate"}},
+        {"key":"a8e365da865a","text":"Destroy target artifact or enchantment.\nSplice onto Arcane {3}{G} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"5badafdfde87","text":"Destroy target artifact or enchantment. Assemble a Contraption.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Assemble a Contraption"}},
         {"key":"c450c5202bc6","text":"Destroy target artifact or enchantment. Create a 1/1 green Squirrel creature token for each fire extinguisher you can see from your seat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Create a 1/1 green Squirrel creature token for each fire extinguisher you can see from your seat"}},
         {"key":"db8f29feb83a","text":"Destroy target artifact or enchantment. Create a Junk token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Create a Junk token"}},
@@ -8913,6 +8915,7 @@
         {"key":"10c1bde887ae","text":"Gift an extra turn","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Gift an extra turn"}},
         {"key":"ec0c3c602c07","text":"Gift of Chaos — {3}, {T}: The next noncreature spell you cast this turn has cascade.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Gift of Chaos — {3}"}},
         {"key":"e6ff33e2bcb6","text":"Gift of Tiamat — When this creature dies, if its power is greater than 0, note its power. You get a one-time boon with \"When you cast a creature spell, it perpetually gets +X/+0, where X is the noted number.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Gift of Tiamat — When this creature dies"}},
+        {"key":"5124e748dfa7","text":"Glacial Ray deals 2 damage to any target.\nSplice onto Arcane {1}{R} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"4f5929bf7c15","text":"Go for the Goal! — {3}, {T}: Until end of turn, target creature gains \"Whenever this creature deals combat damage to a player, draw a card for each kind of counter on it\" and it can't be blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Go for the Goal! — {3}"}},
         {"key":"6501ed688b91","text":"Goad all creatures you don't control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Goad all creatures you don't control"}},
         {"key":"2289431a6ac4","text":"Goad all creatures your opponents control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Goad all creatures your opponents control"}},
@@ -12266,6 +12269,7 @@
         {"key":"4158b09dd2fb","text":"Return target creature card from your graveyard to the battlefield. Then if it isn't your main phase, blight 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then if it isn't your main phase, blight 2"}},
         {"key":"6f7f9015bdaa","text":"Return target creature card from your graveyard to the battlefield. Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creature, except it's 1/1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creature, except it's 1/1"}},
         {"key":"5183fe95a36b","text":"Return target creature card from your graveyard to the battlefield. When you do, it fights up to one target creature you don't control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"It"}},
+        {"key":"0161dc61a697","text":"Return target creature card from your graveyard to your hand.\nSplice onto Arcane {1}{B} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"9fd075fa6c89","text":"Return target creature card from your graveyard to your hand. If it's a Zombie card, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it's a Zombie card, draw a card"}},
         {"key":"a2705f2ad9b1","text":"Return target creature card from your graveyard to your hand. If this spell was kicked, instead put that card onto the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Instead put that card onto the battlefield tapped"}},
         {"key":"a8111dd5e403","text":"Return target creature card from your graveyard to your hand. If this spell was kicked, instead return two target creature cards from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Instead return two target creature cards from your graveyard to your hand"}},
@@ -12287,6 +12291,7 @@
         {"key":"5c35d5f1c092","text":"Return target creature or planeswalker card with mana value 6 or less from your graveyard to the battlefield.","reason":"\"battlefield\" is not a zone destination in grammar v0","cards":1},
         {"key":"5b84a20df253","text":"Return target creature or planeswalker you don't control to its owner's hand. If this spell was kicked, put that permanent on the bottom of its owner's library instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"the bottom of its owner's library instead"}},
         {"key":"c9c4a2567d98","text":"Return target creature to its owner's hand, then roll a six-sided die. If the result is 3 or less, scry a number of cards equal to the result.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"roll a six-sided die"}},
+        {"key":"b1bbfe9c0fc1","text":"Return target creature to its owner's hand.\nSplice onto Arcane {3}{U} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"50948706e2f0","text":"Return target creature to its owner's hand. Create a Treasure token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Create a Treasure token"}},
         {"key":"8ed01d1ef7ab","text":"Return target creature to its owner's hand. Gain control of all Auras and Equipment that were attached to it, then attach them to another creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"all Auras and Equipment that were attached to it"}},
         {"key":"55cd38ed7aae","text":"Return target creature to its owner's hand. If it was tapped, create a Map token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it was tapped, create a Map token"}},
@@ -13175,21 +13180,6 @@
         {"key":"4026f12db05c","text":"Spirits you control get +1/+1 for each time you've cast your commander from the command zone this game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Spirits you control get +1/+1 for each time you've cast your commander from the command zone this game"}},
         {"key":"91bce7764093","text":"Spirits you control get +X/+0, where X is Teysa's intensity.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Spirits you control get +X/+0, where X is Teysa's intensity"}},
         {"key":"a68ff2da3864","text":"Splice onto Anything {1}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Anything {1}{R}"}},
-        {"key":"2ccf73a42c46","text":"Splice onto Arcane {1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {1}{B}"}},
-        {"key":"97b51e765e99","text":"Splice onto Arcane {1}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {1}{G}"}},
-        {"key":"e41c608909a8","text":"Splice onto Arcane {1}{R}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {1}{R}"}},
-        {"key":"1ccc427123c5","text":"Splice onto Arcane {1}{U}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {1}{U}"}},
-        {"key":"66e303ed2244","text":"Splice onto Arcane {1}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {1}{W}"}},
-        {"key":"4884fddc2e16","text":"Splice onto Arcane {2}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {2}{B}"}},
-        {"key":"55c527d817a3","text":"Splice onto Arcane {2}{R}{R}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {2}{R}{R}"}},
-        {"key":"73dabf2f213d","text":"Splice onto Arcane {2}{U}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {2}{U}{U}"}},
-        {"key":"f729df9bbbd8","text":"Splice onto Arcane {3}{B}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {3}{B}{B}"}},
-        {"key":"ea168a3963bc","text":"Splice onto Arcane {3}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {3}{G}"}},
-        {"key":"10fefc0be9f3","text":"Splice onto Arcane {3}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {3}{U}"}},
-        {"key":"469cc1cae6ed","text":"Splice onto Arcane {G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {G}"}},
-        {"key":"f2bd8dee2779","text":"Splice onto Arcane {R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {R}"}},
-        {"key":"f7e540841da8","text":"Splice onto Arcane {U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {U}"}},
-        {"key":"12801cfb095f","text":"Splice onto Arcane {W}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Splice onto Arcane {W}"}},
         {"key":"637a4d3fef9a","text":"Splice onto Arcane—An opponent gains 5 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Splice onto Arcane—An opponent gains 5 life"}},
         {"key":"14fc6a635692","text":"Splice onto Arcane—Exile four cards from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Splice onto Arcane—Exile four cards from your graveyard"}},
         {"key":"f5d8462c892a","text":"Splice onto Arcane—Return a blue creature you control to its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Splice onto Arcane—Return a blue creature you control to its owner's hand"}},
@@ -13636,6 +13626,7 @@
         {"key":"566f1a2fb4f0","text":"Target creature gains deathtouch until end of turn. Regenerate it.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
         {"key":"34e4249bcf7d","text":"Target creature gains double strike until end of turn. If this spell was cast using teamwork, that creature also gains trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this spell was cast using teamwork, that creature also"}},
         {"key":"bb69edf534a5","text":"Target creature gains first strike until end of turn. If it doesn't have rampage, that creature gains rampage 2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it doesn't have rampage, that creature"}},
+        {"key":"b01219d7cc2e","text":"Target creature gains flying until end of turn.\nSplice onto Arcane {1}{U} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"4a5ea4062b2d","text":"Target creature gains flying until end of turn. If you control a white permanent, return {self} to its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you control a white permanent, return {self} to its owner's hand"}},
         {"key":"a662977f6d38","text":"Target creature gains flying until end of turn. Prevent all damage that would be dealt to that creature this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Prevent all damage that would be dealt to that creature this turn"}},
         {"key":"00194c96ee96","text":"Target creature gains flying until end of turn. Untap it.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
@@ -13730,6 +13721,7 @@
         {"key":"4e449681ac00","text":"Target creature gets +2/+2 and gains trample until end of turn. Untap it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","duration"],"span":"and gains trample until end of turn"}},
         {"key":"9e3362fbbec1","text":"Target creature gets +2/+2 until end of turn for each creature sacrificed this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","duration"],"span":"until end of turn for each creature sacrificed this way"}},
         {"key":"cbd38fc448c3","text":"Target creature gets +2/+2 until end of turn for each of its colors.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","duration"],"span":"until end of turn for each of its colors"}},
+        {"key":"021cf7d211c0","text":"Target creature gets +2/+2 until end of turn.\nSplice onto Arcane {G} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"cc0f3a29623c","text":"Target creature gets +2/+2 until end of turn. Clash with an opponent. If you win, that creature gets an additional +2/+2 and gains trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Clash with an opponent"}},
         {"key":"91695f1a42c5","text":"Target creature gets +2/+2 until end of turn. If it has a counter on it, it also gains flying and lifelink until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it has a counter on it, it also"}},
         {"key":"ee8cff1a538d","text":"Target creature gets +2/+2 until end of turn. If it's a Human, instead it gets +3/+3 and gains indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it's a Human, instead it"}},
@@ -13920,6 +13912,7 @@
         {"key":"eb3087793558","text":"Target creature you control gains indestructible until end of turn. If this spell was kicked, instead any number of target creatures you control gain indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Instead any number of target creatures you control gain indestructible until end of turn"}},
         {"key":"54e95c115bf0","text":"Target creature you control gains protection from creatures your opponents control until end of turn. Untap it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target creature you control gains protection from creatures your opponents control until end of turn"}},
         {"key":"c838a34de9c6","text":"Target creature you control gains protection from each color until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target creature you control gains protection from each color until end of turn"}},
+        {"key":"204ab7d685ca","text":"Target creature you control gains protection from the color of your choice until end of turn.\nSplice onto Arcane {W} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"006de960d991","text":"Target creature you control gains protection from the color of your choice until end of turn. Clash with an opponent. If you win, return {self} to its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Clash with an opponent"}},
         {"key":"3dc92ad3c98d","text":"Target creature you control gains vigilance and gets +X/+X until end of turn, where X is the number of creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target creature you control gains vigilance and gets +X/+X until end of turn"}},
         {"key":"a712b1dc39c8","text":"Target creature you control gains vigilance and trample until end of turn. It deals damage equal to its power to target creature you don't control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target creature you control gains vigilance and trample until end of turn"}},
@@ -14183,6 +14176,7 @@
         {"key":"fd0fd8d9381e","text":"Target player mills X cards, where X is the number of lands you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target player mills X cards, where X is the number of lands you control"}},
         {"key":"6a28fbfa1736","text":"Target player mills X cards. If this spell was cast from a graveyard, that player mills twice that many cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this spell was cast from a graveyard, that player mills twice that many cards instead"}},
         {"key":"e99aae73a557","text":"Target player mills cards equal to your life total.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target player mills cards equal to your life total"}},
+        {"key":"48ed9e797a68","text":"Target player mills four cards.\nSplice onto Arcane {1}{U} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"4a190d32918c","text":"Target player mills four cards. You draw a card for each creature card put into their graveyard this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You draw a card for each creature card put into their graveyard this way"}},
         {"key":"1e9f535eb66a","text":"Target player mills four cards. You shuffle up to four cards from your graveyard into your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You shuffle up to four cards from your graveyard into your library"}},
         {"key":"820fbf82632e","text":"Target player mills half their library, rounded down.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target player mills half their library, rounded down"}},
@@ -25299,6 +25293,7 @@
         {"key":"57e9c6ed1b6f","text":"You may spend white mana as though it were red mana.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may spend white mana as though it were red mana"}},
         {"key":"140f4400eb3d","text":"You may tap an untapped Wall you control to have any player reroll a die that player rolled.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may tap an untapped Wall you control to have any player reroll a die that player rolled"}},
         {"key":"7e28f618518c","text":"You may tap or untap target creature. Then that creature's controller may pay {2}{U}. If the player does, they may copy this spell and may choose a new target for that copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then that creature's controller may pay {2}{U}"}},
+        {"key":"f52213eab190","text":"You may tap or untap target permanent.\nSplice onto Arcane {U} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","reason":"a splice card whose text is not one untargeted Effect Script (CR 702.47b)","cards":1},
         {"key":"b718d8cbc5bb","text":"You may tap this creature to increase the result of a die any player rolled by 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may tap this creature to increase the result of a die any player rolled by 1"}},
         {"key":"3ce7e8b5f1fc","text":"You may tap three untapped Dwarves you control rather than pay this spell's mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may tap three untapped Dwarves you control rather than pay this spell's mana cost"}},
         {"key":"5993c3574812","text":"You may treat Food tokens as though they were Junk tokens and vice versa.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may treat Food tokens as though they were Junk tokens and vice versa"}},
@@ -35619,7 +35614,7 @@
 
         {"oracleId":"14df239a-c7cc-492a-94f5-2971f6efe17b","name":"Vampirism","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b5f6d3b92ffe","c69c491617e0"]},
 
-        {"oracleId":"14e23074-95b8-4477-b981-6231c19bacdc","name":"Evermind","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1ccc427123c5"]},
+        {"oracleId":"14e23074-95b8-4477-b981-6231c19bacdc","name":"Evermind","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["33a170b653d8"]},
 
         {"oracleId":"14ebedd1-7a2d-413b-9b76-8610511292a4","name":"Circle of Solace","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["116c43791777"]},
 
@@ -44511,7 +44506,7 @@
 
         {"oracleId":"361f534b-39d1-4421-b5a8-d3813c62f86d","name":"Rakdos Guildgate","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Rakdos Guildgate","types":["Land"],"subtypes":["Gate"],"oracleText":"This land enters tapped.\n{T}: Add {B} or {R}.","activatedAbilities":[{"id":"rakdos-guildgate-mana","oracleText":"{T}: Add {B} or {R}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"B":1},{"R":1}]}],"entersTapped":true},"botReach":"played"},
 
-        {"oracleId":"3620ab8f-b693-4225-bb96-5ca3cb3fa465","name":"Desperate Ritual","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e41c608909a8"]},
+        {"oracleId":"3620ab8f-b693-4225-bb96-5ca3cb3fa465","name":"Desperate Ritual","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["addMana"],"definition":{"name":"Desperate Ritual","types":["Instant"],"subtypes":["Arcane"],"manaCost":{"X":1,"R":1},"oracleText":"Add {R}{R}{R}.\nSplice onto Arcane {1}{R} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","effects":[{"op":"addMana","mana":{"R":3}}],"splice":{"subtype":"Arcane","cost":{"mana":{"X":1,"R":1}},"description":"Splice onto Arcane {1}{R}"}},"botReach":"played"},
 
         {"oracleId":"3620ef25-d9e2-4460-b25f-592ff7df681b","name":"Orzhov Pontiff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cf16ace48107"]},
 
@@ -46525,7 +46520,7 @@
 
         {"oracleId":"3d145811-adb2-46a4-b173-bf8152e5de48","name":"Unauthorized Exit","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e3c509fa96f7"]},
 
-        {"oracleId":"3d165dec-1821-4d3f-8407-8ce8bb347f8b","name":"Into the Fray","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["61f5f4884379","f2bd8dee2779"]},
+        {"oracleId":"3d165dec-1821-4d3f-8407-8ce8bb347f8b","name":"Into the Fray","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["61f5f4884379"]},
 
         {"oracleId":"3d169bb1-e91b-46d8-9280-797192926314","name":"Aliban's Tower","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["pump"],"definition":{"name":"Aliban's Tower","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Target blocking creature gets +3/+1 until end of turn.","effects":[{"op":"pump","target":{"target":0},"power":3,"toughness":1,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1,"combatRoleFilter":["blocking"]}},"botReach":"played"},
 
@@ -46939,7 +46934,7 @@
 
         {"oracleId":"3ea060d8-449c-4a5e-8883-b45bd7707b5b","name":"Season of Gathering","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["234df98654f8","951f03c80e4b","a2d68e4426f8","ad2660696dac"]},
 
-        {"oracleId":"3ea3c681-f0ad-45a2-bc25-2813efd8d560","name":"Goryo's Vengeance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4884fddc2e16","f88778e06d70"]},
+        {"oracleId":"3ea3c681-f0ad-45a2-bc25-2813efd8d560","name":"Goryo's Vengeance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f88778e06d70"]},
 
         {"oracleId":"3ea41848-7a11-4608-88c1-7a6e76e812ca","name":"Disciple of the Sun","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["moveZone"],"definition":{"name":"Disciple of the Sun","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":4,"W":1},"power":3,"toughness":3,"oracleText":"Lifelink\nWhen this creature enters, return target permanent card with mana value 3 or less from your graveyard to your hand.","staticAbilities":["lifelink"],"compiledTriggeredAbilities":[{"id":"disciple-of-the-sun-trigger","oracleText":"When this creature enters, return target permanent card with mana value 3 or less from your graveyard to your hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"mvFilter":{"max":3},"zone":"graveyard","controller":"you"},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]},"botReach":"played"},
 
@@ -47431,7 +47426,7 @@
 
         {"oracleId":"4074e897-82a4-4f57-86c2-4aab3f29ef9b","name":"Ezekiel Sims, Spider-Totem","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["pump"],"definition":{"name":"Ezekiel Sims, Spider-Totem","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Spider","Human","Advisor"],"manaCost":{"X":4,"G":1},"power":3,"toughness":5,"oracleText":"Reach\nAt the beginning of combat on your turn, target Spider you control gets +2/+2 until end of turn.","staticAbilities":["reach"],"compiledTriggeredAbilities":[{"id":"ezekiel-sims-spider-totem-trigger","oracleText":"At the beginning of combat on your turn, target Spider you control gets +2/+2 until end of turn.","head":{"kind":"phase","phase":"BEGINNING_OF_COMBAT","scope":"your"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Spider"],"controller":"you"},"effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"40759025-91e1-4755-a8cf-0b68c8e9220f","name":"Spiritual Visit","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["12801cfb095f","623907d3aadb"]},
+        {"oracleId":"40759025-91e1-4755-a8cf-0b68c8e9220f","name":"Spiritual Visit","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["623907d3aadb"]},
 
         {"oracleId":"40760bfa-a423-487c-ba29-043b2d00c736","name":"Dark Fortress","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["26fb8458cc06"]},
 
@@ -52845,7 +52840,7 @@
 
         {"oracleId":"540e1371-baa9-412f-a17a-22ea833ea3e8","name":"Goblin Mutant","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["53e0da4b8c95","b8079ea8be71"]},
 
-        {"oracleId":"540f8779-cf29-4582-8b7f-95ebcae92925","name":"Strange Inversion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["406c306a5972","e41c608909a8"]},
+        {"oracleId":"540f8779-cf29-4582-8b7f-95ebcae92925","name":"Strange Inversion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["406c306a5972"]},
 
         {"oracleId":"541744d9-449d-420a-a5a1-2fffba18450f","name":"Primal Beyond","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["32f7b59a1451","3f93cbbc35ea"]},
 
@@ -52893,7 +52888,7 @@
 
         {"oracleId":"54358124-642c-48ae-a51a-b9aca1bf0299","name":"Sparky Sparky","state":"unparsed","gaps":["c674ab8328b9"]},
 
-        {"oracleId":"543599e2-8312-43a6-ab26-0be17e690d4f","name":"Overblaze","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1020ae653690","55c527d817a3"]},
+        {"oracleId":"543599e2-8312-43a6-ab26-0be17e690d4f","name":"Overblaze","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1020ae653690"]},
 
         {"oracleId":"5436bb0d-b5c7-43a9-8b3f-67cdc0dd0381","name":"Bushy Bodyguard","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7a4a666b72a1"]},
 
@@ -55781,7 +55776,7 @@
 
         {"oracleId":"5f0000d2-2d3b-48fb-8845-f6bbaf0d8bd7","name":"The Playful Winners","state":"unparsed","gaps":["2a632a580f10","8d0fa4828b62","ebde34e5ff52"]},
 
-        {"oracleId":"5f00dcc4-38e7-4dde-96d4-f8d4c08b334a","name":"Soulless Revival","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2ccf73a42c46"]},
+        {"oracleId":"5f00dcc4-38e7-4dde-96d4-f8d4c08b334a","name":"Soulless Revival","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0161dc61a697"]},
 
         {"oracleId":"5f04d4b0-2c75-4f2d-97d5-96220b624b17","name":"Queen Allenal of Ruadach","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["112d5fc3e7ca","20748944981b"]},
 
@@ -61751,7 +61746,7 @@
 
         {"oracleId":"744bee19-7c44-4968-b82a-3f4101f08d58","name":"Hex, Kellan's Companion","state":"unparsed","gaps":["216316882e1e","c546362e56a7"]},
 
-        {"oracleId":"744d6daa-2f93-43e1-88c0-0d9d5f9d111b","name":"Reweave","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["73dabf2f213d","f5c587f0339a"]},
+        {"oracleId":"744d6daa-2f93-43e1-88c0-0d9d5f9d111b","name":"Reweave","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f5c587f0339a"]},
 
         {"oracleId":"744f79da-240f-4d14-a98c-e2796645ae88","name":"Shapers of Nature","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["deafd6f14396"]},
 
@@ -61943,7 +61938,7 @@
 
         {"oracleId":"75070eaf-c931-46e5-9aa1-b849e33580c6","name":"Ambling Stormshell","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["51aa4154612a","695beefd5997"]},
 
-        {"oracleId":"7509b934-6fbc-42fd-9040-cdf16bbfff42","name":"Candles' Glow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5265477071b1","66e303ed2244"]},
+        {"oracleId":"7509b934-6fbc-42fd-9040-cdf16bbfff42","name":"Candles' Glow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5265477071b1"]},
 
         {"oracleId":"750b61a1-7eb1-4ce2-8a56-fa63f8e48755","name":"You've Been Caught Stealing","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["9d42cc2d2483"]},
 
@@ -66683,7 +66678,7 @@
 
         {"oracleId":"863ad4b8-094b-46b3-b6cd-0640e1f01d6d","name":"Daring Apprentice","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["counter"],"definition":{"name":"Daring Apprentice","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":1,"U":2},"power":1,"toughness":1,"oracleText":"{T}, Sacrifice this creature: Counter target spell.","activatedAbilities":[{"id":"daring-apprentice-ability","oracleText":"{T}, Sacrifice this creature: Counter target spell.","cost":{"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"863bb8d8-4571-4775-87e3-d6f3ec88c835","name":"Consuming Vortex","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10fefc0be9f3"]},
+        {"oracleId":"863bb8d8-4571-4775-87e3-d6f3ec88c835","name":"Consuming Vortex","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b1bbfe9c0fc1"]},
 
         {"oracleId":"863cbd12-da20-456e-8698-06fba4d9bd5c","name":"Arcane Omens","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["158377b48833"]},
 
@@ -68677,7 +68672,7 @@
 
         {"oracleId":"8d3a0b81-1895-47a8-87a3-3e4093cbd951","name":"Winterflame","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5535718b801e"]},
 
-        {"oracleId":"8d3c4e50-6709-42f9-97e7-3165ee501684","name":"Psychic Puppetry","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f7e540841da8"]},
+        {"oracleId":"8d3c4e50-6709-42f9-97e7-3165ee501684","name":"Psychic Puppetry","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f52213eab190"]},
 
         {"oracleId":"8d3c9646-2b6b-4315-939d-5a920efc0a60","name":"Galadriel of Lothlórien","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b27b38822cee","e98e1648b28f"]},
 
@@ -79155,7 +79150,7 @@
 
         {"oracleId":"b3779fbe-7701-433b-afad-bebd6096a3c8","name":"Ajani's Aid","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["81450ac30455","9115cf765de6"]},
 
-        {"oracleId":"b377f717-d0c2-4db5-aba2-fa4bfa35de0f","name":"Shifting Borders","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10fefc0be9f3","476059cfb3ae"]},
+        {"oracleId":"b377f717-d0c2-4db5-aba2-fa4bfa35de0f","name":"Shifting Borders","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["476059cfb3ae"]},
 
         {"oracleId":"b37e9bc5-6a2c-4f08-b856-3f8d0d16defb","name":"Fire Nation Raider","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7578cebd8cd8"]},
 
@@ -82143,7 +82138,7 @@
 
         {"oracleId":"be7b16ef-32aa-40d5-b287-c5e79d52d6b9","name":"Dirge of Dread","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["fb31c5a31236"]},
 
-        {"oracleId":"be7cd599-12b6-43b6-a22a-8a8f7dd1ecd2","name":"Wear Away","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ea168a3963bc"]},
+        {"oracleId":"be7cd599-12b6-43b6-a22a-8a8f7dd1ecd2","name":"Wear Away","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["a8e365da865a"]},
 
         {"oracleId":"be7e220e-272e-45ca-8265-8d78da2cd2a7","name":"Unforgiving Aim","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy"],"definition":{"name":"Unforgiving Aim","types":["Instant"],"manaCost":{"X":2,"G":1},"oracleText":"Choose one —\n• Destroy target creature with flying.\n• Destroy target enchantment.\n• Create a 2/2 black and green Elf creature token.","modes":[{"id":"unforgiving-aim-mode-1","label":"Destroy target creature with flying","oracleText":"Destroy target creature with flying.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"requireAbility":"flying"}},{"id":"unforgiving-aim-mode-2","label":"Destroy target enchantment","oracleText":"Destroy target enchantment.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Enchantment","count":1}},{"id":"unforgiving-aim-mode-3","label":"Create a 2/2 black and green Elf creature token","oracleText":"Create a 2/2 black and green Elf creature token.","effects":[{"op":"createToken","token":{"name":"Elf","types":["Creature"],"subtypes":["Elf"],"power":2,"toughness":2,"colors":["B","G"]},"controller":"controller"}]}]},"botReach":"played"},
 
@@ -82607,7 +82602,7 @@
 
         {"oracleId":"c025d558-aae8-4146-923b-a98035025a42","name":"Apex Hawks","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Apex Hawks","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":2,"W":1},"power":2,"toughness":2,"oracleText":"Multikicker {1}{W} (You may pay an additional {1}{W} any number of times as you cast this spell.)\nFlying\nThis creature enters with a +1/+1 counter on it for each time it was kicked.","staticAbilities":["flying"],"kickers":[{"id":"kicker","description":"Multikicker {1}{W}","mana":{"X":1,"W":1},"multi":true}],"entersWith":{"counters":[{"type":"+1/+1","count":"kicker"}]}},"botReach":"played"},
 
-        {"oracleId":"c027a8ef-6cdd-4c14-9d4f-b21c63312874","name":"Kodama's Might","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["469cc1cae6ed"]},
+        {"oracleId":"c027a8ef-6cdd-4c14-9d4f-b21c63312874","name":"Kodama's Might","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["021cf7d211c0"]},
 
         {"oracleId":"c027f369-e445-46a8-94ad-93396321295a","name":"Rip, Spawn Hunter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e012adc1e0ce"]},
 
@@ -83109,7 +83104,7 @@
 
         {"oracleId":"c20728ac-c01c-470f-a43b-de6104836645","name":"Matsu-Tribe Sniper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c079687d646c"]},
 
-        {"oracleId":"c207aaee-0b67-4520-ad02-2c289228be2a","name":"Through the Breach","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c9ace0aa131","55c527d817a3"]},
+        {"oracleId":"c207aaee-0b67-4520-ad02-2c289228be2a","name":"Through the Breach","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c9ace0aa131"]},
 
         {"oracleId":"c208b959-d0e4-4a9a-8255-2c7cc7596767","name":"Abbey Gargoyles","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Abbey Gargoyles","types":["Creature"],"subtypes":["Gargoyle"],"manaCost":{"X":2,"W":3},"power":3,"toughness":4,"oracleText":"Flying, protection from red","staticAbilities":["flying","protection from red"]},"botReach":"played"},
 
@@ -91945,7 +91940,7 @@
 
         {"oracleId":"e199e183-e857-4dc7-87f4-36b32c4dac96","name":"Cruel Fate","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9ae5e715ea4e"]},
 
-        {"oracleId":"e19c0205-67e3-4e44-995b-751e18fdaafd","name":"Vital Surge","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["97b51e765e99"]},
+        {"oracleId":"e19c0205-67e3-4e44-995b-751e18fdaafd","name":"Vital Surge","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["gainLife"],"definition":{"name":"Vital Surge","types":["Instant"],"subtypes":["Arcane"],"manaCost":{"X":1,"G":1},"oracleText":"You gain 3 life.\nSplice onto Arcane {1}{G} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","effects":[{"op":"gainLife","player":"controller","amount":3}],"splice":{"subtype":"Arcane","cost":{"mana":{"X":1,"G":1}},"description":"Splice onto Arcane {1}{G}"}},"botReach":"played"},
 
         {"oracleId":"e19d5071-4ea1-4883-b067-a21e553f96e0","name":"Hidden Courtyard","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["91f8bdd6ddbc"]},
 
@@ -93191,7 +93186,7 @@
 
         {"oracleId":"e6584e39-099c-437f-9239-fa718cac85af","name":"Field Creeper","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Field Creeper","types":["Artifact","Creature"],"subtypes":["Scarecrow"],"manaCost":{"X":2},"power":2,"toughness":1},"botReach":"played"},
 
-        {"oracleId":"e65a8ab8-84a7-4fe2-b009-ceb87bec6b4e","name":"Glacial Ray","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e41c608909a8"]},
+        {"oracleId":"e65a8ab8-84a7-4fe2-b009-ceb87bec6b4e","name":"Glacial Ray","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5124e748dfa7"]},
 
         {"oracleId":"e65fa865-3f60-41f2-8b14-b0333c897b93","name":"Dreadbringer Lampads","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e619e673783e"]},
 
@@ -93783,7 +93778,7 @@
 
         {"oracleId":"e83c617f-1e07-40db-9b12-ae01122a3e24","name":"Exquisite Firecraft","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1f821a385d6c"]},
 
-        {"oracleId":"e83e1f99-1f9b-49fc-bdc7-5f6335e401e4","name":"Blessed Breath","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["12801cfb095f"]},
+        {"oracleId":"e83e1f99-1f9b-49fc-bdc7-5f6335e401e4","name":"Blessed Breath","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["204ab7d685ca"]},
 
         {"oracleId":"e84164cf-c3bf-45ae-9a0a-9dfeacd36768","name":"Elgaud Inquisitor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["createToken"],"definition":{"name":"Elgaud Inquisitor","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":3,"W":1},"power":2,"toughness":2,"oracleText":"Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhen this creature dies, create a 1/1 white Spirit creature token with flying.","staticAbilities":["lifelink"],"compiledTriggeredAbilities":[{"id":"elgaud-inquisitor-trigger","oracleText":"When this creature dies, create a 1/1 white Spirit creature token with flying.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Spirit","types":["Creature"],"subtypes":["Spirit"],"power":1,"toughness":1,"colors":["W"],"staticAbilities":["flying"]},"controller":"controller"}]}]},"botReach":"played"},
 
@@ -94017,7 +94012,7 @@
 
         {"oracleId":"e900f211-dc8b-40f7-a217-1b1462b15c26","name":"Stirring Wildwood","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b027611dc275"]},
 
-        {"oracleId":"e9022d1c-2f5c-4a1f-a44e-0e4f9651e729","name":"Hideous Laughter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f729df9bbbd8"]},
+        {"oracleId":"e9022d1c-2f5c-4a1f-a44e-0e4f9651e729","name":"Hideous Laughter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["forEach","pump"],"definition":{"name":"Hideous Laughter","types":["Instant"],"subtypes":["Arcane"],"manaCost":{"X":2,"B":2},"oracleText":"All creatures get -2/-2 until end of turn.\nSplice onto Arcane {3}{B}{B} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":-2,"toughness":-2,"duration":{"phase":"end-of-turn"}}]}],"splice":{"subtype":"Arcane","cost":{"mana":{"X":3,"B":2}},"description":"Splice onto Arcane {3}{B}{B}"}},"botReach":"played"},
 
         {"oracleId":"e90a1381-c9c1-4f57-928c-5d19dc065274","name":"Shivan Gorge","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","mana-ability"],"opsUsed":["dealDamage"],"definition":{"name":"Shivan Gorge","types":["Land"],"supertypes":["Legendary"],"oracleText":"{T}: Add {C}.\n{2}{R}, {T}: Shivan Gorge deals 1 damage to each opponent.","activatedAbilities":[{"id":"shivan-gorge-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"shivan-gorge-ability-2","oracleText":"{2}{R}, {T}: {self} deals 1 damage to each opponent.","cost":{"mana":{"X":2,"R":1},"tap":true},"useStack":true,"effects":[{"op":"dealDamage","amount":1,"to":{"player":"opponent"}}]}]},"botReach":"played"},
 
@@ -95895,7 +95890,7 @@
 
         {"oracleId":"ef72af33-37fc-48ed-90d8-547c90e1609d","name":"Trap the Trespassers","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5810003a276f"]},
 
-        {"oracleId":"ef742509-4474-42d0-8bca-71ec2be3d4f1","name":"Lifted by Clouds","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1ccc427123c5"]},
+        {"oracleId":"ef742509-4474-42d0-8bca-71ec2be3d4f1","name":"Lifted by Clouds","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b01219d7cc2e"]},
 
         {"oracleId":"ef75be00-1a88-47a1-a1ae-fe2c9881a798","name":"Desecration Demon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6ed70cead870"]},
 
@@ -98755,7 +98750,7 @@
 
         {"oracleId":"fa0bff4f-af97-4733-b9d3-a0bc9ef1e2ca","name":"Hamlet Vanguard","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a66152911e26"]},
 
-        {"oracleId":"fa0ef984-b4e0-4c48-978c-0648e49d53f5","name":"Dampen Thought","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1ccc427123c5"]},
+        {"oracleId":"fa0ef984-b4e0-4c48-978c-0648e49d53f5","name":"Dampen Thought","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["48ed9e797a68"]},
 
         {"oracleId":"fa10cacb-ab14-447a-b411-9d74bc3772fb","name":"Onakke Ogre","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Onakke Ogre","types":["Creature"],"subtypes":["Ogre","Warrior"],"manaCost":{"X":2,"R":1},"power":4,"toughness":2},"botReach":"played"},
 

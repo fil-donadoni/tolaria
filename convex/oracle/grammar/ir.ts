@@ -349,6 +349,18 @@ export type SlotIR =
      */
     | { readonly kind: "miracle"; readonly cost: ManaCost }
     /**
+     * CR 702.47a — a "Splice onto [quality] [cost]" line: the cost its owner
+     * pays to reveal it from hand as they cast a spell of that subtype,
+     * lowered onto `CardDefinition.splice`. `description` is the printed line,
+     * as the catalogue writes it ("Splice onto Arcane {2}{R}{R}").
+     */
+    | {
+          readonly kind: "splice";
+          readonly subtype: string;
+          readonly cost: ManaCost;
+          readonly description: string;
+      }
+    /**
      * CR 702.96a — an "Overload [cost]" line: the alternative cost that turns
      * every "target" of the spell into "each", lowered onto
      * `CardDefinition.overload`. `description` is the printed line, as the
