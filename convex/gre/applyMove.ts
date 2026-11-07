@@ -111,6 +111,7 @@ import {
     buildCastPermanentCostChoice,
     buildCastHandCostChoice,
     paidCollectEvidence,
+    resolveCastPermanentSelection,
     type KickerPayments,
 } from "./kicker";
 import {
@@ -123,7 +124,11 @@ import {
     buildAlternativeCostHandChoice,
     getAlternativeCost,
 } from "./alternativeCost";
-import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
+import {
+    applyCastSacrificeVictims,
+    buildCastCostSelection,
+    type CastCostPicks,
+} from "./castCostPicks";
 import { cheapestFirst } from "./paymentPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
@@ -151,6 +156,7 @@ import {
     costVictimTypeFields,
     sacrificeSourceSnapshot,
     isSacrificeSelectionComplete,
+    type SacrificeSelection,
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { payExertActivationCost } from "./exert";
@@ -447,6 +453,31 @@ export function applyAlternativeCostGraveyardLegForSearch(
     return true;
 }
 
+/** CR 118.9d / 601.2f — the {@link applyAlternativeCostPermanentLegForSearch}
+ *  branch for a leg owed beside an own sacrifice (Drought's tax): pay the merged
+ *  selection, exactly the victims the plan recorded, in the order the live
+ *  selection holds them. `false` when one has left the battlefield or the list
+ *  no longer covers the selection: a STALE Move. */
+function applyPlannedCastSacrificesForSearch(
+    state: GameState,
+    playerId: string,
+    merged: SacrificeSelection,
+    picks: CastCostPicks | undefined
+): boolean {
+    const owner = getPlayer(state, playerId);
+    const picked = [
+        ...(picks?.announcedSacrificeIds ?? []),
+        ...(picks?.sacrificeIds ?? []),
+    ];
+    if (!picked.every((id) => owner.battlefield.some((c) => c.id === id))) {
+        return false;
+    }
+    const selection = { ...merged, picked };
+    if (!isSacrificeSelectionComplete(selection)) return false;
+    applySacrificeSelection(state, selection);
+    return true;
+}
+
 /** CR 118.9 / 601.2h (issue #4935) — pay the PERMANENT leg of the alternative
  *  cost a `cast-spell` move announced (Fireblast's "sacrifice two Mountains",
  *  Daze's "return an Island") on a search sandbox state, in place. The victims
@@ -467,7 +498,10 @@ export function applyAlternativeCostPermanentLegForSearch(
     playerId: string,
     spell: CardInstanceState,
     alternativeCostId: string | undefined,
-    picks: CastCostPicks | undefined
+    picks: CastCostPicks | undefined,
+    /** CR 601.2f — what prices the cast's own sacrifices, which share the leg's
+     *  selection. `applyCastCostPicksForSearch` leaves them to this payment. */
+    own: { additionalCostLegId?: string; castFromZone?: CastFromZone } = {}
 ): boolean {
     if (alternativeCostId === undefined) return true;
     const def = tryGetDefinition((spell.card as { id?: string }).id ?? "");
@@ -484,6 +518,27 @@ export function applyAlternativeCostPermanentLegForSearch(
     );
     if (!selection) return true;
     const owner = getPlayer(state, playerId);
+    const ownSacrifice = buildCastCostSelection(
+        state,
+        owner,
+        spell,
+        resolveAdditionalCosts(def.additionalCosts, own.additionalCostLegId),
+        def.name ?? "Sacrifice",
+        own.castFromZone ?? "hand"
+    ).selection;
+    if (ownSacrifice) {
+        const merged = resolveCastPermanentSelection(
+            state,
+            selection,
+            ownSacrifice
+        );
+        return applyPlannedCastSacrificesForSearch(
+            state,
+            playerId,
+            merged!,
+            picks
+        );
+    }
     // The Move names victims only when the SERVER parked for them, i.e. when
     // its announce-time auto-resolve picked nothing for this one-requirement
     // selection. The sandbox has already run the tap plan, and a tapped
@@ -693,15 +748,26 @@ export function applyCastCostPicksForSearch(
     // Metamorphosis, Sacrifice, Burnt Offering) resolves for NOTHING in the
     // tree, so the search pays a creature and a card for a blank and can never
     // find the ritual line.
-    const sacSnapshot = applyCastSacrificeVictims(
-        state,
-        player,
-        card,
-        spec,
-        picks,
-        cardDef?.name ?? "Sacrifice",
-        castFromZone
-    );
+    // CR 601.2f — an alternative cost's permanent leg already paid the own
+    // sacrifices with it (`applyAlternativeCostPermanentLegForSearch`), and paying
+    // them again here would take a second tax. The search enumerates that pair
+    // for a card with no own `additionalCosts` alone
+    // (`searchPayableOwnAlternativeCosts`), so it stamps no snapshot.
+    const altLegPaidSacrifices =
+        opts?.alternativeCostId !== undefined &&
+        getAlternativeCost(cardDef, opts.alternativeCostId)?.permanent !==
+            undefined;
+    const sacSnapshot = altLegPaidSacrifices
+        ? undefined
+        : applyCastSacrificeVictims(
+              state,
+              player,
+              card,
+              spec,
+              picks,
+              cardDef?.name ?? "Sacrifice",
+              castFromZone
+          );
     if (costOut && sacSnapshot) {
         costOut.additionalSacrificeSnapshot = sacSnapshot;
     }
@@ -1536,7 +1602,11 @@ export function commitCastInSearch(
             playerId,
             preCastSpell,
             move.alternativeCostId,
-            move.castCostPicks
+            move.castCostPicks,
+            {
+                additionalCostLegId: move.additionalCostLegId,
+                castFromZone: move.castFromZone,
+            }
         )
     ) {
         return null;

@@ -49,6 +49,7 @@ import {
     castSparesOwnPermanents,
     castTargetsOnlyNamed,
     kickedCastOffered,
+    altCostCastOffered,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -990,6 +991,66 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "casts Crabomination via its emerge cost, sacrificing Howling Mine",
         },
         note: "CR 702.119b reachability: the printed cost is unaffordable, the emerge cost is affordable only through the sacrificed artifact's mana-value reduction. `MoveMatcher` has no field for `alternativeCostId`, hence the `predicate` shape (as for overload / dash).",
+    },
+    {
+        // EMERGE beside a STATIC SACRIFICE reachability (CR 118.9d, issue #8259).
+        // Under Drought, Crabomination owes two Swamps on top of the emerge
+        // cost. Triskelion's reduction leaves {B}{B}, the Moxes fund it, so the
+        // Swamps are there for the tax alone and their count decides.
+        label: "emerge beside Drought's tax: the cast is offered when both can be paid",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Crabomination", owner: "me", zone: "hand" },
+                { name: "Drought", owner: "me", zone: "battlefield" },
+                { name: "Triskelion", owner: "me", zone: "battlefield" },
+                { name: "Mox Jet", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: altCostCastOffered("Crabomination", "emerge", true),
+            describe:
+                "Crabomination is enumerated by emerge under Drought when two Swamps cover the tax",
+        },
+        note: "Half 1 of a discriminating pair. The legal set is the claim: the executor pays the victim and the tax through one merged selection, and `emergeMoves.bot.test.ts` proves the search charges them once each.",
+    },
+    {
+        // NEGATIVE CONTROL (issue #8259). One Swamp short of the tax, so offering
+        // the cast would be a Move the announcement refuses and the Bot stalls on.
+        label: "emerge beside Drought's tax: the cast is withheld when the Swamps fall short",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Crabomination", owner: "me", zone: "hand" },
+                { name: "Drought", owner: "me", zone: "battlefield" },
+                { name: "Triskelion", owner: "me", zone: "battlefield" },
+                { name: "Mox Jet", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: altCostCastOffered("Crabomination", "emerge", false),
+            describe:
+                "Crabomination is not enumerated by emerge under Drought with one Swamp for a two-Swamp tax",
+        },
+        note: "Half 2 of the discriminating pair above: the same board one Swamp short drops the cast.",
     },
     {
         // NINJUTSU reachability (CR 702.49a, issue #2390). The bot attacks with

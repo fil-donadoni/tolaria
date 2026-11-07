@@ -38,15 +38,16 @@ import { normalizeManaCost } from "./state";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { splicedCardIdsOfEntries } from "./splice";
 import {
+    autoResolveFungible,
+    type SacrificeRequirement,
+    type SacrificeSelection,
+} from "./sacrificeChoice";
+import {
     buildCostLegsPermanentChoice,
     buildCostLegsHandChoice,
     canPayHandCost,
     canAffordCostLegsPermanents,
 } from "./alternativeCost";
-import type {
-    SacrificeRequirement,
-    SacrificeSelection,
-} from "./sacrificeChoice";
 import type { PendingCast } from "./state/declarations";
 import {
     canCollectEvidence,
@@ -873,13 +874,15 @@ function bindCastSpellColors(
     };
 }
 
-/** CR 601.2f / 601.2h — the total cost includes every additional cost, so a paid
- *  Kicker's permanent legs are owed ALONGSIDE the cast's own sacrifices: can the
- *  caster cover both from DISTINCT permanents? The joint question
- *  {@link canPayKickerLegs} cannot ask, because it prices the Kicker alone: Bog
- *  Down under Drought owes a Swamp and two lands, so two Swamps pass each half
- *  and cannot pay the whole. A tap leg counts too — the selection holds one pick
- *  per permanent whatever each pick does to it. */
+/** CR 601.2f / 601.2h — the total cost includes every additional cost, so the
+ *  chosen alternative cost's permanent leg and a paid Kicker's are owed ALONGSIDE
+ *  the cast's own sacrifices: can the caster cover them all from DISTINCT
+ *  permanents? The joint question {@link canPayKickerLegs} cannot ask, because it
+ *  prices the Kicker alone: Bog Down under Drought owes a Swamp and two lands, so
+ *  two Swamps pass each half and cannot pay the whole. A tap leg counts too — the
+ *  selection holds one pick per permanent whatever each pick does to it.
+ *
+ *  Reserved in the order {@link resolveCastPermanentSelection} allocates picks. */
 export function canPayKickerLegsAlongside(
     state: GameState,
     playerId: string,
@@ -888,7 +891,10 @@ export function canPayKickerLegsAlongside(
     ownSacrifices: readonly SacrificeRequirement[],
     /** CR 702.78a — the instance being cast, for a leg priced against its
      *  colours. */
-    castCard: CardInstanceState | undefined
+    castCard: CardInstanceState | undefined,
+    /** CR 118.9d — the chosen alternative cost, whose permanent leg is owed
+     *  ahead of the own sacrifices. Required so a new caller decides. */
+    altCost: CostLegs | undefined
 ): boolean {
     return canAffordCostLegsPermanents(
         state,
@@ -896,20 +902,17 @@ export function canPayKickerLegsAlongside(
         kickerCostLegs(cardDef, payments).map((leg) =>
             bindCastSpellColors(leg, castCard)
         ),
-        ownSacrifices
+        ownSacrifices,
+        altCost
     );
 }
 
 /** CR 601.2f / 601.2h — the gate on the cast's permanent costs, run at
- *  announcement before anything parks. A paid Kicker's permanent legs join the
- *  cast's own additional-cost sacrifices in one selection
- *  ({@link resolveCastPermanentSelection}), so the only refusal they earn is a
- *  board that cannot cover both (CR 601.2h: unpayable costs can't be paid).
- *
- *  The chosen ALTERNATIVE cost's permanent leg still fails closed against an own
- *  sacrifice, a deviation from CR 118.9d tracked-by issue #8259: an emerge victim
- *  is read off the selection's first pick and the merge declares own sacrifices
- *  first, so that pair needs its own ordering before it can share a selection. */
+ *  announcement before anything parks. The chosen ALTERNATIVE cost's permanent
+ *  leg (CR 118.9d) and a paid Kicker's join the cast's own additional-cost
+ *  sacrifices in one selection ({@link resolveCastPermanentSelection}), so the
+ *  only refusal they earn is a board that cannot cover them all (CR 601.2h:
+ *  unpayable costs can't be paid). */
 export function assertCastPermanentCostsPayable(
     state: GameState,
     playerId: string,
@@ -922,11 +925,6 @@ export function assertCastPermanentCostsPayable(
     castCard: CardInstanceState | undefined
 ): void {
     if (!ownSacrifice) return;
-    if (altCost?.permanent) {
-        throw new Error(
-            "This spell's alternative cost cannot be paid alongside its other additional costs"
-        );
-    }
     if (
         !canPayKickerLegsAlongside(
             state,
@@ -934,7 +932,8 @@ export function assertCastPermanentCostsPayable(
             cardDef,
             payments,
             ownSacrifice.requirements,
-            castCard
+            castCard,
+            altCost
         )
     ) {
         throw new Error(
@@ -986,27 +985,43 @@ export function buildCastPermanentCostChoice(
  *  alt-cost branch and its no-target plain/kicker branch) so the rule cannot
  *  drift between them.
  *
- *  The own sacrifices stay first: they may already hold auto-resolved picks, and
- *  picks are allocated to requirements in order, with `explicit` Kicker legs
- *  last. Each joining requirement carries its own terminal action, because the
- *  merged selection keeps the own side's: without it Arctic Merfolk's returned
- *  creature would be sacrificed instead. `assertCastPermanentCostsPayable` has
- *  already refused a board that cannot cover the whole selection. */
+ *  Picks are allocated to requirements in order, so the order is the contract:
+ *  the alternative cost's leg (the one non-`explicit` requirement of
+ *  `castPermSel`), then the own sacrifices, then the `explicit` Kicker legs. The
+ *  alternative leg leads because CR 702.119c's emerge reduction reads its victim
+ *  off the first pick (`emergeVictimOf`). With no alternative leg the own side's
+ *  auto-resolved picks stand; with one they belong to a different allocation, so
+ *  the merged selection auto-resolves once, as a whole.
+ *
+ *  Each joining requirement carries its own terminal action, because the merged
+ *  selection keeps the own side's: without it Arctic Merfolk's returned creature
+ *  would be sacrificed instead. `assertCastPermanentCostsPayable` has already
+ *  refused a board that cannot cover the whole selection. */
 export function resolveCastPermanentSelection(
+    state: GameState,
     castPermSel: SacrificeSelection | undefined,
     ownSacrifice: SacrificeSelection | undefined
 ): SacrificeSelection | undefined {
     if (!castPermSel || !ownSacrifice) return castPermSel ?? ownSacrifice;
-    return {
+    const joining = castPermSel.requirements.map((req) => ({
+        ...req,
+        action: req.action ?? castPermSel.action,
+    }));
+    const altLeg = joining.filter((req) => !req.explicit);
+    const kickerLegs = joining.filter((req) => req.explicit);
+    if (altLeg.length === 0) {
+        return {
+            ...ownSacrifice,
+            requirements: [...ownSacrifice.requirements, ...kickerLegs],
+        };
+    }
+    const merged: SacrificeSelection = {
         ...ownSacrifice,
-        requirements: [
-            ...ownSacrifice.requirements,
-            ...castPermSel.requirements.map((req) => ({
-                ...req,
-                action: req.action ?? castPermSel.action,
-            })),
-        ],
+        requirements: [...altLeg, ...ownSacrifice.requirements, ...kickerLegs],
+        picked: [],
     };
+    autoResolveFungible(state, merged);
+    return merged;
 }
 
 /** CR 601.2f / 601.2h — the cast's ONE hand-cost picker, folding the chosen

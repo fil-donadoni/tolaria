@@ -124,7 +124,10 @@ import {
     isCasterChosenCostEntry,
     perExtraModeAffordableModeCap,
 } from "@convex/gre/kicker";
-import { canPayKickerAlongsideCastSacrifices } from "@convex/gre/castCostPicks";
+import {
+    canPayAlternativeCostAlongsideCastSacrifices,
+    canPayKickerAlongsideCastSacrifices,
+} from "@convex/gre/castCostPicks";
 import { spliceAugmentedDefinition } from "@convex/gre/splice";
 import {
     checkPermanentTargetFilters,
@@ -2043,10 +2046,23 @@ export function affordableAltCostsForCard(
     // `affordableAlternativeCosts` directly. Both battlefields survive the wire
     // projection, so the client evaluates the identical predicate the mutation
     // enforces (ADR 0074).
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    // CR 118.9d / 601.2f — a permanent leg is owed on top of the cast's own
+    // sacrifices (Drought's tax), from distinct permanents.
     const options = castOptionAlternativeCosts(
         state,
         caster as unknown as PlayerState,
         card as unknown as CardInstanceState
+    ).filter(
+        (alt) =>
+            !def ||
+            canPayAlternativeCostAlongsideCastSacrifices(
+                state,
+                caster as unknown as PlayerState,
+                card as unknown as CardInstanceState,
+                def,
+                alt
+            )
     );
     // CR 601.3e (issue #7526) — off the top of the library each option is its
     // own announcement, licensed (or not) by the grant covering ITS subject:
