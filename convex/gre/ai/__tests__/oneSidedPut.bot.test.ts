@@ -81,12 +81,18 @@ describe("the script of a put from each player's hand", () => {
             withBody([pick, { ...put, from: "graveyard" }]),
             withBody([pick, { ...put, player: "controller" }]),
             // Not a pick from each chooser's own hand.
-            withBody([{ ...pick, kind: "choose-card" } as EffectOp, put]),
+            withBody([
+                { ...pick, kind: "choose-card" } as unknown as EffectOp,
+                put,
+            ]),
             withBody([{ ...pick, zone: "graveyard" }, put]),
             withBody([{ ...pick, zoneOwnerId: "controller" } as EffectOp, put]),
-            withBody([{ ...pick, bind: undefined }, put]),
+            withBody([
+                { ...pick, bind: undefined } as unknown as EffectOp,
+                put,
+            ]),
             // Not over the players, or a type filter it cannot list.
-            [{ ...each, select: { set: "creatures" } } as EffectOp],
+            [{ ...each, select: { set: "creatures" } } as unknown as EffectOp],
             withBody([
                 { ...pick, filter: { type: "Creature" } } as EffectOp,
                 put,

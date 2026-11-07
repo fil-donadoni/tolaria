@@ -61,9 +61,10 @@ function readHandPutTypes(
     if (!Array.isArray(type) || Object.keys(rest).length > 0) return null;
     if (
         put.op !== "moveZone" ||
+        !("cards" in put) ||
         put.from !== "hand" ||
         put.to !== "battlefield" ||
-        (put.player as { ref?: unknown } | undefined)?.ref !== "$each"
+        (put.player as { ref?: unknown }).ref !== "$each"
     ) {
         return null;
     }
