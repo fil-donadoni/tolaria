@@ -27,9 +27,10 @@ import {
     type Handler,
 } from "../../__tests__/gameMutationHarness.fixture";
 
-// CR 601.2f / 601.2h — a spell's own "sacrifice a creature" is owed first and
-// Drought's Swamp second. Picks are allocated to them in that order, so the Swamp
-// cannot be pre-filled while the creature is still the caster's to choose.
+// CR 601.2f / 601.2h — the total cost holds both the spell's own "sacrifice a
+// creature" and Drought's Swamp, and all of it is paid. The selection allocates
+// picks to them in that order, so the Swamp cannot be pre-filled while the
+// creature is still the caster's to choose.
 describe("own sacrifice with a real choice ahead of Drought's tax, through the real mutations (CR 601.2h)", () => {
     const creatures = [
         { cardId: getCardByName("Grizzly Bears").id, id: "bear" },

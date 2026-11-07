@@ -329,9 +329,11 @@ export function autoResolveFungible(
         // Every stop below is a `break`, never a `continue`: picks are allocated
         // to requirements GREEDILY IN ORDER (`countPicksFor`), so pre-filling a
         // LATER requirement while this one still owes picks would charge those
-        // picks to this one. Altar's Reap under Drought would pay "sacrifice a
-        // creature" with the Swamp (CR 601.2h: unpayable, or paid wrongly). A
-        // later requirement waits for its turn at the picker, forced or not.
+        // picks to this one: Altar's Reap under Drought would spend the Swamp on
+        // "sacrifice a creature", and either the Swamp leg is then unpayable or
+        // no creature is ever paid (CR 601.2h, partial payments are not allowed
+        // and unpayable costs can't be paid). A later requirement waits for its
+        // turn at the picker, forced or not.
         if (req.explicit) break;
         const need = req.count - countPicksFor(sel, req);
         if (need <= 0) continue;

@@ -76,8 +76,9 @@ describe("sacrificeChoice (CR 701.21a)", () => {
         expect(isSacrificeSelectionComplete(sel)).toBe(false);
     });
 
-    // CR 601.2h — picks are allocated to requirements in order, so a later
-    // requirement is never pre-filled while an earlier one still owes picks.
+    // CR 601.2h — the whole total cost is paid, no partial payments. Picks are
+    // allocated to requirements in order, so a later requirement is never
+    // pre-filled while an earlier one still owes picks.
     describe("autoResolveFungible stops at the first requirement still owing picks (CR 601.2h)", () => {
         const creatureThenLand = (creatures: number): SacrificeSelection => ({
             playerId: "p1",
