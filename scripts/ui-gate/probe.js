@@ -543,19 +543,38 @@ window.__tolariaProbe = () => {
         if (r.width < 8 || r.height < 8) continue;
         const layoutW = e.offsetWidth || r.width;
         const url = e.currentSrc || e.src || "";
-        if (!url) {
+        // No candidate yet, or a 1x bitmap still being made (the
+        // `data-face-pending` placeholder, issue #8321) or not yet decoded.
+        if (
+            !url ||
+            e.hasAttribute("data-face-pending") ||
+            (url.startsWith("blob:") && !e.naturalWidth)
+        ) {
             softPending++;
             continue;
         }
-        // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`
-        const variant = url.split("/")[3];
-        const have = RENDITION_W[variant];
+        // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`,
+        // or a `blob:` the app resampled itself to the slot's exact device
+        // size (issue #8321): no srcset there, so `naturalWidth` IS the
+        // bitmap's width, and the face names its art in `data-art-src`.
+        const bitmap = url.startsWith("blob:");
+        const variant = bitmap ? "bitmap" : url.split("/")[3];
+        const have = bitmap
+            ? e.getAttribute("data-art-src") && e.naturalWidth
+            : RENDITION_W[variant];
         if (!have) {
             softUnknown++;
             offend("cardsSoft", e, r, "unknown rendition " + variant);
             continue;
         }
-        const need = layoutW * devicePixelRatio;
+        // A bitmap is made for the box the face is DRAWN at (issue #8321):
+        // under a scaled slot that is the layout box times the slot's scale,
+        // which the bounding rect shows — its smaller side, so a rotated
+        // card still reads its own width. A rendition is held to the layout
+        // box as before.
+        const need =
+            (bitmap ? Math.min(layoutW, r.width, r.height) : layoutW) *
+            devicePixelRatio;
         // 1px of slack for the sub-pixel rounding a fractional layout width
         // produces; a real under-declaration is never within 1 device pixel.
         if (have + 1 < need) {

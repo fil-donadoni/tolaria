@@ -47,9 +47,9 @@ attended → ask the owner, encode the answer as a scoper rule; AFK → PR line
 `check:ui: scope undecided, not walked (<reasons>)` (`browser-verification.md`).
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
-Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
-runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
-0132). Its output IS the receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
+Chrome, signs in, walks the runbook surfaces at all six viewports (the DPR 1
+desktop on the card surfaces only, ADR 0168), probes and runs axe, and fails
+on any broken Floor (`scripts/ui-gate/floors.ts`, ADR 0132). Its output IS the receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
@@ -58,10 +58,12 @@ and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
 (`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
 `DIAGNOSTIC`; never reflow a line.
 
-**Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
-`1440x900x2`, phone `390x844x3,mobile,touch` and
+**Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
+desktop `1440x900x2`, phone `390x844x3,mobile,touch` and
 `844x390x3,mobile,touch,landscape`, tablet `820x1180x2,mobile,touch` and
-`1180x820x2,mobile,touch,landscape`.
+`1180x820x2,mobile,touch,landscape`, and for a surface that draws printed
+card faces the DPR 1 desktop `1440x900x1` — the one viewport that shows the
+1x resampling class, walked in the full Chromium, not the headless shell.
 
 **Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
 are there" — that is how the bug above shipped. Run the probe

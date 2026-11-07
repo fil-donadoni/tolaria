@@ -7,9 +7,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createContext, runInContext } from "node:vm";
+import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 import {
     NETWORK_INSTRUMENT_SOURCE,
+    sampleSource,
     settleState,
     type SettleSample,
 } from "../ui-gate/settle";
@@ -337,6 +339,29 @@ describe("NETWORK_INSTRUMENT_SOURCE — Convex requests in flight", () => {
         await pending;
         await Promise.resolve();
         expect(win.__tolariaNet.inflight()).toBe(0);
+    });
+});
+
+describe("the page sampler counts a printed face whose 1x bitmap is pending (issue #8321)", () => {
+    it("counts the placeholder and an undecoded bitmap as in flight, named", () => {
+        const window = new Window({ url: "http://localhost/" });
+        const doc = window.document;
+        doc.body.innerHTML = `
+            <main></main>
+            <img data-card-face="printed" data-face-pending="" src="data:image/gif;base64,R0lGOD">
+            <img id="blob" data-card-face="printed" src="blob:http://localhost/1">
+            <img data-card-face="printed" src="https://cards.scryfall.io/grid/front/a/b/ab.webp">`;
+        Object.defineProperty(doc.getElementById("blob")!, "complete", {
+            value: false,
+        });
+        const context = createContext(window as unknown as object);
+        runInContext("document.getAnimations = () => [];", context);
+        const result = runInContext(sampleSource([]), context) as {
+            inflight: number;
+            why: string;
+        };
+        expect(result.inflight).toBe(2);
+        expect(result.why).toContain("2 face bitmap(s) pending");
     });
 });
 

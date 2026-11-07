@@ -71,7 +71,7 @@ import {
 } from "./receipt.ts";
 import { assertLabelsBySurface } from "./assertions.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
-import { VIEWPORT_IDS } from "./viewports.ts";
+import { VIEWPORT_IDS, viewportIdsFor } from "./viewports.ts";
 
 /** The scope a landing diff re-derives, and the ref that diff was taken against. */
 export interface ExpectedScope {
@@ -230,6 +230,10 @@ export function surfaceEditsSinceBase(root: string): SurfaceEdits {
 export interface ReceiptVocabulary {
     surfaceIds: readonly string[];
     viewportIds: readonly string[];
+    /** The viewports each surface owes (ADR 0168, issue #8321): the DPR 1
+     *  desktop viewport is owed only by a surface that draws printed card
+     *  faces. Absent, every surface owes every viewport. */
+    viewportsOf?: (surface: string) => readonly string[];
     unwalked: readonly UnwalkedSurface[];
     /** The Named Assertion labels each surface promises, in declaration order
      *  — REQUIRED, and read without a fallback: a vocabulary that forgot it
@@ -241,9 +245,12 @@ export interface ReceiptVocabulary {
     assertsBySurface: Record<string, readonly string[]>;
 }
 
+const SURFACE_BY_ID = new Map(SURFACES.map((s) => [s.id, s] as const));
+
 export const LANE_VOCABULARY: ReceiptVocabulary = {
     surfaceIds: SURFACE_IDS,
     viewportIds: VIEWPORT_IDS,
+    viewportsOf: (surface) => viewportIdsFor(SURFACE_BY_ID.get(surface) ?? {}),
     unwalked: UNWALKED_SURFACES,
     assertsBySurface: assertLabelsBySurface(SURFACES),
 };
@@ -596,17 +603,21 @@ export function landableVerdictBlock(
     const walks: SurfaceWalk[] = surfaces.map((surface) => ({
         surface,
         status: "measured",
-        measurements: vocab.viewportIds.map((viewport) => ({
-            viewport,
-            readings: zeroReadings(),
-            // Every promise kept — the only outcome that lands, rendered
-            // through the same evaluator `check:ui` prints from.
-            asserts: (vocab.assertsBySurface[surface] ?? []).map((label) => ({
-                label,
-                ok: true,
-                detail: "",
-            })),
-        })),
+        measurements: (vocab.viewportsOf?.(surface) ?? vocab.viewportIds).map(
+            (viewport) => ({
+                viewport,
+                readings: zeroReadings(),
+                // Every promise kept — the only outcome that lands, rendered
+                // through the same evaluator `check:ui` prints from.
+                asserts: (vocab.assertsBySurface[surface] ?? []).map(
+                    (label) => ({
+                        label,
+                        ok: true,
+                        detail: "",
+                    })
+                ),
+            })
+        ),
     }));
     return verdictBlockLines(
         evaluateRun({
@@ -614,6 +625,7 @@ export function landableVerdictBlock(
             walks,
             definedSurfaceIds: vocab.surfaceIds,
             viewportIds: vocab.viewportIds,
+            viewportsOf: vocab.viewportsOf,
             unwalked: vocab.unwalked,
             diffScope,
             assertsBySurface: vocab.assertsBySurface,
