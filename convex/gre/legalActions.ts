@@ -21,13 +21,17 @@
 // `convex/gre/index.ts` barrel, ADR 0001). Combinatorial windows are capped at
 // `MAX_COMBINATIONS`, same policy as `moves.ts`.
 
+import { isAlreadySelectedTarget } from "./targetFilters";
 import type { TargetSelection } from "../cards/types";
 import type { ExpectedInput, GameState, PendingTarget } from "./state";
 import { getPlayer } from "./state";
 // issue #2283 — the PendingTarget → TargetRequirement lowering moved to the
 // shared origin module so the Move enumerator (`moves.ts`) can reuse it without
 // importing this module (which imports `moves.ts` — a cycle).
-import { requirementFromPendingTarget } from "./pendingTargetOrigin";
+import {
+    keepableTargets,
+    requirementFromPendingTarget,
+} from "./pendingTargetOrigin";
 import { computeExpectedInput, type GateRequest } from "./expectedInput";
 import {
     requirementCandidates,
@@ -357,9 +361,17 @@ function targetActions(
         // read off `pt.requiredTargetChoiceIds`: the action space must offer
         // exactly what the mutation accepts, and the carried field is the view.
         const required = computeRequiredTargetChoiceIds(state, pt);
-        const offered = required
+        const newlyOffered = required
             ? legal.filter((t) => required.includes(t.id))
             : legal;
+        // CR 115.7d / 707.10c — a current target may stay even if illegal by
+        // now. The same authority `applyOneTargetSelection` accepts by.
+        const offered = [
+            ...newlyOffered,
+            ...keepableTargets(state, pt).filter(
+                (t) => !isAlreadySelectedTarget(t, newlyOffered)
+            ),
+        ];
         for (const target of offered) {
             actions.push(
                 wrap({

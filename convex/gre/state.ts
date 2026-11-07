@@ -288,7 +288,11 @@ import {
     kickedCountOfPayments,
     totalKickerCount,
 } from "./kicker";
-import { modeInstances, soleChosenModeId } from "./modeSelection";
+import {
+    modeInstances,
+    modeInstanceTargetGroups,
+    soleChosenModeId,
+} from "./modeSelection";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
 // pay through, so a return-to-hand cost has ONE execution path in the engine.
@@ -13145,17 +13149,22 @@ export function requestCopyRetargetOn(
      *  an "up to" requirement would otherwise offer zero, or fewer. */
     as?: RetargetOffer
 ): void {
-    const cardId = (copy.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    // A copy of a modal spell retargets within its chosen mode
-    // (CR 700.2); otherwise use the card-level requirement.
-    const req =
-        (soleChosenModeId(copy.chosenModeIds) !== undefined
-            ? def?.modes?.find(
-                  (m) => m.id === soleChosenModeId(copy.chosenModeIds)
-              )?.targetRequirement
-            : undefined) ?? def?.targetRequirement;
-    if (!req) return; // copied spell targets nothing — keep as-is
+    // A copy of a modal spell retargets within its chosen mode(s) (CR 700.2),
+    // instance by instance when several were chosen (ADR 0094); otherwise the
+    // card-level groups.
+    const { requirements, instances } = ownTargetGroups(copy);
+    if (requirements.length === 0) return; // copied spell targets nothing
+    const current = currentTargetsByGroup(copy, requirements, instances);
+    // CR 707.10 / 115.7d — every group holds the number of targets it has when
+    // the offer says so, and always across mode instances: the per-instance
+    // spans must still cover the list at resolution.
+    const holdsCount = as?.keepTargetCount === true || instances !== undefined;
+    // A held group with no targets has nothing to choose: start at the first
+    // that has one (the walk skips later empty ones the same way).
+    const first = holdsCount ? current.findIndex((g) => g.length > 0) : 0;
+    if (first < 0) return; // no targets to choose
+    const req = requirements[first]!;
+    const additionalGroups = requirements.slice(first + 1);
     // CR 107.3 / 601.2c — resolve an "X" target count (exact `"X"` or an "up
     // to X" `{min, max: "X"}` range, issue #2365) against the copy's X via
     // the single shared resolver. `requireX` stays false (the default): a
@@ -13163,13 +13172,11 @@ export function requestCopyRetargetOn(
     // missing X here folds to 0 instead of throwing mid-resolve.
     // CR 707.10 — the copy copies "all decisions made for it, including …
     // targets": a text-defined bound keeps the number its cast fixed.
-    const additionalGroups = ownAdditionalTargetRequirements(copy);
-    const count =
-        as?.keepTargetCount && additionalGroups.length === 0
-            ? (copy.targets?.length ?? 0)
-            : resolveTargetRequirementCount(req.count, copy.chosenX, {
-                  determinedMax: copy.targets?.length ?? 0,
-              });
+    const count = holdsCount
+        ? current[first]!.length
+        : resolveTargetRequirementCount(req.count, copy.chosenX, {
+              determinedMax: copy.targets?.length ?? 0,
+          });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = shorthandArray(req.subtypeFilter);
@@ -13228,6 +13235,17 @@ export function requestCopyRetargetOn(
                       : {}),
               }
             : {}),
+        // CR 115.7d / 707.10c — what each group may leave unchanged, even if
+        // illegal by now.
+        keepableTargetGroups: current.slice(first),
+        // ADR 0094 — the walk re-tallies the spans it writes at the end.
+        ...(instances
+            ? {
+                  chosenModeIds: [...(copy.chosenModeIds ?? [])],
+                  groupModeInstances: instances.slice(first),
+                  modeTargetCounts: (copy.chosenModeIds ?? []).map(() => 0),
+              }
+            : {}),
         ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
         ...(shorthandArray(req.colorFilterAny)
             ? { colorFilterAny: req.colorFilterAny }
@@ -13276,43 +13294,104 @@ function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
     offerRetargetUnlessForced(state, copy);
 }
 
-/** The spell's OWN announced requirement — its chosen mode's when modal (CR
- *  700.2), else the card-level one. `undefined` = it targets nothing. */
-function ownTargetRequirement(spell: StackItem): TargetRequirement | undefined {
+/** The spell's OWN announced target groups (CR 601.2c), in announced order: the
+ *  chosen mode's, else the card's, minus a kicker-gated group the spell was not
+ *  kicked for (CR 702.33g). With several chosen mode instances, every instance's
+ *  groups in turn, each tagged with its instance (ADR 0094, CR 700.2c). Empty =
+ *  it targets nothing. */
+function ownTargetGroups(spell: StackItem): {
+    requirements: TargetRequirement[];
+    instances?: number[];
+} {
     const cardId = (spell.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return (
-        (soleChosenModeId(spell.chosenModeIds) !== undefined
-            ? def?.modes?.find(
-                  (m) => m.id === soleChosenModeId(spell.chosenModeIds)
-              )?.targetRequirement
-            : undefined) ?? def?.targetRequirement
-    );
-}
-
-/** The spell's INDEPENDENT additional target groups (CR 601.2c), in announced
- *  order — the chosen mode's, else the card's, minus a kicker-gated group the
- *  spell was not kicked for (CR 702.33g). Empty for a spell with a single
- *  group and for several mode instances (ADR 0094), whose flat list no one
- *  requirement governs. */
-function ownAdditionalTargetRequirements(
-    spell: StackItem
-): TargetRequirement[] {
-    if ((spell.chosenModeIds?.length ?? 0) > 1) return [];
-    const cardId = (spell.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def) return [];
-    const soleId = soleChosenModeId(spell.chosenModeIds);
+    if (!def) return { requirements: [] };
+    const kicked = kickedCountOfPayments(def, spell.kickerPayments) > 0;
+    const chosen = spell.chosenModeIds ?? [];
+    if (chosen.length > 1 && def.modes) {
+        const groups = modeInstanceTargetGroups(def.modes, chosen).filter(
+            (g) => !g.requirement.announcedOnlyIfKicked || kicked
+        );
+        return {
+            requirements: groups.map((g) => g.requirement),
+            instances: groups.map((g) => g.instance),
+        };
+    }
+    const soleId = soleChosenModeId(chosen);
     const mode =
         soleId !== undefined
             ? def.modes?.find((m) => m.id === soleId)
             : undefined;
-    return castAnnouncedTargetGroups(
-        mode?.additionalTargetRequirements ??
-            def.additionalTargetRequirements ??
-            [],
-        kickedCountOfPayments(def, spell.kickerPayments) > 0
-    );
+    return {
+        requirements: castAnnouncedTargetGroups(
+            [
+                mode?.targetRequirement ?? def.targetRequirement,
+                ...(chosen.length > 1
+                    ? []
+                    : (mode?.additionalTargetRequirements ??
+                      def.additionalTargetRequirements ??
+                      [])),
+            ],
+            kicked
+        ),
+    };
+}
+
+/** Cuts `targets` among `requirements`, in order. An exact count takes its
+ *  number; a variable one takes what the later groups' minimums leave it (only
+ *  the last group of an announcement is ever variable, see `enumerateCastMoves`,
+ *  so nothing is guessed). */
+function sliceTargetsAmongGroups(
+    targets: readonly TargetSelection[],
+    requirements: readonly TargetRequirement[],
+    chosenX: number | undefined
+): TargetSelection[][] {
+    const bounds = (req: TargetRequirement) => {
+        const count = resolveTargetRequirementCount(req.count, chosenX, {
+            determinedMax: targets.length,
+        });
+        return typeof count === "number"
+            ? { min: count, max: count }
+            : { min: count.min, max: count.max ?? targets.length };
+    };
+    let cursor = 0;
+    return requirements.map((req, i) => {
+        const owedLater = requirements
+            .slice(i + 1)
+            .reduce((sum, later) => sum + bounds(later).min, 0);
+        const left = targets.length - cursor;
+        const take = Math.max(0, Math.min(bounds(req).max, left - owedLater));
+        const slice = targets.slice(cursor, cursor + take);
+        cursor += take;
+        return slice;
+    });
+}
+
+/** The targets `spell` holds right now, per group of {@link ownTargetGroups}.
+ *  Several mode instances are first cut by their stored spans (ADR 0094). */
+function currentTargetsByGroup(
+    spell: StackItem,
+    requirements: readonly TargetRequirement[],
+    instances: readonly number[] | undefined
+): TargetSelection[][] {
+    const targets = spell.targets ?? [];
+    if (!instances) {
+        return sliceTargetsAmongGroups(targets, requirements, spell.chosenX);
+    }
+    const out: TargetSelection[][] = [];
+    let offset = 0;
+    (spell.chosenModeIds ?? []).forEach((_, instance) => {
+        const span = spell.modeTargetCounts?.[instance] ?? 0;
+        out.push(
+            ...sliceTargetsAmongGroups(
+                targets.slice(offset, offset + span),
+                requirements.filter((_r, i) => instances[i] === instance),
+                spell.chosenX
+            )
+        );
+        offset += span;
+    });
+    return out;
 }
 
 /** Exported only so `copyRetargetTargetGroups.test.ts` can drive the
@@ -13324,32 +13403,25 @@ export function offerRetargetUnlessForced(
     copy: StackItem,
     as?: RetargetOffer
 ): void {
-    const req = ownTargetRequirement(copy);
-    if (!req) return; // untargeted (Empty the Warrens) — nothing to offer
-    const legal = getLegalTargets(
-        state,
-        req,
-        // A spell copy, still on the stack (CR 109.5) — a spell (CR 113.3).
-        targetingSourceFromCard(copy, true),
-        copy.controllerId,
-        copy.chosenX
-    );
-    const currentKeys = new Set(
-        (copy.targets ?? []).map((t) => `${t.type}:${t.id}`)
-    );
-    // A further group may still offer a choice when the primary one cannot —
-    // forced only when NO group has a candidate beyond the inherited picks.
-    const hasAlternative =
-        legal.some((t) => !currentKeys.has(`${t.type}:${t.id}`)) ||
-        ownAdditionalTargetRequirements(copy).some((group) =>
-            getLegalTargets(
-                state,
-                group,
-                targetingSourceFromCard(copy, true),
-                copy.controllerId,
-                copy.chosenX
-            ).some((t) => !currentKeys.has(`${t.type}:${t.id}`))
-        );
+    const { requirements, instances } = ownTargetGroups(copy);
+    if (requirements.length === 0) return; // untargeted (Empty the Warrens)
+    const current = currentTargetsByGroup(copy, requirements, instances);
+    // Forced only when NO group has a candidate beyond its own current picks: a
+    // later group may offer a choice the first cannot, and one object may be a
+    // target of several instances (CR 700.2d) or trade places (CR 115.7e).
+    const hasAlternative = requirements.some((group, i) => {
+        const own = current[i]!;
+        if (own.length === 0) return false;
+        const ownKeys = new Set(own.map((t) => `${t.type}:${t.id}`));
+        return getLegalTargets(
+            state,
+            group,
+            // A spell copy, still on the stack (CR 109.5) — a spell (CR 113.3).
+            targetingSourceFromCard(copy, true),
+            copy.controllerId,
+            copy.chosenX
+        ).some((t) => !ownKeys.has(`${t.type}:${t.id}`));
+    });
     if (!hasAlternative) return; // zero-branch — keep the inherited target
     requestCopyRetargetOn(state, copy, as);
 }
