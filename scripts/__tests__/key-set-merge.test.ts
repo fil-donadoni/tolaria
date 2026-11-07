@@ -137,20 +137,32 @@ describe("mergeKeySetFile — rows keyed by `name` (issue #6648)", () => {
 
 describe("mergeKeySetFile — a JSON object keyed map (issue #7871)", () => {
     // `data/pick-ratings/*.json`: `{ setCode, ratings: { <scryfallId>: n } }`.
-    // Every card PR appends its rating at the tail of `ratings`, so two PRs
-    // conflict as text (the last line's trailing comma moves) without
-    // disagreeing — PR #7811 went `land-failed` four times on it.
+    // A tail append moves the last line's trailing comma, so two PRs conflict
+    // as text without disagreeing — PR #7811 went `land-failed` four times on
+    // it. Hence sorted keys (ADR 0165), and the driver for what is left.
     const file = (ratings: Record<string, number>, setCode = "cube") =>
         `${JSON.stringify({ setCode, ratings }, null, 4)}\n`;
 
-    it("two tail appends merge cleanly: base order kept, new keys appended sorted", () => {
+    it("two tail appends merge cleanly, every nested map sorted by key (ADR 0165)", () => {
         expect(
             mergeKeySetFile(
                 file({ z: 3, a: 2 }),
                 file({ z: 3, a: 2, m: 4 }),
                 file({ z: 3, a: 2, b: 1.5 })
             )
-        ).toEqual({ ok: true, text: file({ z: 3, a: 2, b: 1.5, m: 4 }) });
+        ).toEqual({ ok: true, text: file({ a: 2, b: 1.5, m: 4, z: 3 }) });
+    });
+
+    it("keeps the top level as written: `setCode` stays above `ratings`", () => {
+        const r = mergeKeySetFile(
+            file({ a: 1 }),
+            file({ a: 1, b: 2 }),
+            file({ a: 1, c: 3 })
+        );
+        expect(r.ok && Object.keys(JSON.parse(r.text))).toEqual([
+            "setCode",
+            "ratings",
+        ]);
     });
 
     it("one side's change and the other's deletion both apply", () => {
@@ -337,7 +349,21 @@ describe("key-set merge driver (real git)", () => {
         );
         expect(r.status, r.output).toBe(0);
         expect(readFileSync(join(repo, FILE), "utf8")).toBe(
-            ratings({ z: 3, a: 2, b: 1.5, m: 4 })
+            ratings({ a: 2, b: 1.5, m: 4, z: 3 })
         );
+    });
+
+    it("WITHOUT the driver, inserts at their sorted place do not conflict (ADR 0165)", () => {
+        const pad = { c: 1, e: 1, g: 1, i: 1, k: 1 };
+        writeFileSync(join(repo, FILE), ratings({ a: 1, ...pad, m: 1 }));
+        commit("ratings base");
+        const r = divergeAndRebase(
+            ratings({ a: 1, b: 2, ...pad, m: 1 }),
+            ratings({ a: 1, ...pad, l: 3, m: 1 })
+        );
+        expect(r.status, r.output).toBe(0);
+        expect(
+            JSON.parse(readFileSync(join(repo, FILE), "utf8")).ratings
+        ).toEqual({ a: 1, b: 2, ...pad, l: 3, m: 1 });
     });
 });

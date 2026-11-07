@@ -9,7 +9,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { missingCubeRatings, scanSourceCards } from "../check-cube-ratings";
+import {
+    missingCubeRatings,
+    ratingsOrderRed,
+    scanSourceCards,
+} from "../check-cube-ratings";
 
 const SET_FILE = `const WAVE_ID = "wave-id";
 
@@ -121,5 +125,17 @@ describe("missingCubeRatings — reds a cube card with no Pick Rating", () => {
         expect(reds).toEqual([
             "x.ts:1: `Soul-Scar Mage` is on the Vintage Cube list but its definition's `id:` could not be read",
         ]);
+    });
+});
+
+describe("ratingsOrderRed (ADR 0165)", () => {
+    const text = (ratings: Record<string, number>) =>
+        `${JSON.stringify({ setCode: "cube", ratings }, null, 4)}\n`;
+
+    it("passes sorted keys and reds a tail append, naming the fix", () => {
+        expect(ratingsOrderRed(text({ a: 1, b: 2 }))).toBeNull();
+        expect(ratingsOrderRed(text({ b: 2, a: 1 }))).toContain(
+            "bun run check:cube-ratings --sort"
+        );
     });
 });

@@ -293,12 +293,15 @@ describe("cr-ledger merge driver (real git)", () => {
     }
 
     /**
-     * ADJACENT rows, on purpose: sorted by id then line, two confirmations a
-     * row apart are one hunk with overlapping context — which is exactly how
-     * the ledger conflicted in practice, and what "disjoint lines" missed.
+     * ADJACENT rows of the serialized file, on purpose: two confirmations a row
+     * apart are one hunk with overlapping context — which is exactly how the
+     * ledger conflicted in practice, and what "disjoint lines" missed.
      */
-    const OURS_LINE = "pad line 19";
-    const THEIRS_LINE = "pad line 20";
+    const rowsInFileOrder = parseLedger(
+        serializeLedger(ledger(baseEntries()))
+    ).entries.map((e) => e.line);
+    const OURS_LINE = rowsInFileOrder[19];
+    const THEIRS_LINE = rowsInFileOrder[20];
 
     const confirm =
         (line: string, ruleHash: string) =>
@@ -312,6 +315,12 @@ describe("cr-ledger merge driver (real git)", () => {
         (line: string) =>
         (entries: LedgerEntry[]): LedgerEntry[] =>
             entries.filter((e) => e.line !== line);
+    const add =
+        (line: string) =>
+        (entries: LedgerEntry[]): LedgerEntry[] => [
+            ...entries,
+            entry("601.2f", line),
+        ];
     const confirmOurs = confirm(OURS_LINE, HASH_A);
     const confirmTheirs = confirm(THEIRS_LINE, HASH_B);
 
@@ -343,6 +352,15 @@ describe("cr-ledger merge driver (real git)", () => {
         expect(r.status).not.toBe(0);
         expect(r.output).toContain(LEDGER_PATH);
         spawnSync("git", ["rebase", "--abort"], { cwd: repo });
+    });
+
+    it("WITHOUT the driver, two new rows of one id and neighbouring text do not conflict (ADR 0165)", () => {
+        const r = divergeAndRebase({
+            branch: add("pad line 19a"),
+            main: add("pad line 19b"),
+        });
+        expect(r.status, r.output).toBe(0);
+        expect(readLedgerFile().entries).toHaveLength(42);
     });
 
     it("with the driver, the same two confirmations rebase clean and BOTH survive", () => {

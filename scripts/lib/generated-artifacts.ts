@@ -356,8 +356,9 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
     })),
     // The checked-in seed layer under the Admin-editable Pick Ratings
     // (`cardRatings`), one file per set (issue #7871): hand input, but a keyed
-    // map every card PR appends its rating to — two PRs conflict at the tail
-    // without disagreeing (PR #7811 went `land-failed` four times on it).
+    // map card PRs insert a rating into. Sorted keys make two PRs rarely collide
+    // (ADR 0165); when they do, they conflict without disagreeing (PR #7811 went
+    // `land-failed` four times on it).
     ...[
         "data/pick-ratings/lea.json",
         "data/pick-ratings/vintage-cube.json",
@@ -366,8 +367,8 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
         driver: KEY_SET_MERGE_DRIVER_NAME,
         script: "scripts/merge-driver-key-set.ts",
         why:
-            "`{ setCode, ratings: { <scryfallId>: n } }`, hand input every card PR appends a " +
-            "rating to — merged key by key, base order kept and new keys appended sorted; " +
+            "`{ setCode, ratings: { <scryfallId>: n } }`, hand input card PRs insert a " +
+            "rating into — merged key by key, nested keys written sorted; " +
             "a key both sides set to different values stays a conflict",
     })),
 ] as const;

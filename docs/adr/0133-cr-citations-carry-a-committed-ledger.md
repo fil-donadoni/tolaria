@@ -97,7 +97,8 @@ model reading every citation against its rule inside `check:all` is out.
    on a gate this heavy is a hatch every session would reach for. No
    suppressed citation outside the exempt files existed when this was decided.
 
-7. **Shape.** One entry per line, sorted by id then line, fixed key order, no
+7. **Shape.** One entry per line, sorted by id then line (since ADR 0165, by a
+   hash of the entry's key), fixed key order, no
    header hash and no tally — so two branches confirming two different
    citations touch disjoint lines and merge without a conflict
    (`scripts/lib/generated-artifacts.ts`' discriminator). Prettier-ignored,
