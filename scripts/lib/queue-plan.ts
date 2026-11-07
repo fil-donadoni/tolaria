@@ -304,6 +304,18 @@ export interface PlanConfig {
      */
     inFlight?: InFlightIssue[];
     /**
+     * Stalled PRs (issue #8258), built by `stalledPrsOf`: they occupy nothing
+     * (`inFlightSet` leaves them out); the planner only counts the candidates
+     * overlapping their files, to warn. Absent = none.
+     */
+    stalledPrs?: StalledPr[];
+    /**
+     * Hours a PR's head may stay put before the PR counts as stalled (issue
+     * #8258), from `tolaria.config.json` `queuePlan.stalledPrHours` via
+     * `parseStalledPrHours`. Absent = the rule is off (pure callers).
+     */
+    stalledPrHours?: number;
+    /**
      * File sets the ORCHESTRATOR inferred for issues that declare none.
      *
      * The planner will not guess a file set from prose — inference is a
@@ -465,30 +477,119 @@ export interface InFlightIssue {
     files: string[] | null;
 }
 
+/** Default for `queuePlan.stalledPrHours` (issue #8258). */
+export const DEFAULT_STALLED_PR_HOURS = 6;
+
+/**
+ * The stalled-PR threshold from the parsed `tolaria.config.json` (issue
+ * #8258): `queuePlan.stalledPrHours`, a positive number; anything else reads
+ * as the default.
+ */
+export function parseStalledPrHours(doc: unknown): number {
+    const v = (doc as { queuePlan?: { stalledPrHours?: unknown } } | null)
+        ?.queuePlan?.stalledPrHours;
+    return typeof v === "number" && Number.isFinite(v) && v > 0
+        ? v
+        : DEFAULT_STALLED_PR_HOURS;
+}
+
+/** What the planner knows of one open issue PR (issue #8258). */
+export interface OpenPrFact {
+    number: number;
+    /** The issue its branch names; null = not an issue PR. */
+    issue: number | null;
+    labels: string[];
+    files: string[];
+    /** Latest commit date of the head, ISO; null = unreadable. */
+    headCommittedAt: string | null;
+}
+
+/** A stalled PR (issue #8258): occupies nothing, is reported instead. */
+export interface StalledPr {
+    pr: number;
+    issue: number;
+    hoursStalled: number;
+    files: string[];
+    /** Candidates whose files overlap it — filled by `planBatch`. */
+    overlapping?: number[];
+}
+
+const QUEUE_LABELS = ["ready-to-land", "land-failed"];
+
+/**
+ * Stalled PRs (issue #8258): an open issue PR that is not in the queue
+ * (`ready-to-land`, `land-failed`), whose head has not moved for `hours`, and
+ * whose issue has no live pass. All three hold, so a PR a pass or the queue is
+ * working on is never stalled. An unreadable head date is not stalled (fail
+ * closed: the PR keeps occupying). ONE authority for `queue:plan` and the
+ * dispatcher's `pick`.
+ */
+export function stalledPrsOf(
+    prs: readonly OpenPrFact[],
+    liveIssues: ReadonlySet<number>,
+    nowIso: string,
+    hours: number | undefined
+): StalledPr[] {
+    if (hours === undefined) return [];
+    const now = Date.parse(nowIso);
+    const out: StalledPr[] = [];
+    for (const p of prs) {
+        if (p.issue === null || liveIssues.has(p.issue)) continue;
+        if (p.labels.some((l) => QUEUE_LABELS.includes(l))) continue;
+        const head =
+            p.headCommittedAt === null ? NaN : Date.parse(p.headCommittedAt);
+        if (!Number.isFinite(head) || !Number.isFinite(now)) continue;
+        const age = (now - head) / 3_600_000;
+        if (age < hours) continue;
+        out.push({
+            pr: p.number,
+            issue: p.issue,
+            hoursStalled: Math.floor(age),
+            files: p.files.map(normalizePath),
+        });
+    }
+    return out.sort((a, b) => a.pr - b.pr);
+}
+
+/** One warning line per stalled PR — the plan's and the dispatcher's text. */
+export function stalledPrLine(s: {
+    pr: number;
+    issue: number;
+    hoursStalled: number;
+    overlapping?: number[];
+}): string {
+    const n = s.overlapping?.length ?? 0;
+    return `stalled PR #${s.pr} (issue #${s.issue}): head unmoved ${s.hoursStalled} h, occupies nothing — ${n} candidate(s) overlap it${n > 0 ? ` (${s.overlapping!.map((x) => `#${x}`).join(", ")})` : ""}`;
+}
+
 /**
  * The in-flight set from the claims that are live or hold an open PR
  * (issue #6195). An open PR's changed files are the real blast radius; without
  * one the declared (else inferred) `Target files` stand in; with neither the
  * radius is unknown (`files: null`). The caller passes ONLY claims that are
- * live or have an open PR — a stale or released claim occupies nothing.
+ * live or have an open PR — a stale or released claim occupies nothing. A
+ * claim whose PR is in `stalledPrs` (issue #8258) occupies nothing either.
  */
 export function inFlightSet(
     claims: { issue: number; pr: number | null }[],
     prFiles: Record<number, string[]>,
     body: (issue: number) => string,
-    inferred: Record<number, string[]> = {}
+    inferred: Record<number, string[]> = {},
+    stalledPrs: ReadonlySet<number> = new Set()
 ): InFlightIssue[] {
-    return claims.map(({ issue, pr }) => {
-        const fromPr = pr === null ? undefined : prFiles[pr];
-        if (fromPr && fromPr.length > 0)
-            return { number: issue, files: fromPr.map(normalizePath) };
-        const declared = parseTargetFiles(body(issue));
-        if (declared !== null) return { number: issue, files: declared };
-        const guess = inferred[issue];
-        if (guess && guess.length > 0)
-            return { number: issue, files: guess.map(normalizePath) };
-        return { number: issue, files: null };
-    });
+    return claims
+        .filter(({ pr }) => pr === null || !stalledPrs.has(pr))
+        .map(({ issue, pr }) => {
+            const fromPr = pr === null ? undefined : prFiles[pr];
+            if (fromPr && fromPr.length > 0)
+                return { number: issue, files: fromPr.map(normalizePath) };
+            const declared = parseTargetFiles(body(issue));
+            if (declared !== null) return { number: issue, files: declared };
+            const guess = inferred[issue];
+            if (guess && guess.length > 0)
+                return { number: issue, files: guess.map(normalizePath) };
+            return { number: issue, files: null };
+        });
 }
 
 export interface DeferredIssue {
@@ -525,6 +626,9 @@ export interface BatchPlan {
     /** In-flight issues with an unknown blast radius (issue #6195): they hold
      *  the queue (issue #8406), and the plan names them — `in-flight radius unknown #N`. */
     inFlightUnknown?: number[];
+    /** Stalled PRs (issue #8258): a warning, never a block — they occupy
+     *  nothing. Each names its issue, hours stalled and overlapping candidates. */
+    stalledPrs?: Omit<StalledPr, "files">[];
     /**
      * Issues held by a claim the planner judged LIVE — `in-progress`, not
      * stale, and not a PRD umbrella (which is skipped before the claim branch
@@ -935,6 +1039,7 @@ export function planBatch(
     // Files a higher band waits on (issue #6897), filled as candidates are
     // deferred for in-flight overlap, in plan order.
     const reserved: { number: number; rank: number; files: string[] }[] = [];
+    const stalledOverlap = new Map<number, Set<number>>();
     const inFlightUnknown = (config.inFlight ?? [])
         .filter((f) => f.files === null)
         .map((f) => f.number)
@@ -1264,6 +1369,18 @@ export function planBatch(
             (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
         );
 
+        // Candidates overlapping a stalled PR (issue #8258) are counted for the
+        // warning; the PR occupies nothing, so nothing is deferred for it.
+        for (const st of config.stalledPrs ?? [])
+            if (
+                st.issue !== issue.number &&
+                st.files.some((a) => comparable.some((c) => pathsOverlap(a, c)))
+            ) {
+                const set = stalledOverlap.get(st.pr) ?? new Set<number>();
+                set.add(issue.number);
+                stalledOverlap.set(st.pr, set);
+            }
+
         // Unknown radius runs solo against the in-flight set too (issue #8406).
         // The within-batch rule below sees an empty batch when the dispatcher
         // fills one slot at a time, so it never fires; and an entry with
@@ -1439,6 +1556,18 @@ export function planBatch(
         staleClaims,
         activeClaims,
         ...(inFlightUnknown.length > 0 ? { inFlightUnknown } : {}),
+        ...((config.stalledPrs ?? []).length > 0
+            ? {
+                  stalledPrs: config.stalledPrs!.map((st) => ({
+                      pr: st.pr,
+                      issue: st.issue,
+                      hoursStalled: st.hoursStalled,
+                      overlapping: [...(stalledOverlap.get(st.pr) ?? [])].sort(
+                          (x, y) => x - y
+                      ),
+                  })),
+              }
+            : {}),
     };
 }
 

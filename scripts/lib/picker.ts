@@ -25,8 +25,10 @@ import type { ClaimVerdictState } from "./claim-verdict";
 import {
     inFlightSet,
     planBatch,
+    stalledPrsOf,
     resumeItems,
     type BatchPlan,
+    type OpenPrFact,
     type PlanConfig,
     type QueueIssue,
     type QueuePort,
@@ -67,6 +69,9 @@ export interface PickerInput {
     prFiles?: Record<number, string[]>;
     /** Open PR number by issue number (issue #6195). */
     prByIssue?: Record<number, number>;
+    /** Open issue PRs with labels and head date (issue #8258): with
+     *  `config.stalledPrHours`, tells a stalled PR apart. Absent = none. */
+    prFacts?: OpenPrFact[];
 }
 
 export interface PickResult {
@@ -167,6 +172,17 @@ export function pick(input: PickerInput): PickResult {
             occupying.add(issue.number);
     for (const c of facts.values())
         if (claimFate(c) === "live") occupying.add(c.issue);
+    // Stalled PRs (issue #8258): the same rule as `queue:plan`'s, one
+    // authority. A live pass on the PR's issue keeps it occupying.
+    const liveIssues = new Set<number>(live);
+    for (const c of facts.values())
+        if (claimFate(c) === "live") liveIssues.add(c.issue);
+    const stalled = stalledPrsOf(
+        input.prFacts ?? [],
+        liveIssues,
+        config.now,
+        config.stalledPrHours
+    );
     const inFlight = inFlightSet(
         [...occupying].map((n) => ({
             issue: n,
@@ -174,9 +190,14 @@ export function pick(input: PickerInput): PickResult {
         })),
         input.prFiles ?? {},
         (n) => port.issueDetail(n).body,
-        config.inferredTargetFiles
+        config.inferredTargetFiles,
+        new Set(stalled.map((p) => p.pr))
     );
-    const planned = planBatch(competing, { ...config, inFlight }, port);
+    const planned = planBatch(
+        competing,
+        { ...config, inFlight, stalledPrs: stalled },
+        port
+    );
     // The run is the liveness authority: `planBatch` judges a claim by issue
     // age and open PR, which would call a long-running live pass "stale".
     const liveSet = new Set(live);
