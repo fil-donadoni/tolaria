@@ -403,11 +403,19 @@ export function keepableTargets(
 ): TargetSelection[] {
     const group = pt.keepableTargetGroups?.[0];
     if (!group) return [];
-    const original =
-        state.stack.find((s) => s.id === pt.cardInstanceId)?.targets ?? [];
-    const isNew = (t: TargetSelection) => !isAlreadySelectedTarget(t, original);
-    const anyNew = [...(pt.priorSelected ?? []), ...pt.selected].some(isNew);
-    const newInGroup = pt.selected.filter(isNew);
+    // "New" is per group: an object moved in from another group's slot changed,
+    // even though the spell already targets it (CR 115.7e). Groups cut the flat
+    // list in order, so the earlier groups held exactly its first picks.
+    const prior = pt.priorSelected ?? [];
+    const heldEarlier = (
+        state.stack.find((s) => s.id === pt.cardInstanceId)?.targets ?? []
+    ).slice(0, prior.length);
+    const newInGroup = pt.selected.filter(
+        (t) => !isAlreadySelectedTarget(t, group)
+    );
+    const anyNew =
+        newInGroup.length > 0 ||
+        prior.some((t) => !isAlreadySelectedTarget(t, heldEarlier));
     return group.filter(
         (t) =>
             !isAlreadySelectedTarget(t, pt.selected) &&

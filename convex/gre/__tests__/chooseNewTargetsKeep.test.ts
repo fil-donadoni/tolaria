@@ -68,6 +68,13 @@ const SAME_CONTROLLER = define("test-keep-same-controller", {
     effects: [{ op: "draw", count: 1, player: "controller" }],
     targetRequirement: { type: "Creature", count: 2, sameController: true },
 });
+const ANOTHER_TARGET = define("test-keep-another", {
+    effects: [{ op: "draw", count: 1, player: "controller" }],
+    targetRequirement: { type: "Creature", count: 1 },
+    additionalTargetRequirements: [
+        { type: "Creature", count: 1, excludePriorTargets: true },
+    ],
+});
 const DESTROY_FIRST: EffectOp[] = [{ op: "destroy", target: { target: 0 } }];
 const CHARM = define("test-keep-charm", {
     modes: [
@@ -225,6 +232,22 @@ describe("an illegal target kept beside a changed one (CR 115.7d)", () => {
     });
 
     describe("new targets must not make an unchanged one illegal", () => {
+        it("a target moved into an earlier group can't also stay in its own", () => {
+            const state = board(["bear1", "bear2"]);
+            const victim = redirected(state, ANOTHER_TARGET, [
+                perm("bear1"),
+                perm("bear2"),
+            ]);
+            applyOneTargetSelection(state, "p1", pick("bear2"));
+            expect(keepableTargets(state, state.pendingTarget!)).toEqual([]);
+            expect(() =>
+                applyOneTargetSelection(state, "p1", pick("bear2"))
+            ).toThrow();
+            // The swap stays legal (CR 115.7e).
+            applyOneTargetSelection(state, "p1", pick("bear1"));
+            expect(victim.targets).toEqual([perm("bear2"), perm("bear1")]);
+        });
+
         function twoControllers() {
             const state = board(["bear1", "bear2"]);
             getPlayer(state, "p1").battlefield.push(
