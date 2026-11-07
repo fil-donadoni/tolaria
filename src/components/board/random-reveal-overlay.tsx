@@ -33,8 +33,15 @@ export default function RandomRevealOverlay({
     const isChooser = choice.playerId === playerId;
     const acked = useRef(false);
 
-    const result = choice.result ?? 0;
-    const won = result === 1;
+    // CR 705.2 — the overlay shows one coin: the first of the Flip Sequence. A
+    // reveal persisted before the list existed carries only `result`.
+    const flip = choice.flips?.[0];
+    const result = flip
+        ? flip.face === "heads"
+            ? 1
+            : 0
+        : (choice.result ?? 0);
+    const won = flip ? flip.outcome === "win" : result === 1;
     const face = choice.realized?.face ?? (won ? "WIN" : "LOSE");
     const consequence = choice.realized?.consequence ?? "";
     const chooserName =

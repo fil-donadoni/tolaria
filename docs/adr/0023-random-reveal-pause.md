@@ -150,3 +150,44 @@ applies the effect.**
   identical for dice; a coin-only kind would be re-derived the moment a die
   card lands (ADR principle: generalize the shared envelope, specialize the
   widget).
+
+## Amendment I (issue #5517) — a Random Reveal carries a whole Flip Sequence
+
+ADR 0144 and Mana Clash flip coins the reveal could not show, because the
+envelope held one result. It now holds an ordered list, and an effect suspends
+ONCE for all the coins it flips.
+
+- **One primitive.** `SpellContext.requestFlipSequence` draws every flip once
+  from the seeded PRNG, persists the faces in the stack item's
+  `collectedChoices`, enqueues one `random-reveal` Pending Choice and returns
+  `undefined`. On resume it returns the stored list and never re-rolls.
+  `requestCoinFlip` stays as its sequence of one, so card closures and the
+  `coinFlip` Op keep their shape and their draws.
+- **Stop rules.** `count`; `untilLoss`, with an optional `maxRounds`; or `until`,
+  a caller's predicate over a round. `FLIP_SEQUENCE_ROUND_LIMIT` bounds a rule
+  with no fixed length, which ends with probability 1. A sequence with no flips
+  returns `[]` with no pause.
+- **The envelope.** `flips`: one record per coin, holding the flipper, the face,
+  the outcome and the round. The outcome is `win`, `lose`, or `none` for a
+  face-only flip, where CR 705.2 has nobody win or lose. `source`: the card
+  printing the resolving ability, and the item's controller. `oracleExcerpt`:
+  the sentences of that card's Oracle text from the one that flips the coin
+  through the last that speaks of it, derived from the definition and never
+  authored per card. All three are public and reach both seats.
+- **What persists.** Only the faces, in draw order. The records are rebuilt from
+  them and the caller's flippers, by the same function on the first call and on
+  resume, so what is animated is what is applied. A single flip stores what it
+  always stored, and a game saved mid-reveal resumes.
+- **`result` and `realized` stay** for a single device: the overlay keeps its
+  consequence line, and a reveal saved before the list existed still lands on
+  its result. A sequence of several has no `result`.
+- **Who acknowledges.** The first flipper. The flipper's client acks when the
+  animation ends, a Bot flipper waits the pacing table's duration, and a viewer's
+  overlay lingers to its own end (issue #5516).
+
+The overlay reads the list, still showing one coin; the sequence visuals and the
+callers that flip more than once are later slices of PRD #4433.
+
+Rejected: encoding whole records in `collectedChoices`. Its values are string
+lists read by every resume path, and the flippers are already stable across
+replays, so a record encoding would hold a second copy of what the caller passes.
