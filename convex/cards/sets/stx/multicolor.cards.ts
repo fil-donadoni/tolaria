@@ -85,7 +85,7 @@ export const expressiveIteration = defineCard(() => ({
 // Witherbloom Apprentice — {B}{G} Creature — Human Druid, 2/2. Magecraft is one
 // triggered ability on both `SPELL_CAST` and `SPELL_COPIED` (CR 707.10, CR
 // 603.2). Two-player engine, so `"opponent"` IS "each opponent".
-// hand-tail: Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life. (#2087)
+// compiler-gap: "Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life." (#8494)
 export const witherbloomApprentice = defineCard(() => ({
     id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
     name: "Witherbloom Apprentice",
