@@ -788,3 +788,29 @@ export const INKLING_TOKEN: EffectTokenSpec = {
     colors: ["W", "B"],
     staticAbilities: ["flying"],
 };
+
+/** Powerstone token (CR 111 / 707.2, issue #8176). "Artifact — Powerstone"
+ *  with "{T}: Add {C}. This mana can't be spent to cast a nonartifact spell."
+ *  A fixed-output mana ability (CR 605.1a): `manaProduced` is the descriptor
+ *  every mana authority reads, and `manaRestriction` is the same restriction
+ *  The Mightstone and Weakstone's own ability carries. Created today by
+ *  Mishra, Lost to Phyrexia ("Create two tapped Powerstone tokens"). */
+export const POWERSTONE_TOKEN: EffectTokenSpec = {
+    name: "Powerstone",
+    types: ["Artifact"],
+    subtypes: ["Powerstone"],
+    activatedAbilities: [
+        {
+            id: "powerstone-token-mana",
+            oracleText:
+                "{T}: Add {C}. This mana can't be spent to cast a nonartifact spell.",
+            cost: { tap: true },
+            useStack: false,
+            manaProduced: { C: 1 },
+            manaRestriction: "not-nonartifact-spell",
+            effects: [{ op: "addMana", mana: { C: 1 } }],
+        },
+    ],
+    // Real printed Powerstone token art (tbro).
+    imagePrintId: "d45fe4b6-aeaf-4f84-b660-c7b482ed8512",
+};
