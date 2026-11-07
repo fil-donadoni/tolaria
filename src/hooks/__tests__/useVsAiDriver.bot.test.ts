@@ -63,6 +63,9 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
+// The committed row, which the gate tests overwrite for their own duration.
+const HARD_KNOWS_OPPONENT = DIFFICULTY_KNOWS_OPPONENT.hard;
+
 // What `getMatchBotDifficulty` answers (issue #6916): `null` = a lobby Match
 // (no difficulty bound), `undefined` = still loading.
 let matchDifficulty: Difficulty | null | undefined = null;
@@ -451,7 +454,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // issue #2790 — a test that opts into `expert` via `storeDifficulty`
         // must not leak it to the next one, which assumes the default.
         localStorage.removeItem("tolaria:aiDifficulty");
-        DIFFICULTY_KNOWS_OPPONENT.hard = true;
+        DIFFICULTY_KNOWS_OPPONENT.hard = HARD_KNOWS_OPPONENT;
         adapterCalls.length = 0;
         heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
