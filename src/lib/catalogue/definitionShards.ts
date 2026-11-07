@@ -142,6 +142,13 @@ export async function installShards(keys: Iterable<string>): Promise<void> {
     await Promise.all([...new Set(keys)].map(installShard));
 }
 
+/** Every hand-written Set resident, and no compiled shard: what a read across
+ *  the hand-written half of the catalogue needs, whose walk (`getAllCards`, so
+ *  the token catalogue) throws at the first card of a Set not resident. */
+export function installHandWrittenSets(): Promise<void> {
+    return installShards(setModuleSource.codes);
+}
+
 /** WHOLE mode: every hand-written Set and every compiled shard resident.
  *  Resolves with how many compiled cards were added. */
 export async function installAllShards(): Promise<number> {
