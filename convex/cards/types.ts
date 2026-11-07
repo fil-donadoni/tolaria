@@ -754,6 +754,14 @@ export type TargetCountQuantity = EffectCount | EffectKickerCountValue;
  *  blocking, CR 509.1h blocked). */
 export type CombatRole = "attacking" | "blocking" | "blocked";
 
+/** CR 508.4 / 110.5 — how the effect putting a permanent onto the battlefield
+ *  says it enters: "tapped and attacking". Read as it enters, ahead of the entry
+ *  announcement, by both entry tails (a token's, and the non-cast funnel's). */
+export interface AuthoredEntryState {
+    entersTapped?: boolean;
+    entersAttacking?: boolean;
+}
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -5441,7 +5449,11 @@ export interface SpellContext {
      *  then meld them into one permanent under the resolving controller when
      *  they form a meld pair (CR 701.42b); otherwise they stay in exile
      *  (CR 701.42c). */
-    meldPermanents: (holderId: string, partnerId: string) => void;
+    meldPermanents: (
+        holderId: string,
+        partnerId: string,
+        authoredEntry?: AuthoredEntryState
+    ) => void;
     /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
      *  layer 2). Routes through the shared control-change machinery: the host
      *  moves into the new controller's battlefield array, summoning sickness is
@@ -20373,10 +20385,19 @@ export type EffectOp =
      *  Past that gate the exile always happens, and CR 701.42b / 701.42c decide
      *  the rest inside the primitive: a token copy of a meld card, or a pair
      *  that is no pair, stays in exile. The Op deliberately does NOT name the
-     *  combined back face: the holder's own `backFace` declaration does. */
+     *  combined back face: the holder's own `backFace` declaration does.
+     *
+     *  CR 508.4 (issue #8478) — `entersTapped` / `entersAttacking` are the
+     *  printed "It enters tapped and attacking": the melded permanent enters
+     *  that way, joining the current combat without having attacked. Its
+     *  controller chooses what it attacks as it enters, which can suspend the
+     *  resolution, so the Op carries a replay marker. Omitted, it enters
+     *  untapped and not attacking. */
     | {
           op: "meld";
           partner: EffectCardFilter;
+          entersTapped?: boolean;
+          entersAttacking?: boolean;
       }
     /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
      *  thin declarative skin over the single SpellContext primitive

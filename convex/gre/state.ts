@@ -2,6 +2,7 @@ import {
     type ActivatedAbility,
     type AnimateSpec,
     type AsEntersChoice,
+    type AuthoredEntryState,
     type AbilityMode,
     type CardDefinition,
     type SpellMode,
@@ -10718,6 +10719,10 @@ function stageReanimatedOnBattlefield(
          *  beside the card's own entry counters, through the same applier, so
          *  counter-placed replacements and COUNTER_ADDED see them. */
         entryCounters?: Readonly<Record<string, number>>;
+        /** CR 508.4 — the putting effect's "tapped and attacking". Read on the
+         *  plain tail below: the `entersTappedUnlessPay` park is a land's, and
+         *  no effect puts a land onto the battlefield attacking. */
+        authoredEntry?: AuthoredEntryState;
         /** CR 614.1c vs CR 400.7 — what the permanent's as-enters ANSWERS wrote
          *  (`runStagedEntryTail`), re-applied right after this entry's own
          *  reset below. Absent for every entry that was never parked. */
@@ -10805,7 +10810,21 @@ function stageReanimatedOnBattlefield(
         getPlayer(state, card.ownerId).exile.push(card);
         return false;
     }
-    if (typeof enterDestination === "object") {
+    const owedAsEnters: AsEntersChoice[] = [
+        ...(typeof enterDestination === "object"
+            ? enterDestination.asEnters
+            : []),
+        // The resume re-enters here with the answer already stamped.
+        ...(entryOpts?.asEntersResolved
+            ? []
+            : attackTargetOwedOnEntry(
+                  state,
+                  card,
+                  controllerId,
+                  entryOpts?.authoredEntry
+              )),
+    ];
+    if (owedAsEnters.length > 0) {
         // CR 614.12a (ADR 0100 D2) — the permanent owes "as it enters" choices.
         // Hold it off EVERY zone and return "did not enter"; the caller's own
         // tail (`finishReanimatedEntry` / `finishAuraEntry`) is deferred to the
@@ -10817,13 +10836,14 @@ function stageReanimatedOnBattlefield(
             card,
             controllerId,
             "effect",
-            enterDestination.asEnters,
+            owedAsEnters,
             state.stack[state.stack.length - 1]?.id,
             {
                 enteredFromGraveyard: entryOpts?.enteredFromGraveyard,
                 // CR 122.6 / 614.12a (issue #1372) — the effect's entry
                 // counters are part of HOW it enters; they ride the park.
                 entryCounters: entryOpts?.entryCounters,
+                authoredEntry: entryOpts?.authoredEntry,
             }
         );
         return false;
@@ -10982,13 +11002,70 @@ function stageReanimatedOnBattlefield(
     }
     // CR 614.1c + 110.5b — Kismet-style replacement taps an opponent-controlled
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
-    if (shouldEnterTapped(state, card)) card.isTapped = true;
+    tapOnEntry(state, card, entryOpts?.authoredEntry);
     getPlayer(state, controllerId).battlefield.push(card);
+    // Ahead of the ETB announcement (`finishReanimatedEntry`), as a token's is.
+    joinCombatOnEntry(state, card, entryOpts?.authoredEntry);
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): reanimation
     // / put-onto-battlefield happens MID-resolution, so the SBA sweep is too
     // late for a later clause of the same effect to read the designation.
     checkAscendCityBlessing(state);
     return true;
+}
+
+/** CR 508.4 — what a permanent put onto the battlefield attacking owes as it
+ *  enters: its controller's `attack-target` choice. Owed by neither a noncreature
+ *  (CR 506.3a) nor a permanent the attacking player does not control (CR 506.3b),
+ *  neither of which ever attacks. The one derivation both entry sites raise. */
+function attackTargetOwedOnEntry(
+    state: GameState,
+    card: Pick<CardInstanceState, "types">,
+    controllerId: string,
+    authored: AuthoredEntryState | undefined
+): AsEntersChoice[] {
+    return authored?.entersAttacking &&
+        state.combat &&
+        card.types.includes("Creature") &&
+        controllerId === state.activePlayerId
+        ? [{ kind: "attack-target" }]
+        : [];
+}
+
+/** CR 614.1c + 110.5b — a Kismet-style replacement taps the entering permanent;
+ *  OR'd with the effect's own CR 508.4 "enters tapped". Either reason taps it. */
+function tapOnEntry(
+    state: GameState,
+    card: CardInstanceState,
+    authored: AuthoredEntryState | undefined
+): void {
+    if (authored?.entersTapped || shouldEnterTapped(state, card)) {
+        card.isTapped = true;
+    }
+}
+
+/** CR 508.4 — the permanent enters the battlefield ALREADY ATTACKING: join the
+ *  CURRENT combat directly through the shared `joinCombatAttacking` helper
+ *  (`gre/combat.ts`) instead of running the normal declare-attackers action,
+ *  against the defender its as-enters `attack-target` answer stamped (issue
+ *  #1865; CR 508.4a — a stamped planeswalker that is gone leaves it not
+ *  attacking at all). Its `markAttacking` sets BOTH engine-wide representations
+ *  of "attacking" — `combat.attackerIds` membership AND the per-permanent
+ *  `isAttacking` flag — which is exactly the sync every OTHER combat-scoped read
+ *  (layer statics, `combatRoleFilter`, `PermanentFilter.isAttacking`,
+ *  `SpellContext.getIsAttacking`, the frontend wire) depends on.
+ *
+ *  Deliberately does NOT emit an ATTACKERS_DECLARED event — CR 508.4 is explicit
+ *  that such a creature is "attacking" but never "attacked" for trigger purposes,
+ *  so "whenever a creature attacks" abilities (including its own, if it has one)
+ *  correctly never see this entry. */
+function joinCombatOnEntry(
+    state: GameState,
+    card: CardInstanceState,
+    authored: AuthoredEntryState | undefined
+): void {
+    if (authored?.entersAttacking && state.combat) {
+        joinCombatAttacking(state, card);
+    }
 }
 
 /** Phase 2 of reanimation (issue #1094): grants + ETB notification for a
@@ -11036,7 +11113,9 @@ function putReanimatedOnBattlefield(
     enteredFromGraveyard?: boolean,
     /** CR 122.6 (issue #1372) — counters the putting effect gives the
      *  permanent as it enters; see `stageReanimatedOnBattlefield`. */
-    entryCounters?: Readonly<Record<string, number>>
+    entryCounters?: Readonly<Record<string, number>>,
+    /** CR 508.4 — the putting effect's "tapped and attacking". */
+    authoredEntry?: AuthoredEntryState
 ): boolean {
     // Returns whether the card is actually on the battlefield now. A staging
     // redirect (Containment Priest → exile, Worms of the Earth → graveyard) or
@@ -11047,6 +11126,7 @@ function putReanimatedOnBattlefield(
         stageReanimatedOnBattlefield(state, card, controllerId, {
             enteredFromGraveyard,
             ...(entryCounters ? { entryCounters } : {}),
+            ...(authoredEntry ? { authoredEntry } : {}),
         })
     ) {
         finishReanimatedEntry(state, card, enteredFromGraveyard);
@@ -11066,13 +11146,16 @@ function putReanimatedOnBattlefield(
  *
  *  Atomic by construction: the exile has already happened when the meld
  *  fails, and CR 701.42c leaves the objects where they are — in exile (a
- *  token there then ceases to exist, CR 704.5d). Returns the melded
- *  permanent, or `null` when nothing was melded. */
+ *  token there then ceases to exist, CR 704.5d). `authoredEntry` is a printed
+ *  "It enters tapped and attacking" (CR 508.4). Returns the melded permanent,
+ *  or `null` when nothing is on the battlefield yet: nothing was melded, or its
+ *  entry is parked on an as-enters choice. */
 export function meldPermanents(
     state: GameState,
     holderId: string,
     partnerId: string,
-    controllerId: string
+    controllerId: string,
+    authoredEntry?: AuthoredEntryState
 ): CardInstanceState | null {
     // CR 701.42a "exile them" is ONE simultaneous exile: one CARDS_EXILED
     // event naming both cards (issue #1558's one-event-per-occurrence rule).
@@ -11106,9 +11189,17 @@ export function meldPermanents(
         (c) => c.id !== partnerId
     );
     holder.card.controllerId = controllerId;
-    return putReanimatedOnBattlefield(state, holder.card, controllerId)
-        ? holder.card
-        : null;
+    // Read back, not taken from the funnel's answer: an entry parked on a choice
+    // that was auto-answered in line reports "did not enter" and has entered.
+    putReanimatedOnBattlefield(
+        state,
+        holder.card,
+        controllerId,
+        undefined,
+        undefined,
+        authoredEntry
+    );
+    return findOnBattlefield(state, holderId)?.card ?? null;
 }
 
 /** CR 614.1a / 400.7 (issue #3814) — a discard replacement's "put it onto the
@@ -11316,6 +11407,7 @@ export function stageAsEntersEntry(
         enteredFromGraveyard?: boolean;
         playEntry?: StagedEntry["playEntry"];
         entryCounters?: Readonly<Record<string, number>>;
+        authoredEntry?: AuthoredEntryState;
     }
 ): void {
     if (origin === "effect" || origin === "play") {
@@ -11402,6 +11494,10 @@ export function stageAsEntersEntry(
             : {}),
         ...(extra?.entryCounters && Object.keys(extra.entryCounters).length > 0
             ? { entryCounters: { ...extra.entryCounters } }
+            : {}),
+        ...(extra?.authoredEntry?.entersTapped ||
+        extra?.authoredEntry?.entersAttacking
+            ? { authoredEntry: { ...extra.authoredEntry } }
             : {}),
     };
     state.stagedEntries = [...(state.stagedEntries ?? []), entry];
@@ -12557,6 +12653,7 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                         asEntersResolved: true,
                         enteredFromGraveyard: entry.enteredFromGraveyard,
                         entryCounters: entry.entryCounters,
+                        authoredEntry: entry.authoredEntry,
                         asEntersAnswers: stagedEntryAnswers(entry.card),
                     }
                 )
@@ -15414,8 +15511,18 @@ export function buildSpellContext(
         //
         // CR 701.42a / 701.42c (ADR 0161) — the Effect Script's door to the
         // engine's atomic meld step.
-        meldPermanents(holderId: string, partnerId: string): void {
-            meldPermanents(state, holderId, partnerId, item.controllerId);
+        meldPermanents(
+            holderId: string,
+            partnerId: string,
+            authoredEntry?: AuthoredEntryState
+        ): void {
+            meldPermanents(
+                state,
+                holderId,
+                partnerId,
+                item.controllerId,
+                authoredEntry
+            );
         },
         // The RETURN leg is skipped in one case only: a replacement effect
         // moved the card somewhere other than exile on the way out, so it is
@@ -22056,12 +22163,9 @@ export function createTokenPermanents(
             ...(typeof enterDestination === "object"
                 ? enterDestination.asEnters
                 : []),
-            ...(spec.entersAttacking &&
-            state.combat &&
-            !opts?.placement &&
-            controllerId === state.activePlayerId
-                ? [{ kind: "attack-target" } as const]
-                : []),
+            ...(opts?.placement
+                ? []
+                : attackTargetOwedOnEntry(state, token, controllerId, spec)),
         ];
         if (owed.length > 0) {
             // CR 614.12a (ADR 0100 D2/D5) — this token owes "as it enters"
@@ -22147,21 +22251,14 @@ function finishTokenEntry(
     state: GameState,
     token: CardInstanceState,
     controllerId: string,
-    opts: {
+    opts: AuthoredEntryState & {
         entryCounters?: Record<string, number>;
-        entersTapped?: boolean;
-        entersAttacking?: boolean;
     }
 ): void {
     const owner = getPlayer(state, controllerId);
     {
-        // CR 614.1c + 110.5b — Kismet-style replacement taps an
-        // opponent-controlled artifact/creature/land token as it enters. OR'd
-        // with the CR 508.4 authored "enters tapped" flag (issue #1195,
-        // Satya, Aetherflux Genius) — either reason taps the token.
-        if (opts.entersTapped || shouldEnterTapped(state, token)) {
-            token.isTapped = true;
-        }
+        // CR 508.4 (issue #1195, Satya, Aetherflux Genius) — the authored flag.
+        tapOnEntry(state, token, opts);
         // CR 614.1c — this tail is the token's only run after its as-enters
         // answers (`createTokenPermanents` applied the declared counters before
         // the park), so an accepted `mayEnterWithCounters` lands here.
@@ -22177,29 +22274,9 @@ function finishTokenEntry(
         // deferral note on `applyEntersWithCounters` above, ADR 0078 §7).
         emitEntersWithCounterEvents(state, token, opts.entryCounters ?? {});
         emitEntersWithCounterEvents(state, token, answeredCounters);
-        // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
-        // ATTACKING: join the CURRENT combat directly through the shared
-        // `joinCombatAttacking` helper (`gre/combat.ts`) instead of running
-        // the normal declare-attackers action, against the defender its
-        // as-enters `attack-target` answer stamped (issue #1865; CR 508.4a —
-        // a stamped planeswalker that is gone leaves it not attacking at
-        // all). Its `markAttacking` sets BOTH
-        // engine-wide representations of "attacking" — `combat.attackerIds`
-        // membership AND the per-permanent `isAttacking` flag — which is
-        // exactly the sync every OTHER combat-scoped read (layer statics,
-        // `combatRoleFilter`, `PermanentFilter.isAttacking`,
-        // `SpellContext.getIsAttacking`, the frontend wire) depends on; a
-        // token that only joined `attackerIds` was only HALF attacking.
-        // Deliberately does NOT emit an ATTACKERS_DECLARED event — CR 508.4
-        // is explicit that such a token is "attacking" but never "attacked"
-        // for trigger purposes, so "whenever a creature attacks" abilities
-        // (including this token's own, if it has one) correctly never see
-        // this entry. No-op if there's no active combat to join (defensive —
-        // see `TokenSpec.entersAttacking`'s doc; `joinCombatAttacking` itself
-        // is also a no-op with no `state.combat`).
-        if (opts.entersAttacking && state.combat) {
-            joinCombatAttacking(state, token);
-        }
+        // No-op if there's no active combat to join (defensive — see
+        // `TokenSpec.entersAttacking`'s doc).
+        joinCombatOnEntry(state, token, opts);
         applyExistingGrantsTo(state, token);
         beginApplyingStaticEffects(state, token);
         // CR 111.1 / 603.6a (issue #2300) — a token IS a permanent, so its

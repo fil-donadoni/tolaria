@@ -3883,7 +3883,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.42a",
         mechanicId: "meld",
         binding: "SpellContext.meldPermanents",
-        note: 'The CR 701 keyword action "Meld" (issue #3341, ADR 0161). "If you both own and control <this> and <partner>, exile them, then meld them": reads the condition on resolution and hands the source and its counterpart to the atomic engine step `meldPermanents`. A token copy or a non-pair stays in exile (CR 701.42b / 701.42c). One Op, never `exile` + a meld, so the search reads no removal bonus on the player\'s own permanents.',
+        note: 'The CR 701 keyword action "Meld" (issue #3341, ADR 0161). "If you both own and control <this> and <partner>, exile them, then meld them": reads the condition on resolution and hands the source and its counterpart to the atomic engine step `meldPermanents`. A token copy or a non-pair stays in exile (CR 701.42b / 701.42c). One Op, never `exile` + a meld, so the search reads no removal bonus on the player\'s own permanents. Optional `entersTapped` / `entersAttacking` (CR 508.4, issue #8478) are a printed "It enters tapped and attacking", through the funnel a token uses: the `attack-target` as-enters choice, then `joinCombatAttacking`, with a replay marker for the suspended resolution.',
     },
     {
         op: "createToken",

@@ -132,6 +132,9 @@ export function joinCombatAttacking(
     const stamped = card.enterAttackingTarget;
     delete card.enterAttackingTarget;
     if (!state.combat) return;
+    // CR 506.3a — a noncreature permanent put onto the battlefield attacking
+    // enters, but is never an attacking permanent.
+    if (!card.types.includes("Creature")) return;
     // CR 506.3b — put onto the battlefield attacking under the control of a
     // player who is not attacking, it enters but is never attacking.
     if (card.controllerId !== state.activePlayerId) return;

@@ -5628,6 +5628,11 @@ const OP_SCHEMAS: OpSchemaTable = {
             partner: (value: unknown) =>
                 isCardFilter(value, { allowControlledSinceTurnStart: true }),
         },
+        // CR 508.4 — "It enters tapped and attacking".
+        optional: {
+            entersTapped: isBoolean,
+            entersAttacking: isBoolean,
+        },
     },
     // CR 111 / 701.7 (issue #847) — create token permanents. `token` is the
     // JSON-pure token spec (EffectTokenSpec — name + types required, the rest
