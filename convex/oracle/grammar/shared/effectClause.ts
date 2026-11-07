@@ -1814,6 +1814,12 @@ export type EffectSentenceIR =
            */
           readonly kind: "delayed-return";
           readonly referent: "it" | `this ${string}`;
+          /**
+           * CR 608.2h — the sentence printed "that card", not "it". A
+           * permanent the head named is not a card, so behind such a head the
+           * words still name one object where "it" names two.
+           */
+          readonly printedThatCard?: true;
           readonly destination: "hand" | "battlefield";
           readonly timing: "next-end-step" | "next-cleanup-step";
       }
@@ -8027,6 +8033,9 @@ function effectSentence(
             referent: delayedReturn[1]!.startsWith("this ")
                 ? (delayedReturn[1]! as `this ${string}`)
                 : ("it" as const),
+            ...(delayedReturn[1] === "that card"
+                ? { printedThatCard: true as const }
+                : {}),
             destination: toHand ? ("hand" as const) : ("battlefield" as const),
             timing:
                 (delayedReturn[2] ?? delayedReturn[3]) === "cleanup"
