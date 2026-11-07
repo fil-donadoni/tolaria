@@ -1329,6 +1329,36 @@ describe("an alternative cost's permanent leg is paid beside an own sacrifice (C
         );
     });
 
+    it("the leg and the tax must come from DISTINCT permanents (CR 601.2f)", () => {
+        // Crabomination's {B}{B} owes two Swamps; a leg that also takes a Swamp
+        // owes a third, though two Swamps pass each half alone.
+        const state = castBoard(crabomination().id, [
+            droughtOnBoard(),
+            swampOnBoard("swamp1"),
+            swampOnBoard("swamp2"),
+        ]);
+        const player = getPlayer(state, "p1");
+        const swampLeg = {
+            permanent: {
+                action: "sacrifice" as const,
+                count: 1,
+                filter: { subtypes: "Swamp" },
+            },
+        };
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                crabomination(),
+                player.hand[0],
+                player,
+                undefined,
+                "hand",
+                undefined,
+                swampLeg
+            )
+        ).toThrow(/not enough permanents to sacrifice/);
+    });
+
     it("declares the alternative leg first and auto-resolves the merge once, as a whole", () => {
         const state = castBoard(crabomination().id, [
             droughtOnBoard(),
