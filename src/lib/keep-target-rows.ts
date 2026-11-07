@@ -47,13 +47,17 @@ export function keepTargetRows(
     const group = pendingTarget.keepableTargetGroups?.[0] ?? [];
     const picked = (t: { type: string; id: string }) =>
         pendingTarget.selected.some((s) => s.type === t.type && s.id === t.id);
-    return group
-        .filter((t) => !picked(t))
-        .map((t) => ({
-            key: `${t.type}:${t.id}`,
-            label: `Keep ${targetName(t, players, stack) ?? "departed target"}`,
-            targetType: t.type,
-            targetId: t.id,
-            ...(t.playerId ? { targetPlayerId: t.playerId } : {}),
-        }));
+    return group.flatMap((t) =>
+        t.type === "hand-card" || picked(t)
+            ? []
+            : [
+                  {
+                      key: `${t.type}:${t.id}`,
+                      label: `Keep ${targetName(t, players, stack) ?? "departed target"}`,
+                      targetType: t.type,
+                      targetId: t.id,
+                      ...(t.playerId ? { targetPlayerId: t.playerId } : {}),
+                  },
+              ]
+    );
 }

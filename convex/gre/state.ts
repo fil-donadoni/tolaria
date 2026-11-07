@@ -13246,6 +13246,10 @@ export function requestCopyRetargetOn(
                   modeTargetCounts: (copy.chosenModeIds ?? []).map(() => 0),
               }
             : {}),
+        // CR 115.7d — "the new targets must be legal": every permanent-kind
+        // filter the accepting site reads, through the registry. The fields
+        // below normalise the shorthand ones, and so go on top.
+        ...(lowerPermanentFilters(req, copy.chosenX) as Partial<PendingTarget>),
         ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
         ...(shorthandArray(req.colorFilterAny)
             ? { colorFilterAny: req.colorFilterAny }
