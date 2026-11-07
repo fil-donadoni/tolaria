@@ -254,11 +254,12 @@ export function runBounded(
     args: string[],
     options: Pick<SpawnSyncOptions, "cwd" | "env"> & {
         timeoutMs: number;
-        /** `ignore` discards output (the default captures it). */
-        stdio?: "ignore" | "capture";
+        /** `ignore` discards output, `inherit` hands it the caller's stdio
+         *  (a generator whose lines are the log); the default captures it. */
+        stdio?: "ignore" | "capture" | "inherit";
     }
 ): BoundedResult {
-    const capture = options.stdio !== "ignore";
+    const capture = options.stdio === undefined || options.stdio === "capture";
     // The child leads a group of its own, made by `perl` before it `exec`s the
     // command: Bun's `spawnSync` ignores `detached`, and a child left in the
     // caller's group is one `killTree` must protect, so nothing would be
@@ -271,7 +272,7 @@ export function runBounded(
             cwd: options.cwd,
             env: options.env,
             encoding: "utf8",
-            stdio: capture ? "pipe" : "ignore",
+            stdio: capture ? "pipe" : options.stdio,
             timeout: options.timeoutMs,
             killSignal: "SIGKILL",
             maxBuffer: 64 * 1024 * 1024,
