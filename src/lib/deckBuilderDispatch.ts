@@ -209,6 +209,15 @@ export async function savePresetCreate(
 export type DeckBuilderKind = "user" | "preset";
 export type DeckBuilderMode = "create" | "edit";
 
+/** The builder a saved deck opens in. A `limited` deck's card universe is its
+ *  Deck Pool (ADR 0106), so it opens in the pool deckbuilder; the constructed
+ *  one offers the full catalogue and is every other Format's. */
+export type DeckEditorVariant = "pool" | "constructed";
+
+export function deckEditorFor(deck: { format: FormatId }): DeckEditorVariant {
+    return deck.format === "limited" ? "pool" : "constructed";
+}
+
 /**
  * Pure dispatch: map the editor `kind` + `mode` + current identity to the
  * single async "save this payload, return the resulting identity" call the

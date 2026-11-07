@@ -11,6 +11,7 @@ import type { MutationCtx } from "../_generated/server";
 import { resolveDeckCardMeta } from "../cards";
 import {
     create,
+    getDeckPool,
     listMine,
     migrateDeckPools,
     remove,
@@ -127,6 +128,35 @@ describe("Deck Pool — written on save, skipped when identical (ADR 0106 §1)",
         const deckId = await run(create, ctx, limitedDeck("event-1"));
         await run(remove, ctx, { id: deckId });
         expect(tables.limitedDeckPools ?? []).toEqual([]);
+    });
+});
+
+describe("Deck Pool — read for the detached builder (ADR 0106)", () => {
+    it("answers with the deck's own Pool after its event and seat are gone", async () => {
+        const { ctx, tables } = world();
+        const deckId = await run(create, ctx, limitedDeck("event-1"));
+        tables.limitedEvents = [];
+        tables.limitedSeats = [];
+        expect(await run(getDeckPool, ctx, { id: deckId })).toEqual([
+            POOL_BOLT,
+            POOL_BOLT,
+        ]);
+    });
+
+    it("refuses another player's deck", async () => {
+        const { ctx, tables } = world();
+        const deckId = await run(create, ctx, limitedDeck("event-1"));
+        tables.userDecks[0].userId = "user-bob";
+        await expect(run(getDeckPool, ctx, { id: deckId })).rejects.toThrow(
+            "Forbidden"
+        );
+    });
+
+    it("is null for a deck with no Deck Pool", async () => {
+        const { ctx, tables } = world();
+        const deckId = await run(create, ctx, limitedDeck("event-1"));
+        tables.limitedDeckPools = [];
+        expect(await run(getDeckPool, ctx, { id: deckId })).toBeNull();
     });
 });
 

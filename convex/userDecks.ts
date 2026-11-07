@@ -353,6 +353,19 @@ export const get = query({
     },
 });
 
+/** The Pool a `limited` deck is rebuilt from outside its event (ADR 0106):
+ *  the deck's own Deck Pool, never the Seat's, so it answers whether or not the
+ *  event still exists. A companion read of its own so `listMine` is never
+ *  billed for a Pool. `null` = the deck has no Deck Pool. */
+export const getDeckPool = query({
+    args: { id: v.id("userDecks") },
+    handler: async (ctx, args) => {
+        const userId = await getCurrentUserId(ctx);
+        await assertOwnsDeck(ctx, args.id, userId);
+        return await loadDeckPool(ctx, args.id);
+    },
+});
+
 export const create = mutation({
     args: {
         name: v.string(),

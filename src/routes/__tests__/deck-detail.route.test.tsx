@@ -62,8 +62,16 @@ const MANUAL_USER_DECK = {
     reasons: [],
 };
 
+const LIMITED_USER_DECK = {
+    ...USER_DECK,
+    presetId: "my-limited-deck",
+    userDeckId: "userdeck-limited-1",
+    name: "My Limited Deck",
+    format: "limited" as const,
+};
+
 vi.mock("~/hooks/useUserDecks", () => ({
-    useUserDecks: () => [USER_DECK, MANUAL_USER_DECK],
+    useUserDecks: () => [USER_DECK, MANUAL_USER_DECK, LIMITED_USER_DECK],
     useUserDeckMutations: () => ({ remove: vi.fn() }),
 }));
 
@@ -105,6 +113,16 @@ describe("DeckDetailRoute Edit wiring (issue #2591)", () => {
         expect(navigate).toHaveBeenCalledWith({
             to: "/decks/$slug/edit",
             params: { slug: "my-user-deck" },
+        });
+    });
+
+    it("routes Edit on a limited deck to that same route, where its Format picks the pool builder", () => {
+        routeSlug = "my-limited-deck";
+        render(<DeckDetailRoute />);
+        fireEvent.click(screen.getByText("Edit"));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/$slug/edit",
+            params: { slug: "my-limited-deck" },
         });
     });
 

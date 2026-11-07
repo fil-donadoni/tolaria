@@ -278,7 +278,7 @@ navigation:
 | Route            | Screen                                                                                                                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`              | Lobby home — Last Match, Play (Constructed · Limited), Your Tables, Decks; the active-game banner when one is running                                                                   |
-| `/decks/create`  | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                      |
+| `/decks/create`  | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode; a `limited` deck opens the pool builder there instead, over its own Deck Pool)                       |
 | `/limited`       | Limited hub (issue #5388) — status chips (waiting/drafting/building/playing/history, with counts), "Your events" tiles with one CTA per phase and a New event tile last, "Join a table" |
 | `/limited/decks` | Limited Deck Archive (issue #8409) — the account's Limited decks by Limited Origin. Empty on a fresh account: the walk saves one from the fixture seat's pool builder first             |
 
