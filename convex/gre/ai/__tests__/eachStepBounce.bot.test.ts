@@ -127,7 +127,7 @@ describe("a standing each-step return to hand reads the board (issue #5628)", ()
         expect(hopeWorth(stolen)).toBeLessThan(hopeWorth(owned));
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
+    it("at fraction 1 the hand reads the board Differential, a negative one reading 0", () => {
         const faces = (own: number, opp: number) => {
             const held = board(
                 { creatures: own, hope: "hand" },
@@ -140,7 +140,10 @@ describe("a standing each-step return to hand reads the board (issue #5628)", ()
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace: hopeWorth(
                     board({ creatures: own, hope: "board" }, { creatures: opp })
@@ -151,7 +154,7 @@ describe("a standing each-step return to hand reads the board (issue #5628)", ()
         expect(takes.handFace).toBeGreaterThan(0);
         expect(takes.handFace).toBeCloseTo(takes.boardFace, 6);
         const costs = faces(2, 0);
-        expect(costs.handFace).toBeLessThan(0);
-        expect(costs.handFace).toBeCloseTo(costs.boardFace, 6);
+        expect(costs.handFace).toBe(0);
+        expect(costs.boardFace).toBeLessThan(0);
     });
 });

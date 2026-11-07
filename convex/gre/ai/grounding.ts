@@ -130,11 +130,17 @@ export interface LatentLens {
     /** Issue #5560 — the share of a ONE-SHOT's Differential Reading the
      *  card in hand is credited (`EvalWeights.heldDifferentialFraction`):
      *  the swing decays once it resolves, its price read off each leaf never
-     *  does. A standing engine's reading (`eachStepDifferentialValue`) is not
-     *  held — it recurs on the board face — and never reads it: its lens,
-     *  `engineLensOf` (`cardValue.ts`), drops the field on purpose. Present
+     *  does. A standing engine's reading (`eachStepDifferentialValue`) recurs
+     *  on the board face and never reads it: its lens, `engineLensOf`
+     *  (`cardValue.ts`), drops the field on purpose. Present
      *  only on a lens attached to a real board. */
     readonly heldDifferentialFraction?: number;
+    /** Issue #8295 — the same fitted share for a standing engine still in
+     *  HAND (`latentValue`'s `heldEngineFraction`): the board face
+     *  realises what the hand face would otherwise price in full, and casting
+     *  ties holding. Absent once the card stands on the battlefield, where
+     *  the reading is whole. */
+    readonly heldEngineFraction?: number;
     /** Issue #5162 — the player a `forEach { set: "players" }` body's
      *  `$each` names during one side of `eachPlayerDifferential`. Absent on
      *  every other walk. */
@@ -312,12 +318,15 @@ export interface EachPlayerSide {
  *   - `leaves` — the whole hand is discarded (CR 701.9): the hand is empty;
  *   - `shuffledIn` — the whole hand is put into the library: the hand is
  *     empty and the library holds its cards;
+ *   - `graveyardShuffledIn` — the whole graveyard is put into the library:
+ *     the hand is untouched and the library holds its cards;
  *   - `discards` — `count` cards of the player's choice are discarded: its
  *     CHEAPEST `count`, as `discardWorth` reads them;
  *   - `draws` — `count` cards are drawn, each at the library expectation. */
 export type HandStep =
     | { readonly kind: "leaves" }
     | { readonly kind: "shuffledIn" }
+    | { readonly kind: "graveyardShuffledIn" }
     | { readonly kind: "discards"; readonly count: number }
     | { readonly kind: "draws"; readonly count: number };
 

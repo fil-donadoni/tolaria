@@ -161,7 +161,7 @@ describe("a standing each-step mana engine reads the board (issue #5626)", () =>
         expect(engineValue(feedsMe)).toBeGreaterThan(engineValue(neither));
     });
 
-    it("hand face equals board face on the same board, whatever the sign", () => {
+    it("at fraction 1 the hand reads the board Differential, a negative one reading 0", () => {
         const faces = (own: Side["holds"], opp: Side["holds"]) => {
             const held = board(
                 { holds: own, engine: { id: VINEYARD, where: "hand" } },
@@ -174,7 +174,10 @@ describe("a standing each-step mana engine reads the board (issue #5626)", () =>
                 handFace: cardValue(
                     held,
                     inHand,
-                    handLatentLens(held, "p1", inHand)
+                    handLatentLens(held, "p1", inHand, {
+                        ...DEFAULT_EVAL_WEIGHTS,
+                        heldDifferentialFraction: 1,
+                    })
                 ),
                 boardFace:
                     engineValue(
@@ -192,8 +195,8 @@ describe("a standing each-step mana engine reads the board (issue #5626)", () =>
         expect(helps.handFace).toBeGreaterThan(0);
         expect(helps.handFace).toBeCloseTo(helps.boardFace, 6);
         const hurts = faces("castable", "stuck");
-        expect(hurts.handFace).toBeLessThan(0);
-        expect(hurts.handFace).toBeCloseTo(hurts.boardFace, 6);
+        expect(hurts.handFace).toBe(0);
+        expect(hurts.boardFace).toBeLessThan(0);
     });
 
     it("the card being valued is not its own stuck card: a landless hand holding only the Vineyard reads nothing spent", () => {
