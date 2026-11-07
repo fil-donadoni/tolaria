@@ -71,7 +71,7 @@ describe("Pinnacle Emissary (CR 603.2, CR 509.1b)", () => {
         const drone = state.players[0].battlefield.find(
             (c) => c.id !== "emissary"
         )!;
-        const def = getDefinition(drone.card.id);
+        const def = getDefinition((drone.card as { id: string }).id);
         expect(def.name).toBe("Drone");
         expect(def.types).toEqual(["Artifact", "Creature"]);
         expect(def.subtypes).toEqual(["Drone"]);

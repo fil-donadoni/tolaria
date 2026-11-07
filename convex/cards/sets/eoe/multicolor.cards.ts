@@ -34,7 +34,7 @@ export const pinnacleEmissary = defineCard(() => ({
             id: "pinnacle-emissary-artifact-cast-drone",
             oracleText:
                 'Whenever you cast an artifact spell, create a 1/1 colorless Drone artifact creature token with flying and "This token can block only creatures with flying."',
-            scope: "self",
+            scope: "you",
             filter: { types: "Artifact" },
             effects: [
                 {
