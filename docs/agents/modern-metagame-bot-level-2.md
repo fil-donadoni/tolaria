@@ -119,17 +119,18 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 ## Not playable yet
 
 Read off `oracle:report --targets modern-metagame` on 2026-11-07. Issue #8559
-gives the other four cards their per-card issues: `gaps:sync` files
-none while the Target is not `enforced`. Issue #8452 writes a row's positions
-once its card lands.
+enforced the Target and ran `gaps:sync`, so each card below has its own filed
+issue; a card held only by a cluster claim holder (issue #8497) got a
+`Grammar Gap:` issue of its own. Issue #8452 writes a row's positions once its
+card lands.
 
-| Card                      | Issue making it playable                   |
-| ------------------------- | ------------------------------------------ |
-| Emrakul, the Promised End | #8446                                      |
-| Amulet of Vigor           | #8559                                      |
-| Summoner's Pact           | #8559                                      |
-| Goryo's Vengeance         | #8559 (cluster #8497 only holds its claim) |
-| Past in Flames            | #8559                                      |
+| Card                      | Issue making it playable                                       |
+| ------------------------- | -------------------------------------------------------------- |
+| Emrakul, the Promised End | #8446                                                          |
+| Amulet of Vigor           | #8606                                                          |
+| Summoner's Pact           | #8583                                                          |
+| Goryo's Vengeance         | #8651 (Splice onto Arcane; cluster #8497 only holds the claim) |
+| Past in Flames            | #8629                                                          |
 
 Manamorphose is playable but the Bot ignores it today: issue #8450, with
 issue #8177, makes it reachable before its pair can be written.
