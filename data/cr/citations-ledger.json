@@ -43460,7 +43460,7 @@
         {"id":"701.46a","line":"// CR 701.46a — \"if this creature has no +1/+1 counters on","sites":1,"status":"baseline"},
         {"id":"702.37e","line":"it(\"turning face up restores the real 4/5 flier (CR 702.37e)\", () => {","sites":1,"status":"baseline"},
         {"id":"400.7","line":"// reused free by every later mass-bounce card (CR 400.7 zone change,","sites":1,"status":"baseline"},
-        {"id":"109.2","line":"`\"${match[1]}\" is not this permanent (CR 109.2)`,","sites":3,"status":"confirmed","ruleHash":"219aa9b84f65634a"},
+        {"id":"109.2","line":"`\"${match[1]}\" is not this permanent (CR 109.2)`,","sites":4,"status":"confirmed","ruleHash":"219aa9b84f65634a"},
         {"id":"608.2","line":"* mid-resolution choice (CR 608.2). True only when the viewer is the chooser,","sites":1,"status":"baseline"},
         {"id":"603.7c","line":"// of the creature never fires it; CR 603.7c the captured artifact is only","sites":1,"status":"baseline"},
         {"id":"205.4a","line":"/** Exclude permanents that have ANY of these supertypes (CR 205.4a — the","sites":1,"status":"baseline"},
