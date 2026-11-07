@@ -5,7 +5,7 @@
 // auto-acknowledges once when the animation completes (no button). The opponent
 // watches the same outcome but never submits.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
 import type { Player, PendingChoice } from "~/types/game";
 
@@ -65,6 +65,7 @@ vi.mock("~/components/board/coin-flip-animation", async () => {
     };
 });
 
+import { REVEAL_FINAL_HOLD_MS } from "~/lib/random-reveal-pacing";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 
 afterEach(cleanup);
@@ -170,15 +171,27 @@ describe("RandomRevealOverlay (#301)", () => {
         expect(getByText("Alice wins the flip")).toBeTruthy();
     });
 
-    it("the chooser's client auto-acks exactly once on animation end (no button)", () => {
-        renderOverlay("p1");
-        expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
-        expect(submitRandomRevealAck).toHaveBeenCalledWith({
-            gameId: "game-id",
-            playerId: "p1",
-            stackItemId: "bottle",
-            choiceId: "bottle-of-suleiman-flip",
-        });
+    it("the chooser acks once, only after the final hold — the result stays on screen", () => {
+        vi.useFakeTimers();
+        try {
+            const { getByTestId } = renderOverlay("p1");
+            expect(getByTestId("coin-anim").textContent).toBe(
+                "You win the flip"
+            );
+            expect(submitRandomRevealAck).not.toHaveBeenCalled();
+            act(() => {
+                vi.advanceTimersByTime(REVEAL_FINAL_HOLD_MS);
+            });
+            expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
+            expect(submitRandomRevealAck).toHaveBeenCalledWith({
+                gameId: "game-id",
+                playerId: "p1",
+                stackItemId: "bottle",
+                choiceId: "bottle-of-suleiman-flip",
+            });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("the opponent watches but never submits", () => {
@@ -253,16 +266,25 @@ describe("RandomRevealOverlay (#301)", () => {
         );
     });
 
-    it("click-to-end: the flipper's click jumps the animation and acks once", () => {
-        autoLand = false;
-        const { getByTestId } = renderOverlay("p1");
-        expect(submitRandomRevealAck).not.toHaveBeenCalled();
-        fireEvent.click(getByTestId("random-reveal-overlay"));
-        expect(getByTestId("coin-anim").getAttribute("data-skipped")).toBe(
-            "true"
-        );
-        fireEvent.click(getByTestId("random-reveal-overlay"));
-        expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
+    it("click-to-end: the flipper's first click lands the coin, the next acks once", () => {
+        vi.useFakeTimers();
+        try {
+            autoLand = false;
+            const { getByTestId } = renderOverlay("p1");
+            fireEvent.click(getByTestId("random-reveal-overlay"));
+            expect(getByTestId("coin-anim").getAttribute("data-skipped")).toBe(
+                "true"
+            );
+            expect(submitRandomRevealAck).not.toHaveBeenCalled();
+            fireEvent.click(getByTestId("random-reveal-overlay"));
+            expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
+            act(() => {
+                vi.advanceTimersByTime(REVEAL_FINAL_HOLD_MS);
+            });
+            expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("click-to-end: a viewer's click jumps their animation but never acks", () => {

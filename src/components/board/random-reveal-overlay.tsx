@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { REVEAL_FINAL_HOLD_MS } from "~/lib/random-reveal-pacing";
 import { flipCaption, flipTone } from "~/lib/random-reveal-flip";
 import { Panel } from "~/components/ui/panel";
 import CoinFlipAnimation from "~/components/board/coin-flip-animation";
@@ -35,6 +36,10 @@ export default function RandomRevealOverlay({
     const isChooser = choice.playerId === playerId;
     const acked = useRef(false);
     const [skipped, setSkipped] = useState(false);
+    const [landed, setLanded] = useState(false);
+    const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    useEffect(() => () => clearTimeout(holdTimer.current), []);
 
     // CR 705.2 — the overlay shows one coin: the first of the Flip Sequence. A
     // reveal persisted before the list existed carries only `result`.
@@ -58,7 +63,7 @@ export default function RandomRevealOverlay({
     );
     const source = choice.source;
 
-    function handleLanded() {
+    function ack() {
         if (!isChooser || acked.current) return;
         acked.current = true;
         void submitRandomRevealAck({
@@ -69,13 +74,28 @@ export default function RandomRevealOverlay({
         });
     }
 
-    // Click-to-end: the local animation jumps to its result. The flipper's
-    // landing acks (via `handleLanded`); a viewer's click never does.
+    // The flipper's ack closes the overlay, so it waits out the final hold:
+    // the result (halo + caption) stays readable after the coin lands.
+    function handleLanded() {
+        setLanded(true);
+        if (!isChooser) return;
+        clearTimeout(holdTimer.current);
+        holdTimer.current = setTimeout(ack, REVEAL_FINAL_HOLD_MS);
+    }
+
+    // Click-to-end: a click mid-toss jumps the local animation to its result;
+    // a click on the landed result acks at once (flipper only — a viewer's
+    // click never acks and never closes their overlay).
+    function handleClick() {
+        if (!landed) setSkipped(true);
+        else ack();
+    }
+
     return (
         <div
             data-testid="random-reveal-overlay"
             className="absolute inset-0 z-modal flex cursor-pointer items-center justify-center modal-scrim"
-            onClick={() => setSkipped(true)}
+            onClick={handleClick}
         >
             <Panel
                 density="compact"
@@ -103,7 +123,7 @@ export default function RandomRevealOverlay({
                 {consequence && (
                     <p className="text-xs text-text-muted">{consequence}</p>
                 )}
-                {!skipped && (
+                {!landed && (
                     <p className="text-[10px] text-text-disabled">
                         Click to skip to the result
                     </p>
