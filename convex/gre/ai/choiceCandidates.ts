@@ -86,6 +86,7 @@ import { asEntersDiscardPays, isLandDropOpen } from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
+import { cardValueById } from "../cardValue";
 import {
     targetKey,
     numberChoiceRange,
@@ -1466,6 +1467,9 @@ export function forcedChoiceAnswer(
     if (choice.kind === "discard-hand" && choice.asEntersKind === "discard") {
         return asEntersDiscardAnswer(state, choice);
     }
+    if (choice.kind === "choose-permanents" && choice.asEntersKind === "copy") {
+        return asEntersCopyAnswer(state, choice);
+    }
     if (
         (choice.kind !== "discard-hand" &&
             !(
@@ -1500,6 +1504,35 @@ export function forcedChoiceAnswer(
         step: choice.step,
         choiceId: choice.choiceId,
         cardInstanceIds: shed.map((p) => p.card.id),
+    };
+}
+
+/** The search's answer to an as-enters copy off the battlefield (CR 614.1c,
+ *  CR 707.5, Clone, Phantasmal Image, Phyrexian Metamorph): the best permanent
+ *  the prompt allows, worth first, ties broken by identity. The same reading
+ *  `brain.ts` submits for this kind, so the playout reaches the board the Bot
+ *  would then really have. An empty submission is the decline, which leaves the
+ *  printed body. Not a decision node (see `choosePermanentsIsSearchable`):
+ *  without this answer the walk stopped at the park and a clone read as the
+ *  spell spent with no body anywhere, so the Bot never cast one (issue #8177). */
+function asEntersCopyAnswer(state: GameState, choice: PendingChoice): Move {
+    const [best] = eligibleZonePickCards(state, choice)
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: cardValueById(String(card.card.id ?? "")),
+        }))
+        .sort(
+            (x, y) =>
+                y.worth - x.worth ||
+                (x.identity < y.identity ? -1 : x.identity > y.identity ? 1 : 0)
+        );
+    return {
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: best ? [best.card.id] : [],
     };
 }
 
@@ -2448,10 +2481,9 @@ const keepHandCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *    minimal-legal answer, beside its `discard` twin (issue #2389). Two
  *    reasons: those policies are argued and measured, and this is the only
  *    sub-case where registering the kind would REPLACE a heuristic with an
- *    unmeasured search; and the settle failure does not reach them — an
- *    as-enters choice is a permanent parked in `stagedEntries` with an empty
- *    `stackItemId`, not a suspended resolution, so there is nothing to unblock.
- *    (Its `discard` twin DID stop the walk at that park: `forcedChoiceAnswer`.) */
+ *    unmeasured search. The walk still has to get past the park (a permanent
+ *    in `stagedEntries` with an empty `stackItemId`), and does through
+ *    `forcedChoiceAnswer`, as its `discard` twin does (issue #8177). */
 function choosePermanentsIsSearchable(choice: PendingChoice): boolean {
     return (
         getPendingChoiceMax(choice.count) > 0 &&
