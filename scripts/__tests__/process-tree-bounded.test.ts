@@ -37,6 +37,31 @@ describe("runBounded — a spawn that cannot outlive its deadline (issue #7937)"
         }
     }, 30_000);
 
+    it("`inherit` hands the command the caller's stdio and still kills the tree", () => {
+        const dir = mkdtempSync(join(tmpdir(), "tolaria-bounded-"));
+        const pidFile = join(dir, "grandchild");
+        try {
+            const r = runBounded(
+                "sh",
+                [
+                    "-c",
+                    `sleep 300 >/dev/null 2>&1 & echo $! > ${pidFile}; wait`,
+                ],
+                { timeoutMs: 500, stdio: "inherit" }
+            );
+            expect(r.timedOut).toBe(true);
+            expect(r.stdout).toBe("");
+            expect(alive(Number(readFileSync(pidFile, "utf8")))).toBe(false);
+        } finally {
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        }
+    }, 30_000);
+
     it("kills what a finished command left running", () => {
         const dir = mkdtempSync(join(tmpdir(), "tolaria-bounded-"));
         const pidFile = join(dir, "straggler");
