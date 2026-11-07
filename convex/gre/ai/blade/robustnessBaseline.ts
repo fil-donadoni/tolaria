@@ -24,4 +24,9 @@
 
 import type { RobustnessBaselineRow } from "./robustness";
 
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
+    {
+        label: "X into an ETB trigger: casts Wan Shi Tong, Librarian for all its mana",
+        issue: 8740,
+    },
+];

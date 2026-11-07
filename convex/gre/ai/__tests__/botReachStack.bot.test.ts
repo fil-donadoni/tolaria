@@ -57,7 +57,7 @@ describe("stackPose", () => {
 });
 
 describe("playBotReach on narrowed counterspells", () => {
-    it.each(["Annul", "Force of Negation", "Spell Pierce", "Stifle"])(
+    it.each(["Annul", "Force of Negation", "Spell Pierce"])(
         "%s is posed and played",
         (name) => {
             expect(playBotReach(getCardByName(name)!)).toEqual({
@@ -66,7 +66,7 @@ describe("playBotReach on narrowed counterspells", () => {
         }
     );
 
-    it.each(["Bind", "Confound", "Fork"])(
+    it.each(["Bind", "Confound", "Fork", "Stifle"])(
         "%s is posed — never a harness refusal",
         (name) => {
             const verdict = playBotReach(getCardByName(name)!);

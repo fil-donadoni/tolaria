@@ -79,8 +79,9 @@ export type SearchVariant = {
     /** Registry name — recorded in ladder JSONL headers and reports. */
     name: string;
     /** Priors + FPU on the ordinary action space (issue #2684). Absent =
-     *  production behaviour: flat UCB1 and uniform-random expansion. */
-    actionPriors?: ActionPriorConfig;
+     *  production behaviour, `DEFAULT_ACTION_PRIORS` (issue #8700). `null` turns
+     *  them off: flat UCB1 and uniform-random expansion, the A/B control arm. */
+    actionPriors?: ActionPriorConfig | null;
     /** Partial override of the production `EvalWeights` vector (issue #2683)
      *  — e.g. `{ ucbC: 0.7 }` or `{ manaWeight: 16 }`. Unset fields keep their
      *  `DEFAULT_EVAL_WEIGHTS` value; `resolveEvalWeights` does the merge.
@@ -126,6 +127,16 @@ export type SearchVariant = {
     disabledRootRules?: RootDecisionMechanism[];
 };
 
+/** The live action-prior config (issue #8700): PUCT with a `policyValue` prior
+ *  and first-play urgency. The derivation of `c` and `fpu` is on the
+ *  `action-priors` entry of `LADDER_VARIANTS`, which spells out this same value
+ *  so an explicit run stays nameable. */
+export const DEFAULT_ACTION_PRIORS: ActionPriorConfig = {
+    source: "policyValue",
+    c: 0.15,
+    fpu: 0.15,
+};
+
 /** The imagined-opponent modes a variant may force (issue #2791). One member
  *  today: the experiment removes information, it never adds any (a seat's
  *  decklist is data the engine cannot invent, so `deckKnowledge` stays an
@@ -166,16 +177,19 @@ export function resolveEvalWeights(variant: SearchVariant | null): EvalWeights {
     };
 }
 
-/** Resolve the ACTIVE action-prior config for one search (issue #2684).
- *  `null` — live play, every test that installs no variant, and every existing
- *  variant — means the selection rule is untouched: `search.ts` branches on
- *  this being null and takes the historical code path verbatim. Resolved once,
- *  beside `resolveEvalWeights`, at the top of `runSearchWithTrace`, and threaded
- *  down explicitly; nothing deeper re-reads the module-global. */
+/** Resolve the ACTIVE action-prior config for one search (issue #2684). Live
+ *  play, every test that installs no variant, and every variant that does not
+ *  name the knob get `DEFAULT_ACTION_PRIORS` (issue #8700); only an explicit
+ *  `actionPriors: null` returns `null`, on which `search.ts` takes the flat
+ *  UCB1 code path. Resolved once, beside `resolveEvalWeights`, at the top of
+ *  `runSearchWithTrace`, and threaded down explicitly; nothing deeper re-reads
+ *  the module-global. */
 export function resolveActionPriors(
     variant: SearchVariant | null
 ): ActionPriorConfig | null {
-    return variant?.actionPriors ?? null;
+    return variant?.actionPriors === undefined
+        ? DEFAULT_ACTION_PRIORS
+        : variant.actionPriors;
 }
 
 /** Resolve the ACTIVE opponent model for one search (issue #2791). `null` —
@@ -343,10 +357,22 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
      *  `fpu` changed no blade verdict at any `c` in that sweep — those boards
      *  offer 2–6 legal moves, so there is barely anything to widen INTO. It
      *  bites on the 75–90-move main phases this ticket is actually about,
-     *  which is exactly where the ladder measures. */
+     *  which is exactly where the ladder measures.
+     *
+     *  This is the live default since issue #8700, so as a ladder candidate it
+     *  now plays itself: the A/B is `no-action-priors`. */
     "action-priors": {
         name: "action-priors",
         actionPriors: { source: "policyValue", c: 0.15, fpu: 0.15 },
+    },
+
+    /** The control arm of the action-prior A/B (issue #8700): flat UCB1 and
+     *  uniform-random expansion, the selection rule live play ran before the
+     *  knob became the default. Accepted by `BLADE_VARIANT`, by
+     *  `DECISION_CORPUS_VARIANT` and by `verdicts:pick-agreement`. */
+    "no-action-priors": {
+        name: "no-action-priors",
+        actionPriors: null,
     },
 
     /** WORKED EXAMPLE ONLY (issue #2683) — demonstrates that `evalWeights` can

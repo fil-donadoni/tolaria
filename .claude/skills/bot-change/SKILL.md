@@ -23,7 +23,7 @@ BotView / decideBotAction   (src/lib/ai/brain.ts)      does the bot owe an actio
       ↓
 enumerateMoves              (convex/gre/moves.ts)      the legal Move[] — 17 kinds today
       ↓
-search (ISMCTS)             (convex/gre/search.ts)     determinize → UCB1 → expand → rollout → backprop
+search (ISMCTS)             (convex/gre/search.ts)     determinize → PUCT → expand → rollout → backprop
    ├─ applyMove             (convex/gre/applyMove.ts)  applies a Move via the REAL GRE (resolveTopOfStack, advancePhase)
    ├─ evaluate              (convex/gre/evaluate.ts)   leaf heuristic, banded so a win dominates material
    ├─ choiceCandidates      (convex/gre/ai/)           a live PendingChoice becomes an in-tree decision node

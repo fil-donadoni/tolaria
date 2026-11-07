@@ -82,7 +82,7 @@ const FIXTURES: Fixture[] = [
         name: "large (49 moves)",
         labelPrefix: "redirection shield: shields ITS OWN side and point",
         expected: {
-            chosen: "cast Captain's Maneuver (X=1) → Blade P1, Craw Wurm",
+            chosen: "cast Captain's Maneuver (X=1) → Grizzly Bears, Craw Wurm",
             gameRngCounter: 118,
         },
     },

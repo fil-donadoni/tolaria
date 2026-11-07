@@ -456,9 +456,8 @@ export type Node = {
     children: Map<string, Edge>;
     /** RAW `policyValue` per tree key, memoized for this node (issue #2684).
      *
-     *  Only ever populated when a variant turns `actionPriors` on — the field
-     *  stays `undefined` in production, so the node costs exactly what it did
-     *  before. The cache is what makes the knob affordable: `policyValue`
+     *  Populated whenever `actionPriors` is on, which is live play since issue
+     *  #8700. The cache is what makes the knob affordable: `policyValue`
      *  clones the world and runs a full `evaluate()` per candidate, and a main
      *  phase offers 75–90 of them, so recomputing at every visit of every node
      *  would cost far more than the search it improves. Keyed by tree key, so
@@ -3473,9 +3472,8 @@ function iterate(
         }
         if (keyed.length === 0) break;
 
-        // PUCT on the ORDINARY action space (issue #2684) — variant-gated, so
-        // production takes neither this branch nor any of its cost. A choice
-        // node is left alone: its candidates already carry real priors from
+        // PUCT on the ORDINARY action space (issue #2684, the live rule since
+        // issue #8700; a variant may turn it off). A choice node is left alone: its candidates already carry real priors from
         // `priorFor` and are already opened in prior order by
         // `selectOpeningCandidate`, and its candidate set is already top-K'd.
         const headChoice = world.pendingChoices?.[0];
@@ -3649,6 +3647,9 @@ export type CandidateTrace = {
     unavailable?: boolean;
 };
 
+/** The tree-selection rule on the ordinary action space. */
+export type SelectionRule = "puct" | "ucb1";
+
 /** What the Brain considered for a single decision. A read-only by-product of
  *  one `search`; building it neither consumes the search RNG nor changes the
  *  chosen move. Stays on the client (worker → main thread), never persisted. */
@@ -3677,6 +3678,10 @@ export type DecisionTrace = {
      *  that OVERRODE it, which is the question a trace showing a higher-margin,
      *  higher-visit candidate losing cannot otherwise answer. */
     mechanism: RootDecisionMechanism;
+    /** Which rule walked the ordinary action space (issue #8700): `"puct"` is
+     *  the live one, `"ucb1"` the `actionPriors: null` control arm. Set by every
+     *  search; absent only on a trace built outside one. */
+    selectionRule?: SelectionRule;
     /** Every root candidate weighed, most-visited first. */
     candidates: CandidateTrace[];
     /** Issue #2265 — the announced mode combinations whose moves the root
@@ -7129,10 +7134,9 @@ function runSearchWithTrace(
     // below threads `weights` down as an explicit parameter instead of
     // re-reading the module-global at its own point of use.
     const weights = resolveEvalWeights(getSearchVariant());
-    // Priors + FPU on the ordinary action space (issue #2684) — resolved in the
-    // same one place, for the same reason, and `null` for every variant that
-    // does not ask for it (so live play never pays a branch below the top of
-    // this function).
+    // Priors + FPU on the ordinary action space (issue #2684, on by default
+    // since issue #8700) — resolved in the same one place, for the same reason;
+    // `null` only under a variant that turns them off.
     const actionPriors = resolveActionPriors(getSearchVariant());
     // How the search imagines the seats it cannot see (issue #2791). Same one
     // place, same reason: `determinize` takes it as an argument rather than
@@ -7367,6 +7371,7 @@ function runSearchWithTrace(
                 weights,
                 picked.mechanism
             ),
+            selectionRule: actionPriors ? "puct" : "ucb1",
             ...(truncations.length > 0 ? { truncations } : {}),
         },
     };

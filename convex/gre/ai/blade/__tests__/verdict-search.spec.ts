@@ -18,13 +18,15 @@
 //     Weight Fit never read and prints held-out pick agreement (issue #3982):
 //     `bun run verdicts:pick-agreement`, the post-verdict health audit's step.
 //     Options: BLADE_VERDICT_SEARCH_LABEL=<substring> (filter verdict ids),
-//     BLADE_VERDICT_SEARCH_OUT=<path>.json (write rows + text).
+//     BLADE_VERDICT_SEARCH_OUT=<path>.json (write rows + text),
+//     BLADE_VARIANT=<name from LADDER_VARIANTS> (the A/B arm).
 //
 // It lives HERE, as a blade `*.spec.ts`, for the reason `verdict-report.spec.ts`
 // gives: the blade module drags `lib.dom` into any script that imports it.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
 import { DEFAULT_BLADE_SEED } from "../runner";
+import { LADDER_VARIANTS, setSearchVariant } from "../../searchVariant";
 import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import {
     burnedCountOf,
@@ -77,6 +79,16 @@ const RUN = ENV.BLADE_VERDICT_SEARCH === "1";
 
 describe.runIf(RUN)("verdicts through the search (runner)", () => {
     it("searches every committed verdict and prints the agreement", async () => {
+        // Fail-loud, as the blade suite's own BLADE_VARIANT is: a typo would
+        // otherwise report the default rule under the variant's name.
+        const variantName = ENV.BLADE_VARIANT;
+        if (variantName) {
+            const variant = LADDER_VARIANTS[variantName];
+            if (!variant)
+                throw new Error(`BLADE_VARIANT "${variantName}" is unknown`);
+            setSearchVariant(variant);
+            onTestFinished(() => setSearchVariant(null));
+        }
         const iterations = Number(ENV.BLADE_VERDICT_SEARCH_ITERATIONS ?? 400);
         const label = ENV.BLADE_VERDICT_SEARCH_LABEL;
         const byId = new Map<string, (typeof BLADE_SCENARIOS)[number]>(
