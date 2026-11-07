@@ -19,7 +19,7 @@ say so in one line, move on.
 walks nothing, PR line `check:ui: scope undecided, not walked (<reasons>)`.
 
 **Run `bun run check:ui`** (#2580): own Vite + headless Chrome, signs in, walks
-the runbook surfaces at all five viewports (ADR 0101), probes, runs axe; nine
+the runbook surfaces at six viewports (ADR 0101/0168), probes, runs axe; nine
 Floors at zero (ADR 0132). It is a gate outside `check:all` (offline; this
 needs a deployment + browser), so the PR receipt is the whole enforcement.
 **Its output IS the receipt — paste it byte-exact** (#2760); `bun run land:ready`

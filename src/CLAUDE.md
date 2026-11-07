@@ -47,7 +47,7 @@ attended → ask the owner, encode the answer as a scoper rule; AFK → PR line
 `check:ui: scope undecided, not walked (<reasons>)` (`browser-verification.md`).
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
-Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
+Chrome, signs in, walks the runbook surfaces at all six viewports, probes and
 runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
 0132). Its output IS the receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
@@ -58,8 +58,9 @@ and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
 (`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
 `DIAGNOSTIC`; never reflow a line.
 
-**Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
-`1440x900x2`, phone `390x844x3,mobile,touch` and
+**Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
+desktop `1440x900x2` (and `1440x900x1`, DPR 1 in the full Chromium, on a
+card surface), phone `390x844x3,mobile,touch` and
 `844x390x3,mobile,touch,landscape`, tablet `820x1180x2,mobile,touch` and
 `1180x820x2,mobile,touch,landscape`.
 
@@ -70,11 +71,9 @@ are there" — that is how the bug above shipped. Run the probe
 `list_console_messages {types:["error"]}`. A UI PR with no receipt and no
 "cannot reach the DOM" note is not done.
 
-**Tooling:** the `chrome-devtools-mcp` plugin (CDP). The Claude-in-Chrome
-extension cannot work in Arc — no `chrome.sidePanel`, so its per-site approval
-is ungrantable and every call times out. Prefer `take_snapshot` (a11y tree +
-uids) over screenshots for navigation; screenshots are evidence, not
-diagnosis.
+**Tooling:** the `chrome-devtools-mcp` plugin (CDP; the Claude-in-Chrome
+extension does not work in Arc). Prefer `take_snapshot` (a11y tree + uids)
+over screenshots for navigation; screenshots are evidence, not diagnosis.
 
 **Gameplay checks use solo mode** — one user, both seats, viewer auto-switches
 to whoever holds priority. Never a second tab for the opponent.

@@ -30,6 +30,7 @@ import { SURFACES, SURFACE_IDS } from "../ui-gate/surfaces.ts";
 import { assertLabelsBySurface } from "../ui-gate/assertions.ts";
 import { VIEWPORT_IDS } from "../ui-gate/viewports.ts";
 import {
+    LANE_VOCABULARY,
     landingDiffScope,
     landingWalkOwed,
 } from "../ui-gate/verify-receipt.ts";
@@ -38,12 +39,22 @@ import { revertPrBody } from "../lib/health-ladder";
 /** The Named Assertions the real surface table declares (issue #3649). */
 const PROMISED = assertLabelsBySurface(SURFACES);
 
+/** The viewports each surface owes — the lane's own rule (ADR 0168). */
+const viewportsOf = (surface: string): readonly string[] =>
+    LANE_VOCABULARY.viewportsOf?.(surface) ?? VIEWPORT_IDS;
+
 /**
  * What `check:ui` prints for `surfaces` (null = every surface, a full RECEIPT;
  * otherwise the SCOPED run of that scope) over the REAL surface table, viewport
  * matrix and declared-unwalked list, rendered by the real evaluator exactly as
  * the lane renders it — verdict block, separator, diagnostic block. `at` sets
  * one cell's readings; `facts` stands in for the run's own diagnostic lines.
+ *
+ * The cells are the ones the lane WALKS (ADR 0168, issue #8321): the DPR 1
+ * desktop viewport is owed only by a surface that draws printed card faces,
+ * so the fixture reads the per-surface viewport list from the same
+ * `LANE_VOCABULARY` the re-derivation reads — a row for every viewport on
+ * every surface is a receipt no run can print.
  *
  * Every Named Assertion the real table declares is reported kept (issue
  * #3649): these receipts stand for GREEN runs, and a green run keeps its
@@ -65,7 +76,7 @@ function laneReceipt(
         .map((surface) => ({
             surface,
             status: "measured",
-            measurements: VIEWPORT_IDS.map((viewport) => ({
+            measurements: viewportsOf(surface).map((viewport) => ({
                 viewport,
                 readings: opts.at?.(surface, viewport) ?? zeroReadings(),
                 asserts: (PROMISED[surface] ?? []).map((label) => ({
@@ -80,6 +91,7 @@ function laneReceipt(
         walks,
         definedSurfaceIds: SURFACE_IDS,
         viewportIds: VIEWPORT_IDS,
+        viewportsOf,
         unwalked: UNWALKED_SURFACES,
         diffScope: surfaces ? { base: ORIGIN_BASE, surfaces } : null,
         assertsBySurface: PROMISED,

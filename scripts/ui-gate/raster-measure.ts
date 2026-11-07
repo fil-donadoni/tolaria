@@ -2,17 +2,22 @@
  * Rasterisation-level sharpness of printed card faces (issue #6940): the
  * Playwright half. Injects `raster.js`, picks the faces, screenshots each by
  * locator (device pixels, transitions finished), hands the PNG to the page for
- * the canvas comparison, and returns the samples and skips `raster.ts` judges.
+ * the box-filter comparison, and returns the samples and skips `raster.ts`
+ * judges.
  *
  * Kept apart from `raster.ts` so the pure module (which `floors.ts` and the
  * receipt re-derivation import) never touches the filesystem or Playwright.
+ *
+ * `--raster-dump=<dir>` (issue #8321) writes, per sampled face, a 3×
+ * nearest-neighbour crop of the screen beside the reference — what a reader
+ * judges by eye — named by surface, viewport and face. Diagnostic only.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "playwright";
 import {
-    CARD_BLUR_MAX,
+    isSoft,
     type BlurExample,
     type RasterResult,
     type RasterSkip,
@@ -22,11 +27,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RASTER_PATH = path.join(HERE, "raster.js");
 let rasterSource: string | null = null;
 
-/** Faces measured per cell: one per distinct layout width, largest first, so
- *  a surface's size classes are each seen once. Four element screenshots and
- *  compares cost about a second — the measurement rides inside the cell's
- *  `probe` phase, bounded by the per-shot and per-load timeouts below. */
-export const RASTER_SAMPLES_PER_CELL = 4;
+/** Faces measured per cell: one per distinct (layout width, fade, transform)
+ *  class, largest first, so a surface's size classes are each seen once.
+ *  Element screenshots and compares cost about a quarter second each — the
+ *  measurement rides inside the cell's `probe` phase, bounded by the
+ *  per-shot and per-load timeouts below. */
+export const RASTER_SAMPLES_PER_CELL = 6;
 
 /** An error that means the page went away under the measurement: rethrown so
  *  the cell's retry loop (which already treats a navigation during the probe
@@ -44,6 +50,9 @@ interface Candidate {
     src: string;
     dec: string;
     dpr: number;
+    kind: "none" | "scaled" | "rotated";
+    faded: boolean;
+    promoted: boolean;
 }
 
 interface Candidates {
@@ -58,8 +67,10 @@ interface Comparison {
     ref?: number;
     half?: number;
     blur?: number | null;
+    alias?: number | null;
     skip?: string;
     error?: string;
+    crop64?: string;
 }
 
 /** What `raster.js` installs on the page. The scripts project has no DOM lib
@@ -71,6 +82,7 @@ interface RasterPage {
         k: number;
         png64: string;
         src: string;
+        crops?: boolean;
     }) => Promise<Comparison>;
     __tolariaRasterClear: () => void;
 }
@@ -81,27 +93,48 @@ interface RasterPage {
 export const RASTER_ATTEMPTS = 3;
 export const RASTER_RETRY_MS = 400;
 
+/** Where a run dumps its crops, and the names a face's file carries. */
+export interface RasterDump {
+    dir: string;
+    surface: string;
+    viewport: string;
+}
+
 /** A reading that would count against the Floor as it stands. */
 function suspect(cmp: Comparison | null): boolean {
     if (!cmp) return true;
     if (cmp.blank) return true;
-    return typeof cmp.blur === "number" && cmp.blur > CARD_BLUR_MAX;
+    return isSoft({
+        blur: cmp.blur ?? 0,
+        alias: cmp.alias ?? 0,
+    } as BlurExample);
 }
 
-/** `a` is a better (sharper, more complete) reading than `b`. A blank is worse
- *  than any number; an unjudgeable face (`blur` null) is neutral. */
+/** `a` is a better (closer to the reference, more complete) reading than
+ *  `b`. A blank is worse than any number; an unjudgeable face (`blur` null)
+ *  is neutral. The distance is the larger of the two indexes. */
 function betterThan(a: Comparison, b: Comparison | null): boolean {
     if (!b) return true;
     if (b.blank) return !a.blank;
     if (a.blank) return false;
-    const ab = typeof a.blur === "number" ? a.blur : Infinity;
-    const bb = typeof b.blur === "number" ? b.blur : Infinity;
-    return ab < bb;
+    const dist = (c: Comparison) =>
+        typeof c.blur === "number" ? Math.max(c.blur, c.alias ?? 0) : Infinity;
+    return dist(a) < dist(b);
 }
 
 function renditionOf(src: string): string {
+    if (src.startsWith("blob:")) return "bitmap";
     // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`
     return src.split("/")[3] ?? src;
+}
+
+function dumpName(dump: RasterDump, c: Candidate): string {
+    const t = c.t.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const flags =
+        (c.faded ? "f" : "") +
+        (c.kind === "scaled" ? "s" : c.kind === "rotated" ? "r" : "") +
+        (c.promoted ? "p" : "");
+    return `${dump.surface}__${dump.viewport}__${c.w}px${flags ? `-${flags}` : ""}__${t || "face"}.png`;
 }
 
 /**
@@ -110,7 +143,10 @@ function renditionOf(src: string): string {
  * page that navigated away under the measurement is rethrown for the caller's
  * retry loop.
  */
-export async function measureRaster(page: Page): Promise<RasterResult> {
+export async function measureRaster(
+    page: Page,
+    dump: RasterDump | null = null
+): Promise<RasterResult> {
     rasterSource ??= fs.readFileSync(RASTER_PATH, "utf8");
     await page.addScriptTag({ content: rasterSource });
     const candidates = await page.evaluate(
@@ -154,7 +190,7 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
                 (globalThis as unknown as RasterPage).__tolariaRasterCompare(
                     spec
                 ),
-            { k: c.k, png64, src: c.src }
+            { k: c.k, png64, src: c.src, crops: dump !== null }
         );
         if (cmp.error || cmp.skip) return { skip: cmp.error ?? cmp.skip! };
         return { cmp };
@@ -197,6 +233,13 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
                 });
                 continue;
             }
+            if (dump && best.crop64) {
+                fs.mkdirSync(dump.dir, { recursive: true });
+                fs.writeFileSync(
+                    path.join(dump.dir, dumpName(dump, c)),
+                    Buffer.from(best.crop64, "base64")
+                );
+            }
             samples.push({
                 t: c.t,
                 sel: c.sel,
@@ -206,12 +249,16 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
                 w: c.w,
                 dpr: c.dpr,
                 blur: best.blank ? 0 : +best.blur!.toFixed(3),
+                alias: best.blank ? 0 : +(best.alias ?? 0).toFixed(3),
                 ...(best.blank ? { blank: true } : {}),
                 shot: best.shot ?? 0,
                 ref: best.ref ?? 0,
                 half: best.half ?? 0,
                 src: renditionOf(c.src),
                 dec: c.dec,
+                ...(c.faded ? { faded: true } : {}),
+                ...(c.kind !== "none" ? { kind: c.kind } : {}),
+                ...(c.promoted ? { promoted: true } : {}),
             });
         }
     } finally {

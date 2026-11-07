@@ -2,7 +2,7 @@
  * Viewport parallelism — speed sized to the machine (issue #3653, PRD #3643;
  * ADR 0132 § Considered options).
  *
- * WHY. The lane's wall time is five viewports deep and the five are
+ * WHY. The lane's wall time is six viewports deep and the six are
  * independent: each opens its own browser context, walks the same surfaces and
  * reports its own cells. Walking them one at a time is right on a machine that
  * is already flat out — five Chromium contexts on a busy box turn a UI
