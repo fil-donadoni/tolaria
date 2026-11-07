@@ -51,6 +51,7 @@ import {
 } from "./rules";
 import { resolvePendingTargetKind } from "./constants";
 import { advancePendingTargetGroup } from "./targetGroupWalk";
+import { writeFinalModeSpans } from "./modeSelection";
 
 /** Whether the player who owes a `PendingTarget` opened it themselves
  *  (`"announced"`) or the engine opened it at them (`"raised"`). */
@@ -395,6 +396,7 @@ export function applyRaisedTargetFinalization(
     const trig = state.stack.find((s) => s.id === cardInstanceId);
     if (trig) {
         trig.targets = targets;
+        writeFinalModeSpans(trig, pt);
         delete trig.illegalTargetSlots; // CR 608.2b (issue #2985)
         if (divideAmounts) trig.targetAmounts = divideAmounts;
         // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets

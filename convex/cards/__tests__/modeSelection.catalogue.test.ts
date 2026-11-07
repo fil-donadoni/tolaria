@@ -14,6 +14,9 @@
 //      minimum above one is legal: the picker sends several modes (issue
 //      #2264) and the Bot enumerates every announceable combination (issue
 //      #2265, `announceableModeCombinations`).
+//   4. a triggered multi-mode list declares no ability-level target groups:
+//      several instances split the flat target list among themselves, so no
+//      instance's script could own those slots.
 
 import { describe, expect, it } from "vitest";
 import type { CardDefinition, ModeSelection } from "../types";
@@ -75,6 +78,16 @@ function cardOffences(card: CardDefinition): string[] {
                 a.modes
             )
         ),
+        ...(card.triggeredAbilities ?? []).flatMap((a) => {
+            const where = `${card.name} :: trigger ${a.id}`;
+            return [
+                ...modeListOffences(where, a.modeSelection, a.modes),
+                ...(maxModeCount(a.modeSelection) > 1 &&
+                a.additionalTargetRequirements?.length
+                    ? [`${where}: ability-level groups on a multi-mode list`]
+                    : []),
+            ];
+        }),
     ];
 }
 
@@ -105,6 +118,27 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
                 },
             ],
         };
+        const trigger = {
+            id: "t",
+            event: "PERMANENT_ENTERED",
+            oracleText: "x",
+            modeSelection: { min: 2, max: 2 },
+            modes: [
+                { id: "a", label: "a", oracleText: "a", resolve: () => {} },
+            ],
+            additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+        };
+        expect(
+            cardOffences({
+                ...hullBreach(),
+                modes: undefined,
+                modeSelection: undefined,
+                triggeredAbilities: [trigger],
+            } as unknown as CardDefinition)
+        ).toEqual([
+            "Hull Breach :: trigger t mode a: imperative resolve on a multi-mode list",
+            "Hull Breach :: trigger t: ability-level groups on a multi-mode list",
+        ]);
         expect(cardOffences(offender)).toEqual([
             "Hull Breach mode enchantment: staticEffects on a multi-mode list",
             "Hull Breach mode imperative: imperative resolve on a multi-mode list",

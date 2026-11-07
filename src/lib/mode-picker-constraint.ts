@@ -84,6 +84,28 @@ export function modePickerConstraint(args: {
     };
 }
 
+/** Sizes the multi-select row list of a raised `trigger-mode` choice. The server
+ *  already resolved the bounds and offers only the choosable modes, and it
+ *  removes an ability that cannot reach its minimum, so there is no shortfall. */
+export function offeredModeConstraint(offer: {
+    options?: readonly { id: string }[];
+    count: number | { min: number; max: number };
+    modeRepeats?: true;
+}): ModePickerConstraint {
+    const { min, max } =
+        typeof offer.count === "number"
+            ? { min: offer.count, max: offer.count }
+            : offer.count;
+    return {
+        min,
+        max,
+        repeats: offer.modeRepeats === true,
+        legalModeIds: (offer.options ?? []).map((o) => o.id),
+        requiredCount: min,
+        shortfall: false,
+    };
+}
+
 /** The board facts a conditional count reads, from the viewer's projected
  *  seat — the SAME `announcementModeFacts` the server validates with, fed the
  *  wire battlefield (which carries every field the permanent filter and the

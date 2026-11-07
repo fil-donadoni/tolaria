@@ -417,6 +417,36 @@ function bestModeCombinationOpValue(
     return best;
 }
 
+/** `lists` best-first by the summed script value of their modes (ties keep the
+ *  given order). A choice node opens only a handful of candidates, so a wide
+ *  "choose three" must offer the lists worth most rather than the ones whose
+ *  modes happen to be printed first. */
+export function rankModeListsByScriptValue(
+    modes: readonly {
+        id: string;
+        effects?: EffectOp[];
+        aiEffects?: EffectOp[];
+    }[],
+    lists: readonly string[][],
+    ctx: GroundingContext = contextFreeGrounding()
+): string[][] {
+    const pointsById = new Map(
+        modes.map((mode) => {
+            const script = effectiveScript(mode);
+            return [
+                mode.id,
+                script ? valueEffectScript(script, ctx).points : 0,
+            ] as const;
+        })
+    );
+    const worth = (ids: readonly string[]) =>
+        ids.reduce((sum, id) => sum + (pointsById.get(id) ?? 0), 0);
+    return lists
+        .map((ids, i) => ({ ids, i, points: worth(ids) }))
+        .sort((a, b) => b.points - a.points || a.i - b.i)
+        .map(({ ids }) => ids);
+}
+
 /** The DSL spell-script value of a NON-CREATURE card (context-free): its real
  *  `effects[]` script if present, else its `aiEffects` shadow script (issue
  *  #1431) — either walked identically through `OP_VALUERS`. `undefined` when

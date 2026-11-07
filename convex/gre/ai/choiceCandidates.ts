@@ -117,6 +117,9 @@ import {
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 import { findPermanent } from "../lookup";
+import { findTriggeredAbility } from "../copy";
+import { offeredModeLists } from "../modeSelection";
+import { rankModeListsByScriptValue } from "./cardScriptValue";
 import { canPayMiracleCost } from "../miracle";
 import { handLatentLens } from "../evaluate";
 import { withLatentLens } from "./grounding";
@@ -873,6 +876,23 @@ const optionPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 : {}),
         };
     };
+    // CR 700.2 — a modal trigger announcing several modes: every list the
+    // announcement accepts (repeats and ranges included, which the walk below
+    // cannot express), best-valued first so `CHOICE_TOP_K` keeps the strongest
+    // lines rather than the ones whose modes are printed first.
+    if (
+        choice.kind === "trigger-mode" &&
+        getPendingChoiceMax(choice.count) > 1
+    ) {
+        const item = state.stack.find((i) => i.id === choice.stackItemId);
+        const modes = item?.triggeredAbilityId
+            ? findTriggeredAbility(item, item.triggeredAbilityId)?.modes
+            : undefined;
+        return rankModeListsByScriptValue(
+            modes ?? [],
+            offeredModeLists(choice)
+        ).map(toCandidate);
+    }
     if (pick === 1) {
         // CR 305.7 — a land-type mode that can matter to no one (no held cost
         // it pays, no landwalker, no type reader) is dominated by one that can:

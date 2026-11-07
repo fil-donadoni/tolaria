@@ -25,6 +25,7 @@ import {
     isCategorizedPickLegal,
 } from "./categorizedPick";
 import { isDistinctPickLegal } from "./distinctPick";
+import { stampAnnouncedModes, validateOfferedModes } from "./modeSelection";
 import {
     computeHardSkipFilters,
     drainAutoPasses,
@@ -504,29 +505,33 @@ export function submitPilePick(
 // ---------------------------------------------------------------------------
 
 // --- Modal triggered ability's mode announcement (CR 603.3c, issue
-// #2461): the submission is one mode id from the CHOOSABLE modes the
-// engine offered as the trigger went on the stack. Unlike `option-pick`
+// #2461): the submission is the mode id(s) from the CHOOSABLE modes the
+// engine offered as the trigger went on the stack, validated by the shared
+// announcement grammar rather than `counted` (a repeats list legitimately
+// names one id several times, CR 700.2d). Unlike `option-pick`
 // (a resolution-time answer written into `collectedChoices`) this is an
 // ANNOUNCEMENT — it is written onto the stack item's `chosenModeIds`, which
 // is what resolution dispatch and the stack UI read, and it is locked from
 // here on (CR 700.2b — the mode is chosen as part of PUTTING the ability on
 // the stack): the choice is consumed, so there is no second submission that
 // could change it, and CR 700.2f keeps a later retarget from changing it
-// either. The trigger's TARGETS are announced next, under this mode's
-// requirement alone (CR 700.2c). ---
+// either. The trigger's TARGETS are announced next, under the chosen modes'
+// requirements alone (CR 700.2c). ---
 export function submitTriggerMode(
     state: GameState,
     head: PendingChoice,
     queue: PendingChoice[],
     args: SubmitChoiceArgs
 ): void {
-    const id = args.cardInstanceIds[0];
-    if (!head.options?.some((o) => o.id === id)) {
-        throw new Error("Not a legal mode");
+    for (const id of args.cardInstanceIds) {
+        if (!head.options?.some((o) => o.id === id)) {
+            throw new Error("Not a legal mode");
+        }
     }
+    const ids = validateOfferedModes(head, args.cardInstanceIds);
     const stackItem = state.stack.find((s) => s.id === head.stackItemId);
     if (!stackItem) throw new Error("Stack item not found");
-    stackItem.chosenModeIds = [id];
+    stampAnnouncedModes(stackItem, ids);
     dequeueHead(state, queue);
     if (queue.length > 0) {
         // Another choice is still queued (a second controller's own

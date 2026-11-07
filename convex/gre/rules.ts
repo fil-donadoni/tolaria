@@ -136,6 +136,15 @@ import {
     spellHasDelve,
 } from "./payWith";
 import { spellHasAssist } from "./assist";
+import {
+    announcedModeFields,
+    choosableModeLists,
+    modeInstanceTargetGroups,
+    modeSelectionBounds,
+    stampAnnouncedModes,
+    writeFinalModeSpans,
+} from "./modeSelection";
+import { announcementModeFacts } from "./modeAnnouncement";
 import type { CombatRole, ManaCost } from "../cards/types";
 import type { RestrictedXSplitChoice } from "./state/declarations";
 import {
@@ -147,6 +156,7 @@ import {
     resolveTargetRequirementCount,
     restrictedUnitAllowsSpell,
     emitBecameTargetEvents,
+    getPlayer,
     type TargetCountAnnouncement,
 } from "./state";
 import {
@@ -4760,23 +4770,37 @@ function triggerAbilityModes(item: StackItem): AbilityMode[] | undefined {
  *  for every other trigger it is the ability's own. The
  *  `additionalTargetRequirements` groups follow either way (CR 603.3d, issue
  *  #8475), like an activated ability's. Empty for a modal trigger whose mode
- *  has not been announced yet, so no target can be locked ahead of the mode. */
-function triggerAnnouncedGroups(item: StackItem): TargetRequirement[] {
-    if (!item.triggeredAbilityId) return [];
+ *  has not been announced yet, so no target can be locked ahead of the mode.
+ *  Several announced instances (ADR 0094) flatten every instance's groups in
+ *  printed order, `instances` naming the owner of each (CR 700.2c) — the
+ *  catalogue guard refuses ability-level groups on such a list, since no
+ *  instance's script could own their slots. */
+function triggerAnnouncedGroups(item: StackItem): {
+    groups: TargetRequirement[];
+    instances?: number[];
+} {
+    if (!item.triggeredAbilityId) return { groups: [] };
     const ability = findTriggeredAbility(item, item.triggeredAbilityId);
-    if (!ability) return [];
+    if (!ability) return { groups: [] };
     const modes = triggerAbilityModes(item);
-    // A modal trigger announces exactly one mode (no `modeSelection` on a
-    // triggered ability yet, ADR 0094).
-    const modeId = item.chosenModeIds?.[0];
-    if (modes && !modeId) return [];
+    const chosen = item.chosenModeIds ?? [];
+    if (modes && chosen.length === 0) return { groups: [] };
+    if (modes && chosen.length > 1) {
+        const walk = modeInstanceTargetGroups(modes, chosen);
+        return {
+            groups: walk.map((g) => g.requirement),
+            instances: walk.map((g) => g.instance),
+        };
+    }
     const primary = modes
-        ? modes.find((m) => m.id === modeId)?.targetRequirement
+        ? modes.find((m) => m.id === chosen[0])?.targetRequirement
         : ability.targetRequirement;
-    return [
-        ...(primary ? [primary] : []),
-        ...(ability.additionalTargetRequirements ?? []),
-    ];
+    return {
+        groups: [
+            ...(primary ? [primary] : []),
+            ...(ability.additionalTargetRequirements ?? []),
+        ],
+    };
 }
 
 /** CR 603.3d — one target group of a trigger, when no real choice is owed: the
@@ -4831,13 +4855,14 @@ function triggerModeIsChoosable(
  *  mode is chosen, the ability is removed from the stack").
  *
  *  Scans the stack top-down, and for the first un-announced modal trigger:
- *   - removes the ability from the stack when NO mode is choosable, then keeps
- *     scanning (CR 603.3c's last sentence);
- *   - auto-announces the sole choosable mode with no prompt — there is no
+ *   - removes the ability from the stack when fewer modes are choosable than
+ *     its `modeSelection` asks for (one, when it declares none), then keeps
+ *     scanning (CR 603.3c's last sentence, CR 603.3d);
+ *   - auto-announces the sole announceable list with no prompt — there is no
  *     decision to make, the same way a sole legal target auto-selects;
  *   - otherwise raises a `kind: "trigger-mode"` PendingChoice carrying ONLY the
- *     choosable modes, parks priority on the controller and returns `true`
- *     (suspended). The submission lands on `StackItem.chosenModeIds`
+ *     choosable modes and the resolved count, parks priority on the controller
+ *     and returns `true` (suspended). The submission lands on `StackItem.chosenModeIds`
  *     (`pendingChoiceSubmit.ts`) and is never revisited — CR 700.2b makes the
  *     pick part of PUTTING the ability on the stack, a one-time announcement.
  *
@@ -4857,14 +4882,30 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
         const choosable = modes.filter((m) =>
             triggerModeIsChoosable(state, item, m)
         );
-        if (choosable.length === 0) {
+        // ADR 0094 — the shared cardinality model; a trigger has no kicker to
+        // consider (CR 601.4 is the cast's), only the board its count may read.
+        const selection = findTriggeredAbility(
+            item,
+            item.triggeredAbilityId!
+        )?.modeSelection;
+        const facts = announcementModeFacts(
+            getPlayer(state, item.controllerId),
+            false
+        );
+        const lists = choosableModeLists(choosable, selection, facts);
+        if (lists.length === 0) {
             state.stack.splice(i, 1);
             continue;
         }
-        if (choosable.length === 1) {
-            item.chosenModeIds = [choosable[0].id];
+        if (lists.length === 1) {
+            stampAnnouncedModes(item, lists[0]);
             continue;
         }
+        const bounds = modeSelectionBounds(selection, facts);
+        const max = bounds.repeats
+            ? bounds.max
+            : Math.min(bounds.max, choosable.length);
+        const several = max > 1;
 
         state.pendingChoices = [
             ...(state.pendingChoices ?? []),
@@ -4874,12 +4915,20 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
                 choiceId: `trigger-mode-${item.id}`,
                 playerId: item.controllerId,
                 kind: "trigger-mode",
-                count: 1,
+                count: bounds.min === max ? max : { min: bounds.min, max },
+                ...(bounds.repeats ? { modeRepeats: true as const } : {}),
                 // Only the CHOOSABLE modes cross the wire — an illegal mode is
                 // not offered at all (CR 603.3c), so every option the chooser
                 // (or the Bot) can submit is a legal announcement.
-                options: choosable.map((m) => ({ id: m.id, label: m.label })),
-                prompt: "Choose a mode for this triggered ability.",
+                options: choosable.map((m) => ({
+                    id: m.id,
+                    label: m.label,
+                    // A multi-select row shows the whole bullet line.
+                    ...(several ? { oracleText: m.oracleText } : {}),
+                })),
+                prompt: several
+                    ? "Choose the modes for this triggered ability."
+                    : "Choose a mode for this triggered ability.",
             },
         ];
         state.priorityPlayerId = state.pendingChoices[0].playerId;
@@ -4943,11 +4992,20 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // rides on the stack item itself (`reflexiveTrigger` Op). Everything
         // downstream — legality, auto-select, the `kind:"trigger"`
         // PendingTarget — is the same path a card-def trigger takes.
-        const [req, ...laterGroups]: TargetRequirement[] =
+        const announced: ReturnType<typeof triggerAnnouncedGroups> =
             item.inlineTargetRequirement
-                ? [item.inlineTargetRequirement]
+                ? { groups: [item.inlineTargetRequirement] }
                 : triggerAnnouncedGroups(item);
+        const [req, ...laterGroups] = announced.groups;
         if (!req) continue;
+        // ADR 0094 — several mode instances: the walk tallies each group's
+        // picks onto the instance that owns it.
+        const modeWalk = announced.instances
+            ? {
+                  ...announcedModeFields(item),
+                  groupModeInstances: announced.instances,
+              }
+            : {};
 
         const { effectiveReq, effectiveLegal, sourcePower } =
             triggerTargetLegality(state, item, req);
@@ -4992,6 +5050,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
 
         if (forced !== undefined && laterGroups.length === 0) {
             item.targets = forced;
+            writeFinalModeSpans(item, { ...modeWalk, selected: forced });
             // CR 603.2b (issue #1265) — even an auto-selected targeted trigger
             // locks a target, so it fires "becomes the target of an ability"
             // triggers (Leovold). Queued for the next event drain.
@@ -5028,6 +5087,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             targetType: req.type,
             count,
             selected: forced ?? [],
+            ...modeWalk,
             // `effectiveReq` (not the static `req`) so a real-choice fallback
             // for a `spellTargetsSelfSource` requirement (Ward) still carries
             // the resolved instance filter, not an empty static list.
@@ -5064,6 +5124,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
                     ...(pending.priorSelected ?? []),
                     ...pending.selected,
                 ];
+                writeFinalModeSpans(item, pending);
                 emitBecameTargetEvents(
                     state,
                     item.targets,
