@@ -28,6 +28,7 @@
 //                             attaches, so a hand-built view proves nothing).
 import { describe, it, expect } from "vitest";
 import {
+    normalizeManaCost,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -49,6 +50,8 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe.fixture";
+import { getDefinition, preloadDefinitions } from "../../cards";
+import { pinnacleEmissary } from "../../cards/sets/eoe/multicolor.cards";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {
     return makeInstance(cardId, {
@@ -149,6 +152,65 @@ describe("Warp — the alternative cast cost (CR 702.185a, CR 118.9)", () => {
         expect(item?.warped).toBe(true);
         // CR 702.185c — "a spell was warped this turn" is recorded at the cast.
         expect(state.players[0].spellsWarpedThisTurn).toBe(1);
+    });
+
+    // CR 107.4e — the mana leg of an alternative cost is a mana cost like any
+    // other: "Warp {U/R}" (Pinnacle Emissary) takes either colour, and only those.
+    describe("a guild-hybrid warp cost", () => {
+        preloadDefinitions([pinnacleEmissary()]);
+        const EMISSARY_ID = pinnacleEmissary().id;
+
+        function emissaryInHand(pool: "U" | "R" | "G") {
+            const emissary = handCard(EMISSARY_ID, "emissary");
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand: [emissary] }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+            state.players[0].manaPool[pool] = 1;
+            return { state, emissary };
+        }
+
+        it.each(["U", "R"] as const)(
+            "%s alone offers the cast and pays the pip at commit",
+            (colour) => {
+                const { state, emissary } = emissaryInHand(colour);
+                expect(
+                    affordableAlternativeCosts(
+                        state,
+                        state.players[0],
+                        emissary
+                    ).map((a) => a.id)
+                ).toContain("warp");
+                expect(
+                    getLegalActions(state, state.players[0], emissary)
+                ).toContain("cast");
+                state.pendingCast = {
+                    playerId: "p1",
+                    cardInstanceId: "emissary",
+                    manaCost: normalizeManaCost(
+                        getDefinition(EMISSARY_ID).warp!.mana!
+                    ),
+                    tappedLandIds: [],
+                    warped: true,
+                };
+                expect(tryAutoCommitPendingCast(state, "p1")).not.toBeNull();
+                expect(state.players[0].manaPool[colour]).toBe(0);
+                expect(
+                    state.stack.find((s) => s.id === "emissary")?.warped
+                ).toBe(true);
+            }
+        );
+
+        it("a colour outside the pair offers nothing", () => {
+            const { state, emissary } = emissaryInHand("G");
+            expect(
+                getLegalActions(state, state.players[0], emissary)
+            ).not.toContain("cast");
+        });
     });
 
     it("a printed-cost cast records no warp (CR 702.185c)", () => {
