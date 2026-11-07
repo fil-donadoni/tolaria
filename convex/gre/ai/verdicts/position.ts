@@ -52,7 +52,7 @@ export function buildVerdictState(verdict: Verdict): GameState {
     const state = buildBladeState(scenario);
     // Issue #3533 — the same root stamp `searchWithTrace` applies, applied
     // here for the same reason: an Eval Pair is a snapshot of what `evaluate`
-    // saw when the decision was judged, and at `expert` what it saw included
+    // saw when the decision was judged, and at a knowing level what it saw included
     // the opponent's decklist. Rebuilding blind does not merely lose
     // precision, it makes the two candidates an informed entry separates
     // structurally IDENTICAL — the pair is then reported as blind and the fit

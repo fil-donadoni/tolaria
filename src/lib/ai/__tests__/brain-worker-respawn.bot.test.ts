@@ -425,7 +425,7 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
             iterations: BRAIN_FALLBACK_BUDGET.iterations,
             timeMs: BRAIN_FALLBACK_BUDGET.timeMs,
         });
-        // Weaker than every real preset above `easy`.
+        // Weaker than every real preset.
         expect(BRAIN_FALLBACK_BUDGET.iterations!).toBeGreaterThan(0);
         expect(BRAIN_FALLBACK_BUDGET.iterations!).toBeLessThan(
             DIFFICULTY_BUDGETS.medium.iterations!
@@ -455,23 +455,20 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
     });
 
     it("keeps a caller's already-smaller budget rather than raising it", async () => {
-        // `easy` is 3 iterations / 120ms — the clamp is a CEILING, so it must
-        // not hand the main thread MORE work than the player asked for.
-        expect(DIFFICULTY_BUDGETS.easy.iterations!).toBeLessThan(
+        // The clamp is a CEILING, so it must not hand the main thread MORE
+        // work than the caller asked for.
+        const smaller = { iterations: 3, timeMs: 120 };
+        expect(smaller.iterations).toBeLessThan(
             BRAIN_FALLBACK_BUDGET.iterations!
         );
         warmBrain();
         await flush();
-        const consult = consultBrain(
-            landInHandBoard(),
-            BOT,
-            DIFFICULTY_BUDGETS.easy
-        );
+        const consult = consultBrain(landInHandBoard(), BOT, smaller);
         await flush();
         await expect(consult).resolves.toMatchObject({ via: "inline" });
         expect(searchedAt.at(-1)).toMatchObject({
-            iterations: DIFFICULTY_BUDGETS.easy.iterations,
-            timeMs: DIFFICULTY_BUDGETS.easy.timeMs,
+            iterations: smaller.iterations,
+            timeMs: smaller.timeMs,
         });
     });
 });

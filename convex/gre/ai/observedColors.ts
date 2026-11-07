@@ -56,9 +56,9 @@
 // THE DECKLIST IS NOT PUBLIC, and nothing above is weakened by admitting it.
 // It arrives only on a world `determinize` stamped (`GameState.deckColorKnowledge`),
 // and `determinize` stamps a seat only when the search was HANDED that seat's
-// decklist and that seat is not the observer — true exactly at `expert`
-// (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`). At every other
-// difficulty, on every server path, and in every test that stamps nothing, the
+// decklist and that seat is not the observer — true at a knowing level
+// (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`). On a blind search, on
+// every server path, and in every test that stamps nothing, the
 // field is `undefined` and this module computes byte-identically to before.
 // Still NO HAND READ at any difficulty: a decklist says what the deck
 // CONTAINS, never what the opponent is holding.
@@ -239,7 +239,7 @@ export function observedOpponentColors(
     // The decklist, when the search was granted this seat's (issue #3533) —
     // folded into the SAME map, at the same scale, so every consumer of this
     // derivation sharpens at once and none of them grows a decklist branch of
-    // its own. `undefined` at every difficulty but `expert`.
+    // its own. `undefined` on a blind search.
     const deckColors = deckColorsFor(state.deckColorKnowledge, opponentId);
     if (deckColors) {
         for (const [color, count] of Object.entries(deckColors)) {
@@ -268,7 +268,7 @@ export type ColorDemandEstimate =
 
 /** {@link observedOpponentColors}, lifted into {@link ColorDemandEstimate}:
  *  `unknown` exactly when the position has shown nothing at all. This is the
- *  SAME derivation, never a second one — which is exactly why the `expert`
+ *  SAME derivation, never a second one — which is exactly why the granted
  *  decklist (issue #3533) arrives THROUGH `observedOpponentColors` rather than
  *  beside it.
  *
