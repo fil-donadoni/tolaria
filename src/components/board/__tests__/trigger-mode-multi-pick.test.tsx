@@ -57,7 +57,11 @@ function renderPrompt(choice: PendingChoice, players: unknown[]) {
         <GameContext.Provider value={ctx}>
             <PendingChoiceBufferContext.Provider value={noopBuffer}>
                 <MinimizedChoiceContext.Provider
-                    value={{ minimized: false, setMinimized: () => {} }}
+                    value={{
+                        isMinimized: false,
+                        minimize: () => {},
+                        restore: () => {},
+                    }}
                 >
                     <PendingChoicePrompt
                         choice={choice}
