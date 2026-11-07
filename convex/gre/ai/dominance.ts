@@ -22,7 +22,7 @@
 // NOT probe. Probing there measured 42.6% of a 300-iteration search's wall
 // clock (1682 probed enumerations) — and since the budget is ITERATION-based
 // that is not "freed iterations deepen every other line", it is a straight
-// ~1.75× think-time regression (issue #1905 review finding 3).
+// ~1.75× think-time regression.
 //
 // The accepted tradeoff of proving only at the root: a move that becomes
 // provably futile DEEPER in the tree is still searched. That is the cheap side
@@ -31,7 +31,7 @@
 // `dominanceProbeStats().probes` pins this: it is a function of the root move
 // list alone, asserted equal for a 40- and a 400-iteration search.
 //
-// The CHOICE-level probe (`isNoOpChoiceAnswer`, issue #1888) is reached from a
+// The CHOICE-level probe (`isNoOpChoiceAnswer`) is reached from a
 // prior function that DOES run at every in-tree choice-node visit, so it obeys
 // the same invariant by a memo instead of a deny-set: one verdict per choice
 // IDENTITY per decision, held for exactly one `searchWithTrace` call. It shares
@@ -66,14 +66,14 @@
 //     from `enumerateMoves` anyway.
 //   * Mana abilities (`useStack: false`) are never probed: they never touch the
 //     stack, so there is nothing for the probe to resolve.
-//   * The mover's MANA POOL is compared, not ignored (issue #1905 review): the
+//   * The mover's MANA POOL is compared, not ignored: the
 //     probe never credits or debits the pool, so a difference there is mana the
 //     RESOLUTION made. A ritual is never prunable.
 //   * An activated ability whose cost is anything other than tap + mana is never
 //     probed — a sacrifice / discard / exile / life / counter cost can itself be
 //     the payoff (a death trigger, a graveyard filler), and the probe models
 //     costs only coarsely.
-//   * The SAME gate on the cast side (issue #1905 re-review): a spell that
+//   * The SAME gate on the cast side: a spell that
 //     declares `additionalCosts` (CR 118.3-5 / 601.2f), pays Phyrexian life
 //     (CR 107.4f) or has delve (CR 702.66) is never probed. `applyProbeCast`
 //     pays none of those, so a spell whose whole value IS the payment — LEA
@@ -86,7 +86,7 @@
 // ── Documented narrowings ─────────────────────────────────────────────────
 // The probe pays costs coarsely (tap plan marks sources tapped, no pool
 // accounting — the SAME function `applyMoveInSearch`/`applyMoveForSearch` use,
-// `applyTapPlanInSearch`, issue #4444; this is precisely what makes a pool
+// `applyTapPlanInSearch`; this is precisely what makes a pool
 // DIFFERENCE attributable to the resolution), and
 // does not emit ABILITY_ACTIVATED (`recordActivation` is private to `game.ts`).
 // It DOES emit SPELL_CAST and flush the resulting cast triggers, so a
@@ -96,7 +96,7 @@
 // A cast whose ONLY value is raising the storm count is therefore prunable —
 // accepted, and the storm payoff itself (a cast trigger) is not affected.
 //
-// The self-sacrifice ACTIVATION cost (issue #3424) buys two narrowings of the
+// The self-sacrifice ACTIVATION cost buys two narrowings of the
 // same shape, and they are narrowings rather than echoes: both are real, small
 // payoffs, forgiven because the cost raises them on EVERY member of the class,
 // so comparing either would make nothing in the class provable.
