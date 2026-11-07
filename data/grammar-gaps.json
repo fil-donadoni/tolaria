@@ -3641,6 +3641,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Consign to Memory",
+            "issue": 8821
+        },
+        {
+            "kind": "hand-tail",
             "key": "Containment Priest",
             "issue": 8505
         },

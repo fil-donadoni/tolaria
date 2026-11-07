@@ -422,6 +422,41 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
     return ok({ kind: "kicker" as const, kickers });
 });
 
+// ── Replicate <cost> (CR 702.56) ───────────────────────────────────────────
+
+const REPLICATE_HEAD = "Replicate ";
+
+/**
+ * CR 702.56a — "Replicate [cost]" means "As an additional cost to cast this
+ * spell, you may pay [cost] any number of times" and a cast trigger copying
+ * the spell once per payment. The card authors only the COST half: a
+ * `kickers[]` entry with `multi: true` under the `"replicate"` keyword, whose
+ * engine row supplies the copy trigger — so the line is a cost entry of the
+ * kicker family, read by the same mana reader as Multikicker.
+ *
+ * Refused: a non-mana replicate cost ("Replicate—Pay {E}{E}{E}", "Replicate—Tap
+ * an untapped Dalek you control": no cost leg this grammar encodes on the
+ * entry), and every mana cost the kicker reader refuses.
+ */
+export const replicateRule: Rule<SlotIR> = rule("replicate", (span) => {
+    if (!span.startsWith(REPLICATE_HEAD))
+        return fail(`a replicate line starts with "${REPLICATE_HEAD}"`, span);
+    const printed = span.slice(REPLICATE_HEAD.length);
+    const mana = kickerMana(printed);
+    if (!mana.ok) return mana;
+    return ok({
+        kind: "kicker" as const,
+        kickers: [
+            {
+                description: `Replicate ${printed}`,
+                mana: mana.value,
+                multi: true,
+                replicate: true,
+            },
+        ],
+    });
+});
+
 /** CR 701.59c — the whole line, so "This spell costs {2} less to cast if
  *  evidence was collected" behind it is refused rather than dropped. */
 const OPTIONAL_COLLECT_EVIDENCE =
@@ -941,7 +976,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
- * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
+ * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
  * foretell, splice, overload, morph, fading, mobilize, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
@@ -954,6 +989,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     map(protectionListRule, keywordsSlot),
     enchantRule,
     kickerRule,
+    replicateRule,
     optionalCollectEvidenceRule,
     cyclingRule,
     madnessRule,
