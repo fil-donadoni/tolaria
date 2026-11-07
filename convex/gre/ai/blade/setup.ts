@@ -61,6 +61,7 @@ import {
     discardToGraveyard,
     emitPermanentEntered,
     grantKnowledge,
+    recordPublicLibraryPlacement,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
@@ -797,6 +798,27 @@ function applyCast(
     }
 }
 
+/** ADR 0026 — put one library card's public placement on record. Throws on a
+ *  position the library does not have, like `applyKnowLibraryTop` on a short
+ *  run: a scenario cannot quietly witness nothing. */
+function applyWitnessLibraryPlacement(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "witness-library-placement" }>
+): void {
+    const ownerId = seatPlayerId(state, step.of ?? "me");
+    const library = state.players.find((p) => p.id === ownerId)!.library;
+    const card = library[step.position - 1];
+    if (!card) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `library of seat "${step.of ?? "me"}" holds ${library.length} card(s), no position ${step.position}`
+        );
+    }
+    recordPublicLibraryPlacement(state, card);
+}
+
 /** ADR 0026 (issue #1524) — grant a seat knowledge of a library's top cards
  *  through the engine's own `grantKnowledge`, the primitive every scry /
  *  surveil / Brainstorm keep resolves into. Throws when the library is shorter
@@ -1077,6 +1099,9 @@ function applyBladeSetupSteps(
                 break;
             case "know-library-top":
                 applyKnowLibraryTop(state, scenario.label, step);
+                break;
+            case "witness-library-placement":
+                applyWitnessLibraryPlacement(state, scenario.label, step);
                 break;
             case "phase-trigger":
                 applyPhaseTrigger(state, scenario.label, step);

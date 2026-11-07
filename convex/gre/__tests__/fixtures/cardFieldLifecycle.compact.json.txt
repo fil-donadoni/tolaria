@@ -358,6 +358,9 @@
           "knownTo": [
             "p1"
           ],
+          "libraryPositionKnownTo": [
+            "p1"
+          ],
           "notedMana": {
             "mana": {
               "U": 1
@@ -825,6 +828,9 @@
       "createdBy": "src-11",
       "linkedTokenId": "tok-1",
       "knownTo": [
+        "p1"
+      ],
+      "libraryPositionKnownTo": [
         "p1"
       ],
       "notedMana": {

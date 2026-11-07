@@ -173,9 +173,9 @@ export function determinize(
             (player.id === observerId && topLookedAt.has(player.id));
         // ADR 0026 (issue #1524) — every position this observer legitimately
         // knows, from the SAME derivation the wire projection grants them
-        // with (`knownLibraryIndices`): the contiguous known run from the top,
-        // the contiguous known run from the bottom, and the CR 401.5 index-0
-        // carve-out above. Re-sampling any of them would have the search
+        // with (`knownLibraryIndices`): the witnessed placements, the contiguous
+        // known run from the top, the contiguous known run from the bottom, and
+        // the CR 401.5 index-0 carve-out above. Re-sampling any of them would have the search
         // reason about a card the bot can plainly see is something else — the
         // scry-to-top the bot instantly forgot, before this.
         const pinned = new Set(

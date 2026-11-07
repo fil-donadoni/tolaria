@@ -200,6 +200,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         createdBy: "src-11",
         linkedTokenId: "tok-1",
         knownTo: ["p1"],
+        libraryPositionKnownTo: ["p1"],
         notedMana: { mana: { U: 1 }, castableCardId: "def-n" },
         castableFromExileBy: "p1",
         castableFromExileIncludesLand: true,
