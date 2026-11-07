@@ -456,8 +456,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // fit moved the vector far enough to flip an unrelated `must` entry
         // ("choice-behind payoff: the re-type mode denies the opponent the
         // colour it is visibly using", then still seed-pinned around a tie and
-        // red at seed 19; issue #3534 has since re-expressed it as an
-        // unpinned preference) — a preference regression bought
+        // red at seed 19; issue #3534 has since re-expressed it as a
+        // preference) — a preference regression bought
         // with a claim that has no preference in it. The entry still blocks at
         // `must`; what it no longer does is vote on the weights.
         expect: {
@@ -4074,12 +4074,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        // ADR 0070 §3 — the canonical K>=3 seed set, NOT a pinned list. Issue
-        // #3534 measured the whole 0..29 sweep this entry used to be seeded
-        // from: 30 of 30 pick the mode. There is no longer a tie to seed
-        // around, so the seeds carry no information beyond "not a single
-        // draw".
-        seeds: [0xb1ade, 1, 2, 3, 5],
+        // A pinned list again: under PUCT the mode and `pass` are a near-tie, and
+        // seeds 1 and 17 can fall to `pass`. These seeds hold on the committed
+        // vector and on a refit, and only until the next one (issue #8788).
+        seeds: [0xb1ade, 2, 3, 4, 5],
         tier: "must",
         expect: {
             predicate: (move) =>
@@ -4088,7 +4086,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "the land-type mode, which strips the opponent of the colour it is visibly using",
         },
-        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. PROVEN to still discriminate: with `reachesOnlyOwnSideThroughChoice` forced true for every cast, every seed here stops casting. WHAT CHANGED (issue #3534): until #3532 this entry was a pinned list of the seeds where rollout noise fell the right way, because the mode's whole payoff — the opponent loses green — priced at exactly zero on a colour-blind SOURCE COUNT, and the entry's own note said so. `colorCoverage` (`ai/colorCoverage.ts`) is that axis, and it needs the demand to OUTLIVE the supply: three Forests and nothing else re-base the estimate with the re-type (the Forests become Islands, so {G} leaves the demand set with the last source that evidenced it) and the denial prices at zero even now. The Grizzly Bears is the surviving evidence — the same shape as #3532's own pair, where the Bears is what makes killing the Forest better than killing the Plains — so re-typing the Forests leaves a demanded colour with no source. MEASURED over seeds 0..29 at 200 iterations: 8 of 30 picked the mode without the Bears (22 took the mill mode), 30 of 30 with it. The entry now asserts a PREFERENCE.",
+        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. PROVEN to still discriminate: with `reachesOnlyOwnSideThroughChoice` forced true for every cast, every seed here stops casting. WHAT CHANGED (issue #3534): until #3532 this entry was a pinned list of the seeds where rollout noise fell the right way, because the mode's whole payoff — the opponent loses green — priced at exactly zero on a colour-blind SOURCE COUNT, and the entry's own note said so. `colorCoverage` (`ai/colorCoverage.ts`) is that axis, and it needs the demand to OUTLIVE the supply: three Forests and nothing else re-base the estimate with the re-type (the Forests become Islands, so {G} leaves the demand set with the last source that evidenced it) and the denial prices at zero even now. The Grizzly Bears is the surviving evidence — the same shape as #3532's own pair, where the Bears is what makes killing the Forest better than killing the Plains — so re-typing the Forests leaves a demanded colour with no source. MEASURED over seeds 0..29 at 200 iterations: 8 of 30 picked the mode without the Bears (22 took the mill mode), 30 of 30 with it. UNDER PUCT the preference no longer holds on every seed: over `0xb1ade` and 0..29 it passes on 30/31 seeds on the committed vector and 29/31 seeds on a refit, so this entry is noise-pinned and its seeds avoid the failures (issue #8788).",
     },
     {
         label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",
@@ -21648,9 +21646,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: {
             iterations: 1200,
         },
-        // Seed 2 replaced under PUCT (issue #8700): it took the cast there, on 12/12
-        // other seeds at this budget it holds.
-        seeds: [0xb1ade, 1, 5, 3, 4],
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 7, 13, 15, 16],
         tier: "must",
         expect: {
             forbidden: [
@@ -21660,7 +21656,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the cast would only help the opponent.",
+        note: "Issue #8271 — the cast would only help the opponent. Issue #8394: `pass` kept the mana open, so every later decision below it re-offered the cast and its mean absorbed those lines, and a refit flipped seed 2. The tree and the rollouts now drop the move while the Bot holds no card to put (`ai/oneSidedPut.ts`); the added seeds are the ones that failed before, and seed 2 is the one that took the cast under PUCT (issue #8700) until the drop.",
     },
     {
         label: "cheat into play: activates Sneak Attack at the beginning of combat",
@@ -21744,8 +21740,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: {
             iterations: 400,
         },
-        seeds: [0xb1ade, 1, 2, 4],
-        tier: "stretch",
+        seeds: [0xb1ade, 1, 2, 4, 7, 9, 10, 15, 16, 18],
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -21754,7 +21750,56 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the Wurm would be sacrificed having done nothing. Report-only (issue #8394): activating and holding are a near-tie the evaluation does not separate, 16/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
+        note: "Issue #8271 — the Wurm would be sacrificed having done nothing. Issue #8394: `pass` kept the Mountain open, so every later decision below it re-offered the doomed activation and its mean absorbed those lines. The tree and the rollouts now drop the move (`ai/doomedEntry.ts`); the seeds are the ones that failed before.",
+    },
+    {
+        label: "cheat into play: activates Sneak Attack at the opponent's end step",
+        pairOf: {
+            anchor: "cheat into play: holds Sneak Attack after combat",
+            discriminant: { kind: "step", detail: "the step" },
+        },
+        spec: {
+            life: { me: 20, opp: 6 },
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Sneak Attack",
+                },
+            ],
+        },
+        note: "Issue #8394 — a delayed trigger made in an end step waits for the next one (CR 603.7b), so this Wurm lasts through the Bot's own attack, and at 6 life that attack is lethal.",
     },
     {
         label: "removal: Swords to Plowshares takes the greater threat",
@@ -22391,7 +22436,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         label: "strip: casts Thoughtseize at a castable Shivan Dragon",
         classification: {
-            kind: "absolute",
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that can hold no spell to strip",
+            },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -22429,11 +22478,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         bot: "me",
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    ...Array<string>(17).fill("Mountain"),
+                    ...Array<string>(6).fill("Shivan Dragon"),
+                    ...Array<string>(5).fill("Savannah Lions"),
+                ],
+            },
+        ],
         budget: {
             iterations: 400,
         },
-        seeds: [1, 2, 3, 5, 9],
-        tier: "stretch",
+        seeds: [0xb1ade, 1, 2, 3, 4, 6, 7, 14, 18],
+        tier: "must",
         expect: {
             moves: [
                 {
@@ -22443,7 +22502,73 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Report-only (issue #8394): casting and passing are a near-tie the evaluation does not separate, 15/20 seeds at 400 iterations with different seeds failing on each vector, so any refit can flip it.",
+        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search. Issue #8394: with no decklist the search re-dealt the hand from 20 basics and these 2 spells, so the strip found the Dragon in 9% of its worlds and the cast tied with passing by arithmetic, about +40 against 41 of cost, 15/20 seeds. The decklist is what the Bot knows in a real game, and it holds a spell in a worthwhile share of its worlds.",
+    },
+    {
+        label: "strip: holds Thoughtseize when the opponent's decklist holds no spell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that can hold a spell to strip",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        bot: "me",
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: Array<string>(28).fill("Mountain"),
+            },
+        ],
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4, 6, 7, 14, 18],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Thoughtseize",
+                },
+            ],
+        },
+        note: "Issue #8394 — the position above with only the decklist changed: the Bot deduces a hand of lands, and the real hand stays hidden from the search.",
     },
     {
         label: "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
