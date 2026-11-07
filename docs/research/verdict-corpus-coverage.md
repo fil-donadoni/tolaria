@@ -1,5 +1,11 @@
 # What the Verdict corpus covers, and what it can be asked (issue #3588, ADR 0124)
 
+> **Measured at** 2026-09 on 174 verdicts / 492 pairs (registry + store of
+> the time). **Dated:** the Verdict Lock holds 101 ids since the first
+> promotion (2026-09-28, last promotion 2026-10-03; `data/verdicts.lock.json`),
+> with a held-out side of n = 24. Re-run the census before quoting the
+> percentages.
+
 **Question.** Before spending anything on a richer evaluation — piecewise
 terms, boosted trees, a small network — two things have to be known about the
 corpus those models would be fitted on: **which decisions it holds**, and **how

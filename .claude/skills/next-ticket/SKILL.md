@@ -212,6 +212,7 @@ nor wait.
   pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
   `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
+- `Docs: <files>` / `Docs: none (<why>)` (CLAUDE.md step 10).
 - **`## Preset scenario`** heading over a `json` fence holding
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the

@@ -795,7 +795,7 @@ What a seat's decklist could still be hiding: the whole list minus every copy al
 _Avoid_: Remaining deck, unknown cards, the rest of the library
 
 **Difficulty**:
-How much thinking the **Bot** is allowed before moving. A stronger **Bot** is the same **Brain** given a larger search budget, not different logic.
+How much thinking the **Bot** is allowed before moving, and how much **Deck Knowledge** of the opponent it may hold (today only the highest preset knows the opponent's list). A stronger **Bot** is the same **Brain** given a larger search budget and more knowledge, not different logic.
 _Avoid_: Level, skill setting
 
 **DecisionTrace**:
