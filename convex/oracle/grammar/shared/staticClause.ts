@@ -279,6 +279,12 @@ export type StaticClauseIR =
      *  permanent enters (the `enters-tapped` shape). */
     | { readonly kind: "enters-prepared" }
     /**
+     * CR 113.6g — "This spell can't be countered.": a card-level flag the
+     * counter choke point reads (`CardDefinition.cantBeCountered`), on a
+     * permanent spell and on an instant or sorcery alike.
+     */
+    | { readonly kind: "cant-be-countered" }
+    /**
      * CR 614.1c / 614.12a / 205.3m — "As this creature enters, choose a
      * creature type": a choice made BEFORE the permanent enters, over the
      * whole CR 205.3m creature-type list, kept on the permanent for the
@@ -1474,6 +1480,23 @@ const entersPrepared: Rule<StaticClauseIR> = pattern(
         isSelfPhrase(uncapitalise(match[1]!))
             ? ok({ kind: "enters-prepared" as const })
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
+/**
+ * CR 113.6g — the ability functions on the stack, so it is a static ability of
+ * the SPELL and this one frame reads it whatever the card's type line says: the
+ * spell slot's effect clause never reads the line, so the router sees one hit.
+ * Exact spelling: a conditional "can't be countered if …" is another form with
+ * a resolution-time question this flag cannot answer, and stays refused.
+ */
+const THIS_SPELL_CANT_BE_COUNTERED = "This spell can't be countered";
+
+const cantBeCounteredRule: Rule<StaticClauseIR> = rule(
+    "this spell can't be countered",
+    (span): RuleResult<StaticClauseIR> =>
+        span === THIS_SPELL_CANT_BE_COUNTERED
+            ? ok({ kind: "cant-be-countered" as const })
+            : fail(`not "${THIS_SPELL_CANT_BE_COUNTERED}"`, span)
 );
 
 /** "on it", or its gendered object spelling on a named character (issue #7627). */
@@ -2872,6 +2895,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersTappedWithCounters,
         entersTappedUnlessPayLife,
         entersPrepared,
+        cantBeCounteredRule,
         entersWithCounters,
         asEntersChooseCreatureType,
         asEntersChooseNonlandCardName,

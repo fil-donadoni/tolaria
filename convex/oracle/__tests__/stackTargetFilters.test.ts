@@ -10,7 +10,9 @@
 //     Blast, Pyroblast, Hydroblast, Lifeforce), the mana-value limit and its
 //     kicked replacement (Prohibit), the spell-or-ability target with the
 //     "countered this way" rider (Teferi's Response) and the flat tax
-//     (Mana Leak).
+//     (Mana Leak), and the one-type narrowings and the activated ability
+//     (Remove Soul, Negate, Spell Pierce, Stronghold Biologist, Bind — issue
+//     #4586).
 //  2. REFUSALS — the neighbours these rules must NOT read: a colour no card
 //     prints, a tax that is not a plain {N}, a rider behind a counter that can
 //     never name an ability, a kicked limit with no base limit to replace.
@@ -127,6 +129,155 @@ describe("narrowed stack targets of a counter (CR 701.6a, CR 115.2)", () => {
                 },
             })
         );
+    });
+
+    it("reads 'target creature spell' — Remove Soul", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    instant(
+                        "Remove Soul",
+                        "{1}{U}",
+                        "Counter target creature spell."
+                    )
+                )
+            )
+        ).toEqual(
+            sortKeys({
+                name: "Remove Soul",
+                types: ["Instant"],
+                manaCost: { X: 1, U: 1 },
+                oracleText: "Counter target creature spell.",
+                effects: [{ op: "counter", target: { target: 0 } }],
+                targetRequirement: {
+                    type: "spell",
+                    count: 1,
+                    spellTypeFilter: "Creature",
+                },
+            })
+        );
+    });
+
+    it("reads 'target noncreature spell' — Negate", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    instant(
+                        "Negate",
+                        "{1}{U}",
+                        "Counter target noncreature spell."
+                    )
+                )
+            )
+        ).toEqual(
+            sortKeys({
+                name: "Negate",
+                types: ["Instant"],
+                manaCost: { X: 1, U: 1 },
+                oracleText: "Counter target noncreature spell.",
+                effects: [{ op: "counter", target: { target: 0 } }],
+                targetRequirement: {
+                    type: "spell",
+                    count: 1,
+                    spellExcludeTypeFilter: "Creature",
+                },
+            })
+        );
+    });
+
+    it("reads the narrowing ahead of a flat tax — Spell Pierce", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    instant(
+                        "Spell Pierce",
+                        "{U}",
+                        "Counter target noncreature spell unless its controller pays {2}."
+                    )
+                )
+            )
+        ).toEqual(
+            sortKeys({
+                name: "Spell Pierce",
+                types: ["Instant"],
+                manaCost: { U: 1 },
+                oracleText:
+                    "Counter target noncreature spell unless its controller pays {2}.",
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: { controllerOf: { target: 0 } },
+                        cost: { X: 2 },
+                        prompt: "Pay {2} to prevent your spell from being countered?",
+                        bind: "$may1",
+                    },
+                    {
+                        op: "if",
+                        predicate: { not: { binding: "$may1" } },
+                        then: [{ op: "counter", target: { target: 0 } }],
+                    },
+                ],
+                targetRequirement: {
+                    type: "spell",
+                    count: 1,
+                    spellExcludeTypeFilter: "Creature",
+                },
+            })
+        );
+    });
+
+    it("reads 'target activated ability' behind its reminder — Bind", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    instant(
+                        "Bind",
+                        "{1}{G}",
+                        "Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card."
+                    )
+                )
+            )
+        ).toEqual(
+            sortKeys({
+                name: "Bind",
+                types: ["Instant"],
+                manaCost: { X: 1, G: 1 },
+                oracleText:
+                    "Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card.",
+                effects: [
+                    { op: "counter", target: { target: 0 } },
+                    { op: "draw", player: "controller", count: 1 },
+                ],
+                targetRequirement: {
+                    type: "spell",
+                    count: 1,
+                    spellStackKind: "activated-ability",
+                },
+            })
+        );
+    });
+
+    it("reads a one-type narrowing as an activated ability's target — Stronghold Biologist", () => {
+        const definition = compiled(
+            oracleCard({
+                name: "Stronghold Biologist",
+                manaCost: "{2}{U}",
+                oracleText:
+                    "{U}{U}, {T}, Discard a card: Counter target creature spell.",
+                typeLine: "Creature — Human Wizard",
+                power: "1",
+                toughness: "1",
+            })
+        );
+        const ability = definition.activatedAbilities?.[0];
+        expect(ability?.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            spellTypeFilter: "Creature",
+        });
+        expect(ability?.effects).toEqual([
+            { op: "counter", target: { target: 0 } },
+        ]);
     });
 
     it("reads 'target blue spell' — Gainsay", () => {
@@ -580,6 +731,30 @@ describe("the neighbours these rules refuse (fail-closed, ADR 0105 § 2)", () =>
 
     // The kicked limit replaces a limit; a base counter without one has
     // nothing for the kicker to widen.
+    it("refuses a further limit on a one-type narrowing — Exclude's neighbours", () => {
+        expect(
+            refusedAt(
+                instant(
+                    "Probe",
+                    "{U}",
+                    "Counter target creature spell with mana value 3 or less."
+                )
+            )
+        ).toMatch(/creature spell with mana value 3 or less/);
+    });
+
+    it("refuses an activated ability narrowed by its source — Rust", () => {
+        expect(
+            refusedAt(
+                instant(
+                    "Rust",
+                    "{G}",
+                    "Counter target activated ability from an artifact source."
+                )
+            )
+        ).toMatch(/activated ability from an artifact source/);
+    });
+
     it("refuses a kicked limit with no base limit to replace", () => {
         expect(
             refusedAt(
@@ -635,6 +810,33 @@ describe("the narrowed stack phrases are the counter verb's own", () => {
                 )
             )
         ).toMatch(/blue spell/);
+    });
+
+    // Reprieve's verb reads the bare "target spell", so it is the verb a
+    // narrowing leaked into the shared target filter would reach at once.
+    it.each([
+        "target creature spell",
+        "target noncreature spell",
+        "target activated ability",
+    ])("lets the bounce verb read no '%s'", (phrase) => {
+        expect(
+            compileCard(
+                instant(
+                    "Reprieve",
+                    "{1}{W}",
+                    "Return target spell to its owner's hand."
+                )
+            ).state
+        ).not.toBe("unparsed");
+        expect(
+            refusedAt(
+                instant(
+                    "Probe",
+                    "{1}{W}",
+                    `Return ${phrase} to its owner's hand.`
+                )
+            )
+        ).toMatch(phrase.slice("target ".length));
     });
 
     it("lets no other verb read 'permanent if it's <colour>'", () => {

@@ -2047,7 +2047,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › target filter › object descriptor › noncreature spell",
-            "issue": 4586
+            "issue": 8687
         },
         {
             "kind": "grammar",
@@ -5213,6 +5213,11 @@
             "kind": "hand-tail",
             "key": "Strix Serenade",
             "issue": 8635
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stubborn Denial",
+            "issue": 8690
         },
         {
             "kind": "hand-tail",
