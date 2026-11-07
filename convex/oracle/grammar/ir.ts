@@ -377,6 +377,16 @@ export type SlotIR =
           readonly description: string;
       }
     /**
+     * CR 702.185a — a "Warp [cost]" line: the alternative cost, lowered onto
+     * `CardDefinition.warp`, and the `"warp"` keyword `gre/warp.ts` reads.
+     * `description` is the printed line.
+     */
+    | {
+          readonly kind: "warp";
+          readonly cost: ManaCost;
+          readonly description: string;
+      }
+    /**
      * CR 702.30a — an "Echo [cost]" line, lowered onto `CardDefinition.echo`
      * (ADR 0155): the `getDefinition` expander derives the upkeep trigger.
      */

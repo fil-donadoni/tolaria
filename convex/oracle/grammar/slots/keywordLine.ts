@@ -469,8 +469,14 @@ export const optionalCollectEvidenceRule: Rule<SlotIR> = rule(
  * mis-print) is refused rather than compiled into a keyword that is free, or
  * unpayable, in play. A non-mana cost ("Morph—Reveal a card…", "Cycling—Pay 2
  * life") does not start with a mana symbol and is refused by the same test.
+ * `pips.guildHybrid` lifts the narrowing for the one pip a rule's own payment
+ * path is proven on ({@link warpRule}); a monocolour hybrid ({2/W}) stays out.
  */
-function costParameter(head: string, span: string): RuleResult<ManaCost> {
+function costParameter(
+    head: string,
+    span: string,
+    pips: { readonly guildHybrid?: boolean } = {}
+): RuleResult<ManaCost> {
     if (!span.startsWith(head))
         return fail(`a line starts with "${head}"`, span);
     const printed = span.slice(head.length);
@@ -484,7 +490,11 @@ function costParameter(head: string, span: string): RuleResult<ManaCost> {
             `a variable {X} ${head.trim()} cost is not exercised on its payment path`,
             printed
         );
-    if (cost.phyrexian !== undefined || cost.hybrid !== undefined)
+    if (
+        cost.phyrexian !== undefined ||
+        cost.hybridGeneric !== undefined ||
+        (cost.hybrid !== undefined && pips.guildHybrid !== true)
+    )
         return fail(
             `a Phyrexian or hybrid ${head.trim()} cost is not exercised on its payment path`,
             printed
@@ -746,6 +756,33 @@ export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
     });
 });
 
+// ── Warp [cost] (CR 702.185a) ─────────────────────────────────────────────
+
+const WARP_HEAD = "Warp ";
+
+/**
+ * CR 702.185a — "Warp [cost]": an alternative cost and the delayed exile with
+ * its later recast. The rule emits the cost; the lowering writes
+ * `CardDefinition.warp` and the `"warp"` keyword `gre/warp.ts` reads.
+ *
+ * A guild-hybrid pip is read ("Warp {U/R}", Pinnacle Emissary): the mana leg of
+ * an alternative cost is normalized like a printed cost, so the caster pays
+ * either colour (`warp.test.ts`). Refused: {X} ("Warp {X}{G}", no card
+ * exercises it on an alternative cost's mana leg), a Phyrexian or monocolour
+ * hybrid pip, and the ability words that start with the word ("Warp Blast — …").
+ */
+export const warpRule: Rule<SlotIR> = rule("warp", (span) => {
+    const cost = costParameter(WARP_HEAD, span, { guildHybrid: true });
+    if (!cost.ok) return cost;
+    if (KEYWORD_VOCABULARY.get("warp") === undefined)
+        return fail("the Mechanics Registry names no warp row", span);
+    return ok({
+        kind: "warp" as const,
+        cost: cost.value,
+        description: span,
+    });
+});
+
 // ── Equip / Ninjutsu / Offspring <mana cost>, Crew N ──────────────────────
 
 const EQUIP_HEAD = "Equip ";
@@ -877,7 +914,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, mobilize, ward life, impending, equip,
+ * foretell, overload, morph, fading, mobilize, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -903,6 +940,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     mobilizeRule,
     wardLifeRule,
     impendingRule,
+    warpRule,
     equipRule,
     reconfigureRule,
     crewRule,

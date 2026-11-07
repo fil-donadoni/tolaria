@@ -1812,6 +1812,16 @@
         "source": "compiled"
     },
     {
+        "name": "All-Fates Stalker",
+        "scryfallId": "82ae4f7b-8122-4af6-8079-888eabf1a11e",
+        "oracleId": "da9ec010-8b42-4927-b602-4e96bced4e99",
+        "firstSet": "eoe",
+        "firstPrintId": "82ae4f7b-8122-4af6-8079-888eabf1a11e",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Alley Evasion",
         "scryfallId": "bc10173d-25ff-4734-b8f2-84f94fe52b17",
         "oracleId": "b59c7c62-ce2f-4062-9790-566191aded69",
@@ -11027,6 +11037,16 @@
         "firstPrintId": "7c375190-f81b-4ab1-a1b6-fe432796821f",
         "firstPrintSet": "tmt",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bygone Colossus",
+        "scryfallId": "4bb8f2ef-4398-4a07-9130-5005356a3b4a",
+        "oracleId": "1bd584d5-4e11-428c-b51e-462e4292b07f",
+        "firstSet": "eoe",
+        "firstPrintId": "4bb8f2ef-4398-4a07-9130-5005356a3b4a",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -31474,6 +31494,16 @@
         "source": "compiled"
     },
     {
+        "name": "Germinating Wurm",
+        "scryfallId": "fcde173a-6314-4904-bddd-68b2ab1e4867",
+        "oracleId": "8735c62d-1508-4bdc-a5d0-f7c68d892a5e",
+        "firstSet": "eoe",
+        "firstPrintId": "fcde173a-6314-4904-bddd-68b2ab1e4867",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gerrard Capashen",
         "scryfallId": "ccca800f-e850-4bec-95d0-70280b51b7a7",
         "oracleId": "27521e70-3a1f-4819-a111-c38216ffe7c3",
@@ -35946,6 +35976,14 @@
         "firstPrintSet": "wwk",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Haliya, Guided by Light",
+        "scryfallId": "6f7c63ae-5df3-410f-8643-b8c69133ca9d",
+        "oracleId": "9b0af3ad-1b4d-4480-af91-fe9baee5d1c5",
+        "firstSet": "eoe",
+        "firstPrintId": "6f7c63ae-5df3-410f-8643-b8c69133ca9d",
+        "firstPrintSet": "eoe"
     },
     {
         "name": "Hall Monitor",
@@ -43380,6 +43418,16 @@
         "firstSet": "por",
         "firstPrintId": "9c31b4b4-18fc-4a6e-8d74-fd5340964320",
         "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Knight Luminary",
+        "scryfallId": "34334971-c1b7-4506-a6dd-77f66b3ae4e7",
+        "oracleId": "11809d9b-30f3-49d5-9119-e45b4de044c8",
+        "firstSet": "eoe",
+        "firstPrintId": "34334971-c1b7-4506-a6dd-77f66b3ae4e7",
+        "firstPrintSet": "eoe",
         "rarity": "common",
         "source": "compiled"
     },
@@ -54189,6 +54237,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nova Hellkite",
+        "scryfallId": "424af0d0-398c-4d78-9ad5-2171bf1bcbd1",
+        "oracleId": "9635d79e-62ec-4d80-ae37-2793489cc13b",
+        "firstSet": "eoe",
+        "firstPrintId": "424af0d0-398c-4d78-9ad5-2171bf1bcbd1",
+        "firstPrintSet": "eoe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Novablast Wurm",
         "scryfallId": "64733f34-2eb4-4df5-8656-57bdb8b3a983",
         "oracleId": "c3aa2554-1cea-45e7-8fc7-1c09bd82fadb",
@@ -58183,6 +58241,14 @@
         "firstPrintSet": "tmp",
         "rarity": "rare",
         "source": "compiled"
+    },
+    {
+        "name": "Pinnacle Emissary",
+        "scryfallId": "3c922347-f05f-40a4-bbee-6bc02a1e0de5",
+        "oracleId": "522e8db5-857e-492f-afed-d60cd2ce3dcd",
+        "firstSet": "eoe",
+        "firstPrintId": "3c922347-f05f-40a4-bbee-6bc02a1e0de5",
+        "firstPrintSet": "eoe"
     },
     {
         "name": "Pinnacle Monk // Mystic Peak",
@@ -62734,6 +62800,16 @@
         "firstSet": "ice",
         "firstPrintId": "9a734154-5944-42f4-a02e-c426a45847f3",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Red Tiger Mechan",
+        "scryfallId": "b7b2fa48-cd2d-42ea-afd8-8cbd7a1bcdab",
+        "oracleId": "94c9aea7-564d-4fc8-ae14-7b22cba18b95",
+        "firstSet": "eoe",
+        "firstPrintId": "b7b2fa48-cd2d-42ea-afd8-8cbd7a1bcdab",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Red Ward",
@@ -71706,6 +71782,16 @@
         "firstSet": "arn",
         "firstPrintId": "3003bf1e-8085-45d8-882b-c449109e7631",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Sinister Cryologist",
+        "scryfallId": "e8fbe740-05ec-4ced-bb9d-3084c8c2b631",
+        "oracleId": "be3038ff-b39e-4d2e-97ee-85de074ccfd3",
+        "firstSet": "eoe",
+        "firstPrintId": "e8fbe740-05ec-4ced-bb9d-3084c8c2b631",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Sinister Strength",

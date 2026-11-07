@@ -116,6 +116,18 @@ function cantBeBlockedByNonSpiritSelf(): StaticBlockRestriction {
     };
 }
 
+/** CR 509.1b — "This token can block only creatures with flying." Stated as
+ *  the `onlyAgainst` data the one evaluator (`blockRestrictionAllows`) reads. */
+function canBlockOnlyFlyingSelf(): StaticBlockRestriction {
+    return {
+        kind: "block-restriction",
+        id: "can-block-only-flying-self",
+        side: "blocker",
+        onlyAgainst: { keyword: "flying" },
+        oracleText: "This token can block only creatures with flying.",
+    };
+}
+
 /** CR 601.3 / 102.1 — "Your opponents can't cast spells during your turn."
  *  The read-time cast gate: every spell cast by an opponent of the source's
  *  controller while that controller is the active player. One authority for the
@@ -155,6 +167,7 @@ export const TOKEN_STATIC_EFFECT_FACTORIES: Record<
     "vigilance-land-creatures-you-control": vigilanceLandCreaturesYouControl,
     "cant-block-non-spirit-self": cantBlockNonSpiritSelf,
     "cant-be-blocked-by-non-spirit-self": cantBeBlockedByNonSpiritSelf,
+    "can-block-only-flying-self": canBlockOnlyFlyingSelf,
     "opponents-cant-cast-during-your-turn": () =>
         opponentsCantCastDuringYourTurn("opponents-cant-cast-during-your-turn"),
 };
