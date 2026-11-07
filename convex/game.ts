@@ -287,6 +287,7 @@ import {
     applyRaisedTargetFinalization,
     continueAfterRetargetOffer,
     divideAmountsForCommit,
+    keepableTargets,
     pendingTargetCountMaxReached,
     resolveDivideTotal,
 } from "./gre/pendingTargetOrigin";
@@ -10711,40 +10712,22 @@ export type TargetSelectionInput = {
     amount?: number;
 };
 
-/** Core per-item apply logic for target selection (CR 601.2c). Extracted out
- *  of `selectTarget` so the batched `selectTargets` mutation can apply a
- *  whole ordered array within ONE transaction (issue #1779 / PRD #1776 T4):
- *  each call mutates `state` in place and THROWS on the first illegal target,
- *  which the caller's loop lets propagate — nothing persists until the
- *  caller's single `saveGameState`, so an illegal element aborts the WHOLE
- *  batch, never a partial apply. Re-reads `state.pendingTarget` fresh on
- *  every call, so a batch that spans a multi-group advance (CR 601.2c,
- *  Fumarole) or finalizes mid-array is handled identically to the same calls
- *  made one at a time. */
-export function applyOneTargetSelection(
+/** Validates a NEWLY chosen target against the pending requirement (CR 601.2c):
+ *  it exists, matches, passes every filter and quality gate, is not a repeat and
+ *  obeys a must-choose effect. Throws on the first failure. Stamps the server-
+ *  computed `stackSourceId` on a spell `target`. */
+function assertNewTargetLegal(
     state: GameState,
+    pt: PendingTarget,
     playerId: string,
-    input: TargetSelectionInput
-): void {
-    if (!state.pendingTarget)
-        throw new Error("No target selection in progress");
-    if (state.pendingTarget.playerId !== playerId) {
-        throw new Error("Not your pending target selection");
-    }
-
-    const target: {
+    input: TargetSelectionInput,
+    target: {
         type: "permanent" | "player" | "spell" | "graveyard-card";
         id: string;
         playerId?: string;
         stackSourceId?: string;
-    } = {
-        type: input.targetType,
-        id: input.targetId,
-        ...(input.targetPlayerId ? { playerId: input.targetPlayerId } : {}),
-    };
-
-    // Validate the target exists and matches the requirement
-    const pt = state.pendingTarget;
+    }
+): void {
     const reqTypes = Array.isArray(pt.targetType)
         ? pt.targetType
         : [pt.targetType];
@@ -11084,8 +11067,50 @@ export function applyOneTargetSelection(
             "This pick must choose a permanent an effect requires you to target"
         );
     }
+}
 
-    pt.selected.push(target);
+/** Core per-item apply logic for target selection (CR 601.2c). Extracted out
+ *  of `selectTarget` so the batched `selectTargets` mutation can apply a
+ *  whole ordered array within ONE transaction (issue #1779 / PRD #1776 T4):
+ *  each call mutates `state` in place and THROWS on the first illegal target,
+ *  which the caller's loop lets propagate — nothing persists until the
+ *  caller's single `saveGameState`, so an illegal element aborts the WHOLE
+ *  batch, never a partial apply. Re-reads `state.pendingTarget` fresh on
+ *  every call, so a batch that spans a multi-group advance (CR 601.2c,
+ *  Fumarole) or finalizes mid-array is handled identically to the same calls
+ *  made one at a time. */
+export function applyOneTargetSelection(
+    state: GameState,
+    playerId: string,
+    input: TargetSelectionInput
+): void {
+    if (!state.pendingTarget)
+        throw new Error("No target selection in progress");
+    if (state.pendingTarget.playerId !== playerId) {
+        throw new Error("Not your pending target selection");
+    }
+
+    const target: {
+        type: "permanent" | "player" | "spell" | "graveyard-card";
+        id: string;
+        playerId?: string;
+        stackSourceId?: string;
+    } = {
+        type: input.targetType,
+        id: input.targetId,
+        ...(input.targetPlayerId ? { playerId: input.targetPlayerId } : {}),
+    };
+
+    const pt = state.pendingTarget;
+    // CR 115.7d / 707.10c — a raised "choose new targets" may leave a current
+    // target unchanged, "even if" it would be illegal: it skips legality, and
+    // the original selection (with its server-computed fields) stays as it was.
+    const kept = keepableTargets(state, pt).find(
+        (t) => t.type === input.targetType && t.id === input.targetId
+    );
+    if (!kept) assertNewTargetLegal(state, pt, playerId, input, target);
+
+    pt.selected.push(kept ?? target);
 
     // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
     // to this target. Validate ≥ 1 and that the running total never exceeds

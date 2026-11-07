@@ -18,6 +18,7 @@ import {
 } from "~/lib/target-progress";
 import { V4_CHIP } from "~/lib/board-chrome-v4";
 import DivideTargetList from "./divide-target-list";
+import KeepTargetButtons from "./keep-target-buttons";
 import {
     formatModeTargetProvenance,
     modeTargetProvenance,
@@ -60,12 +61,15 @@ function targetCountLabel(
 export default function TargetSelectionBanner({
     pendingTarget,
     me,
+    allPlayers,
     stack,
     gameId,
     playerId,
 }: {
     pendingTarget: PendingTarget;
     me: Player | undefined;
+    /** Names the current targets a "choose new targets" may keep. */
+    allPlayers?: Player[];
     stack: StackItem[];
     gameId: Id<"games">;
     playerId: string;
@@ -315,6 +319,13 @@ export default function TargetSelectionBanner({
                         </Button>
                     </div>
                     {divide.active && <DivideTargetList />}
+                    <KeepTargetButtons
+                        pendingTarget={pendingTarget}
+                        players={allPlayers ?? (me ? [me] : [])}
+                        stack={stack}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
                 </Panel>
             </div>
         </div>
