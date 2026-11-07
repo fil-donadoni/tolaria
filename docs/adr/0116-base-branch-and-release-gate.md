@@ -124,3 +124,13 @@ them changed under ADR 0156: the release branch moves by the `release.yml` dispa
 (the same `bun run release`, also typed by hand), on the `lane` runner; the
 heavy mutex is deleted (PR #7519); the gate is `bun run health`, not `health:main`.
 Read the text above with that map.
+
+## Amendment (2026-11-07, issue #8760) — an INFRA at the browser step does not block the release
+
+Owner's call. `release`'s last step, `check:game-download`, failed 3 of 4 runs on
+2026-11-07 on a sound tree, and each refusal blocked a release whose offline
+gates had passed. An INFRA at a browser step now promotes with a warning: only a
+run past the offline gates reaches that step, and an INFRA there measured nothing.
+A RED there still refuses, as does an INFRA at any other step. Accepted risk: a
+regression that coincides with an environment failure reaches the release branch
+unmeasured. Item 3's "only a GREEN record" reads with this exception.

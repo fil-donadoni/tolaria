@@ -7,7 +7,8 @@
 // `health-main.ts` gates the `origin/<base>` tip under the heavy mutex, then
 // runs the release-only browser step `check:game-download` off it (a tip
 // batch health already proved runs only that), and only a GREEN verdict on
-// EXACTLY that sha lets the release branch move — by fast-forward, never by
+// EXACTLY that sha, or an INFRA at that browser step (`skippedBrowserProof`),
+// lets the release branch move — by fast-forward, never by
 // force. No `check:ui` walk runs here (issue #6143): the every-surface walk
 // is a command the owner runs by hand.
 //
@@ -49,7 +50,7 @@ import { dirname, join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
 import type { EpisodePr } from "./lib/health-ladder";
-import type { HealthStatus } from "./lib/health-verdict";
+import { isBrowserStep, type HealthStatus } from "./lib/health-verdict";
 import {
     isRepairProofGreen,
     machineName,
@@ -104,9 +105,25 @@ export type ReleaseDecision =
     | { kind: "refuse"; reason: string; red: boolean };
 
 /**
+ * The browser step the environment cut short on this record, or null. Only a
+ * run past the offline gates reaches a browser step, and an INFRA there measured
+ * nothing about the tree, so it does not block the release (issue #8760, ADR
+ * 0116's amendment). An INFRA at any other step leaves the offline half or the
+ * deployment unproven; a RED at a browser step is the tree's.
+ */
+export function skippedBrowserProof(
+    record: HealthRecord | null
+): string | null {
+    if (record?.status !== "infra" || !isBrowserStep(record.failedStep))
+        return null;
+    return record.failedStep ?? null;
+}
+
+/**
  * The one decision this script makes, pure so the test can enumerate it:
- * release iff the last health record is GREEN and is about the sha we are
- * about to promote. A green record on an OLDER tip is not evidence about
+ * release iff the last health record is about the sha we are about to promote
+ * and is GREEN, or INFRA at a browser step (`skippedBrowserProof`). A green
+ * record on an OLDER tip is not evidence about
  * this one; a `running` record means another health run has the sha and
  * this invocation must not race it. A GREEN a repair proof earned (issue
  * #7657) is GREEN for the lineage, not the full gate on the exact tip that
@@ -130,6 +147,8 @@ export function releaseDecision(
             red: false,
         };
     }
+    if (skippedBrowserProof(last) !== null)
+        return { kind: "release", sha: tip };
     if (last.status !== "green") {
         return {
             kind: "refuse",
@@ -638,9 +657,15 @@ function main(): void {
 
     const refusal = pushRefusal(promote, promoted);
     if (refusal !== null) giveUp(attempts, refusal);
+    const skipped = skippedBrowserProof(promoted);
+    if (skipped !== null) {
+        console.error(
+            `release: WARNING — the environment cut ${skipped} short on ${promote.slice(0, 8)}, so it measured nothing: promoting on the offline gates alone${promoted?.log ? ` — log: ${promoted.log}` : ""}`
+        );
+    }
     if (gateOnly) {
         console.log(
-            `release: --gate-only — ${promote.slice(0, 8)} is GREEN; ${RELEASE_BRANCH} left where it is`
+            `release: --gate-only — ${promote.slice(0, 8)} is ${skipped === null ? "GREEN" : `offline GREEN, ${skipped} INFRA`}; ${RELEASE_BRANCH} left where it is`
         );
         return;
     }

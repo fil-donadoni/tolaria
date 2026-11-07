@@ -100,7 +100,7 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
     "convex-down":
         "the local Convex backend did not answer; start it with `bun run convex:ensure` (the AFK loop's next pass does), then the next health run re-gates the tip",
     "browser-step":
-        "a browser step was cut short by the environment (a fatal exit, or every failing row INFRA); the next release re-runs it",
+        "a browser step was cut short by the environment (a fatal exit, or every failing row INFRA), so it measured nothing; release promotes with a warning",
     "gate-not-run":
         "a gate could not start (the dependency install failed), so nothing ran; the next health run re-gates the tip",
     "deployment-skew":
