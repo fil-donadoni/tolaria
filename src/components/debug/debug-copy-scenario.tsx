@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FullGameState } from "@convex/gameProjections";
 import type { GameState } from "@convex/gre/state";
 import { specFromState } from "@convex/gre/scenarioBuilder";
+import { installHandWrittenSets } from "~/lib/catalogue/definitionShards";
 import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
 
@@ -32,27 +33,38 @@ export default function DebugCopyScenario({
     const [copyFeedback, setCopyFeedback] = useState(false);
     const [dropped, setDropped] = useState<string[] | null>(null);
 
-    const handleClick = () => {
+    const handleClick = async () => {
         if (!state) return;
-        const { spec, dropped: fromState } = specFromState(
-            state as unknown as GameState,
-            { mySeatId }
-        );
-        const notice = spec.cards.some((c) => c.zone === "exile")
-            ? [
-                  ...fromState,
-                  `face-down-exile status isn't recoverable from this client view (knownTo is stripped before the wire, even in the full debug view) — check exile card(s) by hand if any should carry "faceDownExile"`,
-              ]
-            : fromState;
-        setDropped(notice);
-        void copyMinified(spec);
-        setCopyFeedback(true);
-        setTimeout(() => setCopyFeedback(false), 1500);
+        try {
+            // A token's name comes from the token catalogue, a walk of the whole
+            // hand-written catalogue, and a game holds only its own Sets.
+            await installHandWrittenSets();
+            const { spec, dropped: fromState } = specFromState(
+                state as unknown as GameState,
+                { mySeatId }
+            );
+            const notice = spec.cards.some((c) => c.zone === "exile")
+                ? [
+                      ...fromState,
+                      `face-down-exile status isn't recoverable from this client view (knownTo is stripped before the wire, even in the full debug view) — check exile card(s) by hand if any should carry "faceDownExile"`,
+                  ]
+                : fromState;
+            setDropped(notice);
+            void copyMinified(spec);
+            setCopyFeedback(true);
+            setTimeout(() => setCopyFeedback(false), 1500);
+        } catch (cause: unknown) {
+            setDropped([
+                `this position could not be copied as a scenario: ${
+                    cause instanceof Error ? cause.message : String(cause)
+                }`,
+            ]);
+        }
     };
 
     return (
         <div className="flex flex-col gap-1">
-            <DebugButton onClick={handleClick} disabled={!state}>
+            <DebugButton onClick={() => void handleClick()} disabled={!state}>
                 {copyFeedback ? "Copied!" : "Copy as scenario"}
             </DebugButton>
             {dropped && dropped.length > 0 && (
