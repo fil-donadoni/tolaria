@@ -23687,6 +23687,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 0,
             cards: [
                 {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                {
                     name: "Skullclamp",
                     owner: "me",
                     zone: "battlefield",
@@ -23770,10 +23776,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8271 — a library of real cards, since a filler draw prices at 8 and the Elves at more.",
+        note: "Issue #8271 — a library of real cards, since a filler draw prices at 8 and the Elves at more. Issue #8298 — the opponent holds a library too: with none, they deck out next turn, every line reads as won and the material tie-break decides.",
     },
     {
-        label: "equipment: Skullclamp keeps off the creature it merely weakens",
+        label: "equipment: Skullclamp stays off the 1-toughness attacker with lethal on board",
         classification: {
             kind: "absolute",
         },
@@ -23781,22 +23787,23 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 0,
-            libraryCount: 20,
+            libraryCount: 0,
+            life: { opp: 1 },
             cards: [
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
                 {
                     name: "Skullclamp",
                     owner: "me",
                     zone: "battlefield",
                 },
                 {
-                    name: "Serra Angel",
+                    name: "Llanowar Elves",
                     owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-                {
-                    name: "Craw Wurm",
-                    owner: "opp",
                     zone: "battlefield",
                     summoningSick: false,
                 },
@@ -23806,6 +23813,56 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     count: 1,
                 },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
             ],
         },
         bot: "me",
@@ -23813,17 +23870,20 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
-            forbidden: [
-                {
-                    kind: "activate-ability",
-                    card: "Skullclamp",
-                    target: "Serra Angel",
-                },
-            ],
+            // A predicate on purpose: it yields no Verdict. The reason here is
+            // the lethal attack, which the search reads; as an Eval Pair this
+            // position would teach the fit that every card in hand is worth less.
+            predicate: (move) =>
+                move !== null &&
+                !(
+                    move.kind === "activate-ability" &&
+                    move.abilityId === "skullclamp-equip"
+                ),
+            describe: "does not equip the only attacker with lethal on board",
         },
-        note: "Issue #8298 — owner's row. No position found where this is a blunder.",
+        note: "Issue #8298 — owner's call: equipping is almost always right, and lethal on board is the exception. Minimal pair with the Elves entry above, the opponent's life being the one difference: the equip kills the only attacker. The search decides both, by mean reward.",
     },
     {
         label: "vehicle: crews Smuggler's Copter with the summoning-sick spare",
