@@ -37,8 +37,8 @@ export function getColorOverrideDisplay(
  *  CURRENT colour differs from the one its printed art conveys, or `null` when
  *  the permanent still reads as printed (the overwhelmingly common case).
  *
- *  Two layer-5 shapes drive it, and the overlay must honour BOTH: a colour SET
- *  (`colorOverride`, the lace instants) and a colour GRANT (`grantedColors` —
+ *  Every layer-5 shape drives it: a colour SET (`colorOverride`, the lace
+ *  instants; `colorSet`, a static set — Shifting Sky) and a colour GRANT (`grantedColors` —
  *  Dralnu's Crusade "All Goblins are black", Sinister Strength). Only the SET
  *  used to paint, so a granted colour was invisible on the board even though
  *  the engine, targeting and the rules all treated the permanent as that
@@ -49,7 +49,8 @@ export function getEffectiveColorDisplay(
 ): ColorOverrideDisplay | null {
     const hasLayerFive =
         (card.colorOverride?.length ?? 0) > 0 ||
-        (card.grantedColors?.length ?? 0) > 0;
+        (card.grantedColors?.length ?? 0) > 0 ||
+        card.colorSet !== undefined;
     if (!hasLayerFive) return null;
     return getColorOverrideDisplay(
         getEffectiveColors(card as unknown as PermanentView)

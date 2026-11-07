@@ -186,6 +186,7 @@ export const CARD_FIELD_LIFECYCLE = {
     triggersThisTurn:           { codec: "record",  reset: ["custom:turn", "zone-change"] },
     colorOverride:              { codec: "list",    reset: ZONE },
     grantedColors:              { codec: "list",    reset: ZONE },
+    colorSet:                   { codec: "scalar",  reset: ZONE },
     grantedSupertypes:          { codec: "list",    reset: ZONE },
     removedSupertypes:          { codec: "list",    reset: ZONE },
     copyExcept:                 { codec: "scalar",  reset: NONE },

@@ -10747,6 +10747,41 @@ export interface StaticColorGrant extends ZoneScopedStaticEffect {
     affectsEveryZone?: true;
 }
 
+/** Layer 5 colour SET (CR 105.3 — "All nonland permanents are the chosen
+ *  color", Shifting Sky): the new colours REPLACE every colour the target had,
+ *  printed and granted alike. The replacing sibling of {@link StaticColorGrant},
+ *  as `subtype-set` is the replacing sibling of `subtype-add`.
+ *
+ *  CR 613.7 — ordered against the other layer-5 effects by timestamp inside the
+ *  layer walk (`gre/layers2to5.ts`): a grant with an EARLIER timestamp is
+ *  replaced, one with a LATER timestamp adds on top. The derived answer is
+ *  materialised onto `colorSet`, which `getEffectiveColors`
+ *  (`cards/effectiveColors.ts`) reads in place of the printed colours. */
+export interface StaticColorSet extends ZoneScopedStaticEffect {
+    kind: "color-set";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** The colours the target becomes. `"chosen-color"` reads the SOURCE's
+     *  stored as-enters colour choice (`chosenModeId`), exactly as
+     *  `StaticColorGrant.colors` does; a source with no valid choice sets
+     *  nothing. Resolved by {@link colorSetColors}, never read raw. */
+    colors: Color[] | "chosen-color";
+}
+
+/** CR 105.3 — the colours a `color-set` sets, with `"chosen-color"` resolved
+ *  against `source`'s stored choice. Empty means the effect sets nothing (no
+ *  valid choice was stored) — never "becomes colourless". */
+export function colorSetColors(
+    effect: StaticColorSet,
+    source: PermanentView
+): Color[] {
+    if (effect.colors !== "chosen-color") return effect.colors;
+    return chosenColorOf(source as { chosenModeId?: string });
+}
+
 /** CR 105.3 — the colours a `color-grant` adds, with `"chosen-color"`
  *  resolved against `source`'s stored choice (`chosenModeId`). Only the five
  *  colours are a legal choice (CR 105.1); anything else grants nothing. */
@@ -11754,6 +11789,7 @@ export type StaticEffect =
               | StaticSubtypeAdd
               | StaticSupertypeSet
               | StaticColorGrant
+              | StaticColorSet
           ) &
               SourceDepartureLinger &
               SourceZoneScope)

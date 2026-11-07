@@ -24,7 +24,9 @@ const IS_FOREST_OR_SAPROLING: StaticPTSet["applies"] = (target, _source, ctx) =>
 //     becomes a Creature, neither losing what it printed;
 //   • `subtype-add` ["Saproling", "Forest"] (CR 305.7, same layer) — additive
 //     for the same reason, so a Bayou stays Swamp Forest and gains Saproling;
-//   • `color-grant` ["G"] (CR 613.1e layer 5) — see the divergence below;
+//   • `color-set` ["G"] (CR 613.1e layer 5) — "are ... GREEN ... creatures"
+//     with no "in addition" for the colour, so CR 105.3 replaces every colour
+//     the object had: a Forest that was some other colour is mono-green;
 //   • `pt-set` 1/1 (CR 613.4b sublayer 7b) — the kind issue #3161 added. A
 //     Saproling token is ALREADY 1/1, which is what makes 7b the only correct
 //     home: a 7a `pt-cda` contribution of 1/1 would read 2/2 on it, and a 7c
@@ -32,14 +34,6 @@ const IS_FOREST_OR_SAPROLING: StaticPTSet["applies"] = (target, _source, ctx) =>
 // The animated lands are affected by summoning sickness like any other
 // creature (CR 302.6) — the reminder text on the card, and nothing the card
 // declares: the engine's general rule already answers it.
-//
-// SIMPLIFICATION (tracked-by: #3169): "are 1/1 GREEN ... creatures" SETS the
-// colour (CR 105.2, 613.1e), and the card-declarable `color-grant` only ADDS.
-// The registry payload `color-change` has a `set` leg with no producer
-// (`gre/layers2to5.ts`). For the two things this card actually animates the
-// two answers coincide — a Forest is already mono-green and a Saproling token
-// is created green — so the divergence is observable only on a Forest that is
-// some OTHER colour first (a Dryad Arbor stolen by a colour-granting effect).
 //
 // CR 613.8 orders this card's layer-4 effects against Blood Moon / Magus of the
 // Moon by DEPENDENCY, not by timestamp (issue #2068): the predicate below reads
@@ -87,9 +81,9 @@ export const lifeAndLimb = defineCard(() => ({
             applies: IS_FOREST_OR_SAPROLING,
             subtypes: ["Saproling", "Forest"],
         },
-        // CR 613.1e — layer 5. Additive, not a set (tracked-by: #3169).
+        // CR 613.1e — layer 5. A colour SET (CR 105.3).
         {
-            kind: "color-grant",
+            kind: "color-set",
             applies: IS_FOREST_OR_SAPROLING,
             colors: ["G"],
         },
