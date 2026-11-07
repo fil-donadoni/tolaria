@@ -5,12 +5,10 @@ import { useEffect } from "react";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import CardProfileOracleText from "~/components/lobby/card-profile-oracle-text";
-import { ARCHETYPE_REGISTRY } from "@convex/limited/archetypeRegistry";
-import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
 import type { ProfilesProtoApi } from "./card-profiles-prototype";
 import type { ProtoCard } from "./proto-data";
 import { ArtTile, ManaCost, StatusBadge } from "./proto-bits";
-import { ChipGroup } from "./profiles-variant-a-workbench";
+import ProtoPickerMatrix from "./proto-picker-matrix";
 
 export default function ProfilesFocusDialog({
     card,
@@ -64,7 +62,7 @@ export default function ProfilesFocusDialog({
             }
             align="start"
             size="wide"
-            className="max-w-[1100px]"
+            className="max-w-[1400px]"
             density="comfortable"
             showCloseButton
             footer={
@@ -128,44 +126,9 @@ export default function ProfilesFocusDialog({
                                 {card.rationale}
                             </blockquote>
                         )}
-                        <ChipGroup
-                            legend="Archetypes"
-                            ids={ARCHETYPE_REGISTRY.map((r) => ({
-                                id: r.id,
-                                d: r.description,
-                            }))}
-                            value={card.profile?.archetypes ?? []}
-                            onToggle={(id) =>
-                                api.toggleTag(card.cardId, "archetypes", id)
-                            }
-                        />
-                        <div className="grid grid-cols-2 gap-4">
-                            <ChipGroup
-                                legend="Provides"
-                                tone="provides"
-                                ids={CAPABILITY_REGISTRY.map((r) => ({
-                                    id: r.id,
-                                    d: r.description,
-                                }))}
-                                value={card.profile?.provides ?? []}
-                                onToggle={(id) =>
-                                    api.toggleTag(card.cardId, "provides", id)
-                                }
-                            />
-                            <ChipGroup
-                                legend="Requires"
-                                tone="requires"
-                                ids={CAPABILITY_REGISTRY.map((r) => ({
-                                    id: r.id,
-                                    d: r.description,
-                                }))}
-                                value={card.profile?.requires ?? []}
-                                onToggle={(id) =>
-                                    api.toggleTag(card.cardId, "requires", id)
-                                }
-                                hint="Empty is the norm."
-                            />
-                        </div>
+                    </div>
+                    <div className="col-span-2 border-t border-border-subtle/30 pt-4">
+                        <ProtoPickerMatrix card={card} api={api} />
                     </div>
                 </div>
             )}

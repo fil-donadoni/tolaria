@@ -12,6 +12,8 @@ import {
     PanelLeftOpen,
 } from "lucide-react";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
+import { ARCHETYPE_REGISTRY } from "@convex/limited/archetypeRegistry";
+import MultiCombobox from "~/components/lobby/deck-builder/multi-combobox";
 import { Panel, PanelBody, PanelHeader } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -53,10 +55,15 @@ export default function ProfilesVariantDDialog({
         key: "name",
         dir: 1,
     });
-    const [statusFilter, setStatusFilter] = useState<ProfileStatus | "all">(
-        "all"
-    );
-    const [capFilter, setCapFilter] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string[]>([]);
+    const [archFilter, setArchFilter] = useState<string[]>([]);
+    const [provFilter, setProvFilter] = useState<string[]>([]);
+    const [reqFilter, setReqFilter] = useState<string[]>([]);
+    const toggleIn =
+        (set: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) =>
+            set((xs) =>
+                xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]
+            );
 
     const cards = api.cards;
     const rows = useMemo(() => (cards ? catalogueRows(cards) : []), [cards]);
@@ -73,12 +80,22 @@ export default function ProfilesVariantDDialog({
         const list = cards.filter((c) => {
             if (q && !c.name.toLowerCase().includes(q)) return false;
             if (unreviewedOnly && c.status === "reviewed") return false;
-            if (statusFilter !== "all" && c.status !== statusFilter)
+            // Within a combobox OR, across comboboxes AND.
+            if (statusFilter.length && !statusFilter.includes(c.status))
                 return false;
             if (
-                capFilter !== "all" &&
-                !c.profile?.provides.includes(capFilter) &&
-                !c.profile?.requires.includes(capFilter)
+                archFilter.length &&
+                !archFilter.some((a) => c.profile?.archetypes.includes(a))
+            )
+                return false;
+            if (
+                provFilter.length &&
+                !provFilter.some((a) => c.profile?.provides.includes(a))
+            )
+                return false;
+            if (
+                reqFilter.length &&
+                !reqFilter.some((a) => c.profile?.requires.includes(a))
             )
                 return false;
             if (
@@ -98,7 +115,9 @@ export default function ProfilesVariantDDialog({
         unreviewedOnly,
         rowFilter,
         statusFilter,
-        capFilter,
+        archFilter,
+        provFilter,
+        reqFilter,
         sort,
     ]);
 
@@ -222,7 +241,7 @@ export default function ProfilesVariantDDialog({
                     subtitle={`${filtered.length} of ${cards?.length ?? 0} · click a row to open it`}
                 />
                 <PanelBody className="flex min-h-0 flex-col gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <Input
                             placeholder="Search…"
                             aria-label="Search cards"
@@ -240,42 +259,56 @@ export default function ProfilesVariantDDialog({
                             />
                             Unreviewed only
                         </label>
-                        <select
-                            aria-label="Filter by status"
-                            value={statusFilter}
-                            onChange={(e) =>
-                                setStatusFilter(
-                                    e.currentTarget.value as
-                                        | ProfileStatus
-                                        | "all"
-                                )
-                            }
-                            className="rounded-sm border border-border-subtle/40 bg-surface px-2 py-1 text-xs text-text"
-                        >
-                            <option value="all">Any status</option>
-                            {(Object.keys(STATUS_LABEL) as ProfileStatus[]).map(
-                                (k) => (
-                                    <option key={k} value={k}>
-                                        {STATUS_LABEL[k]}
-                                    </option>
-                                )
-                            )}
-                        </select>
-                        <select
-                            aria-label="Filter by capability"
-                            value={capFilter}
-                            onChange={(e) =>
-                                setCapFilter(e.currentTarget.value)
-                            }
-                            className="rounded-sm border border-border-subtle/40 bg-surface px-2 py-1 font-mono text-xs text-text"
-                        >
-                            <option value="all">Any capability</option>
-                            {CAPABILITY_REGISTRY.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                    {r.id}
-                                </option>
-                            ))}
-                        </select>
+                        <MultiCombobox
+                            options={(
+                                Object.keys(STATUS_LABEL) as ProfileStatus[]
+                            ).map((k) => ({
+                                value: k,
+                                label: STATUS_LABEL[k],
+                            }))}
+                            selected={statusFilter}
+                            onToggle={toggleIn(setStatusFilter)}
+                            placeholder="Status"
+                            searchPlaceholder="Status…"
+                            emptyText="No status"
+                            labelClassName=""
+                        />
+                        <MultiCombobox
+                            options={ARCHETYPE_REGISTRY.map((r) => ({
+                                value: r.id,
+                                label: r.id,
+                            }))}
+                            selected={archFilter}
+                            onToggle={toggleIn(setArchFilter)}
+                            placeholder="Archetype"
+                            searchPlaceholder="Archetype…"
+                            emptyText="No archetype"
+                            labelClassName="font-mono"
+                        />
+                        <MultiCombobox
+                            options={CAPABILITY_REGISTRY.map((r) => ({
+                                value: r.id,
+                                label: r.id,
+                            }))}
+                            selected={provFilter}
+                            onToggle={toggleIn(setProvFilter)}
+                            placeholder="Provides"
+                            searchPlaceholder="Capability…"
+                            emptyText="No capability"
+                            labelClassName="font-mono"
+                        />
+                        <MultiCombobox
+                            options={CAPABILITY_REGISTRY.map((r) => ({
+                                value: r.id,
+                                label: r.id,
+                            }))}
+                            selected={reqFilter}
+                            onToggle={toggleIn(setReqFilter)}
+                            placeholder="Requires"
+                            searchPlaceholder="Capability…"
+                            emptyText="No capability"
+                            labelClassName="font-mono"
+                        />
                         {rowFilter && (
                             <Button
                                 variant="ghost"
