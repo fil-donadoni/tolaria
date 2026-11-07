@@ -7724,9 +7724,9 @@ export function removePermanentTo(
         // CR 400.7 (issue #2084) — graveyard / exile deliberately PRESERVE the
         // instance's history (the counters snapshot, the damage record a death
         // trigger reads), but never its characteristics: the card that lands
-        // there is a new object showing its PRINTED type line. Only the type
-        // half of the reset is owed here, so it goes through the extracted
-        // `revertTypeLine` rather than the whole helper.
+        // there is a new object showing its PRINTED type line and colours. Only
+        // that half of the reset is owed here, so it goes through the extracted
+        // reverts rather than the whole helper.
         //
         // NOT covered by the `applyZoneCharacteristics` call further down,
         // despite what that call's comment used to claim: it early-returns for
@@ -7734,6 +7734,7 @@ export function removePermanentTo(
         // characteristics (CR 113.6c, Grist), which is every card but a
         // handful.
         revertTypeLine(creature);
+        revertColorChanges(creature);
         // CR 400.7 (ADR 0082, PRD #2064 S6) — but the registry residue goes on
         // EVERY departure, not only the two the full reset covers. The card
         // that lands in the graveyard or in exile is a new object, so an
@@ -10457,11 +10458,32 @@ export function revertTypeLine(card: CardInstanceState): void {
         card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
         delete card.temporarySubtypeChange;
     }
+    // CR 613.1d — the captured base has the last word: `subtypes` is derived
+    // output, so an anchor above recorded it COMPOSED (a Forest another
+    // permanent's static had added) and only the base is what the card prints.
+    // An add's ledger and every supertype change end the same way; the supertype
+    // reads consult these fields, not a printed line, so clearing IS the revert.
+    if (card.baseSubtypes) card.subtypes = [...card.baseSubtypes];
+    delete card.subtypeAddHolds;
+    delete card.supertypeHolds;
+    delete card.grantedSupertypes;
+    delete card.removedSupertypes;
     // `grantedTypes` / `suppressedTypes` are keyed by the SOURCE but mutate the
     // TARGET's `types` in place, so the source-driven reversal never fires when
     // the TARGET is the one leaving (issue #2086). Restores the printed type
     // line BEFORE the records are dropped; see the helper's own doc.
     revertTypeProvenance(card);
+}
+
+/** CR 400.7 / 613.1e — the colour half of the same revert: the card that lands
+ *  in the graveyard or in exile is a new object showing the colours it PRINTS,
+ *  because `getEffectiveColors` folds these fields over the printed cost. A
+ *  colour an every-zone static (CR 613.1e, `affectsEveryZone`) gives a card in
+ *  that zone is derived anew by the next `syncLayers2to5`. */
+function revertColorChanges(card: CardInstanceState): void {
+    delete card.colorOverride;
+    delete card.temporaryColorOverrides;
+    delete card.grantedColors;
 }
 
 /** CR 400.7 / 509.1c (issue #3713) — removes `attackerId` from every
@@ -10575,7 +10597,6 @@ export function resetBattlefieldTransientState(
     // themselves are `zone-change` rows of the lifecycle table, deleted by
     // the generic clear at the end — after this read.
     card.types = [...(card.baseTypes ?? card.types)];
-    card.subtypes = [...(card.baseSubtypes ?? card.subtypes)];
     // CR 400.7 / 611.2a (issue #1746) — a subtype REPLACEMENT survives a phase
     // boundary when it is indefinite (and the timed form outlives a zone change
     // too, which is equally wrong), so it must be undone here or a bounced
