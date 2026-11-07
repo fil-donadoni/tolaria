@@ -29,8 +29,4 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "X into an ETB trigger: casts Wan Shi Tong, Librarian for all its mana",
         issue: 8740,
     },
-    {
-        label: "choice-behind payoff: the re-type mode denies the opponent the colour it is visibly using",
-        issue: 8788,
-    },
 ];
