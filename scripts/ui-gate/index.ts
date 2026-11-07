@@ -370,13 +370,16 @@ function evaluate(
     diffScope: DiffScope | null,
     matrix: readonly Viewport[] = VIEWPORTS
 ): Evaluation {
+    const viewportsOf = (surface: string) =>
+        viewportIdsFor(SURFACE_BY_ID.get(surface) ?? {}, matrix);
     return evaluateRun({
-        knownSurfaceIds: knownIds,
+        // A surface owing no cell in this matrix (a `cardsOnly`-only
+        // `--viewport=` subset) is outside the run, not unwalked.
+        knownSurfaceIds: knownIds.filter((id) => viewportsOf(id).length > 0),
         walks,
         definedSurfaceIds: SURFACE_IDS,
         viewportIds: matrix.map((v) => v.id),
-        viewportsOf: (surface) =>
-            viewportIdsFor(SURFACE_BY_ID.get(surface) ?? {}, matrix),
+        viewportsOf,
         unwalked: UNWALKED_SURFACES,
         diffScope,
         assertsBySurface: assertLabelsBySurface(SURFACES),

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { EmblemInstance } from "@convex/cards/types";
-import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
 import { buildEmblemPreviewBody } from "~/lib/preview-body";
 import CardPreview from "../cards/card-preview";
-import useCardSlotFloor from "~/hooks/useCardSlotFloor";
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 
 /** A single command-zone emblem (CR 114) rendered as its printed Scryfall art
  *  (layout `emblem`, e.g. Sorin, Lord of Innistrad Emblem). The tile art URL is
@@ -18,14 +17,21 @@ import useCardSlotFloor from "~/hooks/useCardSlotFloor";
  *  in-app text placeholder (name + oracle text). */
 export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
     const imageId = emblem.imagePrintId;
-    // WebP → jpg fallback, keyed off the image id so a re-used slot re-tries
-    // WebP for a new emblem (mirrors CardImage). `loaded` hides the raw box
-    // while the bitmap streams in.
-    const [jpgFallback, setJpgFallback] = useState(false);
+    // `loaded` hides the raw box while the bitmap streams in.
     const [loaded, setLoaded] = useState(false);
     // The tile's own box is the slot — measured, never a hand-written hint
-    // (issue #3553). No source until the first measurement.
-    const { slotRef, floor, measured } = useCardSlotFloor<HTMLDivElement>();
+    // (issue #3553); the one printed-face source contract (issue #8321)
+    // owns the srcset, the 1x bitmap and the WebP → jpg fallback. No source
+    // until the first measurement.
+    const { slotRef, attrs, onError } = usePrintedFaceSource<HTMLDivElement>({
+        imageId: imageId ?? null,
+        // "hint generously" used to live here — a 200px constant guessing
+        // at a tile that paints at ~--card-w-sm. The hint is the measured
+        // slot now (issue #3553); this is the no-layout fallback.
+        fallbackSizes: "200px",
+        fallbackIncludeThumb: false,
+        onExhausted: () => setLoaded(true),
+    });
 
     return (
         <CardPreview
@@ -43,35 +49,19 @@ export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
                     className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base"
                 >
                     {imageId ? (
-                        // `measured &&`, not `imageId && measured ?` — a
-                        // not-yet-measured card must render NOTHING for the
-                        // frame, never the no-art placeholder.
-                        measured && (
+                        // `attrs &&`, not `imageId && attrs ?` — a card
+                        // whose source is not settled must render NOTHING for
+                        // the frame, never the no-art placeholder.
+                        attrs && (
                             <img
                                 data-card-face="printed"
-                                {...(jpgFallback
-                                    ? { src: getImageFallbackUrl(imageId) }
-                                    : {
-                                          src: getImageUrl(imageId),
-                                          srcSet: getImageSrcSet(imageId, {
-                                              includeThumb:
-                                                  floor?.includeThumb ?? false,
-                                          }),
-                                          // "hint generously" used to live here —
-                                          // a 200px constant guessing at a tile
-                                          // that paints at ~--card-w-sm. The hint
-                                          // is the measured slot now (issue #3553).
-                                          sizes: floor?.sizes ?? "200px",
-                                      })}
+                                {...attrs}
                                 className="w-full h-full object-cover block select-none"
                                 alt={emblem.name}
                                 decoding="async"
                                 draggable={false}
                                 onLoad={() => setLoaded(true)}
-                                onError={() => {
-                                    if (!jpgFallback) setJpgFallback(true);
-                                    else setLoaded(true);
-                                }}
+                                onError={onError}
                             />
                         )
                     ) : (

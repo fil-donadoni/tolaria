@@ -1,11 +1,5 @@
 import { memo, useState } from "react";
-import {
-    DEFAULT_CARD_IMAGE_SIZES,
-    getImageFallbackUrl,
-    getImageSrcSet,
-    getImageUrl,
-    resolveCardImageFace,
-} from "~/lib/images";
+import { DEFAULT_CARD_IMAGE_SIZES, resolveCardImageFace } from "~/lib/images";
 import { tryGetDefinition } from "@convex/cards";
 import { copyExceptName } from "@convex/cards/cardNames";
 import type { CardInstance } from "~/types/game";
@@ -24,7 +18,7 @@ import TokenPlaceholder from "./token-placeholder";
 import CardBack from "./card-back";
 import ColorRingOverlay from "./color-ring-overlay";
 import { getEffectiveColorDisplay } from "~/lib/color-override";
-import useCardSlotFloor from "~/hooks/useCardSlotFloor";
+import usePrintedFaceSource from "~/hooks/usePrintedFaceSource";
 import { useTokenPrints } from "~/hooks/useTokenPrints";
 import { resolveArtPrintId } from "~/lib/tokenArt";
 
@@ -109,23 +103,8 @@ function CardImageImpl({
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
-    // The wrapper below IS the slot — the image fills it — so its measured
-    // width is what the srcset hint must describe (issue #3553). Until the
-    // first measurement lands the `<img>` carries no source at all: a hint
-    // applied after the browser has already picked a candidate cannot
-    // un-pick it, and the whole defect is a candidate picked at first paint.
-    const {
-        slotRef,
-        floor,
-        measured: slotMeasured,
-    } = useCardSlotFloor<HTMLDivElement>();
-    const slot = floor ?? { sizes, includeThumb };
     const [loaded, setLoaded] = useState(false);
     const tokenPrints = useTokenPrints();
-    // WebP-first with jpg fallback. Keyed to the image id (not a boolean) so a
-    // memo-retained component that switches identity re-tries WebP for the new
-    // card instead of inheriting the previous card's failure.
-    const [jpgFallbackFor, setJpgFallbackFor] = useState<string | null>(null);
     // A face-down object (CR 708.2 permanent/spell, CR 406.3 exiled card)
     // renders a FACE-DOWN FACE for every viewer, its controller included —
     // `getCardImageDefId` has already collapsed `defId` to the sentinel, which
@@ -184,6 +163,25 @@ function CardImageImpl({
     // Scryfall CDN face segment that definition renders (issue #1595). A
     // face-down face is never a transform back face.
     const face = faceDownFace ? "front" : resolveCardImageFace(defId);
+    // The wrapper below IS the slot — the image fills it — so its measured
+    // width is what the source must describe (issue #3553), and on a 1x
+    // display the art is resampled to that slot's exact device box (issue
+    // #8321). Until the source is settled the `<img>` carries none at all: a
+    // hint applied after the browser has already picked a candidate cannot
+    // un-pick it, and the whole defect is a candidate picked at first paint.
+    // The hook owns the WebP → jpg fallback too, keyed to the image id so a
+    // memo-retained component that switches identity re-tries for the new
+    // card instead of inheriting the previous card's failure.
+    const { slotRef, attrs, onError } = usePrintedFaceSource<HTMLDivElement>({
+        imageId,
+        face,
+        fallbackSizes: sizes,
+        fallbackIncludeThumb: includeThumb,
+        // A lazy grid fetches art as it scrolls into view; the bitmap is
+        // made eagerly, so a lazy face keeps the srcset path.
+        bitmap: !lazy,
+        onExhausted: () => setLoaded(true),
+    });
     return (
         <CardPreview
             cardId={defId}
@@ -200,24 +198,15 @@ function CardImageImpl({
                 {faceDownFace?.kind === "back" ? (
                     <CardBack />
                 ) : imageId ? (
-                    // `slotMeasured &&` INSIDE the `imageId` branch, never
-                    // `imageId && slotMeasured ?` — a card whose slot has not
-                    // been measured yet must render nothing for that frame,
-                    // never the token placeholder, which is the "this card has
-                    // no printed art" face.
-                    slotMeasured && (
+                    // `attrs &&` INSIDE the `imageId` branch, never
+                    // `imageId && attrs ?` — a card whose source is not
+                    // settled yet must render nothing for that frame, never
+                    // the token placeholder, which is the "this card has no
+                    // printed art" face.
+                    attrs && (
                         <img
                             data-card-face="printed"
-                            {...(jpgFallbackFor === imageId
-                                ? { src: getImageFallbackUrl(imageId, face) }
-                                : {
-                                      src: getImageUrl(imageId, face),
-                                      srcSet: getImageSrcSet(imageId, {
-                                          includeThumb: slot.includeThumb,
-                                          face,
-                                      }),
-                                      sizes: slot.sizes,
-                                  })}
+                            {...attrs}
                             className="w-full h-full object-cover block select-none"
                             style={{ WebkitTouchCallout: "none" }}
                             alt={name}
@@ -225,13 +214,7 @@ function CardImageImpl({
                             {...(lazy ? { loading: "lazy" as const } : {})}
                             draggable={false}
                             onLoad={() => setLoaded(true)}
-                            onError={() => {
-                                // WebP missing (spoiler/lowres printing) → retry
-                                // as jpg; a second failure ends the loader.
-                                if (jpgFallbackFor !== imageId)
-                                    setJpgFallbackFor(imageId);
-                                else setLoaded(true);
-                            }}
+                            onError={onError}
                         />
                     )
                 ) : (
