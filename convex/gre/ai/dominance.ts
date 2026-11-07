@@ -69,10 +69,10 @@
 //   * The mover's MANA POOL is compared, not ignored: the
 //     probe never credits or debits the pool, so a difference there is mana the
 //     RESOLUTION made. A ritual is never prunable.
-//   * An activated ability whose cost is anything other than tap + mana is never
-//     probed — a sacrifice / discard / exile / life / counter cost can itself be
-//     the payoff (a death trigger, a graveyard filler), and the probe models
-//     costs only coarsely.
+//   * An activated ability whose cost is anything other than tap + mana (or a
+//     loyalty minus) is never probed — a sacrifice / discard / exile / life /
+//     counter cost can itself be the payoff (a death trigger, a graveyard filler),
+//     and the probe models costs only coarsely.
 //   * The SAME gate on the cast side: a spell that
 //     declares `additionalCosts` (CR 118.3-5 / 601.2f), pays Phyrexian life
 //     (CR 107.4f) or has delve (CR 702.66) is never probed. `applyProbeCast`
@@ -1730,7 +1730,10 @@ export function isProbeEligibleMove(
             cost.removeCounter ||
             cost.addCounter ||
             cost.life !== undefined ||
-            cost.loyalty !== undefined
+            // CR 606.4 — a tick up is a payoff of its own. Counters taken off buy
+            // nothing but the resolution the probe reads, so a minus with no
+            // effect is proved like any other no-op.
+            (cost.loyalty !== undefined && cost.loyalty >= 0)
         );
     }
     // Issue #4441 — only a cast or a printed-ability activation is probed (a

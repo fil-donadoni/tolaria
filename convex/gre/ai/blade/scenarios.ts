@@ -23014,7 +23014,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8271 — the same shrink on its own side. With Griselbrand the Bot did elk it: rollouts pay its 7 life to their own death, so stripping the ability read as a gain.",
     },
     {
-        label: "standing resource: Liliana of the Veil holds her -2 against an army",
+        label: "discard: Liliana of the Veil holds her +1 when it only costs her own card",
         classification: {
             kind: "absolute",
         },
@@ -23029,26 +23029,24 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "me",
                     zone: "battlefield",
                     counters: {
-                        loyalty: 5,
+                        loyalty: 3,
                     },
                 },
                 {
-                    name: "Serra Angel",
+                    name: "Shivan Dragon",
                     owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
+                    zone: "hand",
                 },
                 {
-                    name: "Llanowar Elves",
-                    owner: "opp",
+                    name: "Plains",
+                    owner: "me",
                     zone: "battlefield",
-                    count: 4,
-                    summoningSick: false,
+                    count: 5,
                 },
                 {
                     name: "Plains",
                     owner: "opp",
-                    zone: "hand",
+                    zone: "battlefield",
                     count: 3,
                 },
             ],
@@ -23058,17 +23056,65 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
-            forbidden: [
+            predicate: (move) =>
+                move?.kind !== "activate-ability" ||
+                (move.abilityId !== "liliana-veil-plus1" &&
+                    move.abilityId !== "liliana-veil-minus2"),
+            describe: "a move other than either loyalty activation",
+        },
+        note: "Issue #8480 — the opponent's hand is empty, so the +1 discards only the Bot's one card. The search scored it before the discard and the next turn, so it took the free tick on all 5 seeds. Twin: `discard: Liliana of the Veil takes a card with her +1 when her hand is empty`.",
+    },
+    {
+        label: "discard: Liliana of the Veil takes a card with her +1 when her hand is empty",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
                 {
-                    kind: "activate-ability",
-                    card: "Liliana of the Veil",
-                    target: "opp",
+                    name: "Liliana of the Veil",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "hand",
                 },
             ],
         },
-        note: "Issue #8294 — the opponent gives up its worst of four, and the +1 would take a card.",
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "activate-ability" &&
+                move.abilityId === "liliana-veil-plus1",
+            describe: "the +1 loyalty activation",
+        },
+        note: "Issue #8480 — the same +1 with the cost gone: the Bot has nothing to discard and the opponent has three spells. Twin: `discard: Liliana of the Veil holds her +1 when it only costs her own card`.",
     },
     {
         label: "standing resource: Liliana of the Veil keeps the Serra Angel and her loyalty",
@@ -23107,7 +23153,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             iterations: 400,
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -23122,7 +23168,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8294 — the +1 would discard the plan and the -2 has no creature to take.",
+        note: "Issue #8294 — the +1 would discard the plan and the -2 has no creature to take. Issue #8480: a -2 with nothing to take was picked here until it was proved a no-op.",
     },
     {
         label: "loyalty: Wrenn and Six returns the Strip Mine",
