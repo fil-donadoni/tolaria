@@ -247,11 +247,14 @@ segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/;/\
 /g')
 
-# True when some single segment matches every pattern given.
+# True when some single segment matches every pattern given. `-e` makes grep
+# read the argument as a PATTERN: one starting with `--` (`--add-label…`) is
+# otherwise parsed as an option, fails with a usage error, and the `|| true`
+# below reads that as "no match" (issue #8562).
 seg_has() {
     matching=$(printf '%s\n' "$segments")
     for pattern in "$@"; do
-        matching=$(printf '%s\n' "$matching" | grep -E "$pattern" || true)
+        matching=$(printf '%s\n' "$matching" | grep -E -e "$pattern" || true)
         [ -n "$matching" ] || return 1
     done
     return 0

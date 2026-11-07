@@ -1626,6 +1626,49 @@ describe("deny-guard — the claim is the label, typed by hand (ADR 0156)", () =
     });
 });
 
+describe("deny-guard § 6c — a release with an open PR must carry the hand-back (issue #8562)", () => {
+    // `seg_has` handed `--add-label…` to `grep -E` as a pattern; grep read it
+    // as an option, failed, and `|| true` made it "no match" — so EVERY
+    // hand-back release was refused. The real `release-check.ts` reads `gh`,
+    // so the fixture project carries a stand-in with the same contract: exit 2
+    // + refusal unless `--hand-back` is passed (an issue with an open PR).
+    let projectDir: string;
+    const env = () => ({ CLAUDE_PROJECT_DIR: projectDir });
+    const RELEASE =
+        "gh issue edit 8451 --remove-label ready-for-agent --remove-label in-progress --remove-label pr-open --remove-assignee @me";
+
+    beforeAll(() => {
+        projectDir = fs.mkdtempSync(path.join(tmp, "release-6c-"));
+        fs.mkdirSync(path.join(projectDir, "scripts"));
+        fs.writeFileSync(
+            path.join(projectDir, "scripts", "release-check.ts"),
+            [
+                'if (process.argv.includes("--hand-back")) process.exit(0);',
+                'console.error("issue has open PR: add --add-label ready-for-human");',
+                "process.exit(2);",
+                "",
+            ].join("\n")
+        );
+    });
+
+    it.each([
+        `${RELEASE} --add-label ready-for-human`,
+        `${RELEASE} --add-label=ready-for-human`,
+        `${RELEASE} --add-label bug,ready-for-human`,
+    ])("allows the release carrying the hand-back: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree), env());
+        expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
+            false
+        );
+    });
+
+    it("still refuses the same release without the hand-back label", () => {
+        const r = runHook(DENY_GUARD, bash(RELEASE, issueWorktree), env());
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/open PR/);
+    });
+});
+
 describe("deny-guard — the release is one act: label AND assignee, never half a release (issue #4752)", () => {
     // A label-only release left the `@me` assignee, and the planner deferred
     // the issue as "assigned — someone is working it" on every pass, forever.
