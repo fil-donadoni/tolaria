@@ -51,11 +51,28 @@ const emergeProbe: CardDefinition = {
 };
 registerTokenDefinition(emergeProbe);
 
+const EMERGE_FROM_SWAMP_PROBE_ID = "test:emerge-from-swamp-alt-cost-probe";
+registerTokenDefinition({
+    ...emergeProbe,
+    id: EMERGE_FROM_SWAMP_PROBE_ID,
+    name: "Emerge From Swamp Alt-Cost Probe",
+    emerge: {
+        ...emergeProbe.emerge!,
+        description: "Emerge from Swamp {5}{B}{B}",
+        permanent: {
+            action: "sacrifice",
+            count: 1,
+            filter: { subtypes: "Swamp" },
+        },
+    },
+});
+
 function emergeOptionOffered(
     permanentCardId: string,
-    others: string[] = []
+    others: string[] = [],
+    probeId: string = EMERGE_PROBE_ID
 ): boolean {
-    const probeInst = makeInstance(EMERGE_PROBE_ID, {
+    const probeInst = makeInstance(probeId, {
         id: "probe",
         controllerId: "p1",
         ownerId: "p1",
@@ -110,21 +127,26 @@ describe("affordableAltCostsForCard — Emerge cast-option picker gate (CR 702.1
         expect(emergeOptionOffered(grizzlyBears().id)).toBe(false);
     });
 
-    // CR 118.9d / 601.2f — the probe's {B}{B} owes two Swamps under Drought, on
-    // top of the artifact, and the picker prices the two costs together.
-    it("offers it under Drought when the Swamps cover the tax beside the artifact", () => {
+    // CR 118.9d / 601.2f — the probe's {B}{B} owes two Swamps under Drought. An
+    // emerge leg that also takes a Swamp owes a third, though two Swamps pass
+    // each half alone, so the picker prices the two costs together.
+    it("offers an emerge from Swamp under Drought when the Swamps cover the leg and the tax", () => {
         expect(
-            emergeOptionOffered(solRing().id, [
-                drought().id,
+            emergeOptionOffered(
                 swamp().id,
-                swamp().id,
-            ])
+                [drought().id, swamp().id, swamp().id],
+                EMERGE_FROM_SWAMP_PROBE_ID
+            )
         ).toBe(true);
     });
 
-    it("withholds it under Drought when the Swamps cover only part of the tax", () => {
+    it("withholds it when two Swamps cover each half but not the whole", () => {
         expect(
-            emergeOptionOffered(solRing().id, [drought().id, swamp().id])
+            emergeOptionOffered(
+                swamp().id,
+                [drought().id, swamp().id],
+                EMERGE_FROM_SWAMP_PROBE_ID
+            )
         ).toBe(false);
     });
 });
