@@ -253,6 +253,14 @@ export function acquireFaceBitmap(
                 if (url) URL.revokeObjectURL(url);
                 return null;
             }
+            if (url === null) {
+                // A failed resample (network, CORS, timeout, a dead worker)
+                // is not cached: the next face to mount at this key tries
+                // again, instead of inheriting the failure until eviction —
+                // which a mounted holder prevents.
+                entries.delete(key);
+                return null;
+            }
             created.url = url;
             return url;
         });

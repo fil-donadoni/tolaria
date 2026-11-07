@@ -117,6 +117,19 @@ describe("acquireFaceBitmap — the reference-counted cache", () => {
         const a = acquireFaceBitmap(ART, 5, 7, failing);
         expect(await a.ready).toBeNull();
     });
+
+    it("does not cache a failure: the next holder of the same key resamples again", async () => {
+        const failing = vi.fn(async () => null);
+        const a = acquireFaceBitmap(ART, 5, 7, failing);
+        expect(await a.ready).toBeNull();
+        expect(faceBitmapCacheSize()).toBe(0);
+        const working = vi.fn(async () => "blob:test/retry");
+        const b = acquireFaceBitmap(ART, 5, 7, working);
+        expect(await b.ready).toBe("blob:test/retry");
+        expect(working).toHaveBeenCalledTimes(1);
+        a.release();
+        b.release();
+    });
 });
 
 /** A worker double: answers each request through `answer`, or not at all. */

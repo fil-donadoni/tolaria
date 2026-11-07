@@ -55,21 +55,24 @@ describe("the Viewport Matrix (ADR 0101, ADR 0168)", () => {
         const flagged = SURFACES.filter((s) => s.cards).map((s) => s.id);
         for (const id of [
             "game-zone-pile",
+            "game-board",
+            "game-source-choice",
             "deck-builder",
             "deck-detail",
             "draft-pick",
             "limited-build",
             "dlg-convoke",
             "dlg-discard-cost",
+            "dlg-cast-exile-cost",
         ])
             expect(flagged, id).toContain(id);
-        // Not yet: the surfaces whose DPR 1 cell did not read green on the
-        // final census of issue #8321 (the comment on `Surface.cards`).
+        // Not yet: the surfaces whose DPR 1 cell did not settle on the final
+        // census of issue #8321 (the comment on `Surface.cards`).
         for (const id of [
             "auth-sign-in",
             "settings",
             "dlg-pause-menu",
-            "game-board",
+            "game-combat",
             "game-choice-prompt",
         ])
             expect(flagged, id).not.toContain(id);

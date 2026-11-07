@@ -18,7 +18,11 @@ export function useNearViewport(
     armed: boolean
 ): boolean {
     const observable = armed && typeof IntersectionObserver !== "undefined";
-    const [near, setNear] = useState(!observable);
+    // `false` at the start even when not yet observable: `armed` is false
+    // on the first render (the slot is unmeasured), and a `true` seeded then
+    // would stand once the box lands and the gate becomes observable — a
+    // lazy grid resampling every face it mounts (review of issue #8321).
+    const [near, setNear] = useState(false);
     useEffect(() => {
         if (!observable || near) return;
         const el = ref.current;
