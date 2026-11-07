@@ -143,6 +143,8 @@ import {
     pushDerivedCommit,
     refitStaleReason,
     renderBotRegressionIssue,
+    SWEEP_POOL_LOSS_TOLERANCE,
+    sweepPoolLosses,
     renderDerivedLateIssue,
     runDriftSweep,
     verdictCurrency,
@@ -662,6 +664,8 @@ function appendSummary(markdown: string): void {
  * own SIGTERM reaches the compile first and the gate reaps the sweep.
  */
 function driftSweep(head: string): DriftSweepResult {
+    const lockPath = join(ROOT, LOCKFILE_PATH);
+    let found: string | null = null;
     return runDriftSweep({
         head,
         readRows: () => readLockfile().cards,
@@ -685,13 +689,18 @@ function driftSweep(head: string): DriftSweepResult {
         // `--play-misses`: carries every current verdict, plays exactly the
         // misses — a bare run would carry the drift ones (issue #6688) —
         // keeps the header's Bot hash (the replay alone moves it).
-        play: () =>
-            generate(
+        play: () => {
+            found = readFileSync(lockPath, "utf8");
+            return generate(
                 "oracle:compile --play-misses",
                 ["scripts/oracle-compile.ts", "--play-misses"],
                 SWEEP_WALL_MS,
                 "SIGTERM"
-            ),
+            );
+        },
+        restore: () => {
+            if (found !== null) writeFileSync(lockPath, found);
+        },
         index: () =>
             generate(
                 "oracle:index",
@@ -1270,6 +1279,16 @@ function replayBot(dryRun: boolean): number {
     )
         return 1;
     let swept = readLockfile();
+    // The sweep measured the machine, not the Bot (issue #8718): landing it
+    // pins the header's hash on false verdicts, and nothing replays them until
+    // the Bot next changes. Unpushed, the hash stays late: the next run sweeps.
+    const poolLosses = sweepPoolLosses(swept.cards);
+    if (poolLosses > SWEEP_POOL_LOSS_TOLERANCE) {
+        complain(
+            `${head.slice(0, 10)}: the sweep's worker pool lost ${poolLosses} card(s) (tolerance ${SWEEP_POOL_LOSS_TOLERANCE}) — not landing it, the header's Bot hash stays late`
+        );
+        return 1;
+    }
     const acknowledged = acknowledgedRegressions();
     let outcome = botReplayOutcome(before.cards, swept.cards, acknowledged);
     if (outcome.lost.length > 0) {

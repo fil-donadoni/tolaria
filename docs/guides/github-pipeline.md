@@ -678,6 +678,12 @@ fast host by `HOST_PINNED_JOBS`, because health never waits on it — a late
 replay is a line on the GREEN verdict and an issue past the grace, never a
 RED or a hold — and its sweep is 15 min there against 75 on the Huawei.
 
+A sweep that lost more than 8 cards to its own worker pool
+(`SWEEP_POOL_LOSS_TOLERANCE`, issue #8718) exits 1 and pushes nothing: the
+header's Bot hash stays late and the next run sweeps again. The pool replaces a
+dead worker and replays the cards it held one by one, so such a loss means no
+worker could answer at all: it says the machine was down, not that the Bot lost.
+
 **The derive slot (issue #7855).** A runner takes one job at a time, and a
 machine has ONE [`maint`](#g-maint) runner that the Bot-play replay (up to an
 hour or more) and `health:nightly` (38 min and more) hold. `housekeeping`

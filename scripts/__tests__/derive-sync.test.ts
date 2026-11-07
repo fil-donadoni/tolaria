@@ -38,6 +38,7 @@ import {
 import { serializeLockfile, type Lockfile } from "../lib/oracle-lockfile";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import { BASE_BRANCH } from "../lib/branches";
+import { harnessErrorVerdict } from "../lib/bot-reach-player";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "../lib/catalogue-merge";
 import { commitOnScratchIndex } from "../lib/commit-tree";
 import { DEFINITION_INDEX_PATH } from "../lib/definition-index";
@@ -69,6 +70,8 @@ import {
     renderBotRegressionIssue,
     renderDerivedLateIssue,
     runDriftSweep,
+    SWEEP_POOL_LOSS_TOLERANCE,
+    sweepPoolLosses,
     transientPushFailure,
     verdictCurrency,
     type Currency,
@@ -312,6 +315,7 @@ function fixtureIo(
     warnings: string[];
 } {
     let disk = tip.lock;
+    let found = tip.lock;
     const calls = { carry: 0, play: 0, index: 0 };
     const reports: { line: string; summary: string }[] = [];
     const warnings: string[] = [];
@@ -329,10 +333,14 @@ function fixtureIo(
         },
         play: () => {
             calls.play += 1;
+            found = disk;
             disk = buildLockfile(tip.corpus, {
                 botReach: playingBotReach(disk, BOT, player.play),
             });
             return true;
+        },
+        restore: () => {
+            disk = found;
         },
         index: () => {
             calls.index += 1;
@@ -395,6 +403,76 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         expect(player.calls).toEqual([bear1.oracleId]);
         expect(staleOf(run.disk(), corpus)).toEqual([]);
         expect(run.disk().cards.some((c) => c.botStale === true)).toBe(false);
+    });
+
+    // Issue #8718: a play that lost its pool is a failed play, not N verdicts.
+    describe("a play that lost its worker pool", () => {
+        const poolDead: BotPlayer = () =>
+            harnessErrorVerdict("sweep worker: no worker left");
+        const cards = (revision?: string) =>
+            Array.from({ length: SWEEP_POOL_LOSS_TOLERANCE + 1 }, (_, i) =>
+                vanilla(i + 1, revision)
+            );
+        const played = () =>
+            buildLockfile(cards(), {
+                botReach: playingBotReach(null, BOT, spyPlayer().play),
+            });
+
+        it("keeps none of its verdicts: the misses stay stale, and the carry still lands", () => {
+            const corpus = cards("3");
+            const run = fixtureIo(
+                { lock: played(), corpus },
+                { play: poolDead }
+            );
+            expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
+            expect(run.calls).toEqual({ carry: 1, play: 1, index: 0 });
+            expect(sweepPoolLosses(run.disk().cards)).toBe(0);
+            expect(staleOf(run.disk(), corpus)).toHaveLength(corpus.length);
+            expect(run.warnings.join()).toContain("worker pool lost 9 card(s)");
+        });
+
+        it("lands one hung card as its own gap: alone, that is the card's verdict", () => {
+            const corpus = [...cards().slice(1), vanilla(1, "3")];
+            const run = fixtureIo(
+                { lock: played(), corpus },
+                { play: poolDead }
+            );
+            expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
+            expect(run.calls.carry).toBe(0);
+            expect(sweepPoolLosses(run.disk().cards)).toBe(1);
+        });
+
+        // The base carries 7,056 such rows when this lands: they are not this
+        // play's, and refusing on them would freeze every drift sweep.
+        it("is read over the misses: an older sweep's carried losses refuse nothing", () => {
+            // Past the tolerance even without the one row the play replaces.
+            const older = [...cards(), vanilla(SWEEP_POOL_LOSS_TOLERANCE + 2)];
+            const lock = buildLockfile(older, {
+                botReach: playingBotReach(null, BOT, poolDead),
+            });
+            const corpus = [...older.slice(1), vanilla(1, "3")];
+            const run = fixtureIo({ lock, corpus }, spyPlayer());
+            expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
+            expect(run.calls.carry).toBe(0);
+            expect(sweepPoolLosses(run.disk().cards)).toBeGreaterThan(
+                SWEEP_POOL_LOSS_TOLERANCE
+            );
+        });
+    });
+
+    it("the replay reads the pool's losses over the whole sweep and exits 1 before anything can be pushed", () => {
+        const script = readFileSync(
+            join(import.meta.dirname, "..", "derive-sync.ts"),
+            "utf8"
+        );
+        const sweep = script.slice(script.indexOf('"--replay-bot"]'));
+        const refusal = sweep.match(
+            /sweepPoolLosses\(swept\.cards\);\s+if \(poolLosses > SWEEP_POOL_LOSS_TOLERANCE\) \{[\s\S]*?return 1;/
+        );
+        expect(refusal).not.toBeNull();
+        expect(sweep.indexOf(refusal![0])).toBeLessThan(
+            sweep.indexOf("commitAndPush(")
+        );
     });
 
     it("the write path plays the misses through --play-misses, never a bare compile (which would carry them)", () => {
