@@ -126,6 +126,7 @@ import {
     dslEtbAbilityValueById,
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
+    entryCounterPtDelta,
     latentValue,
     standingAbilityValueById,
 } from "./cardValue";
@@ -371,6 +372,12 @@ export function cardValue(
     flashCreatureDiscount: number = DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount
 ): number {
     const pt = getEffectivePT(state, card, { pass });
+    // On the battlefield the counters are already in `pt`; anywhere else the
+    // layers read the printed body, and the entry counters are still to come.
+    const entry =
+        card.zone === "battlefield"
+            ? { power: 0, toughness: 0 }
+            : entryCounterPtDelta(tryGetDefinition(String(card.card.id ?? "")));
     return latentValue({
         creatureDiscount,
         flashCreatureDiscount,
@@ -388,8 +395,8 @@ export function cardValue(
             getInstanceAiValue(card) === undefined &&
             hasCastPermissionFlash(state, card.ownerId, card),
         isCreature: isCreature(card),
-        power: pt.power,
-        toughness: pt.toughness,
+        power: pt.power + entry.power,
+        toughness: pt.toughness + entry.toughness,
         manaValue: manaValue(getInstanceManaCost(card)),
         staticAbilities: card.staticAbilities,
         aiValue: getInstanceAiValue(card),
