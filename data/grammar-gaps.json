@@ -5216,6 +5216,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Stubborn Denial",
+            "issue": 8690
+        },
+        {
+            "kind": "hand-tail",
             "key": "Subtlety",
             "issue": 8505
         },
