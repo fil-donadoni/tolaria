@@ -73,18 +73,18 @@ const CHARM = define("test-keep-charm", {
     modes: [
         {
             id: "kill",
-            text: "Destroy target creature.",
+            label: "Destroy target creature.",
             targetRequirement: { type: "Creature", count: 1 },
             effects: DESTROY_FIRST,
         },
         {
             id: "draw",
-            text: "Draw a card.",
+            label: "Draw a card.",
             effects: [{ op: "draw", count: 1, player: "controller" }],
         },
         {
             id: "smash",
-            text: "Destroy target artifact.",
+            label: "Destroy target artifact.",
             targetRequirement: { type: "Artifact", count: 1 },
             effects: DESTROY_FIRST,
         },
