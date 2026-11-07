@@ -1,6 +1,7 @@
 // PROTOTYPE — throwaway. Floating variant switcher (prototype skill, UI
 // branch): ← label →, arrow keys cycle, URL ?variant= is the truth.
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export default function PrototypeSwitcher({
     variants,
@@ -29,13 +30,18 @@ export default function PrototypeSwitcher({
             if (e.key === "ArrowLeft") go(-1);
             if (e.key === "ArrowRight") go(1);
         };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
+        // Capture: an open dialog must not swallow the arrows.
+        window.addEventListener("keydown", onKey, true);
+        return () => window.removeEventListener("keydown", onKey, true);
     });
 
     if (!import.meta.env.DEV) return null;
-    return (
-        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-fuchsia-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
+    // Portal: above an open dialog's backdrop, out of the page's stacking context.
+    return createPortal(
+        <div
+            style={{ zIndex: 99999 }}
+            className="fixed bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-fuchsia-600 px-4 py-1 text-sm font-semibold text-white shadow-lg"
+        >
             <button type="button" onClick={() => go(-1)}>
                 ←
             </button>
@@ -45,6 +51,7 @@ export default function PrototypeSwitcher({
             <button type="button" onClick={() => go(1)}>
                 →
             </button>
-        </div>
+        </div>,
+        document.body
     );
 }

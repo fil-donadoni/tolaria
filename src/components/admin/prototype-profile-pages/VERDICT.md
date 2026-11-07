@@ -33,5 +33,41 @@ for the per-row pass (not re-judged after D).
 
 ## Pick Ratings
 
-Not judged here — its own prototype session follows (variants A/B/C/D exist on
-this branch as a starting point).
+Question (own session, same day): rail and table being D's, what should the
+rating dialog be? `?variant=` on `/admin/pick-ratings` swaps only the dialog, on
+the same open card (← → cycle): `ladder-pack`, `ladder`, `pack`, `lines`, `shelf`.
+The first session's ratings variants A/B/C stay in the folder, unmounted.
+
+### Verdict (owner)
+
+**Ladder, with the pack test as an accessory** (`ladder-pack`). The owner on the
+pack: nice, unsure how useful, "lo vedremo" — so a tab, not a part of the pass.
+
+- Left: image, cost, source badge, the three layers (Override / Seed / Scope median).
+- Right: eleven rungs 5.0 → 0.0, each with the comparable cards on it, closest in
+  cost first; "Compare with" colour / cost ±1 / type / scope. Click a rung = rate.
+- A card on a rung: **right click = CardPreview; left click = opens THAT card in
+  the dialog to reposition it**, then `← Back to <card>` returns to the card of
+  the pass (a stack, it nests). No peek here.
+- Pack test tab (`p`): 15-card pack sorted by rating, the pick slider showing the
+  context cap live (`contextCapForPick`), bright = the context can flip it, dimmed
+  = the rating decides; click a card = rate half a point above it. "Top of a random
+  pack %" stays visible on both tabs. The sample is uniform: exact for the cube,
+  an approximation for a set (no rarity slots).
+- The dialog walks a list FROZEN at open: under a rating sort a rating change
+  re-sorts the table, and the open card must not change.
+
+**No "Mark reviewed" for ratings** (owner): the seed is preserved and every manual
+change persists as the Override, so "what a human touched" = filter Source =
+Override. Clicking the rung the card already sits on writes an Override equal to
+the seed, which is the "seen, it is right" gesture, no schema change.
+
+### Owed by the real implementation (on top of the list above)
+
+- Rail: "Hand-rated" progress (override or seed over total), overrides count,
+  distribution, per-colour rows with average rating.
+- Filters: Source, Rarity, Type, Archetype. Columns: Card, Cost, Rarity,
+  Archetypes, Rating, Source. No inline ±: a row opens the dialog.
+- The effective rating is DB → seed → the scope's median (issue #7652), not the
+  heuristic; label it "Scope median".
+- A write must leave the Override visible as such even when equal to the seed.

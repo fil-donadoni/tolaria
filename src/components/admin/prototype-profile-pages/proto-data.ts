@@ -116,14 +116,20 @@ export interface ProtoRatingCard {
     manaValue: number;
     costSymbols: string[];
     rarity: string;
+    /** Effective rating, the reader's layering: DB → seed → scope median. */
     rating: number | null;
     source: "override" | "seed" | "fallback" | "unrated";
     seedRating: number | null;
+    /** The scope's median hand rating (issue #7652): what an unrated card gets. */
+    fallbackRating: number;
+    typeLine: string;
+    types: string[];
+    /** From the scope's Card Profiles, empty where the scope has none. */
+    archetypes: string[];
 }
 
 export function toProtoRatingCard(card: ScopeCardRating): ProtoRatingCard {
     const def = tryGetDefinition(card.cardId);
-    const rating = card.dbRating ?? card.seedRating;
     return {
         cardId: card.cardId,
         name: card.name,
@@ -131,16 +137,21 @@ export function toProtoRatingCard(card: ScopeCardRating): ProtoRatingCard {
         manaValue: def ? manaValue(def.manaCost) : 0,
         costSymbols: costSymbols(def?.manaCost),
         rarity: def?.rarity ?? "—",
-        rating,
+        rating: card.dbRating ?? card.seedRating ?? card.fallbackRating,
         source:
             card.dbRating !== null
                 ? "override"
                 : card.seedRating !== null
                   ? "seed"
-                  : card.isFallback
-                    ? "fallback"
-                    : "unrated",
+                  : "fallback",
         seedRating: card.seedRating,
+        fallbackRating: card.fallbackRating,
+        typeLine: def
+            ? [...(def.supertypes ?? []), ...def.types].join(" ") +
+              (def.subtypes?.length ? ` — ${def.subtypes.join(" ")}` : "")
+            : "",
+        types: def ? [...def.types] : [],
+        archetypes: [],
     };
 }
 
