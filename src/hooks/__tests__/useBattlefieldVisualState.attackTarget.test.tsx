@@ -15,6 +15,7 @@ import {
     AttackSequenceContext,
     type AttackSequence,
 } from "~/hooks/useAttackSequence";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 import { useBattlefieldVisualState } from "../useBattlefieldVisualState";
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
@@ -93,7 +94,8 @@ type Ctx = React.ContextType<typeof GameContext>;
 function renderForOpponent(
     me: Player,
     opp: Player,
-    combatOverrides: Record<string, unknown> = {}
+    combatOverrides: Record<string, unknown> = {},
+    sequence: AttackSequence = makeAttackSequence()
 ) {
     const ctx = {
         gameId: "game-id" as never,
@@ -117,19 +119,34 @@ function renderForOpponent(
         },
     } as unknown as NonNullable<Ctx>;
     const wrapper = ({ children }: { children: ReactNode }) => (
-        <GameContext value={ctx}>{children}</GameContext>
+        <GameContext value={ctx}>
+            <AttackSequenceContext value={sequence}>
+                {children}
+            </AttackSequenceContext>
+        </GameContext>
     );
     // The planeswalker sits on the OPPONENT's board, so drive the hook for opp.
     return renderHook(() => useBattlefieldVisualState(opp), { wrapper });
 }
 
 describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)", () => {
-    it("a defending planeswalker is clickable while attackers are declared", () => {
+    it("a defending planeswalker is a candidate only while a creature awaits its target (CR 508.1b)", () => {
         const atk = creature();
         const pw = planeswalker();
         const me = player("me", [atk]);
         const opp = player("opp", [pw]);
-        const { result } = renderForOpponent(me, opp);
+        const idle = renderForOpponent(me, opp);
+        expect(idle.result.current.canInteract(pw)).toBe(false);
+        expect(idle.result.current.getVisualState(pw).ringClass).not.toContain(
+            "card-ring-candidate"
+        );
+
+        const { result } = renderForOpponent(
+            me,
+            opp,
+            {},
+            makeAttackSequence({ awaiting: ["atk1"] })
+        );
 
         expect(result.current.canInteract(pw)).toBe(true);
         expect(result.current.getVisualState(pw).interactive).toBe(true);
@@ -141,9 +158,12 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         const pw = planeswalker();
         const me = player("me", [atk]);
         const opp = player("opp", [pw]);
-        const { result } = renderForOpponent(me, opp, {
-            attackTargets: { atk1: "pw1" },
-        });
+        const { result } = renderForOpponent(
+            me,
+            opp,
+            { attackTargets: { atk1: "pw1" } },
+            makeAttackSequence({ awaiting: ["atk2"] })
+        );
 
         const vs = result.current.getVisualState(pw);
         // A planeswalker being attacked is a COMMITTED pick and reads with the
@@ -178,16 +198,13 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
 // "Attack with all" destination sequence (design 2026-07-23) — the current
 // attacker reads with the dedicated pulsing emerald ring on the OWN board.
 function seq(overrides: Partial<AttackSequence> = {}): AttackSequence {
-    return {
+    return makeAttackSequence({
         active: true,
         order: ["atk1", "atk2"],
         index: 0,
         currentAttackerId: "atk1",
-        begin: () => {},
-        advance: () => {},
-        reset: () => {},
         ...overrides,
-    };
+    });
 }
 
 function renderOwnBoardWithSequence(
@@ -222,6 +239,27 @@ function renderOwnBoardWithSequence(
     );
     return renderHook(() => useBattlefieldVisualState(me), { wrapper });
 }
+
+describe("useBattlefieldVisualState — awaiting-target ring (issue #8178, CR 508.1b)", () => {
+    it("an awaiting creature reads with the static current ring, others do not", () => {
+        const atk1 = creature({ id: "atk1" });
+        const atk2 = creature({ id: "atk2" });
+        const me = player("me", [atk1, atk2]);
+        const opp = player("opp", [planeswalker()]);
+        const { result } = renderOwnBoardWithSequence(
+            me,
+            opp,
+            makeAttackSequence({ awaiting: ["atk1"] })
+        );
+
+        expect(result.current.getVisualState(atk1).ringClass).toContain(
+            "card-ring-current"
+        );
+        expect(result.current.getVisualState(atk2).ringClass).not.toContain(
+            "card-ring-current"
+        );
+    });
+});
 
 describe("useBattlefieldVisualState — attack-with-all current-attacker ring", () => {
     it("the current sequence attacker reads with the dedicated pulsing ring", () => {

@@ -6,6 +6,7 @@ import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
 import EnlistChoicePanel from "./enlist-choice-panel";
 import ExertChoicePanel from "./exert-choice-panel";
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import AttackDirectionBanner from "./attack-direction-banner";
 
 /** Combat declaration / damage modals for one player's battlefield on the
@@ -38,6 +39,7 @@ export default function CombatPanels({ player }: { player: Player }) {
         emblems,
         continuousEffects,
     } = useGameContext();
+    const attackSequence = useAttackSequence();
     const isMe = player.id === playerId;
 
     if (!combat) return null;
@@ -99,6 +101,7 @@ export default function CombatPanels({ player }: { player: Player }) {
                 <div className="play-area-center-x fixed top-24 z-modal flex w-max max-w-[70vw] -translate-x-1/2 flex-col items-center gap-2">
                     <AttackDirectionBanner
                         planeswalkerPresent={defenderHasPlaneswalker}
+                        choosingTarget={attackSequence.choosingTarget}
                     />
                     <BandFormationPanel
                         combat={combat}

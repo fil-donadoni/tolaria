@@ -11,6 +11,7 @@ import {
     AttackSequenceContext,
     type AttackSequence,
 } from "~/hooks/useAttackSequence";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 import { resetPendingGameIntents } from "~/lib/pending-intent-store";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 
@@ -87,15 +88,7 @@ function player(id: string): Player {
     } as Player;
 }
 
-const SEQUENCE: AttackSequence = {
-    active: false,
-    order: [],
-    index: 0,
-    currentAttackerId: undefined,
-    begin: vi.fn(),
-    advance: vi.fn(),
-    reset: vi.fn(),
-};
+const SEQUENCE: AttackSequence = makeAttackSequence();
 
 function renderCtrl(overrides: {
     priorityPlayerId?: string;

@@ -12,6 +12,7 @@ import {
     AttackSequenceContext,
     type AttackSequence,
 } from "~/hooks/useAttackSequence";
+import { makeAttackSequence } from "./attack-sequence.fixture";
 
 const calls: { ref: string; args: unknown }[] = [];
 // Card instance ids the fake server refuses to declare (stands in for an
@@ -148,16 +149,7 @@ function player(id: string, battlefield: CardInstance[]): Player {
 }
 
 function makeSequence(overrides: Partial<AttackSequence> = {}): AttackSequence {
-    return {
-        active: false,
-        order: [],
-        index: 0,
-        currentAttackerId: undefined,
-        begin: vi.fn(),
-        advance: vi.fn(),
-        reset: vi.fn(),
-        ...overrides,
-    };
+    return makeAttackSequence(overrides);
 }
 
 function renderCtrl(
@@ -339,7 +331,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const { result } = renderCtrl(me, opp, seq);
 
         expect(findAction(result, "assign-attack-target-next")?.label).toBe(
-            "Assign target (1/2)"
+            "Choose a target (1/2)"
         );
         expect(findAction(result, "cancel-attack-sequence")).toBeDefined();
         expect(findAction(result, "confirm-attackers")).toBeUndefined();
@@ -347,8 +339,12 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         // Pass Turn stays reachable throughout the sequence (design §6).
         expect(findAction(result, "pass-turn-attackers")).toBeDefined();
 
+        // CR 508.1b — the button no longer advances an attacker to the player.
+        expect(findAction(result, "assign-attack-target-next")?.disabled).toBe(
+            true
+        );
         act(() => findAction(result, "assign-attack-target-next")!.onClick());
-        expect(seq.advance).toHaveBeenCalledTimes(1);
+        expect(seq.advance).not.toHaveBeenCalled();
     });
 
     it("a server-rejected creature does not abort the run, and is kept out of the sequence order", async () => {
@@ -482,7 +478,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
     });
 
-    it("Space advances the destination sequence rather than re-offering the dialog", () => {
+    it("Space does nothing while the destination sequence waits for a target (CR 508.1b)", () => {
         const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
         const opp = player("opp", [planeswalker()]);
         const seq = makeSequence({
@@ -492,6 +488,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             currentAttackerId: "a",
         });
         const { result } = renderCtrl(me, opp, seq);
+        calls.length = 0;
 
         act(() => {
             window.dispatchEvent(
@@ -499,7 +496,25 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             );
         });
 
-        expect(seq.advance).toHaveBeenCalledTimes(1);
+        expect(seq.advance).not.toHaveBeenCalled();
+        expect(calls).toHaveLength(0);
+        expect(result.current.attackAllConfirm.open).toBe(false);
+    });
+
+    it("an awaiting creature disables Confirm Attackers and Space does nothing", () => {
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", [planeswalker()]);
+        const seq = makeSequence({ awaiting: ["a"] });
+        const { result } = renderCtrl(me, opp, seq);
+        calls.length = 0;
+
+        expect(findAction(result, "confirm-attackers")?.disabled).toBe(true);
+        act(() => {
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { code: "Space" })
+            );
+        });
+        expect(calls).toHaveLength(0);
         expect(result.current.attackAllConfirm.open).toBe(false);
     });
 
