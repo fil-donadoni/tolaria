@@ -20687,30 +20687,6 @@ export type EffectOp =
           loss: EffectCoinFlipBranch;
           player?: EffectPlayerRef;
       }
-    /** CR 705 (issue #1281) — flip a coin INLINE, no reveal-ack suspension: the
-     *  synchronous sibling of `coinFlip`. A thin declarative skin over the
-     *  single SpellContext primitive `flipCoin` (the same seeded-PRNG bit
-     *  `requestCoinFlip` draws — issue #1281 does not add a new random source,
-     *  it only skips that primitive's ADR 0023 reveal-overlay suspend), one
-     *  execution path (ADR 0045): the bit is drawn and the matching `win`
-     *  (flipper wins) / `loss` branch's `effects` runs in the SAME interpreter
-     *  pass, through the SAME `runOpList` path an `if` branch / `coinFlip`
-     *  branch uses — so a branch composes bind / ref / if / forEach and even a
-     *  further suspending Op. `player` names the flipping player (the resolving
-     *  `"controller"` by default — CR 705.1; an announced target-slot /
-     *  relative player otherwise). Like `coinFlip` it is a structural construct
-     *  that always re-descends on a re-walk (in the interpreter's runOpList
-     *  skip-exception), so a suspension inside the taken branch resumes
-     *  correctly. Skipped when the flipper cannot be resolved (CR 608.2b).
-     *  SCOPE (issue #1281): for a card whose flip genuinely has no interactive
-     *  reveal UX to preserve (Goblin Artisans resolved it synchronously
-     *  pre-DSL) — use `coinFlip` instead when the reveal-ack UX is wanted. */
-    | {
-          op: "coinFlipSync";
-          win: EffectCoinFlipBranch;
-          loss: EffectCoinFlipBranch;
-          player?: EffectPlayerRef;
-      }
     /** CR 705.1–705.2 (issue #3813, ADR 0144) — flip a SERIES of coins and
      *  bind its results as numbers: "flip a coin that many times or until you
      *  lose a flip" (Squee's Revenge), "flip a coin until you lose a flip"
@@ -20720,7 +20696,7 @@ export type EffectOp =
      *  a comparison on the bound counts, a value that reads them).
      *
      *  A thin declarative skin over the single `SpellContext.flipCoin`
-     *  primitive (the same seeded-PRNG bit `coinFlipSync` draws), one execution
+     *  primitive (the same seeded-PRNG bit `requestCoinFlip` draws), one execution
      *  path (ADR 0045). The series stops after `count` flips, or at the first
      *  LOST flip when `untilLoss` is set, whichever comes first; at least one
      *  of the two is required (the validator rejects neither), and without a

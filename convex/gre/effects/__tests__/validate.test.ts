@@ -3363,30 +3363,6 @@ describe("validateEffectScript — coinFlip no-op branch (issue #1367)", () => {
             )
         ).toBe(true);
     });
-
-    it("the same relaxation applies to coinFlipSync's branches", () => {
-        const errors = validateEffectScript(
-            host({
-                effects: [
-                    {
-                        op: "coinFlipSync",
-                        win: { consequence: "Nothing happens.", effects: [] },
-                        loss: {
-                            consequence: "Deals 3 damage to you.",
-                            effects: [
-                                {
-                                    op: "dealDamage",
-                                    amount: 3,
-                                    to: { player: "controller" },
-                                },
-                            ],
-                        },
-                    },
-                ],
-            })
-        );
-        expect(errors).toEqual([]);
-    });
 });
 
 // delayedTrigger Op schema + capture/body scoping (CR 603.7, ADR 0048, issue
