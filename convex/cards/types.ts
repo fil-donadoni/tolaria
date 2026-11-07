@@ -13916,16 +13916,16 @@ export interface TriggeredAbility {
     additionalTargetRequirements?: TargetRequirement[];
     /** CR 603.3c / 700.2b (issue #2461) — a MODAL triggered ability ("When this
      *  creature enters, choose one — • … • …"). The controller announces
-     *  exactly one mode as the ability is PUT ON THE STACK, before targets, and
+     *  the mode(s) as the ability is PUT ON THE STACK, before targets, and
      *  the pick never changes afterwards (CR 700.2f — changing a target can't
-     *  change the mode); the chosen mode alone supplies the
-     *  announcement-time `targetRequirement` (CR 700.2c) and the resolution
+     *  change the mode); the chosen modes alone supply the
+     *  announcement-time `targetRequirement`s (CR 700.2c) and the resolution
      *  body. A mode whose required targets have no legal candidates cannot be
      *  chosen, and when no mode can be chosen the ability is removed from the
      *  stack (CR 603.3c) — both enforced by `raiseTriggerModeAnnouncement`
      *  (`gre/rules.ts`), which raises a `kind: "trigger-mode"` PendingChoice
-     *  for the controller when two or more modes are choosable and
-     *  auto-announces when only one is.
+     *  for the controller when more than one mode list can be announced and
+     *  auto-announces when only one can.
      *
      *  Deliberately the SAME {@link AbilityMode} list `ActivatedAbility.modes`
      *  uses, riding the SAME `chosenModeIds` plumbing (stack item → resolution
@@ -13933,8 +13933,8 @@ export interface TriggeredAbility {
      *  ability's only in WHEN the announcement happens (CR 700.2a as part of
      *  activating vs CR 700.2b as part of going on the stack), never in what
      *  a mode is. Cardinality is therefore whatever the shared announce-time
-     *  mode-list model says (ADR 0094's `ModeSelection`, which a modal trigger
-     *  does not declare yet: exactly one) — never a trigger-local variant.
+     *  mode-list model says ({@link modeSelection}) — never a trigger-local
+     *  variant.
      *
      *  MUTUALLY EXCLUSIVE with the ability-level body (`effects` / `resolve` /
      *  `resolveSteps`): the mode carries the body. Enforced statically by
@@ -13943,6 +13943,11 @@ export interface TriggeredAbility {
      *  resolution-time pick has no response window and cannot lock a target at
      *  announcement. */
     modes?: AbilityMode[];
+    /** How many of `modes` are announced (CR 700.2, ADR 0094): "choose three"
+     *  = `{ min: 3, max: 3 }`. Distinct modes unless `repeats` (CR 700.2d), run
+     *  in printed order at resolution; with fewer choosable modes than `min`
+     *  the ability is removed from the stack (CR 603.3d). Absent = exactly one. */
+    modeSelection?: ModeSelection;
     /** Zone the source must be in for this ability to be scanned (CR 113.6b —
      *  an ability that states which zones it functions in functions only from
      *  those zones). Defaults to the battlefield when omitted. `"graveyard"`

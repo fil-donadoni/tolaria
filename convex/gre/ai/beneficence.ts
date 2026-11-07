@@ -450,11 +450,17 @@ function raisedTriggerSlotSigner(
     const ability = findTriggeredAbility(item, item.triggeredAbilityId);
     if (!ability) return undefined;
     let effects = ability.effects;
+    let offset = (pt.priorSelected?.length ?? 0) + pt.selected.length;
     if (ability.modes && ability.modes.length > 0) {
-        const modeId = item.chosenModeIds?.[0];
+        // ADR 0094 — with several instances the group being answered belongs
+        // to one of them, whose script reads the slots from its OWN first pick.
+        const instance = pt.groupModeInstances?.[0] ?? 0;
+        const modeId = item.chosenModeIds?.[instance];
         effects = ability.modes.find((m) => m.id === modeId)?.effects;
+        if (pt.modeTargetCounts) {
+            offset = (pt.modeTargetCounts[instance] ?? 0) + pt.selected.length;
+        }
     }
-    const offset = (pt.priorSelected?.length ?? 0) + pt.selected.length;
     return (slot) => scriptSlotSign(effects, offset + slot);
 }
 

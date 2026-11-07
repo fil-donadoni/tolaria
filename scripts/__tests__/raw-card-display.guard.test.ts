@@ -40,7 +40,7 @@ const ALLOWLIST: Record<string, string> = {
         "exile-cost picker tile title — the picked cards come from the caster's graveyard or hand, never face down",
     "src/components/board/exile-cost-dialog.tsx:190":
         "exile-cost picker tile title — exiled/graveyard cards are never face down",
-    "src/components/board/target-selection-banner.tsx:122":
+    "src/components/board/target-selection-banner.tsx:124":
         "hand card being cast — hand cards are never face down",
     "src/components/board/graveyard-target-dialog.tsx:73":
         "hand card being cast — hand cards are never face down",

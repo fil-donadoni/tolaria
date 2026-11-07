@@ -1265,8 +1265,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // modal trigger. This is the FALLBACK policy only: the real decision is
         // an in-tree ISMCTS node via `CHOICE_CANDIDATE_GENERATORS`
         // (`gre/ai/choiceCandidates.ts`), which values each mode's own script.
+        // Fewer modes than `min` happens only on a repeats list (CR 700.2d; a
+        // distinct list that short never raises the choice), so cycling them
+        // fills the count legally.
         case "trigger-mode":
-            return candidates.slice(0, min).map((c) => c.id);
+            return Array.from(
+                { length: min },
+                (_, i) => candidates[i % candidates.length].id
+            );
 
         // ADR 0053 (pile division) — step 2 of the divide-then-choose family:
         // pick pile "A" or "B" (appended as neutral-value synthetic

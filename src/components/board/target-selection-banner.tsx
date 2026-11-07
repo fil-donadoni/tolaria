@@ -4,6 +4,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player, StackItem } from "~/types/game";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
+import { findTriggeredAbility } from "@convex/gre/copy";
+import type { CardInstanceState } from "@convex/gre/state";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { divideKindLabels, useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -136,7 +138,12 @@ export default function TargetSelectionBanner({
               )?.modes
             : castSource
               ? getDefinition(castSource.card.id).modes
-              : undefined
+              : triggerSource?.triggeredAbilityId
+                ? findTriggeredAbility(
+                      triggerSource as unknown as CardInstanceState,
+                      triggerSource.triggeredAbilityId
+                  )?.modes
+                : undefined
     );
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,

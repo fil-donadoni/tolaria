@@ -48,7 +48,25 @@ vi.mock("@convex/cards", () => ({
     // Non-throwing lookup: undefined for a non-card id (e.g. an emblem key), so
     // the banner falls through to the emblem registry.
     tryGetDefinition: (id: string) =>
-        CARD_NAMES[id] ? { id, name: CARD_NAMES[id] } : undefined,
+        CARD_NAMES[id]
+            ? {
+                  id,
+                  name: CARD_NAMES[id],
+                  triggeredAbilities: [
+                      {
+                          id: "modal",
+                          modes: [
+                              { id: "ping", label: "Ping", oracleText: "" },
+                              {
+                                  id: "hit",
+                                  label: "Hit target",
+                                  oracleText: "",
+                              },
+                          ],
+                      },
+                  ],
+              }
+            : undefined,
 }));
 
 vi.mock("@convex/cards/emblems", () => ({
@@ -190,6 +208,39 @@ describe("TargetSelectionBanner source-name resolution", () => {
             screen.getByText("Chandra, Torch of Defiance emblem")
         ).toBeTruthy();
         expect(screen.queryByText("spell")).toBeNull();
+    });
+});
+
+describe("TargetSelectionBanner — a multi-mode trigger names the group's mode (CR 700.2c)", () => {
+    afterEach(cleanup);
+
+    it("reads the mode off the trigger's own definition", () => {
+        const known = Object.keys(CARD_NAMES)[0];
+        render(
+            <TargetSelectionBanner
+                pendingTarget={pending({
+                    kind: "trigger",
+                    cardInstanceId: "trig",
+                    targetType: "any",
+                    chosenModeIds: ["ping", "hit"],
+                    groupModeInstances: [1],
+                })}
+                me={player()}
+                stack={
+                    [
+                        {
+                            id: "trig",
+                            card: { id: known },
+                            triggeredAbilityId: "modal",
+                            types: [],
+                        },
+                    ] as never
+                }
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(screen.getByText(/Hit target/)).toBeTruthy();
     });
 });
 
