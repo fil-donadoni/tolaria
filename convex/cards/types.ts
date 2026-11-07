@@ -9,8 +9,10 @@ import type {
     LookDistributeDestination,
     LookDistributeKeepTo,
     PendingChoiceZone,
+    FlipRecord,
 } from "../gre/types";
 import type { CastFromZone } from "../gre/state/declarations";
+import type { FlipSequenceRequest } from "../gre/flipSequence";
 
 // A hand-written Card Definition as a memoised factory (issue #4857): Set
 // modules author `export const fooBar = defineCard(() => ({ … }))` beside the
@@ -7714,15 +7716,27 @@ export interface SpellContext {
      *  `heads`/`tails` each carry a `consequence` one-liner shown as the
      *  overlay preview ("Create a 5/5 Djinn"). The landed `face` defaults to
      *  `WIN` (heads) / `LOSE` (tails); pass `face` to override for a future
-     *  non-win/lose flip (Puppet's Verdict-style HEADS/TAILS). A thin wrapper
-     *  over the generic `random-reveal` envelope a future `requestDieRoll`
-     *  reuses. Used by Bottle of Suleiman. */
+     *  non-win/lose flip (Puppet's Verdict-style HEADS/TAILS). A thin wrapper:
+     *  `requestFlipSequence` as a sequence of one. Used by Bottle of Suleiman. */
     requestCoinFlip: (req: {
         playerId: string;
         choiceId: string;
         heads: { consequence: string; face?: string };
         tails: { consequence: string; face?: string };
     }) => boolean | undefined;
+
+    /** CR 705 / ADR 0023 — the Flip Sequence primitive: every coin an effect
+     *  flips, drawn at once and revealed once.
+     *
+     *  The first call draws the whole sequence from the seeded PRNG (one
+     *  `flipCoin` per flip, until `req.stop` ends it), persists its faces in the
+     *  stack item's `collectedChoices`, enqueues ONE `random-reveal` Pending
+     *  Choice carrying the list, the source and the Oracle excerpt, and returns
+     *  `undefined`: the caller MUST return early, so the consequence lands only
+     *  after the first flipper's ack. On resume the same call returns the stored
+     *  list and never re-rolls. A sequence with no flips (`count: 0`, or no
+     *  flippers) returns `[]` at once, with nothing to reveal. */
+    requestFlipSequence: (req: FlipSequenceRequest) => FlipRecord[] | undefined;
 
     /** Sets the resolving permanent's BASE characteristics in place (CR 614.12
      *  "as it enters" body selection / a re-choice on the battlefield). Unlike

@@ -266,7 +266,18 @@ import {
     hasControlledSinceTurnStart,
     recordControlChangeThisTurn,
 } from "./controlContinuity";
-import type { Phase, Zone, PhaseReturnCondition } from "./types";
+import type {
+    FlipFace,
+    FlipRecord,
+    Phase,
+    Zone,
+    PhaseReturnCondition,
+} from "./types";
+import {
+    drawFlipFaces,
+    flipOracleExcerpt,
+    flipRecordsFromFaces,
+} from "./flipSequence";
 import { readTaggedNumber } from "./numberBinding";
 import {
     ADDITIONAL_COST_KEYWORDS,
@@ -19468,37 +19479,69 @@ export function buildSpellContext(
             return picked.id;
         },
         requestCoinFlip(req): boolean | undefined {
+            // CR 705.2 / ADR 0023 — one flip, as a sequence of one.
+            const flips = this.requestFlipSequence({
+                choiceId: req.choiceId,
+                flippers: [req.playerId],
+                stop: { kind: "count", count: 1 },
+                realize: ([flip]) => {
+                    const won = flip.outcome === "win";
+                    const landed = won ? req.heads : req.tails;
+                    return {
+                        face: landed.face ?? (won ? "WIN" : "LOSE"),
+                        consequence: landed.consequence,
+                    };
+                },
+            });
+            return flips && flips[0].outcome === "win";
+        },
+        requestFlipSequence(req): FlipRecord[] | undefined {
             // CR 705.2 / ADR 0023 — engine-generated random reveal. Unlike the
             // player-answer primitives above, the OUTCOME is drawn here, not
-            // submitted by a player. The drawn bit must be generated EXACTLY
-            // ONCE and persisted, then read back on resume — a naive re-roll
-            // on the replayed step would advance `rngCounter` and animate a
-            // different result than the one applied (the determinism bug ADR
-            // 0023 calls out).
+            // submitted by a player. Every flip must be drawn EXACTLY ONCE and
+            // persisted, then read back on resume — a naive re-roll on the
+            // replayed step would advance `rngCounter` and animate a different
+            // result than the one applied (the determinism bug ADR 0023 calls
+            // out).
             const step = item.resolutionStep ?? 0;
             const key = `${step}:${req.choiceId}`;
+            const faceOnly = req.faceOnly === true;
             const stored = item.collectedChoices?.[key];
-            // Resume: the persisted bit short-circuits the re-run, no re-roll.
-            if (stored) return stored[0] === "heads";
+            // Resume: the persisted faces short-circuit the re-run, no re-roll.
+            if (stored) {
+                return flipRecordsFromFaces(
+                    stored as FlipFace[],
+                    req.flippers,
+                    faceOnly
+                );
+            }
 
-            // First call: draw the bit ONCE via the seeded coin flip.
-            const won = this.flipCoin();
-            // Persist the realized bit into collectedChoices so the replayed
-            // step reads it back instead of re-flipping (same contract as a
-            // stored player answer). The ack mutation only removes the head
-            // pending choice and resumes; it carries no data.
+            const faces = drawFlipFaces(
+                () => this.flipCoin(),
+                req.flippers,
+                req.stop,
+                faceOnly
+            );
+            // No flip, nothing to reveal: the caller carries on without a pause.
+            if (faces.length === 0) return [];
+            // Persist the faces into collectedChoices so the replayed step reads
+            // them back instead of re-flipping (same contract as a stored player
+            // answer). The ack mutation only removes the head pending choice and
+            // resumes; it carries no data.
             item.collectedChoices = {
                 ...(item.collectedChoices ?? {}),
-                [key]: [won ? "heads" : "tails"],
+                [key]: faces,
             };
-            const winning = won ? req.heads : req.tails;
-            const realized: RealizedOutcome = {
-                face: winning.face ?? (won ? "WIN" : "LOSE"),
-                consequence: winning.consequence,
-            };
+            const flips = flipRecordsFromFaces(faces, req.flippers, faceOnly);
             // ADR 0037 (#580) — a coin flip during a controlled cast's
             // resolution is acknowledged by the acting player.
-            const routed = routeActingPlayer(req.playerId);
+            const routed = routeActingPlayer(req.flippers[0]);
+            // The card that prints the resolving ability. A face-down source
+            // reads as its sentinel here, so its identity stays hidden (CR 708.5).
+            const sourceCardId = this.abilityCardId;
+            const oracleExcerpt = sourceCardId
+                ? flipOracleExcerpt(tryGetDefinition(sourceCardId)?.oracleText)
+                : undefined;
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
@@ -19509,10 +19552,20 @@ export function buildSpellContext(
                 prompt: "Flip a coin",
                 randomKind: "coin",
                 sides: 2,
-                // CR 705.2 — 1 = heads (the flipping player wins), 0 = tails.
-                result: won ? 1 : 0,
-                realized,
+                flips,
             };
+            if (sourceCardId) {
+                entry.source = {
+                    cardId: sourceCardId,
+                    controllerId: item.castById,
+                };
+            }
+            // CR 705.2 — 1 = heads (the flipping player wins), 0 = tails.
+            if (flips.length === 1)
+                entry.result = flips[0].face === "heads" ? 1 : 0;
+            if (req.realize) entry.realized = req.realize(flips);
+            if (oracleExcerpt !== undefined)
+                entry.oracleExcerpt = oracleExcerpt;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];

@@ -7665,9 +7665,10 @@ export const OP_EXECUTORS: {
     },
     // coinFlip — flip a coin, then run the win / loss branch (CR 705, issue
     // #851). A thin declarative skin over the single SpellContext primitive
-    // `requestCoinFlip` (the suspending reveal flip, ADR 0023), ONE execution
-    // path (ADR 0045). Like `optionChoice` it is a structural construct that
-    // always re-descends on a re-walk (it is in the `runOpList` skip-exception),
+    // `requestCoinFlip` (the suspending reveal flip, ADR 0023: a Flip Sequence
+    // of one), ONE execution path (ADR 0045). Like `optionChoice` it is a
+    // structural construct that always re-descends on a re-walk (it is in the
+    // `runOpList` skip-exception),
     // because a suspending Op INSIDE the taken branch must resume through it.
     // Two phases:
     //   1. no bit drawn yet → `requestCoinFlip` draws it ONCE from the seeded

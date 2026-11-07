@@ -1636,11 +1636,15 @@ A **Pending Choice** whose answer is a NUMBER rather than a set of cards or a ye
 _Avoid_: X prompt (the announced **Cast**-time {X} is a different decision, CR 107.3a), amount dialog, pay-or-decline
 
 **Random Reveal**:
-A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. The chooser's client auto-acknowledges when the animation ends; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.
+A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. For coins it carries the whole **Flip Sequence**, its source (the card printing the ability, and the controller) and the Oracle excerpt the flip comes from, all public (CR 705). The flipper's client acknowledges when the animation ends, a Bot flipper waits the same duration, and a viewer's overlay plays to its end; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.
 _Avoid_: Random prompt, RNG dialog
 
+**Flip Sequence**:
+Every coin one effect flips, drawn at once from the seeded PRNG and shown in one **Random Reveal**: an ordered list of flip records, each naming the flipper, the face, the outcome (win, lose, or none when the effect only reads the face, CR 705.2) and its round. Coins flipped together share a round. It ends on a stop rule: a fixed count, the first loss, or a caller's predicate over a round. Its faces are persisted and read back on resume, never re-rolled; `SpellContext.requestFlipSequence` is the one primitive that draws one.
+_Avoid_: Flip series (ADR 0144's Op, one caller), coin batch
+
 **Coin Flip**:
-A **Random Reveal** with two faces (CR 705.2), defaulting to WIN / LOSE relative to the flipping **Player**. The drawn bit is generated once and read back on replay — never re-rolled. Used by Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
+A **Random Reveal** with two faces (CR 705.2), defaulting to WIN / LOSE relative to the flipping **Player**: a **Flip Sequence** of one. The drawn bit is generated once and read back on replay — never re-rolled. Used by Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 _Avoid_: Heads-or-tails (unless a card overrides the face labels), toss
 
 **Pass Turn**:

@@ -80,7 +80,7 @@ const WIN_CHOICE: PendingChoice = {
     prompt: "Flip a coin",
     randomKind: "coin",
     sides: 2,
-    result: 1,
+    flips: [{ flipperId: "p1", face: "heads", outcome: "win", round: 0 }],
     realized: { face: "WIN", consequence: "Create a 5/5 flying Djinn" },
 };
 
@@ -122,6 +122,16 @@ describe("RandomRevealOverlay (#301)", () => {
         expect(queryByRole("button")).toBeNull();
     });
 
+    it("a reveal saved before the flip list existed still lands on its result", () => {
+        const { getByTestId, getByText } = renderOverlay("p1", {
+            ...WIN_CHOICE,
+            flips: undefined,
+            result: 1,
+        });
+        expect(getByTestId("coin-anim").getAttribute("data-result")).toBe("1");
+        expect(getByText("You win the flip")).toBeTruthy();
+    });
+
     it("renders the consequence preview line", () => {
         const { getByText } = renderOverlay("p1");
         expect(getByText("Create a 5/5 flying Djinn")).toBeTruthy();
@@ -156,7 +166,9 @@ describe("RandomRevealOverlay (#301)", () => {
     it("LOSE: viewer-relative label and consequence", () => {
         const loseChoice: PendingChoice = {
             ...WIN_CHOICE,
-            result: 0,
+            flips: [
+                { flipperId: "p1", face: "tails", outcome: "lose", round: 0 },
+            ],
             realized: {
                 face: "LOSE",
                 consequence: "Bottle of Suleiman deals 5 damage to you",

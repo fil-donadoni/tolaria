@@ -2186,6 +2186,16 @@ describe("optional field round-trip smoke tests", () => {
                     face: "WIN",
                     consequence: "Create a 5/5 flying Djinn",
                 },
+                flips: [
+                    {
+                        flipperId: "p1",
+                        face: "heads",
+                        outcome: "win",
+                        round: 0,
+                    },
+                ],
+                source: { cardId: "bottle-of-suleiman", controllerId: "p1" },
+                oracleExcerpt: "Flip a coin.",
             },
         ];
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);

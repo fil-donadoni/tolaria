@@ -63,7 +63,9 @@ import type {
     PendingChoiceZone,
     Phase,
     PhaseReturnCondition,
+    FlipRecord,
     RandomKind,
+    RandomRevealSource,
     RealizedOutcome,
     Zone,
 } from "../types";
@@ -4076,16 +4078,25 @@ export type PendingChoice = {
      *  (2 for a coin). Carried so a future die can reuse the envelope without
      *  the engine assuming coin-ness. */
     sides?: number;
-    /** For `kind: "random-reveal"` only — the 0-based index the device landed
-     *  on (the bit the engine drew). For a coin: 1 = heads (the flipper wins),
-     *  0 = tails. The realized outcome lives in `realized`; `result` is the
-     *  raw index the animation lands on. */
+    /** For `kind: "random-reveal"` only — the 0-based index a single device
+     *  landed on. For one coin: 1 = heads (the flipper wins), 0 = tails. Absent
+     *  on a sequence of several flips, which only `flips` can describe. */
     result?: number;
     /** For `kind: "random-reveal"` only — the realized outcome descriptor:
      *  the `face` the device landed on (defaults `WIN`/`LOSE`) and the
      *  one-line `consequence` preview the overlay renders. Public (CR 705),
      *  survives projection to both clients. */
     realized?: RealizedOutcome;
+    /** For a coin `random-reveal` — the whole Flip Sequence, in draw order. The
+     *  stack item's `collectedChoices` holds the faces the resolution reads
+     *  back; this is what both clients animate. Public (CR 705). */
+    flips?: FlipRecord[];
+    /** For a coin `random-reveal` — the object the flips come from. */
+    source?: RandomRevealSource;
+    /** For a coin `random-reveal` — the sentences of the source's Oracle text
+     *  that flip the coin (`flipOracleExcerpt`). Absent when that text holds no
+     *  coin flip. */
+    oracleExcerpt?: string;
 
     // --- pile-division divide-then-choose family (ADR 0053) ---
     /** For `kind: "pick-pile"` only — the two completed piles the chooser
