@@ -23861,13 +23861,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            forbidden: [
-                {
-                    kind: "activate-ability",
-                    card: "Skullclamp",
-                    target: "Llanowar Elves",
-                },
-            ],
+            // A predicate on purpose: it yields no Verdict. The reason here is
+            // the lethal attack, which the search reads; as an Eval Pair this
+            // position would teach the fit that every card in hand is worth less.
+            predicate: (move) =>
+                move !== null &&
+                !(
+                    move.kind === "activate-ability" &&
+                    move.abilityId === "skullclamp-equip"
+                ),
+            describe: "does not equip the only attacker with lethal on board",
         },
         note: "Issue #8298 — owner's call: equipping is almost always right, and lethal on board is the exception. Minimal pair with the Elves entry above, the opponent's life being the one difference: the equip kills the only attacker. The search decides both, by mean reward.",
     },
