@@ -15,7 +15,7 @@ import {
     enteringEffectivePower,
     additionalCostPaidCondition,
 } from "../../abilities/triggers/shared";
-import { colorChoiceModes } from "../../abilities/chooseColor";
+import { chooseColorEffects } from "../../abilities/chooseColor";
 import { protectionColorModes } from "../../abilities";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
@@ -93,21 +93,11 @@ export const kavuChameleon = defineCard(() => ({
                 "{G}: This creature becomes the color of your choice until end of turn.",
             cost: { mana: { G: 1 } },
             useStack: true,
-            effects: [
-                {
-                    op: "optionChoice",
-                    player: "controller",
-                    prompt: "Choose a color for Kavu Chameleon.",
-                    modes: colorChoiceModes((color) => [
-                        {
-                            op: "setColor",
-                            target: { ref: "$source" },
-                            colors: [color],
-                            duration: { phase: "end-of-turn" },
-                        },
-                    ]),
-                },
-            ],
+            effects: chooseColorEffects(
+                { ref: "$source" },
+                { phase: "end-of-turn" },
+                "Choose a color (Kavu Chameleon)."
+            ),
         },
     ],
 }));

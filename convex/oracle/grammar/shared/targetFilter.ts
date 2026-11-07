@@ -2028,6 +2028,28 @@ export function narrowedStackRequirement(
             count: 1,
             spellTypeFilter: ["Artifact", "Enchantment"],
         } as TargetRequirement;
+    // CR 115.2 — a spell is a legal target of a counter: one card type, or
+    // every spell but that type ("noncreature").
+    if (span === "target creature spell")
+        return {
+            type: "spell",
+            count: 1,
+            spellTypeFilter: "Creature",
+        } as TargetRequirement;
+    if (span === "target noncreature spell")
+        return {
+            type: "spell",
+            count: 1,
+            spellExcludeTypeFilter: "Creature",
+        } as TargetRequirement;
+    // CR 113.3b + CR 605.3b — an activated ability on the stack, triggered
+    // abilities excluded; a mana ability never gets there (Bind, Squelch).
+    if (span === "target activated ability")
+        return {
+            type: "spell",
+            count: 1,
+            spellStackKind: "activated-ability",
+        } as TargetRequirement;
     // CR 113.3 — an activated or triggered ability on the stack (mana
     // abilities never use the stack, CR 605.3b, so none is targetable).
     if (span === "target activated or triggered ability")
