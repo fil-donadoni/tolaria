@@ -24,6 +24,8 @@
  *    creature they control that's attacking you"   → CR 508.1d `attack-mana-tax`
  *   "<self> enters tapped[ with N <kind> counters on it]"
  *                                                   → CR 614.1c entry riders
+ *   "<self> enters tapped unless you control a basic land"
+ *                                                   → CR 614.1d `entersTappedUnlessControls`
  *   "If <self> was kicked, it enters with N <kind> counters on it",
  *   "<self> enters with N <kind> counters on it for each time it was kicked"
  *                                                   → kicker-counted riders
@@ -108,6 +110,7 @@ import {
     controlsRule,
     graveyardCountRule,
     opponentControlsRule,
+    singularControlledFilter,
     type ConditionIR,
     type StaticConditionIR,
 } from "./condition";
@@ -275,6 +278,12 @@ export type StaticClauseIR =
      *  don't, it enters tapped": the shockland pay-choice, made before the
      *  permanent enters (CR 614.12a). */
     | { readonly kind: "enters-tapped-unless-pay-life"; readonly life: number }
+    /** CR 614.1d — "<self> enters tapped unless you control <a descriptor>":
+     *  the board-conditional entry replacement, read as the permanent enters. */
+    | {
+          readonly kind: "enters-tapped-unless-controls";
+          readonly condition: ConditionIR;
+      }
     /** CR 722.3a — "<self> enters prepared": the designation, given as the
      *  permanent enters (the `enters-tapped` shape). */
     | { readonly kind: "enters-prepared" }
@@ -1465,6 +1474,43 @@ const entersTappedUnlessPayLife: Rule<StaticClauseIR> = pattern(
         if (life === null || life < 1)
             return fail(`"${match[2]}" is not a life amount`, match[2]!);
         return ok({ kind: "enters-tapped-unless-pay-life" as const, life });
+    }
+);
+
+const ENTERS_TAPPED_UNLESS_CONTROLS =
+    /^(.+) enters tapped unless you control (a basic land)$/;
+
+/**
+ * CR 614.1d — "<self> enters tapped unless you control a basic land". The
+ * object is read through the shared controls-clause reader, with live
+ * supertypes (CR 205.4c: "basic" is the supertype, never a basic land type),
+ * but the pattern names the one object this rule has a fixture for: "a Forest",
+ * "two or more basic lands" and every other tail is a different form and
+ * refuses.
+ */
+const entersTappedUnlessControls: Rule<StaticClauseIR> = rule(
+    "enters tapped unless controls",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = ENTERS_TAPPED_UNLESS_CONTROLS.exec(span);
+        if (match === null)
+            return fail("not an enters-tapped-unless-controls clause", span);
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        const filter = singularControlledFilter(match[2]!, span, ctx, {
+            supertypes: true,
+        });
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "enters-tapped-unless-controls" as const,
+            condition: {
+                kind: "controls" as const,
+                filter: filter.value,
+                atLeast: 1,
+            },
+        });
     }
 );
 
@@ -2894,6 +2940,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersTappedPlain,
         entersTappedWithCounters,
         entersTappedUnlessPayLife,
+        entersTappedUnlessControls,
         entersPrepared,
         cantBeCounteredRule,
         entersWithCounters,
