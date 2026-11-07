@@ -51,8 +51,8 @@ const duringYourTurnWithLoyalty = (
 //     card per PLAYER who lost any life — never per loss instance.
 //   • −2 — Tap target creature, then two stun counters on it (CR 122.1d,
 //     enforced by the engine's untap replacement).
-// hand-tail: "During your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature and has hexproof." (#3237)
-// hand-tail: "+1: You get an emblem with "Ninjas you control get +1/+1."" (#3237)
+// compiler-gap: "During your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature and has hexproof." (#8493)
+// compiler-gap: "+1: You get an emblem with "Ninjas you control get +1/+1."" (#8501)
 export const kaitoBaneOfNightmares = defineCard(() => ({
     id: "55a14f30-4ff9-4472-90a6-c3139f1c18e5",
     name: "Kaito, Bane of Nightmares",

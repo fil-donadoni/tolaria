@@ -3243,6 +3243,18 @@
             "provides": [],
             "requires": [],
             "reviewed": false
+        },
+        "e2b826be-4256-4fd6-ad4d-6c80933ee940": {
+            "archetypes": ["artifacts", "reanimator"],
+            "provides": ["reanimatable"],
+            "requires": [],
+            "reviewed": false
+        },
+        "fa01d35f-1064-4a7c-9475-4504566df850": {
+            "archetypes": ["control"],
+            "provides": ["value-on-etb"],
+            "requires": [],
+            "reviewed": false
         }
     }
 }
