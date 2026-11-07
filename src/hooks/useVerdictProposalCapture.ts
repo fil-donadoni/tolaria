@@ -103,7 +103,10 @@ export function useVerdictProposalCapture(
     useEffect(() => {
         if (!active || !gameOver) return;
         const decisions = takeHumanDecisions(gameId);
-        if (decisions.length === 0) return;
+        if (decisions.length === 0) {
+            console.info("verdict proposals: no decision captured", { gameId });
+            return;
+        }
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
@@ -124,12 +127,22 @@ export function useVerdictProposalCapture(
                 )
             )
             .then((list) => {
+                // Why a game offers no review, or a shorter one than expected.
+                console.info("verdict proposals", {
+                    gameId,
+                    proposals: list.proposals.length,
+                    captured: list.captured,
+                    unidentified: list.unidentified,
+                    unjudged: list.unjudged,
+                });
                 if (capturingGame() === gameId) {
                     setVerdictProposals(gameId, list);
                 }
             })
-            .catch(() => {
-                // A failed sample costs only questions; the game is over.
+            .catch((cause: unknown) => {
+                // A failed sample costs only questions, but it takes the
+                // post-game review with it: loud, or nobody can tell why.
+                console.error("verdict proposals: sample failed", cause);
             });
     }, [active, gameId, gameOver]);
 }

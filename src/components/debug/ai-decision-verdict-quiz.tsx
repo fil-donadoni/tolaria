@@ -26,6 +26,7 @@ import {
     type VerdictQuiz,
     type VerdictQuizRefusal,
 } from "~/lib/ai/verdict-quiz";
+import { installHandWrittenSets } from "~/lib/catalogue/definitionShards";
 import { getStoredSession } from "~/lib/session";
 import DebugButton from "./debug-button";
 import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
@@ -101,8 +102,13 @@ export default function AiDecisionVerdictQuiz({
         // consult that had none. Already said out loud by the initial state
         // above; there is nothing to load.
         if (!feed) return;
-        void import("~/lib/ai/verdict-quiz")
-            .then(({ buildVerdictQuiz }) => {
+        // Lowering and rebuilding a position read the token catalogue, a walk of
+        // the whole hand-written catalogue, and a game holds only its own Sets.
+        void Promise.all([
+            import("~/lib/ai/verdict-quiz"),
+            installHandWrittenSets(),
+        ])
+            .then(([{ buildVerdictQuiz }]) => {
                 if (cancelled) return;
                 // A decision taken over a stack lowers like any other since
                 // issue #3514: the stack travels in `spec.stack`.
