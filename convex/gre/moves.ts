@@ -1101,6 +1101,28 @@ function tapActivationExecutesWholeCost(
     return true;
 }
 
+/** True when `candidate` is a second plain `{T}` realisation of a colour `held`
+ *  already covers, and one activation of it makes more mana: Fanatic of Rhonas's
+ *  Ferocious `{G}{G}{G}{G}` beside its own `{G}` (CR 605.1a — two mana abilities
+ *  of one permanent, of which ONE tap activates one). Reads only `tap`
+ *  realisations, so every option this is true of is one the emitted tap pays
+ *  whole; a costed or `mana-cost` option keeps its own admission path. */
+function isHigherYieldTap(candidate: PlanOption, held: PlanOption): boolean {
+    return (
+        candidate.via === "tap" &&
+        held.via === "tap" &&
+        optionYieldTotal(candidate) > optionYieldTotal(held)
+    );
+}
+
+/** One pass of {@link planManaPayment} over a board. The first pass keeps the
+ *  first option per colour and reports whether a higher-yield one was passed
+ *  over; the second, run only when the first found no plan, funds that option. */
+type PlanManaPass = {
+    fundHigherYield: boolean;
+    higherYieldOptionSeen: boolean;
+};
+
 type PlanSource = {
     /** undefined = mana already in the pool (no tap needed). */
     cardInstanceId?: string;
@@ -1179,7 +1201,8 @@ function planOptionRank(source: PlanSource, color: Color): number {
  *  self-referential case but still starved Fellwar Stone of any opponent
  *  permanents to see. Pool mana is modelled as zero-tap sources and is
  *  consumed by the server at commit, so it never appears in the returned taps. */
-export function planManaPayment(
+function planManaPaymentPass(
+    pass: PlanManaPass,
     state: GameState,
     player: PlayerState,
     cost: Record<string, number>,
@@ -1698,6 +1721,13 @@ export function planManaPayment(
                 for (const c of MANA_COLORS) {
                     if ((opt.mana[c] ?? 0) <= 0) continue;
                     const held = options.get(c);
+                    // A higher-yield `{T}` option of a colour already held waits
+                    // for the second pass, whose `capacity` then counts it: a
+                    // plan the smaller option covers keeps the smaller option.
+                    const higherYield =
+                        held !== undefined &&
+                        isHigherYieldTap(realisation, held);
+                    if (higherYield) pass.higherYieldOptionSeen = true;
                     // FIRST option wins — except that an admitted COSTED option
                     // replaces the free one it shares a colour with (issue
                     // #3359). Without the exception Arena of Glory's "{T}: Add
@@ -1713,7 +1743,8 @@ export function planManaPayment(
                         !(
                             realisation.via === "costed-tap" &&
                             held.via !== "costed-tap"
-                        )
+                        ) &&
+                        !(higherYield && pass.fundHigherYield)
                     ) {
                         continue;
                     }
@@ -2346,6 +2377,35 @@ export function planManaPayment(
 
     return taps;
 }
+
+/** Greedy tap plan covering a normalized mana cost (CR 601.2f), or `null` when
+ *  the cost cannot be paid; {@link planManaPaymentPass} holds the model and each
+ *  parameter's contract.
+ *
+ *  A source's contribution is the realisation the plan needs (CR 601.2g: the
+ *  player activates mana abilities before paying). The first pass uses each
+ *  source's first option per colour, so `{G}` off Fanatic of Rhonas stays its
+ *  `{T}: Add {G}`. Only when that finds no plan does a second pass fund the
+ *  higher-yield option of the same colour, whose surplus floats (CR 106.4) as it
+ *  does for any burst source. A board with no such option never pays the second
+ *  pass. */
+export function planManaPayment(
+    ...args: PlanManaPaymentArgs
+): ManaTap[] | null {
+    const pass: PlanManaPass = {
+        fundHigherYield: false,
+        higherYieldOptionSeen: false,
+    };
+    const plan = planManaPaymentPass(pass, ...args);
+    if (plan !== null || !pass.higherYieldOptionSeen) return plan;
+    pass.fundHigherYield = true;
+    return planManaPaymentPass(pass, ...args);
+}
+
+type PlanManaPaymentArgs =
+    Parameters<typeof planManaPaymentPass> extends [PlanManaPass, ...infer Args]
+        ? Args
+        : never;
 
 /** Does `tapPlan` spend a FINITE mana source's charge (CR 118.3, issue #3530)?
  *  Asked of the SAME option list `applyTapPlanInSearch` resolves the removal against,
