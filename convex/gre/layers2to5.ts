@@ -31,7 +31,7 @@
 //         |                                          | `grantedSubtypes`, `grantedSubtypesAdd`,
 //         |                                          | `grantedSupertypes`, `removedSupertypes`,
 //         |                                          | `printedSubtypes`
-//     5   | `colorOverride`, `temporaryColorOverrides`| `grantedColors`
+//     5   | `colorOverride`, `temporaryColorOverrides`| `grantedColors`, `colorSet`
 //
 // and the pre-layer bases — `baseControllerId` (layer 2), `baseTypes` /
 // `baseSubtypes` (layer 4) — are the twins of `baseStaticAbilities` (layer 6)
@@ -66,7 +66,11 @@
 
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
-import { colorGrantColors, staticEffectFunctionsFrom } from "../cards/types";
+import {
+    colorGrantColors,
+    colorSetColors,
+    staticEffectFunctionsFrom,
+} from "../cards/types";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import {
     applyArtifactTypeReplacement,
@@ -122,6 +126,7 @@ export const LAYER_2_5_STATIC_EFFECT_KINDS: Record<string, 2 | 4 | 5> = {
     "subtype-add": 4,
     "supertype-set": 4,
     "color-grant": 5,
+    "color-set": 5,
 };
 
 /** The sentinel source id every non-source-bound mutation is keyed to — the
@@ -166,6 +171,11 @@ export type Layers2to5Derivation = {
      *  not output: CR 105.3 makes a set replace every colour, and the only
      *  writers are resolving spells (`applyColorOverrideToPermanent`). */
     grantedColors: { color: string; sourceId: string }[];
+    /** CR 105.3 / 613.1e layer 5 — the colour SET a static ability applies
+     *  (`color-set`, Shifting Sky), latest timestamp wins. `getEffectiveColors`
+     *  reads it in place of the printed colours, then unions `grantedColors`
+     *  (only the grants with a LATER timestamp survive the set). */
+    colorSet?: { colors: string[]; sourceId: string };
 };
 
 /** CR 613.1b layer 2 — the pre-layer-2 controller: the player who put the
@@ -436,7 +446,8 @@ function carriesLayer2to5State(card: CardInstanceState): boolean {
         // un-snow marker on a land whose Melting is gone.
         card.grantedSupertypes !== undefined ||
         card.removedSupertypes !== undefined ||
-        card.grantedColors !== undefined
+        card.grantedColors !== undefined ||
+        card.colorSet !== undefined
     );
 }
 
@@ -1064,6 +1075,16 @@ function resolveAction(
                       add: colorGrantColors(effect, source),
                   }
                 : undefined;
+        case "color-set": {
+            // CR 105.3 — no stored choice sets nothing (never "colourless").
+            if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                return undefined;
+            }
+            const colors = colorSetColors(effect, source);
+            return colors.length > 0
+                ? { kind: "color-change", set: colors }
+                : undefined;
+        }
         default:
             return undefined;
     }
@@ -1368,11 +1389,18 @@ export function deriveLayers2to5(
                 break;
             }
             case "color-change":
-                // CR 105.3 — a colour SET replaces every colour the object had.
-                // The only writers of a set are resolving spells, whose value
-                // lives in the `colorOverride` LEDGER and is applied by
-                // `getEffectiveColors`; nothing here produces one today, and a
-                // stored entry that did would be handled by the same authority.
+                // CR 105.3 / 613.7 — a colour SET replaces every colour the
+                // object had at this point of the walk: the printed colours
+                // (`getEffectiveColors` reads `colorSet` in their place) and
+                // every grant with an EARLIER timestamp. A grant applied after
+                // it is pushed below and unions on top.
+                if (action.set) {
+                    result.colorSet = {
+                        colors: [...new Set(action.set)],
+                        sourceId: attributionOf(entry),
+                    };
+                    result.grantedColors = [];
+                }
                 for (const color of action.add ?? []) {
                     result.grantedColors.push({
                         color,
@@ -1431,6 +1459,7 @@ function viewOf(
         grantedSupertypes: result.grantedSupertypes,
         removedSupertypes: result.removedSupertypes,
         grantedColors: result.grantedColors,
+        colorSet: result.colorSet,
     } as unknown as CardInstanceState;
     if (result.textChanges.length === 0) {
         return base as unknown as PermanentView;
@@ -1696,6 +1725,7 @@ export function layers2to5DerivedFields(
         // line above; nothing reads them back as input.
         grantedColors:
             result.grantedColors.length > 0 ? result.grantedColors : undefined,
+        colorSet: result.colorSet,
         grantedSupertypes:
             result.grantedSupertypes.length > 0
                 ? result.grantedSupertypes
@@ -1729,6 +1759,7 @@ export function layers2to5WireFields(
     grantedSupertypes?: { supertype: string; sourceId: string }[];
     removedSupertypes?: { supertype: string; sourceId: string }[];
     grantedColors?: { color: string; sourceId: string }[];
+    colorSet?: { colors: string[]; sourceId: string };
     printedSubtypes?: string[];
 } {
     return {
@@ -1760,6 +1791,7 @@ export function layers2to5WireFields(
                 : undefined,
         grantedColors:
             result.grantedColors.length > 0 ? result.grantedColors : undefined,
+        colorSet: result.colorSet,
         printedSubtypes: card.baseSubtypes,
     };
 }

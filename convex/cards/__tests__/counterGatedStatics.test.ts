@@ -107,6 +107,7 @@ const KIND_MATERIALIZATION: Record<
     "subtype-add": "materialized",
     "supertype-set": "materialized",
     "color-grant": "materialized",
+    "color-set": "materialized",
     "keyword-remove": "materialized",
     "ability-loss": "materialized",
     // --- materialized elsewhere, NOT reachable by the refresh -----------

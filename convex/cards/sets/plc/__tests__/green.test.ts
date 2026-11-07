@@ -103,11 +103,19 @@ describe("Life and Limb ({3}{G} Enchantment — CR 613 layers 4, 5 and sublayer 
         expect(sap.subtypes).toContain("Forest");
     });
 
-    it("adds green (CR 613.1e layer 5) — additively, per the marked divergence", () => {
-        const woods = forestOnBoard();
+    it("SETS green (CR 105.3, 613.1e layer 5): a Forest of another colour becomes mono-green", () => {
+        // A Forest whose cost makes it blue: an additive grant would read it
+        // blue-green, the set reads it green alone.
+        const woods = makeInstance(forest.id, {
+            id: "blue-forest",
+            controllerId: "p2",
+            zone: "battlefield",
+            manaCostOverride: { U: 1 },
+        });
+        expect(getEffectiveColors(woods as never)).toEqual(["U"]);
         withLifeAndLimb([woods]);
 
-        expect(getEffectiveColors(woods as never)).toContain("G");
+        expect(getEffectiveColors(woods as never)).toEqual(["G"]);
     });
 
     it("leaves a land that is neither a Forest nor a Saproling alone", () => {

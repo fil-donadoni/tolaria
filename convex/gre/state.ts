@@ -10504,6 +10504,7 @@ function revertColorChanges(card: CardInstanceState): void {
     delete card.colorOverride;
     delete card.temporaryColorOverrides;
     delete card.grantedColors;
+    delete card.colorSet;
 }
 
 /** CR 400.7 / 509.1c (issue #3713) — removes `attackerId` from every

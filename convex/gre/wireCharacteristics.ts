@@ -70,6 +70,7 @@ export type WireCharacteristics = Partial<CardInstanceState> & {
     grantedSupertypes?: { supertype: string; sourceId: string }[];
     removedSupertypes?: { supertype: string; sourceId: string }[];
     grantedColors?: { color: string; sourceId: string }[];
+    colorSet?: { colors: string[]; sourceId: string };
     printedSubtypes?: string[];
     grantedStaticAbilities?: {
         ability: string;

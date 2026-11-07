@@ -126,6 +126,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         mustAttackThisTurn: true,
         grantedAttackRequirements: [{ seq: 14 }],
         grantedColors: [{ color: "U", sourceId: "src-8" }],
+        colorSet: { colors: ["R"], sourceId: "src-8" },
         grantedSupertypes: [{ supertype: "Snow", sourceId: "src-9" }],
         removedSupertypes: [{ supertype: "Legendary", sourceId: "src-10" }],
         baseControllerId: "p1",

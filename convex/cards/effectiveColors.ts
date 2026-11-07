@@ -38,6 +38,7 @@ import type { Color, PermanentView } from "./types";
 type ColorLayerFields = {
     colorOverride?: readonly string[];
     grantedColors?: readonly { color: string }[];
+    colorSet?: { readonly colors: readonly string[] };
 };
 
 /** CR 202.2 / 613.1e — the permanent's effective colours.
@@ -45,7 +46,10 @@ type ColorLayerFields = {
  *  Resolution order:
  *    1. `colorOverride` (layer-5 colour SET) wins outright — it replaces every
  *       other derivation, so a laced permanent is EXACTLY those colours.
- *    2. otherwise, the printed cost's colours (embedded `card.manaCost` when
+ *       Deviation from CR 613.7: the ledger carries no timestamp, so it also
+ *       beats a static set or grant that arrived LATER (tracked-by: #8812).
+ *    2. otherwise, `colorSet` (a static layer-5 colour SET, Shifting Sky) or,
+ *       absent, the printed cost's colours (embedded `card.manaCost` when
  *       present, else the registry definition) UNIONED with `grantedColors`.
  *       A devoid definition contributes no printed colour (CR 702.114a), and a
  *       grant still paints on top of it (CR 613.3: CDAs apply first in a layer).
@@ -56,19 +60,28 @@ export function getEffectiveColors(card: PermanentView): Color[] {
     const layers = card as unknown as ColorLayerFields;
     const override = layers.colorOverride;
     if (override) return [...override] as Color[];
-    // Single authority (`cards/registry.ts`): instance `manaCostOverride`
-    // (CR 707.2 "except it has no mana cost" — an Eternalize token, whose cost
-    // therefore contributes NO colour) → embedded fixture cost → registry
-    // definition.
-    const id = (card.card as { id?: string }).id;
-    const def = id ? tryGetDefinition(id) : undefined;
-    const base =
-        def && hasDevoid(def)
-            ? []
-            : getColorsFromCost(getInstanceManaCost(card));
+    // CR 105.3 — a layer-5 colour SET from a static ability (`colorSet`,
+    // derived in timestamp order by `gre/layers2to5.ts`) replaces the printed
+    // colours; only the grants applied AFTER it are still in `grantedColors`.
+    const base = layers.colorSet
+        ? ([...layers.colorSet.colors] as Color[])
+        : printedColors(card);
     const granted = layers.grantedColors;
     if (!granted?.length) return base;
     const all = new Set<Color>(base);
     for (const g of granted) all.add(g.color as Color);
     return [...all];
+}
+
+/** CR 202.2 — the colours the instance's mana cost gives it. Single authority
+ *  (`cards/registry.ts`): instance `manaCostOverride` (CR 707.2 "except it has
+ *  no mana cost" — an Eternalize token, whose cost therefore contributes NO
+ *  colour) → embedded fixture cost → registry definition. A devoid definition
+ *  contributes none (CR 702.114a). */
+function printedColors(card: PermanentView): Color[] {
+    const id = (card.card as { id?: string }).id;
+    const def = id ? tryGetDefinition(id) : undefined;
+    return def && hasDevoid(def)
+        ? []
+        : getColorsFromCost(getInstanceManaCost(card));
 }

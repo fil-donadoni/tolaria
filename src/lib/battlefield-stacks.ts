@@ -133,6 +133,7 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     // card's overlay, so either makes the instance visually individual.
     if (card.colorOverride && card.colorOverride.length > 0) return true;
     if (card.grantedColors && card.grantedColors.length > 0) return true;
+    if (card.colorSet) return true;
     // Layer 3/4 characteristic changes (CR 613.1c, 613.1d) — a text change, a
     // card type / subtype / supertype grant or removal, and its layer-6 mirror
     // (keyword removal) make the instance non-interchangeable: a Plains turned
