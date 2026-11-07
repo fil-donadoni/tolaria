@@ -62,10 +62,10 @@ describe('"another target" on an activated ability', () => {
         });
     });
 
-    it("stays refused on a triggered ability, where the walk cannot tell", () => {
+    it("stays refused behind a trigger head naming another object the word could mean", () => {
         expect(
             compile(
-                "When this creature enters, untap another target creature you control."
+                "Whenever a creature enters, untap another target creature you control."
             ).state
         ).toBe("unparsed");
     });

@@ -203,8 +203,8 @@ describe("second group — 'Another target …' (CR 115.3)", () => {
 
     it("refuses 'another target' with no earlier announcement", () => {
         // The other reading of the word is "another than the SOURCE"
-        // (`excludeSource`, a permanent's own ability). This walk cannot tell
-        // the two apart, so it refuses rather than guessing one.
+        // (`excludeSource`), which only a permanent's ability can mean. A
+        // spell has no earlier target and no such source, so it refuses.
         expect(
             refusalReason(
                 spell("Another target creature gets -2/-2 until end of turn.")

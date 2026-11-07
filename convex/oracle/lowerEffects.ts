@@ -883,6 +883,22 @@ function excludableByPriorPicks(requirement: TargetRequirement): boolean {
 }
 
 /**
+ * CR 601.2c — whether a recorded group is the sentence's requirement, as
+ * `TargetSlots.allocate` announced it: the same object, or its copy carrying
+ * the source exclusion the printed "another" adds to a first group.
+ */
+function isAllocationOf(
+    group: TargetRequirement,
+    requirement: TargetRequirement
+): boolean {
+    return (
+        group === requirement ||
+        JSON.stringify(group) ===
+            JSON.stringify({ ...requirement, excludeSource: true })
+    );
+}
+
+/**
  * Collects the ability's target GROUPS as the sentences are walked.
  *
  * A group is one instance of the word "target" (CR 115.3) and occupies as many
@@ -895,9 +911,9 @@ function excludableByPriorPicks(requirement: TargetRequirement): boolean {
  */
 export class TargetSlots {
     /**
-     * An ACTIVATED ability's first "another target" can only mean other than the
-     * ability's own source: the site knows it is a permanent talking about
-     * itself, which the walk alone cannot tell (see `allocate`).
+     * A permanent's first "another target" on an ability can only mean other
+     * than that ability's own source: the site knows the ability is talking
+     * about itself, which the walk alone cannot tell (see `allocate`).
      */
     private readonly firstAnotherExcludesSource: boolean;
 
@@ -917,11 +933,11 @@ export class TargetSlots {
      * decides nothing about the filter and everything about which groups may
      * coexist:
      *
-     *   - the FIRST group can never be "another" — there is no earlier
-     *     instance of the word "target" for it to exclude, and the reading it
-     *     would have instead ("another" than the SOURCE, `excludeSource`) is a
-     *     permanent's ability talking about itself, which this walk cannot
-     *     tell apart from the spell case and so refuses rather than guesses;
+     *   - the FIRST group has no earlier instance of the word "target" to
+     *     exclude. On a site that knows it is a permanent's ability talking
+     *     about itself the word means "another" than the SOURCE
+     *     (`excludeSource`); anywhere else this walk cannot tell that from the
+     *     spell case, and refuses rather than guesses;
      *   - a LATER group may print it or not. Printed, it is the directive
      *     that forbids naming an object an earlier group already named
      *     (`excludePriorTargets`). Not printed, it is a second plain instance
@@ -4322,10 +4338,16 @@ function lowerSentenceBody(
                 // CR 608.2h — "it" / "that card" is the ONE announced object.
                 const announced = slots.requirements();
                 const actedOn = walk.actedOn;
+                // "that card" returned to the battlefield is the card the
+                // exile below made of the target, never the permanent a head
+                // named, so only "it" is ambiguous behind such a head.
+                const namesExiledCard =
+                    sentence.printedThatCard === true &&
+                    sentence.destination === "battlefield";
                 if (
                     announced.length !== 1 ||
                     walk.gatedRemoval ||
-                    headNamesAnObject(site)
+                    (headNamesAnObject(site) && !namesExiledCard)
                 )
                     return unlowerable(
                         '"it" names no single object announced before it (CR 608.2h)'
@@ -4335,7 +4357,7 @@ function lowerSentenceBody(
                     if (
                         actedOn === null ||
                         actedOn.op.op !== "exile" ||
-                        actedOn.requirement !== announced[0]
+                        !isAllocationOf(announced[0]!, actedOn.requirement)
                     )
                         return unlowerable(
                             '"it" returned to the battlefield names no object exiled by the sentence before it (CR 608.2h)'

@@ -43,6 +43,7 @@ import {
     lowerSentence,
     SentenceWalk,
     type SiteAntecedents,
+    TargetSlots,
 } from "./lowerEffects";
 
 export type LowerTriggerResult =
@@ -188,6 +189,33 @@ function namedPlayerField(head: TriggerHeadIR): string | null {
     return head.kind === "phase" && head.namesPlayer === true
         ? "activePlayerId"
         : null;
+}
+
+/**
+ * CR 603.3d + CR 601.2c — "another target …" with no earlier target on a
+ * triggered ability names a target other than the ability's own source, chosen
+ * as the ability goes on the stack. That reading holds only behind a head
+ * naming no other object the word could mean: "whenever enchanted creature
+ * attacks, another target creature" and "whenever a creature enters, another
+ * target creature" are other than THAT creature, so those heads stay refused.
+ */
+function anotherExcludesSource(head: TriggerHeadIR): boolean {
+    switch (head.kind) {
+        case "enters":
+        case "attacks":
+        case "dies":
+        case "becomes-tapped":
+            return head.scope === "self";
+        case "enters-or-attacks":
+        case "turned-face-up":
+            return true;
+        case "phase":
+            return head.scope === "your";
+        case "spell-cast":
+            return head.scope === "you";
+        default:
+            return false;
+    }
 }
 
 /**
@@ -557,7 +585,9 @@ export function lowerTriggeredAbility(input: {
         input.effects.some(
             (e) => e.kind === "exchange-control" && e.resolvesIfTargetIllegal
         );
-    const walk = new SentenceWalk();
+    const walk = new SentenceWalk(
+        new TargetSlots(anotherExcludesSource(input.head))
+    );
     const ops: EffectOp[] = [];
     for (const [index, sentence] of input.effects.entries()) {
         // CR 107.3 — a triggered ability has no cost and announces nothing,
