@@ -33,7 +33,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  the wall clock in a real game.
  *
  *  `hard.timeMs` is twice `medium.timeMs`, so `hard` stays proportionally the
- *  deepest blind search: `1500 * 2 = 3000`. Monotonicity (1500 < 3000 < 3300) is asserted in
+ *  deeper search: `1500 * 2 = 3000`. Monotonicity (1500 < 3000 < 3300) is asserted in
  *  `difficulty.bot.test.ts`.
  *
  *  `medium` and `hard` both read clean tactics perfectly; `hard`'s extra budget
