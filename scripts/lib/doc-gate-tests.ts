@@ -59,6 +59,8 @@ export const DOC_GATE_TESTS = [
     // machine-local log path (issue #5589) — a skill edit alone can break it.
     "scripts/__tests__/health-evidence-pivot.test.ts",
     "scripts/__tests__/project-skills.test.ts",
+    // Every `docs/research/*.md` opens with a Measured-at / Dated banner (issue #8699).
+    "scripts/__tests__/research-banner.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
     "scripts/__tests__/skill-invocation.test.ts",
 ] as const;

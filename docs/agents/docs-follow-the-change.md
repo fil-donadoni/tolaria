@@ -88,3 +88,5 @@ are reconciled; the other two are dated.
 A quantity quoted in a document that was measured on code older than the
 current tip, with no banner saying so. Fixed by a re-measure or by a `Dated:`
 banner naming what moved.
+
+**ADR amendments** (issue #8699): a new ADR that amends or supersedes an older one updates that row's `Status` in `docs/adr/README.md` and adds the `Amended by` / `Superseded by` line to the older record, in the same change (`adr-index.test.ts` guards both directions). `docs/research/*.md` opens with `Measured at <sha> (<date>)` or `Dated:` (`research-banner.test.ts`).
