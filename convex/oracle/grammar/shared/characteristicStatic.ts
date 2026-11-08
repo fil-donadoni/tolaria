@@ -14,6 +14,8 @@
  *                                            → layer 4 `type-add` + 7b `pt-set` (mana value)
  *   "<self>'s power and toughness are each equal to the number of land cards
  *    in all graveyards"                      → CR 604.3 `pt-cda`, self scope
+ *   "Lands you control are every basic land type in addition to their other
+ *    types"                                  → layer 4 `subtype-add`, five basics
  *   "<self>'s power is equal to the total power of the exiled cards and its
  *    toughness is equal to their total toughness"
  *                                            → CR 604.3 `pt-cda`, exiled pile
@@ -69,7 +71,13 @@ export type CharacteristicStaticIR =
       }
     /** CR 604.3 / 607.2a — "<self>'s power is equal to the total power of the
      *  exiled cards and its toughness is equal to their total toughness". */
-    | { readonly kind: "self-pt-cda-exiled-totals" };
+    | { readonly kind: "self-pt-cda-exiled-totals" }
+    /** CR 305.7 / 613.1d — "<lands> are every basic land type in addition to
+     *  their other types". */
+    | {
+          readonly kind: "basic-land-types-add";
+          readonly filter: PermanentFilter;
+      };
 
 /** CR 205.2a — the card-type words a graveyard count may name. */
 const CARD_TYPE_WORDS: ReadonlyMap<string, CardType> = new Map<
@@ -244,5 +252,42 @@ export const selfPtCdaExiledTotalsRule: Rule<CharacteristicStaticIR> = rule(
         )
             return fail(`"${subject}" is not the permanent itself`, subject);
         return ok({ kind: "self-pt-cda-exiled-totals" as const });
+    }
+);
+
+const BASIC_LAND_TYPES_ADD =
+    /^(.+) are every basic land type in addition to their other types$/;
+
+/**
+ * Prismatic Omen. CR 205.1b: "in addition to their other types" RETAINS every
+ * prior type, so this is the additive layer-4 subtype change (CR 613.1d), never
+ * a replacement; CR 305.7's closing sentence keeps the land's own types and
+ * rules text and adds the mana ability of each new basic land type. "Every
+ * basic land type" is the five basics (CR 205.3i). The subject is a plural set
+ * of LANDS: land types belong to lands only (CR 205.3i), so a subject the
+ * descriptor reads as anything but lands refuses rather than writing land
+ * types onto a creature.
+ */
+export const basicLandTypesAddRule: Rule<CharacteristicStaticIR> = pattern(
+    "every basic land type in addition",
+    BASIC_LAND_TYPES_ADD,
+    (match): RuleResult<CharacteristicStaticIR> => {
+        const subject = match[1]!;
+        const descriptor = descriptorRule.run(subject, undefined);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail("a set of lands needs a plural subject", subject);
+        const filter = staticFilterFromDescriptor(
+            descriptor.value,
+            "materialised"
+        );
+        if (!filter.ok) return filter;
+        const types = filter.value.types;
+        if (types?.length !== 1 || types[0] !== "Land")
+            return fail(`"${subject}" is not a set of lands`, subject);
+        return ok({
+            kind: "basic-land-types-add" as const,
+            filter: filter.value,
+        });
     }
 );

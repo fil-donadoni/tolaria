@@ -29,7 +29,6 @@ import { defineCard, BASIC_LAND_SUBTYPES } from "../../types";
 // you control" is a card TYPE and a controller, neither of which a subtype
 // replacement writes. Nor can either end the other's existence — CR 305.7
 // reaches a land's rules text, and this card is an enchantment.
-// compiler-gap: Lands you control are every basic land type in addition to their other types. (#2693)
 export const prismaticOmen = defineCard(() => ({
     id: "e75594cc-de47-49f2-9a8b-ba76c576368e",
     rarity: "rare",
