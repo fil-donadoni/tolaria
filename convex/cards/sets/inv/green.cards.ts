@@ -1319,40 +1319,22 @@ export const elfhameSanctuary = defineCard(() => ({
 
 // Pulse of Llanowar — "If a basic land you control is tapped for mana, it
 // produces mana of a color of your choice instead of any other type." A
-// mana-TYPE-CHANGE replacement (not an addition like Fertile Ground/Wild
-// Growth) scoped to every basic land the controller taps, with a per-tap
-// runtime colour choice substituting for the land's normal output — no
-// existing primitive replaces a land's produced mana type, only adds to it
-// or fixes it (`addManaTo`) or restricts its spend (`addRestrictedMana`).
-//
-// Confirmed still blocked (issue #1097 gap 4/3 pass, deliberately deferred —
-// a smaller correct PR beats a large speculative one). Gap 4 (Quirion Elves)
-// closed via the EXISTING `manaChoices`/`getManaChoices` board-conditional-
-// choice machinery, but that machinery only ever attaches to a PRINTED
-// `ActivatedAbility` on the tapped permanent ITSELF. Pulse of Llanowar needs
-// to retrofit a choice onto every BASIC LAND'S intrinsic subtype-mana tap —
-// which `getManaTapOptionsDetailed` (`gre/constants.ts`) currently emits as
-// ONE fixed `{ [color]: 1 }` entry per distinct basic subtype
-// (`{ kind: "basic"; subtype }` in `ManaTapOptionSource` — "has no riders",
-// per its own doc comment) with no choice branch at all. Closing this
-// properly needs: (1) a new choice-bearing shape for the "basic" provenance
-// kind (today it carries only `subtype`, never a colour option list); (2) a
-// matching branch in `resolveManaTapChoice` (`convex/game.ts`) to resolve the
-// picked colour; (3) `getProducibleColors`/`producibleColorsFromAbilities`
-// (CR 106.4 "could produce") updated so deck-analysis / castability callers
-// see "any colour" while Pulse is in play, not just the land's printed
-// colour; (4) the CLIENT tap picker (`src/lib/card-utils.ts`, which shares
-// the same resolver) exercising a picker for BASIC lands, which it has never
-// needed to do before. That is real, cross-cutting engine surface for one
-// uncommon enchantment — out of scope for this pass.
-// tracked-by: #2139
-// export const pulseOfLlanowar: CardDefinition = {
-//     id: "db09afe5-5f01-4f77-a239-12d7a6e59024",
-//     name: "Pulse of Llanowar",
-//     rarity: "uncommon",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Enchantment"],
-// };
+// CR 614.1a mana-type replacement on the controller's basic lands (CR 205.4c),
+// declared as the `chosenColor` `landManaSubstitution`: each such land's tap
+// options become one per colour (`getManaTapOptionsDetailed`), so the pick is
+// the tap index and the picked colour is final (CR 616.1). An opponent's
+// basic and a nonbasic land are untouched.
+// compiler-gap: "If a basic land you control is tapped for mana, it produces mana of a color of your choice instead of any other type." (#2693)
+export const pulseOfLlanowar = defineCard(() => ({
+    id: "db09afe5-5f01-4f77-a239-12d7a6e59024",
+    name: "Pulse of Llanowar",
+    rarity: "uncommon",
+    oracleText:
+        "If a basic land you control is tapped for mana, it produces mana of a color of your choice instead of any other type.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Enchantment"],
+    landManaSubstitution: { chosenColor: "basic-lands-you-control" },
+}));
 
 // Restock — "Return two target cards from your graveyard to your hand.
 // Exile Restock." (CR 400.7 zone change; CR 608.2 "Exile ~".) The return

@@ -99,15 +99,33 @@ export type TextChange = {
  *    (Naked Singularity, "Plains produce {R}, Islands produce {G}, …"). A land
  *    whose subtype is not in the map is unaffected by THIS source.
  *
- *  Exactly one of `color` / `byBasicSubtype` is set. The substitution is
- *  global (it affects every player's lands, like the printed cards), so the
- *  source's controller is not consulted. Multiple active substitutions apply in
- *  timestamp order; the engine applies them in battlefield order (CR 614.1
- *  layering of replacements is not modelled to the letter — the cards in scope
- *  never overlap on a single land in a legal board). */
+ *  - `chosenColor` — a CHOSEN-colour substitution: a land in the named scope
+ *    produces mana of a colour of its controller's choice instead of any other
+ *    type, in the same total quantity, the colour picked as the land is tapped
+ *    (Pulse of Llanowar, "If a basic land you control is tapped for mana, it
+ *    produces mana of a color of your choice instead of any other type"). The
+ *    one scope, `"basic-lands-you-control"`, admits a land with the live
+ *    `Basic` supertype (CR 205.4c) controlled by the source's controller. The
+ *    choice is not a prompt of its own: the tap option list offers one option
+ *    per colour (`getManaTapOptionsDetailed`), so the pick is the tap index.
+ *
+ *  Exactly one of `color` / `byBasicSubtype` / `chosenColor` is set. The two
+ *  fixed shapes are global (they affect every player's lands, like the
+ *  printed cards), so the source's controller is not consulted for them.
+ *  Multiple fixed substitutions apply in battlefield order, first source wins
+ *  (CR 614.1 layering of replacements is not modelled to the letter — the
+ *  fixed cards in scope never overlap on a single land in a legal board). A
+ *  land in a `chosenColor` scope is the exception: under CR 616.1 its
+ *  controller orders the replacements, and applying the chosen colour last
+ *  reaches every colour, so the picked colour is final and the fixed shapes
+ *  never rewrite it. */
 export type LandManaSubstitution =
     | { color: Color }
-    | { byBasicSubtype: Partial<Record<string, Color>> };
+    | { byBasicSubtype: Partial<Record<string, Color>> }
+    | { chosenColor: LandManaChoiceScope };
+
+/** Which lands a `chosenColor` {@link LandManaSubstitution} reaches. */
+export type LandManaChoiceScope = "basic-lands-you-control";
 
 export type ManaCost = {
     X?: number | string;

@@ -1351,13 +1351,20 @@ export function getProducibleColorsOnBoard(
     // account: each type the card could add is run through the same rewrite
     // the tap applies (Forest under Infernal Darkness → {B}).
     const out = new Set<Color>();
+    // CR 106.7 / 616.1 — a land whose mana is its controller's pick could
+    // produce every colour (the chosen colour applied last), and each fixed
+    // result the other orderings reach, read below with `fixedOnly`.
+    const chosen =
+        printed.size > 0 && landManaColorIsChosen(battlefields, card);
+    if (chosen) for (const c of COLORED_MANA_COLORS) out.add(c);
     for (const color of printed) {
         const replaced = replaceLandManaType(
             replacements,
             battlefields,
             card.controllerId,
             card,
-            { [color]: 1 }
+            { [color]: 1 },
+            chosen
         );
         for (const c of MANA_COLORS) {
             if ((replaced[c] ?? 0) > 0 && (includeColorless || c !== "C"))
@@ -2719,7 +2726,20 @@ export function getManaTapOptionsDetailed(
     // Prefer non-destructive options; fall back to sacrifice abilities only when
     // there is no other way to tap this source for mana (Lotus Petal).
     const primary = nonSacrifice.length > 0 ? nonSacrifice : sacrifice;
-    const out = dedupByProducedMana(primary);
+    // The board is read only for the substitution a clear scan rules out.
+    const substitutionBoard =
+        opts?.boardScan?.landManaSubstituted === false
+            ? undefined
+            : battlefields;
+    // CR 614 / 616.1 — a land whose mana is a colour of its controller's
+    // choice offers each option once per colour; see `expandToChosenColors`.
+    const chosen =
+        !!substitutionBoard && landManaColorIsChosen(substitutionBoard, card);
+    const group = (options: readonly ManaTapOption[]) =>
+        chosen
+            ? dedupByProducedMana(expandToChosenColors(options))
+            : dedupByProducedMana(options);
+    const out = group(dedupByProducedMana(primary));
     // CR 605.3a (issue #3630) — that preference belongs to the AUTOMATIC
     // planner (`requireTap`), which must never commit a sacrifice while a
     // non-destructive option exists. A PLAYER may activate any mana ability, so
@@ -2729,18 +2749,64 @@ export function getManaTapOptionsDetailed(
     // planner-built `manaChoiceIndex` names the same ability to the tap
     // mutations. Dropping them here left no mutation able to name the ability.
     if (!requireTap && primary !== sacrifice) {
-        out.push(...dedupByProducedMana(sacrifice));
+        out.push(...group(dedupByProducedMana(sacrifice)));
     }
-    return substituteTapOptionMana(
+    const substituted = substituteTapOptionMana(
         out,
         card,
         controllerId,
-        // The board is read only for the substitution a clear scan rules out.
-        opts?.boardScan?.landManaSubstituted === false
-            ? undefined
-            : battlefields,
+        substitutionBoard,
         replacements
     );
+    if (!chosen || requireTap || !controllerId) return substituted;
+    // CR 616.1 — the other orderings: a fixed replacement applied AFTER the
+    // chosen colour rewrites it, so a result no colour pick reaches (Chaos
+    // Moon's Mountain → {C}) is an option too. APPENDED behind every other
+    // option, destructive ones included, so no index moves for a reader that
+    // cannot see the per-turn replacements (the client picker), and absent
+    // from the automatic planner's list (`requireTap`), whose indices must
+    // match the manual list's primary options.
+    const reached = new Set(substituted.map((o) => manaCostKey(o.mana)));
+    const extras: ManaTapOption[] = [];
+    for (const option of out) {
+        const mana = replaceLandManaType(
+            replacements,
+            substitutionBoard ?? [],
+            controllerId,
+            card,
+            option.mana,
+            true
+        );
+        const key = manaCostKey(mana);
+        if (totalManaCount(mana) === 0 || reached.has(key)) continue;
+        reached.add(key);
+        extras.push({ ...option, mana });
+    }
+    return [...substituted, ...extras];
+}
+
+/** CR 614 — "it produces mana of a color of your choice instead of any other
+ *  type": each option becomes five, one per colour, carrying the SAME total
+ *  quantity and the same provenance (an activated ability's riders still fire
+ *  for its pick). The pick is the tap index, so the server mutations, the
+ *  planner and the client picker resolve one list with no picker of their own.
+ *  A zero-output option (a storage land's "remove 0") is kept as it is: its
+ *  index is load-bearing and it produces no mana to substitute. */
+function expandToChosenColors(
+    options: readonly ManaTapOption[]
+): ManaTapOption[] {
+    const out: ManaTapOption[] = [];
+    for (const option of options) {
+        const total = totalManaCount(option.mana);
+        if (total === 0) {
+            out.push(option);
+            continue;
+        }
+        for (const color of COLORED_MANA_COLORS) {
+            out.push({ ...option, mana: { [color]: total } as ManaCost });
+        }
+    }
+    return out;
 }
 
 /** CR 106.7 / 614 — rewrite each option's `mana` to what tapping it would
@@ -2896,6 +2962,9 @@ function getContinuousLandManaOverride(
             )?.landManaSubstitution;
             if (!sub) continue;
             if ("color" in sub) return sub.color;
+            // A chosen-colour shape fixes no colour: it is read by
+            // `landManaColorIsChosen`, never here.
+            if ("chosenColor" in sub) continue;
             for (const subtype of card.subtypes) {
                 const mapped = sub.byBasicSubtype[subtype];
                 if (mapped) return mapped;
@@ -2903,6 +2972,35 @@ function getContinuousLandManaOverride(
         }
     }
     return null;
+}
+
+/** CR 614 / 616.1 — is `card` a land whose mana is a colour of its
+ *  controller's choice (a `chosenColor` {@link LandManaSubstitution} in scope:
+ *  Pulse of Llanowar)? `"basic-lands-you-control"` reaches a land with the live
+ *  `Basic` supertype (CR 205.4c) whose controller also controls the source.
+ *
+ *  Such a land's tap options are one per colour (`getManaTapOptionsDetailed`),
+ *  and the colour its controller picks is FINAL: CR 616.1 lets the affected
+ *  object's controller order the replacements, and applying this one last
+ *  turns the fixed-colour results of the other land substitutions into the
+ *  picked colour, so {@link replaceLandManaType} leaves a picked colour alone.
+ *  Two sources make no difference: the colours on offer are the same. */
+export function landManaColorIsChosen(
+    battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>,
+    card: CardInstanceState
+): boolean {
+    if (!isLand(card)) return false;
+    if (!liveSupertypesOf(card).includes("Basic")) return false;
+    for (const player of battlefields) {
+        for (const source of player.battlefield) {
+            if (source.controllerId !== card.controllerId) continue;
+            const sub = tryGetDefinition(
+                source.card.id as string
+            )?.landManaSubstitution;
+            if (sub && "chosenColor" in sub) return true;
+        }
+    }
+    return false;
 }
 
 /** The per-turn slice of `GameState` the land-mana replacements read, so a
@@ -2966,17 +3064,28 @@ export function replaceProducedManaColor(
  *  the pre-tap readers (tap options, planner, "could produce") apply it to the
  *  mana a tap WOULD add and the pool-time funnel
  *  {@link applyLandManaReplacement} re-applies it without a double rewrite.
- *  Non-land sources keep their output except under (4). Pure. */
+ *  Non-land sources keep their output except under (4). Pure.
+ *
+ *  A land whose colour is its controller's pick ({@link landManaColorIsChosen})
+ *  skips (1)–(3): the mana it is handed IS the picked option, which CR 616.1
+ *  makes final. `fixedOnly` reads what (1)–(4) alone would make of it — the
+ *  orderings in which the chosen colour is not applied last. (4) is still
+ *  applied after the pick, in the funnel's fixed order (CR 616.1 is not
+ *  modelled between a production replacement and a land substitution). */
 export function replaceLandManaType(
     view: ManaReplacementView | undefined,
     battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>,
     controllerId: string,
     card: CardInstanceState,
-    produced: ManaCost
+    produced: ManaCost,
+    fixedOnly = false
 ): ManaCost {
+    const typeFixed = fixedOnly || !landManaColorIsChosen(battlefields, card);
     let result = produced;
-    const onLand = isLand(card);
-    const override = getContinuousLandManaOverride(battlefields, card);
+    const onLand = isLand(card) && typeFixed;
+    const override = typeFixed
+        ? getContinuousLandManaOverride(battlefields, card)
+        : null;
     if (override) {
         const total = totalManaCount(result);
         if (total > 0) result = { [override]: total };
