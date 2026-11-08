@@ -429,6 +429,8 @@ export const essenceFilter = defineCard(() => ({
 // Fanatical Fever — {2}{G}{G} Instant. "Target creature gets +3/+0 and gains
 // trample until end of turn." (CR 611.2a temporary P/T + keyword grant; CR
 // 514.2 expiry.) The Stampede single-target shape.
+//
+// compiler-gap: "Target creature gets +3/+0 and gains trample until end of turn." (#8573)
 export const fanaticalFever = defineCard(() => ({
     id: "2abba7f1-5d07-4137-88a2-5967396a3e42",
     name: "Fanatical Fever",
