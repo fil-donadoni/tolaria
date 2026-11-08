@@ -124,6 +124,12 @@ function press(key: string) {
     window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
 }
 
+function pressEnter() {
+    window.dispatchEvent(
+        new KeyboardEvent("keydown", { code: "Enter", bubbles: true })
+    );
+}
+
 describe("useControllerActions — Pass Until Action (issue #5782)", () => {
     beforeEach(() => {
         calls.length = 0;
@@ -136,16 +142,20 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
             (a) => a.key === "pass-until-action"
         );
         expect(action?.label).toBe("Pass Until Action");
-        expect(action?.shortcut).toBe("P");
+        expect(action?.shortcut).toBe("enter");
+        // Issue #7423: the [P] badge moved to Pass Turn.
+        expect(
+            result.current.actions.find((a) => a.key === "pass-turn")?.shortcut
+        ).toBe("P");
         const slots = selectCommandSlots(result.current.actions);
         expect(slots.passUntilAction).toBe(action);
         expect(slots.primary?.key).toBe("pass");
         expect(slots.secondary).not.toContain(action);
     });
 
-    it("P arms it through the passUntilAction mutation", async () => {
+    it("Enter arms it through the passUntilAction mutation", async () => {
         renderCtrl({});
-        await act(async () => press("p"));
+        await act(async () => pressEnter());
         expect(calls).toEqual([
             {
                 ref: "passUntilAction",
@@ -154,13 +164,19 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         ]);
     });
 
-    it("P is accepted without priority (the server queues it)", async () => {
+    it("Enter is accepted without priority (the server queues it)", async () => {
         renderCtrl({ priorityPlayerId: "opp" });
-        await act(async () => press("P"));
+        await act(async () => pressEnter());
         expect(calls.map((c) => c.ref)).toEqual(["passUntilAction"]);
     });
 
-    it("an armed intent shows a cancelling pill and P / Enter cancel it", async () => {
+    it("P passes the turn instead (issue #7423)", async () => {
+        renderCtrl({});
+        await act(async () => press("P"));
+        expect(calls.map((c) => c.ref)).toEqual(["endTurn"]);
+    });
+
+    it("an armed intent shows a cancelling pill and Enter / P cancel it", async () => {
         const { result } = renderCtrl({
             priorityPlayerId: "opp",
             passUntilAction: [{ playerId: "me", ignoredStackIds: [] }],
@@ -176,11 +192,7 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         expect(calls.map((c) => c.ref)).toEqual(["cancelAutoPass"]);
 
         calls.length = 0;
-        await act(async () => {
-            window.dispatchEvent(
-                new KeyboardEvent("keydown", { code: "Enter", bubbles: true })
-            );
-        });
+        await act(async () => pressEnter());
         expect(calls.map((c) => c.ref)).toEqual(["cancelAutoPass"]);
     });
 

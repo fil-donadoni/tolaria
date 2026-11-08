@@ -42,6 +42,7 @@ vi.mock("@convex/_generated/api", () => {
         "autoTapForAttackTax",
         "cancelAttackTax",
         "endTurn",
+        "passUntilAction",
         "cancelAutoPass",
         "submitMayPay",
         "submitLandEntryChoice",
@@ -197,7 +198,7 @@ describe("useControllerActions — Space vs. in-flight game intent", () => {
         expect(calls.map((c) => c.ref)).toContain("passPriority");
     });
 
-    it("does not end the turn on Enter while an intent is in flight", async () => {
+    it("does not pass on Enter or P while an intent is in flight", async () => {
         renderCtrl();
         let settle!: () => void;
         const dispatch = new Promise<void>((res) => {
@@ -210,8 +211,12 @@ describe("useControllerActions — Space vs. in-flight game intent", () => {
             window.dispatchEvent(
                 new KeyboardEvent("keydown", { code: "Enter", bubbles: true })
             );
+            window.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "p", bubbles: true })
+            );
         });
         expect(calls.map((c) => c.ref)).not.toContain("endTurn");
+        expect(calls.map((c) => c.ref)).not.toContain("passUntilAction");
         await act(async () => {
             settle();
             await dispatch;
