@@ -22722,6 +22722,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dryad of the Ilysian Grove",
+        "scryfallId": "6d964876-194b-49f1-8e74-cfe9269f2c62",
+        "oracleId": "bdbde5d0-f5e4-44da-b27c-b4ad6f374cc9",
+        "firstSet": "thb",
+        "firstPrintId": "6d964876-194b-49f1-8e74-cfe9269f2c62",
+        "firstPrintSet": "thb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Dryad's Favor",
         "scryfallId": "c259509e-9f95-4566-b78a-ba34107539f7",
         "oracleId": "af740170-af87-487c-abab-a6ccdea82d97",

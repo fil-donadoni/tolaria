@@ -54,6 +54,7 @@ import type {
     CardType,
     Color,
     CombatCounterpartFilter,
+    ContinuousRead,
     GateableStaticEffect,
     ManaCost,
     PermanentView,
@@ -306,6 +307,12 @@ export type CompiledStaticEffect =
     | ({
           readonly kind: "type-add";
           readonly types: readonly CardType[];
+      } & CompiledStaticScope)
+    /** CR 613.1d layer 4 — "<lands> are every basic land type in addition to
+     *  their other types": subtypes ADDED to the existing ones (CR 205.1b). */
+    | ({
+          readonly kind: "subtype-add";
+          readonly subtypes: readonly string[];
       } & CompiledStaticScope)
     /** CR 702.151b — the Reconfigure line's "stop being a creature until it
      *  becomes unattached": the permanent removes its own type while attached,
@@ -765,6 +772,37 @@ function scopePredicate(
     return (target, source, ctx) => filterMatches(filter, target, source, ctx);
 }
 
+/**
+ * CR 613.8a clause (b) — the layer-4 characteristics a filter-scoped layer-4
+ * effect's predicate reads, declared so a type-changing effect that changes
+ * what it applies to orders it by dependency. Only layer-4 fields: clause (a)
+ * confines a dependency to one layer, so the controller (layer 2) and colour
+ * (layer 5) the same filter may test are never declared.
+ */
+function layerFourReads(scope: CompiledStaticScope): ContinuousRead[] {
+    const filter = scope.filter;
+    if (filter === undefined) return [];
+    const reads: ContinuousRead[] = [];
+    const list = (v: string | readonly string[] | undefined) =>
+        v === undefined ? [] : typeof v === "string" ? [v] : [...v];
+    const read = (
+        characteristic: "types" | "subtypes" | "supertypes",
+        values: readonly string[]
+    ) => {
+        if (values.length > 0) reads.push({ characteristic, values });
+    };
+    read("types", [...list(filter.types), ...list(filter.excludeTypes)]);
+    read("subtypes", [
+        ...list(filter.subtypes),
+        ...list(filter.excludeSubtypes),
+    ]);
+    read("supertypes", [
+        ...list(filter.supertypes),
+        ...list(filter.excludeSupertypes),
+    ]);
+    return reads;
+}
+
 /** One descriptor → the real continuous effect. */
 export function resolveCompiledStatic(
     descriptor: CompiledStaticEffect
@@ -854,6 +892,15 @@ export function resolveCompiledStatic(
                 applies: scopePredicate(descriptor),
                 types: [...descriptor.types],
             };
+        case "subtype-add": {
+            const reads = layerFourReads(descriptor);
+            return {
+                kind: "subtype-add",
+                applies: scopePredicate(descriptor),
+                subtypes: [...descriptor.subtypes],
+                ...(reads.length > 0 ? { reads } : {}),
+            };
+        }
         case "ability-loss":
             return {
                 kind: "ability-loss",

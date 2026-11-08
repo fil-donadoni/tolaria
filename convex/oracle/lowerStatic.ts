@@ -62,7 +62,11 @@ import type {
     CompiledControlsCondition,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
-import { PERMANENT_TYPES, type FullTextEffect } from "../cards/types";
+import {
+    BASIC_LAND_SUBTYPES,
+    PERMANENT_TYPES,
+    type FullTextEffect,
+} from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
     AsEntersChoice,
@@ -717,6 +721,20 @@ export function lowerStaticClause(
                             kind: "pt-set",
                             filter: clause.filter,
                             count: { kind: "mana-value" },
+                        },
+                    ],
+                },
+            };
+        case "basic-land-types-add":
+            // CR 305.7 / 613.1d — additive layer-4 land types, all five basics.
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "subtype-add",
+                            filter: clause.filter,
+                            subtypes: [...BASIC_LAND_SUBTYPES],
                         },
                     ],
                 },
