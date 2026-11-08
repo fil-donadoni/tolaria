@@ -120,8 +120,6 @@
         {"key":"cdce77008fb6","text":"+1: Draw a card. For each opponent, exile up to one target instant or sorcery card from that player's graveyard and put a page counter on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"For each opponent, exile up to one target instant or sorcery card from that player's graveyard and put a page counter on it"}},
         {"key":"b87027692b91","text":"+1: Draw a card. Then discard a card unless you attacked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Then discard a card unless you attacked this turn"}},
         {"key":"3a1dd4672081","text":"+1: Draw two cards. If you've committed a crime this turn, discard a card. Otherwise, discard two cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"If you've committed a crime this turn, discard a card"}},
-        {"key":"cc1d08900dc1","text":"+1: Draw two cards. Then discard two cards unless you discard a creature card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Then discard two cards unless you discard a creature card"}},
-        {"key":"8de72faf84a6","text":"+1: Draw two cards. Then discard two cards unless you discard an artifact card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Then discard two cards unless you discard an artifact card"}},
         {"key":"819d652a4e81","text":"+1: Each opponent discards a card and loses 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Each opponent discards a card and loses 2 life"}},
         {"key":"c603d53bf4c7","text":"+1: Each opponent exiles two cards from their hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Each opponent exiles two cards from their hand"}},
         {"key":"1007de94d11b","text":"+1: Each opponent loses 2 life unless they discard a card. If you control a Demon or Devil, you gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Each opponent loses 2 life unless they discard a card"}},
@@ -6739,7 +6737,7 @@
         {"key":"8eca7cb2a3a1","text":"Draw cards equal to your highest commander tax among your commanders.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Draw cards equal to your highest commander tax among your commanders"}},
         {"key":"ca6ed75ff121","text":"Draw four cards, then choose X cards in your hand and discard the rest.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"Choose X cards in your hand and discard the rest"}},
         {"key":"5af1cfbcee88","text":"Draw four cards, then discard three cards at random.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"Discard three cards at random"}},
-        {"key":"be555d0c7f6a","text":"Draw four cards. Then discard two cards unless you discard an instant or sorcery card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard two cards unless you discard an instant or sorcery card"}},
+        {"key":"149bdc463330","text":"Draw four cards. Then discard two cards unless you discard an instant or sorcery card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"discard an instant or sorcery card"}},
         {"key":"2317b1a7eddf","text":"Draw four cards. You lose half your life, rounded up.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"You lose half your life, rounded up"}},
         {"key":"fb1343fc4817","text":"Draw three cards and create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Draw three cards and create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\""}},
         {"key":"1568ebb5d15a","text":"Draw three cards, then put two cards from your hand both on top of your library or both on the bottom of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"top of your library or both on the bottom of your library"}},
@@ -6751,10 +6749,7 @@
         {"key":"7e35db147fdf","text":"Draw three cards. Proliferate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Proliferate"}},
         {"key":"6ecdc69c6a72","text":"Draw three cards. Then discard a card unless this spell was cast using teamwork.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard a card unless this spell was cast using teamwork"}},
         {"key":"556d4daf2dcf","text":"Draw three cards. Then discard a card unless you waterbend {2}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard a card unless you waterbend {2}"}},
-        {"key":"0510066624d3","text":"Draw three cards. Then discard two cards unless you discard a basic land card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard two cards unless you discard a basic land card"}},
-        {"key":"47b21e4098c2","text":"Draw three cards. Then discard two cards unless you discard a creature card.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard two cards unless you discard a creature card"}},
-        {"key":"be832f99f0ae","text":"Draw three cards. Then discard two cards unless you discard an artifact card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard two cards unless you discard an artifact card"}},
-        {"key":"841241182c04","text":"Draw three cards. Then discard two cards unless you discard an enchantment card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then discard two cards unless you discard an enchantment card"}},
+        {"key":"84d1dbed4124","text":"Draw three cards. Then discard two cards unless you discard a basic land card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"discard a basic land card"}},
         {"key":"42201809104d","text":"Draw three cards. Then if any player pays {2}, discard three cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then if any player pays {2}, discard three cards"}},
         {"key":"10525fc9208e","text":"Draw three cards. Then target opponent faces a villainous choice — They discard three cards, or you may cast a spell from your hand without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then target opponent faces a villainous choice — They discard three cards, or you may cast a spell from your hand without paying its mana cost"}},
         {"key":"d39b9aa97639","text":"Draw three cards. You may put a land card from your hand onto the battlefield tapped.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"You may put a land card from your hand onto the battlefield tapped"}},
@@ -16878,7 +16873,7 @@
         {"key":"2f4748cc0923","text":"When this creature enters, draw three cards, then discard two cards at random. If two cards that share a card type are discarded this way, put two +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"Discard two cards at random"}},
         {"key":"a3ab08a97bb3","text":"When this creature enters, draw three cards. Then if it wasn't kicked, discard three cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then if it wasn't kicked, discard three cards"}},
         {"key":"5e7a7d3be5ed","text":"When this creature enters, draw two cards, then discard two cards. When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them"}},
-        {"key":"2a621f2fb61d","text":"When this creature enters, draw two cards. Then discard two cards unless you discard an instant or sorcery card or a creature card with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then discard two cards unless you discard an instant or sorcery card or a creature card with flying"}},
+        {"key":"11452556386e","text":"When this creature enters, draw two cards. Then discard two cards unless you discard an instant or sorcery card or a creature card with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"discard an instant or sorcery card or a creature card with flying"}},
         {"key":"cdcb3053e659","text":"When this creature enters, each Forest and Treefolk card in your hand perpetually gains \"{T}: Add {G}{G}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"When this creature enters, each Forest and Treefolk card in your hand perpetually gains \"{T}: Add {G}{G}.\""}},
         {"key":"22d9196e88ac","text":"When this creature enters, each card you own with {X} in its mana cost perpetually gains \"This spell costs {1} less to cast.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"When this creature enters, each card you own with {X} in its mana cost perpetually gains \"This spell costs {1} less to cast.\""}},
         {"key":"5edb4d911c9e","text":"When this creature enters, each creature target opponent controls loses all abilities, becomes a Coward in addition to its other types, and has base power and toughness 1/1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Each creature target opponent controls loses all abilities, becomes a Coward in addition to its other types, and has base power and toughness 1/1"}},
@@ -18761,7 +18756,6 @@
         {"key":"8b5bf2feaebb","text":"When {self} enters, draw a card. If it entered from your library or was cast from your library, draw two cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If it entered from your library or was cast from your library, draw two cards instead"}},
         {"key":"8986d87c6e44","text":"When {self} enters, draw cards equal to its power.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw cards equal to its power"}},
         {"key":"41f85ef6a286","text":"When {self} enters, draw three cards. At the beginning of your next upkeep, discard three cards at random.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"At the beginning of your next upkeep, discard three cards at random"}},
-        {"key":"f603a2b0935b","text":"When {self} enters, draw two cards. Then discard two cards unless you discard an artifact card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then discard two cards unless you discard an artifact card"}},
         {"key":"7536f4d30415","text":"When {self} enters, each creature gets -X/-X until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Each creature gets -X/-X until end of turn"}},
         {"key":"ab53e23d0f83","text":"When {self} enters, each opponent can't cast instant or sorcery spells during that player's next turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Each opponent can't cast instant or sorcery spells during that player's next turn"}},
         {"key":"ef868293ac7d","text":"When {self} enters, each opponent discards a card.","reason":"\"each player\" is not in grammar v0","cards":1},
@@ -30911,7 +30905,7 @@
 
         {"oracleId":"045bf1fd-f375-47a0-9983-7e2ebfed7854","name":"Kargan Intimidator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ade4b7ecd820","f77e490ae512"]},
 
-        {"oracleId":"045ece1e-23aa-4122-8726-86b2af4345ba","name":"Thirst for Identity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["47b21e4098c2"]},
+        {"oracleId":"045ece1e-23aa-4122-8726-86b2af4345ba","name":"Thirst for Identity","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","draw","if","mayPay"],"definition":{"name":"Thirst for Identity","types":["Instant"],"manaCost":{"X":2,"U":1},"oracleText":"Draw three cards. Then discard two cards unless you discard a creature card.","effects":[{"op":"draw","player":"controller","count":3},{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{"type":"Creature"},"count":1}]}},"prompt":"Discard a creature card instead of two cards?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard2"},{"op":"discard","player":"controller","cards":{"ref":"$discard2"}}]}]},"botReach":"played"},
 
         {"oracleId":"04624f75-5981-4607-aa8f-706554f826e1","name":"Captain Jean-Luc Picard","state":"unparsed","gaps":["45e48b3f2a0d","7df7517ba06b","da43755f9bf6"]},
 
@@ -33973,7 +33967,7 @@
 
         {"oracleId":"0fb9a8a2-4331-4259-9460-a37397554962","name":"Bringer of the Last Gift","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f84fc74cdda3"]},
 
-        {"oracleId":"0fb9a928-9adb-4dc1-9761-857df7e6c643","name":"Steamcore Scholar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2a621f2fb61d"]},
+        {"oracleId":"0fb9a928-9adb-4dc1-9761-857df7e6c643","name":"Steamcore Scholar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["11452556386e"]},
 
         {"oracleId":"0fb9ea76-9065-4870-9256-d9fdb88fac85","name":"Phone a Friend","state":"unparsed","gaps":["ccc3684eec6a"]},
 
@@ -37967,7 +37961,7 @@
 
         {"oracleId":"1e048c15-50d6-4313-880a-e04348952a51","name":"Alaundo the Seer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["f2e4bf8dc1d5"]},
 
-        {"oracleId":"1e05e6ef-14af-451d-9d54-e75b1f8871ab","name":"Thirst for Discovery","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0510066624d3"]},
+        {"oracleId":"1e05e6ef-14af-451d-9d54-e75b1f8871ab","name":"Thirst for Discovery","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["84d1dbed4124"]},
 
         {"oracleId":"1e080c7d-102c-4d28-bcb9-62b36d400d13","name":"Rundvelt Hordemaster","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["57fbc2a42d63","f2c0bcdbe423"]},
 
@@ -49349,7 +49343,7 @@
 
         {"oracleId":"480967df-a967-4093-a999-b71f6ee70688","name":"Vault 112: Sadistic Simulation","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["29e73f112a37","9ecc3acea4fe"]},
 
-        {"oracleId":"480ea052-87d7-4fea-ac97-b6121b78f863","name":"Invasion of New Phyrexia // Teferi Akosa of Zhalfir","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7b3ca1ca9987","cc1d08900dc1","d9a56dbe03b1","f1a2f054dcad"]},
+        {"oracleId":"480ea052-87d7-4fea-ac97-b6121b78f863","name":"Invasion of New Phyrexia // Teferi Akosa of Zhalfir","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7b3ca1ca9987","d9a56dbe03b1","f1a2f054dcad"]},
 
         {"oracleId":"481234e5-fbfd-46e8-8b9a-a4e708dd2195","name":"Shield Broker","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c24911e9d8b2"]},
 
@@ -55363,7 +55357,7 @@
 
         {"oracleId":"5ded56df-c7d5-4043-85df-410f47219faa","name":"Corpseberry Cultivator","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["83b34942db26","926d7444b164"]},
 
-        {"oracleId":"5dedd5a9-bc5d-47bb-9ae1-7d683843d041","name":"Tezzeret, Betrayer of Flesh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["16784a810f62","8de72faf84a6","b8a387b1e9b2","e074bcb71455"]},
+        {"oracleId":"5dedd5a9-bc5d-47bb-9ae1-7d683843d041","name":"Tezzeret, Betrayer of Flesh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["16784a810f62","b8a387b1e9b2","e074bcb71455"]},
 
         {"oracleId":"5dee1b7e-7175-481d-9fa1-1873c73ffafc","name":"Duplication Device","state":"unparsed","gaps":["cf5f9fa8a469"]},
 
@@ -60639,7 +60633,7 @@
 
         {"oracleId":"70e4025f-41de-4b47-a590-3c922dc1e209","name":"Dosan the Falling Leaf","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["af9c24111aa8"]},
 
-        {"oracleId":"70e58068-90d2-4720-a11c-5d243046b4a3","name":"Thirst for Meaning","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["841241182c04"]},
+        {"oracleId":"70e58068-90d2-4720-a11c-5d243046b4a3","name":"Thirst for Meaning","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","draw","if","mayPay"],"definition":{"name":"Thirst for Meaning","types":["Instant"],"manaCost":{"X":2,"U":1},"oracleText":"Draw three cards. Then discard two cards unless you discard an enchantment card.","effects":[{"op":"draw","player":"controller","count":3},{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{"type":"Enchantment"},"count":1}]}},"prompt":"Discard an enchantment card instead of two cards?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard2"},{"op":"discard","player":"controller","cards":{"ref":"$discard2"}}]}]},"botReach":"played"},
 
         {"oracleId":"70e8eba9-a106-49c5-932e-b4390edb1c98","name":"Maximize Altitude","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["a213f705f1a0"]},
 
@@ -69577,7 +69571,7 @@
 
         {"oracleId":"9110339d-72ba-4132-801f-cd2fd738b71d","name":"Augmenter Pugilist // Echoing Equation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4f21f4dcffee","cfa101be68a8"]},
 
-        {"oracleId":"9110480b-a5d6-4cf8-a72c-dc1a50f11fac","name":"Practical Research","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be555d0c7f6a"]},
+        {"oracleId":"9110480b-a5d6-4cf8-a72c-dc1a50f11fac","name":"Practical Research","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["149bdc463330"]},
 
         {"oracleId":"91108ed7-5b24-4b51-b01d-85005998c69d","name":"Retreat to Valakut","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c3f50b22fb44"]},
 
@@ -70347,7 +70341,7 @@
 
         {"oracleId":"939b77f1-d7c4-4e52-b487-5866145ace01","name":"Marching Duodrone","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["0b00f1d29ec9"]},
 
-        {"oracleId":"939e6f71-185e-41f2-9d54-72cce06f1dce","name":"Thirst for Knowledge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be832f99f0ae"]},
+        {"oracleId":"939e6f71-185e-41f2-9d54-72cce06f1dce","name":"Thirst for Knowledge","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","draw","if","mayPay"],"definition":{"name":"Thirst for Knowledge","types":["Instant"],"manaCost":{"X":2,"U":1},"oracleText":"Draw three cards. Then discard two cards unless you discard an artifact card.","effects":[{"op":"draw","player":"controller","count":3},{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{"type":"Artifact"},"count":1}]}},"prompt":"Discard an artifact card instead of two cards?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard2"},{"op":"discard","player":"controller","cards":{"ref":"$discard2"}}]}]},"botReach":"played"},
 
         {"oracleId":"939e8448-013a-4aef-9a92-7c883a77a1a0","name":"Cavern-Hoard Dragon","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["04fd20878c43","c00cf5430eae"]},
 
@@ -88675,7 +88669,7 @@
 
         {"oracleId":"d6464ee4-23fc-4d68-bbda-3b53772015d1","name":"Primal Rage","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Primal Rage","types":["Enchantment"],"manaCost":{"X":1,"G":1},"oracleText":"Creatures you control have trample. (A creature with trample can deal excess combat damage to the player or planeswalker it's attacking.)","compiledStaticEffects":[{"kind":"keyword-grant","filter":{"types":["Creature"],"controllerRelation":"you"},"keyword":"trample"}]},"botReach":"played"},
 
-        {"oracleId":"d64687e4-ec37-4db2-9e60-4626c7a3b011","name":"Winternight Stories","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["47b21e4098c2"]},
+        {"oracleId":"d64687e4-ec37-4db2-9e60-4626c7a3b011","name":"Winternight Stories","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","discard","draw","if","mayPay"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Winternight Stories","types":["Sorcery"],"manaCost":{"X":2,"U":1},"oracleText":"Draw three cards. Then discard two cards unless you discard a creature card.\nHarmonize {4}{U} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"draw","player":"controller","count":3},{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{"type":"Creature"},"count":1}]}},"prompt":"Discard a creature card instead of two cards?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard2"},{"op":"discard","player":"controller","cards":{"ref":"$discard2"}}]}],"harmonize":{"X":4,"U":1}}},
 
         {"oracleId":"d646e42b-5635-4798-b633-29c093b66a55","name":"Inspiring Overseer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8b3a3439241a"]},
 
@@ -89079,7 +89073,7 @@
 
         {"oracleId":"d7bfea15-ced2-415e-b175-4588186536b4","name":"Seer of the Bright Side","state":"unparsed","gaps":["05a67841f9c1","3074d5427dc2"]},
 
-        {"oracleId":"d7c18aa7-4184-4658-9a5a-0b64992348ee","name":"Mystic Meditation","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["47b21e4098c2"]},
+        {"oracleId":"d7c18aa7-4184-4658-9a5a-0b64992348ee","name":"Mystic Meditation","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","draw","if","mayPay"],"definition":{"name":"Mystic Meditation","types":["Sorcery"],"manaCost":{"X":3,"U":1},"oracleText":"Draw three cards. Then discard two cards unless you discard a creature card.","effects":[{"op":"draw","player":"controller","count":3},{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{"type":"Creature"},"count":1}]}},"prompt":"Discard a creature card instead of two cards?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard2"},{"op":"discard","player":"controller","cards":{"ref":"$discard2"}}]}]},"botReach":"played"},
 
         {"oracleId":"d7c2f27c-8c82-4283-a17d-f979ee636542","name":"Seasoned Tactician","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["f4973c802e5f"]},
 
@@ -92665,7 +92659,7 @@
 
         {"oracleId":"e4bd8910-770b-4220-8a26-2673491f4a3e","name":"Priest of Urabrask","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["addMana"],"definition":{"name":"Priest of Urabrask","types":["Creature"],"subtypes":["Phyrexian","Human","Cleric"],"manaCost":{"X":2,"R":1},"power":2,"toughness":1,"oracleText":"When this creature enters, add {R}{R}{R}.","compiledTriggeredAbilities":[{"id":"priest-of-urabrask-trigger","oracleText":"When this creature enters, add {R}{R}{R}.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"addMana","mana":{"R":3}}]}]},"botReach":"ignored","botGap":"never-chosen › Creature › addMana"},
 
-        {"oracleId":"e4be4071-7910-460f-90f3-6c4d8cc9db65","name":"Alpharael, Dreaming Acolyte","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7d77347a8fa3","f603a2b0935b"]},
+        {"oracleId":"e4be4071-7910-460f-90f3-6c4d8cc9db65","name":"Alpharael, Dreaming Acolyte","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7d77347a8fa3"]},
 
         {"oracleId":"e4bfe005-7c4e-4178-ae41-a28eb2352ad1","name":"Bounty of Skemfar","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2d1ece7eb5fe"]},
 
