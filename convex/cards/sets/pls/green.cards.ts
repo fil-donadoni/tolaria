@@ -80,8 +80,8 @@ export const mirrorwoodTreefolk = defineCard(() => ({
     // ability-level gap (`convex/cards/__tests__/aiEffectsGuard.bot.test.ts`)
     // with a card-level override rather than a misleading shadow script.
     // A representative vanilla 2/4 for MV4, resolved against the live
-    // `latentCreatureDiscount` (issue #7744 — a refit moves it with every
-    // vanilla creature's, issue #5012's drift cannot recur); +25 for the
+    // `latentCreatureDiscount`, so a refit moves it with every vanilla
+    // creature's and no literal goes stale; +25 for the
     // repeatable defensive redirect (a fraction of `PREVENT_DAMAGE_FLAT_VALUE`
     // = 70, `gre/ai/opValuers.ts`, since it costs 4 mana and a stack action
     // per use rather than being a free static shield). Latent worth only —
