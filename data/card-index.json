@@ -31998,6 +31998,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ghost Lantern // Bind Spirit",
+        "scryfallId": "f2bde2d6-7c2a-4566-a45a-ccdbbed039b7",
+        "oracleId": "4af03564-1d1c-4582-9248-cfe9551bad30",
+        "firstSet": "clb",
+        "firstPrintId": "f2bde2d6-7c2a-4566-a45a-ccdbbed039b7",
+        "firstPrintSet": "clb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ghost of Illyria",
         "scryfallId": "99830058-c97a-4326-8c2f-8658cf8a1561",
         "oracleId": "e705b055-14b3-4de0-b4a7-39626839dea8",

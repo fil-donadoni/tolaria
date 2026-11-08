@@ -3471,6 +3471,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Blade of the Bloodchief",
+            "issue": 8883
+        },
+        {
+            "kind": "hand-tail",
             "key": "Blazemire Verge",
             "issue": 8505
         },
