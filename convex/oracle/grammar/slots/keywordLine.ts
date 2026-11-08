@@ -786,6 +786,37 @@ export const mobilizeRule: Rule<SlotIR> = rule("mobilize", (span) => {
     });
 });
 
+// ── Firebending N (CR 702.189a) ────────────────────────────────────────────
+
+const FIREBENDING = /^Firebending (\d+)$/;
+
+/**
+ * CR 702.189a — "Firebending N" means "Whenever this creature attacks, add N
+ * {R}. Until end of combat, you don't lose this mana as steps and phases
+ * end." The whole trigger is expanded from the one `staticAbilities` string
+ * "firebending N" at the `getDefinition` seam (ADR 0054,
+ * `expandFirebending`), so the rule emits that string and nothing else — the
+ * `mobilizeRule` shape.
+ *
+ * Refused: "Firebending 0" (no printed card), "Firebending X, where X is …"
+ * (a variable N is a different printed shape the keyword's binding pattern
+ * does not carry).
+ */
+export const firebendingRule: Rule<SlotIR> = rule("firebending", (span) => {
+    const match = FIREBENDING.exec(span);
+    if (match === null)
+        return fail('a firebending line is "Firebending N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("firebending counts from 1", span);
+    const row = KEYWORD_VOCABULARY.get("firebending");
+    if (row === undefined)
+        return fail("the Mechanics Registry names no firebending row", span);
+    return ok({
+        kind: "keywords" as const,
+        keywords: [{ ...row, ability: `firebending ${count}` }],
+    });
+});
+
 // ── Impending N—[cost] (CR 702.176a) ──────────────────────────────────────
 
 const IMPENDING = /^Impending (\d+)—(.+)$/;
@@ -977,7 +1008,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, splice, overload, morph, fading, mobilize, ward life, impending, warp, equip,
+ * foretell, splice, overload, morph, fading, mobilize, firebending, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -1003,6 +1034,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cumulativeUpkeepRule,
     fadingRule,
     mobilizeRule,
+    firebendingRule,
     wardLifeRule,
     impendingRule,
     warpRule,
