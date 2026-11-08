@@ -1,5 +1,7 @@
 # Strengthening the play Bot: what the 2026 frontier offers (exploration)
 
+> **Dated:** 2026-09-21 (first commit); last edited at `3728d52e1` (2026-11-07). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Status: exploration, parked.** Written 2026-09-21 from a grilling session.
 Nothing here is decided, nothing is scheduled; Bot strength work is in the
 backlog and this document is where that work starts reading. It records what

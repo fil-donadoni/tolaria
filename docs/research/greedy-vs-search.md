@@ -1,5 +1,7 @@
 # Greedy 1-ply policy vs the search (issue #3393)
 
+> **Dated:** 2026-09-10 (first commit); last edited at `baa807329` (2026-09-10). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** At the production budget, how much does the ISMCTS search add
 over the 1-ply greedy policy it already contains? The decision telemetry
 (issue #1893, issue #1929) says the search's mean reward decides 16.7–19.7% of

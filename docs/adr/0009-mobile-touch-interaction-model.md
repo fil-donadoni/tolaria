@@ -6,6 +6,8 @@
 
 Cards on mobile are unplayable with hover-based preview and right-click context menus. Touch devices have no hover and no right-click. This ADR establishes the touch interaction model for card inspection and action selection.
 
+Amended by ADR 0101 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Decision
 
 ### Gesture mapping (touch devices)

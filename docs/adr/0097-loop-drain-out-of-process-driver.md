@@ -8,6 +8,8 @@ _Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (p
 
 accepted (2026-08-08)
 
+Superseded by ADR 0156 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0092 settled that `/process-gh-issues` stays a single model-driven pass,

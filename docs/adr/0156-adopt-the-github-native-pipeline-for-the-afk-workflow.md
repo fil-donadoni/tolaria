@@ -19,6 +19,8 @@ notifications and runner status. Where this record and ADR
 0110 / 0116 / 0136 / 0154 name a script, the script stays the authority on
 what runs TODAY until the migration phase that retires it lands.
 
+Amended by ADR 0158, ADR 0160, ADR 0163 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ### The ask

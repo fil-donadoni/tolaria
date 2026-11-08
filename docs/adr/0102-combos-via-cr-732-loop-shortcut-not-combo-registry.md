@@ -8,6 +8,8 @@ _Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (p
 
 accepted (2026-08-22, bot-roadmap grilling session; map #1892)
 
+Amended by ADR 0164 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 The play Bot's knowledge comes from two sources and only two, fixed when the

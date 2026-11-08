@@ -1,5 +1,7 @@
 # What the first in-play Verdict batch did to the fit (issue #3406, PRD #3397)
 
+> **Dated:** 2026-09-14 (first commit); last edited at `d6452e819` (2026-09-16). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** ADR 0124 §5 replaced the hand-written root rule with
 **Verdicts → fit → report**. Issue #3402 built the quiz, issue #3401 built the
 fit; this is the first time a human sat down, played against the Bot and judged

@@ -110,3 +110,111 @@ describe("ADR numbers identify exactly one record (issue #3527)", () => {
         ).toEqual([]);
     });
 });
+
+/**
+ * The index `Status` column agrees with the records (issue #8699).
+ *
+ * A reader of the index must see which decisions were amended or superseded
+ * WITHOUT opening 167 files (owner, 2026-11-07). The column grammar:
+ * `active` | `proposed` | `amended by NNNN[, NNNN]` | `superseded by NNNN`.
+ * `docs/research/adr-audit-2026-11-07.md` seeded it.
+ *
+ * Both directions are guarded: a record whose own status text says it was
+ * amended/superseded by an ADR cannot sit as `active` in the index, and a row
+ * that says it was amended/superseded must be backed by a line in the record's
+ * status text naming the ADR — otherwise the row is a claim nobody can verify
+ * from the file.
+ */
+
+const STATUS_GRAMMAR =
+    /^(active|proposed|amended by \d{4}(, \d{4})*|superseded by \d{4})$/;
+
+const rowStatuses = (): Map<string, { status: string; file: string }> => {
+    const rows = new Map<string, { status: string; file: string }>();
+    for (const line of index().split("\n")) {
+        const cells = line.split("|").map((c) => c.trim());
+        // ["", "0005", decision, status, "[file](file)", ""]
+        if (cells.length !== 6 || !/^\d{4}$/.test(cells[1])) continue;
+        const file = /\]\((\d{4}-[a-z0-9-]+\.md)\)/.exec(cells[4])?.[1] ?? "";
+        rows.set(cells[1], { status: cells[3], file });
+    }
+    return rows;
+};
+
+/** The record's status text: everything before the first non-status `##`. */
+const statusRegion = (file: string): string => {
+    const out: string[] = [];
+    for (const line of fs
+        .readFileSync(path.join(ADR_DIR, file), "utf8")
+        .split("\n")
+        .slice(1)) {
+        if (/^##\s/.test(line) && !/^##\s+status\b/i.test(line)) break;
+        out.push(line);
+    }
+    return out.join("\n");
+};
+
+const SAYS_MOVED_ON =
+    /\b(amended|superseded)\s+by\s+(?:\[?ADR\s+|\[?)?(\d{4})/gi;
+
+describe("docs/adr/README.md Status column (issue #8699)", () => {
+    it("has a status on every row, in the grammar", () => {
+        const rows = rowStatuses();
+        expect(rows.size).toBeGreaterThan(50);
+        const bad = [...rows].filter(([, r]) => !STATUS_GRAMMAR.test(r.status));
+        expect(
+            bad.map(([n, r]) => `${n}: "${r.status}"`),
+            "Status must be `active`, `proposed`, `amended by NNNN[, NNNN]` or `superseded by NNNN`"
+        ).toEqual([]);
+    });
+
+    it("names only ADR numbers that exist, never its own", () => {
+        const numbers = new Set(adrFiles().map((f) => f.slice(0, 4)));
+        const bad: string[] = [];
+        for (const [n, r] of rowStatuses()) {
+            for (const ref of r.status.match(/\d{4}/g) ?? []) {
+                if (!numbers.has(ref) || ref === n) {
+                    bad.push(`${n}: "${r.status}" names ${ref}`);
+                }
+            }
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it("does not call a record active when its own status says it moved on", () => {
+        const bad: string[] = [];
+        for (const [n, r] of rowStatuses()) {
+            if (!/^(active|proposed)$/.test(r.status) || !r.file) continue;
+            const m = [...statusRegion(r.file).matchAll(SAYS_MOVED_ON)][0];
+            if (m)
+                bad.push(`${n} is "${r.status}" but its status says "${m[0]}"`);
+        }
+        expect(
+            bad,
+            "set the row's Status to `amended by NNNN` / `superseded by NNNN`"
+        ).toEqual([]);
+    });
+
+    it("backs every amended/superseded row with a line in the record", () => {
+        const bad: string[] = [];
+        for (const [n, r] of rowStatuses()) {
+            const m = /^(amended|superseded) by (.+)$/.exec(r.status);
+            if (!m || !r.file) continue;
+            const named = new Set(
+                [...statusRegion(r.file).matchAll(SAYS_MOVED_ON)].map(
+                    (x) => x[2]
+                )
+            );
+            const refs = m[2].split(", ");
+            if (!refs.some((ref) => named.has(ref))) {
+                bad.push(
+                    `${n} says "${r.status}" but ${r.file} status text names none of them`
+                );
+            }
+        }
+        expect(
+            bad,
+            "add `Amended by ADR NNNN (date)` / `Superseded by ADR NNNN (date)` to the record's status text"
+        ).toEqual([]);
+    });
+});

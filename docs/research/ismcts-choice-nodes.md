@@ -1,5 +1,7 @@
 # Decision nodes in ISMCTS — literature & prior art
 
+> **Dated:** 2026-07-16 (first commit); last edited at `a85364d50` (2026-07-16). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 > Wayfinder research ticket [#1255](https://github.com/fil-donadoni/tolaria/issues/1255),
 > map [#1254](https://github.com/fil-donadoni/tolaria/issues/1254).
 > Question: what do the literature and prior art say about embedding mid-move

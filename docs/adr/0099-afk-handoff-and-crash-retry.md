@@ -10,6 +10,8 @@ accepted (2026-08-11; the `--from-pass` autostart is superseded by ADR 0109; the
 unconditional detach is amended by issue #4389 — the foreground is now the
 default and `--detach` the opt-in)
 
+Superseded by ADR 0156 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0097 built `scripts/loop-drain.sh`: an out-of-process `sh` loop that can

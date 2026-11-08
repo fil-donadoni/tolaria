@@ -4,6 +4,8 @@
 
 Status: accepted (2026-07-30)
 
+Amended by ADR 0085 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Planeshift (PLS, PRD #1935) needs two things the shipped Kicker cannot express, and both are load-bearing for 12 of its 143 cards:

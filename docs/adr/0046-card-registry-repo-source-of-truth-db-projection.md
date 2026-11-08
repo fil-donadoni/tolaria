@@ -6,6 +6,8 @@
 
 accepted (2026-07-02)
 
+Amended by ADR 0113 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 All 1,180 card definitions are TypeScript compiled into the Convex bundle and

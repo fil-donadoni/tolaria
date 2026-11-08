@@ -1,5 +1,7 @@
 # Test Position / Minimal Pair / held-out agreement — lineage (issue #3850)
 
+> **Dated:** 2026-09-25 (first commit); last edited at `dab8be253` (2026-10-06). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** The owner renamed two project-only terms on 2026-09-17: **Blade
 Scenario → Test Position**, **Discriminating Pair → Minimal Pair**. This
 document supplies the citable lineage for both renames plus a citable

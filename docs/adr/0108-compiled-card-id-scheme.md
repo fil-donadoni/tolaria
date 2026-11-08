@@ -8,6 +8,8 @@ _Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (p
 
 accepted (2026-08-26)
 
+Amended by ADR 0114 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Issue #2702 (child of PRD #2693, the Oracle compiler) needed to hydrate the
