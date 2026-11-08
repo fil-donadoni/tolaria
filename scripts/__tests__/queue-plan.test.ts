@@ -3264,7 +3264,7 @@ describe("queue planner — bare Target files and unknown radius (issue #8406)",
         expect(free.batch.map((b) => b.number)).toEqual([5]);
     });
 
-    it("defers any candidate while an unknown entry is in flight, but not the entry's own repair", () => {
+    it("an unknown in-flight entry blocks nothing (issue #8934)", () => {
         const details = {
             5: { body: body({ targetFiles: ["src/a.ts"] }) },
             9: { body: body({ targetFiles: ["src/b.ts"] }) },
@@ -3274,16 +3274,23 @@ describe("queue planner — bare Target files and unknown radius (issue #8406)",
             inFlight: [{ number: 9, files: null }],
         };
         const plan = planBatch([issue(5), issue(9)], config, makePort(details));
-        expect(plan.batch.map((b) => b.number)).toEqual([9]);
-        expect(plan.deferred.find((d) => d.number === 5)!.reason).toMatch(
-            /in-flight radius unknown #9/
+        // The unclassifiable claim holds no other candidate, and its own
+        // repair pick is still admitted.
+        expect(plan.batch.map((b) => b.number).sort()).toEqual([5, 9]);
+        expect(plan.deferred.map((d) => d.reason)).not.toContainEqual(
+            expect.stringMatching(/radius unknown/)
         );
-        // Once its PR opens the entry carries files and stops holding.
-        const open = planBatch(
+        // It is still named, as a warning.
+        expect(plan.inFlightUnknown).toEqual([9]);
+        // An entry with known files still defers an overlapping candidate.
+        const overlap = planBatch(
             [issue(5)],
-            { ...CONFIG, inFlight: [{ number: 9, files: ["src/b.ts"] }] },
+            { ...CONFIG, inFlight: [{ number: 9, files: ["src/a.ts"] }] },
             makePort(details)
         );
-        expect(open.batch.map((b) => b.number)).toEqual([5]);
+        expect(overlap.batch).toEqual([]);
+        expect(overlap.deferred[0].reason).toMatch(
+            /target files overlap in-flight #9/
+        );
     });
 });
