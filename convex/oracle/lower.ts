@@ -224,6 +224,8 @@ interface Accumulator {
     foretell?: ManaCost;
     /** CR 702.94a — the cost a card revealed for miracle is cast for. */
     miracle?: ManaCost;
+    /** CR 702.180a — the alternative cost the card is cast for from its graveyard. */
+    harmonize?: ManaCost;
     /** CR 702.47a — the card's splice ability (quality + cost). */
     splice?: SpliceAbility;
     /** CR 702.96a — the card's overload alternative cost. */
@@ -1012,6 +1014,18 @@ function lowerLine(
             if (acc.miracle !== undefined)
                 return "a card declares miracle twice (CR 702.94a)";
             acc.miracle = ir.cost;
+            return null;
+        }
+        case "harmonize": {
+            if (acc.harmonize !== undefined)
+                return "a card declares harmonize twice (CR 702.180a)";
+            acc.harmonize = ir.cost;
+            // CR 702.180a — the keyword IS its rule; while its registry row is
+            // not `implemented`, the card would ship inert (the Guard A shape),
+            // so it is recorded and quarantined by the gates.
+            const row = keywordVocabulary().get("harmonize");
+            if (row?.status !== "implemented")
+                acc.plannedMechanics.push("harmonize");
             return null;
         }
         case "splice": {
@@ -1870,6 +1884,7 @@ export function lowerCard(
     if (acc.plot !== undefined) definition.plot = acc.plot;
     if (acc.foretell !== undefined) definition.foretell = acc.foretell;
     if (acc.miracle !== undefined) definition.miracle = acc.miracle;
+    if (acc.harmonize !== undefined) definition.harmonize = acc.harmonize;
     if (acc.morph !== undefined) definition.morph = acc.morph;
     if (acc.impending !== undefined) definition.impending = acc.impending;
     if (acc.warp !== undefined) definition.warp = acc.warp;

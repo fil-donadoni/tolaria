@@ -542,6 +542,7 @@ const MADNESS_HEAD = "Madness ";
 const PLOT_HEAD = "Plot ";
 const FORETELL_HEAD = "Foretell ";
 const MIRACLE_HEAD = "Miracle ";
+const HARMONIZE_HEAD = "Harmonize ";
 const OVERLOAD_HEAD = "Overload ";
 const MORPH_HEAD = "Morph ";
 
@@ -606,6 +607,22 @@ export const miracleRule: Rule<SlotIR> = rule("miracle", (span) => {
     const cost = costParameter(MIRACLE_HEAD, span);
     if (!cost.ok) return cost;
     return ok({ kind: "miracle" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.180a — "Harmonize [cost]": the alternative cost the card may be cast
+ * for from its owner's graveyard, reduced by the power of up to one creature
+ * its caster taps (CR 702.180b), the spell exiled as it leaves the stack.
+ * Lowered onto `CardDefinition.harmonize`.
+ *
+ * Refused: a variable {X} harmonize cost (Nature's Rhythm, Zenith Festival —
+ * the power reduction and the announced X share the generic component, and no
+ * payment path prices them), every other cost {@link costParameter} refuses.
+ */
+export const harmonizeRule: Rule<SlotIR> = rule("harmonize", (span) => {
+    const cost = costParameter(HARMONIZE_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "harmonize" as const, cost: cost.value });
 });
 
 // ── Splice onto <quality> <cost> (CR 702.47) ──────────────────────────────
@@ -1026,7 +1043,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, splice, overload, morph, fading, mobilize, firebending, ward life, impending, warp, equip,
+ * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, transmute, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -1045,6 +1062,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     plotRule,
     foretellRule,
     miracleRule,
+    harmonizeRule,
     spliceRule,
     overloadRule,
     morphRule,
