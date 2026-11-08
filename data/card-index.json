@@ -10720,6 +10720,16 @@
         "source": "compiled"
     },
     {
+        "name": "Brotherhood's End",
+        "scryfallId": "50f7666d-0d60-4fe5-b144-286d4e47b704",
+        "oracleId": "fe7bf8ca-88ae-4c6d-8d71-ef170a87c0d0",
+        "firstSet": "bro",
+        "firstPrintId": "50f7666d-0d60-4fe5-b144-286d4e47b704",
+        "firstPrintSet": "bro",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Brothers of Fire",
         "scryfallId": "ba2cc4a6-fdcc-4082-801a-d2c50e560e8d",
         "oracleId": "ee9208e7-2075-45b9-9ed7-b18e1a280d79",
@@ -15618,6 +15628,16 @@
         "source": "compiled"
     },
     {
+        "name": "Consume the Meek",
+        "scryfallId": "921ebea0-48bf-4338-9e84-2cd06ffe6f4b",
+        "oracleId": "c2555c38-1bfc-48c1-85aa-7e40117db78b",
+        "firstSet": "roe",
+        "firstPrintId": "921ebea0-48bf-4338-9e84-2cd06ffe6f4b",
+        "firstPrintSet": "roe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Consuming Aetherborn",
         "scryfallId": "7311ade8-eb75-40f8-b018-668762aa3b77",
         "oracleId": "4d472308-5bc7-4a3c-81b5-0a757f00d9e2",
@@ -17217,6 +17237,16 @@
         "firstPrintId": "1a623415-46c0-45aa-ab75-1e2d9708013a",
         "firstPrintSet": "bfz",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Culling Sun",
+        "scryfallId": "5ec5a956-c846-46b6-91bd-37e4db542280",
+        "oracleId": "e41d9b3a-0712-4174-8c5c-224065a63b16",
+        "firstSet": "gpt",
+        "firstPrintId": "5ec5a956-c846-46b6-91bd-37e4db542280",
+        "firstPrintSet": "gpt",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -34609,6 +34639,16 @@
         "firstPrintId": "607bdb54-a956-4a9c-89cf-af6f1163b856",
         "firstPrintSet": "hou",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Granulate",
+        "scryfallId": "e13798b8-689e-4f19-af10-b72d3fe19f3c",
+        "oracleId": "fdcec649-6651-4ba0-bd3f-84f16e65397d",
+        "firstSet": "5dn",
+        "firstPrintId": "e13798b8-689e-4f19-af10-b72d3fe19f3c",
+        "firstPrintSet": "5dn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -57675,6 +57715,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pest Control",
+        "scryfallId": "a4a01b92-dafb-4ea6-8eff-29f881f6be24",
+        "oracleId": "072db429-3838-42ba-89b6-e26cbce22af9",
+        "firstSet": "big",
+        "firstPrintId": "a4a01b92-dafb-4ea6-8eff-29f881f6be24",
+        "firstPrintSet": "big",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Pest Infestation",
         "scryfallId": "4720b4f2-e6af-4223-9250-a0ed21ed5693",
         "oracleId": "1b704798-0c69-4c18-ac7e-42933ce90028",
@@ -65057,6 +65107,16 @@
         "firstPrintId": "73142844-de7c-4427-8183-c2281bde6449",
         "firstPrintSet": "dst",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ritual of Soot",
+        "scryfallId": "269af993-4894-4bf1-b55a-af4d736cb3cc",
+        "oracleId": "29e9cf1c-a6bd-4bee-9000-ac1b4e19d6b0",
+        "firstSet": "grn",
+        "firstPrintId": "269af993-4894-4bf1-b55a-af4d736cb3cc",
+        "firstPrintSet": "grn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

@@ -25,7 +25,8 @@
  * ── What is refused, and why it is not a gap in the reader ─────────────────
  *
  * The `forEach` selector expresses type, subtype, negated type, negated
- * subtype ("non-Aura", CR 205.3), ONE colour (CR 105.1) and "you control" — the
+ * subtype ("non-Aura", CR 205.3), ONE colour (CR 105.1), a printed mana-value
+ * ceiling (CR 202.3) and "you control" — the
  * descriptor fields whose engine meaning is one-to-one — and, for the one verb
  * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>". A
  * field outside them (several colours, a keyword, a combat role, a power
@@ -39,10 +40,14 @@
  * (and "… equal to the number of <kind> counters on this <source>", CR 122.1,
  * the same `if` against the source's live tally.) Read HERE, not by the descriptor: the X is the announced {X} of the ability
  * (CR 107.3), a fact the descriptor's numeric bound cannot carry, and reading
- * it there would widen every target site to a form no fixture covers. A
- * `PermanentFilter` has no mana-value field, so the bound is not a filter
- * clause — it lowers to an `if` over the iterated permanent's mana value
- * inside the sweep, using only the four frozen constructs (ADR 0045).
+ * it there would widen every target site to a form no fixture covers. It
+ * lowers to an `if` over the iterated permanent's mana value inside the sweep,
+ * using only the four frozen constructs (ADR 0045).
+ *
+ * A PRINTED ceiling ("with mana value 3 or less", CR 202.3) is the
+ * descriptor's to read: a literal is the sweep filter's `manaValueAtMost` 1:1,
+ * so it rides the selector that every consumer of a mass subject passes on
+ * whole. A floor and an exact "mana value X" stay refused by name.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -160,6 +165,7 @@ function sweepSelector(
                 "plural",
                 "colors",
                 "excludeSource",
+                "mvFilter",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -193,6 +199,20 @@ function sweepSelector(
             ok: false,
             reason: "stacked subtypes are an intersection a selector cannot express",
             fragment: "subtypes",
+        };
+    // CR 202.3 — "with mana value 3 or less": a PRINTED ceiling is the
+    // filter's `manaValueAtMost` literal 1:1. A floor ("3 or greater") and an
+    // exact "mana value X" are forms no sweep fixture covers, and the X
+    // ceiling is read whole by the mass subject before the descriptor sees
+    // the span — one reaching here sits mid-span, a scope nobody printed.
+    // The descriptor refuses two range clauses, so a numeric `max` is the
+    // whole bound: a floor or an exact X carries none.
+    const mv = descriptor.mvFilter;
+    if (mv !== undefined && typeof mv.max !== "number")
+        return {
+            ok: false,
+            reason: "only a printed mana-value ceiling bounds a sweep",
+            fragment: "mvFilter",
         };
     if (descriptor.controller === "opponent")
         return {
@@ -238,6 +258,7 @@ function sweepSelector(
             excludedSubtypes.length === 1
                 ? excludedSubtypes[0]!
                 : [...excludedSubtypes];
+    if (typeof mv?.max === "number") filter.manaValueAtMost = mv.max;
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
