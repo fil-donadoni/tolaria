@@ -114,7 +114,7 @@ export const lutri = defineCard(() => ({
 // Maindeck qualifies.
 //
 // Printed cost is {1}{W/B}{W/B} — TWO HYBRID W/B pips, declared via
-// `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
+// `manaCost.hybrid` and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
 // (eve/multicolor.cards.ts) for the reference shape. This closes the divergence
 // this card previously shipped under (issue #782, closed), the same gap that

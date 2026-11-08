@@ -153,7 +153,7 @@ export const coalitionRelic = defineCard(() => ({
 // uses — so `matches` reads `event.power`/`event.toughness` directly instead
 // of re-deriving them from `TriggerStateView`'s battlefield entries (which
 // only carry the mutable BASE characteristic). "you may" = a cost-free
-// `mayPay` (issue #680);
+// `mayPay`;
 // "return this card ... then attach it to that creature" is `moveZone
 // { target: { ref: "$source" } }` (the Ashen Ghoul self-reanimation shape,
 // issue #737's unconditional `$source` graveyard recovery) followed by

@@ -100,7 +100,7 @@ export const tishanasTidebinder = defineCard(() => ({
 //      `$discarded` for the threshold clause below — the id is stable
 //      across the discard (a zone move, not a new instance).
 //   4. `if` gated on the chorus-counter READ (`{ counters: { of: {ref:
-//      "$source"}, type: "chorus" } }`, CR 122.6, issue #1015) `>= 4`:
+//      "$source"}, type: "chorus" } }`, CR 122.6) `>= 4`:
 //      `castDuringResolution` (CR 608.2f, issue #1477) offers the caster an
 //      optional Cast/Decline of the JUST-discarded card and, on accept, casts
 //      it INLINE from the graveyard for free, as part of THIS trigger's own

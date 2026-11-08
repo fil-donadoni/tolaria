@@ -37,7 +37,7 @@ function hasDelirium(controllerId: string, state?: TriggerStateView): boolean {
 //  there are four or more card types among cards in your graveyard, untap
 //  target creature. After this phase, there is an additional combat phase."
 //
-// FIX (issue #2421): the ETB clause is a real CR 603.2 triggered ability, not
+// FIX: the ETB clause is a real CR 603.2 triggered ability, not
 // the permanent's own spell-resolution effect — it was previously wired as
 // top-level `effects`, which the engine runs ONLY once, at cast-resolution
 // time, immediately before the permanent hits the battlefield. Any non-cast
