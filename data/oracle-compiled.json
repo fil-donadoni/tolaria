@@ -12106,19 +12106,6 @@
         {"key":"abe89ef2d838","text":"Repartee — Whenever you cast an instant or sorcery spell that targets a creature, this creature gets +1/+1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an instant or sorcery spell that targets a creature"}},
         {"key":"99c72d1d5463","text":"Repartee — Whenever you cast an instant or sorcery spell that targets a creature, this creature perpetually gets +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an instant or sorcery spell that targets a creature"}},
         {"key":"30a9ba4fc0b1","text":"Repeat the following process X times. Each opponent loses 3 life unless that player sacrifices a nonland permanent of their choice or discards a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Repeat the following process X times"}},
-        {"key":"5b282c0765b0","text":"Replicate {1}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {1}"}},
-        {"key":"9e8a7045127d","text":"Replicate {1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {1}{B}"}},
-        {"key":"40aff9048258","text":"Replicate {1}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {1}{G}"}},
-        {"key":"2113c177bed8","text":"Replicate {1}{R}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {1}{R}"}},
-        {"key":"7936408516f1","text":"Replicate {1}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {1}{U}"}},
-        {"key":"9a0af67d4189","text":"Replicate {2}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {2}"}},
-        {"key":"f1f677c6b5e0","text":"Replicate {2}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {2}{G}"}},
-        {"key":"e6b43568f0b7","text":"Replicate {2}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {2}{U}"}},
-        {"key":"72a9e949756b","text":"Replicate {2}{U}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {2}{U}{U}"}},
-        {"key":"33e311609462","text":"Replicate {3}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {3}{U}"}},
-        {"key":"a698be8d4e3e","text":"Replicate {R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {R}"}},
-        {"key":"9ebf1486f159","text":"Replicate {U}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {U}"}},
-        {"key":"1c416451fe9e","text":"Replicate {U}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Replicate {U}{R}"}},
         {"key":"948c59ec440c","text":"Replicate—Pay {E}{E}{E}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Replicate—Pay {E}{E}{E}"}},
         {"key":"7f02aa19b97f","text":"Replicate—Tap an untapped Dalek you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Replicate—Tap an untapped Dalek you control"}},
         {"key":"947c6c41dfa5","text":"Replicate—Tap an untapped Horror you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Replicate—Tap an untapped Horror you control"}},
@@ -15812,6 +15799,7 @@
         {"key":"6c8ce837ad49","text":"When enchanted creature dies, mill cards equal to its power. Return this card to its owner's hand and up to one creature card milled this way to the battlefield under your control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Mill cards equal to its power"}},
         {"key":"0f31a0718035","text":"When enchanted creature dies, return it to the battlefield tapped under its owner's control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield tapped under its owner's control"}},
         {"key":"9b096fbc49b2","text":"When enchanted creature dies, return it to the battlefield under your control, then return this card to the battlefield transformed under your control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield transformed"}},
+        {"key":"228d9c1970d0","text":"When enchanted creature dies, return it to the battlefield under your control.","reason":"only one permanent card from a graveyard is put under your control in grammar v0","cards":1},
         {"key":"68b317cd17a8","text":"When enchanted creature dies, return that card to its owner's hand. If that card is returned to its owner's hand this way, you may pay {U}{U}{U}. If you do, return this card to its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If that card is returned to its owner's hand this way, you may pay {U}{U}{U}"}},
         {"key":"7a52b0352876","text":"When enchanted creature dies, return that card to the battlefield tapped under its owner's control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield tapped under its owner's control"}},
         {"key":"7ff34927894a","text":"When enchanted creature dies, return that card to the battlefield under its owner's control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield under its owner's control"}},
@@ -35893,7 +35881,7 @@
 
         {"oracleId":"16c293c8-bd1d-4db9-b197-da14f2f37cb1","name":"Oathsworn Knight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["252ed39af040","9aa45297d356"]},
 
-        {"oracleId":"16c39265-72d9-4c86-a961-8dd38ff9adcd","name":"Consign to Memory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f5c8405892d","5b282c0765b0"]},
+        {"oracleId":"16c39265-72d9-4c86-a961-8dd38ff9adcd","name":"Consign to Memory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f5c8405892d"]},
 
         {"oracleId":"16c46eaf-7a31-4957-ab7c-ff07fbbd9ddc","name":"Order of Whiteclay","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["75b63f3f0fec"]},
 
@@ -37635,7 +37623,7 @@
 
         {"oracleId":"1ce8bc83-3cda-4ac5-ad9a-2a2a327c5193","name":"Kang, Suspicious Captain","state":"unparsed","gaps":["cd9c58af3eea","d2c4e4207633"]},
 
-        {"oracleId":"1cea6439-7ae5-4887-8c33-7da9fb36e2d4","name":"Lose Focus","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9ebf1486f159"]},
+        {"oracleId":"1cea6439-7ae5-4887-8c33-7da9fb36e2d4","name":"Lose Focus","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["counter","if","mayPay"],"definition":{"name":"Lose Focus","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Replicate {U} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nCounter target spell unless its controller pays {2}.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {U}","multi":true,"mana":{"U":1}}],"effects":[{"op":"mayPay","player":{"controllerOf":{"target":0}},"cost":{"X":2},"prompt":"Pay {2} to prevent your spell from being countered?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"counter","target":{"target":0}}]}],"targetRequirement":{"type":"spell","count":1}},"botReach":"played"},
 
         {"oracleId":"1cea9b82-d2e9-4758-8ec8-729fcf4bb7d7","name":"Grand Coliseum","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Grand Coliseum","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 1 damage to you.","activatedAbilities":[{"id":"grand-coliseum-mana","oracleText":"{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}],"dealsDamageToControllerOnColoredTap":1}],"entersTapped":true},"botReach":"played"},
 
@@ -47407,7 +47395,7 @@
 
         {"oracleId":"412294bf-a25f-47c2-8043-12eb3e142b9e","name":"Cephalid Looter","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["8f04c4bfa34c"]},
 
-        {"oracleId":"41236699-13c5-4d51-9265-2d24303bcc95","name":"Ate-o'-Clock","state":"unparsed","gaps":["f1f677c6b5e0","f790433a746c"]},
+        {"oracleId":"41236699-13c5-4d51-9265-2d24303bcc95","name":"Ate-o'-Clock","state":"unparsed","gaps":["f790433a746c"]},
 
         {"oracleId":"41246140-4b44-40c4-b92b-501e49c50bf7","name":"Make Your Own Luck","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fea3699345e9"]},
 
@@ -56487,7 +56475,7 @@
 
         {"oracleId":"6226db2b-d1a8-4c41-b802-67d3f65d2ca3","name":"Fervent Charge","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["pump"],"definition":{"name":"Fervent Charge","types":["Enchantment"],"manaCost":{"X":1,"W":1,"B":1,"R":1},"oracleText":"Whenever a creature you control attacks, it gets +2/+2 until end of turn.","compiledTriggeredAbilities":[{"id":"fervent-charge-trigger","oracleText":"Whenever a creature you control attacks, it gets +2/+2 until end of turn.","head":{"kind":"attacks","scope":"yours"},"effects":[{"op":"pump","target":{"ref":"$event.combatant"},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"6227fb65-d7ef-4bc6-a076-9aa10941632c","name":"Hatchery Sliver","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["34e54745cd77","40aff9048258"]},
+        {"oracleId":"6227fb65-d7ef-4bc6-a076-9aa10941632c","name":"Hatchery Sliver","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["34e54745cd77"]},
 
         {"oracleId":"622a53bd-d894-422c-a606-7126041afa02","name":"Fomori Vault","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c270c5d49772"]},
 
@@ -57275,7 +57263,7 @@
 
         {"oracleId":"6522070b-7002-44fd-8deb-832fe67ef9a9","name":"Flock Impostor","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["moveZone"],"definition":{"name":"Flock Impostor","types":["Creature"],"subtypes":["Shapeshifter"],"manaCost":{"X":2,"W":1},"power":2,"toughness":2,"oracleText":"Changeling (This card is every creature type.)\nFlash\nFlying\nWhen this creature enters, return up to one other target creature you control to its owner's hand.","staticAbilities":["changeling","flash","flying"],"compiledTriggeredAbilities":[{"id":"flock-impostor-trigger","oracleText":"When this creature enters, return up to one other target creature you control to its owner's hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":{"min":0,"max":1},"excludeSource":true,"controller":"you"},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]},"botReach":"played"},
 
-        {"oracleId":"65259ba4-956d-46a3-abd9-791d02015b41","name":"Mists of Lórien","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9ebf1486f159","b4ea1e830772"]},
+        {"oracleId":"65259ba4-956d-46a3-abd9-791d02015b41","name":"Mists of Lórien","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b4ea1e830772"]},
 
         {"oracleId":"65260087-48b5-4968-8584-7cc561bb312c","name":"Escape Routes","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["ea530a5552d6"]},
 
@@ -58171,7 +58159,7 @@
 
         {"oracleId":"685181dd-0124-4c76-9270-f9dd17e6a221","name":"Colleen Wing, Street Samurai","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["34ccc2c84e0c"]},
 
-        {"oracleId":"68555673-2833-459a-b415-e2805f837778","name":"Super Combo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["70caf229176c","9a0af67d4189"]},
+        {"oracleId":"68555673-2833-459a-b415-e2805f837778","name":"Super Combo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["70caf229176c"]},
 
         {"oracleId":"6857ef2e-1a25-4cec-b1c8-1dd18ad8396f","name":"S.N.O.T.","state":"unparsed","gaps":["624e39d34a59","d02adf8f43ba"]},
 
@@ -63073,7 +63061,7 @@
 
         {"oracleId":"79b6af53-e6bc-402f-ad93-e12dea2cea1e","name":"Naktamun Shines Again","state":"unparsed","gaps":["22e1cc5b022c","9858eca71365","9ef2caab7b8b"]},
 
-        {"oracleId":"79b978b8-44c8-4ca8-bdd5-10490145398d","name":"Mimeofacture","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["33e311609462","6a066075a585"]},
+        {"oracleId":"79b978b8-44c8-4ca8-bdd5-10490145398d","name":"Mimeofacture","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a066075a585"]},
 
         {"oracleId":"79b999bc-2d4b-41e1-b64e-f0c080a9a2c5","name":"Visara the Dreadful","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["destroy"],"definition":{"name":"Visara the Dreadful","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Gorgon"],"manaCost":{"X":3,"B":3},"power":5,"toughness":5,"oracleText":"Flying\n{T}: Destroy target creature. It can't be regenerated.","staticAbilities":["flying"],"activatedAbilities":[{"id":"visara-the-dreadful-ability","oracleText":"{T}: Destroy target creature. It can't be regenerated.","cost":{"tap":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0},"cantBeRegenerated":true}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
@@ -69413,7 +69401,7 @@
 
         {"oracleId":"90b98aa7-c8d0-4853-887c-164f8160c3f3","name":"Ixidor, Reality Sculptor","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["aeb5076eb090","c7613862778f"]},
 
-        {"oracleId":"90ba0366-57ff-4dc4-a290-3925548129ce","name":"Train of Thought","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7936408516f1"]},
+        {"oracleId":"90ba0366-57ff-4dc4-a290-3925548129ce","name":"Train of Thought","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["draw"],"definition":{"name":"Train of Thought","types":["Sorcery"],"manaCost":{"X":1,"U":1},"oracleText":"Replicate {1}{U} (When you cast this spell, copy it for each time you paid its replicate cost.)\nDraw a card.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {1}{U}","multi":true,"mana":{"X":1,"U":1}}],"effects":[{"op":"draw","player":"controller","count":1}]},"botReach":"played"},
 
         {"oracleId":"90bccf66-58ec-445d-ac96-c6013054a1b4","name":"Stone Quarry","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Stone Quarry","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {R} or {W}.","activatedAbilities":[{"id":"stone-quarry-mana","oracleText":"{T}: Add {R} or {W}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"R":1},{"W":1}]}],"entersTapped":true},"botReach":"played"},
 
@@ -72575,7 +72563,7 @@
 
         {"oracleId":"9c00b503-ae5e-4ce3-ad6a-92b541b2e3cd","name":"Tariel, Reckoner of Souls","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ba0ab890fbcc"]},
 
-        {"oracleId":"9c01e2a6-61e7-455c-b09f-8c0de2266782","name":"Pyromatics","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2113c177bed8"]},
+        {"oracleId":"9c01e2a6-61e7-455c-b09f-8c0de2266782","name":"Pyromatics","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"definition":{"name":"Pyromatics","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Replicate {1}{R} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nPyromatics deals 1 damage to any target.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {1}{R}","multi":true,"mana":{"X":1,"R":1}}],"effects":[{"op":"dealDamage","amount":1,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1}},"botReach":"played"},
 
         {"oracleId":"9c021685-4017-49c7-9f58-2ae0243361a0","name":"Hurricane","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["5c5ca2fddc0b"]},
 
@@ -72685,7 +72673,7 @@
 
         {"oracleId":"9c5a3407-e3e6-4f5f-9c24-6f24c19e1a2e","name":"Skyshooter","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["143537e77c4b"]},
 
-        {"oracleId":"9c5bc3a7-42fe-4f8f-b799-ece7dd98ea4d","name":"Thunderheads","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e0010d200e1b","e6b43568f0b7"]},
+        {"oracleId":"9c5bc3a7-42fe-4f8f-b799-ece7dd98ea4d","name":"Thunderheads","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e0010d200e1b"]},
 
         {"oracleId":"9c5f0d91-9d86-4e66-94fd-4af93ad01838","name":"Spirited Companion","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw"],"definition":{"name":"Spirited Companion","types":["Enchantment","Creature"],"subtypes":["Dog"],"manaCost":{"X":1,"W":1},"power":1,"toughness":1,"oracleText":"When this creature enters, draw a card.","compiledTriggeredAbilities":[{"id":"spirited-companion-trigger","oracleText":"When this creature enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
@@ -72783,7 +72771,7 @@
 
         {"oracleId":"9cc598ad-8b70-4e0c-a944-7ae8b43ec821","name":"Buff","state":"unparsed","gaps":["c674ab8328b9"]},
 
-        {"oracleId":"9cc64a91-82d2-4be1-812f-531863e99801","name":"Gigadrowse","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9ebf1486f159"]},
+        {"oracleId":"9cc64a91-82d2-4be1-812f-531863e99801","name":"Gigadrowse","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["tapUntap"],"definition":{"name":"Gigadrowse","types":["Instant"],"manaCost":{"U":1},"oracleText":"Replicate {U} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nTap target permanent.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {U}","multi":true,"mana":{"U":1}}],"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1}},"botReach":"played"},
 
         {"oracleId":"9cc69ea5-42a2-4306-ac6d-cff5adb20bcb","name":"Ashcoat of the Shadow Swarm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["60bdaf4e52fc"]},
 
@@ -75653,7 +75641,7 @@
 
         {"oracleId":"a7a47969-b29a-4f99-9500-29c59af43c48","name":"Ego Erasure","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a2014639c2ef"]},
 
-        {"oracleId":"a7a50b0a-94d5-4e51-bbc7-d8b5a22a65fc","name":"Feed the Bog","state":"unparsed","gaps":["2a5f86f896a0","9e8a7045127d"]},
+        {"oracleId":"a7a50b0a-94d5-4e51-bbc7-d8b5a22a65fc","name":"Feed the Bog","state":"unparsed","gaps":["2a5f86f896a0"]},
 
         {"oracleId":"a7a6cdfd-10ac-49d0-a0a6-8ad37e326511","name":"Hired Poisoner","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Hired Poisoner","types":["Creature"],"subtypes":["Human","Assassin"],"manaCost":{"B":1},"power":1,"toughness":1,"oracleText":"Deathtouch","staticAbilities":["deathtouch"]},"botReach":"played"},
 
@@ -86195,7 +86183,7 @@
 
         {"oracleId":"cdf9fab2-bfdb-4bf3-a06a-b21e07600e23","name":"Squall Line","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c5ca2fddc0b"]},
 
-        {"oracleId":"cdfa9de4-7d7d-4638-8ac4-793ece6372dd","name":"Changing Loyalty","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9a0af67d4189"]},
+        {"oracleId":"cdfa9de4-7d7d-4638-8ac4-793ece6372dd","name":"Changing Loyalty","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["228d9c1970d0"]},
 
         {"oracleId":"cdfcfd2b-966a-4e03-8ed5-4fa7fab423d0","name":"Bespoke Battlewagon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3a45ac163c2a","85134cfcb10b","a0aabffa6909"]},
 
@@ -86545,7 +86533,7 @@
 
         {"oracleId":"cf38ac6e-e370-4ca5-90cd-26a1b812c63a","name":"Primitive Justice","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["1d51b0f4c62b","95e3875997cb"]},
 
-        {"oracleId":"cf3b1070-2c08-49b9-aa78-fe676fab38aa","name":"Leap of Flame","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1c416451fe9e","2a6cdd383ef6"]},
+        {"oracleId":"cf3b1070-2c08-49b9-aa78-fe676fab38aa","name":"Leap of Flame","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2a6cdd383ef6"]},
 
         {"oracleId":"cf3b79cc-ce97-48e9-a578-625e323d1b62","name":"Mystic Enforcer","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["d20a95172bec"]},
 
@@ -89345,7 +89333,7 @@
 
         {"oracleId":"d8e6cdab-234a-46b9-8b6c-164034cf2bc7","name":"Monoxa, Midway Manager","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["57be079a2b1e","9b5625eaca9e"]},
 
-        {"oracleId":"d8eb0897-0d2f-4f2d-a09b-87d57d5a0fa9","name":"Siege of Towers","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2113c177bed8","f7ff387c3bc0"]},
+        {"oracleId":"d8eb0897-0d2f-4f2d-a09b-87d57d5a0fa9","name":"Siege of Towers","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f7ff387c3bc0"]},
 
         {"oracleId":"d8eed5f7-8724-45c7-b6fc-dcfcc400f09a","name":"Wave Elemental","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c242e7703f5b"]},
 
@@ -92823,7 +92811,7 @@
 
         {"oracleId":"e5b11e43-fc7c-4cea-a44a-8af3f124e29e","name":"Woodlot Crawler","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Woodlot Crawler","types":["Creature"],"subtypes":["Insect"],"manaCost":{"U":1,"B":1},"power":2,"toughness":1,"oracleText":"Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)\nProtection from green","staticAbilities":["forestwalk","protection from green"]},"botReach":"played"},
 
-        {"oracleId":"e5b29094-0bb4-4c18-ad47-dce4d4379a4f","name":"Stream of Thought","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1e9f535eb66a","72a9e949756b"]},
+        {"oracleId":"e5b29094-0bb4-4c18-ad47-dce4d4379a4f","name":"Stream of Thought","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1e9f535eb66a"]},
 
         {"oracleId":"e5b35b54-77d9-4cb0-86a1-efc8e49aea09","name":"Blaster Mage","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["destroy"],"definition":{"name":"Blaster Mage","types":["Creature"],"subtypes":["Human","Spellshaper"],"manaCost":{"X":2,"R":1},"power":2,"toughness":2,"oracleText":"{R}, {T}, Discard a card: Destroy target Wall.","activatedAbilities":[{"id":"blaster-mage-ability","oracleText":"{R}, {T}, Discard a card: Destroy target Wall.","cost":{"mana":{"R":1},"tap":true,"discardFilter":{"filter":{},"count":1}},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Wall"]}}]},"botReach":"played"},
 
@@ -94473,7 +94461,7 @@
 
         {"oracleId":"eb4188bb-62df-4309-bde1-f66318fe2f05","name":"Honor of the Pure","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Honor of the Pure","types":["Enchantment"],"manaCost":{"X":1,"W":1},"oracleText":"White creatures you control get +1/+1.","compiledStaticEffects":[{"kind":"pt-buff","filter":{"types":["Creature"],"colors":["W"],"controllerRelation":"you"},"power":1,"toughness":1}]},"botReach":"played"},
 
-        {"oracleId":"eb421a1b-147f-422b-bb8d-483a182a4096","name":"Vacuumelt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e6b43568f0b7"]},
+        {"oracleId":"eb421a1b-147f-422b-bb8d-483a182a4096","name":"Vacuumelt","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["moveZone"],"definition":{"name":"Vacuumelt","types":["Sorcery"],"manaCost":{"X":2,"U":1},"oracleText":"Replicate {2}{U} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nReturn target creature to its owner's hand.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {2}{U}","multi":true,"mana":{"X":2,"U":1}}],"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"eb448589-28e1-49d4-ba3e-7ddb4341fdc5","name":"Akoum Battlesinger","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["226a2ff6da5f"]},
 
@@ -99833,7 +99821,7 @@
 
         {"oracleId":"fe71ada0-ac86-4035-9b6b-4c24ae65034c","name":"Heavyweight Demolisher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e7749258a902"]},
 
-        {"oracleId":"fe725b27-49ef-41bc-91f9-9cd9871ad863","name":"Shattering Spree","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a698be8d4e3e"]},
+        {"oracleId":"fe725b27-49ef-41bc-91f9-9cd9871ad863","name":"Shattering Spree","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy"],"definition":{"name":"Shattering Spree","types":["Sorcery"],"manaCost":{"R":1},"oracleText":"Replicate {R} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nDestroy target artifact.","kickers":[{"id":"replicate","keyword":"replicate","description":"Replicate {R}","multi":true,"mana":{"R":1}}],"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Artifact","count":1}},"botReach":"played"},
 
         {"oracleId":"fe742976-ef13-4c25-972f-254b1ed436de","name":"Mother Bear","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["createToken"],"definition":{"name":"Mother Bear","types":["Creature"],"subtypes":["Bear"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2,"oracleText":"{3}{G}{G}, Exile this card from your graveyard: Create two 2/2 green Bear creature tokens. Activate only as a sorcery.","activatedAbilities":[{"id":"mother-bear-ability","oracleText":"{3}{G}{G}, Exile this card from your graveyard: Create two 2/2 green Bear creature tokens. Activate only as a sorcery.","cost":{"mana":{"X":3,"G":2},"exileThis":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Bear","types":["Creature"],"subtypes":["Bear"],"power":2,"toughness":2,"colors":["G"]},"controller":"controller","count":2}],"activateFromGraveyard":true,"sorcerySpeedOnly":true}]},"botReach":"played"},
 
