@@ -15009,11 +15009,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Oracle combo: either order when the decklist holds no counterspell",
-        pairOf: {
-            anchor: "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",
+        // Twin of the entry above; only the decklist differs. Not a `pairOf`
+        // half: a pair's halves must carry the same deck knowledge.
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "a decklist that holds no counterspell",
+                detail: "a decklist that may hold a counterspell",
             },
         },
         spec: {
