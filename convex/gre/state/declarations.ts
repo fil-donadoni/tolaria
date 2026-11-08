@@ -1191,10 +1191,18 @@ export type CardInstanceState = {
      *  drive a computed layer-4 subtype swap (ADR 0050). Cleared when the
      *  permanent leaves the battlefield (a new object, CR 400.7). */
     chosenSubtypes?: string[];
-    /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
-     *  returns this array instead of mana-cost-derived + grantedColors.
-     *  Set by lace instants ("target spell or permanent becomes [color]"). */
+    /** Layer-5 colour SET LEDGER (CR 105.3 / 613.1e) left by a resolving spell
+     *  or ability (lace instants, the `setColor` Op, `animateAsCreature`'s
+     *  `colors`) or by a copy's colour exception. Input, not output:
+     *  `deriveLayers2to5` walks it as a layer-5 set at `colorOverrideSeq`, and
+     *  `getEffectiveColors` reads the walk's `colorSet` / `grantedColors`
+     *  once it has run. */
     colorOverride?: Color[];
+    /** CR 613.7 / 613.7b — the layer timestamp `colorOverride` was created at
+     *  (minted by `allocStaticTimestamp`). Absent on a copy's colour exception
+     *  (a copiable value, CR 707.9b, beneath every layer-5 effect): the walk
+     *  orders it as the earliest. */
+    colorOverrideSeq?: number;
     /** CR 707.2 / 202.3 (issue #2339) — an instance-level MANA COST override.
      *  The one writer today is a copy effect's "except it has no mana cost"
      *  clause (Eternalize CR 702.129a, Embalm CR 702.128a), which sets `{}` so
@@ -1240,6 +1248,9 @@ export type CardInstanceState = {
     temporaryColorOverrides?: {
         colors: Color[];
         duration?: Duration;
+        /** CR 613.7 — the row's layer timestamp; restored to
+         *  `colorOverrideSeq` when the row becomes the top again. */
+        seq?: number;
     }[];
     /** Copy effect anchor (CR 707.2, 706). When this permanent is a copy of
      *  another (Clone, Copy Artifact, Vesuvan Doppelganger), `card.id` is

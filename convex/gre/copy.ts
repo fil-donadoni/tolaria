@@ -190,9 +190,13 @@ export function rematerialiseTimedCopies(
         [...expired, ...survivors].some(writesColour) ||
         (underlying !== null && writesColour(underlying));
     const keptColour = card.colorOverride;
+    const keptColourSeq = card.colorOverrideSeq;
 
     revertCopy(state, card);
-    if (!colourIsTheCopys && keptColour) card.colorOverride = keptColour;
+    if (!colourIsTheCopys && keptColour) {
+        card.colorOverride = keptColour;
+        if (keptColourSeq !== undefined) card.colorOverrideSeq = keptColourSeq;
+    }
     if (underlying) applyCopyLayer(state, card, underlying);
     const latest = survivors[survivors.length - 1];
     if (latest) {
@@ -318,10 +322,14 @@ function applyCopyEffect(
     // / CR 707.9d "except it doesn't copy that creature's color" (Vesuvan) —
     // the colour the clause SET, written to the same layer-5 `colorOverride`
     // `getEffectiveColors` treats as outranking every other derivation.
+    // A copiable value carries no layer timestamp (`colorOverrideSeq`): the
+    // layer-5 walk orders it beneath every layer-5 effect.
     if (except?.colorOverride) {
         recipient.colorOverride = [...except.colorOverride];
+        delete recipient.colorOverrideSeq;
     } else if (priorCopyOwnsColour) {
         delete recipient.colorOverride;
+        delete recipient.colorOverrideSeq;
     }
 
     // CR 707.2 "except it has no mana cost" (Eternalize / Embalm). The copy
@@ -430,6 +438,7 @@ export function revertCopy(
     // scheduled revert may fire on it.
     delete card.timedCopyEffects;
     delete card.colorOverride;
+    delete card.colorOverrideSeq;
     // CR 707.2 — the copy effect (and every "except" clause riding on it) lasts
     // only while the object is on the battlefield, so the mana-cost override an
     // Eternalize/Embalm token carried goes with it. The art is the COPIER's

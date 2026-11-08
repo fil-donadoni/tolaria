@@ -424,6 +424,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "chosenXOnCast",
             "classLevel",
             "colorOverride",
+            "colorOverrideSeq",
             "colorSet",
             "controlChanges",
             "counters",
