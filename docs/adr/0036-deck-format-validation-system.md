@@ -38,7 +38,7 @@ A third issue surfaced during design: Alpha 40's rarity caps require per-card **
 
 **Format is chosen at creation and immutable.** The create flow has a required format select; edit shows it read-only. Changing format would mass-invalidate a deck, so cross-format reuse goes through a new **Export** (deck → MTGA/Scryfall text, by card name, symmetric with the existing importer) → create a new deck in the target format → **Import**. Match play is **not** format-gated for now: any legal deck may face any other.
 
-**Old School ruleset: Eternal Central + the Swedish dexterity ban.** Restricted list per EC; Chaos Orb and Falling Star banned (Swedish), which is moot in practice — both are manual-dexterity cards (CR 712), unimplementable, and already out of scope. The banned list is a documentation guard, not an active filter.
+**Old School ruleset: Eternal Central + the Swedish dexterity ban.** Restricted list per EC; Chaos Orb and Falling Star banned (Swedish), which is moot in practice — both are manual-dexterity cards (no CR rule covers dexterity; the id once cited here was renumbered, 2026-11-08), unimplementable, and already out of scope. The banned list is a documentation guard, not an active filter.
 
 **Rarity is added to the model.** `rarity: "common" | "uncommon" | "rare"` is added to `CardPrint` (per printing) and the home-set `CardDefinition`, backfilled one-shot from MTGJSON via `scripts/json-to-cards.mjs` and required on all future cards. Basic lands are exempt from every copy/rarity cap and are always set-legal (identified by the `Basic` supertype).
 

@@ -14,8 +14,8 @@ etc.), the engine can either:
    ≤ the required selection count.
 
 The Comprehensive Rules technically allow the player to "choose" in both
-cases (CR 700.1, 701.39 etc. — the player makes the choice even when only one
-option exists). MTG Arena resolves these automatically to streamline the
+cases (CR 701.9a, 502.3 etc. — the player makes the choice even when only one
+option exists; ids re-pointed 2026-11-08, the CR renumbered). MTG Arena resolves these automatically to streamline the
 common case.
 
 ## Decision
@@ -33,7 +33,8 @@ Examples:
 - "Discard 2 cards" with 3+ cards → prompt (real choice exists).
 - Winter Orb (cap 1 land) with 0 tapped lands → no prompt; with 1+ tapped
   lands → prompt (player may legitimately choose to skip the untap, CR
-  502.1 / 701.39 — "can't untap more than one" is a cap, not an obligation).
+  502.3 / 701.26b — "can't untap more than one" is a cap, not an obligation;
+  ids re-pointed 2026-11-08, the CR renumbered).
 - Smoke analogous to Winter Orb for creatures.
 
 The cap-style restrictions (Winter Orb, Smoke) keep the prompt even with a
