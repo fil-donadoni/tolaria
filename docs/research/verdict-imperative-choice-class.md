@@ -1,6 +1,6 @@
 # Verdicts on a choice raised from an imperative `resolve()` (issue #8731)
 
-Measured on `7cef9865c` (2026-11-08).
+Measured at 7cef9865c (2026-11-08).
 
 ## The question
 
