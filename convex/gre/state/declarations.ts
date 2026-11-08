@@ -831,6 +831,17 @@ export type CardInstanceState = {
      *  no longer shows it (a duration or Aura grant, a copy's keywords). Read only
      *  by the look-back (`lookBackSelf`); never a live ability of the card. */
     keywordsAtLeave?: string[];
+    /** CR 603.10a / 613.1f last-known information (issue #8730): the layer-6
+     *  state a leaves-the-battlefield look-back reads beside `keywordsAtLeave`
+     *  — whether the permanent had lost its abilities, and the triggered
+     *  abilities granted to it — when the card in the new zone no longer shows
+     *  them (every departure ends both, CR 400.7). An Elk that dies under Oko's
+     *  `+1` must not trigger its printed "when this is put into a graveyard".
+     *  Read only by the look-back (`lookBackSelf`); never live state. */
+    abilitiesAtLeave?: {
+        suppressedBy?: { sourceId: string; seq: number }[];
+        grantedTriggered?: CardInstanceState["grantedTriggeredAbilities"];
+    };
     /** CR 608.2h / 400.7 (issue #2384): binding rows one of THIS permanent's
      *  abilities captured for a LATER, separate ability of the same permanent
      *  to read — the cross-ability last-known-information channel, written by

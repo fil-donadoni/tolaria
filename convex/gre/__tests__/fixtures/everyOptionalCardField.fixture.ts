@@ -113,6 +113,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         saddled: true,
         countersAtLeave: { "+1/+1": 1 },
         keywordsAtLeave: ["undying"],
+        abilitiesAtLeave: { suppressedBy: [{ sourceId: "src-8", seq: 15 }] },
         capturedBindings: { exiled: ["inst-x"] },
         worldSeq: 12,
         staticSeq: 13,
