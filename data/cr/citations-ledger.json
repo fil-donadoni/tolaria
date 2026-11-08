@@ -7055,6 +7055,7 @@
         {"id":"107.3","line":"// X-spell inflation (issue #477, CR 107.3 / 601.2b): assume X=1 so a","sites":1,"status":"baseline"},
         {"id":"302.1","line":"/** CR 302.1 — a creature's activated ability with the tap or untap symbol in","sites":1,"status":"baseline"},
         {"id":"208.2","line":"/** Summed PRINTED power (CR 208.2) of a `may-pay` cost's matching sacrifice","sites":1,"status":"baseline"},
+        {"id":"702.53a","line":"// CR 702.53a — transmute functions only from the hand: its worth is the","sites":1,"status":"confirmed","ruleHash":"3f79e98becf1182c"},
         {"id":"205.3m","line":"describe(\"Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3721)\", () => {","sites":1,"status":"confirmed","ruleHash":"8824f7c20b514512"},
         {"id":"208.2","line":"/** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with","sites":1,"status":"baseline"},
         {"id":"103.8","line":"_\"skips draw on turn 1 (CR 103.8)\"_ in `convex/gre/__tests__/phases.test.ts`.","sites":1,"status":"baseline"},
