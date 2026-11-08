@@ -416,6 +416,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant › choice+delayedTrigger+if+libraryLook+loseGame+mayPay+moveZone+reveal",
+            "issue": 8854
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant › choice+if+mayPay+moveZone+sacrifice",
             "issue": 4834
         },
