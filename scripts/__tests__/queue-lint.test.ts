@@ -217,6 +217,20 @@ describe("queue lint — advisory findings (issue #2188)", () => {
         expect(f.message).toMatch(/no readable path/);
     });
 
+    it("names a plain `Target files:` line, the shape the reader skips (issue #8937)", () => {
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "Target files:\nconvex/gre/ai/choiceCandidates.ts\n"
+        );
+        const f = lintIssue(issue({ body })).find(
+            (x) => x.rule === "no-target-files"
+        )!;
+        expect(f.severity).toBe("blocking");
+        expect(f.message).toMatch(
+            /plain `Target files:` line, which is not read/
+        );
+    });
+
     it("accepts bare path lines as a declaration (issue #8406)", () => {
         const body = WELL_FORMED.replace(
             /## Target files[\s\S]*$/,

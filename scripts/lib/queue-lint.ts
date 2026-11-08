@@ -124,6 +124,15 @@ export function isTargetFilesItem(line: string): boolean {
     return bare.includes("/") || /\.\w+$/.test(bare) || /^\*{1,2}$/.test(bare);
 }
 
+/**
+ * A `Target files:` line that is neither heading nor bold label — the shape
+ * issue #8709 used, which the reader skips (issue #8937). Named so the lint
+ * and the filing gate can say WHY the radius reads as unknown.
+ */
+export function hasPlainTargetFilesLine(body: string): boolean {
+    return body.split("\n").some((l) => /^\s*target files\s*:?\s*$/i.test(l));
+}
+
 /** The one sentence that names the accepted forms, shared by the fix hint. */
 export const TARGET_FILES_FIX =
     "add a `## Target files` section listing the modules/globs it touches (coarse is fine) — the template's `**Target files:**` label is read too";
@@ -450,7 +459,9 @@ export function lintIssue(
             severity: "blocking",
             message: labelled
                 ? "a `Target files` section with no readable path — list items or bare path lines count, prose does not; the radius reads as unknown, so the planner runs this issue only with nothing in flight, and cannot schedule it against other issues' files"
-                : "no `Target files` section — the planner will not guess a file set, so the radius is unknown: the issue runs only with nothing in flight, and cannot be scheduled against other issues' files",
+                : hasPlainTargetFilesLine(body)
+                  ? "a plain `Target files:` line, which is not read — only a `## Target files` heading or the bold `**Target files:**` label is; the radius is unknown: the issue runs only with nothing in flight, and cannot be scheduled against other issues' files"
+                  : "no `Target files` section — the planner will not guess a file set, so the radius is unknown: the issue runs only with nothing in flight, and cannot be scheduled against other issues' files",
             fix: TARGET_FILES_FIX,
         });
     }

@@ -2187,3 +2187,89 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
         expect(r.stderr).toMatch(/TOLARIA_ALLOW_MANUAL_MERGE=1/);
     });
 });
+
+describe("deny-guard § 8 — no unknown blast radius is filed ready or claimed (issue #8937)", () => {
+    // Filing reads a body FILE with the real `radius-check.ts` (no `gh`);
+    // labelling an existing issue reads `gh`, so that half runs against a
+    // fixture project whose stand-in refuses issue 111 only.
+    let bodies: string;
+    let stubDir: string;
+    const real = () => ({ CLAUDE_PROJECT_DIR: REPO_ROOT });
+    const stub = () => ({ CLAUDE_PROJECT_DIR: stubDir });
+
+    beforeAll(() => {
+        bodies = fs.mkdtempSync(path.join(tmp, "radius-8-"));
+        fs.writeFileSync(
+            path.join(bodies, "ok.md"),
+            "## Agent Brief\nx\n\n## Target files\n\n- `scripts/a.ts`\n"
+        );
+        fs.writeFileSync(
+            path.join(bodies, "none.md"),
+            "## Agent Brief\nx\n\nTarget files:\nscripts/a.ts\n"
+        );
+        stubDir = fs.mkdtempSync(path.join(tmp, "radius-8-stub-"));
+        fs.mkdirSync(path.join(stubDir, "scripts"));
+        fs.writeFileSync(
+            path.join(stubDir, "scripts", "radius-check.ts"),
+            [
+                'if (process.argv[2] !== "111") process.exit(0);',
+                'console.error("issue #111: unknown blast radius");',
+                "process.exit(2);",
+                "",
+            ].join("\n")
+        );
+    });
+
+    const run = (cmd: string, env: NodeJS.ProcessEnv) =>
+        runHook(DENY_GUARD, bash(cmd, bodies), env);
+
+    it("refuses a ready-for-agent issue whose body file declares no radius", () => {
+        const r = run(
+            "gh issue create --title t --body-file none.md --label bug --label ready-for-agent",
+            real()
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/`Target files:` line is plain text/);
+    });
+
+    it.each([
+        "gh issue create --title t --body-file ok.md --label ready-for-agent",
+        "gh issue create --title t -F ok.md -l bug,ready-for-agent",
+        "gh issue create --title t --body-file none.md --label bug",
+        "TOLARIA_ALLOW_UNKNOWN_RADIUS=1 gh issue create --title t --body-file none.md --label ready-for-agent",
+    ])("allows: %s", (cmd) => {
+        const r = run(cmd, real());
+        expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
+            false
+        );
+    });
+
+    it("refuses an inline body carrying ready-for-agent: it cannot be checked", () => {
+        const r = run(
+            'gh issue create --title t --body "fix it" --label ready-for-agent',
+            real()
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/no `--body-file`/);
+    });
+
+    it.each([
+        "gh issue edit 111 --add-label in-progress --add-assignee @me",
+        "gh issue edit 111 --add-label=ready-for-agent",
+    ])("refuses queueing or claiming a no-radius issue: %s", (cmd) => {
+        const r = run(cmd, stub());
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/issue #111: unknown blast radius/);
+    });
+
+    it.each([
+        "gh issue edit 222 --add-label in-progress --add-assignee @me",
+        "gh issue edit 111 --add-label bug",
+        "TOLARIA_ALLOW_UNKNOWN_RADIUS=1 gh issue edit 111 --add-label in-progress --add-assignee @me",
+    ])("allows: %s", (cmd) => {
+        const r = run(cmd, stub());
+        expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
+            false
+        );
+    });
+});

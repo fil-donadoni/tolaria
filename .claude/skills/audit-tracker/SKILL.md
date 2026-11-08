@@ -178,7 +178,8 @@ self-contained, because the tracker is about to be closed:
   for shipped behaviour that is wrong) and exactly one `area:*` on every
   ticket; a `## Band` line only on a ticket that is NOT wired under a
   prioritised umbrella:
-  `gh issue create --title "…" --body "…" --label enhancement --label area:mechanics --label ready-for-agent`.
+  `gh issue create --title "…" --body-file "$SCRATCHPAD/ticket-<n>.md" --label enhancement --label area:mechanics --label ready-for-agent`
+  — the body declares `## Target files` (`deny-guard.sh` § 8, issue #8937).
 
 Label: `ready-for-agent` when the shape is settled, `needs-design` when Phase 5
 left a real fork. Add `model:opus` only for a ticket introducing a

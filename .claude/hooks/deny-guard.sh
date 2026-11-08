@@ -1011,4 +1011,52 @@ as the owner:
   TOLARIA_ALLOW_MANUAL_READY=1 gh pr edit <PR#> --add-label ready-to-land"
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. No unknown blast radius enters the queue or a claim (issue #8937).
+#
+# On 2026-11-08 three issues with no readable `Target files` were claimed by
+# attended sessions — which never pass `queue:lint` — and idled the queue ~7 h
+# (issue #8934). The gate sits where a session files, queues and claims:
+#   a. `gh issue create` carrying `ready-for-agent` must pass `--body-file`
+#      (or `-F`), and that file must declare a radius; an inline `--body`
+#      cannot be checked, so it is refused with the label;
+#   b. `gh issue edit <N>` adding `ready-for-agent` or `in-progress` reads
+#      issue N's body.
+# `scripts/radius-check.ts` decides (exit 2 = refuse); any other exit,
+# infra included, fails open. One `bun` start (+ one `gh` read for b), only
+# on a matching segment. Owner hatch, same segment:
+# `TOLARIA_ALLOW_UNKNOWN_RADIUS=1`.
+RADIUS_CREATE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+create[[:space:]].*[[:space:]](--label|-l)(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?ready-for-agent["'"'"']?([[:space:],]|$)'
+RADIUS_EDIT_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?(ready-for-agent|in-progress)["'"'"']?([[:space:],]|$)'
+RADIUS_HATCH='TOLARIA_ALLOW_UNKNOWN_RADIUS=1'
+radius_deny() {
+    deny "BLOCKED: $1
+Every ready or claimed issue declares its blast radius (issue #8937):
+  ## Target files
+
+  - \`path/or/glob\`
+Owner hatch, same command: TOLARIA_ALLOW_UNKNOWN_RADIUS=1 gh issue …"
+}
+if seg_has "$RADIUS_CREATE_INVOKE" && ! seg_has "$RADIUS_HATCH" "$RADIUS_CREATE_INVOKE"; then
+    rc_seg=$(printf '%s\n' "$segments" | grep -E -e "$RADIUS_CREATE_INVOKE" | head -1)
+    rc_file=$(printf '%s\n' "$rc_seg" | sed -nE 's/.*[[:space:]](--body-file|-F)(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']+).*/\3/p' | head -1)
+    if [ -z "$rc_file" ]; then
+        radius_deny "\`gh issue create\` with \`ready-for-agent\` and no \`--body-file\` — an inline or interactive body cannot be checked for \`Target files\`. Write the body to a file and pass --body-file <path>."
+    else
+        case "$rc_file" in
+        /*) ;;
+        *) [ -n "$cwd" ] && rc_file="$cwd/$rc_file" ;;
+        esac
+        refusal=$(bun "${CLAUDE_PROJECT_DIR:-.}/scripts/radius-check.ts" --body-file "$rc_file" 2>&1) && rc=0 || rc=$?
+        [ "$rc" -eq 2 ] && radius_deny "$refusal"
+    fi
+fi
+if seg_has "$RADIUS_EDIT_INVOKE" && ! seg_has "$RADIUS_HATCH" "$RADIUS_EDIT_INVOKE"; then
+    re_issue=$(printf '%s\n' "$segments" | grep -E -e "$RADIUS_EDIT_INVOKE" | head -1 | sed -E 's/.*gh[[:space:]]+issue[[:space:]]+edit[[:space:]]+//' | grep -oE '(^|[[:space:]])#?[0-9]+([[:space:]]|$)' | head -1 | tr -d '[:space:]#' || true)
+    if [ -n "$re_issue" ]; then
+        refusal=$(bun "${CLAUDE_PROJECT_DIR:-.}/scripts/radius-check.ts" "$re_issue" 2>&1) && rc=0 || rc=$?
+        [ "$rc" -eq 2 ] && radius_deny "$refusal"
+    fi
+fi
+
 exit 0
