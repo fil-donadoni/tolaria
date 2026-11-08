@@ -1,10 +1,12 @@
 # The card catalogue stays in code — measured, with the precondition for revisiting it
 
+_Dated (2026-11-08, issue #8726): "1872 cards, 1.63 MB raw / 431 KB gz" are readings of 2026-07-31; hand-written cards are now 2,201 `defineCard(` calls beside the compiled pool (see ADR 0172)._
+
 **Revisit answered by ADR 0172 (2026-11-08, issue #8725):** neither precondition fired for the hand-written catalogue; the compiled pool in `data/` is a separate population.
 
 ## Status
 
-accepted
+accepted (2026-07-31)
 
 ## Context
 

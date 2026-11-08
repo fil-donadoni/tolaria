@@ -1,6 +1,6 @@
 # Blade scenario admission: forced-loss fairness, declared budget, engine-real setup
 
-Status: accepted
+Status: accepted (2026-07-23)
 
 The blade suite (ADR-adjacent: PRD #1423, issues #1427/#1434) is the correctness
 metric for the bot. A metric is only worth the discipline around what may enter

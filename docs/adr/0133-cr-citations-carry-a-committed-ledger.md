@@ -1,5 +1,7 @@
 # ADR 0133 — Every CR citation carries a committed ledger entry: `confirmed` against the printed rule, or `baseline` — and the baseline only shrinks
 
+**Amended by ADR 0165 (2026-11-08, issue #8726):** §7 (shared files spread by order).
+
 **Status:** Accepted (2026-09-15, issue #3674). Amends ADR 0098. Amended
 2026-09-16 (issue #3697): the baseline shrinks by default and grows only
 through a recorded tokenizer widening — §4, §5 and the Amendment below.

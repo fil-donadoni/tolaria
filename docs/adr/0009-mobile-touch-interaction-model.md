@@ -1,5 +1,9 @@
 # Mobile touch interaction model
 
+**Amended by ADR 0101 (2026-11-08, issue #8726):** §4 (editing surfaces) and §5 (preview): this model stays valid for the board only; hold-to-preview is removed on editing surfaces.
+
+**Status:** Accepted (2026-05-26)
+
 Cards on mobile are unplayable with hover-based preview and right-click context menus. Touch devices have no hover and no right-click. This ADR establishes the touch interaction model for card inspection and action selection.
 
 ## Decision

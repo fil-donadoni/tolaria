@@ -1,8 +1,10 @@
 # Cumulative Upkeep via Age Counters and a Scaling Cost Template
 
+**Reshaped by ADR 0155 (2026-11-08, issue #8726):** Echo and cumulative upkeep carry typed fields instead of the age-counter plus scaling-cost template described here.
+
 ## Status
 
-accepted
+accepted (2026-06-25)
 
 ## Context
 

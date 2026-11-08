@@ -1,5 +1,7 @@
 # The Combo Corpus is a measure first; Bot knowledge only behind the Executable gate (amends ADR 0102)
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `data/combos/executable.json` (planned, not yet written)._
+
 ## Status
 
 accepted (2026-11-06, owner decision in a design interview; amends

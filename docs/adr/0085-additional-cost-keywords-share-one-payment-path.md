@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — implemented by issue #2078 (the discriminator, the table and the
+accepted (2026-08-03) — implemented by issue #2078 (the discriminator, the table and the
 split); the Offspring mechanic itself is issue #2079.
 
 ## Context

@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted and shipped (proposed 2026-08-15; `convex/gre/asEnters.ts`, `stagedEntries` in `convex/gre/state.ts`, `convex/gre/pendingChoiceSubmit.ts`; `GLOSSARY.md` cites it). Status line corrected (2026-11-08, issue #8726).
 
 ## Context
 

@@ -4,7 +4,7 @@
 
 ## Status
 
-accepted (supersedes the `--from-pass` autostart of ADR 0099)
+accepted (2026-08-27; supersedes the `--from-pass` autostart of ADR 0099)
 
 ## Context
 

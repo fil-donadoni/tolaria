@@ -1,5 +1,7 @@
 # The Verdict corpus lives in a shared Verdict Store outside git; the repository keeps only the Verdict Lock
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/lib/verdicts-file.ts`._
+
 ## Status
 
 accepted (2026-09-14, "formato verdicts" grill session; extends ADR 0124,

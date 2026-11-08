@@ -1,5 +1,7 @@
 # Card Prints are a database table sourced from Scryfall; the engine never reads a print
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/generated/token-prints.json`._
+
 ## Status
 
 accepted (2026-09-19, grilled in session `card-prints.json`). Supersedes

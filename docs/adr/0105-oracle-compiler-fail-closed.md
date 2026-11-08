@@ -1,8 +1,12 @@
 # The Oracle compiler compiles, never authors: fail-closed and all-consuming, gold as the oracle, the lockfile as the source of truth
 
+**Amended by ADR 0137 and ADR 0162 (2026-11-08, issue #8726):** 0137 §7 (grammar-first authoring) and 0162 §7.3 (registry-keyed Ops leave the Op census).
+
+_Dated (2026-11-08, issue #8726): figures are readings of 2026-08-25. The lockfile "~11 MB" is now 21.7 MB (`data/oracle-compiled.json`); "~2,026 hand-written cards" is now 2,201 `defineCard(` calls; "34,890 Oracle cards" is now 35,353._
+
 ## Status
 
-accepted
+accepted (2026-08-25)
 
 ## Context
 

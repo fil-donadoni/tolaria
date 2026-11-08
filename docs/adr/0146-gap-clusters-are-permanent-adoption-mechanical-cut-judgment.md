@@ -1,5 +1,7 @@
 # Gap Clusters are permanent: adoption is mechanical, the cut is judgment
 
+**Amended by ADR 0152 (2026-11-08, issue #8726):** §6 (closing criterion; clusters cut by Clause Family).
+
 ## Status
 
 accepted — grilled 2026-09-25 (decisions Q1–Q15 of PRD #4673). Amends ADR 0137

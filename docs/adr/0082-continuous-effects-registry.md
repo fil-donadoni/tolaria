@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted and shipped (proposed 2026-08-03; the registry lives in `convex/gre/continuousEffects.ts`, PRD #2064, PR #3035). Status line corrected (2026-11-08, issue #8726).
 
 ## Context
 

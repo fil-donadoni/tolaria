@@ -1,5 +1,7 @@
 # delayedTrigger Op: inline body with explicit capture
 
+**Status:** Accepted (2026-07-03)
+
 The `delayedTrigger` Effect Script Op (CR 603.7, issue #838) grants a delayed
 triggered ability — a future one-shot effect, not an immediate state change —
 so its shape sets the pattern for every timing-shaped Op that follows. We

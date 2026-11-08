@@ -4,7 +4,7 @@ To support best-of-3 play (and sideboarding), we introduce a **Match** as a firs
 
 ## Status
 
-accepted
+accepted (2026-06-19)
 
 ## Decision
 

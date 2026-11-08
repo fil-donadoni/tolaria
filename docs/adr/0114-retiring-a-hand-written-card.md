@@ -1,8 +1,10 @@
 # Retiring a hand-written card: the test moves to the registry seam, the collision is resolved at BUILD, and a divergence is a RED — never a silent precedence
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/__tests__/oracle-pool-size.test.ts`, `scripts/migration-classifier.mjs`._
+
 ## Status
 
-accepted (amends ADR 0108 §4, whose "hand-written always wins" is replaced by
+accepted (2026-09-02; amends ADR 0108 §4, whose "hand-written always wins" is replaced by
 "the two must agree"; builds on ADR 0113; shapes issue #2703)
 
 ## Context

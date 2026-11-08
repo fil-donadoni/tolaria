@@ -1,5 +1,7 @@
 # Grammar Clusters are cut by Clause Family, capped by accepted forms, and close when their forms compile
 
+_Dated (2026-11-08, issue #8726): "34,890 cards" is a reading of 2026-10-07; the corpus is now 35,353._
+
 ## Status
 
 accepted — grilled 2026-10-07 (grammar backlog granularity session). Amends

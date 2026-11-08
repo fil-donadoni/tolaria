@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — shipped by issue #2073
+accepted (2026-08-03) — shipped by issue #2073
 
 ## Context
 

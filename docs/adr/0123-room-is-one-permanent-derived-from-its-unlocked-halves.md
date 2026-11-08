@@ -4,7 +4,7 @@
 
 ## Status
 
-accepted (amends [ADR 0041][adr-0041]'s out-of-scope clause for CR 709.5;
+accepted (2026-09-10; amends [ADR 0041][adr-0041]'s out-of-scope clause for CR 709.5;
 extends [ADR 0121][adr-0121], which admitted CR 709.1–709.4 and left the
 permanent class in the bucket for this record; sibling of [ADR 0122][adr-0122];
 decides issue #3306. §§1–4 were rewritten against the codebase before any slice

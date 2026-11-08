@@ -1,5 +1,9 @@
 # Grammar-first authoring: the Oracle Compiler is the authoring path, hand-writing is the Guard C fallback
 
+**Amended by ADR 0146 (2026-11-08, issue #8726):** the `gaps:sync` cluster rewrite.
+
+_Dated (2026-11-08, issue #8726): "2,613 ready of 34,890" is a reading of 2026-09-17; now 6,631 `ready` of 35,353._
+
 ## Status
 
 accepted — grilled 2026-09-17. Amends ADR 0105 (its § 7 carries the mechanics

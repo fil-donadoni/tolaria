@@ -1,8 +1,10 @@
 # Manual Mode runs beside the GRE, not inside it — and its catalogue is a client asset, not a table
 
+_Dated (2026-11-08, issue #8726): "~1.9k cards", "1872 cards" and the size table are readings of 2026-07-31; hand-written cards are now 2,201 `defineCard(` calls beside the compiled pool._
+
 ## Status
 
-accepted
+accepted (2026-07-31)
 
 ## Context
 

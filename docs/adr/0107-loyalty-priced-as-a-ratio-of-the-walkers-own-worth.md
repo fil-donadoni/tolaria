@@ -1,8 +1,10 @@
 # Loyalty is priced as a RATIO of the planeswalker's own worth, with a derived ceiling, and a variable `-X` cost never clamps
 
+_Dated (2026-11-08, issue #8726): "13 planeswalkers, 37 loyalty abilities, zero reachable" is a reading of 2026-08-26, before the loyalty Bot work; not re-measured._
+
 ## Status
 
-accepted
+accepted (2026-08-26)
 
 ## Context
 

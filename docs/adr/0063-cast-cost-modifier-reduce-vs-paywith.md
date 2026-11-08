@@ -1,6 +1,6 @@
 # Cast-cost modifiers: `reduce` vs `payWith`, and delve as a Model-2 payment choice
 
-Status: accepted
+Status: accepted (2026-07-17)
 
 ## Context
 

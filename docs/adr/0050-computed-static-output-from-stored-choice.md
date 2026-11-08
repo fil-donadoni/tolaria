@@ -1,5 +1,7 @@
 # Computed static output driven by an on-entry stored choice
 
+**Status:** Accepted (2026-07-05)
+
 ## Context
 
 Continuous statics have so far carried **fixed** output data: `StaticSubtypeSet.subtypes` is a literal `string[]` (Blood Moon → always `["Mountain"]`). Illusionary Terrain ("As this enchantment enters, choose two basic land types. Basic lands of the first chosen type are the second chosen type.") is the first card whose static **output and applicability are both computed from a choice made on entry** — the ordered pair `[first, second]` picked as it enters. No shipped seam let a static's value come from stored per-instance data.

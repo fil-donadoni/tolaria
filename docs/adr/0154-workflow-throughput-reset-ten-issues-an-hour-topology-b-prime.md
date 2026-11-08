@@ -1,5 +1,9 @@
 # Workflow throughput reset: 10 issues an hour over two machines (topology B'); a PR owes at `land` only what it can break and what costs seconds; ADR 0104 overturned, ADR 0136 and ADR 0131 amended
 
+**Amended by ADR 0156 and ADR 0160 (2026-11-08, issue #8726):** §9 (topology) is superseded and §8 retired; sections 11–15 were added in place.
+
+_Dated (2026-11-08, issue #8726): §6 "20 landings or 8 h" is superseded in practice: health runs on the 2-hourly cron (`50 */2`) plus `health-early` at the 20th landing since the newest verdict (CLAUDE.md; ADR 0159 §4)._
+
 ## Status
 
 accepted (retired names, §8 and §9 mapped in the 2026-11-04 amendment) — owner's decision of 2026-10-11, recorded by issue #5455 under

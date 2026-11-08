@@ -1,6 +1,6 @@
 # Companion: a single-card slot outside the game + a {3} summon special action
 
-Status: accepted
+Status: accepted (2026-07-17)
 
 ## Context
 

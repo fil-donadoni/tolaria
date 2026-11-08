@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. **Supersedes ADR 0056** (draftability gated on a fully-implemented set).
+Accepted (2026-07-16). **Supersedes ADR 0056** (draftability gated on a fully-implemented set).
 
 ## Context
 

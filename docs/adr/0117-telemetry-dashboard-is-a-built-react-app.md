@@ -1,8 +1,10 @@
 # The telemetry dashboard is a built React app, and the manifest is its serving allow-list
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/telemetry-dashboard.html`._
+
 ## Status
 
-accepted (PRD #3148 S0, issue #3149; supersedes the no-build-step constraint
+accepted (2026-09-07; PRD #3148 S0, issue #3149; supersedes the no-build-step constraint
 #2625 shipped under)
 
 ## Context

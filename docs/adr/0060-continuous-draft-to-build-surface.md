@@ -1,8 +1,10 @@
 # 0060 — Continuous draft→build surface: the draft-time Pool is the working deck (amends ADR 0055)
 
+**Amended by ADR 0075 (2026-11-08, issue #8726):** the column layout; extended by ADR 0095 (default pick computed early).
+
 ## Status
 
-Accepted. **Amends ADR 0055** (which left deckbuild as a separate phase after
+Accepted (2026-07-16). **Amends ADR 0055** (which left deckbuild as a separate phase after
 the draft and made the Auto-Pick a pure Pick-Heuristic decision).
 
 ## Context
