@@ -1891,12 +1891,28 @@ export function pureGenericManaSubCost(mana: ManaCost): number | null {
 export function isAutoPayableManaAbilityCost(
     cost: ActivatedAbility["cost"]
 ): boolean {
-    if (cost.tap) return true;
+    // CR 605.1a — {T} beside a tap-other leg (Springleaf Drum) is paid on the
+    // tap-other route only, never as a plain tap: the planner reaches it as a
+    // converter (`manaConverters.ts`), which names the creature it taps.
+    if (cost.tap) return !isTapOtherTapManaAbilityCost(cost);
     if (NEVER_AUTO_PAYABLE_COST_LEGS.some((leg) => cost[leg] !== undefined)) {
         return false;
     }
     if (cost.tapOtherFilter) return true;
     return !!cost.mana && pureGenericManaSubCost(cost.mana) !== null;
+}
+
+/** CR 605.1a / 302.6 — a mana ability's cost is "{T}, Tap an untapped
+ *  <permanent> you control" (Springleaf Drum, Gene Pollinator): the source's
+ *  own {T} AND a pick of other permanents. The single authority for the route:
+ *  `activateManaAbility` pays both legs with the picks up front
+ *  (`payTapOtherAbilityCost`), while the tap route (`tapUntap` /
+ *  `tapSourceIntoPayment`, `getManaTapOptionsDetailed`'s option list) refuses
+ *  it, because a plain tap would produce the mana and tap nothing else. */
+export function isTapOtherTapManaAbilityCost(
+    cost: Pick<ActivatedAbility["cost"], "tap" | "tapOtherFilter">
+): boolean {
+    return cost.tap === true && cost.tapOtherFilter !== undefined;
 }
 
 /** CR 701.9a / 118.3 — "Discard your hand" rides the `discardAtRandom` cost with
@@ -2105,7 +2121,13 @@ export function mayHaveNonTapManaAbility(card: CardInstanceState): boolean {
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
     for (const ability of printed) {
-        if (!ability.useStack && !ability.cost.tap) return true;
+        // CR 605.1a — a {T} + tap-other cost (Springleaf Drum) is no plain
+        // tap either: it rides the converter model too (`manaConverters.ts`).
+        if (
+            !ability.useStack &&
+            (!ability.cost.tap || isTapOtherTapManaAbilityCost(ability.cost))
+        )
+            return true;
     }
     return false;
 }
@@ -2513,6 +2535,10 @@ export function getManaTapOptionsDetailed(
     if (def && !abilitiesSuppressed(card)) {
         for (const { ability } of getEffectiveActivatedAbilities(card)) {
             if (ability.useStack) continue;
+            // CR 605.1a — a {T} + tap-other cost is no tap option: the tap
+            // mutations would tap the source and nothing else. It is paid by
+            // `activateManaAbility` (see `isTapOtherTapManaAbilityCost`).
+            if (isTapOtherTapManaAbilityCost(ability.cost)) continue;
             // A one-shot mana ability activated by tapping AND/OR sacrificing the
             // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
             // `requireTap` gates the AUTOMATIC planner (issue #2420): it now

@@ -23,6 +23,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue.cards";
 import { ornithopter, millstone } from "@convex/cards/sets/atq/colorless.cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import { getCardByName } from "@convex/cards";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
@@ -390,5 +391,73 @@ describe("useBattlefieldInteraction — tap-another-artifact mana ability (Urza,
         expect(activateManaAbility).not.toHaveBeenCalled();
         // Out of the modal pick mode: the source is no longer gated by it.
         expect(handle.current!.canInteract(artifact("art1"))).toBe(false);
+    });
+});
+
+// "{T}, Tap an untapped creature you control: Add one mana of any color."
+// (Springleaf Drum, CR 605.1a / 302.6, issue #8448) — the {T} + tap-other
+// shape. The server's tap route refuses it, so a plain CLICK on the source
+// must collect the creature AND the colour and dispatch ONE
+// `activateManaAbility`, never `tapUntap`.
+const DRUM = getCardByName("Springleaf Drum");
+const DRUM_MANA = DRUM.activatedAbilities![0].id;
+
+function drum(isTapped = false): CardInstance {
+    return {
+        id: "drum1",
+        card: { id: DRUM.id },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped,
+        isSummoningSick: false,
+        types: ["Artifact"],
+        subtypes: [],
+        staticAbilities: [],
+    } as CardInstance;
+}
+
+describe("useBattlefieldInteraction — {T} + tap-a-creature mana ability (Springleaf Drum, issue #8448)", () => {
+    beforeEach(() => {
+        tapUntap.mockClear();
+        activateManaAbility.mockClear();
+        cleanup();
+    });
+
+    it("a click picks the forced creature, then the colour, and dispatches activateManaAbility with both", () => {
+        const me = player("me", [drum(), bear()]);
+        const { handle } = renderInteraction(me);
+
+        act(() => {
+            handle.current!.handleClick(drum());
+        });
+        expect(tapUntap).not.toHaveBeenCalled();
+        // The colour picker renders in a portal on `document.body`.
+        const green = document.body.querySelector('[aria-label="Green"]');
+        expect(green).not.toBeNull();
+        act(() => {
+            fireEvent.click(green!);
+        });
+
+        expect(activateManaAbility).toHaveBeenCalledTimes(1);
+        expect(activateManaAbility).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "drum1",
+            abilityId: DRUM_MANA,
+            manaChoiceIndex: 4,
+            tapOtherIds: ["bear1"],
+        });
+    });
+
+    it("with no untapped creature the click dispatches nothing (CR 602.5b)", () => {
+        const me = player("me", [drum()]);
+        const { handle } = renderInteraction(me);
+
+        act(() => {
+            handle.current!.handleClick(drum());
+        });
+        expect(tapUntap).not.toHaveBeenCalled();
+        expect(activateManaAbility).not.toHaveBeenCalled();
     });
 });
