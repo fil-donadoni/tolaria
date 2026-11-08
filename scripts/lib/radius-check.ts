@@ -11,10 +11,11 @@
  *
  * ONE reader: `declaresTargetFiles`, the planner's and the lint's definition.
  */
-import { declaresTargetFiles, TARGET_FILES_FIX } from "./queue-lint";
-
-/** A `Target files:` line the parser does not read: no heading, no bold. */
-const PLAIN_LABEL = /^\s*target files\s*:?\s*$/i;
+import {
+    declaresTargetFiles,
+    hasPlainTargetFilesLine,
+    TARGET_FILES_FIX,
+} from "./queue-lint";
 
 /**
  * `null` when the body declares a radius; otherwise the refusal, naming the
@@ -22,8 +23,7 @@ const PLAIN_LABEL = /^\s*target files\s*:?\s*$/i;
  */
 export function radiusRefusal(subject: string, body: string): string | null {
     if (declaresTargetFiles(body)) return null;
-    const plain = body.split("\n").some((l) => PLAIN_LABEL.test(l));
-    const why = plain
+    const why = hasPlainTargetFilesLine(body)
         ? "its `Target files:` line is plain text — the parser reads only a `## Target files` heading or the bold `**Target files:**` label"
         : "it declares no readable `Target files`";
     return `${subject}: unknown blast radius — ${why}. The planner cannot schedule it against other work (issue #8937). Fix: ${TARGET_FILES_FIX}.`;
