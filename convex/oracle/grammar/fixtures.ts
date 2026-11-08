@@ -5338,6 +5338,97 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 301.5a / CR 115.10 — "put a +1/+1 counter on equipped creature" on
+    // an Equipment's own triggered ability: the host is named by the text,
+    // never announced, so `counters` acts on `{ ref: "$host" }`. Exhibits the
+    // smoke skip the canned scenario raises for it — `counters` on a subject
+    // it does not seed — so this fixture is the evidence the grammar emits
+    // the host counter for every Equipment trigger printing it.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4af03564-1d1c-4582-9248-cfe9551bad30",
+            name: "Ghost Lantern // Bind Spirit",
+            manaCost: "{B} // {1}{B}",
+            typeLine: "Artifact — Equipment // Instant — Adventure",
+            oracleText: "",
+            layout: "adventure",
+            faces: [
+                {
+                    name: "Ghost Lantern",
+                    manaCost: "{B}",
+                    typeLine: "Artifact — Equipment",
+                    oracleText:
+                        "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.\nEquip {1}",
+                },
+                {
+                    name: "Bind Spirit",
+                    manaCost: "{1}{B}",
+                    typeLine: "Instant — Adventure",
+                    oracleText:
+                        "Return target creature card from your graveyard to your hand. (Then exile this card. You may cast the artifact later from exile.)",
+                },
+            ],
+        },
+        expected: {
+            name: "Ghost Lantern",
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.\nEquip {1}",
+            activatedAbilities: [
+                {
+                    id: "ghost-lantern-equip",
+                    oracleText: "Equip {1}",
+                    cost: { mana: { generic: 1 } },
+                    sorcerySpeedOnly: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                    useStack: true,
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "ghost-lantern-trigger",
+                    oracleText:
+                        "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.",
+                    head: { kind: "died", scope: "yours" },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            insetSpell: {
+                kind: "adventure",
+                name: "Bind Spirit",
+                manaCost: { X: 1, B: 1 },
+                types: ["Instant"],
+                subtypes: ["Adventure"],
+                oracleText:
+                    "Return target creature card from your graveyard to your hand. (Then exile this card. You may cast the artifact later from exile.)",
+                effects: [
+                    { op: "moveZone", target: { target: 0 }, to: "hand" },
+                ],
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            },
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).

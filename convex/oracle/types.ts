@@ -200,4 +200,11 @@ export interface ParseContext {
      * it already sits in.
      */
     readonly auraHost?: true;
+    /**
+     * CR 301.5a — set by the triggered slot, and ONLY there, on a
+     * non-creature Equipment's own ability: "equipped creature" in its effect
+     * names the creature the source is attached to, lowered as `$host`. Read
+     * by the counters verb only — the form a golden fixture pins.
+     */
+    readonly equipmentHost?: true;
 }

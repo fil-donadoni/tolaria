@@ -483,6 +483,21 @@ function lowerCondition(
     }
 }
 
+/** The trigger heads whose `self` scope means the source has left the battlefield. */
+const SELF_DEPARTURE_HEADS: ReadonlySet<TriggerHeadIR["kind"]> = new Set([
+    "dies",
+    "leaves",
+    "left-to-graveyard",
+    "enters-or-leaves",
+    "sacrificed",
+]);
+
+/** CR 301.5a / CR 303.4b — the sentence acts on the source's host. */
+function readsHost(sentence: EffectSentenceIR): boolean {
+    if (sentence.kind === "optional") return readsHost(sentence.effect);
+    return "subject" in sentence && sentence.subject.kind === "host";
+}
+
 /** CR 113.6b — a (possibly optional) "return this card from your graveyard". */
 function returnsSelfFromGraveyard(sentence: EffectSentenceIR): boolean {
     if (sentence.kind === "optional")
@@ -567,6 +582,20 @@ export function lowerTriggeredAbility(input: {
         return {
             ok: false,
             reason: "a per-turn quota is not counted on a graveyard-zone ability",
+        };
+    // CR 603.10a + CR 301.5a — a leaves-the-battlefield trigger of the source
+    // itself resolves after the Equipment has left, so "equipped creature"
+    // would need the host as last-known information, which `$host` (seeded
+    // from the live attachment) does not carry: refused rather than inert.
+    if (
+        "scope" in input.head &&
+        input.head.scope === "self" &&
+        SELF_DEPARTURE_HEADS.has(input.head.kind) &&
+        input.effects.some(readsHost)
+    )
+        return {
+            ok: false,
+            reason: "a leaves-the-battlefield trigger cannot read its source's host from the live attachment (CR 603.10a)",
         };
     const condition =
         input.condition !== undefined && !zoneCondition && !onceEachTurn
