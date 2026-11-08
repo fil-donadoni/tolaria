@@ -184,6 +184,18 @@
             "needsSetup": false
         }
     ],
+    "Demonic Consultation": [
+        {
+            "label": "Oracle combo: either order when the decklist holds no counterspell",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Deputized Protester": [
         {
             "label": "melee: swings for the lethal only the pump provides",
@@ -1172,6 +1184,16 @@
         },
         {
             "label": "Conditional win not latent: casts Thassa's Oracle on an empty board with a full library",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",
+            "tier": "stretch",
+            "needsSetup": false
+        },
+        {
+            "label": "Oracle combo: either order when the decklist holds no counterspell",
             "tier": "must",
             "needsSetup": false
         }

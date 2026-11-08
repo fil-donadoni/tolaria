@@ -246,7 +246,11 @@ Code: `convex/gre/ai/choiceCandidates.ts`, `choicePriors.ts`.
 <a id="candidate-generator"></a>**Candidate generator** — the per-kind function
 that lists the sensible answers to a [choice node](#choice-node) (and their
 [priors](#prior)). A choice kind with no generator is not a decision the search
-can see; the Bot either freezes or takes an arbitrary default.
+can see; the Bot either freezes or takes an arbitrary default. A generator may
+also decline a particular choice: a `name-card` is a node only when its effect
+says it seeks the name in the chooser's own library (`nameSoughtIn`, issue
+#8709 — Demonic Consultation), since only there does the name decide what the
+effect does; every other name window keeps its one forced answer or stops.
 
 ## Scoring a position
 

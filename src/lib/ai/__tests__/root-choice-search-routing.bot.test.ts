@@ -469,6 +469,28 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ],
             }
         ),
+    // CR 201.4 (issue #8709) — a name the effect seeks in the bot's own
+    // library (Demonic Consultation): naming the Craw Wurm digs it out, naming
+    // the Grizzly Bears on the stack exiles the whole library.
+    "name-card": () =>
+        stateWithBotChoice(
+            {
+                kind: "name-card",
+                nameSoughtIn: "chooser-library",
+                count: 1,
+                prompt: "Name a card.",
+            },
+            {
+                library: [
+                    makeInstance(getCardByName("Craw Wurm").id, {
+                        id: "lib-wurm",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "library",
+                    }),
+                ],
+            }
+        ),
     "keep-hand": () =>
         stateWithBotChoice(
             {

@@ -3398,6 +3398,103 @@
         "landCount": 6,
         "libraryCount": 0
     },
+    "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell": {
+        "cards": [
+            {
+                "name": "Thassa's Oracle",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Demonic Consultation",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Counterspell",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "Oracle combo: either order when the decklist holds no counterspell": {
+        "cards": [
+            {
+                "name": "Thassa's Oracle",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Demonic Consultation",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Counterspell",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation": null,
     "phasing: casts a phasing creature rather than holding it": {
         "cards": [
             {

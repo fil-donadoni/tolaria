@@ -875,3 +875,21 @@ export function castTargetsOnlyNamed(card: string, targetName: string) {
         return targets.length > 0 && targets.every((id) => named.has(id));
     };
 }
+
+/** Issue #8709 — the name a reveal-until-named effect (Demonic Consultation)
+ *  is given empties the namer's library: the chosen move is a `name-card` whose
+ *  name matches no card left in `seat`'s library, so the reveal never stops
+ *  and every card is exiled (CR 201.4). */
+export function namesCardAbsentFromLibrary(
+    move: Move | null,
+    state: GameState,
+    seat: BladeSeat = "me"
+): boolean {
+    if (move === null || move.kind !== "name-card") return false;
+    const pid = seatPlayerId(state, seat);
+    const library = state.players.find((p) => p.id === pid)?.library ?? [];
+    return !library.some(
+        (card) =>
+            tryGetDefinition(String(card.card.id ?? ""))?.name === move.cardName
+    );
+}
