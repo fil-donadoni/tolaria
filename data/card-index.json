@@ -76988,6 +76988,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Star of Extinction",
+        "scryfallId": "021f57dc-80f3-4ede-99d5-4a44aade44e2",
+        "oracleId": "48220e6c-5752-46e0-9b7f-f0eef274d929",
+        "firstSet": "xln",
+        "firstPrintId": "021f57dc-80f3-4ede-99d5-4a44aade44e2",
+        "firstPrintSet": "xln",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Star-Crowned Stag",
         "scryfallId": "c57417c7-867b-4b64-bfe3-1744dfe9b44d",
         "oracleId": "a375b739-6a6c-4e07-9b1c-a304f84ea2cc",
@@ -77995,6 +78005,16 @@
         "firstPrintId": "9eadf356-105e-4a17-ab06-075ca662e963",
         "firstPrintSet": "msc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Storm's Wrath",
+        "scryfallId": "4bc9ecd2-7664-471b-90f2-2d0dd1acec80",
+        "oracleId": "eeb6f5eb-0e16-468e-9dfe-6ec8d8172f86",
+        "firstSet": "thb",
+        "firstPrintId": "4bc9ecd2-7664-471b-90f2-2d0dd1acec80",
+        "firstPrintSet": "thb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
