@@ -112,6 +112,7 @@ export async function loadProfileLayerRows(
 ): Promise<ProfileLayerRows> {
     const capabilityDocs = await ctx.db
         .query("cardCapabilities")
+        .withIndex("by_cardId")
         .take(MAX_DB_CAPABILITY_ROWS + 1);
     if (capabilityDocs.length > MAX_DB_CAPABILITY_ROWS) {
         throw new Error(
@@ -318,6 +319,7 @@ export const splitLegacyCardProfiles = internalMutation({
     handler: async (ctx) => {
         const legacy = await ctx.db
             .query("cardProfiles")
+            .withIndex("by_scope")
             .take(MAX_LEGACY_PROFILE_ROWS + 1);
         if (legacy.length > MAX_LEGACY_PROFILE_ROWS) {
             throw new Error(
