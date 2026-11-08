@@ -709,6 +709,9 @@ function isHarmlessOp(op: EffectOp, harmless: ReadonlySet<string>): boolean {
 const NON_TAPPING_HARMLESS_OPS: ReadonlySet<string> = new Set([
     "draw",
     "gainLife",
+    // CR 701.22a / 701.25a — scry and surveil only look at a library's top
+    // cards and put them back or into the graveyard: no permanent is touched.
+    "scryReorder",
     "regenerate",
     "preventDamage",
     "setSubtype",
@@ -720,6 +723,55 @@ const HARMLESS_OPS: ReadonlySet<string> = new Set([
     "tapUntap",
     "skipNextUntap",
 ]);
+
+/**
+ * Can resolving `item` provably NOT touch `pid`'s side of the game — an object
+ * an opponent controls whose whole script acts on that opponent alone (a
+ * surveil land's "surveil 1", a cantrip's draw, a life gain)?
+ *
+ * The reading "keep mana open" needs (`ai/deferral.ts`, `ai/defensiveGrants.ts`):
+ * holding an own-side instant through such an object costs nothing, because
+ * the active player receives priority after it resolves (CR 117.3b) and a
+ * player who puts anything new on the stack gives priority back before it
+ * resolves (CR 117.3c), so the holder gets a window before any later threat.
+ *
+ * Narrower than the shield prune's harmless reading it is built on: that one
+ * asks "can it destroy or damage a permanent", this one "can it reach `pid` at
+ * all". Every doubt answers `false` (not inert):
+ *
+ *   * an object `pid` controls — its own objects are the search's question;
+ *   * any announced target, wherever it points;
+ *   * no readable script: a delayed trigger, a modal object with chosen
+ *     modes, an unknown source, an empty script (`stackItemScript`); a
+ *     permanent spell too, unlike the shield prune — its body is not a script;
+ *   * an Op outside the non-tapping harmless set, a construct, a mode;
+ *   * an Op that names an object (`target`, `to`, `source`, `match`) or a
+ *     player other than the object's controller, or lets another player
+ *     choose (a fateseal `chooser`, CR 701.29a).
+ */
+export function isInertStackItemFor(item: StackItem, pid: string): boolean {
+    if (item.castById === pid) return false;
+    if ((item.targets ?? []).length > 0) return false;
+    const script = stackItemScript(item);
+    if (!script || script.length === 0) return false;
+    return script.every(
+        (op) =>
+            isHarmlessOp(op, NON_TAPPING_HARMLESS_OPS) &&
+            actsOnlyOnItsController(op)
+    );
+}
+
+/** Keys through which an Op names an object rather than a player. */
+const OBJECT_SELECTOR_KEYS = ["target", "to", "source", "match"] as const;
+
+/** The Op's only subject is the resolving object's controller (`"controller"`
+ *  — CR 109.5: "you" on an object is its controller). */
+function actsOnlyOnItsController(op: EffectOp): boolean {
+    const fields = op as Record<string, unknown>;
+    if (fields.player !== "controller") return false;
+    if ("chooser" in fields && fields.chooser !== "controller") return false;
+    return OBJECT_SELECTOR_KEYS.every((key) => !(key in fields));
+}
 
 /** The script a stack object resolves — `effects`, else the `aiEffects`
  *  shadow script a `resolve()` ability carries for the bot (PRD #1423). A
