@@ -78,6 +78,7 @@ import {
     type TriggerHeadIR,
 } from "../shared/triggerHead";
 import type { SlotIR } from "../ir";
+import type { ParseContext } from "../../types";
 import { BULLET, GROUP_SEPARATOR } from "../lineGroups";
 import { readModeBullets } from "./spell";
 
@@ -398,8 +399,26 @@ const labelledTriggeredBody: Rule<SlotIR> = rule(
     }
 );
 
+/**
+ * CR 301.5a — on an Equipment, "equipped creature" in a triggered ability's
+ * effect names the creature the source is attached to. An Equipment that is
+ * also a creature equips only through reconfigure (CR 301.5c) and no fixture
+ * pins its triggers, so it never raises the flag; a granted ability is read
+ * under its HOST's type line (no subtypes), so it never names an Equipment.
+ */
+function withEquipmentHost(ctx: unknown): unknown {
+    const context = ctx as ParseContext;
+    return context.typeLine.subtypes.includes("Equipment") &&
+        !context.typeLine.types.includes("Creature")
+        ? { ...context, equipmentHost: true as const }
+        : ctx;
+}
+
 export const triggeredSlot: Rule<SlotIR> = rule(TRIGGERED_SLOT, (span, ctx) =>
     span.includes(GROUP_SEPARATOR)
-        ? modalTriggeredBody.run(span, ctx)
-        : terminated(".", labelledTriggeredBody).run(span, ctx)
+        ? modalTriggeredBody.run(span, withEquipmentHost(ctx))
+        : terminated(".", labelledTriggeredBody).run(
+              span,
+              withEquipmentHost(ctx)
+          )
 );

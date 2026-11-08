@@ -380,7 +380,9 @@ export type SubjectIR =
      * attached to (the activated slot's `auraHost`). Never announced (CR 115.10
      * — the ability's own text names it, so hexproof and protection do not
      * apply); lowered to `$host`. Read by the pump and keyword-grant verbs
-     * only — the two forms a golden fixture pins.
+     * only — the two forms a golden fixture pins. CR 301.5a — "equipped
+     * creature" on an Equipment's triggered ability (`equipmentHost`) is the
+     * same host, read by the counters verb only.
      */
     | { readonly kind: "host" }
     /**
@@ -4892,6 +4894,22 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
 function hostSubject(span: string, ctx: unknown): RuleResult<SubjectIR> | null {
     if (uncapitalise(span) !== "enchanted creature") return null;
     if ((ctx as ParseContext).auraHost !== true) return null;
+    return ok({ kind: "host" as const });
+}
+
+/**
+ * CR 301.5a — "equipped creature" as the object of an Equipment's own
+ * triggered ability: the creature the source is attached to. Like
+ * {@link hostSubject}, deliberately NOT a branch of {@link subjectRule}; only
+ * the counters verb asks for it, and only where the triggered slot said the
+ * site is a non-creature Equipment's (`ParseContext.equipmentHost`).
+ */
+function equippedHostSubject(
+    span: string,
+    ctx: unknown
+): RuleResult<SubjectIR> | null {
+    if (uncapitalise(span) !== "equipped creature") return null;
+    if ((ctx as ParseContext).equipmentHost !== true) return null;
     return ok({ kind: "host" as const });
 }
 
@@ -9679,7 +9697,9 @@ function effectSentence(
         const count = readAmount(counters[1]!);
         if (count === null)
             return fail(`"${counters[1]}" is not a count`, span);
-        const subject = subjectRule.run(counters[3]!, ctx);
+        const subject =
+            equippedHostSubject(counters[3]!, ctx) ??
+            subjectRule.run(counters[3]!, ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "counters" as const,
