@@ -442,15 +442,15 @@ export function lintIssue(
 
     if (!declaresTargetFiles(body)) {
         // Blocking (issue #8406): an unknown radius is not free. The planner
-        // admits it only when nothing is in flight and holds every other pick
-        // until its PR opens, so one such issue stalls the queue.
+        // admits it only when nothing is in flight; once in flight it blocks
+        // no other pick (issue #8934), so it is not scheduled against files.
         const labelled = (targetFilesSection(body) ?? null) !== null;
         findings.push({
             rule: "no-target-files",
             severity: "blocking",
             message: labelled
-                ? "a `Target files` section with no readable path — list items or bare path lines count, prose does not; the radius reads as unknown, so the planner runs this issue only with nothing in flight and holds the queue while it has no PR"
-                : "no `Target files` section — the planner will not guess a file set, so the radius is unknown: the issue runs only with nothing in flight and holds the queue while it has no PR",
+                ? "a `Target files` section with no readable path — list items or bare path lines count, prose does not; the radius reads as unknown, so the planner runs this issue only with nothing in flight, and cannot schedule it against other issues' files"
+                : "no `Target files` section — the planner will not guess a file set, so the radius is unknown: the issue runs only with nothing in flight, and cannot be scheduled against other issues' files",
             fix: TARGET_FILES_FIX,
         });
     }
