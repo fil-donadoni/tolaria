@@ -329,6 +329,10 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
     rule(MASS_SUBJECT, readMassSubject(false))
 );
 
+/** CR 120.3 — the creature-and-planeswalker damage recipient, one exact phrase. */
+const EACH_CREATURE_AND_EACH_PLANESWALKER =
+    "each creature and each planeswalker";
+
 /** " target opponent controls" — the announced-opponent controller qualifier. */
 const TARGET_OPPONENT_CONTROLS = / target opponent controls$/;
 
@@ -350,6 +354,23 @@ const TARGET_OPPONENT_CONTROLS = / target opponent controls$/;
 export const creatureSweepRecipientRule: Rule<MassSubjectIR> = subGrammar(
     MASS_SUBJECT,
     rule(MASS_SUBJECT, (span, ctx) => {
+        // CR 120.3 + CR 120.3c — "each creature and each planeswalker" (Storm's
+        // Wrath): ONE sweep over every permanent that is a creature or a
+        // planeswalker, each dealt the whole amount. Read as one exact phrase:
+        // the descriptor reader has no "each X and each Y" coordination, and
+        // a narrowed half ("… without flying", "… you don't control") is a
+        // scope question no fixture answers, so it stays refused.
+        if (span === EACH_CREATURE_AND_EACH_PLANESWALKER)
+            return ok({
+                select: {
+                    set: "permanents" as const,
+                    zone: "battlefield" as const,
+                    filter: {
+                        type: ["Creature", "Planeswalker"] satisfies CardType[],
+                    },
+                },
+                manaValueAtMostX: false,
+            });
         const targeted = TARGET_OPPONENT_CONTROLS.test(span);
         const head = targeted
             ? span.replace(TARGET_OPPONENT_CONTROLS, "")

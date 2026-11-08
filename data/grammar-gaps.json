@@ -1936,6 +1936,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › mass subject › mvFilter",
+            "issue": 8865
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › each creature target opponent controls",
             "issue": 4557
         },
