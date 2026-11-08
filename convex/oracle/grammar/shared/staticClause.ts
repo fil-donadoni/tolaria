@@ -101,6 +101,7 @@ import { isSelfPhrase } from "./cost";
 import {
     abilityLossPtSetRule,
     animateManaValueRule,
+    basicLandTypesAddRule,
     chosenTypePumpRule,
     selfPtCdaGraveyardsRule,
     selfPtCdaExiledTotalsRule,
@@ -3064,6 +3065,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         abilityLossPtSetRule,
         chosenTypePumpRule,
         animateManaValueRule,
+        basicLandTypesAddRule,
         selfPtCdaGraveyardsRule,
         selfPtCdaExiledTotalsRule,
         enchantedHostRule,
