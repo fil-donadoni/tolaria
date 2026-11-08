@@ -4,6 +4,8 @@
 
 accepted
 
+Amended by ADR 0120, ADR 0121, ADR 0122, ADR 0123, ADR 0161 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Until now every card batch has been organized **one set at a time**: pick a set

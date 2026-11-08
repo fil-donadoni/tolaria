@@ -4,6 +4,8 @@
 2026-09-16 (issue #3697): the baseline shrinks by default and grows only
 through a recorded tokenizer widening — §4, §5 and the Amendment below.
 
+Amended by ADR 0165 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0098 vendored the Comprehensive Rules and put `bun run cr:lint` in the

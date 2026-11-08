@@ -1,5 +1,7 @@
 # Reward calibration — margin → win probability, fitted and rejected (issue #1929, map #1892 step 3)
 
+> **Dated:** 2026-08-25 (first commit); last edited at `f0d04501c` (2026-08-25). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** The open reward band of `rewardFromValue` (`convex/gre/search.ts`)
 maps an `evaluate` margin to a reward by a hand-set linear clip: linear up to
 `MATERIAL_FULL = 500`, saturated beyond. The 500 was chosen by eye ("≈ three

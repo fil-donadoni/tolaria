@@ -7,6 +7,8 @@
 accepted (extends ADR 0116's release gate; PRD issue #3197, slices #3199,
 #3200, #3201)
 
+Amended by ADR 0156, ADR 0158 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0116 made `bun run release` the one place the full offline gate runs, and

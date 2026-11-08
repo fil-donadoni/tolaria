@@ -2,6 +2,8 @@
 
 The app's visual language (Zelda BotW–inspired, MTG-themed) is enforced through two centralized mechanisms: **semantic design tokens** in `src/index.css` (`surface`, `accent`, `danger`, `parchment`, `text`, etc.) and a **single shared `Panel` component** in `src/components/ui/panel.tsx` that owns the corner-bracket frame motif and is consumed by every panel-like surface (dialogs, lobby cards, deck rows, battlefield zones, stack, mana pool). Components never reach for chromatic Tailwind utilities (`bg-amber-30`, `bg-zinc-800`) or duplicate the frame's HTML/CSS — theming and shape changes happen in one place.
 
+Amended by ADR 0069, ADR 0101, ADR 0103 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Single palette: shadcn remapped to the semantic tokens (Antique Bronze)
 
 Originally the app carried **two** colour systems at once: the bespoke semantic tokens above (driving `.btn-tone-*` and the `Panel` frame) and a full parallel shadcn OKLCH palette (`--primary`, `--secondary`, `--popover`, `--foreground`, `--background`, `--border`, `--input`, `--muted`, `--destructive`, `--ring`) driving every shadcn primitive (`Button`, `Dialog`, `Input`, `Command`, `ContextMenu`). Half the UI was themed and half was stock shadcn, the two disagreed, and contrast could not be fixed surface-by-surface while both coexisted (PRD #589).

@@ -5,6 +5,8 @@
 Accepted. **Amends ADR 0055** (which left deckbuild as a separate phase after
 the draft and made the Auto-Pick a pure Pick-Heuristic decision).
 
+Amended by ADR 0075, ADR 0095 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0055 fixed that a Limited Event "ends at the built Deck" and that a human's

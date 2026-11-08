@@ -8,6 +8,8 @@ census). Supersedes the hand-authoring default of `/new-set`, `/new-card` and
 `/new-op` as written before this date. Pilot: the Apocalypse rollout (PRD
 issue #3795); done-criterion recorded there.
 
+Amended by ADR 0146 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 PRD #2693 built the Oracle Compiler (ADR 0105) and foresaw the migration of

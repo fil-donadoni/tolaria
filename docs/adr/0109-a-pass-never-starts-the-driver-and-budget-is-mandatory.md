@@ -6,6 +6,8 @@
 
 accepted (supersedes the `--from-pass` autostart of ADR 0099)
 
+Superseded by ADR 0156 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0099 made the end of every `/process-gh-issues` pass run

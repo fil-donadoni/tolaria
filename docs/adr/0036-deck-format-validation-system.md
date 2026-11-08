@@ -6,6 +6,8 @@
 
 accepted
 
+Amended by ADR 0057 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Decks carry a free-form `format` string that always reads `"Freeform"` — never validated, never selected in the UI, never enforced. We want real constructed **Formats**: deck-construction constraints chosen up front and validated, so a deck can be marked legal/illegal and the legal ones gated into play.

@@ -9,6 +9,8 @@ element stays put, so it isn't clipped by the zones' scroll containers), and the
 drop animation is disabled — a card snapping back to its origin on drop read as
 confusing rather than helpful.
 
+Amended by ADR 0101 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Touch vs long-press preview — the 250 ms delay
 
 On touch, drag must coexist with two other gestures on the same element: list

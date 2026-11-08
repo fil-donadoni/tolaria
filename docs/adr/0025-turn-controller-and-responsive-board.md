@@ -11,6 +11,8 @@ deliberate (issue #258).
 
 accepted
 
+Amended by ADR 0101 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Decision
 
 ### Desktop

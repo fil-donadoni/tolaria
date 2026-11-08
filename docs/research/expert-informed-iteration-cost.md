@@ -1,5 +1,7 @@
 # Informed vs. blind per-iteration search cost (issue #2790)
 
+> **Dated:** 2026-09-10 (first commit); last edited at `a876791fb` (2026-09-10). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** `expert` (PRD #2787) feeds the search a real decklist for the
 human seat via `deckKnowledge`, the same mechanism issue #2789 built for the
 bot's own seat. The PRD's explicit risk: an "informed" iteration has a real

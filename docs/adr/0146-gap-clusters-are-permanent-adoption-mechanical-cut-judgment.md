@@ -8,6 +8,8 @@ a cluster's body or moves its parent". Terms in `GLOSSARY.md`: **Gap Cluster**,
 **Cluster Signature**, **Standalone Gap**, **Absorb**, **Re-home**,
 **Cluster Cut ticket**.
 
+Amended by ADR 0152 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 `gaps:sync` files one issue per gap for every kind it computes — Grammar Gap,

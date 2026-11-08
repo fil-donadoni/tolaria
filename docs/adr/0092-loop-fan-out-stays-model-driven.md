@@ -6,6 +6,8 @@
 
 accepted
 
+Superseded by ADR 0110 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 `/process-gh-issues` runs one pass as a sequence a model performs from prose:

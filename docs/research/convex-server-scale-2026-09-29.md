@@ -1,5 +1,7 @@
 # Convex server scale: the per-call heap is the first wall (2026-09-29)
 
+> **Dated:** 2026-09-29 (first commit); last edited at `18e94f4a1` (2026-10-07). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 PRD: issue #4849. Analysis done right after issue #4811 (the multi-dot rename that took the
 bundle from 30.01 to 19.84 MiB). The question was what else limits the engine
 on its way to the target scale of ~35k cards / ~80k printings, so that the

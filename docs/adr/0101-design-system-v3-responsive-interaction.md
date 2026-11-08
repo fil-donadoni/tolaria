@@ -7,6 +7,8 @@
 <https://claude.ai/code/artifact/2ff0a0f7-54a6-4d44-b339-0b38e2b541e1>,
 touch prototype on branch `prototype/touch-gestures` (`/prototype/touch`).
 
+Amended by ADR 0103, ADR 0168 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 The 2026-08-19 viewport audit (#2405, 35 findings at 5 viewports) showed that

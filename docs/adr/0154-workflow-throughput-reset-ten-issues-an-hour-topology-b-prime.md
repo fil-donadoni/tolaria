@@ -21,6 +21,8 @@ walks `check:ui --all` — §7's release step, §9's Huawei release walk, its
 `context=ui-walk` and the Linux walk calibration (§ Measured after Phase 1)
 are retired; `release` runs the offline gates and `check:game-download`.
 
+Amended by ADR 0156, ADR 0160 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Tolaria is a study project with 0–5 users. Its verification apparatus was

@@ -4,6 +4,8 @@
 
 accepted
 
+Amended by ADR 0137, ADR 0162 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Tolaria's card pool is ~2,026 hand-written `CardDefinition`s and grows one card

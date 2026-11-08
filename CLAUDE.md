@@ -214,7 +214,8 @@ Resident only if acting without it is a mistake **before** opening any file.
 10. **Docs follow the change** (`docs/agents/docs-follow-the-change.md`): a
     diff moving a default, knob, count, metric or workflow step updates every
     doc naming it in the SAME PR; PR line `Docs: <files>` / `Docs: none
-(<why>)`; numbers only in `docs/research/`, dated by sha.
+(<why>)`; numbers only in `docs/research/`, dated by sha (banner guarded); a new
+    ADR amending an old one updates that row's Status (`docs/adr/README.md`).
 
 ### Quality gates (mandatory, no exceptions)
 

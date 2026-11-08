@@ -4,6 +4,8 @@
 
 Phase 3 of the UI/UX revamp (spec `docs/superpowers/specs/2026-07-20-ui-ux-revamp-design.md`) collapses the drift the ADR-0007 system accumulated back into its single-palette / single-frame guarantees, and adds the missing token families the audit found hard-coded across 71 files.
 
+Amended by ADR 0101, ADR 0103 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Decisions
 
 - **Contrast fixes are token edits, verified numerically.** `text-disabled` `#6f6244 → #968a68` (2.78–3.28:1 → ≥4.5:1 on every surface); `danger` as text → existing `danger-strong` (7.99:1) everywhere; new `--color-border-strong: #7d6b42` for control edges (≥3:1, WCAG 1.4.11); input focus is an accent border + ring (8.2:1, was 1.41:1); the dialog scrim went `bg-black/10` → the single `--color-scrim` (black/50); the shadcn popup edge `ring-foreground/10` (1.27:1) → `ring-border-accent/40`. A guard test (`src/__tests__/design-tokens.test.ts`) parses `index.css` and re-derives every ratio so the values can't silently regress.

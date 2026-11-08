@@ -1,5 +1,7 @@
 # Huawei gate bench — can the second machine carry the batch gates?
 
+> **Dated:** 2026-10-11 (first commit); last edited at `738171c6d` (2026-10-12). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 Date: 2026-10-11. Status: **measured 2026-10-12** (§ 4; issue #5463; the
 whole `test` chain, issue #5530).
 Machine setup: `docs/guides/huawei-runner.md` § Set up the Huawei for the

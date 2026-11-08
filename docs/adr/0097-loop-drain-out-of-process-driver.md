@@ -6,6 +6,8 @@
 
 accepted
 
+Superseded by ADR 0156 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 ADR 0092 settled that `/process-gh-issues` stays a single model-driven pass,

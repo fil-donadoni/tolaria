@@ -4,6 +4,8 @@
 
 **Status:** Accepted (2026-05-24)
 
+Amended by ADR 0008 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 CR 502.1 lets cards cap or skip the active player's untap step (Winter Orb,
