@@ -963,7 +963,16 @@ type PlanOption =
      *  `isSingleTapOtherManaAbility` admits no other shape, and the census
      *  bounds converter capacity at one unit per physical permanent for the
      *  same reason. */
-    | { via: "converter"; converterId: string; abilityId: string };
+    | {
+          via: "converter";
+          converterId: string;
+          abilityId: string;
+          /** A TAPPING converter's reserved fodder (Springleaf Drum): the
+           *  row is the converter itself, and this is what its cost taps. */
+          fodderId?: string;
+          /** CR 605.1a — the colour's index into a choice output. */
+          manaChoiceIndex?: number;
+      };
 
 /** Total mana one activation of `opt` produces. `produces` absent is the
  *  ordinary one-mana case (issue #3027). */
@@ -1764,12 +1773,23 @@ function planManaPaymentPass(
         // this permanent cannot already produce by itself — its own tap is
         // strictly cheaper than an extra activation for the same mana.
         for (const leg of converterLegs.get(perm.id) ?? []) {
+            // Issue #3081's rule for the fodder a tapping converter reserves:
+            // the cost being funded already taps it.
+            if (leg.fodderId !== undefined && leg.fodderId === barredSourceId)
+                continue;
             for (const c of leg.colors) {
                 if (options.has(c)) continue;
+                const choiceIndex = leg.choiceIndexByColor?.[c];
                 options.set(c, {
                     via: "converter",
                     converterId: leg.converterId,
                     abilityId: leg.abilityId,
+                    ...(leg.fodderId !== undefined
+                        ? { fodderId: leg.fodderId }
+                        : {}),
+                    ...(choiceIndex !== undefined
+                        ? { manaChoiceIndex: choiceIndex }
+                        : {}),
                 });
                 // A converter leg is always exactly one mana
                 // (`isSingleTapOtherManaAbility`).
@@ -2065,10 +2085,15 @@ function planManaPaymentPass(
             // CR 602.1 — the ability's cost taps THIS permanent; its own
             // source (Urza) is never tapped by it and is not a source row at
             // all, so no plan can spend either of them twice.
+            // A TAPPING converter (Springleaf Drum) is the row itself and
+            // taps its reserved fodder beside its own {T}.
             taps.push({
                 cardInstanceId: opt.converterId,
                 abilityId: opt.abilityId,
-                tapOtherIds: [cardInstanceId],
+                tapOtherIds: [opt.fodderId ?? cardInstanceId],
+                ...(opt.manaChoiceIndex !== undefined
+                    ? { manaChoiceIndex: opt.manaChoiceIndex }
+                    : {}),
             });
             creditYield(opt, color);
             return true;

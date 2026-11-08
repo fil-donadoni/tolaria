@@ -84,7 +84,9 @@ import {
     canPayPermanentGiveUpCostLegs,
     hasFilteredGiveUpCost,
     hybridCostKey,
+    getActivatedManaAbility,
     isSpellStackItem,
+    isTapOtherTapManaAbilityCost,
     normalizedHybridPips,
     type ManaBattlefield,
 } from "@convex/gre/constants";
@@ -604,6 +606,23 @@ export function hasManaAbility(
             return false;
         }
     }
+    // CR 605.1a / 602.5b — a {T} + tap-other ability (Springleaf Drum) is no
+    // tap option (the engine's list excludes it), so its gate is the
+    // tap-other affordability the menu reads: a creature to tap.
+    if (isTapOtherTapManaAbilityCost(ability.cost)) {
+        return (
+            !stateView ||
+            canPayTapOtherCost(
+                ability.cost.tapOtherFilter!,
+                tapOtherCostCandidates(
+                    ability.cost.tapOtherFilter!,
+                    card.id,
+                    card.controllerId,
+                    stateView
+                )
+            )
+        );
+    }
     if (players && ability.cost.tap === true) {
         if (
             getManaTapOptions(
@@ -825,7 +844,9 @@ export function getNonTapManaChoices(
         ({ ability: a }) =>
             !a.useStack &&
             functionsOnBattlefield(a) &&
-            !a.cost.tap &&
+            // CR 605.1a — a {T} + tap-other chooser (Springleaf Drum) is paid
+            // on the same `activateManaAbility` route as a non-tap one.
+            (!a.cost.tap || isTapOtherTapManaAbilityCost(a.cost)) &&
             !a.cost.sacrifice &&
             (a.manaChoices || a.getManaChoices || a.manaColorSource)
     )?.ability;
@@ -881,7 +902,30 @@ export function tapOtherCostCandidates(
  *  deliberately, so it must NOT be a silent left-click tap-for-mana: its cost
  *  includes mana, or it has no {T}/sacrifice component to tap through at all. */
 function needsExplicitManaMenuEntry(a: ActivatedAbility): boolean {
-    return !!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice);
+    return (
+        !!a.cost.mana ||
+        (!a.cost.tap && !a.cost.sacrifice) ||
+        // CR 605.1a — "{T}, Tap an untapped creature you control" (Springleaf
+        // Drum) names a creature to tap: never a silent tap toggle.
+        isTapOtherTapManaAbilityCost(a.cost)
+    );
+}
+
+/** CR 605.1a — the {T} + tap-other mana ability ("{T}, Tap an untapped
+ *  creature you control: Add one mana of any color", Springleaf Drum) a plain
+ *  click on this source would activate, or null. The server's tap route
+ *  refuses that shape for the source's FIRST mana ability
+ *  (`isTapOtherTapManaAbilityCost` in `tapUntap` / `tapSourceIntoPayment`), so
+ *  the click routes through `activateManaAbility`'s tap-other flow instead. */
+export function getClickTapOtherTapManaAbility(
+    card: CardInstance
+): ActivatedAbility | null {
+    const ability = getActivatedManaAbility(
+        card as unknown as CardInstanceState
+    );
+    return ability && isTapOtherTapManaAbilityCost(ability.cost)
+        ? ability
+        : null;
 }
 
 /** The NON-stack mana ability that gets its OWN entry in the ability context
@@ -922,6 +966,9 @@ export function getManaCostMenuAbility(
                 functionsOnBattlefield(a) &&
                 a.oracleText &&
                 needsExplicitManaMenuEntry(a) &&
+                // CR 302.6 — a {T} leg needs a creature source free of
+                // summoning sickness (the tap-other picks need not be).
+                !(a.cost.tap && isTapLockedBySummoningSickness(card)) &&
                 (!a.cost.tapOtherFilter ||
                     !stateView ||
                     canPayTapOtherCost(

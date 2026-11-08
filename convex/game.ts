@@ -461,6 +461,7 @@ import {
     isAppendedSacrificeManaTapOption,
     primaryManaTapOptions,
     hasFilteredGiveUpCost,
+    isTapOtherTapManaAbilityCost,
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -1970,6 +1971,13 @@ export function tapSourceIntoPayment(
     // precondition so an un-imprinted Chrome Mox is treated as having no
     // usable mana ability at all.
     const ability = getActivatedManaAbility(card, manaGateStateView(state));
+    // CR 605.1a — the payment-tap twin of `tapUntap`'s refusal: a {T} +
+    // tap-other cost is paid by `activateManaAbility` alone.
+    if (ability && isTapOtherTapManaAbilityCost(ability.cost)) {
+        throw new Error(
+            "Use activateManaAbility for a mana ability that taps another permanent"
+        );
+    }
 
     // CR 302.6 — a mana ability paid PURELY by sacrificing the source has no
     // {T} leg and nothing to untap, so "already tapped" — a statement about
@@ -2680,6 +2688,7 @@ function filterCostManaAbilityForTap(
  *  body-less fixed output: mana, the tap-other pick, a placed counter and the
  *  self-exile. */
 const DIRECT_DEPOSIT_PAID_COST_LEGS: ReadonlySet<string> = new Set([
+    "tap",
     "mana",
     "tapOtherFilter",
     "addCounter",
@@ -14562,6 +14571,16 @@ export const tapUntap = mutation({
         }
 
         const ability = getActivatedManaAbility(card, manaGateStateView(state));
+        // CR 605.1a — "{T}, Tap an untapped creature you control" (Springleaf
+        // Drum) is no tap toggle: tapping the source alone would produce the
+        // mana and tap nothing else, and an untap would refund mana whose
+        // other tapped permanents stay tapped. `activateManaAbility` pays both
+        // legs.
+        if (ability && isTapOtherTapManaAbilityCost(ability.cost)) {
+            throw new Error(
+                "Use activateManaAbility for a mana ability that taps another permanent"
+            );
+        }
         // CR 605.1a / 606 — a NON-tap mana ability whose cost is mana
         // (Farrelite Priest "{1}: Add {W}") has no tap toggle to flip: it can be
         // activated repeatedly and may carry a side effect (a conditional
@@ -15490,7 +15509,16 @@ export const activateManaAbility = mutation({
         // unified mana-tap options list instead (CR 605.1a — see the mirrored
         // `!ability.cost.tap && !ability.cost.sacrifice` gate in
         // `getManaTapOptionsDetailed`).
-        if (ability.cost.tap || ability.cost.sacrifice) {
+        // CR 605.1a — the one {T} shape this route DOES pay: {T} beside a
+        // tap-other leg (Springleaf Drum), which the tap route refuses
+        // (`isTapOtherTapManaAbilityCost`).
+        const tapsSourceBesideOthers = isTapOtherTapManaAbilityCost(
+            ability.cost
+        );
+        if (
+            ability.cost.sacrifice ||
+            (ability.cost.tap && !tapsSourceBesideOthers)
+        ) {
             throw new Error("Use tapUntap for tap mana abilities");
         }
         // CR 602.5 — phase-restricted templates are illegal outside their phase.
@@ -15549,6 +15577,17 @@ export const activateManaAbility = mutation({
         // then mana) — Urza's ability declares no `cost.mana` at all, so this
         // is the whole cost. See `payTapOtherAbilityCost`'s own doc comment
         // for why this can't reuse the STACK-ability `tapOtherChoice` picker.
+        // CR 302.6 / 107.5 — the source's own {T}: it must be untapped and,
+        // a creature, free of summoning sickness. Checked BEFORE any pick is
+        // tapped, so a refusal leaves the board untouched; the tapped others
+        // need neither (being tapped for another permanent's cost is not a
+        // {T} activation).
+        if (tapsSourceBesideOthers) {
+            if (card.isTapped) throw new Error("Card already tapped");
+            if (isTapLockedBySummoningSickness(card)) {
+                throw new Error("Creature has summoning sickness");
+            }
+        }
         if (ability.cost.tapOtherFilter) {
             payTapOtherAbilityCost(
                 state,
@@ -15558,6 +15597,7 @@ export const activateManaAbility = mutation({
                 args.tapOtherIds ?? []
             );
         }
+        if (tapsSourceBesideOthers) tapPermanent(state, card);
 
         assertNoUnsplitPhyrexianPip(ability.cost.mana);
         const manaCost = normalizeManaCost(ability.cost.mana ?? {});
