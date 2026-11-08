@@ -5,10 +5,12 @@
 // `./colors`), but layer 5 (CR 613.1e) can change it two ways, and both live on
 // the instance rather than the definition:
 //
-//   * `colorOverride` — a colour SET (Purelace-style lace instants, Painter's
-//     Servant): it REPLACES every other colour derivation.
+//   * a colour SET — `colorSet`, the layer-5 walk's answer (`gre/layers2to5.ts`)
+//     over a static `color-set` (Shifting Sky) and the timestamped
+//     `colorOverride` a resolving spell left (Purelace-style lace instants): it
+//     REPLACES the printed colours;
 //   * `grantedColors` — a colour GRANT (Dralnu's Crusade "All Goblins are
-//     black", Sinister Strength): additive, UNIONED with the printed colours.
+//     black", Sinister Strength): additive, UNIONED on top.
 //
 // Lives under `convex/cards/` (NOT `convex/gre/`) so the React client can call
 // it directly — it is a leaf over `./colors` + the card registry, importing
@@ -38,18 +40,32 @@ import type { Color, PermanentView } from "./types";
 type ColorLayerFields = {
     colorOverride?: readonly string[];
     grantedColors?: readonly { color: string }[];
-    colorSet?: { readonly colors: readonly string[] };
+    colorSet?: {
+        readonly colors: readonly string[];
+        readonly sourceId?: string;
+    };
 };
+
+/** The `colorSet.sourceId` the layer-5 walk (`gre/layers2to5.ts`) writes when
+ *  the set it ended on is the instance's own `colorOverride` ledger rather than
+ *  a static ability. Lets this module tell a walk answer from a ledger that
+ *  changed after it (a copy's colour exception written or removed, a timed row
+ *  expiring) without a board. */
+export const COLOR_OVERRIDE_SOURCE_ID = "color-override";
 
 /** CR 202.2 / 613.1e — the permanent's effective colours.
  *
  *  Resolution order:
- *    1. `colorOverride` (layer-5 colour SET) wins outright — it replaces every
- *       other derivation, so a laced permanent is EXACTLY those colours.
- *       Deviation from CR 613.7: the ledger carries no timestamp, so it also
- *       beats a static set or grant that arrived LATER (tracked-by: #8812).
- *    2. otherwise, `colorSet` (a static layer-5 colour SET, Shifting Sky) or,
- *       absent, the printed cost's colours (embedded `card.manaCost` when
+ *    1. `colorSet` — the layer-5 walk's CR 613.7 answer, which has already
+ *       ordered every colour set by timestamp (a resolved `colorOverride` is
+ *       one of its entries) and kept only the grants applied after it — UNIONED
+ *       with `grantedColors`. A set the walk took from the ledger counts only
+ *       while the ledger still holds it.
+ *    2. otherwise `colorOverride` alone: a colour set the walk has not seen yet
+ *       (written since the last `syncLayers2to5` — it is the newest layer-5
+ *       effect, CR 613.7), or one on an object the walk never derives. It is
+ *       EXACTLY those colours.
+ *    3. otherwise the printed cost's colours (embedded `card.manaCost` when
  *       present, else the registry definition) UNIONED with `grantedColors`.
  *       A devoid definition contributes no printed colour (CR 702.114a), and a
  *       grant still paints on top of it (CR 613.3: CDAs apply first in a layer).
@@ -58,14 +74,17 @@ type ColorLayerFields = {
  *  array. Never returns duplicates. */
 export function getEffectiveColors(card: PermanentView): Color[] {
     const layers = card as unknown as ColorLayerFields;
+    // CR 105.3 / 613.7 — the walk's colour SET (`colorSet`, derived in
+    // timestamp order by `gre/layers2to5.ts`) replaces the printed colours;
+    // only the grants applied AFTER it are still in `grantedColors`.
     const override = layers.colorOverride;
-    if (override) return [...override] as Color[];
-    // CR 105.3 — a layer-5 colour SET from a static ability (`colorSet`,
-    // derived in timestamp order by `gre/layers2to5.ts`) replaces the printed
-    // colours; only the grants applied AFTER it are still in `grantedColors`.
-    const base = layers.colorSet
-        ? ([...layers.colorSet.colors] as Color[])
-        : printedColors(card);
+    const set =
+        layers.colorSet?.sourceId === COLOR_OVERRIDE_SOURCE_ID &&
+        !(override && sameColors(override, layers.colorSet.colors))
+            ? undefined
+            : layers.colorSet;
+    if (!set && override) return [...override] as Color[];
+    const base = set ? ([...set.colors] as Color[]) : printedColors(card);
     const granted = layers.grantedColors;
     if (!granted?.length) return base;
     const all = new Set<Color>(base);
@@ -84,4 +103,9 @@ function printedColors(card: PermanentView): Color[] {
     return def && hasDevoid(def)
         ? []
         : getColorsFromCost(getInstanceManaCost(card));
+}
+
+/** Same colours, any order — the walk de-duplicates the set it copies. */
+function sameColors(a: readonly string[], b: readonly string[]): boolean {
+    return a.length === b.length && a.every((c) => b.includes(c));
 }

@@ -72,6 +72,7 @@ import {
     staticEffectFunctionsFrom,
 } from "../cards/types";
 import { tryGetEmblemDefinition } from "../cards/emblems";
+import { COLOR_OVERRIDE_SOURCE_ID } from "../cards/effectiveColors";
 import {
     applyArtifactTypeReplacement,
     applyCreatureTypeReplacement,
@@ -395,6 +396,11 @@ type SourceEntries = {
     templates: ReadonlyMap<string, DerivedTemplate>;
 };
 
+/** Id prefix of the layer-5 entry derived from an instance's own
+ *  `colorOverride` ledger; its output is attributed to
+ *  `COLOR_OVERRIDE_SOURCE_ID` so `getEffectiveColors` can tell it apart. */
+const COLOR_OVERRIDE_ENTRY = "ce-coloroverride-";
+
 /** True when any STORED registry entry belongs to layers 2-5. Cheap and
  *  board-wide, so the fast paths can ask it once. */
 function hasStoredLayer2to5Entry(state: LayerStateView): boolean {
@@ -438,6 +444,7 @@ function carriesLayer2to5State(card: CardInstanceState): boolean {
         card.animation !== undefined ||
         card.indefiniteSubtypeSet !== undefined ||
         card.temporarySubtypeChange !== undefined ||
+        card.colorOverride !== undefined ||
         // The three DERIVED-OUTPUT rows that stayed on the instance (PRD #2064
         // S6b-part-2). Their presence is exactly the "the output still differs
         // from the base" case the doc above describes: a source that has just
@@ -864,6 +871,25 @@ function finishEffectsFor(
                 ...(hold.add ? { add: [...hold.add] } : {}),
                 ...(hold.remove ? { remove: [...hold.remove] } : {}),
             },
+            characteristicDefining: false,
+        });
+    }
+
+    // CR 105.3 / 613.7 layer 5 — the colour SET a resolved spell or ability
+    // left behind (`applyColorOverrideToPermanent`). Only the ledger's TOP row
+    // can show: every row is a set, and each was created after the one below
+    // it. Stamped at its creation (CR 613.7b), so a later static `color-set`
+    // replaces it and a later `color-grant` adds on top. An unstamped one (a
+    // copy's colour exception, CR 707.9b — a copiable value) is the earliest.
+    const colorOverride = instance.colorOverride;
+    if (colorOverride) {
+        entries.push({
+            id: `${COLOR_OVERRIDE_ENTRY}${instance.id}`,
+            layer: 5,
+            timestamp: instance.colorOverrideSeq ?? 0,
+            expiry: { kind: "indefinite", controllerId: instance.controllerId },
+            affected: { kind: "instances", instanceIds: [instance.id] },
+            payload: { kind: "color-change", set: [...colorOverride] },
             characteristicDefining: false,
         });
     }
@@ -1388,7 +1414,10 @@ export function deriveLayers2to5(
                 }
                 break;
             }
-            case "color-change":
+            case "color-change": {
+                const colorSource = entry.id.startsWith(COLOR_OVERRIDE_ENTRY)
+                    ? COLOR_OVERRIDE_SOURCE_ID
+                    : attributionOf(entry);
                 // CR 105.3 / 613.7 — a colour SET replaces every colour the
                 // object had at this point of the walk: the printed colours
                 // (`getEffectiveColors` reads `colorSet` in their place) and
@@ -1397,17 +1426,15 @@ export function deriveLayers2to5(
                 if (action.set) {
                     result.colorSet = {
                         colors: [...new Set(action.set)],
-                        sourceId: attributionOf(entry),
+                        sourceId: colorSource,
                     };
                     result.grantedColors = [];
                 }
                 for (const color of action.add ?? []) {
-                    result.grantedColors.push({
-                        color,
-                        sourceId: attributionOf(entry),
-                    });
+                    result.grantedColors.push({ color, sourceId: colorSource });
                 }
                 break;
+            }
         }
         working = viewOf(instance, result);
     }
@@ -1460,6 +1487,10 @@ function viewOf(
         removedSupertypes: result.removedSupertypes,
         grantedColors: result.grantedColors,
         colorSet: result.colorSet,
+        // CR 613.7 — the resolved colour set is an ENTRY of this walk: an
+        // earlier-timestamp predicate must not see it yet, and once applied it
+        // is in `colorSet`.
+        colorOverride: undefined,
     } as unknown as CardInstanceState;
     if (result.textChanges.length === 0) {
         return base as unknown as PermanentView;

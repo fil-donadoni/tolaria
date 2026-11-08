@@ -5209,6 +5209,8 @@ function nextStaticTimestamp(state: GameState): number {
             for (const h of card.supertypeHolds ?? []) bump(h.seq);
             for (const c of card.controlChanges ?? []) bump(c.seq);
             bump(card.animation?.seq);
+            bump(card.colorOverrideSeq);
+            for (const r of card.temporaryColorOverrides ?? []) bump(r.seq);
             bump(card.indefiniteSubtypeSet?.seq);
             bump(card.temporarySubtypeChange?.seq);
         }
@@ -9863,18 +9865,28 @@ export function markEnteredThisTurn(
  *  `resetBattlefieldTransientState`).
  *
  *  The colour list is COPIED: callers hand in an array that may live on a
- *  module-level `CardDefinition`, and instance state must never alias it. */
+ *  module-level `CardDefinition`, and instance state must never alias it.
+ *
+ *  `seq` is the effect's CR 613.7b timestamp (`allocStaticTimestamp`): the
+ *  layer-5 walk (`gre/layers2to5.ts`) orders the set against every static
+ *  `color-set` / `color-grant` by it. */
 export function applyColorOverrideToPermanent(
     card: CardInstanceState,
     colors: readonly Color[],
-    resolved: Duration | undefined
+    resolved: Duration | undefined,
+    seq: number
 ): void {
+    // CR 613.7 — the newest layer-5 effect: every earlier set and grant is
+    // superseded, so the walk's previous output is stale until the next
+    // `syncLayers2to5`, and `getEffectiveColors` falls back to this set alone.
+    clearDerivedColors(card);
     if (!resolved) {
         // CR 613.7 — an indefinite write is the latest timestamp, so any live
         // timed row beneath it is superseded: dropping the ledger is the same
         // as letting each row expire unseen.
         card.temporaryColorOverrides = undefined;
         card.colorOverride = [...colors];
+        card.colorOverrideSeq = seq;
         return;
     }
     // A `colorOverride` that is not the ledger's top was written by someone
@@ -9884,11 +9896,25 @@ export function applyColorOverrideToPermanent(
         ? (card.temporaryColorOverrides ?? [])
         : [];
     if (ledger.length === 0 && card.colorOverride) {
-        ledger.push({ colors: [...card.colorOverride] });
+        ledger.push({
+            colors: [...card.colorOverride],
+            ...(card.colorOverrideSeq !== undefined
+                ? { seq: card.colorOverrideSeq }
+                : {}),
+        });
     }
-    ledger.push({ colors: [...colors], duration: resolved });
+    ledger.push({ colors: [...colors], duration: resolved, seq });
     card.temporaryColorOverrides = ledger;
     card.colorOverride = [...colors];
+    card.colorOverrideSeq = seq;
+}
+
+/** Drops the layer-5 walk's OUTPUT (`colorSet`, `grantedColors`) after its
+ *  `colorOverride` ledger input changed, so no reader sees an answer derived
+ *  from the old ledger before the next `syncLayers2to5` rewrites it. */
+function clearDerivedColors(card: CardInstanceState): void {
+    delete card.colorSet;
+    delete card.grantedColors;
 }
 
 /** The ledger still describes `colorOverride` (its top row is what the
@@ -9940,6 +9966,8 @@ export function tickColorOverrideLedger(
     }
     const top = kept[kept.length - 1];
     card.colorOverride = top ? [...top.colors] : undefined;
+    // CR 613.7 — the row showing through keeps the timestamp it was created at.
+    card.colorOverrideSeq = top?.seq;
     // Only the indefinite base left: it IS `colorOverride`, nothing to track.
     card.temporaryColorOverrides = kept.some((r) => r.duration)
         ? kept
@@ -10068,7 +10096,8 @@ export function animatePermanentAsCreature(
             applyColorOverrideToPermanent(
                 card,
                 spec.colors,
-                card.animation.duration
+                card.animation.duration,
+                card.animation.seq ?? allocStaticTimestamp(state)
             );
         }
     } else if (!card.types.includes("Creature")) {
@@ -10505,6 +10534,7 @@ export function revertTypeLine(card: CardInstanceState): void {
  *  that zone is derived anew by the next `syncLayers2to5`. */
 function revertColorChanges(card: CardInstanceState): void {
     delete card.colorOverride;
+    delete card.colorOverrideSeq;
     delete card.temporaryColorOverrides;
     delete card.grantedColors;
     delete card.colorSet;
@@ -11506,6 +11536,7 @@ export function stageAsEntersEntry(
         // of growing per-field provenance heuristics that a future `applyCopy`
         // clause would silently outgrow.
         delete card.colorOverride;
+        delete card.colorOverrideSeq;
         delete card.grantedTriggeredAbilities;
     }
     // CR 400.7 / 607.2b — a previous incarnation's exile links are stale on
@@ -18808,7 +18839,8 @@ export function buildSpellContext(
                     colors,
                     duration
                         ? resolveDuration(duration, item.controllerId, state)
-                        : undefined
+                        : undefined,
+                    allocStaticTimestamp(state)
                 );
             } else if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);

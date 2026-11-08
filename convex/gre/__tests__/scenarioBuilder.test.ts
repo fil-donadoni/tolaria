@@ -3898,7 +3898,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
             ],
         });
         const bear = live.players[0].battlefield[0];
-        applyColorOverrideToPermanent(bear, ["U"], undefined);
+        applyColorOverrideToPermanent(bear, ["U"], undefined, 1);
 
         const { dropped } = roundTrip(live);
         expect(dropped.some((d) => /colorOverride/.test(d))).toBe(true);
