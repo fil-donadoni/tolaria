@@ -170,8 +170,9 @@ export interface LoweredStatic {
     };
     /** CR 614.12a / 205.3m — "As this enters, choose a creature type". */
     readonly asEntersCreatureType?: true;
-    /** CR 614.12a / 201.4a — "As this enters, choose a nonland card name". */
-    readonly asEntersNonlandCardName?: true;
+    /** CR 614.12a / 201.4 / 201.4a — "As this enters, choose a [nonland]
+     *  card name": which names are legal. */
+    readonly asEntersCardName?: "nonland" | "any";
     /** CR 614.1c / 614.12a — "As this enters, choose an opponent". */
     readonly asEntersOpponent?: true;
     /** CR 614.12a / 105.1 — "As this enters, choose a color". */
@@ -754,7 +755,7 @@ export function lowerStaticClause(
         case "as-enters-choose-creature-type":
             return { ok: true, lowered: { asEntersCreatureType: true } };
         case "as-enters-choose-card-name":
-            return { ok: true, lowered: { asEntersNonlandCardName: true } };
+            return { ok: true, lowered: { asEntersCardName: clause.names } };
         case "as-enters-choose-opponent":
             return { ok: true, lowered: { asEntersOpponent: true } };
         case "as-enters-choose-color":
@@ -770,6 +771,26 @@ export function lowerStaticClause(
                             id: nextId("name-lock"),
                             oracleText:
                                 "Spells with the chosen name can't be cast.",
+                        },
+                    ],
+                },
+            };
+        // CR 602.5 / 113.7 — a name-keyed activation gate over sources in
+        // every zone; CR 605.1a — the printed tail exempts mana abilities.
+        case "chosen-name-activation-lock":
+            return {
+                ok: true,
+                lowered: {
+                    readsChosenName: true,
+                    effects: [
+                        {
+                            kind: "activation-restriction",
+                            id: nextId("name-activation-lock"),
+                            sourcesNamed: "chosen-name",
+                            ...(clause.exemptManaAbilities
+                                ? { exemptManaAbilities: true as const }
+                                : {}),
+                            oracleText,
                         },
                     ],
                 },

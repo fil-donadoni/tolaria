@@ -86,6 +86,8 @@ export function triggerViewPermanent(
         // hides the lock from every affordance built on this view.
         card: c.card as unknown as TriggerViewPermanent["card"],
         abilitiesSuppressedBy: c.abilitiesSuppressedBy,
+        // CR 614.12a — the as-enters name a name-keyed activation lock reads.
+        ...(c.chosenName !== undefined ? { chosenName: c.chosenName } : {}),
     };
 }
 
