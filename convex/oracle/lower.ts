@@ -59,6 +59,7 @@ import { lowerTriggeredAbility } from "./lowerTriggered";
 import { linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
+import { manaValue } from "../gre/constants";
 import { spliceCardIsSupported } from "../gre/splice";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
@@ -69,6 +70,10 @@ import {
     reconfigureAbilities,
 } from "../cards/abilities/equipment";
 import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
+import {
+    TRANSMUTE_ABILITY_ID,
+    transmuteAbility,
+} from "../cards/abilities/transmute";
 import { unearthAbility } from "../cards/abilities/unearth";
 import { CONSPIRE_KEYWORD, conspireCost } from "../cards/abilities/conspire";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
@@ -1139,6 +1144,27 @@ function lowerLine(
             if (acc.activatedAbilities.some((a) => a.id === "ninjutsu"))
                 return "a card declares ninjutsu twice (CR 702.49a)";
             acc.activatedAbilities.push(ninjutsuAbility(ir.cost));
+            return null;
+        }
+        case "transmute": {
+            // The factory's ability id is the keyword's own ("transmute").
+            if (
+                acc.activatedAbilities.some(
+                    (a) => a.id === TRANSMUTE_ABILITY_ID
+                )
+            )
+                return "a card declares transmute twice (CR 702.53a)";
+            // CR 702.53a / 202.3 — "the same mana value as the discarded
+            // card": the card's printed mana cost (none = 0, CR 202.3a).
+            let printedManaValue = 0;
+            if (card.manaCost.trim().length > 0) {
+                const printed = readManaCost(card.manaCost);
+                if (!printed.ok) return printed.reason;
+                printedManaValue = manaValue(printed.cost);
+            }
+            acc.activatedAbilities.push(
+                transmuteAbility(ir.cost, printedManaValue)
+            );
             return null;
         }
         case "unearth": {
