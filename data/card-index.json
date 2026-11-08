@@ -29582,6 +29582,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fogwalker",
+        "scryfallId": "0894d76b-801a-4e3b-8378-bfa81fe24d59",
+        "oracleId": "c597cfae-3f92-4d31-8bc1-5a2da995f1bf",
+        "firstSet": "emn",
+        "firstPrintId": "0894d76b-801a-4e3b-8378-bfa81fe24d59",
+        "firstPrintSet": "emn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Fogwell's Gym",
         "scryfallId": "e63523d5-0f2c-436a-b411-662eb11fd150",
         "oracleId": "850bb6f7-48d3-4d65-9220-b0bec5ee6b64",
@@ -43004,6 +43014,16 @@
         "firstSet": "leg",
         "firstPrintId": "b63a69ae-99ce-4d26-88b7-784793c43cd4",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Kefnet's Monument",
+        "scryfallId": "f5d20f0a-aa7c-4d40-acb2-2b86666afd53",
+        "oracleId": "b6294891-79e6-4f2a-a82d-6cffce968356",
+        "firstSet": "akh",
+        "firstPrintId": "f5d20f0a-aa7c-4d40-acb2-2b86666afd53",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Kei Takahashi",
@@ -73166,6 +73186,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skyline Cascade",
+        "scryfallId": "29b0027d-c232-4cdd-89c4-75947687aa71",
+        "oracleId": "79301ae1-8c9c-4723-be21-dc27e1646f35",
+        "firstSet": "bfz",
+        "firstPrintId": "29b0027d-c232-4cdd-89c4-75947687aa71",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Skyline Despot",
         "scryfallId": "86f74736-0557-4b73-a8ad-5abaa34ccd94",
         "oracleId": "c0ce54a1-14a1-45f3-91d0-c57b581afc63",
@@ -73637,6 +73667,16 @@
         "firstPrintId": "31051436-68f2-457e-8293-2b10ccf7684e",
         "firstPrintSet": "woe",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sleeper Dart",
+        "scryfallId": "311f827a-1585-483e-b0fd-3dc05969b485",
+        "oracleId": "1f1b6130-3f18-4989-922b-438e41d683da",
+        "firstSet": "iko",
+        "firstPrintId": "311f827a-1585-483e-b0fd-3dc05969b485",
+        "firstPrintSet": "iko",
+        "rarity": "common",
         "source": "compiled"
     },
     {

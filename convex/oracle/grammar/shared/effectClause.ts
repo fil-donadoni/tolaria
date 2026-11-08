@@ -1340,8 +1340,9 @@ export type EffectSentenceIR =
           /**
            * CR 502.3 — "<it> doesn't untap during your next untap
            * step": the one-shot untap lock on the source (`skipNextUntap`).
-           * The subject is the source or the site's pronoun for it; a named
-           * or announced permanent is a different instruction.
+           * The subject is the source or the site's pronoun for it; one
+           * announced permanent takes the "its controller's next untap step"
+           * printing instead (the step its controller untaps in).
            */
           readonly kind: "skip-next-untap";
           readonly subject: SubjectIR;
@@ -6348,6 +6349,16 @@ const REDIRECT_NEXT_DAMAGE =
  * standalone corpus card gives it a fixture (Change of Heart carries Buyback).
  */
 const SKIP_NEXT_UNTAP = /^(.+) doesn't untap during your next untap step$/;
+/**
+ * CR 502.3 — "<target permanent> doesn't untap during its controller's next
+ * untap step": the same one-shot lock on ONE announced permanent. Only the
+ * permanent's own controller's untap step can untap it (CR 502.3: the active
+ * player untaps the permanents THEY control), which is the step the
+ * `skipNextUntap` flag is consumed by. The source or a pronoun with this step
+ * owner is a different printing and stays refused.
+ */
+const SKIP_CONTROLLERS_NEXT_UNTAP =
+    /^(.+) doesn't untap during its controller's next untap step$/;
 const COMBAT_RESTRICTION = /^(.+) can't (block|be blocked) this turn$/;
 const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
     new Map([
@@ -6393,6 +6404,25 @@ function isAnnouncedCreature(subject: SubjectIR): boolean {
         subject.kind === "target" &&
         subject.requirement.type === "Creature" &&
         subject.another === undefined
+    );
+}
+
+/**
+ * CR 115.1 — exactly one announced permanent on the battlefield: a single
+ * target whose every type is a permanent type (CR 110.4), no zone override.
+ */
+function isAnnouncedPermanent(subject: SubjectIR): boolean {
+    if (subject.kind !== "target" || subject.another !== undefined)
+        return false;
+    const { requirement } = subject;
+    if (requirement.zone !== undefined) return false;
+    if (requirement.count !== undefined && requirement.count !== 1)
+        return false;
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    return types.every((type) =>
+        (PERMANENT_TYPES as readonly string[]).includes(type)
     );
 }
 
@@ -9340,6 +9370,21 @@ function effectSentence(
         if (subject.value.kind !== "self" && subject.value.kind !== "pronoun")
             return fail(
                 "only the source (or its pronoun) takes a next-untap lock",
+                span
+            );
+        return ok({
+            kind: "skip-next-untap" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+    const targetLock = span.match(SKIP_CONTROLLERS_NEXT_UNTAP);
+    if (targetLock !== null) {
+        // A subject this grammar cannot read refuses the WHOLE clause, so the
+        // Grammar Gap keeps naming the lock rather than its subject alone.
+        const subject = subjectRule.run(targetLock[1]!, ctx);
+        if (!subject.ok || !isAnnouncedPermanent(subject.value))
+            return fail(
+                "only one announced permanent takes its controller's next-untap lock",
                 span
             );
         return ok({
