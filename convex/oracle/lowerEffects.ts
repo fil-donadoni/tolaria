@@ -1450,7 +1450,8 @@ function selectorsFor(
     // CR 303.4b / CR 115.10 — the Aura's host is named by the ability's own
     // text, never announced, so no slot is consumed: `$host` is the attachment
     // snapshot every ability site is seeded with (issue #1341). Reached only
-    // from the pump and keyword-grant verbs, the only two that parse it.
+    // from the pump and keyword-grant verbs on an Aura and, CR 301.5a, the
+    // counters verb on an Equipment's trigger — the verbs that parse it.
     if (subject.kind === "host") return lowered([{ ref: "$host" }]);
     // CR 608.2h — "it" names whatever the SITE printed before the sentence…
     if (subject.kind === "pronoun") {
@@ -3817,6 +3818,8 @@ function lowerSentenceBody(
         }
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
+        case "upgrade-if-host-is":
+            return lowerHostUpgrade(sentence, walk, site);
         case "mill": {
             // CR 701.17a — the top cards of the player's library go to their
             // graveyard. No `bind` unless a pick reads the milled cards back
@@ -6887,6 +6890,44 @@ function lowerUpgrade(
             },
         ];
     return lowered(script);
+}
+
+/**
+ * CR 608.2c + CR 301.5a — "If equipped creature is a <subtype>, … instead":
+ * one `if` on the host's LIVE characteristics (`objectMatchesFilter` over
+ * `$host`, false when the Equipment is unattached), the upgraded effect in
+ * `then` and the base in `else`. Neither half names an announced target (the
+ * host is never one, CR 115.10), which the replay confirms.
+ */
+function lowerHostUpgrade(
+    sentence: Extract<EffectSentenceIR, { kind: "upgrade-if-host-is" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const from = walk.targets.requirements().length;
+    const base = lowerSentence(sentence.base, walk, site);
+    if (!base.ok) return base;
+    if (walk.targets.requirements().length !== from)
+        return unlowerable(
+            "a host-conditioned replacement acts on the host, never on an announced target"
+        );
+    const upgraded = lowerSentence(
+        sentence.upgraded,
+        walk.replaying(from),
+        site
+    );
+    if (!upgraded.ok) return upgraded;
+    return lowered([
+        {
+            op: "if",
+            predicate: {
+                objectMatchesFilter: { ref: "$host" },
+                filter: { subtype: sentence.subtype },
+            },
+            then: upgraded.value,
+            else: base.value,
+        },
+    ]);
 }
 
 /**

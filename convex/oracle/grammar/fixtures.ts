@@ -5338,6 +5338,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 301.5a / CR 608.2c — "put a +1/+1 counter on equipped creature. If
+    // equipped creature is a Vampire, put two +1/+1 counters on it instead" on
+    // an Equipment's own triggered ability: the host is named by the text,
+    // never announced, so `counters` acts on `{ ref: "$host" }` and the
+    // replacement is an `if` on the host's live subtype. Exhibits both smoke
+    // skips the canned scenario raises for it — `counters` on a subject it
+    // does not seed, and an `if` reading the runtime `$host` binding — so this
+    // fixture clears the plain host-counters form too.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8985e545-07c3-45f9-9058-fe3c1f50de04",
+            name: "Blade of the Bloodchief",
+            manaCost: "{1}",
+            typeLine: "Artifact — Equipment",
+            oracleText:
+                "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
+            layout: "normal",
+        },
+        expected: {
+            name: "Blade of the Bloodchief",
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            manaCost: { X: 1 },
+            oracleText:
+                "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
+            activatedAbilities: [
+                {
+                    id: "blade-of-the-bloodchief-equip",
+                    oracleText: "Equip {1}",
+                    cost: { mana: { generic: 1 } },
+                    sorcerySpeedOnly: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                    useStack: true,
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "blade-of-the-bloodchief-trigger",
+                    oracleText:
+                        "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.",
+                    head: { kind: "died", scope: "any" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                objectMatchesFilter: { ref: "$host" },
+                                filter: { subtype: "Vampire" },
+                            },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$host" },
+                                    count: 2,
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$host" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).

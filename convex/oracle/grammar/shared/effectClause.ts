@@ -380,7 +380,9 @@ export type SubjectIR =
      * attached to (the activated slot's `auraHost`). Never announced (CR 115.10
      * — the ability's own text names it, so hexproof and protection do not
      * apply); lowered to `$host`. Read by the pump and keyword-grant verbs
-     * only — the two forms a golden fixture pins.
+     * only — the two forms a golden fixture pins. CR 301.5a — "equipped
+     * creature" on an Equipment's triggered ability (`equipmentHost`) is the
+     * same host, read by the counters verb only.
      */
     | { readonly kind: "host" }
     /**
@@ -604,6 +606,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "shuffle-own-graveyard-into-library",
     "search-target-library",
     "upgrade-if-controls",
+    "upgrade-if-host-is",
 ] as const;
 
 /** CR 705.1 — one outcome of a coin flip: the clause AS PRINTED (the reveal
@@ -2323,6 +2326,21 @@ export type EffectSentenceIR =
           readonly conditions: readonly ConditionIR[];
           readonly base: EffectSentenceIR;
           readonly upgraded: EffectSentenceIR;
+      }
+    | {
+          /**
+           * CR 608.2c + CR 301.5a — "<counters on equipped creature>. If
+           * equipped creature is a <subtype>, put N <kind> counters on it
+           * instead." Two printed sentences, one effect: the second REPLACES
+           * the first when the host has the subtype as the ability resolves
+           * (read live — a granted subtype counts, CR 205.3), and the first
+           * happens otherwise. `upgraded` is the base with only its count
+           * changed, on the same host.
+           */
+          readonly kind: "upgrade-if-host-is";
+          readonly subtype: string;
+          readonly base: EffectSentenceIR;
+          readonly upgraded: EffectSentenceIR;
       };
 
 /** `true` iff the two kind unions are the same set — either direction missing is `never`. */
@@ -2758,6 +2776,17 @@ export type SentenceIR =
     | {
           readonly role: "instead";
           readonly conditions: readonly ConditionIR[];
+          readonly body: string;
+      }
+    /**
+     * CR 608.2c + CR 301.5a — "If equipped creature is a <subtype>, <effect>
+     * instead": the replacement half of an `upgrade-if-host-is`, folded onto
+     * the effect in front of it by `assembleSentences`. `body` is the clause
+     * WITHOUT "instead", read against that effect.
+     */
+    | {
+          readonly role: "host-is-instead";
+          readonly subtype: string;
           readonly body: string;
       }
     /**
@@ -4220,6 +4249,24 @@ export function assembleSentences(
             };
             continue;
         }
+        if (sentence.role === "host-is-instead") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined)
+                return {
+                    ok: false,
+                    reason: '"… instead" follows no effect it could replace',
+                };
+            const upgraded = readHostUpgrade(previous, sentence.body);
+            if (typeof upgraded === "string")
+                return { ok: false, reason: upgraded };
+            effects[effects.length - 1] = {
+                kind: "upgrade-if-host-is",
+                subtype: sentence.subtype,
+                base: previous,
+                upgraded,
+            };
+            continue;
+        }
         if (sentence.role === "instead") {
             const previous = effects[effects.length - 1];
             if (previous === undefined)
@@ -4892,6 +4939,22 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
 function hostSubject(span: string, ctx: unknown): RuleResult<SubjectIR> | null {
     if (uncapitalise(span) !== "enchanted creature") return null;
     if ((ctx as ParseContext).auraHost !== true) return null;
+    return ok({ kind: "host" as const });
+}
+
+/**
+ * CR 301.5a — "equipped creature" as the object of an Equipment's own
+ * triggered ability: the creature the source is attached to. Like
+ * {@link hostSubject}, deliberately NOT a branch of {@link subjectRule}; only
+ * the counters verb asks for it, and only where the triggered slot said the
+ * site is a non-creature Equipment's (`ParseContext.equipmentHost`).
+ */
+function equippedHostSubject(
+    span: string,
+    ctx: unknown
+): RuleResult<SubjectIR> | null {
+    if (uncapitalise(span) !== "equipped creature") return null;
+    if ((ctx as ParseContext).equipmentHost !== true) return null;
     return ok({ kind: "host" as const });
 }
 
@@ -6031,6 +6094,8 @@ const SWAP_IF_BOTH_LEGAL =
 const CAST_EXILE_RIDER =
     /^If that spell would be put into your graveyard, exile it instead$/;
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
+/** CR 608.2c + CR 301.5a — "If equipped creature is a <subtype>, <effect> instead". */
+const HOST_IS_INSTEAD = /^If equipped creature is an? (\S+), (.+) instead$/;
 
 /** The window: "Look at [or Reveal] the top four cards of your library". */
 const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
@@ -7105,6 +7170,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             } satisfies SentenceIR);
 
         if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
+        if (HOST_IS_INSTEAD.test(span)) return hostIsInsteadRule.run(span, ctx);
 
         const named = chosenNameSentence(span, ctx);
         if (named !== null) return named;
@@ -7318,6 +7384,55 @@ export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
         } satisfies SentenceIR);
     }
 );
+
+/**
+ * CR 608.2c + CR 301.5a — "If equipped creature is a <subtype>, <effect>
+ * instead": a replacement conditioned on the Equipment's host. Read only
+ * where the triggered slot raised `equipmentHost`, and only for ONE creature
+ * subtype (CR 205.3m) — a type, a colour or a list is a different predicate
+ * this rule has no fixture for.
+ */
+export const hostIsInsteadRule: Rule<SentenceIR> = rule<SentenceIR>(
+    "instead if equipped creature is",
+    (span, ctx) => {
+        if ((ctx as ParseContext).equipmentHost !== true)
+            return fail('"equipped creature" names no host here', span);
+        const match = span.match(HOST_IS_INSTEAD);
+        if (match === null)
+            return fail('not an "If equipped creature is …" sentence', span);
+        if (!CREATURE_SUBTYPES.has(match[1]!))
+            return fail(`"${match[1]}" is not a creature type`, span);
+        return ok({
+            role: "host-is-instead" as const,
+            subtype: match[1]!,
+            body: match[2]!,
+        } satisfies SentenceIR);
+    }
+);
+
+/** CR 122.1 — "put two +1/+1 counters on it": the counters upgrade's body. */
+const UPGRADE_HOST_COUNTERS = /^put (\S+) (\S+) counters? on it$/;
+
+/**
+ * The host-conditioned replacement read AGAINST the effect it replaces
+ * (CR 608.2c): only a counters sentence on the host, re-counted with the same
+ * counter kind, "it" being the host the condition just named. Anything else
+ * is a sentence we have misread.
+ */
+function readHostUpgrade(
+    base: EffectSentenceIR,
+    body: string
+): EffectSentenceIR | string {
+    if (base.kind !== "counters" || base.subject.kind !== "host")
+        return `"… instead" on equipped creature cannot replace a ${base.kind} not on it`;
+    const m = body.match(UPGRADE_HOST_COUNTERS);
+    if (m === null) return `"${body}" does not upgrade the host's counters`;
+    if (m[2] !== base.counter)
+        return "the upgrade puts a different kind of counter";
+    const count = readAmount(m[1]!);
+    if (count === null) return `"${m[1]}" is not a count`;
+    return { ...base, count };
+}
 
 /**
  * CR 106.1 + CR 608.2c — the replacement sentence of a conditional ritual:
@@ -9679,7 +9794,9 @@ function effectSentence(
         const count = readAmount(counters[1]!);
         if (count === null)
             return fail(`"${counters[1]}" is not a count`, span);
-        const subject = subjectRule.run(counters[3]!, ctx);
+        const subject =
+            equippedHostSubject(counters[3]!, ctx) ??
+            subjectRule.run(counters[3]!, ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "counters" as const,
