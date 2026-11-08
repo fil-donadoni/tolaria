@@ -15,6 +15,7 @@ import {
 import { finalizeCleanup } from "../phases";
 import { compactState, expandState } from "../serialize";
 import {
+    removePermanentTo,
     resetBattlefieldTransientState,
     resetStackTransientState,
 } from "../state";
@@ -319,6 +320,151 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         expect(card.subtypes).toEqual(every.baseSubtypes);
     });
 
+    // CR 400.7 (issue #8730) — the graveyard/exile departure keeps the
+    // instance's history but never its characteristics: every `departure` row
+    // is gone from the card that lands there.
+    it.each(["graveyard", "exile"] as const)(
+        "`departure` rows clear on a battlefield departure to %s",
+        (toZone) => {
+            const every = everyFieldSurvivingDurations();
+            const card = makeInstance(grizzlyBears().id, {
+                id: "cf-depart",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                ...every,
+                // Neither redirect nor split the move under test.
+                exileOnLeave: undefined,
+                meldedFrom: undefined,
+                attachedTo: undefined,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [card] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const moved = removePermanentTo(state, card.id, toZone);
+            expect(moved?.zone).toBe(toZone);
+            const departure = CARD_FIELD_KEYS.filter((key) =>
+                resets(key).includes("departure")
+            );
+            expect(departure.length).toBeGreaterThan(0);
+            const leaked = departure.filter((key) => moved![key] !== undefined);
+            expect(leaked, `still set in ${toZone}`).toEqual([]);
+        }
+    );
+
+    // Issue #8730 — the guard on the graveyard/exile branch. A `zone-change`
+    // row is either a CHARACTERISTIC (also `departure`: the card in any new
+    // zone must not show it) or bookkeeping the graveyard/exile departure keeps
+    // on purpose (last-known information, a mechanic's own memory, battlefield
+    // bookkeeping ended by hand or by re-entry). A new `zone-change` row reds
+    // here until it is put on one side: the graveyard branch never inherits an
+    // undecided field again (issues #2086, #2179, #8730 each added one by hand).
+    const KEPT_IN_GRAVEYARD_AND_EXILE = [
+        "abilitiesAtLeave",
+        "acceptedEntryCounters",
+        "activationsThisTurn",
+        "baseControllerId",
+        // Read by `revertTypeLine` / `revertTypeProvenance`, which restore the
+        // printed line from them: they equal it afterwards.
+        "baseSubtypes",
+        "baseTypes",
+        "cantBeBlockedBySubtypesThisTurn",
+        "cantBeBlockedExceptByThisTurn",
+        "cantBeBlockedThisTurn",
+        "castOffSorceryTiming",
+        "chosenMana",
+        "chosenName",
+        "chosenPlayerId",
+        "chosenSubtypes",
+        "chosenXOnCast",
+        "classLevel",
+        "controlChanges",
+        "counters",
+        "countersAtLeave",
+        "damageLockThisTurn",
+        "damageMarked",
+        "damagedBySources",
+        "damagedPermanentsThisGame",
+        "dashed",
+        "dealtDeathtouchDamage",
+        "declinedEntryKeywords",
+        "encodedOn",
+        "enteredOnTurn",
+        "escaped",
+        "evoked",
+        "exertedThisTap",
+        "exileOnDeath",
+        "exileOnLeave",
+        "exiledBySourceId",
+        "foretold",
+        "graveyardPermissionRider",
+        "hasAttackedThisTurn",
+        "hasBlockedThisTurn",
+        "impended",
+        "isAttacking",
+        "isBlocking",
+        "isSummoningSick",
+        "keywordsAtLeave",
+        "kickerPayments",
+        "libraryPositionKnownTo",
+        "lifePaidThisTap",
+        "manaCommitted",
+        "manaCounterRemoval",
+        "manaPaidThisTap",
+        "meldGroupId",
+        "monstrous",
+        "mustBlockAttackersThisCombat",
+        "mustBlockAttackersThisTurn",
+        "notedManaSpentOnCast",
+        "overloaded",
+        "prepared",
+        "regenerationShields",
+        "returnToHandAtUntapOf",
+        "saddled",
+        "skipNextUntap",
+        "staticSeq",
+        "tapTriggerCommitted",
+        "transformCount",
+        "transformedAtDelayedSeq",
+        "triggersThisTurn",
+        "unkickedCostPayments",
+        "untapLockedBy",
+        "warped",
+        "wasKicked",
+        "zoneStaticSeq",
+    ];
+
+    it("every `zone-change` row is either a `departure` characteristic or kept in graveyard/exile on purpose", () => {
+        const zone = CARD_FIELD_KEYS.filter((key) =>
+            resets(key).includes("zone-change")
+        );
+        const departure = CARD_FIELD_KEYS.filter((key) =>
+            resets(key).includes("departure")
+        );
+        // `departure` is a SUBSET of `zone-change`: the hand/library reset
+        // clears it too.
+        expect(departure.filter((key) => !zone.includes(key))).toEqual([]);
+        const undecided = zone.filter(
+            (key) =>
+                !departure.includes(key) &&
+                !KEPT_IN_GRAVEYARD_AND_EXILE.includes(key)
+        );
+        expect(
+            undecided,
+            "zone-change rows with no graveyard/exile decision — a characteristic gets `departure`, history goes in KEPT_IN_GRAVEYARD_AND_EXILE"
+        ).toEqual([]);
+        expect(
+            KEPT_IN_GRAVEYARD_AND_EXILE.filter(
+                (key) =>
+                    departure.includes(key as OptionalCardInstanceKey) ||
+                    !zone.includes(key as OptionalCardInstanceKey)
+            )
+        ).toEqual([]);
+    });
+
     it("`stack` rows clear on the stack exit; the others survive it", () => {
         const every = everyFieldSurvivingDurations();
         const item: StackItem = {
@@ -406,6 +552,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "saddled",
         ],
         "zone-change": [
+            "abilitiesAtLeave",
             "abilitiesSuppressedBy",
             "abilityLossHolds",
             "acceptedEntryCounters",
@@ -493,6 +640,26 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "wasKicked",
             "zoneStaticSeq",
         ],
+        // Issue #8730 — the characteristic-bearing subset of `zone-change`.
+        departure: [
+            "abilitiesSuppressedBy",
+            "abilityLossHolds",
+            "colorOverride",
+            "colorOverrideSeq",
+            "colorSet",
+            "grantedActivatedAbilities",
+            "grantedAttackRequirements",
+            "grantedColors",
+            "grantedSupertypes",
+            "grantedTriggeredAbilities",
+            "removedSupertypes",
+            "sourceTappedPTMods",
+            "subtypeAddHolds",
+            "supertypeHolds",
+            "temporaryColorOverrides",
+            "textChangeHolds",
+            "typeLineHolds",
+        ],
         stack: [
             "castCopyOfCard",
             "castOffSorceryTiming",
@@ -515,7 +682,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         ],
     };
 
-    it.each(["turn", "zone-change", "stack"] as const)(
+    it.each(["turn", "zone-change", "departure", "stack"] as const)(
         "the `%s` scope is exactly the key set the hand-written ladder cleared",
         (scope) => {
             const bare = CARD_FIELD_KEYS.filter((key) =>

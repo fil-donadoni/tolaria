@@ -563,19 +563,32 @@ export function lookBackSelf(
 ): CardInstanceState {
     const entry = state.lastKnownCopiable?.[card.id];
     if (!entry) return card;
-    return withKeywordsAtLeave(card, lookBackIdentity(state, card, entry));
+    return withAbilitiesAtLeave(card, lookBackIdentity(state, card, entry));
 }
 
 /** CR 603.10a / 613.1f — the object looked back at has the abilities it left
- *  with, and the departure's own reverts cannot be replayed from the card. Absent
- *  when the card still shows that list, which keeps `view` the same reference. */
-function withKeywordsAtLeave(
+ *  with, and the departure's own reverts cannot be replayed from the card: the
+ *  keywords (`keywordsAtLeave`), and whether it had lost all abilities and
+ *  which triggered abilities it was granted (`abilitiesAtLeave`, issue #8730 —
+ *  a Chromatic Star that dies as Oko's Elk draws nothing). Both absent when the
+ *  card still shows what it left with, which keeps `view` the same reference. */
+function withAbilitiesAtLeave(
     card: CardInstanceState,
     view: CardInstanceState
 ): CardInstanceState {
-    return card.keywordsAtLeave
-        ? { ...view, staticAbilities: [...card.keywordsAtLeave] }
-        : view;
+    const keywords = card.keywordsAtLeave;
+    const abilities = card.abilitiesAtLeave;
+    if (!keywords && !abilities) return view;
+    return {
+        ...view,
+        ...(keywords ? { staticAbilities: [...keywords] } : {}),
+        ...(abilities
+            ? {
+                  abilitiesSuppressedBy: abilities.suppressedBy,
+                  grantedTriggeredAbilities: abilities.grantedTriggered,
+              }
+            : {}),
+    };
 }
 
 /** {@link lookBackSelf}'s identity half: layer 1, then a layer 3 full text. */

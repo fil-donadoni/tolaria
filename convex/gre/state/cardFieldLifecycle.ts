@@ -17,7 +17,10 @@
  *    clean (`resetBattlefieldTransientState`, `gre/state.ts`, CR 400.7) and
  *    the stack-exit clean (`resetStackTransientState`, `gre/state.ts`) —
  *    each of which deletes the keys listing its scope in `reset` AFTER its
- *    hand-kept steps have run.
+ *    hand-kept steps have run;
+ *  - the graveyard/exile departure (`removePermanentTo`, issue #8730), which
+ *    keeps the old object's history and deletes only the `departure` subset:
+ *    the characteristics.
  *
  * Exhaustive by construction: the `satisfies` clause below is a mapped type
  * over the optional keys, so a field added to `CardInstanceState` without a
@@ -71,7 +74,20 @@ export type CardFieldCodec =
     | "custom"
     | "transient";
 
-export type CardFieldResetScope = "turn" | "zone-change" | "stack";
+/** `departure` — the CHARACTERISTIC-bearing subset of `zone-change` (issue
+ *  #8730): ledgers and derived outputs of layers 3-6 that the card in ANY new
+ *  zone must not show (CR 400.7). The hand/library departure clears it with the
+ *  rest of `zone-change`; the graveyard/exile departure, which keeps the
+ *  instance's history as last known information, clears ONLY this scope
+ *  (`removePermanentTo`, `gre/state.ts`). Every `departure` row is also a
+ *  `zone-change` row, and every `zone-change` row that is not `departure` is
+ *  named, with its reason, in `cardFieldLifecycle.test.ts` — a new field
+ *  cannot reach the graveyard branch undecided. */
+export type CardFieldResetScope =
+    | "turn"
+    | "zone-change"
+    | "departure"
+    | "stack";
 
 export type CardFieldReset =
     | CardFieldResetScope
@@ -88,6 +104,7 @@ const ZONE = ["zone-change"] as const;
 const STACK = ["stack"] as const;
 const TURN_ZONE = ["turn", "zone-change"] as const;
 const ZONE_STACK = ["zone-change", "stack"] as const;
+const DEPART = ["zone-change", "departure"] as const;
 
 // prettier-ignore
 export const CARD_FIELD_LIFECYCLE = {
@@ -131,22 +148,25 @@ export const CARD_FIELD_LIFECYCLE = {
     // clear only at cleanup: parity with the hand-written ladder (issue
     // #4453; `docs/findings/4453-three-battlefield-fields-survive-zone-change.md`).
     tapBonusMana:               { codec: "scalar",  reset: NONE },
-    grantedActivatedAbilities:  { codec: "list",    reset: ZONE },
+    grantedActivatedAbilities:  { codec: "list",    reset: DEPART },
     // Legacy shape on expand: bare source-id strings coerce to `seq: 0`.
-    abilitiesSuppressedBy:      { codec: "custom",  reset: ZONE },
-    grantedTriggeredAbilities:  { codec: "list",    reset: ZONE },
-    grantedAttackRequirements:  { codec: "list",    reset: ZONE },
+    abilitiesSuppressedBy:      { codec: "custom",  reset: DEPART },
+    grantedTriggeredAbilities:  { codec: "list",    reset: DEPART },
+    grantedAttackRequirements:  { codec: "list",    reset: DEPART },
     // KEPT across a zone change, re-seated to the reset multiset (PRD #2064
-    // S6b-part-2): `[]` is a meaningful base, hence `scalar` (presence).
-    baseStaticAbilities:        { codec: "scalar",  reset: ["custom:zone-change"] },
-    abilityLossHolds:           { codec: "list",    reset: ZONE },
+    // S6b-part-2) by `resetLayer6ToBase` on EVERY departure: `[]` is a
+    // meaningful base, hence `scalar` (presence).
+    baseStaticAbilities:        { codec: "scalar",  reset: ["custom:zone-change", "custom:departure"] },
+    abilityLossHolds:           { codec: "list",    reset: DEPART },
     baseControllerId:           { codec: "scalar",  reset: ZONE },
+    // Read by `revertTypeProvenance` / `revertTypeLine`, which restore the
+    // printed line from them; kept in graveyard/exile, where they equal it.
     baseTypes:                  { codec: "scalar",  reset: ZONE },
     baseSubtypes:               { codec: "scalar",  reset: ZONE },
-    textChangeHolds:            { codec: "list",    reset: ZONE },
-    typeLineHolds:              { codec: "list",    reset: ZONE },
-    subtypeAddHolds:            { codec: "list",    reset: ZONE },
-    supertypeHolds:             { codec: "list",    reset: ZONE },
+    textChangeHolds:            { codec: "list",    reset: DEPART },
+    typeLineHolds:              { codec: "list",    reset: DEPART },
+    subtypeAddHolds:            { codec: "list",    reset: DEPART },
+    supertypeHolds:             { codec: "list",    reset: DEPART },
     damagedBySources:           { codec: "list",    reset: TURN_ZONE },
     damagedPermanentsThisGame:  { codec: "list",    reset: ZONE },
     // Ended by the departure side (`removePermanentTo`) and by `revertBestow`.
@@ -163,8 +183,8 @@ export const CARD_FIELD_LIFECYCLE = {
     acceptedEntryCounters:      { codec: "record",  reset: ZONE },
     declinedEntryKeywords:      { codec: "list",    reset: ZONE },
     entersAsTypeLine:           { codec: "scalar",  reset: NONE },
-    temporaryColorOverrides:    { codec: "list",    reset: ZONE },
-    sourceTappedPTMods:         { codec: "list",    reset: ZONE },
+    temporaryColorOverrides:    { codec: "list",    reset: DEPART },
+    sourceTappedPTMods:         { codec: "list",    reset: DEPART },
     untapLockedBy:              { codec: "list",    reset: ZONE },
     // Consumed at the untap step it skips.
     skipNextUntap:              { codec: "flag",    reset: ["custom:turn", "zone-change"] },
@@ -176,6 +196,7 @@ export const CARD_FIELD_LIFECYCLE = {
     counters:                   { codec: "record",  reset: ZONE },
     countersAtLeave:            { codec: "record",  reset: ZONE },
     keywordsAtLeave:            { codec: "list",    reset: ZONE },
+    abilitiesAtLeave:           { codec: "record",  reset: ZONE },
     capturedBindings:           { codec: "record",  reset: NONE },
     worldSeq:                   { codec: "defined", reset: NONE },
     staticSeq:                  { codec: "defined", reset: ZONE },
@@ -184,12 +205,12 @@ export const CARD_FIELD_LIFECYCLE = {
     // Both tallies clear at turn START (`gre/phases.ts`), not at cleanup.
     activationsThisTurn:        { codec: "record",  reset: ["custom:turn", "zone-change"] },
     triggersThisTurn:           { codec: "record",  reset: ["custom:turn", "zone-change"] },
-    colorOverride:              { codec: "list",    reset: ZONE },
-    colorOverrideSeq:           { codec: "defined", reset: ZONE },
-    grantedColors:              { codec: "list",    reset: ZONE },
-    colorSet:                   { codec: "scalar",  reset: ZONE },
-    grantedSupertypes:          { codec: "list",    reset: ZONE },
-    removedSupertypes:          { codec: "list",    reset: ZONE },
+    colorOverride:              { codec: "list",    reset: DEPART },
+    colorOverrideSeq:           { codec: "defined", reset: DEPART },
+    grantedColors:              { codec: "list",    reset: DEPART },
+    colorSet:                   { codec: "scalar",  reset: DEPART },
+    grantedSupertypes:          { codec: "list",    reset: DEPART },
+    removedSupertypes:          { codec: "list",    reset: DEPART },
     copyExcept:                 { codec: "scalar",  reset: NONE },
     copiedFrom:                 { codec: "scalar",  reset: NONE },
     copyOptions:                { codec: "scalar",  reset: NONE },
@@ -333,6 +354,11 @@ const RESET_KEYS: {
     "zone-change": CARD_FIELD_KEYS.filter((key) =>
         (CARD_FIELD_LIFECYCLE[key].reset as readonly CardFieldReset[]).includes(
             "zone-change"
+        )
+    ),
+    departure: CARD_FIELD_KEYS.filter((key) =>
+        (CARD_FIELD_LIFECYCLE[key].reset as readonly CardFieldReset[]).includes(
+            "departure"
         )
     ),
     stack: CARD_FIELD_KEYS.filter((key) =>
