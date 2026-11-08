@@ -500,6 +500,29 @@ cards that already play.
   Target takes 2 the cube lends `P1` and the premodern pool lends `P2`. The
   metagame's umbrellas stay in `BAND_UMBRELLAS` and lend nothing.
 
+### A grammar gap on a playable card lends no band — Amendment X (issue #8945, 2026-11-08)
+
+The owner's ruling (2026-11-08, after PR #8940): the twelve
+`[Cluster] grammar: vintage-cube tail` claim holders (issue #8493 – issue
+#8504) "are not needed to make vintage cube playable, only to widen the
+grammar". Amendment V still holds — a gap's band is the band of the Target its
+cards serve — but a **hand-written** card is already served: it plays. So a
+`grammar` gap's band is computed over its reached cards **minus the
+playable ones** (`gapCardBand`, `poolOracleIds()`; `claimedCards` drops them
+for `backlog:triage`). One whose ranked cards are all playable takes
+`LOWEST_RANKED_TARGET` explicitly, its family's fallback umbrella (Grammar
+Rules — format-premodern, issue #4094), so `planMove` moves an existing issue
+there and a cluster's band-raise votes that band.
+
+- **Only `grammar`.** A quarantined card (`mechanic`, `scenario`) is not
+  playable; a playable card the Bot ignores (`bot`) still blocks its Target's
+  Bot-play clause; a `hand-tail` card is unparsed and unwritten. Their bands
+  are unchanged.
+- **The Coverage Invariant is unchanged.** A playable card's above-floor gap
+  still owes its claim (`gap-pending`); only the claim's band moves.
+- **`(op) › <Op>` keys** reach hand-written Op users by construction, so the
+  Op-census grammar gaps fall to the fallback too — the same rule.
+
 ### Format Tiers
 
 What a player is told about a format is derived from the Target registry,

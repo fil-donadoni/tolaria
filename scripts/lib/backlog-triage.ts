@@ -81,7 +81,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PRD_ISSUE } from "./gap-issues";
+import { LOWEST_RANKED_TARGET, PRD_ISSUE } from "./gap-issues";
 import { cardsNamedByTitle } from "./gap-kinds";
 import type { BoardPriority } from "./board-priority";
 import {
@@ -292,12 +292,44 @@ export function strongestCardBand(
 }
 
 /**
+ * The band a PARTITIONED gap of `kind` takes from the cards it reaches —
+ * {@link strongestCardBand}, except that a `grammar` gap's ALREADY-PLAYABLE
+ * cards (hand-written: `playable`) lend nothing (issue #8945). Such a card is
+ * served; the rule only widens the grammar. A `grammar` gap whose ranked cards
+ * are all playable takes the lowest-ranked Target ({@link LOWEST_RANKED_TARGET})
+ * explicitly — not residue — so an existing issue moves there and a cluster's
+ * band-raise votes that band. `mechanic` / `scenario` (a quarantined card is
+ * not playable), `bot` (a playable card the Bot ignores still blocks its
+ * Target) and `hand-tail` (an unparsed, unwritten card) are unchanged.
+ */
+export function gapCardBand(
+    kind: string,
+    cards: Iterable<string>,
+    index: ReadonlyMap<string, CardBand>,
+    playable: ReadonlySet<string>,
+    bandOf: (targetId: string) => Band | null = targetBand
+): CardBand | null {
+    if (kind !== "grammar") return strongestCardBand(cards, index);
+    const all = [...cards];
+    const unserved = strongestCardBand(
+        all.filter((id) => !playable.has(id)),
+        index
+    );
+    if (unserved !== null || strongestCardBand(all, index) === null)
+        return unserved;
+    const band = bandOf(LOWEST_RANKED_TARGET);
+    return band === null ? null : { band, target: LOWEST_RANKED_TARGET };
+}
+
+/**
  * The cards each issue UNLOCKS through the claims it settles — one claim row,
  * one issue (`data/grammar-gaps.json`), resolved on the lockfile with the same
  * key scheme the filer used:
  *
  *   - `grammar` — the cards whose lockfile gaps carry the key (an Op-census
- *     `(op) › …` key carries none by construction, issue #3974);
+ *     `(op) › …` key carries none by construction, issue #3974), minus the
+ *     `playable` (hand-written) ones: those are served, and lend no band
+ *     ({@link gapCardBand}, issue #8945);
  *   - `mechanic` / `scenario` — the cards whose quarantine reasons map to the
  *     class (`quarantineClass`);
  *   - `hand-tail` — the card the key names, if the lockfile resolves it.
@@ -309,7 +341,8 @@ export function claimedCards(
     claims: readonly ClaimRow[],
     lock: Pick<Lockfile, "cards">,
     gapKeys: (row: CardRow) => readonly string[],
-    byName: (name: string) => string | undefined
+    byName: (name: string) => string | undefined,
+    playable: ReadonlySet<string> = new Set()
 ): Map<number, Set<string>> {
     const wanted = new Map<string, number[]>();
     for (const claim of claims) {
@@ -325,7 +358,9 @@ export function claimedCards(
         }
     };
     for (const row of lock.cards) {
-        for (const key of gapKeys(row)) add(`grammar\t${key}`, row.oracleId);
+        if (!playable.has(row.oracleId))
+            for (const key of gapKeys(row))
+                add(`grammar\t${key}`, row.oracleId);
         for (const reason of row.quarantineReasons ?? []) {
             const cls = quarantineClass(reason);
             add(`${cls.kind}\t${cls.key}`, row.oracleId);

@@ -241,18 +241,29 @@ export function buildGraduates(
     }));
 }
 
-export function buildCoverageContext(
-    root: string,
-    lock: Pick<Lockfile, "cards" | "fragments">,
-    registry: TargetRegistry,
-    resolve: ResolveContext
-): CoverageContext {
+/**
+ * The hand-written (playable, not compiled) oracle ids — `poolOracleIds()`,
+ * refusing an empty read: a missing `data/card-index.json` would silently
+ * shrink the playable figure and, for a grammar gap's band (issue #8945),
+ * silently restore the band of cards that already play.
+ */
+export function handWrittenOracleIds(): Set<string> {
     const handWritten = poolOracleIds();
     if (handWritten.size === 0)
         throw new Error(
             "no hand-written cards read (data/card-index.json missing?); the playable " +
                 "figure would shrink silently — run: bun run check:index"
         );
+    return handWritten;
+}
+
+export function buildCoverageContext(
+    root: string,
+    lock: Pick<Lockfile, "cards" | "fragments">,
+    registry: TargetRegistry,
+    resolve: ResolveContext
+): CoverageContext {
+    const handWritten = handWrittenOracleIds();
     return {
         floor: registry.handTailFloor,
         handWritten,
