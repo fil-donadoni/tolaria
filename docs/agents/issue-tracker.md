@@ -4,7 +4,8 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Create an issue**: write the body to a file, then `gh issue create --title "..." --body-file <path>`.
+- **Every `ready-for-agent` or claimed issue declares its blast radius** — a `## Target files` heading with paths or globs under it (coarse is fine; a plain `Target files:` line is not read). Enforced, not advised (issue #8937): `deny-guard.sh` § 8 refuses `gh issue create` with `ready-for-agent` and no readable radius (or an inline `--body`), and `gh issue edit` adding `ready-for-agent`/`in-progress` to such an issue; `wt:new` refuses to branch one. Owner hatch: `TOLARIA_ALLOW_UNKNOWN_RADIUS=1`.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
