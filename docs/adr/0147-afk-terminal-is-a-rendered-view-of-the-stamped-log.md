@@ -11,6 +11,8 @@ accepted — grilled 2026-09-26 (PRD #4717). Amends ADR 0099 and the issue
 byte-identical" holds for the LOG only. First slice: issue #4721; the
 `--session-id` binding ships with issue #4722.
 
+Superseded by ADR 0156 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 `bun run loop:afk` runs the driver in the foreground (issue #4389) and pipes

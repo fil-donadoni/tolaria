@@ -1,5 +1,7 @@
 # What the colour-coverage axis bought the verdict corpus (issue #3534, PRD #3526)
 
+> **Dated:** 2026-09-13 (first commit); last edited at `d6452e819` (2026-09-16). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 **Question.** Issue #3532 shipped `colorCoverage` — the first evaluation term
 that knows mana has colours. What did it change on the corpus that is supposed
 to measure the evaluation: how many pairs stopped being BLIND (identical

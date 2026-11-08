@@ -1,5 +1,7 @@
 # Clause-level grammar coverage census
 
+> **Dated:** 2026-09-25 (first commit); last edited at `cf1df22a2` (2026-09-25). Every number below is as of that date and was not re-measured when this banner was added (issue #8699).
+
 Issue #3849. Measurements only, each with the command that produced it. No
 opinion on what to build next — that is the next ticket's job.
 

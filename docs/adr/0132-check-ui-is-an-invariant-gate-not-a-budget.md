@@ -11,6 +11,8 @@ mandatory-verification norms untouched: the lane is still owed by every diff
 that can reach the DOM, at five viewports, with a byte-exact receipt that
 `land` re-derives.
 
+Amended by ADR 0168 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 The lane shipped on 2026-08-19 (issue #2580) as a **budget**: thirteen counts

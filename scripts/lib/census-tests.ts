@@ -89,6 +89,10 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     },
     // docs/adr/ — every ADR has its index row
     { test: "scripts/__tests__/adr-index.test.ts", admits: /^docs\/adr\// },
+    {
+        test: "scripts/__tests__/research-banner.test.ts",
+        admits: /^docs\/research\//,
+    },
     // scripts/**/*.ts — no module but the lockfile's own reads the fragment table
     // (issue #6169); the file's other blocks are import-reached anyway
     {

@@ -6,6 +6,8 @@ _Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (mechanics
 
 accepted (2026-07-26)
 
+Amended by ADR 0167 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 The Bot Drafter's Pick Heuristic (`convex/limited/botDrafter.ts`, ADR 0054) scores

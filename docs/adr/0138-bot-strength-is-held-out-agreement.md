@@ -12,6 +12,8 @@ change that shifts every decision a little); ADR 0070's admission criterion,
 ADR 0124 (Verdicts → fit → report) and ADR 0128 (store, lock, promotion)
 stand and are built on.
 
+Amended by ADR 0148 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+
 ## Context
 
 Roadmap v2 made the Ladder the Brain's strength metric. Measured since: a
