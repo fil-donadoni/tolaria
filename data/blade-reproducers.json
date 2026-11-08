@@ -2690,6 +2690,117 @@
         "landCount": 2,
         "libraryCount": 20
     },
+    "keep mana open: casts Tamiyo's Safekeeping in response to removal aimed at its creature": {
+        "cards": [
+            {
+                "name": "Undercity Sewers",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Starting Town",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Godless Shrine",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Underground Mortuary",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Force of Will",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mana Leak",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Celestial Colonnade",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Spara's Headquarters",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Gaea's Cradle",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Adeline, Resplendent Cathar",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "The One Ring",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Tamiyo's Safekeeping",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "activePlayer": "me",
+        "turn": 11,
+        "life": {
+            "me": 14,
+            "opp": 20
+        },
+        "priority": "opp",
+        "passCount": 1,
+        "landsPlayed": {
+            "me": 1
+        },
+        "libraryCount": 20,
+        "stack": [
+            {
+                "kind": "spell",
+                "name": "Doom Blade",
+                "controller": "me",
+                "targets": [
+                    {
+                        "kind": "permanent",
+                        "name": "Adeline, Resplendent Cathar",
+                        "seat": "opp"
+                    }
+                ]
+            }
+        ]
+    },
     "keep-N edict: casts Balance at two lands and no creatures against five lands and two creatures": {
         "cards": [
             {
