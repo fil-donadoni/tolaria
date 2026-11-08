@@ -43,6 +43,7 @@ import { registerTokenDefinition } from "../../..";
 import { additionalCostPaidCondition } from "../../../abilities/triggers/shared";
 import type { TargetSelection, PermanentView } from "../../../types";
 import { getDefinition } from "../../../index";
+import { withTemporaryDefinition } from "../../../registry";
 
 const amphibiousKavu = getDefinition("37d94fb2-958c-487e-9f64-52d2771c6ea4");
 const magnigothTreefolk = getDefinition("90c2869b-43cf-4d5e-8a54-9ae200f5bff9");
@@ -1919,5 +1920,111 @@ describe("Source-scoped prevention shields win the CR 616.1 ordering choice (iss
         // shield is prospective only (CR 615.1: "the next time … would deal
         // damage"), so the FIRST hit's life loss is not healed back.
         expect(state.players[0].life).toBe(17);
+    });
+});
+
+describe("Gaea's Herald ({1}{G} 1/1 — creature spells can't be countered, CR 701.6a / 101.2)", () => {
+    const gaeasHerald = getDefinition("aa52bc97-109a-4de5-b287-bce21dad6a9c");
+    const counterspell = getDefinition("0df55e3f-14de-46ef-b6b1-616618724d9e");
+    const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+    const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+
+    function heraldState(
+        heraldOverrides: Partial<CardInstanceState> = {},
+        heraldCardId: string = gaeasHerald.id
+    ): GameState {
+        const herald = makeInstance(heraldCardId, {
+            id: "herald",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...heraldOverrides,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [herald] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** `caster`'s spell, then the OTHER player's Counterspell on top of it. */
+    function castThenCounter(
+        state: GameState,
+        spellCardId: string,
+        caster: "p1" | "p2",
+        targets: StackItem["targets"] = []
+    ): StackItem {
+        const spell = pushSpell(state, spellCardId, caster, targets);
+        pushSpell(state, counterspell.id, caster === "p1" ? "p2" : "p1", [
+            { type: "spell", id: spell.id },
+        ]);
+        return spell;
+    }
+
+    it("an opponent's creature spell survives a Counterspell while the Herald is on the battlefield", () => {
+        const state = heraldState();
+        const bears = castThenCounter(state, grizzlyBears.id, "p2");
+        resolveTopOfStack(state);
+        expect(state.stack.map((s) => s.id)).toEqual([bears.id]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("the same Counterspell counters the creature spell once the Herald has left the battlefield", () => {
+        const state = heraldState();
+        const bears = castThenCounter(state, grizzlyBears.id, "p2");
+        state.players[0].battlefield = [];
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bears.id)).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(bears.id);
+    });
+
+    it("a noncreature spell is still counterable under the Herald", () => {
+        const state = heraldState();
+        const bolt = castThenCounter(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
+
+    it("a Herald that has lost all its abilities protects nothing (CR 613.1f)", () => {
+        const state = heraldState({
+            abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
+        });
+        const bears = castThenCounter(state, grizzlyBears.id, "p2");
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bears.id)).toBeUndefined();
+    });
+
+    it('"Spells you control" (controlledBy: "controller") covers the source controller\'s spells only (CR 601.2a)', () => {
+        const yoursOnly = {
+            ...gaeasHerald,
+            id: "test-spells-you-control-cant-be-countered",
+            staticEffects: [
+                {
+                    kind: "spell-counter-immunity" as const,
+                    id: "spells-you-control",
+                    controlledBy: "controller" as const,
+                    oracleText: "Spells you control can't be countered.",
+                },
+            ],
+        };
+        withTemporaryDefinition(yoursOnly, () => {
+            const mine = heraldState({}, yoursOnly.id);
+            const myBolt = castThenCounter(mine, lightningBolt.id, "p1", [
+                { type: "player", id: "p2" },
+            ]);
+            resolveTopOfStack(mine);
+            expect(mine.stack.map((s) => s.id)).toEqual([myBolt.id]);
+
+            const theirs = heraldState({}, yoursOnly.id);
+            const theirBolt = castThenCounter(theirs, lightningBolt.id, "p2", [
+                { type: "player", id: "p1" },
+            ]);
+            resolveTopOfStack(theirs);
+            expect(
+                theirs.stack.find((s) => s.id === theirBolt.id)
+            ).toBeUndefined();
+        });
     });
 });

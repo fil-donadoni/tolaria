@@ -153,6 +153,7 @@ export const STATIC_EFFECT_READS: Record<
     "cast-permission": [],
     "target-choice-requirement": [],
     "activation-restriction": [],
+    "spell-counter-immunity": [],
 };
 
 /** CR 604.3 — the `StaticEffect` kinds that generate a CHARACTERISTIC-DEFINING

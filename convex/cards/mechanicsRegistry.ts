@@ -2921,6 +2921,16 @@ const RULES_MODIFIERS: MechanicRow[] = [
         note: "CR 602.5: \"A player can't begin to activate an ability that's prohibited from being activated.\" The prohibition imposed from OUTSIDE the ability, by a permanent: \"Activated abilities of <permanents> can't be activated\" (Cursed Totem — creatures; Null Rod / Collector Ouphe — artifacts). A battlefield-scanned static read live, like `cast-restriction`: nothing is materialized, so the lock ends when its source leaves or loses its abilities (CR 611.3b, 613.1f). Declarative: a `PermanentFilter` over battlefield permanents (CR 109.2 — a typed description with no zone means a permanent), matched by `matchesPermanentFilter` with the source as `self`, and `exemptManaAbilities` for the \"unless they're mana abilities\" family. Mana abilities are activated abilities (CR 605.1a), so without the exemption they are locked too, intrinsic basic-land mana (CR 305.6) included. ONE predicate, two funnels: non-mana activations read it through `activationPreconditionViolation` (server mutations, the Bot's `enumerateAbilityMoves`, the client `getStackAbilities`); mana activations through the tap-option list (`getManaTapOptionsDetailed` returns none, so auto-tap, the castability census and the Bot's payment planner never commit the source) plus an explicit refusal in each tap mutation. The client reads the same predicate off `buildTriggerStateView`, whose rows carry `card` and `abilitiesSuppressedBy` for it (ADR 0074). Not yet: the chosen-name scope of Pithing Needle (sources in any zone), which waits for its card to show the axis.",
     },
     {
+        id: "spell-counter-immunity",
+        name: "Spell Counter Immunity",
+        kind: "rules-modifier",
+        cr: "701.6a",
+        status: "implemented",
+        binding:
+            'StaticEffect kind "spell-counter-immunity" (cards/types.ts StaticSpellCounterImmunity) + gre/spellCounterImmunity.ts (spellCounterImmunitySource) + gre/state.ts (SpellContext.counter)',
+        note: 'CR 701.6a: "To counter a spell or ability means to cancel it, removing it from the stack." CR 101.2: the "can\'t" effect takes precedence over the instruction to counter. A PERMANENT\'s continuous ability covering a CLASS of spells — Gaea\'s Herald ("Creature spells can\'t be countered.", any player\'s spells) and the "Spells you control can\'t be countered" family (`controlledBy: "controller"`, CR 601.2a: the caster controls the spell). Declarative: `spells` is an ordinary `SpellFilter` matched by the single `matchesSpellFilter` authority against the spell\'s CURRENT stack characteristics (absent = every spell). Read live at the ONE counter choke point, `SpellContext.counter()`, beside the two per-spell carriers (`CardDefinition.cantBeCountered`, CR 113.6g; `StackItem.dynamicCantBeCountered`, the mana rider): nothing is stamped on the spell, so a spell already on the stack becomes counterable the moment the source leaves the battlefield or loses its abilities (CR 611.3b, 613.1f). Targeting is untouched — a counterspell still targets the covered spell and simply fails to counter it. Abilities are never covered (CR 113.9). Server-only: the client never decides a counter, and the board shows the source permanent.',
+    },
+    {
         id: "damage-as-counters",
         name: "Damage As Counters",
         kind: "rules-modifier",
