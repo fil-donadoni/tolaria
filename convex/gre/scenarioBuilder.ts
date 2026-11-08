@@ -2372,6 +2372,10 @@ function seedDeclaredStack(
         }
         const item = state.stack[base + index];
         item.resolutionStep = entry.resolution.step;
+        // CR 608.2 — a trigger partway through resolving has already
+        // been tallied: the count rides on its source card's entry, seeded
+        // above, so the resume must not record it a second time.
+        if (entry.kind === "trigger") item.abilityResolutionRecorded = true;
         const collected = rebuildCollectedChoices(entry.resolution, {
             object: (ref) =>
                 ref.zone === "stack" && ref.index === index
@@ -3850,11 +3854,20 @@ export const STACK_DROPPED_PREFIX = "stack:";
  * it by name wherever it cannot (a non-top object, answers with no checkpoint,
  * an answer the spec cannot place): never excused, always either carried or
  * reported.
+ *
+ * `abilityResolutionRecorded` (CR 608.2) belongs to the same group: a
+ * trigger's per-turn resolution tally is incremented once, as it starts to
+ * resolve, and the flag stops a resume from incrementing it again. The tally
+ * itself rides on the source card's entry (`lowerAbilityResolutions`), so the
+ * flag is not a fact of its own — it is TRUE exactly when the trigger is
+ * partway through resolving. The rebuild re-derives it from the checkpoint,
+ * and `lowerStack` refuses it by name on an item that lowers none.
  */
 const STACK_ITEM_ALLOWLIST = new Set<string>([
     // 4 — the resolution checkpoint, lowered by `lowerStack` (top object only).
     "resolutionStep",
     "collectedChoices",
+    "abilityResolutionRecorded",
     // 1 — structural.
     "id",
     "card",
@@ -4421,6 +4434,24 @@ function lowerStack(
                     }
                 }
             }
+        }
+
+        // CR 608.2 — the "already tallied" flag is rebuilt from the
+        // checkpoint (`buildStateFromScenario` sets it on a trigger that
+        // declares one), so it must agree with it: set with no checkpoint
+        // lowered, or a trigger checkpoint without it, would rebuild a
+        // resolution counted a different number of times.
+        if (
+            isTrigger &&
+            (item.abilityResolutionRecorded === true) !==
+                (resolution !== undefined)
+        ) {
+            refuse(
+                index,
+                label,
+                "abilityResolutionRecorded",
+                "its resolution tally flag does not match a lowered checkpoint — the rebuild re-derives the flag from the checkpoint, and the per-turn tally on its source counts the resolution once (CR 608.2)"
+            );
         }
 
         const controller = seatOf(item.castById);
