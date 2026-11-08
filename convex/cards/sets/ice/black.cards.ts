@@ -1119,6 +1119,8 @@ export const hecatomb = defineCard(() => ({
 // Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
 // end of turn." (CR 611.2a negative pump + CR 702.9 flying grant.) Pay {0} to
 // trade power for evasion.
+//
+// compiler-gap: "{0}: This creature gets -1/-0 and gains flying until end of turn." (#8573)
 export const hyalopterousLemure = defineCard(() => ({
     id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
     name: "Hyalopterous Lemure",
