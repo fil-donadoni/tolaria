@@ -28214,6 +28214,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fire Sages",
+        "scryfallId": "71a9fa44-306f-417a-a9d9-991aff95025c",
+        "oracleId": "08d1940a-ddc6-4b6d-b6c9-9d2aa470b906",
+        "firstSet": "tla",
+        "firstPrintId": "71a9fa44-306f-417a-a9d9-991aff95025c",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fire Snake",
         "scryfallId": "d4c36e32-59e8-4e3d-903e-a264211f2a82",
         "oracleId": "e96542ed-1931-4da1-9d9e-d10878c4ae6b",
@@ -46929,6 +46939,16 @@
         "source": "compiled"
     },
     {
+        "name": "Loyal Fire Sage",
+        "scryfallId": "1126b572-1cac-44aa-8fec-e2c72a9fea47",
+        "oracleId": "0c052420-2d8b-4bbf-8197-b8a36e7208c9",
+        "firstSet": "tle",
+        "firstPrintId": "1126b572-1cac-44aa-8fec-e2c72a9fea47",
+        "firstPrintSet": "tle",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Loyal Warhound",
         "scryfallId": "f408c5e4-e18d-4e4d-959a-f41df4c3019c",
         "oracleId": "cc6a83c7-e645-4a53-9550-be79b42cd851",
@@ -47665,6 +47685,16 @@
         "firstSet": "lea",
         "firstPrintId": "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Mai and Zuko",
+        "scryfallId": "4b50fe92-e596-4949-929b-54ae25a7992c",
+        "oracleId": "b86ba0aa-89f3-4924-b3c4-f7ca44468e9b",
+        "firstSet": "tle",
+        "firstPrintId": "4b50fe92-e596-4949-929b-54ae25a7992c",
+        "firstPrintSet": "tle",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Majestic Heliopterus",
@@ -85448,6 +85478,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tundra Tank",
+        "scryfallId": "13c66fce-8f8e-4a98-8413-9f05aebf6e13",
+        "oracleId": "2ded4b02-7aa4-46a1-b10f-8480eb942cd4",
+        "firstSet": "tla",
+        "firstPrintId": "13c66fce-8f8e-4a98-8413-9f05aebf6e13",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Tundra Wall",
         "scryfallId": "49ae7f36-4b37-415e-ab39-5fa1e3f2e3e9",
         "oracleId": "68df4c46-513a-4d75-9d4b-ac95d45be255",
@@ -88735,6 +88775,16 @@
         "firstPrintId": "7c0bfb47-c753-42fa-969b-7b10b87b0462",
         "firstPrintSet": "rna",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Vindictive Warden",
+        "scryfallId": "0f34de05-39a9-425f-a3b4-3a9d46c917ac",
+        "oracleId": "43b339ec-4d7d-41ac-a5ab-96c6a6de00e2",
+        "firstSet": "tla",
+        "firstPrintId": "0f34de05-39a9-425f-a3b4-3a9d46c917ac",
+        "firstPrintSet": "tla",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -94715,6 +94765,26 @@
         "firstPrintId": "90b5d4f1-273b-4293-8bc4-fcb29331e9da",
         "firstPrintSet": "tle",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Zuko, Exiled Prince",
+        "scryfallId": "6a73b372-9c0e-4a85-89d2-440163330687",
+        "oracleId": "3231ce2e-d4f8-44fc-872d-aeafa59aed4b",
+        "firstSet": "tla",
+        "firstPrintId": "6a73b372-9c0e-4a85-89d2-440163330687",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Zuko, Seeking Honor",
+        "scryfallId": "365fa3f6-a210-4342-9413-fcb7812ff4f4",
+        "oracleId": "6e737c52-cbe0-493f-ae46-7bf068e04882",
+        "firstSet": "tle",
+        "firstPrintId": "365fa3f6-a210-4342-9413-fcb7812ff4f4",
+        "firstPrintSet": "tle",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

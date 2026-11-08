@@ -8622,10 +8622,6 @@
         {"key":"6a9e934a0350","text":"Find New Host — {2}{U/B}, Exile this card from your graveyard: Put a +1/+1 counter on target creature you control. It gains this card's other abilities. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Find New Host — {2}{U/B}"}},
         {"key":"5009697075ea","text":"Fire Cross — Whenever {self} deals combat damage to a player, you may cast target instant or sorcery card with mana value 3 or less from your graveyard without paying its mana cost. If that spell would be put into your graveyard, exile it instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"You may cast target instant or sorcery card with mana value 3 or less from your graveyard without paying its mana cost"}},
         {"key":"ab5eba4b9979","text":"Fire a Nerf® blaster until empty at target library from at least two meters away. For each card knocked off that library, put it into its owner's graveyard and {self} deals ½ damage to that player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Fire a Nerf® blaster until empty at target library from at least two meters away"}},
-        {"key":"7f9876ea7fc6","text":"Firebending 1","reason":"no slot consumed the line","cards":9,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending 1"}},
-        {"key":"cc74043aaa5d","text":"Firebending 2","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending 2"}},
-        {"key":"e70cac5675b2","text":"Firebending 3","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending 3"}},
-        {"key":"70df989fe148","text":"Firebending 4","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending 4"}},
         {"key":"d73c1e70a6b5","text":"Firebending X, where X is Fire Lord Zuko's power.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending X"}},
         {"key":"36ad3d5a41fd","text":"Firebending X, where X is the number of creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending X"}},
         {"key":"6ac450087c06","text":"Firebending X, where X is the number of experience counters you have.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Firebending X"}},
@@ -32186,7 +32182,7 @@
 
         {"oracleId":"08d02fdb-4b3f-4f55-b5fc-6bb4d2a14b1f","name":"Azorius First-Wing","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Azorius First-Wing","types":["Creature"],"subtypes":["Griffin"],"manaCost":{"W":1,"U":1},"power":2,"toughness":2,"oracleText":"Flying, protection from enchantments","staticAbilities":["flying","protection from enchantments"]},"botReach":"played"},
 
-        {"oracleId":"08d1940a-ddc6-4b6d-b6c9-9d2aa470b906","name":"Fire Sages","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7f9876ea7fc6"]},
+        {"oracleId":"08d1940a-ddc6-4b6d-b6c9-9d2aa470b906","name":"Fire Sages","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["counters"],"definition":{"name":"Fire Sages","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"R":1},"power":2,"toughness":2,"oracleText":"Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{1}{R}{R}: Put a +1/+1 counter on this creature.","staticAbilities":["firebending 1"],"activatedAbilities":[{"id":"fire-sages-ability","oracleText":"{1}{R}{R}: Put a +1/+1 counter on this creature.","cost":{"mana":{"X":1,"R":2}},"useStack":true,"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"08d1a5d1-141d-48e3-ac22-c2529191cb13","name":"Reya Dawnbringer","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["if","mayPay","moveZone"],"definition":{"name":"Reya Dawnbringer","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Angel"],"manaCost":{"X":6,"W":3},"power":4,"toughness":6,"oracleText":"Flying\nAt the beginning of your upkeep, you may return target creature card from your graveyard to the battlefield.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"reya-dawnbringer-trigger","oracleText":"At the beginning of your upkeep, you may return target creature card from your graveyard to the battlefield.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"mayPay","player":"controller","prompt":"Return target creature card from your graveyard to the battlefield?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"moveZone","target":{"target":0},"to":"battlefield"}]}]}]},"botReach":"played"},
 
@@ -33044,7 +33040,7 @@
 
         {"oracleId":"0c017406-7fc3-4701-93ec-ddb02044c12a","name":"Piety","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["ee05017bbf4f"]},
 
-        {"oracleId":"0c052420-2d8b-4bbf-8197-b8a36e7208c9","name":"Loyal Fire Sage","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7f9876ea7fc6"]},
+        {"oracleId":"0c052420-2d8b-4bbf-8197-b8a36e7208c9","name":"Loyal Fire Sage","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["createToken"],"definition":{"name":"Loyal Fire Sage","types":["Creature"],"subtypes":["Human","Cleric","Ally"],"manaCost":{"X":2,"R":1},"power":3,"toughness":3,"oracleText":"Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{5}: Create a 1/1 white Ally creature token.","staticAbilities":["firebending 1"],"activatedAbilities":[{"id":"loyal-fire-sage-ability","oracleText":"{5}: Create a 1/1 white Ally creature token.","cost":{"mana":{"X":5}},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Ally","types":["Creature"],"subtypes":["Ally"],"power":1,"toughness":1,"colors":["W"]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"0c061a1b-206a-4fcc-92e5-30c8ed9d65c1","name":"Artistic Process","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["228b86ed93ab"]},
 
@@ -38908,7 +38904,7 @@
 
         {"oracleId":"21570481-190e-4cfa-a5fd-a0642e2af569","name":"Glaring Spotlight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["af0057565b8a","c5b2b9221952"]},
 
-        {"oracleId":"2158c73d-421b-4c94-af06-dd89cb8d3126","name":"Jeong Jeong, the Deserter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["267170aba229","7f9876ea7fc6"]},
+        {"oracleId":"2158c73d-421b-4c94-af06-dd89cb8d3126","name":"Jeong Jeong, the Deserter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["267170aba229"]},
 
         {"oracleId":"2158fb0d-c199-4cb1-848c-077113348980","name":"Syr Faren, the Hengehammer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ca77f08a17fa"]},
 
@@ -40196,7 +40192,7 @@
 
         {"oracleId":"262e1cf6-61c8-444d-a71b-050eebcaf932","name":"Lurking Green Dragon","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["cccb156165d9"]},
 
-        {"oracleId":"2631130e-63e2-43a3-914a-648e76722203","name":"Fire Lord Azula","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["39874992d9fb","cc74043aaa5d"]},
+        {"oracleId":"2631130e-63e2-43a3-914a-648e76722203","name":"Fire Lord Azula","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["39874992d9fb"]},
 
         {"oracleId":"263408e6-b315-4af5-8cb8-3fd1aa88e48c","name":"Archetype of Aggression","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["73919c6f2018"]},
 
@@ -42140,7 +42136,7 @@
 
         {"oracleId":"2debd9f1-6d3a-4f0a-8488-603447c44490","name":"Settle Beyond Reality","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b3f1aed327a3"]},
 
-        {"oracleId":"2ded4b02-7aa4-46a1-b10f-8480eb942cd4","name":"Tundra Tank","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7f9876ea7fc6"]},
+        {"oracleId":"2ded4b02-7aa4-46a1-b10f-8480eb942cd4","name":"Tundra Tank","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["animate","grantAbility"],"definition":{"name":"Tundra Tank","types":["Artifact"],"subtypes":["Vehicle"],"manaCost":{"X":2,"B":1},"oracleText":"Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\nWhen this Vehicle enters, target creature you control gains indestructible until end of turn.\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)","staticAbilities":["firebending 1","crew 1"],"activatedAbilities":[{"id":"tundra-tank-crew","oracleText":"Crew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)","cost":{"tapOtherFilter":{"filter":{"types":"Creature","controllerRelation":"you"},"totalPower":1}},"useStack":true,"animatesSelf":true,"effects":[{"op":"animate","target":{"ref":"$source"},"power":4,"toughness":4,"duration":{"phase":"end-of-turn"}}]}],"compiledTriggeredAbilities":[{"id":"tundra-tank-trigger","oracleText":"When this Vehicle enters, target creature you control gains indestructible until end of turn.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"controller":"you"},"effects":[{"op":"grantAbility","target":{"target":0},"ability":"indestructible","duration":{"phase":"end-of-turn"}}]}],"power":4,"toughness":4},"botReach":"played"},
 
         {"oracleId":"2df30a75-4957-4eab-8b0b-4c973f00642d","name":"Westgate Regent","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6e10b4f6a0e8","6e8f699d8d1c"]},
 
@@ -42482,7 +42478,7 @@
 
         {"oracleId":"2f24637d-8d8e-49de-b229-4cdb97595ed7","name":"Beatrix, Loyal General","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b9b402163123"]},
 
-        {"oracleId":"2f26f270-26d9-46d3-957f-19f52d51eb03","name":"The Legend of Roku // Avatar Roku","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["70df989fe148","b39de22f402a","c20073067d10"]},
+        {"oracleId":"2f26f270-26d9-46d3-957f-19f52d51eb03","name":"The Legend of Roku // Avatar Roku","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b39de22f402a","c20073067d10"]},
 
         {"oracleId":"2f292253-64d3-4cf2-881f-a3eea4fda388","name":"Magma Jet","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","scryReorder"],"definition":{"name":"Magma Jet","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Magma Jet deals 2 damage to any target. Scry 2.","effects":[{"op":"dealDamage","amount":2,"to":{"target":0}},{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"}],"targetRequirement":{"type":"any","count":1}},"botReach":"played"},
 
@@ -43364,7 +43360,7 @@
 
         {"oracleId":"322f44f0-e6da-4ee0-b474-e7d5e9a461c5","name":"Morbid Opportunist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e9d1d72d8746"]},
 
-        {"oracleId":"3231ce2e-d4f8-44fc-872d-aeafa59aed4b","name":"Zuko, Exiled Prince","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e70cac5675b2"]},
+        {"oracleId":"3231ce2e-d4f8-44fc-872d-aeafa59aed4b","name":"Zuko, Exiled Prince","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["exileTopOfLibrary","grantCastFromExile"],"definition":{"name":"Zuko, Exiled Prince","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Noble"],"manaCost":{"X":3,"R":1},"power":4,"toughness":3,"oracleText":"Firebending 3 (Whenever this creature attacks, add {R}{R}{R}. This mana lasts until end of combat.)\n{3}: Exile the top card of your library. You may play that card this turn.","staticAbilities":["firebending 3"],"activatedAbilities":[{"id":"zuko-exiled-prince-ability","oracleText":"{3}: Exile the top card of your library. You may play that card this turn.","cost":{"mana":{"X":3}},"useStack":true,"effects":[{"op":"exileTopOfLibrary","player":"controller","count":1,"bindAll":"$exiled1"},{"op":"grantCastFromExile","card":{"ref":"$exiled1"},"player":"controller","window":"this-turn","includesLand":true}]}]},"botReach":"played"},
 
         {"oracleId":"3233af43-7826-4895-b67e-03c6102c2cd5","name":"Kutzil, Malamet Exemplar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["97518b7d526c"]},
 
@@ -45770,7 +45766,7 @@
 
         {"oracleId":"3ac276ca-91d5-4c7d-a355-e56c67ac3ba9","name":"Duergar Mine-Captain","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["787f8aaf2668"]},
 
-        {"oracleId":"3ac94b28-4b0a-4121-99b9-9cd7dff7948c","name":"Rough Rhino Cavalry","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c9407a513b45","cc74043aaa5d"]},
+        {"oracleId":"3ac94b28-4b0a-4121-99b9-9cd7dff7948c","name":"Rough Rhino Cavalry","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c9407a513b45"]},
 
         {"oracleId":"3aca5718-9151-4a5b-b8a3-bfac7abf65ef","name":"Champion's Drake","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["57f3603982f6"]},
 
@@ -48252,7 +48248,7 @@
 
         {"oracleId":"43b164d5-2bff-4a03-a4fa-16ffad7e3164","name":"Providence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10499724ec79","f8aa0a025ff2"]},
 
-        {"oracleId":"43b339ec-4d7d-41ac-a5ab-96c6a6de00e2","name":"Vindictive Warden","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7f9876ea7fc6"]},
+        {"oracleId":"43b339ec-4d7d-41ac-a5ab-96c6a6de00e2","name":"Vindictive Warden","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["dealDamage"],"definition":{"name":"Vindictive Warden","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":2,"hybrid":[["B","R"]]},"power":2,"toughness":3,"oracleText":"Menace (This creature can't be blocked except by two or more creatures.)\nFirebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{3}: This creature deals 1 damage to each opponent.","staticAbilities":["menace","firebending 1"],"activatedAbilities":[{"id":"vindictive-warden-ability","oracleText":"{3}: This creature deals 1 damage to each opponent.","cost":{"mana":{"X":3}},"useStack":true,"effects":[{"op":"dealDamage","amount":1,"to":{"player":"opponent"}}]}]},"botReach":"played"},
 
         {"oracleId":"43b5794a-4ed6-471d-bc45-22fac486895d","name":"Thunderdrum Soloist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8afc7faf3709"]},
 
@@ -52074,7 +52070,7 @@
 
         {"oracleId":"519289a3-31da-473c-a1b2-448857db7195","name":"Farewell to Arms","state":"unparsed","gaps":["25bc9d29f61e","bd0c058a4f93"]},
 
-        {"oracleId":"5193172c-9024-409e-bd9e-0387971d65fe","name":"Boiling Rock Rioter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["178ec363f895","7f9876ea7fc6","91ff2f26ce30"]},
+        {"oracleId":"5193172c-9024-409e-bd9e-0387971d65fe","name":"Boiling Rock Rioter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["178ec363f895","91ff2f26ce30"]},
 
         {"oracleId":"51991d28-137e-4690-a674-d852b904bd1a","name":"Revive","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Revive","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Return target green card from your graveyard to your hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"card","count":1,"colorFilter":"G","zone":"graveyard","controller":"you"}},"botReach":"played"},
 
@@ -60026,7 +60022,7 @@
 
         {"oracleId":"6e6f9269-c72b-4449-9c2d-a720b9bd6f06","name":"Vildin-Pack Outcast // Dronepack Kindred","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump","transform"],"definition":{"name":"Vildin-Pack Outcast","types":["Creature"],"subtypes":["Werewolf","Horror"],"manaCost":{"X":4,"R":1},"power":4,"toughness":4,"oracleText":"Trample\n{R}: This creature gets +1/-1 until end of turn.\n{5}{R}{R}: Transform this creature.","staticAbilities":["trample"],"activatedAbilities":[{"id":"vildin-pack-outcast-ability","oracleText":"{R}: This creature gets +1/-1 until end of turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":-1,"duration":{"phase":"end-of-turn"}}]},{"id":"vildin-pack-outcast-ability-2","oracleText":"{5}{R}{R}: Transform this creature.","cost":{"mana":{"X":5,"R":2}},"useStack":true,"effects":[{"op":"transform","target":{"ref":"$source"}}]}],"backFace":{"name":"Dronepack Kindred","types":["Creature"],"subtypes":["Eldrazi","Werewolf"],"power":5,"toughness":7,"staticAbilities":["trample"],"activatedAbilities":[{"id":"dronepack-kindred-ability","oracleText":"{1}: This creature gets +1/+0 until end of turn.","cost":{"mana":{"X":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}],"oracleText":"Trample\n{1}: This creature gets +1/+0 until end of turn."}},"botReach":"played"},
 
-        {"oracleId":"6e737c52-cbe0-493f-ae46-7bf068e04882","name":"Zuko, Seeking Honor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7f9876ea7fc6"]},
+        {"oracleId":"6e737c52-cbe0-493f-ae46-7bf068e04882","name":"Zuko, Seeking Honor","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters","grantAbility"],"definition":{"name":"Zuko, Seeking Honor","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Noble"],"manaCost":{"X":2,"hybrid":[["B","R"]]},"power":2,"toughness":2,"oracleText":"Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\nWhenever you cast a noncreature spell, Zuko gains first strike until end of turn.\nWhenever Zuko deals combat damage to a player, put a +1/+1 counter on him.","staticAbilities":["firebending 1"],"compiledTriggeredAbilities":[{"id":"zuko-seeking-honor-trigger","oracleText":"Whenever you cast a noncreature spell, {self} gains first strike until end of turn.","head":{"kind":"spell-cast","scope":"you","filter":{"excludeTypes":["Creature"]}},"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"first strike","duration":{"phase":"end-of-turn"}}]},{"id":"zuko-seeking-honor-trigger-2","oracleText":"Whenever {self} deals combat damage to a player, put a +1/+1 counter on him.","head":{"kind":"combat-damage-to-player"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"6e743fbf-b5b6-4176-a4f2-6933f521f2fe","name":"New Benalia","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability","static","triggered"],"opsUsed":["scryReorder"],"definition":{"name":"New Benalia","types":["Land"],"oracleText":"This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W}.","activatedAbilities":[{"id":"new-benalia-mana","oracleText":"{T}: Add {W}.","cost":{"tap":true},"useStack":false,"manaProduced":{"W":1}}],"compiledTriggeredAbilities":[{"id":"new-benalia-trigger","oracleText":"When this land enters, scry 1.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"scryReorder","player":"controller","count":1,"destination":"library-bottom"}]}],"entersTapped":true},"botReach":"played"},
 
@@ -60830,7 +60826,7 @@
 
         {"oracleId":"71393988-ad6f-43fd-9978-c0de15ae8e87","name":"Forgotten Monument","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["72fa2da7219f"]},
 
-        {"oracleId":"7139ead5-86f0-46ae-8a6d-ad66d0408f73","name":"Azula, Ruthless Firebender","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["28a633a21e48","7f9876ea7fc6","c1b722cc826d"]},
+        {"oracleId":"7139ead5-86f0-46ae-8a6d-ad66d0408f73","name":"Azula, Ruthless Firebender","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["28a633a21e48","c1b722cc826d"]},
 
         {"oracleId":"713bcfb6-e5ea-411e-b4b3-52e5eed5cdf1","name":"Sanctuary Warden","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1fbf250461bd"]},
 
@@ -63974,7 +63970,7 @@
 
         {"oracleId":"7c9d8065-9ab0-4468-a11c-383bd036029f","name":"Ritual of Rejuvenation","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","gainLife"],"definition":{"name":"Ritual of Rejuvenation","types":["Instant"],"manaCost":{"X":2,"W":1},"oracleText":"You gain 4 life.\nDraw a card.","effects":[{"op":"gainLife","player":"controller","amount":4},{"op":"draw","player":"controller","count":1}]},"botReach":"played"},
 
-        {"oracleId":"7c9e351d-2e6c-4050-9c3d-b15bb9255a4d","name":"Azula, Cunning Usurper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["576aee2eca22","c672b9fa2a4b","cc74043aaa5d"]},
+        {"oracleId":"7c9e351d-2e6c-4050-9c3d-b15bb9255a4d","name":"Azula, Cunning Usurper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["576aee2eca22","c672b9fa2a4b"]},
 
         {"oracleId":"7ca3aa03-e62d-464a-9111-e754abe17f76","name":"Strix Serenade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c92f7a3e970"]},
 
@@ -67706,7 +67702,7 @@
 
         {"oracleId":"89f87341-c18f-4dc7-ba2e-81305383231e","name":"Zombie Musher","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["46d9438b34c6","7ad7f24e1040"]},
 
-        {"oracleId":"89f96032-5cba-404d-82b0-38d2be963e4b","name":"Azula, On the Hunt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b715bd72aa00","cc74043aaa5d"]},
+        {"oracleId":"89f96032-5cba-404d-82b0-38d2be963e4b","name":"Azula, On the Hunt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b715bd72aa00"]},
 
         {"oracleId":"89faf26a-1a52-4d14-8069-483e61fd68c6","name":"Great Fang Chroniclers","state":"unparsed","gaps":["665a4bd894ce","b5a5a0cfdeb4"]},
 
@@ -67872,7 +67868,7 @@
 
         {"oracleId":"8a960cc2-3802-42bc-ba28-941bfe9743be","name":"Doorkeeper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0189b6f38b90"]},
 
-        {"oracleId":"8a98ddac-7341-4118-b188-51d8d03afd1d","name":"Uncle Iroh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7c7fd18987df","7f9876ea7fc6"]},
+        {"oracleId":"8a98ddac-7341-4118-b188-51d8d03afd1d","name":"Uncle Iroh","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7c7fd18987df"]},
 
         {"oracleId":"8a98f48d-a5e6-497f-ba9a-92af7b489871","name":"Criminal Enterprise","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["992c14b7dbaf"]},
 
@@ -80380,7 +80376,7 @@
 
         {"oracleId":"b86b1878-65a9-48df-9727-1e80683d7e86","name":"Fury Charm","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["bd2797e07ec5"]},
 
-        {"oracleId":"b86ba0aa-89f3-4924-b3c4-f7ca44468e9b","name":"Mai and Zuko","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e70cac5675b2"]},
+        {"oracleId":"b86ba0aa-89f3-4924-b3c4-f7ca44468e9b","name":"Mai and Zuko","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Mai and Zuko","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Noble","Ally"],"manaCost":{"X":1,"U":1,"B":1,"R":1},"power":3,"toughness":5,"oracleText":"Firebending 3\nYou may cast Ally spells and artifact spells as though they had flash.","staticAbilities":["firebending 3"],"compiledStaticEffects":[{"kind":"cast-permission","grantee":"controller","filter":{"any":[{"subtype":["Ally"]},{"type":["Artifact"]}]},"asThoughFlash":true,"oracleText":"You may cast Ally spells and artifact spells as though they had flash.","id":"controller-ally-48f48cb6"}]},"botReach":"played"},
 
         {"oracleId":"b86c0c23-bb29-4af0-bbd4-50b3ae634375","name":"Firescreamer","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Firescreamer","types":["Creature"],"subtypes":["Kavu"],"manaCost":{"X":3,"B":1},"power":2,"toughness":2,"oracleText":"{R}: This creature gets +1/+0 until end of turn.","activatedAbilities":[{"id":"firescreamer-ability","oracleText":"{R}: This creature gets +1/+0 until end of turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -88868,7 +88864,7 @@
 
         {"oracleId":"d6afb1a9-c9ed-4a56-ba7d-700ab71f2e0d","name":"Fires of Victory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fd40508903d2"]},
 
-        {"oracleId":"d6b0198a-c1f2-4142-b5e2-8205adf14d0a","name":"Zhao, Ruthless Admiral","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1c707d2f07bb","cc74043aaa5d"]},
+        {"oracleId":"d6b0198a-c1f2-4142-b5e2-8205adf14d0a","name":"Zhao, Ruthless Admiral","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1c707d2f07bb"]},
 
         {"oracleId":"d6b2c998-a226-426c-a40d-6e6007041bfe","name":"Mask of Memory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d1de449191d7"]},
 
@@ -95572,7 +95568,7 @@
 
         {"oracleId":"ee8de564-9c46-437e-92e6-829f002e181d","name":"Mise","state":"unparsed","gaps":["c54ee6377a33"]},
 
-        {"oracleId":"ee8e6ef3-eb96-48bd-8619-8a9112b3d4f0","name":"Iroh, Grand Lotus","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae91dba3657c","cc74043aaa5d","e67fe533f6cd"]},
+        {"oracleId":"ee8e6ef3-eb96-48bd-8619-8a9112b3d4f0","name":"Iroh, Grand Lotus","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae91dba3657c","e67fe533f6cd"]},
 
         {"oracleId":"ee8f16ba-cbf0-4286-b26c-d78dd35bee17","name":"Ankle Biter","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Ankle Biter","types":["Creature"],"subtypes":["Snake"],"manaCost":{"G":1},"power":1,"toughness":1,"oracleText":"Deathtouch","staticAbilities":["deathtouch"]},"botReach":"played"},
 
