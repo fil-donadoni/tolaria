@@ -34,7 +34,7 @@
  * only by a hand-rolled id-agnostic re-sweep; that is now the guard's job, not
  * the auditor's.
  *
- * A "line" is a LOGICAL line (`lib/cr-lines.ts`, issue #2514): a comment line
+ * A "line" is a LOGICAL line (`lib/cr-lines.ts`): a comment line
  * that ends mid-citation — its last token a bare `CR`, or a rule id — is joined
  * with the continuation that completes it, so a citation wrapped across two
  * comment lines is seen exactly as a reader sees it, and reported at the
@@ -51,7 +51,7 @@
  * was measured and rejected (ADR 0098 — it reds the gate on benchmark timings
  * and eval margins). That boundary is deliberate.
  *
- * WIDENING THE SCAN is a recorded operation (issue #3697): every citation a
+ * WIDENING THE SCAN is a recorded operation: every citation a
  * wider tokenizer newly sees needs a ledger entry (ADR 0133), and
  * `bun run cr:ledger widen` enters as `baseline` exactly the ones the change
  * uncovered on the merge-base tree — the gate re-derives that set from the
