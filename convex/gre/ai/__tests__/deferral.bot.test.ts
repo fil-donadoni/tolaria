@@ -483,6 +483,42 @@ describe("timing pairs, both directions (issue #4764)", () => {
             false
         );
     });
+
+    it("reads an inert opposing stack as empty before the last window only (CR 117.3b)", () => {
+        const early = board({
+            hand: [card(IMPULSE, "impulse"), card(BEARS, "bears")],
+        });
+        pushSpell(early, DIVINATION, "p2");
+        expect(
+            timingPairClassifier(
+                early,
+                "p1",
+                moves
+            )({
+                rightIndex: PASS,
+                otherIndex: IMPULSE_CAST,
+            })
+        ).toBe(true);
+        // The fire half acts only on an empty stack: in the last window the
+        // strict reading keeps the pair in the fit.
+        const last = board({
+            hand: [card(IMPULSE, "impulse")],
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            phase: "END_STEP",
+        });
+        pushSpell(last, DIVINATION, "p2");
+        expect(
+            timingPairClassifier(
+                last,
+                "p1",
+                moves
+            )({
+                rightIndex: IMPULSE_CAST,
+                otherIndex: PASS,
+            })
+        ).toBe(false);
+    });
 });
 
 describe("waitsUnchanged — the root rule's premise: nothing in between it would change (issue #4757)", () => {

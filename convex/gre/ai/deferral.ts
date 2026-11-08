@@ -80,13 +80,14 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     timing is the search's, whose leaves simulate the opponent's turn.
  *  3. **Not a response** — the stack is empty. With something on it, "later"
  *     is after that object resolves, a different board (counters and
- *     responses are the search's). The root rule alone may pass
- *     `{ throughInertStack: true }`: then a stack whose every object is
+ *     responses are the search's). A caller in a window before the last may
+ *     pass `{ throughInertStack: true }`: then a stack whose every object is
  *     {@link isInertStackItemFor} `pid` (an opposing surveil trigger, a
  *     cantrip) reads as empty — it resolves without touching `pid`'s side and
- *     priority comes back (CR 117.3b / 117.3c). The Verdict lowering keeps the
- *     strict reading: its pairs are the committed fit's, and a timing pair it
- *     routes out is a pair the fit stops seeing.
+ *     priority comes back (CR 117.3b / 117.3c). Both consumers do so there:
+ *     the root rule's hold half, and the Verdict lowering, so a pair the rule
+ *     answers never also bends the Weight Fit. In the last window both keep
+ *     the strict reading (the fire half acts only on an empty stack).
  *  4. **No attack declared** (CR 506.1 / 508.1) — a combat trick's window is
  *     combat itself; that is the search's too.
  *  5. **Not a pre-attack grant** (issue #4768). A haste grant on the
@@ -152,7 +153,7 @@ export function isDeferrableAction(
 /** How clause 3 reads the stack — see {@link isDeferrableAction}. */
 export type StackReading = {
     /** A stack of objects that cannot touch the mover's side reads as
-     *  empty. Off by default: the Verdict lowering's strict reading. */
+     *  empty. Off by default: the strict reading of the last window. */
     throughInertStack?: boolean;
 };
 

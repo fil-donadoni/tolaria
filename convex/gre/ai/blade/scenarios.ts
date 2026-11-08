@@ -6734,19 +6734,42 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             activePlayer: "me",
             turn: 11,
             life: { me: 14, opp: 20 },
+            priority: "opp",
+            passCount: 1,
             landsPlayed: { me: 1 },
             libraryCount: 20,
+            // The opponent's surveil land entered: its trigger is on the
+            // stack, the active player passed, the bot holds priority.
+            stack: [
+                {
+                    kind: "trigger",
+                    name: "Underground Mortuary",
+                    controller: "me",
+                    abilityId: "underground-mortuary-surveil",
+                    event: {
+                        type: "PERMANENT_ENTERED",
+                        fields: {
+                            cardId: {
+                                kind: "scalar",
+                                value: "f6ca59cd-8779-4a84-a54b-e863b79c61f0",
+                            },
+                            controllerId: { kind: "player", seat: "me" },
+                            instanceId: {
+                                kind: "object",
+                                ref: {
+                                    zone: "battlefield",
+                                    name: "Underground Mortuary",
+                                    seat: "me",
+                                },
+                            },
+                            manaValue: { kind: "scalar", value: 0 },
+                            types: { kind: "scalar", value: ["Land"] },
+                            wasPlayed: { kind: "scalar", value: true },
+                        },
+                    },
+                },
+            ],
         },
-        // The opponent's surveil land enters: its trigger is on the stack and
-        // the active player passes, so the bot holds priority over it.
-        setup: [
-            {
-                kind: "etb-trigger",
-                card: "Underground Mortuary",
-                controller: "me",
-            },
-            { kind: "pass", seat: "me" },
-        ],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -6807,37 +6830,40 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
                 { name: "The One Ring", owner: "opp", zone: "hand" },
                 { name: "Tamiyo's Safekeeping", owner: "opp", zone: "hand" },
-                { name: "Doom Blade", owner: "me", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",
             activePlayer: "me",
             turn: 11,
             life: { me: 14, opp: 20 },
+            priority: "opp",
+            passCount: 1,
             landsPlayed: { me: 1 },
             libraryCount: 20,
+            // The opponent cast Doom Blade at Adeline and passed: the bot
+            // holds priority over it.
+            stack: [
+                {
+                    kind: "spell",
+                    name: "Doom Blade",
+                    controller: "me",
+                    targets: [
+                        {
+                            kind: "permanent",
+                            name: "Adeline, Resplendent Cathar",
+                            seat: "opp",
+                        },
+                    ],
+                },
+            ],
         },
-        // The opponent casts Doom Blade at Adeline; the `cast` step passes
-        // the caster's window, so the bot holds priority over it.
-        setup: [
-            {
-                kind: "cast",
-                card: "Doom Blade",
-                by: "me",
-                target: "Adeline, Resplendent Cathar",
-            },
-        ],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Tamiyo's Safekeeping",
-                    target: "Adeline, Resplendent Cathar",
-                },
-            ],
+            // The anchor's forbidden move, verbatim (a right-hand half names
+            // the move its anchor ruled out).
+            moves: [{ kind: "cast-spell", card: "Tamiyo's Safekeeping" }],
         },
         note: "Issue #7828, the discriminating twin: a destroy spell aimed at Adeline can reach the bot's side, so the stack is not inert and indestructible (CR 702.12b) answers it now. The hold above must never become a mute button.",
     },
@@ -6895,19 +6921,42 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             activePlayer: "me",
             turn: 11,
             life: { me: 14, opp: 20 },
+            priority: "opp",
+            passCount: 1,
             landsPlayed: { me: 1 },
             libraryCount: 20,
+            // The opponent's surveil land entered: its trigger is on the
+            // stack, the active player passed, the bot holds priority.
+            stack: [
+                {
+                    kind: "trigger",
+                    name: "Underground Mortuary",
+                    controller: "me",
+                    abilityId: "underground-mortuary-surveil",
+                    event: {
+                        type: "PERMANENT_ENTERED",
+                        fields: {
+                            cardId: {
+                                kind: "scalar",
+                                value: "f6ca59cd-8779-4a84-a54b-e863b79c61f0",
+                            },
+                            controllerId: { kind: "player", seat: "me" },
+                            instanceId: {
+                                kind: "object",
+                                ref: {
+                                    zone: "battlefield",
+                                    name: "Underground Mortuary",
+                                    seat: "me",
+                                },
+                            },
+                            manaValue: { kind: "scalar", value: 0 },
+                            types: { kind: "scalar", value: ["Land"] },
+                            wasPlayed: { kind: "scalar", value: true },
+                        },
+                    },
+                },
+            ],
         },
-        // The opponent's surveil land enters: its trigger is on the stack and
-        // the active player passes, so the bot holds priority over it.
-        setup: [
-            {
-                kind: "etb-trigger",
-                card: "Underground Mortuary",
-                controller: "me",
-            },
-            { kind: "pass", seat: "me" },
-        ],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
