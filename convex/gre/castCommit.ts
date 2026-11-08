@@ -299,6 +299,12 @@ export function commitCast(
         }
         commitLandsForCost(assistant, assistCost);
     }
+    // CR 601.2h — the mana spent on the total cost: the mana leg as priced
+    // (reductions, delve, convoke and life-paid pips already took their share
+    // at announcement, and none of them is mana) plus the assistant's share.
+    // Carried on SPELL_CAST for "if no mana was spent to cast it" (CR 603.4).
+    const manaSpentToCast =
+        manaUnitsIn(plan.manaCost) + (legs.assistPayment?.amount ?? 0);
     // CR 118.9 — the alternative-cost HAND leg: move each picked card from
     // hand to exile / graveyard. Vanished-card policy: a pick no longer in
     // hand makes the commit stale.
@@ -588,7 +594,7 @@ export function commitCast(
         // CR 601.2i — the spell is cast: make it a public object and let
         // cast triggers fire. The resolver runs the trigger pass once its own
         // resolution completes.
-        emitSpellCastEvent(state, stackItem);
+        emitSpellCastEvent(state, stackItem, manaSpentToCast);
         return stackItem;
     }
 
@@ -608,8 +614,16 @@ export function commitCast(
     // draining first would resolve — or suspend mid-resolution on a choice —
     // the very spell whose trigger has not been placed yet, then bury the
     // half-resolved spell under its own trigger.
-    emitSpellCastEvent(state, stackItem);
+    emitSpellCastEvent(state, stackItem, manaSpentToCast);
     processPendingActionTriggers(state);
     drainAutoPasses(state);
     return stackItem;
+}
+
+/** CR 601.2h — the units of mana a priced mana leg owes: every pip counts
+ *  one, whatever colour or generic key it sits under. */
+function manaUnitsIn(cost: Record<string, number>): number {
+    let units = 0;
+    for (const n of Object.values(cost)) if (n > 0) units += n;
+    return units;
 }

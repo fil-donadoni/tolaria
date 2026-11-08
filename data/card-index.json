@@ -89794,6 +89794,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Vexing Bauble",
+        "scryfallId": "29f11089-658f-42e6-aeb0-09b512ad2479",
+        "oracleId": "4514777d-0589-4631-978b-ff244167c176",
+        "firstSet": "mh3",
+        "firstPrintId": "29f11089-658f-42e6-aeb0-09b512ad2479",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Vexing Drone",
         "scryfallId": "6f4b2476-8f93-4d4e-b664-233e82fcf212",
         "oracleId": "8e90e417-65ca-48bc-a32d-b93976519fe9",
