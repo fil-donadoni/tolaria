@@ -298,9 +298,9 @@ export interface PlanConfig {
      * is still open. Their files are OCCUPIED — a candidate overlapping one is
      * deferred exactly like a within-plan overlap, because two PRs on the same
      * files meet as a rebase conflict at the queue. Built by `inFlightSet`; an
-     * entry with `files: null` has an unknown blast radius: it holds every
-     * other candidate until its PR opens (issue #8406; bounded by its claim,
-     * and a stale or released claim is outside this set).
+     * entry with `files: null` has an unknown blast radius: it occupies
+     * nothing and holds no other candidate (issue #8934), only a warning in
+     * `inFlightUnknown`.
      */
     inFlight?: InFlightIssue[];
     /**
@@ -637,8 +637,8 @@ export interface BatchPlan {
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
     staleClaims: number[];
-    /** In-flight issues with an unknown blast radius (issue #6195): they hold
-     *  the queue (issue #8406), and the plan names them — `in-flight radius unknown #N`. */
+    /** In-flight issues with an unknown blast radius (issue #6195): a warning,
+     *  never a block (issue #8934) — they occupy nothing, and the plan names them. */
     inFlightUnknown?: number[];
     /** Stalled PRs (issue #8258): a warning, never a block — they occupy
      *  nothing. Each names its issue, hours stalled and overlapping candidates. */
@@ -1424,27 +1424,18 @@ export function planBatch(
                 stalledOverlap.set(st.pr, set);
             }
 
-        // Unknown radius runs solo against the in-flight set too (issue #8406).
-        // The within-batch rule below sees an empty batch when the dispatcher
-        // fills one slot at a time, so it never fires; and an entry with
-        // `files: null` occupies nothing, so the next pick was admitted blind.
-        // Both directions hold: an unknown candidate waits for an empty set,
-        // and any candidate waits for an unknown entry's PR to open. The
-        // issue's own entry (a repair pick) is exempt, as from overlap.
+        // An unknown candidate runs solo against the in-flight set too (issue
+        // #8406): the within-batch rule below sees an empty batch when the
+        // dispatcher fills one slot at a time, so it never fires. This defers
+        // only THAT candidate. The reverse direction, an in-flight entry with
+        // `files: null` holding every other candidate, is gone (issue #8934):
+        // what the planner cannot classify blocks nothing — on 2026-11-08 one
+        // such claim idled the whole queue for ~7 h. It is named in
+        // `inFlightUnknown` as a warning. The issue's own entry (a repair pick)
+        // is exempt, as from overlap.
         const othersInFlight = (config.inFlight ?? []).filter(
             (f) => f.number !== issue.number
         );
-        const unknownHolder = othersInFlight.find((f) => f.files === null);
-        if (unknownHolder) {
-            const reason = `in-flight radius unknown #${unknownHolder.number} — held until its PR opens or its claim ends`;
-            holdForP0(issue, reason);
-            deferred.push({
-                number: issue.number,
-                reason,
-                conflictsWith: unknownHolder.number,
-            });
-            continue;
-        }
         if (blastRadius === "unknown" && othersInFlight.length > 0) {
             const reason = `no declared target files and none inferred — an unknown blast radius runs solo, and #${othersInFlight[0].number} is in flight`;
             holdForP0(issue, reason);

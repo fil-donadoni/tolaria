@@ -333,10 +333,10 @@ describe("planner — in-flight overlap (issue #6195)", () => {
             })
         );
         expect(got.plan.inFlightUnknown).toEqual([1]);
-        // Issue #8406: an unknown in-flight entry holds the queue.
-        expect(got.plan.batch).toEqual([]);
-        expect(got.plan.deferred.map((d) => d.reason)).toContainEqual(
-            expect.stringMatching(/in-flight radius unknown #1/)
+        // Issue #8934: an unknown in-flight entry is a warning, not a hold.
+        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+        expect(got.plan.deferred.map((d) => d.reason)).not.toContainEqual(
+            expect.stringMatching(/radius unknown/)
         );
     });
 
