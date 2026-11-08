@@ -1,148 +1,221 @@
-// Card Profile layer — the Convex FUNCTION shell (ADR 0072, PRD #1607 slice
-// 1, issue #1608). The pure read-path core — `resolveEventCardProfile`,
-// `buildDbProfileLookup`, `validateCardProfileFile`, `buildCardProfileRow`,
-// `cardProfileWriteErrors`, `buildScopeCardProfiles`, and every type they
-// speak — lives in the sibling `cardProfilesCore.ts` and is imported by both
-// this module and the BROWSER-side Draft Lab. This file owns the one thing
-// the Lab must never pull into its bundle: `ctx.db` access and the auth gate.
+// Card Profile layer — the Convex FUNCTION shell (ADR 0072, PRD #1607; two
+// layers since ADR 0167, issue #8890). The pure core — the layer types,
+// `resolveEventCardProfile`, `buildDbProfileLayers`, the seed validators,
+// `splitCardProfiles`, the editor row builders — lives in the sibling
+// `cardProfilesCore.ts` and is imported by both this module and the
+// BROWSER-side Draft Lab. This file owns the one thing the Lab must never
+// pull into its bundle: `ctx.db` access and the auth gate.
 //
 // The split is load-bearing, not cosmetic: `../auth` runs `convexAuth({...})`
 // at module scope, which reads `process.env` — a single client-side VALUE
 // import of a helper that used to live here dragged that into the Vite
 // bundle and crashed the app on cold load with "process is not defined".
-// `scripts/__tests__/client-bundle-purity.test.ts` guards it. Anything pure
-// belongs in `cardProfilesCore.ts`; anything holding `ctx` belongs here.
+// `scripts/__tests__/client-bundle-purity.test.ts` guards it.
 //
-// `listScopeCardProfiles` (issue #1612 fixup) exists so a DISPLAY-only
-// consumer — the Draft Lab's `DraftLabProfileBadge` — can read real
-// `cardProfiles` rows instead of being permanently wired to a `() => null` DB
-// layer; it is a read-only query (no mutation, no write), so it does not
-// touch ADR 0074's "the Draft Lab writes nothing" guarantee.
-//
-// Issue #1614 adds the Admin write boundary at the bottom of this file: the
-// `assertIsAdmin`-gated `setCardProfile`/`clearCardProfile` mutations plus
-// `listScopeCardProfilesForEditor`, the admin-gated both-layers editor read.
-// The checked-in Vintage Cube census itself — the seed layer's first real
-// content — is PURE data and lives in `cardProfilesCore.ts`'s
-// `CHECKED_IN_CARD_PROFILES`, not here; so do every pure row-shape/validation
-// helper the mutations below build on (`buildCardProfileRow`,
-// `cardProfileWriteErrors`, `normalizeArchetypes`, `buildScopeCardProfiles`).
+// Two tables (`convex/schema.ts`): `cardCapabilities` keyed by `cardId`,
+// `cardArchetypes` keyed `(scope, cardId)`. The legacy single `cardProfiles`
+// table is read only by `splitLegacyCardProfiles`, the one-shot migration.
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx } from "../_generated/server";
+import {
+    internalMutation,
+    mutation,
+    query,
+    type MutationCtx,
+    type QueryCtx,
+} from "../_generated/server";
 import { assertIsAdmin } from "../auth";
 import { listScopeCards } from "./cardRatingsCore";
 import {
-    buildCardProfileRow,
+    archetypesOf,
+    buildCardProfileRows,
+    capabilitiesOf,
+    buildDbProfileLayers,
     buildScopeCardProfiles,
     cardProfileWriteErrors,
-    type CardProfile,
-    type GetDbProfile,
+    splitCardProfiles,
+    type CardCapabilitiesRow,
+    type ProfileLayerRows,
     type ScopeCardProfile,
-    type ScopedCardProfile,
+    type ScopedCardArchetypes,
 } from "./cardProfilesCore";
-
-const scopedCardProfileValidator = v.object({
-    scope: v.string(),
-    cardId: v.string(),
-    archetypes: v.array(v.string()),
-    provides: v.array(v.string()),
-    requires: v.array(v.string()),
-    comboEdges: v.optional(
-        v.array(v.object({ cardId: v.string(), weight: v.number() }))
-    ),
-    reviewed: v.boolean(),
-});
-
-/** Every `cardProfiles` row for a set of scopes — the ONE place the Card
- *  Profile layer touches `ctx.db` directly, mirroring `cardRatings.ts`'s
- *  `listScopeCardRatings`. Admin-gated (`assertIsAdmin`), like that editor
- *  query: its only consumer is the Draft Lab, and the WHOLE `/draft-lab` route
- *  is now admin-only (see `src/routes/draft-lab.route.tsx`). The original
- *  `getCurrentUserId` gate matched the Draft Lab's original "any authenticated
- *  user" access (issue #1612); once the route became admin-only, leaving the
- *  query open would have made the route gate purely cosmetic — a non-admin
- *  could read every scope's profiles by calling this directly. Read-only: no
- *  `insert`/`patch`/`delete` anywhere in this handler, so it carries no write
- *  surface for `draft-lab-no-mutation.test.ts` to catch.
- *
- *  `scopes` is the caller's distinct pack-source identities (mirrors
- *  `resolveEventCardProfile`'s own `scopes` parameter); normalized to
- *  lowercase here, once. Uses the `by_scope` index per scope — bounded, never
- *  a full-table scan — the same access pattern
- *  `limitedEvents.ts#loadEventPickRating` uses for `cardRatings`. */
-export const listScopeCardProfiles = query({
-    args: { scopes: v.array(v.string()) },
-    returns: v.array(scopedCardProfileValidator),
-    handler: async (ctx, { scopes }): Promise<ScopedCardProfile[]> => {
-        await assertIsAdmin(ctx);
-        const normalizedScopes = Array.from(
-            new Set(scopes.map((scope) => scope.toLowerCase()))
-        );
-        const rows: ScopedCardProfile[] = [];
-        for (const scope of normalizedScopes) {
-            const scopeRows = await ctx.db
-                .query("cardProfiles")
-                .withIndex("by_scope", (q) => q.eq("scope", scope))
-                .collect();
-            for (const row of scopeRows) {
-                rows.push({
-                    scope: row.scope,
-                    cardId: row.cardId,
-                    archetypes: row.archetypes,
-                    provides: row.provides,
-                    requires: row.requires,
-                    comboEdges: row.comboEdges,
-                    reviewed: row.reviewed,
-                });
-            }
-        }
-        return rows;
-    },
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// Admin write boundary + editor read query (PRD #1607, ADR 0072, issue
-// #1614). Mirrors `cardRatings.ts`'s Slice B/C shape exactly: the pure
-// row-shape/validation helpers live in `cardProfilesCore.ts` (unit-testable
-// with no convex-test harness), the thin `assertIsAdmin`-gated Convex
-// functions that own `ctx.db` live here.
-// ─────────────────────────────────────────────────────────────────────────
-
-/** Point lookup on the table's natural primary key — the shared read used by
- *  both `setCardProfile` (patch vs. insert) and `clearCardProfile` (is there
- *  anything to delete). `scope` must already be normalized by the caller.
- *  Mirrors `cardRatings.ts`'s `loadCardRating`. */
-async function loadCardProfile(
-    ctx: MutationCtx,
-    scope: string,
-    cardId: string
-) {
-    return ctx.db
-        .query("cardProfiles")
-        .withIndex("by_scope_card", (q) =>
-            q.eq("scope", scope).eq("cardId", cardId)
-        )
-        .unique();
-}
 
 const comboEdgesValidator = v.optional(
     v.array(v.object({ cardId: v.string(), weight: v.number() }))
 );
 
-/** Admin-only upsert of ONE `(scope, cardId)` Card Profile (issue #1614).
- *  `assertIsAdmin` runs FIRST — the same "gate before anything else"
- *  convention as `setCardRating`/`clearCardRating` and every admin mutation
- *  in `convex/decks.ts`/`convex/cubes.ts`. Rejects any `provides`/`requires`
- *  string outside `CAPABILITY_REGISTRY`, any `archetypes` entry outside
- *  `ARCHETYPE_REGISTRY` (closed since issue #3597) and any `cardId` that
- *  doesn't resolve to a real card (`cardProfileWriteErrors`), so the database
- *  layer is held to EXACTLY the vocabulary bound the checked-in seed layer's
- *  guard test enforces — an Admin cannot type a name into existence any
- *  more than a seed file can. `reviewed` is an explicit argument, not
- *  inferred: flipping an LLM-seeded row to reviewed IS the human review act
- *  (ADR 0072), so it is always a deliberate write. Patches the existing row
- *  when `(scope, cardId)` already has one (identity/`_id` preserved), else
- *  inserts — mirrors `setCardRating`/`cubes.ts#upsertCube`. */
+const capabilitiesRowValidator = v.object({
+    cardId: v.string(),
+    provides: v.array(v.string()),
+    requires: v.array(v.string()),
+    comboEdges: comboEdgesValidator,
+    reviewed: v.boolean(),
+    rationale: v.optional(v.string()),
+});
+
+const archetypesRowValidator = v.object({
+    scope: v.string(),
+    cardId: v.string(),
+    archetypes: v.array(v.string()),
+    reviewed: v.boolean(),
+    rationale: v.optional(v.string()),
+});
+
+/** Bound on the `cardCapabilities` rows one read loads. The table holds
+ *  Admin OVERRIDES only — the census itself is the checked-in seed — so it
+ *  stays far below this; the bound is the guideline's "never an unbounded
+ *  collect", and a table that ever outgrows it fails loudly here rather
+ *  than silently truncating the layer. */
+const MAX_DB_CAPABILITY_ROWS = 4000;
+
+function capabilitiesFromDoc(row: {
+    cardId: string;
+    provides: string[];
+    requires: string[];
+    comboEdges?: { cardId: string; weight: number }[];
+    reviewed: boolean;
+    rationale?: string;
+}): CardCapabilitiesRow {
+    return {
+        cardId: row.cardId,
+        provides: row.provides,
+        requires: row.requires,
+        ...(row.comboEdges === undefined ? {} : { comboEdges: row.comboEdges }),
+        reviewed: row.reviewed,
+        ...(row.rationale === undefined ? {} : { rationale: row.rationale }),
+    };
+}
+
+function archetypesFromDoc(row: {
+    scope: string;
+    cardId: string;
+    archetypes: string[];
+    reviewed: boolean;
+    rationale?: string;
+}): ScopedCardArchetypes {
+    return {
+        scope: row.scope,
+        cardId: row.cardId,
+        archetypes: row.archetypes,
+        reviewed: row.reviewed,
+        ...(row.rationale === undefined ? {} : { rationale: row.rationale }),
+    };
+}
+
+/** Both layers' DB rows an event (or the Draft Lab) needs for `scopes`: every
+ *  Capability override (scope-free, ADR 0167 §1) and every Archetype row of
+ *  each DISTINCT scope (the `by_scope` index — never a full scan). The one
+ *  place the Card Profile read path touches `ctx.db`; `limitedEvents.ts`'s
+ *  `loadEventCardProfile` and `listScopeCardProfiles` below both call it. */
+export async function loadProfileLayerRows(
+    ctx: QueryCtx | MutationCtx,
+    scopes: readonly string[]
+): Promise<ProfileLayerRows> {
+    const capabilityDocs = await ctx.db
+        .query("cardCapabilities")
+        .take(MAX_DB_CAPABILITY_ROWS + 1);
+    if (capabilityDocs.length > MAX_DB_CAPABILITY_ROWS) {
+        throw new Error(
+            `cardCapabilities holds more than ${MAX_DB_CAPABILITY_ROWS} override rows — promote them into the seed`
+        );
+    }
+    const archetypes: ScopedCardArchetypes[] = [];
+    const normalizedScopes = Array.from(
+        new Set(scopes.map((scope) => scope.toLowerCase()))
+    );
+    for (const scope of normalizedScopes) {
+        const rows = await ctx.db
+            .query("cardArchetypes")
+            .withIndex("by_scope", (q) => q.eq("scope", scope))
+            .collect();
+        for (const row of rows) archetypes.push(archetypesFromDoc(row));
+    }
+    return {
+        capabilities: capabilityDocs.map(capabilitiesFromDoc),
+        archetypes,
+    };
+}
+
+/** Both layers' DB rows for a set of scopes — the read the Draft Lab folds
+ *  through `buildDbProfileLayers` into `resolveEventCardProfile`.
+ *  Admin-gated (`assertIsAdmin`): its only consumer is the Draft Lab, and
+ *  the WHOLE `/draft-lab` route is admin-only (`src/routes/draft-lab.route.tsx`);
+ *  an open query would make that route gate cosmetic. Read-only: no
+ *  `insert`/`patch`/`delete` in this handler, so it carries no write surface
+ *  for `draft-lab-no-mutation.test.ts` to catch. */
+export const listScopeCardProfiles = query({
+    args: { scopes: v.array(v.string()) },
+    returns: v.object({
+        capabilities: v.array(capabilitiesRowValidator),
+        archetypes: v.array(archetypesRowValidator),
+    }),
+    handler: async (ctx, { scopes }): Promise<ProfileLayerRows> => {
+        await assertIsAdmin(ctx);
+        return loadProfileLayerRows(ctx, scopes);
+    },
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admin write boundary + editor read query (PRD #1607, ADR 0072, issue
+// #1614). The current editor keeps its one-profile-per-card shape: a save
+// writes BOTH layers (the Capability row is scope-free, so an edit made from
+// one scope's editor holds in every scope — ADR 0167 §1).
+// ─────────────────────────────────────────────────────────────────────────
+
+async function loadCapabilitiesDoc(ctx: MutationCtx, cardId: string) {
+    return ctx.db
+        .query("cardCapabilities")
+        .withIndex("by_cardId", (q) => q.eq("cardId", cardId))
+        .unique();
+}
+
+async function loadArchetypesDoc(
+    ctx: MutationCtx,
+    scope: string,
+    cardId: string
+) {
+    return ctx.db
+        .query("cardArchetypes")
+        .withIndex("by_scope_and_cardId", (q) =>
+            q.eq("scope", scope).eq("cardId", cardId)
+        )
+        .unique();
+}
+
+/** Upserts one card's Capability row; a field absent from `row` (no
+ *  `comboEdges`, no `rationale`) is left as stored on a patch. */
+async function upsertCapabilities(
+    ctx: MutationCtx,
+    row: CardCapabilitiesRow
+): Promise<void> {
+    const existing = await loadCapabilitiesDoc(ctx, row.cardId);
+    if (existing) {
+        await ctx.db.patch(existing._id, capabilitiesOf(row));
+    } else {
+        await ctx.db.insert("cardCapabilities", row);
+    }
+}
+
+async function upsertArchetypes(
+    ctx: MutationCtx,
+    row: ScopedCardArchetypes
+): Promise<void> {
+    const existing = await loadArchetypesDoc(ctx, row.scope, row.cardId);
+    if (existing) {
+        await ctx.db.patch(existing._id, archetypesOf(row));
+    } else {
+        await ctx.db.insert("cardArchetypes", row);
+    }
+}
+
+/** Admin-only save of ONE card's profile from a scope's editor: the card's
+ *  Capability row and its `(scope, cardId)` Archetype row, both upserted
+ *  (identity/`_id` preserved on a patch). `assertIsAdmin` runs FIRST. Every
+ *  `provides`/`requires` string must be a `CAPABILITY_REGISTRY` row, every
+ *  archetype an `ARCHETYPE_REGISTRY` row, every cardId a real card
+ *  (`cardProfileWriteErrors`) — the database layer held to EXACTLY the
+ *  vocabulary bound the seed guard enforces. `reviewed` is an explicit
+ *  argument: flipping an LLM-seeded row to reviewed IS the human review act
+ *  (ADR 0072), and one act reviews both layers. */
 export const setCardProfile = mutation({
     args: {
         scope: v.string(),
@@ -160,48 +233,35 @@ export const setCardProfile = mutation({
         if (errors.length > 0) {
             throw new Error(`Invalid Card Profile: ${errors.join("; ")}`);
         }
-        const row = buildCardProfileRow(scope, cardId, profile);
-        const existing = await loadCardProfile(ctx, row.scope, row.cardId);
-        if (existing) {
-            await ctx.db.patch(existing._id, {
-                archetypes: row.archetypes,
-                provides: row.provides,
-                requires: row.requires,
-                comboEdges: row.comboEdges,
-                reviewed: row.reviewed,
-            });
-        } else {
-            await ctx.db.insert("cardProfiles", row);
-        }
+        const rows = buildCardProfileRows(scope, cardId, profile);
+        await upsertCapabilities(ctx, rows.capabilities);
+        await upsertArchetypes(ctx, rows.archetypes);
         return null;
     },
 });
 
-/** Admin-only delete of ONE `(scope, cardId)` Card Profile (issue #1614) —
- *  the card falls back to its checked-in seed profile (or to no profile at
- *  all) on the very next read, no separate "revert" step needed:
- *  `resolveEventCardProfile`'s layering already treats an absent database
- *  row as "fall through to the seed layer". `assertIsAdmin` runs FIRST.
- *  Idempotent: clearing an already-absent pair is a no-op, not an error —
- *  mirrors `clearCardRating` exactly. */
+/** Admin-only revert of ONE card to its checked-in census: deletes its
+ *  Capability override (scope-free — every scope falls back to the seed) and
+ *  its Archetype override for `scope`. `assertIsAdmin` runs FIRST.
+ *  Idempotent: clearing an absent pair is a no-op, never an error. */
 export const clearCardProfile = mutation({
     args: { scope: v.string(), cardId: v.string() },
     returns: v.null(),
     handler: async (ctx, { scope, cardId }) => {
         await assertIsAdmin(ctx);
-        const existing = await loadCardProfile(
+        const capabilities = await loadCapabilitiesDoc(ctx, cardId);
+        if (capabilities) await ctx.db.delete(capabilities._id);
+        const archetypes = await loadArchetypesDoc(
             ctx,
             scope.toLowerCase(),
             cardId
         );
-        if (existing) {
-            await ctx.db.delete(existing._id);
-        }
+        if (archetypes) await ctx.db.delete(archetypes._id);
         return null;
     },
 });
 
-const cardProfileValidator = v.object({
+const editorCardProfileValidator = v.object({
     archetypes: v.array(v.string()),
     provides: v.array(v.string()),
     requires: v.array(v.string()),
@@ -209,54 +269,89 @@ const cardProfileValidator = v.object({
     reviewed: v.boolean(),
 });
 
-/** Admin-only editor read query (issue #1614): for a chosen `scope` (a
- *  Draftable Set code, or the Vintage Cube's `vintage-cube` key), every card
- *  of that scope with both profile layers, sorted by name for a stable
- *  listing. `assertIsAdmin` runs FIRST — unlike `listScopeCardProfiles`
- *  above, which is the Draft Lab's informational read and deliberately
- *  ungated, this one exposes the seed layer alongside the database layer for
- *  EDITING, exactly the split `cardRatings.ts` draws between
- *  `listScopeCardRatings` (admin editor) and `listScopeCardRatingsForReplay`
- *  (informational). Loads the scope's rows through the `by_scope` index —
- *  bounded, never a full-table scan. */
+/** Admin-only editor read (issue #1614): for a chosen `scope` (a Draftable
+ *  Set code, or `vintage-cube`), every card of that scope with its DB
+ *  override (either layer) and its census seed, sorted by name for a stable
+ *  listing. `assertIsAdmin` runs FIRST. */
 export const listScopeCardProfilesForEditor = query({
     args: { scope: v.string() },
     returns: v.array(
         v.object({
             cardId: v.string(),
             name: v.string(),
-            dbProfile: v.union(cardProfileValidator, v.null()),
-            seedProfile: v.union(cardProfileValidator, v.null()),
+            dbProfile: v.union(editorCardProfileValidator, v.null()),
+            seedProfile: v.union(editorCardProfileValidator, v.null()),
         })
     ),
     handler: async (ctx, { scope }): Promise<ScopeCardProfile[]> => {
         await assertIsAdmin(ctx);
         const normalizedScope = scope.toLowerCase();
         const cards = listScopeCards(normalizedScope);
-
-        const rows = await ctx.db
-            .query("cardProfiles")
-            .withIndex("by_scope", (q) => q.eq("scope", normalizedScope))
-            .collect();
-        const byCardId = new Map<string, CardProfile>(
-            rows.map((row) => [
-                row.cardId,
-                {
-                    archetypes: row.archetypes,
-                    provides: row.provides,
-                    requires: row.requires,
-                    comboEdges: row.comboEdges,
-                    reviewed: row.reviewed,
-                },
-            ])
+        const db = buildDbProfileLayers(
+            await loadProfileLayerRows(ctx, [normalizedScope])
         );
-        const getDbProfile: GetDbProfile = (_scope, cardId) =>
-            byCardId.get(cardId) ?? null;
+        return buildScopeCardProfiles(normalizedScope, cards, db).sort((a, b) =>
+            a.name.localeCompare(b.name)
+        );
+    },
+});
 
-        return buildScopeCardProfiles(
-            normalizedScope,
-            cards,
-            getDbProfile
-        ).sort((a, b) => a.name.localeCompare(b.name));
+/** Bound on the legacy rows the migration reads in its one transaction —
+ *  the table held at most a few hundred Admin edits. */
+const MAX_LEGACY_PROFILE_ROWS = 4000;
+
+/** One-shot migration (issue #8890, ADR 0167 Consequences): splits every
+ *  legacy `cardProfiles` row into the two layer tables through the PURE
+ *  `splitCardProfiles` — the same function that split the seed file. A
+ *  thin shell: reads, splits, inserts each layer row that does not exist
+ *  yet (re-running never clobbers an edit made since), reports. The legacy
+ *  table is left in place for the PRD #8772 contract ticket. Run with
+ *  `npx convex run limited/cardProfiles:splitLegacyCardProfiles`. */
+export const splitLegacyCardProfiles = internalMutation({
+    args: {},
+    returns: v.object({
+        legacyRows: v.number(),
+        capabilitiesInserted: v.number(),
+        archetypesInserted: v.number(),
+        capabilityConflicts: v.array(v.string()),
+    }),
+    handler: async (ctx) => {
+        const legacy = await ctx.db
+            .query("cardProfiles")
+            .take(MAX_LEGACY_PROFILE_ROWS + 1);
+        if (legacy.length > MAX_LEGACY_PROFILE_ROWS) {
+            throw new Error(
+                `cardProfiles holds more than ${MAX_LEGACY_PROFILE_ROWS} rows — batch the migration`
+            );
+        }
+        const split = splitCardProfiles(
+            legacy.map((row) => ({
+                scope: row.scope,
+                cardId: row.cardId,
+                archetypes: row.archetypes,
+                provides: row.provides,
+                requires: row.requires,
+                comboEdges: row.comboEdges,
+                reviewed: row.reviewed,
+            }))
+        );
+        let capabilitiesInserted = 0;
+        for (const row of split.capabilities) {
+            if (await loadCapabilitiesDoc(ctx, row.cardId)) continue;
+            await ctx.db.insert("cardCapabilities", row);
+            capabilitiesInserted++;
+        }
+        let archetypesInserted = 0;
+        for (const row of split.archetypes) {
+            if (await loadArchetypesDoc(ctx, row.scope, row.cardId)) continue;
+            await ctx.db.insert("cardArchetypes", row);
+            archetypesInserted++;
+        }
+        return {
+            legacyRows: legacy.length,
+            capabilitiesInserted,
+            archetypesInserted,
+            capabilityConflicts: split.capabilityConflicts,
+        };
     },
 });

@@ -14,4 +14,7 @@
 // without editing those files' own diffs — and the Draft Lab replay surface
 // (`src/lib/limited/draftReplayEngine.ts`) imports it too, to show "drafted
 // under vN, current is vM" beside the historical-vs-recomputed diff.
-export const SCORER_VERSION = 1;
+// v2 (issue #8890, ADR 0167): Card Capabilities are scope-free, so a
+// cube-profiled card drafted in a set now earns Capability terms it had none
+// of; each synergy term reads its own layer's review flag.
+export const SCORER_VERSION = 2;

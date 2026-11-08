@@ -60,7 +60,8 @@
 //
 // UNREVIEWED profiles count HALF (ADR 0072: "an unreviewed row's Capability
 // and Archetype contribution is applied at half the contextual cap"). Applied
-// as a per-ROW multiplicative weight (`profileWeight`), so a pair of rows
+// as a per-LAYER multiplicative weight (`archetypeLayerWeight` /
+// `capabilityLayerWeight`, each term reading its own layer's flag), so a pair of rows
 // contributes the PRODUCT of their weights: each row's evidence is discounted
 // independently of who it is paired with, and the discount survives the shared
 // clamp (halving a term's raw value halves what it can claim of the contextual
@@ -334,12 +335,12 @@ const FIXING_VALUE_RATING_PER_DEFICIT_PIP = 0.05;
  *  non-negative clamp (`scoreCandidate`) still bounds the TOTAL. */
 const FIXING_VALUE_RAW_CAP = 1.2;
 
-/** Multiplier on an UNREVIEWED (`reviewed: false`) Card Profile row's
- *  contribution to every synergy term (ADR 0072: "an unreviewed row's
- *  Capability and Archetype contribution is applied at half the contextual
- *  cap"). Per ROW, so a candidate/Pool-card PAIR contributes the product of
- *  the two rows' weights — each row's evidence is discounted on its own
- *  merits, independently of what it happens to be paired with. */
+/** Multiplier on an UNREVIEWED Card Profile layer's contribution to the
+ *  synergy terms that read it (ADR 0072: "an unreviewed row's Capability
+ *  and Archetype contribution is applied at half the contextual cap"). Per
+ *  card AND per layer (ADR 0167, issue #8890), so a candidate/Pool-card PAIR
+ *  contributes the product of the two cards' weights for that layer — each
+ *  card's evidence is discounted on its own merits. */
 const UNREVIEWED_PROFILE_WEIGHT = 0.5;
 
 /** Rating points per unit of Archetype commitment the Pool has already
@@ -919,9 +920,18 @@ export interface PoolProfileEntry {
     copies: number;
 }
 
-/** A profile row's weight (ADR 0072's half-weight rule for unreviewed rows). */
-function profileWeight(profile: CardProfile): number {
-    return profile.reviewed ? 1 : UNREVIEWED_PROFILE_WEIGHT;
+/** The Archetype layer's weight (ADR 0072's half-weight rule for an
+ *  unreviewed layer). Each term reads ITS OWN layer's flag (ADR 0167, issue
+ *  #8890): reviewing a card's Capabilities never unlocks its Archetypes.
+ *  Read by Archetype Fit and the Archetype Signal. */
+function archetypeLayerWeight(profile: CardProfile): number {
+    return profile.archetypesReviewed ? 1 : UNREVIEWED_PROFILE_WEIGHT;
+}
+
+/** The Capability layer's weight — read by Capability Fit and Combo Edge
+ *  (Combo Edges live in the Capability layer, ADR 0167 §5). */
+function capabilityLayerWeight(profile: CardProfile): number {
+    return profile.capabilitiesReviewed ? 1 : UNREVIEWED_PROFILE_WEIGHT;
 }
 
 /** Distinct profiled Pool cards, in Pool order (so provenance and any
@@ -993,7 +1003,7 @@ function archetypeFitTerm(
 
     const commitment = new Map<string, number>();
     for (const entry of profiled) {
-        const weight = profileWeight(entry.profile) * entry.copies;
+        const weight = archetypeLayerWeight(entry.profile) * entry.copies;
         for (const archetype of entry.profile.archetypes) {
             commitment.set(
                 archetype,
@@ -1023,7 +1033,7 @@ function archetypeFitTerm(
     const archetype = bestArchetype;
     const raw = Math.min(
         ARCHETYPE_FIT_RAW_CAP,
-        bestUnits * ARCHETYPE_RATING_PER_UNIT * profileWeight(profile)
+        bestUnits * ARCHETYPE_RATING_PER_UNIT * archetypeLayerWeight(profile)
     );
     return {
         term: "archetypeFit",
@@ -1033,15 +1043,15 @@ function archetypeFitTerm(
             .filter((entry) => entry.profile.archetypes.includes(archetype))
             .map((entry) => ({
                 cardId: entry.meta.cardId,
-                reason: entry.profile.reviewed
+                reason: entry.profile.archetypesReviewed
                     ? `also "${archetype}"`
                     : `also "${archetype}" (unreviewed — half weight)`,
             })),
         note:
             `${bestUnits.toFixed(1)} Pool card(s) already committed to "${archetype}"` +
-            (profile.reviewed
+            (profile.archetypesReviewed
                 ? ""
-                : " — this card's profile is unreviewed, half weight"),
+                : " — this card's Archetypes are unreviewed, half weight"),
     };
 }
 
@@ -1098,7 +1108,7 @@ export function capabilityFitTerm(
         );
     }
 
-    const candidateWeight = profileWeight(profile);
+    const candidateWeight = capabilityLayerWeight(profile);
     // Dedupe the candidate's OWN declared capabilities before iterating: the
     // doc comment above promises counting is per DISTINCT (Pool card,
     // Capability, direction), but iterating a `provides`/`requires` array
@@ -1112,7 +1122,8 @@ export function capabilityFitTerm(
     const matches: CapabilityMatch[] = [];
     for (const entry of profiled) {
         if (entry.meta.cardId === candidate.cardId) continue;
-        const pairWeight = candidateWeight * profileWeight(entry.profile);
+        const pairWeight =
+            candidateWeight * capabilityLayerWeight(entry.profile);
         for (const capability of provides) {
             if (
                 entry.profile.requires.some((required) =>
@@ -1183,7 +1194,7 @@ export function capabilityFitTerm(
             cardId,
             reason: reasons.join("; "),
         })),
-        note: `${matches.length} Capability match(es) with ${reasonsByCard.size} Pool card(s)${profile.reviewed ? "" : " — this card's profile is unreviewed, half weight"}`,
+        note: `${matches.length} Capability match(es) with ${reasonsByCard.size} Pool card(s)${profile.capabilitiesReviewed ? "" : " — this card's Capabilities are unreviewed, half weight"}`,
     };
 }
 
@@ -1223,12 +1234,12 @@ function comboEdgeTerm(
 
     const poolByCardId = new Map(profiled.map((e) => [e.meta.cardId, e]));
     if (profile?.comboEdges) {
-        const weight = profileWeight(profile);
+        const weight = capabilityLayerWeight(profile);
         for (const edge of profile.comboEdges) {
             if (!poolByCardId.has(edge.cardId)) continue;
             // Guard against an authored edge weight that is NaN/Infinity
             // (issue #1614 ships the Admin write surface that will let one
-            // in — `validateCardProfileFile` checks capabilities, archetypes
+            // in — the seed validators check capabilities, archetypes
             // (closed since issue #3597) and cardIds, but never this number). The sibling Pick Rating seam
             // (`pickRatings.ts`'s `isValidRating`) rejects a non-finite
             // rating at the SAME layer; a non-finite edge here has no write
@@ -1241,7 +1252,7 @@ function comboEdgeTerm(
     }
     for (const entry of profiled) {
         if (entry.meta.cardId === candidate.cardId) continue;
-        const weight = profileWeight(entry.profile);
+        const weight = capabilityLayerWeight(entry.profile);
         for (const edge of entry.profile.comboEdges ?? []) {
             if (edge.cardId !== candidate.cardId) continue;
             if (!Number.isFinite(edge.weight)) continue;
@@ -1402,7 +1413,7 @@ function archetypeSignalTerm(
     }
     const commitment = new Map<string, number>();
     for (const entry of profiled) {
-        const w = profileWeight(entry.profile) * entry.copies;
+        const w = archetypeLayerWeight(entry.profile) * entry.copies;
         for (const a of entry.profile.archetypes) {
             commitment.set(a, (commitment.get(a) ?? 0) + w);
         }
@@ -1412,7 +1423,7 @@ function archetypeSignalTerm(
     const raw =
         Math.min(SIGNAL_RAW_CAP, best.units * SIGNAL_RATING_PER_UNIT) *
         weight *
-        profileWeight(profile);
+        archetypeLayerWeight(profile);
     return {
         term: "archetypeSignal",
         value: raw,
