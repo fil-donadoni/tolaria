@@ -32790,6 +32790,16 @@
         "firstPrintSet": "chk"
     },
     {
+        "name": "Gigadrowse",
+        "scryfallId": "bf9f85b3-eb8c-43de-aaac-8a887e9c58da",
+        "oracleId": "9cc64a91-82d2-4be1-812f-531863e99801",
+        "firstSet": "gpt",
+        "firstPrintId": "bf9f85b3-eb8c-43de-aaac-8a887e9c58da",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gigantic Big Bear",
         "scryfallId": "7d6ece3d-8e7a-41ad-974f-3c9748de4825",
         "oracleId": "88d7bd11-7b1d-426c-8552-01448531c6ad",
@@ -61797,6 +61807,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pyromatics",
+        "scryfallId": "c22c9dab-e8d5-48b3-8fd2-9f4138ee0c7c",
+        "oracleId": "9c01e2a6-61e7-455c-b09f-8c0de2266782",
+        "firstSet": "gpt",
+        "firstPrintId": "c22c9dab-e8d5-48b3-8fd2-9f4138ee0c7c",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pyrotechnics",
         "scryfallId": "2646284b-a94d-4c99-98d4-7becbb473e2b",
         "oracleId": "794b9ddf-1660-441f-9cc2-a0f5d4d0cf22",
@@ -71537,6 +71557,16 @@
         "firstPrintId": "a77058d9-d2b5-424a-bfe2-070b754051cb",
         "firstPrintSet": "gtc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shattering Spree",
+        "scryfallId": "d6dcff21-5900-43c4-a38b-cdc19c704ce4",
+        "oracleId": "fe725b27-49ef-41bc-91f9-9cd9871ad863",
+        "firstSet": "gpt",
+        "firstPrintId": "d6dcff21-5900-43c4-a38b-cdc19c704ce4",
+        "firstPrintSet": "gpt",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -85846,6 +85876,16 @@
         "source": "compiled"
     },
     {
+        "name": "Train of Thought",
+        "scryfallId": "e98f5890-a494-4609-acae-f9e9bacd991d",
+        "oracleId": "90ba0366-57ff-4dc4-a290-3925548129ce",
+        "firstSet": "gpt",
+        "firstPrintId": "e98f5890-a494-4609-acae-f9e9bacd991d",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Trained Armodon",
         "scryfallId": "2380ab8f-58d2-4e1c-a115-cd2615b5a871",
         "oracleId": "4c9f5359-249e-488b-9a7e-db1a43c2b1f4",
@@ -88677,6 +88717,16 @@
         "firstPrintId": "39643107-8873-42f6-9b4d-b546a0a976ba",
         "firstPrintSet": "ktk",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Vacuumelt",
+        "scryfallId": "99d48342-e321-4161-8e0c-8cb2d68bf599",
+        "oracleId": "eb421a1b-147f-422b-bb8d-483a182a4096",
+        "firstSet": "psal",
+        "firstPrintId": "99d48342-e321-4161-8e0c-8cb2d68bf599",
+        "firstPrintSet": "psal",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

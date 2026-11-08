@@ -442,6 +442,18 @@ export function lowerKickers(
             });
             continue;
         }
+        // CR 702.56a — one entry per card, under the keyword's own name.
+        if (kicker.replicate === true) {
+            const cost: KickerCost = {
+                id: "replicate",
+                keyword: "replicate",
+                description: kicker.description,
+                multi: true,
+            };
+            if (kicker.mana !== undefined) cost.mana = kicker.mana;
+            out.push(cost);
+            continue;
+        }
         let id = "kicker";
         if (kickers.length > 1) {
             const colors = KICKER_ID_COLORS.filter(

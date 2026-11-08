@@ -111,8 +111,6 @@ export const subtlety = defineCard(() => ({
 // The spell's own effect is Force Spike's shape (leg/blue.cards.ts) with {2}: a
 // `mayPay` offered to the targeted spell's controller, then `counter` when it
 // went unpaid (CR 701.6a).
-//
-// compiler-gap: Replicate {U} (#2693)
 export const loseFocus = defineCard(() => ({
     id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
     name: "Lose Focus",
