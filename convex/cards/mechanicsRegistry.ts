@@ -3412,6 +3412,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Effect Script Op for "[player] may copy this spell and may choose new targets for the copy" (CR 707.10 + CR 707.10c, issue #5604). Routes through the two SpellContext primitives the hand-written chain cards already called: `copyResolvingSpell({ controllerId })` clones the RESOLVING spell onto the stack under `player`\'s control, then `requestCopyRetarget` offers that player new targets for the copy. The "may" is not in the Op: the grammar gates it with a cost-free `mayPay` + `if`, and the preceding optional cost (sacrifice a land, pay {R}{R}) is the same `mayPay` + `if`. The copy re-runs the same script, so the chain can recur. Skipped when `player` does not resolve (CR 608.2b). From a spell\'s own cast trigger (CR 113.6k) "this spell" is the trigger\'s source, even one countered in response (CR 113.7a, 608.2h: the cast-time snapshot), and a copy of a permanent spell becomes a token as it resolves (CR 707.10f, 608.3f). Used by Chain of Vapor, Sage of the Skies.',
     },
     {
+        op: "copySpell",
+        status: "implemented",
+        cr: "707.10",
+        binding: "SpellContext.copyStackItem + requestCopyRetarget",
+        note: 'Effect Script Op for "copy target instant or sorcery spell [you control]. You may choose new targets for the copy" (CR 707.10 + CR 707.10c, issue #8580). Copies a DIFFERENT spell, announced as a target, onto the stack above the resolving object, under the resolving controller\'s control (CR 707.10), through the same `copyStackItem` primitive Fork calls; `newTargets: true` then offers that player new targets for the copy through `requestCopyRetarget` (CR 707.10c), and without it the copy keeps the original\'s targets. The copy emits `SPELL_COPIED` from the one clone choke point. Skipped when the target already left the stack (CR 608.2b). The sibling of `copyResolvingSpell` ("copy this spell"); it copies no ability (CR 707.10, issue #3246), names no other copier and overrides no colour.',
+    },
+    {
         op: "retarget",
         status: "implemented",
         cr: "115.7a",

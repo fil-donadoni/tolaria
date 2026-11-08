@@ -1790,6 +1790,13 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "copyResolvingSpell" copies the resolving spell onto the stack — covered by the Op's interpreter tests`,
     },
+    // `copySpell` (CR 707.10) targets a SPELL on the stack and may raise a
+    // `copy-retarget` selection; the canned generator seeds no second spell
+    // and answers no pending target, so it is an explicit skip.
+    copySpell: {
+        code: "op-own-tests",
+        reason: `Op "copySpell" copies a target spell on the stack — covered by the Op's interpreter tests`,
+    },
     // `retarget` (CR 115.7a) targets a SPELL on the stack and raises a
     // `retarget` selection for a player; the canned generator seeds no second
     // spell and answers no pending target, so it is an explicit skip.

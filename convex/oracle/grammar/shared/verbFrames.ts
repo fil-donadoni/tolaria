@@ -677,6 +677,22 @@ export type FrameIR =
     | {
           /** CR 115.7d — new targets for the spell the line announced. */
           readonly frame: "chooseNewTargets";
+      }
+    | {
+          /**
+           * CR 707.10 — the announced spell is copied under the resolving
+           * controller's control. `newTargets` is set only by folding the
+           * "You may choose new targets for the copy." sentence after it
+           * (`assembleSentences`, CR 707.10c), never read from the member.
+           */
+          readonly frame: "copyTargetSpell";
+          readonly requirement: TargetRequirement;
+          readonly newTargets?: true;
+      }
+    | {
+          /** CR 707.10c — new targets for the copy the sentence before made;
+           *  folded into that `copyTargetSpell` frame, never lowered alone. */
+          readonly frame: "chooseNewTargetsForCopy";
       };
 
 /**
@@ -904,6 +920,14 @@ export const VERB_FRAMES: readonly {
     {
         name: "chooseNewTargets",
         opens: /^you may choose new targets for it$/i,
+    },
+    {
+        name: "copyTargetSpell",
+        opens: /^copy target instant or sorcery spell you control$/i,
+    },
+    {
+        name: "chooseNewTargetsForCopy",
+        opens: /^you may choose new targets for the copy$/i,
     },
 ];
 
@@ -2491,6 +2515,25 @@ function readMember(
     }
     if (opensFrame("chooseNewTargets", lower))
         return { frames: [{ frame: "chooseNewTargets" }], referent };
+    // CR 707.10 + CR 115.1c — the stack phrase is read by exact spelling, the
+    // opener's: one card-type pair, controlled by the copier.
+    if (opensFrame("copyTargetSpell", lower))
+        return {
+            frames: [
+                {
+                    frame: "copyTargetSpell",
+                    requirement: {
+                        type: "spell",
+                        count: 1,
+                        spellTypeFilter: ["Instant", "Sorcery"],
+                        controller: "you",
+                    } as TargetRequirement,
+                },
+            ],
+            referent,
+        };
+    if (opensFrame("chooseNewTargetsForCopy", lower))
+        return { frames: [{ frame: "chooseNewTargetsForCopy" }], referent };
     // A member a frame opens but reads no form of: the shuffle and the Wish
     // frames refuse it; a move or sacrifice member is the table's to read.
     if (

@@ -185,6 +185,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // CR 707.10 — deterministic: `requestCopyRetarget` raises a pending target
     // for later, it never returns "suspend" from this executor.
     copyResolvingSpell: false,
+    // CR 707.10 — deterministic, like `copyResolvingSpell`: the retarget offer
+    // is a pending target raised for later, never a "suspend".
+    copySpell: false,
     moveZone: false,
     preventDamage: false,
     redirectDamage: false,
