@@ -15,6 +15,7 @@ import { defineCard, type SpellContext } from "../../types";
 // `resolve()` calling the primitive directly mirrors how every manland's
 // animate ability already does the same for `animateAsCreature` (not yet
 // Op-wrapped either). Vintage Cube free tranche (issue #675, ADR 0041).
+// hand-tail: When you play another land, sacrifice this land. (#8505)
 export const cityOfTraitors = defineCard(() => ({
     id: "a7a8b6b8-b95f-4014-b17a-a6d44d965995",
     rarity: "rare",

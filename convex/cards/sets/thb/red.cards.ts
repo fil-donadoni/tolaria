@@ -11,6 +11,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //  three other graveyard cards.)
 // "At the beginning of the end step, sacrifice this enchantment." (CR 603.6a —
 //  a phase-begin self-sacrifice trigger; DSL `sacrifice $source`.)
+// hand-tail: Each nonland card in your graveyard has escape. The escape cost is equal to the card's mana cost plus exile three other cards from your graveyard. (#8505)
 export const underworldBreach = defineCard(() => ({
     id: "0e51d796-7279-4c06-87f0-37adbdaa41df",
     name: "Underworld Breach",

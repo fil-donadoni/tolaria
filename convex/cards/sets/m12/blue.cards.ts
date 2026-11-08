@@ -57,6 +57,7 @@ const phantasmalImageSacrifice: TriggeredAbility = {
     effects: [{ op: "sacrifice", target: { ref: "$source" } }],
 };
 
+// hand-tail: You may have this creature enter as a copy of any creature on the battlefield, except it's an Illusion in addition to its other types and it has "When this creature becomes the target of a spell or ability, sacrifice it." (#8505)
 export const phantasmalImage = defineCard(() => ({
     id: "98e7bf8f-dba7-4005-8cee-634c9153931d", // M12 72
     rarity: "rare",

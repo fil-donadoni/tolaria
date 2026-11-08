@@ -19,6 +19,7 @@ import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "../../emblems";
 //   −3: "Chandra deals 4 damage to target creature." → dealDamage Op.
 //   −7: emblem "Whenever you cast a spell, this emblem deals 5 damage to any
 //       target." → emblem Op + the triggered EmblemDefinition (#1221 / #1478).
+// hand-tail: +1: Exile the top card of your library. You may cast that card. If you don't, {self} deals 2 damage to each opponent. (#8505)
 export const chandraTorchOfDefiance = defineCard(() => ({
     id: "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
     name: "Chandra, Torch of Defiance",

@@ -158,6 +158,7 @@ export const vibrance = defineCard(() => ({
 // already existed (issue #1746, CR 611.2b), the live-object `objectMatchesFilter`
 // predicate (#1747), guild-hybrid pips payable with mana (#1738/#1739) and
 // player-quality protection (#1748) — no card-shaped primitive at all.
+// hand-tail: {1}{G/W}{G/W}: If this creature is a Scout, it becomes a Kithkin Soldier with base power and toughness 4/5. (#8505)
 export const figureOfFable = defineCard(() => ({
     id: "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
     name: "Figure of Fable",

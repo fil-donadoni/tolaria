@@ -35,6 +35,7 @@ import { equipAbility, forMirrodin } from "../../abilities/equipment";
 //   - The activated ability — `{W}, {T}, Remove a story counter` cost (the
 //     `removeCounter` activation-cost shape `eld/black.cards.ts`'s Wishclaw
 //     Talisman already exercises) → a plain `draw` Op.
+// hand-tail: Whenever you create one or more creature tokens, put a story counter on this artifact. (#8505)
 export const staffOfTheStoryteller = defineCard(() => ({
     id: "ab1d1461-1625-4163-aacd-a939f4871fad", // ONC 10
     name: "Staff of the Storyteller",
@@ -116,6 +117,7 @@ export const staffOfTheStoryteller = defineCard(() => ({
 //    once per combat by construction — never once per additional attacker.
 //    The condition is "the host is among the attackers AND at least 2
 //    creatures total attacked" (equipped creature + at least one other).
+// hand-tail: Whenever equipped creature and at least one other creature attack, draw a card. (#8505)
 export const glimmerLens = defineCard(() => ({
     id: "c9262000-e6f3-4da1-ad1c-038f65d3bef6", // ONC 6
     name: "Glimmer Lens",

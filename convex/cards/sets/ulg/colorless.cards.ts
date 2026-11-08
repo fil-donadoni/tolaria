@@ -124,6 +124,7 @@ export const grimMonolith = defineCard(() => ({
 // even its owner may look until it comes back.
 const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
 
+// hand-tail: {T}, Sacrifice this artifact: Each player exiles all cards from their hand face down and draws seven cards. At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way. (#8505)
 export const memoryJar = defineCard(() => ({
     id: "a15d33d6-7213-4482-a1be-ac0a73644af6",
     name: "Memory Jar",

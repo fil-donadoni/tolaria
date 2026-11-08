@@ -134,8 +134,8 @@ const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
 //     then reverts while the artifact stays on the battlefield; the "except"
 //     clause is CR 707.9b's `additionalTypes`, so copying a creature yields an
 //     artifact creature.
-// compiler-gap: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#2693)
-// compiler-gap: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#2693)
+// hand-tail: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#8505)
+// hand-tail: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#8505)
 export const saheeliSublimeArtificer = defineCard(() => ({
     id: SAHEELI_SUBLIME_ARTIFICER_ID, // WAR 234
     name: "Saheeli, Sublime Artificer",

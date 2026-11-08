@@ -3341,11 +3341,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Alabaster Leech",
             "issue": 4596
         },
@@ -3381,11 +3376,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Archon of Cruelty",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Arctic Merfolk",
             "issue": 4595
         },
@@ -3398,11 +3388,6 @@
             "kind": "hand-tail",
             "key": "Ashiok, Dream Render",
             "issue": 8596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Astrologian's Planisphere",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3426,18 +3411,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Balance",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Barrin's Unmaking",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Barrowgoyf",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3456,11 +3431,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Bitter Triumph",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Black Widow, Super Spy",
             "issue": 7228
         },
@@ -3471,23 +3441,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Blazemire Verge",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Bleachbone Verge",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Blood Moon",
             "issue": 8594
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Bloodchief's Thirst",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3506,21 +3461,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Bolas's Citadel",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Bone Shards",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Bonecrusher Giant // Stomp",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Boomerang Basics",
             "issue": 7229
         },
@@ -3533,16 +3473,6 @@
             "kind": "hand-tail",
             "key": "Break the Ice",
             "issue": 8608
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Brightglass Gearhulk",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Broadside Bombardiers",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3571,16 +3501,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Celestial Colonnade",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Chain Lightning",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Chain of Smog",
             "issue": 3657
         },
@@ -3588,21 +3508,6 @@
             "kind": "hand-tail",
             "key": "Chalice of the Void",
             "issue": 8851
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Chandra, Torch of Defiance",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Chrome Mox",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "City of Traitors",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3656,23 +3561,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Containment Priest",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Coveted Jewel",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Crabomination",
             "issue": 7594
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Creeping Tar Pit",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3706,11 +3596,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Dack Fayden",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Dalkovan Encampment",
             "issue": 8597
         },
@@ -3731,11 +3616,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Dauthi Voidwalker",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Dead Ringers",
             "issue": 4326
         },
@@ -3746,16 +3626,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Deathrite Shaman",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Deep-Cavern Bat",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Defiling Tears",
             "issue": 4596
         },
@@ -3763,11 +3633,6 @@
             "kind": "hand-tail",
             "key": "Delayed Blast Fireball",
             "issue": 2097
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Delighted Halfling",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3871,11 +3736,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Elite Spellbinder",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Elvish Champion",
             "issue": 4596
         },
@@ -3911,11 +3771,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Endurance",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Ertai's Trickery",
             "issue": 4595
         },
@@ -3931,11 +3786,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Everflowing Chalice",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Exotic Curse",
             "issue": 4596
         },
@@ -3943,21 +3793,6 @@
             "kind": "hand-tail",
             "key": "Exotic Disease",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Expressive Iteration",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fabled Passage",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -3971,11 +3806,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Fallen Shinobi",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Falling Timber",
             "issue": 4595
         },
@@ -3983,31 +3813,6 @@
             "kind": "hand-tail",
             "key": "False Dawn",
             "issue": 4329
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fastbond",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fatal Push",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fear of Missing Out",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Figure of Destiny",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Figure of Fable",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4021,33 +3826,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Force of Vigor",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Force of Will",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Forsaken City",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Forth Eorlingas!",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fractured Identity",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Fury",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4063,11 +3843,6 @@
             "kind": "hand-tail",
             "key": "Galvanic Blast",
             "issue": 8618
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Galvanic Discharge",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4111,16 +3886,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Giver of Runes",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Glimmer Lens",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Glistening Deluge",
             "issue": 8621
         },
@@ -4153,11 +3918,6 @@
             "kind": "hand-tail",
             "key": "Grafdigger's Cage",
             "issue": 8599
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Grief",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4201,11 +3961,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Haywire Mite",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Heroic Defiance",
             "issue": 4595
         },
@@ -4228,11 +3983,6 @@
             "kind": "hand-tail",
             "key": "Hull Breach",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Hullbreacher",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4261,28 +4011,13 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Inquisition of Kozilek",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Iron Man Armor",
             "issue": 7237
         },
         {
             "kind": "hand-tail",
-            "key": "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Jace, Wielder of Mysteries",
             "issue": 3231
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Jacked Rabbit",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4311,18 +4046,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Kaldra Compleat",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Kangee, Aerie Keeper",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Karn, Scion of Urza",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4391,23 +4116,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Library of Alexandria",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Lightning Dart",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Liliana of the Veil",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Lion Sash",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4418,11 +4128,6 @@
             "kind": "hand-tail",
             "key": "Lord of the Undead",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Lurrus of the Dream-Den",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4441,33 +4146,13 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Malcolm, Alluring Scoundrel",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Malevolent Rumble",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Malicious Advice",
             "issue": 4595
         },
         {
             "kind": "hand-tail",
-            "key": "Mana Drain",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Mana Maze",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Mana Vault",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4496,16 +4181,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Memory Jar",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Memory Lapse",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Metamorphosis Fanatic",
             "issue": 7239
         },
@@ -4526,11 +4201,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Mine Collapse",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Mirrorpool",
             "issue": 8856
         },
@@ -4538,11 +4208,6 @@
             "kind": "hand-tail",
             "key": "Mirrorwood Treefolk",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Mishra's Workshop",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4561,21 +4226,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Moonshadow",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Mox Opal",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Multiversal Passage",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Murktide Regent",
             "issue": 8626
         },
@@ -4591,11 +4241,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Narset, Parter of Veils",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Natural Emergence",
             "issue": 4595
         },
@@ -4606,18 +4251,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Necromancy",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Nemata, Grove Guardian",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Nettlecyst",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4628,11 +4263,6 @@
             "kind": "hand-tail",
             "key": "Nightscape Familiar",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Nissa, Who Shakes the World",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4651,28 +4281,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Occult Epiphany",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Okoye, Mighty and Adored",
             "issue": 7243
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Once Upon a Time",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Orcish Bowmasters",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Orcish Lumberjack",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4696,11 +4306,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Ouroboroid",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Overload",
             "issue": 4596
         },
@@ -4708,11 +4313,6 @@
             "kind": "hand-tail",
             "key": "Painter's Servant",
             "issue": 7244
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Palace Jailer",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4726,28 +4326,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Path to Exile",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Pest Infestation",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Phantasmal Image",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Phantasmal Terrain",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Phelia, Exuberant Shepherd",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4758,11 +4338,6 @@
             "kind": "hand-tail",
             "key": "Phyrexian Infiltrator",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Phyrexian Metamorph",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4798,11 +4373,6 @@
             "kind": "hand-tail",
             "key": "Pledge of Loyalty",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Ponder",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -4846,11 +4416,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Pyrogoyf",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Quicksilver Dagger",
             "issue": 4340
         },
@@ -4891,16 +4456,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Relic of Sauron",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Remand",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Rest in Peace",
             "issue": 8602
         },
@@ -4936,11 +4491,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Riverpyre Verge",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Roiling Canopy",
             "issue": 8843
         },
@@ -4958,11 +4508,6 @@
             "kind": "hand-tail",
             "key": "Ruham Djinn",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Saheeli, Sublime Artificer",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5061,16 +4606,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Sheoldred's Edict",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Shifting Woodland",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Shoreline Raider",
             "issue": 4596
         },
@@ -5111,11 +4646,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Skyclave Apparition",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Skyship Weatherlight",
             "issue": 4595
         },
@@ -5131,23 +4661,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Snuff Out",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Solitude",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Soul Burn",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Soul-Guide Lantern",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5186,11 +4701,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Staff of the Storyteller",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Stand or Fall",
             "issue": 4596
         },
@@ -5201,11 +4711,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Starting Town",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Steel Leaf Paladin",
             "issue": 4595
         },
@@ -5213,16 +4718,6 @@
             "kind": "hand-tail",
             "key": "Sterling Grove",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Stern Scolding",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Stoneforge Mystic",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5261,11 +4756,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Subtlety",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Suffocating Blast",
             "issue": 4341
         },
@@ -5283,11 +4773,6 @@
             "kind": "hand-tail",
             "key": "Sunscape Familiar",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Super Shredder",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5316,11 +4801,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Sword of the Meek",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Tahngarth, Talruum Hero",
             "issue": 4595
         },
@@ -5338,11 +4818,6 @@
             "kind": "hand-tail",
             "key": "Tamiyo, Collector of Tales",
             "issue": 2607
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Tear Asunder",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5373,11 +4848,6 @@
             "kind": "hand-tail",
             "key": "Test of Talents",
             "issue": 8637
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Thassa's Oracle",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5421,11 +4891,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Thopter Foundry",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Thornscape Familiar",
             "issue": 4595
         },
@@ -5436,11 +4901,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Thornspire Verge",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Thraben Charm",
             "issue": 8639
         },
@@ -5448,11 +4908,6 @@
             "kind": "hand-tail",
             "key": "Thunderscape Familiar",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Titania, Protector of Argoth",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5501,23 +4956,8 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Underworld Breach",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Unholy Heat",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Urborg Shambler",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Urborg, Tomb of Yawgmoth",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5533,11 +4973,6 @@
             "kind": "hand-tail",
             "key": "Urza's Guilt",
             "issue": 4595
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Urza's Saga",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5571,11 +5006,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Vivi Ornitier",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Void",
             "issue": 4596
         },
@@ -5598,11 +5028,6 @@
             "kind": "hand-tail",
             "key": "Wash Out",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Wastewood Verge",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",
@@ -5646,11 +5071,6 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Wishclaw Talisman",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Witherbloom Apprentice",
             "issue": 2087
         },
@@ -5666,28 +5086,13 @@
         },
         {
             "kind": "hand-tail",
-            "key": "Wrenn and Six",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Yavimaya Kavu",
             "issue": 4596
         },
         {
             "kind": "hand-tail",
-            "key": "Yavimaya, Cradle of Growth",
-            "issue": 8505
-        },
-        {
-            "kind": "hand-tail",
             "key": "Zanam Djinn",
             "issue": 4596
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Zirda, the Dawnwaker",
-            "issue": 8505
         },
         {
             "kind": "hand-tail",

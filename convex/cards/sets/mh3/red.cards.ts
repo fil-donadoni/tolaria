@@ -27,6 +27,7 @@ import { AURA_AFFECTS_HOST, defineCard, type SpellContext } from "../../types";
 // `requestOptionChoice` over 0..pool. Split into two steps so the "you get
 // {E}{E}{E}" mutation (step 0) runs ONCE and is not re-applied when the pay
 // choice (step 1) suspends/resumes (CR 608.3 stepped resolution).
+// hand-tail: Choose target creature or planeswalker. You get {E}{E}{E} , then you may pay any amount of {E}. {self} deals that much damage to that permanent. (#8505)
 export const galvanicDischarge = defineCard(() => ({
     id: "32aa6e33-221f-414c-9b51-850d97a7e051",
     rarity: "common",

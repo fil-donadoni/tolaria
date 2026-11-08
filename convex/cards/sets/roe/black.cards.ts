@@ -12,6 +12,7 @@ import { defineCard } from "../../types";
 // (`convex/cards/sets/lrw/black.cards.ts`), with the additional `manaValueAtMost: 3`
 // filter field (issue #677) ANDed onto the existing `excludeType: "Land"`
 // (issue #682) — no life loss, unlike Thoughtseize.
+// hand-tail: Target player reveals their hand. You choose a nonland card from it with mana value 3 or less. That player discards that card. (#8505)
 export const inquisitionOfKozilek = defineCard(() => ({
     id: "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
     name: "Inquisition of Kozilek",

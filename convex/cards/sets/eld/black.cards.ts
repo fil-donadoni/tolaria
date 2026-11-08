@@ -20,6 +20,7 @@ import { defineCard } from "../../../../convex/cards/types";
 // field; `controllerTurnOnly` models "Activate only during your turn"; the
 // control change to "an opponent" uses the `EffectPlayerRef` literal
 // `"opponent"`.
+// hand-tail: {1}, {T}, Remove a wish counter from this artifact: Search your library for a card, put it into your hand, then shuffle. An opponent gains control of this artifact. Activate only during your turn. (#8505)
 export const wishclawTalisman = defineCard(() => ({
     id: "07c17b01-ee5d-491a-8403-b3f819b778c4",
     name: "Wishclaw Talisman",

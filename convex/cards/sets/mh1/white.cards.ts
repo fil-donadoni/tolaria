@@ -7,6 +7,7 @@ import { protectionColorModes } from "../../abilities";
 // protection from colorless or from the color of your choice until end of
 // turn." (CR 702.16 protection; CR 613.1f temporary keyword grant; CR 700.2
 // modal choice; CR 109.2 "another" excludes the source itself.)
+// hand-tail: {T}: Another target creature you control gains protection from colorless or from the color of your choice until end of turn. (#8505)
 export const giverOfRunes = defineCard(() => ({
     id: "4e117771-5a8b-4812-b487-32ba34b7f724",
     name: "Giver of Runes",

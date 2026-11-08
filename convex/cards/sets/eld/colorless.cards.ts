@@ -26,6 +26,7 @@ import { defineCard } from "../../../../convex/cards/types";
 // land is already on the battlefield by then and is one of the "four or
 // more lands" it's being counted against, matching the printed card's
 // resolution order.
+// hand-tail: {T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land. (#8505)
 export const fabledPassage = defineCard(() => ({
     id: "b841bfa8-7c17-4df2-8466-780ab9a4a53a",
     name: "Fabled Passage",

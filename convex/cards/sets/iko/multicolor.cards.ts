@@ -114,7 +114,7 @@ export const lutri = defineCard(() => ({
 // Maindeck qualifies.
 //
 // Printed cost is {1}{W/B}{W/B} — TWO HYBRID W/B pips, declared via
-// `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
+// `manaCost.hybrid` and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
 // (eve/multicolor.cards.ts) for the reference shape. This closes the divergence
 // this card previously shipped under (issue #782, closed), the same gap that
@@ -131,6 +131,7 @@ export const lutri = defineCard(() => ({
 // declarative field as Icetill Explorer's, not an activated/triggered ability
 // or an Effect Script Op. Lifelink is a standard implemented keyword
 // (Mechanics Registry, CR 702.15).
+// hand-tail: Companion — Each permanent card in your starting deck has mana value 2 or less. (#8505)
 export const lurrus = defineCard(() => ({
     // Kept as a literal (not imported from `gre/companion.ts`'s `LURRUS_ID`):
     // same import-cycle rationale as `lutri` above (multicolor.ts →
@@ -215,9 +216,9 @@ export const lurrus = defineCard(() => ({
 // Op and no hand-written test beyond the catalogue's static sweep + smoke
 // test (per-Op regime, `.claude/rules/gre-development.md`).
 //
-// compiler-gap: "Companion — Each permanent card in your starting deck has an activated ability." (#2693)
-// compiler-gap: "Abilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
-// compiler-gap: "{1}, {T}: Target creature can't block this turn." (#2693)
+// hand-tail: "Companion — Each permanent card in your starting deck has an activated ability." (#8505)
+// hand-tail: "Abilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#8505)
+// hand-tail: "{1}, {T}: Target creature can't block this turn." (#8505)
 export const zirda = defineCard(() => ({
     // Kept as a literal (not imported from `gre/companion.ts`'s `ZIRDA_ID`) —
     // same anti-cycle rationale as `lutri`/`lurrus` above (multicolor.ts →

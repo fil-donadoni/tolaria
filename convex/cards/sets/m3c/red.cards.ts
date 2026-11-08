@@ -13,7 +13,7 @@ import type {
 import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 
 // Pyrogoyf — {3}{R} Creature — Lhurgoyf, printed */1+* (Vintage Cube FREE
-// wave 3, issue #1528, parent PRD #1525). "Pyrogoyf's power is equal to the
+// wave 3, parent PRD #1525). "Pyrogoyf's power is equal to the
 // number of card types among cards in all graveyards and its toughness is
 // equal to that number plus 1. Whenever this creature or another Lhurgoyf
 // creature you control enters, that creature deals damage equal to its power
@@ -26,7 +26,7 @@ import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 //
 // TRIGGER HALF: an ENTER trigger with an announced "any target"
 // (`targetRequirement.type: "any"`, targets chosen when the trigger is put on
-// the stack, CR 603.3d / issue #1193). It fires for THIS creature and for
+// the stack, CR 603.3d). It fires for THIS creature and for
 // ANY OTHER Lhurgoyf creature the controller controls (Pyrogoyf is itself a
 // Lhurgoyf, so the `matches` predicate is simply "an entering Lhurgoyf
 // creature you control", which subsumes the self case). `resolve()` (not a
@@ -47,6 +47,7 @@ import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 // deathtouch (CR 702.2b), lifelink (CR 702.15b), "damage from a red source",
 // protection-by-colour (CR 702.16e) — is then evaluated against THAT creature.
 // For Pyrogoyf's own ETB the two coincide and the same call is still correct.
+// hand-tail: Pyrogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1. (#8505)
 export const pyrogoyf = defineCard(() => ({
     id: "f60be310-4461-4b84-95f0-b2095108bd79",
     name: "Pyrogoyf",

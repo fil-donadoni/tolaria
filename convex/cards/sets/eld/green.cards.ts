@@ -23,6 +23,7 @@ import { defineCard } from "../../types";
 // shape — so this card introduces no new Op and needs no hand-written GRE/
 // wire test beyond the catalogue-wide static sweep + auto-generated smoke
 // test (the per-Op regime, `.claude/rules/gre-development.md`).
+// hand-tail: If this spell is the first spell you've cast this game, you may cast it without paying its mana cost. (#8505)
 export const onceUponATime = defineCard(() => ({
     id: "4034e5ba-9974-43e3-bde7-8d9b4586c3a4",
     name: "Once Upon a Time",

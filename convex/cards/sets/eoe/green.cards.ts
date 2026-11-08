@@ -15,6 +15,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // `forEach` over the controller's battlefield creatures (a frozen SET, not a
 // player choice), so no trigger-targeting bridge is needed (contrast
 // Luminarch Aspirant in `sets/znr/white.cards.ts`).
+// hand-tail: At the beginning of combat on your turn, put X +1/+1 counters on each creature you control, where X is this creature's power. (#8505)
 export const ouroboroid = defineCard(() => ({
     id: "209c591a-4ab2-4e89-9523-a7b766cf4e51",
     name: "Ouroboroid",

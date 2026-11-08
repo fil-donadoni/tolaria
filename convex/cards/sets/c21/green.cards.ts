@@ -31,6 +31,7 @@ import { PEST_TOKEN } from "../../sharedTokens";
 //   `EffectTokenSpec.triggeredAbilities` entry (issue #2364) — converted
 //   into a real self-scoped `TriggeredAbility` by
 //   `resolveTokenTriggeredAbilities` at the `createToken` Op executor.
+// hand-tail: Destroy up to X target artifacts and/or enchantments. Create twice X 1/1 black and green Pest creature tokens with "When this token dies, you gain 1 life." (#8505)
 export const pestInfestation = defineCard(() => ({
     id: "4720b4f2-e6af-4223-9250-a0ed21ed5693",
     name: "Pest Infestation",

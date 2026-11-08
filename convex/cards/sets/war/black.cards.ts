@@ -36,6 +36,7 @@ import { defineCard } from "../../types";
 // generalizing the single-permanent `sacrificeFilter` to N (CR 602.1 / 118.5).
 // Citadel itself is a legal victim — it is a nonland permanent, and CR 701.21
 // puts no restriction on sacrificing the source of the ability being paid for.
+// hand-tail: You may play lands and cast spells from the top of your library. If you cast a spell this way, pay life equal to its mana value rather than pay its mana cost. (#8505)
 export const bolassCitadel = defineCard(() => ({
     id: "d2124603-d20e-40eb-97f0-a66323397ac2",
     name: "Bolas's Citadel",

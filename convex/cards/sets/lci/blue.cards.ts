@@ -100,7 +100,7 @@ export const tishanasTidebinder = defineCard(() => ({
 //      `$discarded` for the threshold clause below — the id is stable
 //      across the discard (a zone move, not a new instance).
 //   4. `if` gated on the chorus-counter READ (`{ counters: { of: {ref:
-//      "$source"}, type: "chorus" } }`, CR 122.6, issue #1015) `>= 4`:
+//      "$source"}, type: "chorus" } }`, CR 122.6) `>= 4`:
 //      `castDuringResolution` (CR 608.2f, issue #1477) offers the caster an
 //      optional Cast/Decline of the JUST-discarded card and, on accept, casts
 //      it INLINE from the graveyard for free, as part of THIS trigger's own
@@ -113,6 +113,7 @@ export const tishanasTidebinder = defineCard(() => ({
 //      finish the trigger with nothing cast. No later-in-turn window is ever
 //      granted (the impulse-window bug of the previous `grantCastFromGraveyard`
 //      implementation, issue #1344, is gone).
+// hand-tail: Whenever {self} deals combat damage to a player, put a chorus counter on it. Draw a card, then discard a card. If there are four or more chorus counters on {self}, you may cast the discarded card without paying its mana cost. (#8505)
 export const malcolmAlluringScoundrel = defineCard(() => ({
     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
     name: "Malcolm, Alluring Scoundrel",

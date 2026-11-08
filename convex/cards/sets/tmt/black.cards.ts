@@ -34,6 +34,7 @@ function superShredderCounterTrigger(): TriggeredAbility {
     };
 }
 
+// hand-tail: Whenever another permanent leaves the battlefield, put a +1/+1 counter on {self}. (#8505)
 export const superShredder = defineCard(() => ({
     id: "37a497b8-e908-4ddc-996e-a8470df72afb",
     name: "Super Shredder",

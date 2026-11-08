@@ -12,6 +12,7 @@ import { defineCard, isBasicLandCard } from "../../types";
 // `battlefield` from a graveyard card, not a library search choice. Stays
 // `resolve()` (Nature's Lore precedent, ice/green.cards.ts).
 
+// hand-tail: Exile target creature. Its controller may search their library for a basic land card, put that card onto the battlefield tapped, then shuffle. (#8505)
 export const pathToExile = defineCard(() => ({
     id: "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
     rarity: "uncommon",

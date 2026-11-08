@@ -26,6 +26,7 @@ import { reconfigureAbilities } from "../../abilities/equipment";
 // `AURA_AFFECTS_HOST` predicate — the same attach plumbing an Aura's P/T buff
 // uses, generalized: `AURA_AFFECTS_HOST` only reads `source.attachedTo`, it
 // doesn't care whether the source is an Aura or an Equipment.
+// hand-tail: Equipped creature gets +1/+1 for each +1/+1 counter on this Equipment. (#8505)
 export const lionSash = defineCard(() => ({
     id: "3e1766e9-2fa7-4446-a255-7beea1467ece",
     name: "Lion Sash",

@@ -28,6 +28,7 @@ import { defineCard } from "../../types";
 // Scryfall `all_parts`).
 const THOPTER_FOUNDRY_ID = "42b8d797-b01d-49cf-9818-d84bba17029d";
 
+// hand-tail: {1}, Sacrifice a nontoken artifact: Create a 1/1 blue Thopter artifact creature token with flying. You gain 1 life. (#8505)
 export const thopterFoundry = defineCard(() => ({
     id: THOPTER_FOUNDRY_ID,
     name: "Thopter Foundry",

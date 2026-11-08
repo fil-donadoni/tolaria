@@ -153,7 +153,7 @@ export const coalitionRelic = defineCard(() => ({
 // uses — so `matches` reads `event.power`/`event.toughness` directly instead
 // of re-deriving them from `TriggerStateView`'s battlefield entries (which
 // only carry the mutable BASE characteristic). "you may" = a cost-free
-// `mayPay` (issue #680);
+// `mayPay`;
 // "return this card ... then attach it to that creature" is `moveZone
 // { target: { ref: "$source" } }` (the Ashen Ghoul self-reanimation shape,
 // issue #737's unconditional `$source` graveyard recovery) followed by
@@ -163,6 +163,7 @@ export const coalitionRelic = defineCard(() => ({
 // `BECAME_TARGET.targetPermanent`) — added in `mechanicsRegistry.ts`
 // alongside this card; NOT a new Op, the existing ADR 0049 generalization
 // mechanism for exposing an already-existing event field to the DSL.
+// hand-tail: Whenever a 1/1 creature you control enters, you may return this card from your graveyard to the battlefield, then attach it to that creature. (#8505)
 export const swordOfTheMeek = defineCard(() => ({
     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
     name: "Sword of the Meek",
