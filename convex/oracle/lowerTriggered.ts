@@ -73,7 +73,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                               : {}),
                       },
                   }
-                : { kind: "entered", scope: head.scope };
+                : head.subtype !== undefined
+                  ? // CR 205.3i — a land-subtype narrowing rides the filter.
+                    {
+                        kind: "entered",
+                        scope: head.scope,
+                        filter: { subtypes: [head.subtype] },
+                    }
+                  : { kind: "entered", scope: head.scope };
         case "dies":
             // CR 603.6 — the event IS `CREATURE_DIED`, so the head carries no
             // type filter: a second authority on the same fact is a second
