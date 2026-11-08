@@ -44,6 +44,11 @@
  *                 <payment>" rider on the source (CR 118.12a). Quantity,
  *                 descriptor, player and payment are each the shared leaf
  *                 sub-grammar's; the frame reads no word of them itself.
+ *  - `discard`  — "Discard <count> cards unless you discard <a typed card>"
+ *                 (CR 701.9a + CR 118.12a): the controller may discard one
+ *                 card of the printed card type; if they don't, they discard
+ *                 the count. Only the rider form: the bare imperative
+ *                 "Discard a card" is the sentence table's.
  *  - `bringFromOutsideGame` — "You may reveal <description> you own from
  *                 outside the game and put it into your hand" (the Wish
  *                 cards, CR 400.11b + CR 701.20a): ONE Op owns the optional
@@ -315,6 +320,18 @@ export type FrameIR =
            *  on the source (or the pronoun for it) only: the payer and the
            *  owner of the loss are the same player. */
           readonly unless?: UnlessPaymentIR;
+      }
+    | {
+          /**
+           * CR 701.9a + CR 118.12a — "Discard two cards unless you discard a
+           * creature card": the controller may discard one card of the
+           * printed type; if they don't, they discard `count` cards of their
+           * choice (issue #8589). The rider is the frame's whole reason to
+           * exist: the bare "Discard a card" is the sentence table's.
+           */
+          readonly frame: "discard";
+          readonly count: number;
+          readonly unless: Extract<UnlessPaymentIR, { kind: "discard-card" }>;
       }
     | {
           /**
@@ -818,6 +835,12 @@ export const VERB_FRAMES: readonly {
             `^(?:sacrifice|(?:${PLAYER_PHRASES.join("|")}) sacrifices?) `,
             "i"
         ),
+    },
+    {
+        name: "discard",
+        // The controller's own discard with the CR 118.12a rider — the only
+        // discard this layer reads; the bare imperative stays the table's.
+        opens: /^discard .+ unless you discard /i,
     },
     {
         name: "protectionFromEverything",
@@ -1759,6 +1782,47 @@ function readSacrificedObject(
     });
 }
 
+/** CR 701.9a — the discarded quantity: "a card", "two cards". */
+const DISCARD_COUNT = /^(\S+) cards?$/;
+
+/**
+ * CR 701.9a + CR 118.12a — one `discard` member: "discard <count> cards
+ * unless you discard <a typed card>". The payment is the shared unless-payment
+ * sub-grammar's, narrowed to the typed discard it has a fixture for: "unless
+ * you return a land you control …" (Tragic Lesson) or a condition ("unless you
+ * attacked this turn", Chart a Course) is refused here, under its own gap.
+ */
+function readDiscardMember(
+    lower: string,
+    ctx: unknown
+): RuleResult<Extract<FrameIR, { frame: "discard" }>> {
+    const unlessAt = lower.indexOf(UNLESS);
+    const object = lower.slice("discard ".length, unlessAt);
+    const rider = lower.slice(unlessAt + UNLESS.length + "you ".length);
+    const counted = object.match(DISCARD_COUNT);
+    const word = counted === null ? null : counted[1]!;
+    const count =
+        word === null ? null : word === "a" ? 1 : readNumberWord(word);
+    // The noun agrees with the count: "a card", "two cards".
+    if (count === null || count < 1 || object.endsWith("cards") !== count > 1)
+        return fail(`"${object}" is not a count of cards`, object);
+    const payment = readUnlessPayment(rider, ctx as RuleContext);
+    if (!payment.ok) return payment;
+    if (
+        payment.value.kind !== "discard-card" ||
+        Object.keys(payment.value.filter).length === 0
+    )
+        return fail(
+            `"unless you ${rider}" — only a typed discard is a rider the discard frame reads`,
+            rider
+        );
+    return ok({
+        frame: "discard" as const,
+        count,
+        unless: payment.value,
+    });
+}
+
 /**
  * CR 701.21a — one `sacrifice` member: "sacrifice <object>" (the controller)
  * or "<player> sacrifices <object>[ of their choice]" (the named player), with
@@ -1809,6 +1873,16 @@ function readSacrificeMember(
             ctx as RuleContext
         );
         if (!payment.ok) return payment;
+        // A typed discard ("unless you discard a land card") has no fixture
+        // on this frame: it is the `discard` frame's payment (issue #8589).
+        if (
+            payment.value.kind === "discard-card" &&
+            Object.keys(payment.value.filter).length > 0
+        )
+            return fail(
+                `"unless ${rider}" — a typed discard is not a payment the sacrifice frame reads`,
+                rider
+            );
         unless = payment.value;
         rest = rest.slice(0, unlessAt);
     }
@@ -2119,6 +2193,12 @@ function readMember(
             frames: [{ frame: "shuffle", player: "that-player" }],
             referent,
         };
+    if (opensFrame("discard", lower)) {
+        const read = readDiscardMember(lower, ctx);
+        if (!read.ok) return { refused: read.reason, failure: read };
+        return { frames: [read.value], referent };
+    }
+
     const sacrifice = readSacrificeMember(lower, ctx);
     if (sacrifice !== null) {
         // The refusal names the WHOLE member, whatever sub-grammar refused

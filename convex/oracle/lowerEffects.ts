@@ -5655,6 +5655,9 @@ function lowerFrameChain(
                 ops.push(...lowered.value);
                 break;
             }
+            case "discard":
+                ops.push(...lowerDiscardFrame(frame, walk));
+                break;
             case "search": {
                 const bind = walk.nextBind("found");
                 if (typeof frame.filter.manaValueAtMost === "object") {
@@ -6358,6 +6361,54 @@ function lowerOptionalSacrificeByActedOn(
             ],
         },
     ]);
+}
+
+/**
+ * CR 701.9a + CR 118.12a — the `discard` frame: "discard N cards unless you
+ * discard a creature card" MEANS "you may discard a creature card; if you
+ * don't, discard N cards". The typed discard is a `mayPay` HAND cost leg
+ * (ADR 0079) — a hand with no card of the type cannot pay it, so the bind
+ * stays false — and the declined branch is the loot's `choose-hand-card` /
+ * `discard` pair, the controller's own choice (CR 701.9b). Declining with a
+ * card of the type in hand is legal: the two discarded cards may include one.
+ */
+function lowerDiscardFrame(
+    frame: Extract<FrameIR, { frame: "discard" }>,
+    walk: SentenceWalk
+): EffectOp[] {
+    const paid = walk.nextBind("may");
+    const chosen = walk.nextBind("discard");
+    const many =
+        frame.count === 1 ? "a card" : `${countWord(frame.count)} cards`;
+    return [
+        {
+            op: "mayPay",
+            player: "controller",
+            cost: lowerUnlessPayment(frame.unless),
+            prompt: `Discard ${frame.unless.object} instead of ${many}?`,
+            bind: paid,
+        },
+        {
+            op: "if",
+            predicate: { not: { binding: paid } },
+            then: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: frame.count,
+                    prompt: `Discard ${many}.`,
+                    bind: chosen,
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: chosen },
+                },
+            ],
+        },
+    ];
 }
 
 /**

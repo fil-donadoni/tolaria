@@ -11,6 +11,9 @@
  *
  *   - "pay {U}"                        → `mana`
  *   - "discard a card"                 → `hand` (discard)
+ *   - "discard a creature card"        → `hand` (discard, one card of the
+ *                                        type; read by the `discard` frame
+ *                                        only, issue #8589)
  *   - "sacrifice a Forest"             → `permanent` (sacrifice, one)
  *   - "sacrifice any number of creatures with total power 12 or greater"
  *                                      → `permanent` (sacrifice, threshold)
@@ -37,8 +40,16 @@ import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 export type UnlessPaymentIR =
     /** CR 118.1 — "pay {U}": mana. */
     | { readonly kind: "mana"; readonly mana: ManaCost }
-    /** CR 701.9a — "discard a card": a card of the payer's choice. */
-    | { readonly kind: "discard-card" }
+    /** CR 701.9a — "discard a card" / "discard a creature card": one card of
+     *  the payer's choice from their hand, of the printed card type when one
+     *  is printed (CR 205.2a). */
+    | {
+          readonly kind: "discard-card";
+          readonly filter: EffectCardFilter;
+          /** The printed object, "a card" / "a creature card" — the prompt
+           *  names it. */
+          readonly object: string;
+      }
     /** CR 701.21a — "sacrifice a Forest": one permanent of the payer's choice. */
     | { readonly kind: "sacrifice"; readonly filter: PermanentFilter }
     /** CR 701.21a — "sacrifice any number of creatures with total power N or
@@ -64,6 +75,8 @@ const SACRIFICE_TOTAL_POWER =
     /^sacrifice any number of (.+) with total power (\d+) or greater$/;
 const SACRIFICE_ONE = /^sacrifice an? (.+)$/;
 const RETURN_ONE = /^return an? (.+) to its owner's hand$/;
+/** CR 205.2a — "discard a creature card": one card type word, nothing else. */
+const DISCARD_TYPED = /^discard (an? (\S+) card)$/;
 const RETURN_FROM_GRAVEYARD =
     /^return (an? (?:(basic) (\S+)|(\S+))? ?card) from your graveyard to your hand$/;
 
@@ -98,7 +111,29 @@ export function readUnlessPayment(
             return fail("a variable cost is not announced here", span);
         return ok({ kind: "mana" as const, mana: mana.cost });
     }
-    if (span === "discard a card") return ok({ kind: "discard-card" as const });
+    if (span === "discard a card")
+        return ok({
+            kind: "discard-card" as const,
+            filter: {},
+            object: "a card",
+        });
+    const typed = span.match(DISCARD_TYPED);
+    if (typed !== null) {
+        // A card type word only (CR 205.2a): a subtype ("a Pirate card"), a
+        // supertype ("a basic land card") or a type list ("an instant or
+        // sorcery card") fails the lookup or the pattern and is refused.
+        const type = CARD_TYPE_ADJECTIVES.get(typed[2]!);
+        if (type === undefined)
+            return fail(`"${typed[2]}" is not a card type`, span);
+        // The article agrees with the type word ("an artifact card").
+        if (typed[1]!.startsWith("an ") !== /^[aeiou]/.test(typed[2]!))
+            return fail(`"${typed[1]}" — the article disagrees`, span);
+        return ok({
+            kind: "discard-card" as const,
+            filter: { type },
+            object: typed[1]!,
+        });
+    }
 
     const threshold = span.match(SACRIFICE_TOTAL_POWER);
     if (threshold !== null) {
@@ -178,7 +213,7 @@ export function lowerUnlessPayment(payment: UnlessPaymentIR): MayPayCost {
             return {
                 hand: {
                     action: "discard",
-                    requirements: [{ filter: {}, count: 1 }],
+                    requirements: [{ filter: payment.filter, count: 1 }],
                 },
             };
         case "sacrifice":
@@ -226,7 +261,7 @@ export function unlessPaymentPrompt(
             case "mana":
                 return "Pay the cost";
             case "discard-card":
-                return "Discard a card";
+                return `Discard ${payment.object}`;
             case "sacrifice":
                 return "Sacrifice a permanent";
             case "sacrifice-total-power":
