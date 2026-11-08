@@ -3420,7 +3420,8 @@ function unionKeys(
  *  the one failure downstream can never detect. So each is skipped only when
  *  its live value is exactly what re-executing the lowered animation writes:
  *
- *   - `colorOverride` — equal, as a SET, to the animation's own `colors`;
+ *   - `colorOverride` — equal, as a SET, to the animation's own `colors`
+ *     (and its `colorOverrideSeq`, when it is the animation's own stamp);
  *   - `temporaryColorOverrides` — exactly ONE row: the same colours and the
  *     same resolved boundary (the rebuild re-resolves the lowered `duration`
  *     against the same controller, so the two must agree phase for phase). A
@@ -3444,6 +3445,11 @@ function animationRebuildKeys(
             sameStringSet([...card.colorOverride], [...colors])
         ) {
             allowed.add("colorOverride");
+            // CR 613.7 — the animate clause stamps its colour set with the
+            // animation's own timestamp, which the rebuild re-mints with it.
+            if (card.colorOverrideSeq === card.animation?.seq) {
+                allowed.add("colorOverrideSeq");
+            }
         }
         const rows = card.temporaryColorOverrides;
         const temporary = rows?.length === 1 ? rows[0] : undefined;

@@ -43,6 +43,10 @@ function cleanup(state: GameState): void {
 
 const colors = (c: CardInstanceState) => getEffectiveColors(c);
 
+/** CR 613.7b — each write is a new effect, so it gets a later timestamp. */
+let seq = 0;
+const nextSeq = (): number => ++seq;
+
 describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
     it.each([
         [["R"], ["U"]],
@@ -51,8 +55,8 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
         "two until-end-of-turn sets (%j then %j) both expire at cleanup",
         (first, second) => {
             const { state, card } = board();
-            applyColorOverrideToPermanent(card, first, EOT);
-            applyColorOverrideToPermanent(card, second, EOT);
+            applyColorOverrideToPermanent(card, first, EOT, nextSeq());
+            applyColorOverrideToPermanent(card, second, EOT, nextSeq());
             expect(colors(card)).toEqual(second);
             cleanup(state);
             expect(card.colorOverride).toBeUndefined();
@@ -63,9 +67,9 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
 
     it("three overlapping sets all expire", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["R"], EOT);
-        applyColorOverrideToPermanent(card, ["U"], EOT);
-        applyColorOverrideToPermanent(card, ["B"], EOT);
+        applyColorOverrideToPermanent(card, ["R"], EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["U"], EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["B"], EOT, nextSeq());
         expect(colors(card)).toEqual(["B"]);
         cleanup(state);
         expect(card.colorOverride).toBeUndefined();
@@ -74,8 +78,8 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
 
     it("the later set's expiry falls back to the earlier one while it is live", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["R"], NEXT_EOT);
-        applyColorOverrideToPermanent(card, ["U"], EOT);
+        applyColorOverrideToPermanent(card, ["R"], NEXT_EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["U"], EOT, nextSeq());
         cleanup(state);
         expect(colors(card)).toEqual(["R"]);
         cleanup(state);
@@ -85,8 +89,8 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
 
     it("the earlier set expiring under a live later one leaves the later showing", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["R"], EOT);
-        applyColorOverrideToPermanent(card, ["U"], NEXT_EOT);
+        applyColorOverrideToPermanent(card, ["R"], EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["U"], NEXT_EOT, nextSeq());
         cleanup(state);
         expect(colors(card)).toEqual(["U"]);
         cleanup(state);
@@ -95,9 +99,9 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
 
     it("an indefinite override underneath is restored, not cleared", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["W"], undefined);
-        applyColorOverrideToPermanent(card, ["R"], EOT);
-        applyColorOverrideToPermanent(card, ["U"], EOT);
+        applyColorOverrideToPermanent(card, ["W"], undefined, nextSeq());
+        applyColorOverrideToPermanent(card, ["R"], EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["U"], EOT, nextSeq());
         cleanup(state);
         expect(card.colorOverride).toEqual(["W"]);
         expect(card.temporaryColorOverrides).toBeUndefined();
@@ -111,23 +115,23 @@ describe("timed colour override ledger (CR 613.7, issue #2936)", () => {
         const underneath = card.colorOverride
             ? [...card.colorOverride]
             : undefined;
-        applyColorOverrideToPermanent(card, ["R"], EOT);
+        applyColorOverrideToPermanent(card, ["R"], EOT, nextSeq());
         cleanup(state);
         expect(card.colorOverride).toEqual(underneath);
     });
 
     it("an indefinite set after a timed one supersedes it (latest timestamp)", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["R"], EOT);
-        applyColorOverrideToPermanent(card, ["W"], undefined);
+        applyColorOverrideToPermanent(card, ["R"], EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["W"], undefined, nextSeq());
         cleanup(state);
         expect(card.colorOverride).toEqual(["W"]);
     });
 
     it("round-trips the ledger through the wire format", () => {
         const { state, card } = board();
-        applyColorOverrideToPermanent(card, ["R"], NEXT_EOT);
-        applyColorOverrideToPermanent(card, ["U"], EOT);
+        applyColorOverrideToPermanent(card, ["R"], NEXT_EOT, nextSeq());
+        applyColorOverrideToPermanent(card, ["U"], EOT, nextSeq());
         const got = expandState(compactState(state)).players[0].battlefield[0];
         expect(got.temporaryColorOverrides).toEqual(
             card.temporaryColorOverrides
