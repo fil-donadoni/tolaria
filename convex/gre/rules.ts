@@ -4663,7 +4663,7 @@ export function effectiveRequirementForSource(
  *  enumerator (`enumerateAbilityMoves`) both call this, so the requirement
  *  the Bot builds target tuples from is the one the mutation then
  *  validates against — never a second copy of the closure call. A modal
- *  ability's chosen mode overrides both (CR 700.2d); callers pick the mode
+ *  ability's chosen mode overrides both (CR 700.2a); callers pick the mode
  *  first. Source directives (`applySourceDirectives`) are applied by the
  *  caller afterwards, exactly as for a static requirement. */
 export function abilityTargetRequirement(

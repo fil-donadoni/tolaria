@@ -1014,10 +1014,9 @@ function activationsInFlight(
  *
  *  A target requirement — static or a dynamic `getTargetRequirement` closure —
  *  is not a gate here: this leaf heuristic never asks whether a target exists
- *  for a static one, so it asks it for no dynamic one either. The closure used
- *  to fail closed on its own, mirroring an enumerator that skipped it; since
- *  issue #7924 the enumerator resolves it (`abilityTargetRequirement`), and the
- *  two shapes are credited alike.
+ *  for a static one, so it asks it for no dynamic one either: the enumerator
+ *  resolves the closure (`abilityTargetRequirement`) and offers the ability, so
+ *  the two shapes are credited alike.
  *
  *  The rest are AVAILABILITY, which an announced ability has already cleared —
  *  it is on the stack, so re-testing them would reject the very state the
