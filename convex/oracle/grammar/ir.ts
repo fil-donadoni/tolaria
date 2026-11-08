@@ -450,6 +450,12 @@ export type SlotIR =
      */
     | { readonly kind: "ninjutsu"; readonly cost: ManaCost }
     /**
+     * CR 702.53a — a "Transmute [cost]" line: an activated ability usable from
+     * the hand, lowered through the catalogue's `transmuteAbility` factory
+     * with the card's printed mana value (CR 202.3).
+     */
+    | { readonly kind: "transmute"; readonly cost: ManaCost }
+    /**
      * CR 702.84a — an "Unearth [cost]" line: an activated ability usable from
      * the graveyard, lowered through the catalogue's `unearthAbility` factory.
      */

@@ -882,6 +882,7 @@ export const warpRule: Rule<SlotIR> = rule("warp", (span) => {
 const EQUIP_HEAD = "Equip ";
 const RECONFIGURE_HEAD = "Reconfigure ";
 const NINJUTSU_HEAD = "Ninjutsu ";
+const TRANSMUTE_HEAD = "Transmute ";
 const UNEARTH_HEAD = "Unearth ";
 const OFFSPRING_HEAD = "Offspring ";
 const CREW = /^Crew (\d+)$/;
@@ -974,6 +975,23 @@ export const ninjutsuRule: Rule<SlotIR> = rule("ninjutsu", (span) => {
 });
 
 /**
+ * CR 702.53a — "Transmute [cost]" means "[Cost], Discard this card: Search
+ * your library for a card with the same mana value as the discarded card,
+ * reveal that card, and put it into your hand. Then shuffle your library.
+ * Activate only as a sorcery." An activated ability that functions only in
+ * the hand, lowered through the catalogue's `transmuteAbility` factory with
+ * the card's own printed mana value (CR 202.3), read by lowering.
+ *
+ * Refused: a non-mana cost (no printed card), every cost
+ * {@link costParameter} refuses.
+ */
+export const transmuteRule: Rule<SlotIR> = rule("transmute", (span) => {
+    const cost = costParameter(TRANSMUTE_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "transmute" as const, cost: cost.value });
+});
+
+/**
  * CR 702.84a — "Unearth [cost]": an activated ability that functions while the
  * card is in a graveyard. Lowered through the catalogue's `unearthAbility`
  * factory.
@@ -1010,7 +1028,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
  * foretell, splice, overload, morph, fading, mobilize, firebending, ward life, impending, warp, equip,
  * reconfigure, crew,
- * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
+ * saddle, ninjutsu, transmute, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -1043,6 +1061,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     crewRule,
     saddleRule,
     ninjutsuRule,
+    transmuteRule,
     unearthRule,
     offspringRule,
 ]);
