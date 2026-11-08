@@ -73,9 +73,9 @@ export type ControllerState = {
  *  click handlers, the keyboard-shortcut effect, and the ordered action
  *  descriptors. Extracted verbatim from the old `ActionBar` so the collapsed
  *  pod (#331) reuses the priority helpers and dispatches the SAME mutations —
- *  view-layer only, no GRE changes. Space = act, Enter = pass turn / cancel
- *  auto-pass, U = cancel cast/activation are preserved exactly; P = Pass Until
- *  Action / cancel it (issue #5782). */
+ *  view-layer only, no GRE changes. Space = act, U = cancel cast/activation
+ *  are preserved exactly; Enter = Pass Until Action (issue #5782) / cancel a
+ *  standing pass intent, P = pass turn (swapped in issue #7423). */
 export function useControllerActions(): ControllerState {
     const {
         gameId,
@@ -403,16 +403,18 @@ export function useControllerActions(): ControllerState {
                 !e.ctrlKey &&
                 !e.altKey
             ) {
-                // Pass Until Action (issue #5782): P arms it, P again (or
-                // Enter) cancels it. Never while a cost is being paid — the
-                // banner owns the keyboard there.
+                // Pass Turn (issue #7423 — was Enter until the swap). Never
+                // while a cost is being paid: ending the turn mid-payment
+                // would strand the cast; U / Esc / Enter cancel it instead.
                 if (isPayingCast || isPayingActivation || isPayingAttackTax)
                     return;
                 e.preventDefault();
-                if (isPassUntilAction || isQueuedPassUntilAction) {
+                if (hasPassIntent) {
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent) {
-                    handlePassUntilAction();
+                    // Same window as Space's fall-through below: a P pressed
+                    // before the payment banner renders must not end the turn.
+                    handleEndTurn();
                 }
                 return;
             }
@@ -530,25 +532,29 @@ export function useControllerActions(): ControllerState {
                 e.preventDefault();
                 if (isPayingCast) {
                     // PaymentBanner is up: Enter cancels the payment rather than
-                    // ending the turn. Ending mid-payment would otherwise leave
-                    // a stale cast the server later abandons — cancel cleanly
-                    // here so the banner clears and no turn is accidentally
-                    // passed in the same keystroke.
+                    // arming Pass Until Action (never while a cost is being
+                    // paid). Passing mid-payment would otherwise leave a stale
+                    // cast the server later abandons — cancel cleanly here so
+                    // the banner clears and nothing is passed in the same
+                    // keystroke.
                     cancelCast({ gameId, playerId }).catch(reportError);
                 } else if (isPayingActivation) {
                     cancelActivation({ gameId, playerId }).catch(reportError);
                 } else if (isPayingAttackTax) {
-                    // Same rationale as cast/activation: ending the turn while an
+                    // Same rationale as cast/activation: passing while an
                     // attack is parked on its tax is illegal (not priority), so
                     // Enter cancels the tax and drops the declaration cleanly.
                     cancelAttackTax({ gameId, playerId }).catch(reportError);
                 } else if (hasPassIntent) {
+                    // Pass Until Action (issue #5782, on Enter since issue
+                    // #7423): Enter again cancels it — or any other standing
+                    // pass intent.
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent) {
                     // Same window as Space's fall-through above: Enter meant as
-                    // "cancel the payment I just started" must not end the turn
+                    // "cancel the payment I just started" must not arm a pass
                     // because the banner hasn't rendered yet.
-                    handleEndTurn();
+                    handlePassUntilAction();
                 }
             }
         }
@@ -562,8 +568,6 @@ export function useControllerActions(): ControllerState {
         handlePassUntilAction,
         handleCancelAutoPass,
         hasPassIntent,
-        isPassUntilAction,
-        isQueuedPassUntilAction,
         isPayingCast,
         isPayingActivation,
         isPayingAttackTax,
@@ -655,7 +659,7 @@ export function useControllerActions(): ControllerState {
         // A standing intent already owns the passing (e.g. armed and halted
         // at declare-blockers): a second press would be a silent no-op.
         disabled: isBusy || hasPassIntent,
-        shortcut: "P",
+        shortcut: "enter",
         onClick: handlePassUntilAction,
     };
 
@@ -714,6 +718,7 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
+            shortcut: "P",
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
@@ -744,6 +749,7 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
+            shortcut: "P",
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
@@ -763,6 +769,7 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
+            shortcut: "P",
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
@@ -787,6 +794,7 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
+            shortcut: "P",
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
@@ -821,7 +829,7 @@ export function useControllerActions(): ControllerState {
         });
     }
 
-    // Queued Pass Turn intent (issue #157): the player pressed Enter without
+    // Queued Pass Turn intent (issue #157): the player pressed P without
     // priority. Surfaced independently of the priority-driven branches above
     // so it stays visible while waiting for priority to return. Mutually
     // exclusive with isAutoPass (the engine clears the queue once it fires).

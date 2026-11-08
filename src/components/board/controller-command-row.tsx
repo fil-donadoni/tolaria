@@ -119,6 +119,7 @@ export default function ControllerCommandRow({
                 <button
                     type="button"
                     aria-label="Pass Turn"
+                    title="Pass Turn [P]"
                     onClick={passTurn?.onClick}
                     disabled={!passTurn || passTurn.disabled}
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
@@ -131,7 +132,7 @@ export default function ControllerCommandRow({
                 <button
                     type="button"
                     aria-label="Pass Until Action"
-                    title="Pass Until Action [P]"
+                    title="Pass Until Action [Enter]"
                     onClick={passUntilAction?.onClick}
                     disabled={!passUntilAction || passUntilAction.disabled}
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
