@@ -37,7 +37,8 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { getCardByName } from "../../cards";
+import { getCardByName, withTemporaryDefinition } from "../../cards";
+import type { CardDefinition } from "../../cards/types";
 import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
@@ -209,5 +210,102 @@ describe("Splice onto Arcane — Bot reachability (CR 702.47, issue #2394)", () 
         resolveTopOfStack(plainWorld);
         expect(spliceChoice(splicedWorld)?.candidateIds).toEqual([BEARS]);
         expect(spliceChoice(plainWorld)).toBeUndefined();
+    });
+});
+
+/** Glacial Ray's compiled definition (`data/oracle-compiled.json`), registered
+ *  by hand so the enumeration claim does not depend on the packed catalogue. */
+const GLACIAL_RAY: CardDefinition = {
+    id: "glacial-ray-bot-probe",
+    name: "Glacial Ray",
+    rarity: "common",
+    types: ["Instant"],
+    subtypes: ["Arcane"],
+    manaCost: { X: 1, R: 1 },
+    oracleText:
+        "Glacial Ray deals 2 damage to any target.\nSplice onto Arcane {1}{R}",
+    effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+    targetRequirement: { type: "any", count: 1 },
+    splice: {
+        subtype: "Arcane",
+        cost: { mana: { X: 1, R: 1 } },
+        description: "Splice onto Arcane {1}{R}",
+    },
+};
+const RAY = "ray";
+
+/** Lava Spike and Glacial Ray in hand, three Mountains, an opposing 2/2. */
+function rayBoard(): GameState {
+    const state = board(3);
+    const p1 = getPlayer(state, "p1");
+    p1.hand = [
+        p1.hand.find((c) => c.id === SPIKE)!,
+        makeInstance(GLACIAL_RAY.id, {
+            id: RAY,
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        }),
+    ];
+    getPlayer(state, "p2").battlefield = [
+        makeInstance(grizzlyBears().id, {
+            id: BEARS,
+            zone: "battlefield",
+            controllerId: "p2",
+            ownerId: "p2",
+        }),
+    ];
+    return state;
+}
+
+describe("Splice a TARGETING card — Bot reachability (CR 702.47b/d, issue #8805)", () => {
+    it("ENUMERATES the reveal with a target for the spell's group AND the spliced card's", () => {
+        withTemporaryDefinition(GLACIAL_RAY, () => {
+            const spliced = enumerateMoves(rayBoard(), "p1").filter(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.cardInstanceId === SPIKE &&
+                    (m.kickerPayments?.[spliceCostId(RAY)] ?? 0) > 0
+            );
+            expect(
+                spliced.length,
+                "no Move reveals Glacial Ray — the spliced group was never announced"
+            ).toBeGreaterThan(0);
+            // CR 702.47d — every spliced Move names TWO targets: the Spike's
+            // player, then the Ray's own pick, appended after it.
+            for (const m of spliced) {
+                expect(m.kind === "cast-spell" && m.targets?.length).toBe(2);
+            }
+            // The Ray's slot reaches the board: one Move burns the 2/2.
+            expect(
+                spliced.some(
+                    (m) =>
+                        m.kind === "cast-spell" && m.targets?.[1]?.id === BEARS
+                )
+            ).toBe(true);
+        });
+    });
+
+    it("the ISMCTS sandbox resolves the spliced damage onto the spliced card's own target", () => {
+        withTemporaryDefinition(GLACIAL_RAY, () => {
+            const state = rayBoard();
+            const move = enumerateMoves(state, "p1").find(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.cardInstanceId === SPIKE &&
+                    (m.kickerPayments?.[spliceCostId(RAY)] ?? 0) > 0 &&
+                    m.targets?.[0]?.id === "p2" &&
+                    m.targets?.[1]?.id === BEARS
+            );
+            expect(move).toBeDefined();
+            const after = structuredClone(state);
+            applyMoveInSearch(after, "p1", move!);
+            resolveTopOfStack(after);
+            expect(getPlayer(after, "p2").life).toBe(17);
+            expect(
+                getPlayer(after, "p2").battlefield.find((c) => c.id === BEARS)
+                    ?.damageMarked ?? 0
+            ).toBe(2);
+        });
     });
 });

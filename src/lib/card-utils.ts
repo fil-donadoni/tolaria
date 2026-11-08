@@ -2196,7 +2196,22 @@ export function affordableKickersForCard(
     } as unknown as GameState;
     // CR 702.120a (issue #2267) — an escalate entry is not a toggle: its count
     // follows the modes the caster ticks, written by the server.
+    const view = { activePlayerId, players } as unknown as TriggerStateView;
     return kickers.filter(isCasterChosenCostEntry).filter((k) => {
+        // CR 702.47b — "You can't choose to use a splice ability if you can't
+        // make the required choices (targets, etc.)": a revealed card's target
+        // group joins the spell's announcement (CR 702.47d), so a toggle whose
+        // group has no candidate on the board is hidden. The same fail-open
+        // hint the mode picker reads; `announceCast` refuses the rest.
+        const splicedReq = k.splicedCardId
+            ? tryGetDefinition(k.splicedCardId)?.targetRequirement
+            : undefined;
+        if (
+            splicedReq &&
+            !hasBattlefieldTargetCandidate(splicedReq, card, view)
+        ) {
+            return false;
+        }
         const single = { ...def, kickers: [k] } as CardDefinition;
         const payment = { [k.id]: 1 };
         return (

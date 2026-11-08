@@ -1903,6 +1903,12 @@ const REVEALABLE_SPLICE_FIELDS: ReadonlySet<string> = new Set([
     "manaCost",
     "oracleText",
     "effects",
+    // CR 702.47d — "Choose targets for the added text normally (see rule
+    // 601.2c)": a spliced card's target requirement joins the spell's own
+    // announcement (`splicedTargetGroups`, `gre/splice.ts`), so it is text a
+    // reveal delivers. Which requirement SHAPES it can carry is the engine
+    // predicate's call (`spliceTargetGroupIsAnnounceable`), not this list's.
+    "targetRequirement",
     "destroysAllLands",
     "splice",
 ]);
