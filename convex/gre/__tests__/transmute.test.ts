@@ -33,7 +33,12 @@ const TOLARIA_WEST_TEXT =
 /** The compiled definition of a corpus card, given a registry id. */
 function compiledDefinition(
     id: string,
-    card: Parameters<typeof oracleCard>[0]
+    card: {
+        name: string;
+        manaCost: string;
+        typeLine: string;
+        oracleText: string;
+    }
 ): CardDefinition {
     const outcome = compileCard(oracleCard(card));
     if (outcome.state === "unparsed") throw new Error(`${card.name} unparsed`);
@@ -162,7 +167,7 @@ describe("Transmute (CR 702.53a)", () => {
     it("CR 602.5d — activate only as a sorcery: refused outside a main phase", () => {
         withTemporaryDefinition(DIZZY_SPELL, () => {
             const state = board(DIZZY_SPELL.id, LIBRARY);
-            state.phase = "COMBAT";
+            state.phase = "BEGINNING_OF_COMBAT";
             refreshExpectedInput(state);
             expect(() => transmute(state)).toThrow(
                 "Activate only as a sorcery"
