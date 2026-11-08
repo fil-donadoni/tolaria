@@ -376,3 +376,99 @@ describe("the residue this slice still refuses, by name (issue #5525)", () => {
         expect(outcome.error).toContain("order-top-");
     });
 });
+
+/** A DSL TRIGGER suspended on its own Pending Choice: Devouring Strossus's
+ *  upkeep "sacrifice a creature" (`phaseTrigger` with an Effect Script), on
+ *  the stack and asking the Bot which creature to sacrifice. Three creatures
+ *  with three different names, so every pick is its own candidate. */
+const STROSSUS_UPKEEP: ScenarioSpec = {
+    cards: [
+        { name: "Devouring Strossus", owner: "me" },
+        { name: "Grizzly Bears", owner: "me" },
+        { name: "Hill Giant", owner: "me" },
+        { name: "Swamp", owner: "opp" },
+    ],
+    phase: "UPKEEP",
+    turn: 5,
+    activePlayer: "me",
+    landCount: 0,
+    libraryCount: 20,
+};
+
+function triggerChoicePending(): { state: GameState; botId: string } {
+    const state = engineBuilt(STROSSUS_UPKEEP, [
+        { kind: "phase-trigger" },
+        { kind: "resolve-top" },
+    ]);
+    return { state, botId: state.players[0].id };
+}
+
+/** The per-source per-turn tally of every triggered ability on the board,
+ *  keyed by ability id alone — ids differ between the live game and the
+ *  rebuild, the ability does not. */
+function resolutionTallies(state: GameState): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [key, count] of Object.entries(
+        state.abilityResolutionCounts ?? {}
+    )) {
+        out[key.slice(key.indexOf(":") + 1)] = count;
+    }
+    return out;
+}
+
+describe("a TRIGGER suspended on a Pending Choice lowers and rebuilds, counted once (CR 608.2, issue #8731)", () => {
+    it("lowers the Strossus sacrifice pick: the rebuild resumes the trigger, offers the same candidates, and tallies the resolution once", () => {
+        const { state, botId } = triggerChoicePending();
+        const item = top(state);
+        expect(item.triggeredAbilityId).toBe("devouring-strossus-upkeep");
+        expect(item.abilityResolutionRecorded).toBe(true);
+        expect(item.resolutionStep).toBeDefined();
+        expect(state.pendingChoices?.[0].kind).toBe("sacrifice-permanents");
+        expect(state.pendingChoices?.[0].playerId).toBe(botId);
+        expect(resolutionTallies(state)).toEqual({
+            "devouring-strossus-upkeep": 1,
+        });
+
+        const outcome = lower(state, botId);
+        if (!outcome.ok) {
+            throw new Error(`refused ${outcome.kind}: ${outcome.error}`);
+        }
+        const entry = outcome.lowered.spec.stack?.[0];
+        expect(entry?.kind).toBe("trigger");
+        expect(entry?.resolution?.step).toBe(item.resolutionStep);
+        expect(outcome.lowered.candidates).toHaveLength(
+            candidateMoves(state, botId).length
+        );
+
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        const rebuiltBot = rebuilt.players[0].id;
+        expect(rebuilt.pendingChoices?.[0].kind).toBe("sacrifice-permanents");
+        expect(rebuilt.pendingChoices?.[0].playerId).toBe(rebuiltBot);
+        expect(top(rebuilt).abilityResolutionRecorded).toBe(true);
+        // The tally the card entry carries already counts THIS resolution;
+        // the resume must not count it a second time.
+        expect(resolutionTallies(rebuilt)).toEqual({
+            "devouring-strossus-upkeep": 1,
+        });
+        expect(
+            stackRebuildMismatch(
+                state,
+                seatsOf(state, botId),
+                rebuilt,
+                seatsOf(rebuilt, rebuiltBot)
+            )
+        ).toBeNull();
+    });
+
+    it("refuses the recorded flag BY FIELD on a trigger the lowering cannot give a checkpoint", () => {
+        const { state, botId } = triggerChoicePending();
+        // The same trigger, its checkpoint gone: the flag now rides on an
+        // item with no resolution to carry it, so nothing would rebuild it.
+        delete top(state).resolutionStep;
+        delete state.pendingChoices;
+        const { stackBlockers } = specFromState(state, { mySeatId: botId });
+        expect(stackBlockers.map((b) => b.field)).toContain(
+            "abilityResolutionRecorded"
+        );
+    });
+});
