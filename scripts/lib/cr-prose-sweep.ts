@@ -3,8 +3,9 @@
  *
  * `cr:lint` is diff-honest: a citation is read when its line is touched. ADR
  * prose written against an older Comprehensive Rules text is never touched
- * again, so it keeps citing ids the CR has since renumbered (502.1 was the
- * untap step, is now phasing; 720 was player control, is now Omen). This
+ * again, so it keeps citing ids the CR has since renumbered (the untap step
+ * once cited as a rule that is now phasing; player control as one that is now
+ * Omen). This
  * module reads EVERY `CR <id>` in `docs/**` once, regardless of the diff, and
  * reports four things. It is a report, never a gate (the gate stays offline
  * and diff-scoped, ADR 0098/0133):
