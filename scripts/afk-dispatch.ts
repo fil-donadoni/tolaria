@@ -55,6 +55,7 @@ import {
     parseAreaModels,
     parseStalledPrHours,
     repairItems,
+    priorityHoldLine,
     stalledPrLine,
     type PlanConfig,
     type RepairItem,
@@ -828,6 +829,11 @@ async function main(): Promise<void> {
               ]),
         `release: ${plan.release.map((n) => `#${n}`).join(", ") || "none"}`,
         `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${repairing.has(d.issue) ? ` repair PR #${d.pr}` : d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
+        // Why free slots stay empty on purpose (issue #8920): only when the
+        // hold left the batch empty — a P0 admitted beside it explains itself.
+        ...(picked.plan.priorityHold && picked.plan.batch.length === 0
+            ? [priorityHoldLine(picked.plan.priorityHold)]
+            : []),
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
         budgetLine,
