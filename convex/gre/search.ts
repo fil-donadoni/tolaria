@@ -1357,14 +1357,15 @@ export function applyMoveInSearch(
         }
 
         case "name-card": {
-            // CR 201.4a / 614.1c (issue #6676) — never a search DECISION (no
-            // candidate generator: which name is worth naming is a valuation
-            // question, issue #2467), but no longer a dead end either: the
-            // walk answers the window with `forcedChoiceAnswer`'s one legal
-            // name, so a Meddling Mage–shaped as-enters name choice lands the
-            // permanent instead of scoring the leaf with the spell spent and
-            // the creature nowhere. Applied through the SAME validated
-            // resolver the `submitNameCard` mutation drives.
+            // CR 201.4a / 614.1c (issue #6676) — a search DECISION only when
+            // the effect seeks the name in the chooser's own library (issue
+            // #8709, `librarySoughtNameCandidates`); otherwise which name is
+            // worth naming is a valuation question (issue #2467), but no dead
+            // end either: the walk answers an as-enters window with
+            // `forcedChoiceAnswer`'s one legal name, so a Meddling Mage–shaped
+            // name choice lands the permanent instead of scoring the leaf with
+            // the spell spent and the creature nowhere. Applied through the
+            // SAME validated resolver the `submitNameCard` mutation drives.
             applyNameCardSubmit(state, { playerId, cardName: move.cardName });
             drainAutoPasses(state);
             checkStateBasedActions(state);

@@ -46,6 +46,13 @@ export type RevealRouteDestination =
  *  `isLegalNamedCard` read. */
 export type NameRestriction = "no-basic-land" | "no-land";
 
+/** Where a resolving effect looks for the card name its chooser names
+ *  (issue #8709). `"chooser-library"`: the chooser's own library (Demonic
+ *  Consultation reveals from it until the named card turns up). Read by the
+ *  search only, to know that naming is a real decision; see
+ *  `PendingChoice.nameSoughtIn`. */
+export type NameSoughtIn = "chooser-library";
+
 export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
@@ -7621,6 +7628,8 @@ export interface SpellContext {
         choiceId: string;
         prompt: string;
         nameRestriction?: NameRestriction;
+        /** Stamps `PendingChoice.nameSoughtIn` (issue #8709). */
+        nameSoughtIn?: NameSoughtIn;
     }) => string | undefined;
 
     /** The card name of an instance in any zone, read from the card registry

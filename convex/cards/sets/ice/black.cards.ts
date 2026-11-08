@@ -489,6 +489,9 @@ export const demonicConsultation = defineCard(() => ({
             playerId: me,
             choiceId: "demonic-consultation-name",
             prompt: "Name a card.",
+            // The name is sought in this library (issue #8709): the search
+            // weighs naming a card still in it against one that is not.
+            nameSoughtIn: "chooser-library",
         });
         if (named === undefined) return; // suspended on the name choice
         // Read the whole library top-down so exiles operate on stable ids.

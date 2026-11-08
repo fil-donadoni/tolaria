@@ -19591,6 +19591,7 @@ export function buildSpellContext(
                 ...(req.nameRestriction
                     ? { nameRestriction: req.nameRestriction }
                     : {}),
+                ...(req.nameSoughtIn ? { nameSoughtIn: req.nameSoughtIn } : {}),
             };
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;

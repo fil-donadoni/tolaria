@@ -1635,6 +1635,81 @@ function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
     return cardName === undefined ? null : { kind: "name-card", cardName };
 }
 
+/** Issue #8709 — a `name-card` whose effect seeks the name in the chooser's
+ *  own library (`nameSoughtIn: "chooser-library"`, CR 201.4) is a decision
+ *  node: what the effect does depends on the name. Naming a card still in
+ *  that library digs it out; naming one that is not reveals, and exiles, the
+ *  whole library (Demonic Consultation, the Thassa's Oracle win). Neither is
+ *  right in general, so the search weighs both rather than a valuation guess.
+ *
+ *  Any other `name-card` stays what it was: the as-enters name is answered by
+ *  `nameCardAnswer`, and a mid-resolution name that seeks elsewhere (Cabal
+ *  Therapy's opponent's hand) still stops the walk. */
+function librarySoughtNameIsSearchable(choice: PendingChoice): boolean {
+    return choice.nameSoughtIn === "chooser-library";
+}
+
+/** The candidates of a library-sought name (issue #8709): the most valuable
+ *  distinct names still in the chooser's library, one branch each, plus ONE
+ *  legal name that library does not hold — the branch that empties it.
+ *
+ *  The library's CONTENT is the chooser's own deck, which it knows (only the
+ *  order is hidden, and `determinize` shuffles only the order), so a name is
+ *  a stable key across worlds. The absent name comes from the public objects
+ *  and the chooser's own hand, sorted, so every world and every seed name the
+ *  same card; when every one of them is also in the library there is no
+ *  absent branch. Legality through `isLegalNamedCard`, the predicate
+ *  `applyNameCardSubmit` enforces. */
+const librarySoughtNameCandidates: ChoiceCandidateGenerator = (
+    state,
+    choice
+) => {
+    if (!librarySoughtNameIsSearchable(choice)) return [];
+    const chooser = getPlayer(state, choice.playerId);
+    const nameOf = (card: CardInstanceState): string | undefined =>
+        tryGetDefinition(String(card.card.id ?? ""))?.name;
+    const inLibrary = new Map<string, number>();
+    for (const card of chooser.library) {
+        const name = nameOf(card);
+        if (name === undefined || inLibrary.has(name)) continue;
+        inLibrary.set(name, cardValueById(String(card.card.id ?? "")));
+    }
+    const named = (cardName: string) => ({
+        key: `name:${cardName}`,
+        move: { kind: "name-card" as const, cardName },
+    });
+    const present = [...inLibrary.entries()]
+        .filter(([name]) => isLegalNamedCard(state, choice, name))
+        .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .slice(0, CHOICE_TOP_K - 1)
+        .map(([name]) => named(name));
+    const absent = [
+        ...new Set(
+            [
+                ...(state.stagedEntries ?? []).map((entry) => entry.card),
+                ...state.stack,
+                ...chooser.hand,
+                ...state.players.flatMap((p) => [
+                    ...p.battlefield,
+                    ...p.graveyard,
+                    ...p.exile.filter((card) => !isFaceDownExile(card)),
+                ]),
+            ].flatMap(({ card }) => {
+                const name = tryGetDefinition(
+                    (card as { id?: string }).id ?? ""
+                )?.name;
+                return name === undefined ? [] : [name];
+            })
+        ),
+    ]
+        .sort()
+        .find(
+            (name) =>
+                !inLibrary.has(name) && isLegalNamedCard(state, choice, name)
+        );
+    return absent === undefined ? present : [...present, named(absent)];
+};
+
 /** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree
  *  candidates — whatever the search would open at that node — else the one
  *  forced answer, else none. */
@@ -2907,6 +2982,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // generator the settle stopped at the source pick and never scored the
     // shield the Circle of Protection buys.
     "pick-source": pickSourceCandidates,
+    // CR 201.4 (issue #8709) — a name the effect seeks in the chooser's own
+    // library; see `librarySoughtNameCandidates`. Every other name window
+    // declines (`CHOICE_GENERATOR_APPLIES`) and keeps `forcedChoiceAnswer`.
+    "name-card": librarySoughtNameCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
@@ -2938,6 +3017,7 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     // own `brain.ts` policy; see `choosePermanentsIsSearchable`.
     "choose-permanents": choosePermanentsIsSearchable,
     "choose-graveyard-card": graveyardExileIsSearchable,
+    "name-card": librarySoughtNameIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).

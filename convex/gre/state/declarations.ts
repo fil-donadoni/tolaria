@@ -41,6 +41,7 @@ import type {
     ManaSubstitutionBreadth,
     MayPayCost,
     NameRestriction,
+    NameSoughtIn,
     PermanentFilter,
     PermanentView,
     RecipientDamagePreventionShield,
@@ -4086,6 +4087,15 @@ export type PendingChoice = {
      *  rejected, basic or not. Undefined = no restriction (Petra
      *  Sphinx — any registered card name is legal). */
     nameRestriction?: NameRestriction;
+    /** For `kind: "name-card"` only (issue #8709) — the zone the resolving
+     *  effect matches the chosen name against, declared by the effect that
+     *  asks. `"chooser-library"`: the name is sought in the chooser's own
+     *  library (Demonic Consultation reveals until it finds it), so which
+     *  name to choose is a real decision — one still in that library digs it
+     *  out, one that is not exiles the whole library. The search reads it
+     *  (`librarySoughtNameCandidates`, `convex/gre/ai/choiceCandidates.ts`);
+     *  the rules never do. Undefined = the effect does not say. */
+    nameSoughtIn?: NameSoughtIn;
 
     // --- random-reveal family (CR 705, ADR 0023) ---
     /** For `kind: "random-reveal"` only — which random device produced the
