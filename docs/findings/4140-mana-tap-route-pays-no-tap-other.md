@@ -1,7 +1,8 @@
 ---
 title: a mana ability with {T} plus a tap-other cost is never paid its tap-other leg (tapUntap route)
 discoveredBy: 4140
-status: draft
+status: triaged
+issue: 8448
 confidence: high
 ---
 
