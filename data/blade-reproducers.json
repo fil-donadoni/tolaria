@@ -1128,6 +1128,7 @@
             "opp": 20
         }
     },
+    "dynamic target requirement: Giver of Runes protects its Bears from a Lightning Bolt": null,
     "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand": {
         "cards": [
             {
