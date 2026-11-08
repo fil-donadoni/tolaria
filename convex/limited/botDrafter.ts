@@ -21,7 +21,7 @@
 //         + fixingValue      × contextScale -- deficit-driven mana-fixing worth
 //         + curveFit         × contextScale -- curve needs
 //
-// ── Synergy: three layers, coarse to fine (ADR 0072, issue #1611) ──────────
+// ── Synergy: three layers, coarse to fine (ADR 0072) ──────────────────────
 // The three synergy terms all read ONE injected seam — `GetCardProfile`
 // (`cardProfiles.ts`, the layered DB-over-seed lookup `resolveEventCardProfile`
 // builds) — and every one of them contributes exactly ZERO for a scope with no
@@ -70,7 +70,7 @@
 // full weight was rejected — the bot would draft confidently on data that is
 // wrong in exactly the subtle cases the feature exists for.
 //
-// ── Colour splits into three derived questions (ADR 0073, issue #1610) ─────
+// ── Colour splits into three derived questions (ADR 0073) ──────────────────
 // `CardEvalMeta.colors` (`getCardColorIdentity`) reads `colors: []` for a
 // MOX or a SIGNET — a printed, colourless mana cost, so the cost-derived
 // branch (CR 202.2) sees no coloured symbol — even though the card plainly
