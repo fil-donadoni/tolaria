@@ -84,6 +84,7 @@ import {
     stampMeldedPermanent,
 } from "./meld";
 import { hasFlashback } from "./flashback";
+import { spellCounterImmunitySource } from "./spellCounterImmunity";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { withChangelingSubtypes } from "../cards/abilities/changeling";
@@ -16322,6 +16323,11 @@ export function buildSpellContext(
             // value), not on the card's definition — the same card cast
             // WITHOUT spending that mana stays perfectly counterable.
             if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
+                return { countered: false };
+            // CR 101.2 — a PERMANENT's "<spells> can't be countered" (Gaea's
+            // Herald) beats the instruction to counter, read live off the
+            // battlefield at this moment rather than stamped at cast.
+            if (spellCounterImmunitySource(state, found) !== undefined)
                 return { countered: false };
             // CR 113.7a (issue #2708) — the source PERMANENT of a countered
             // ability, read BEFORE the splice and reported to the caller so a

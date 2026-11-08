@@ -259,31 +259,31 @@ export const amphibiousKavu = defineCard(() => ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Gaea's Herald — {1}{G} Creature — Elf, 1/1. "Creature spells can't be
-// countered."
-//
-// STOP-AND-ISSUE (`.claude/rules/gre-development.md` § DSL-first authoring):
-// the engine's only "can't be countered" mechanism is the per-spell,
-// SELF-only `CardDefinition.cantBeCountered` flag (Obliterate, Blurred
-// Mongoose, Kavu Chameleon) plus the per-cast `StackItem.
-// dynamicCantBeCountered` rider (Delighted Halfling, issue #1559) — both
-// checked by `SpellContext.counter()`'s single choke point
-// (`convex/gre/state.ts`). Gaea's Herald needs a THIRD, board-state shape: a
-// battlefield PERMANENT grants "can't be countered" to every CREATURE spell
-// any player casts, for as long as it remains in play. Nothing at the
-// counter() choke point reads board state today, and no static-effect kind
-// flags an arbitrary spell (matched by a filter) as uncounterable from a
-// permanent's continuous ability — a genuine new engine capability, not
-// composable from existing Ops. Left as a commented stub rather than a
-// card-shaped `resolve()` ("the Op I need doesn't exist yet" is explicitly
-// not a valid `resolve()` justification). tracked-by: #2037
-// export const gaeasHerald: CardDefinition = {
-//     id: "aa52bc97-109a-4de5-b287-bce21dad6a9c", // PLS 80
-//     name: "Gaea's Herald",
-//     rarity: "rare",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf"],
-// };
+// countered." CR 101.2 / 701.6a — a `spell-counter-immunity` static, read live
+// by `SpellContext.counter()` off the battlefield: every player's creature
+// spells, matched on their stack characteristics, for exactly as long as this
+// permanent is on the battlefield with its abilities (CR 611.3b).
+// hand-tail: Creature spells can't be countered. (#4595)
+export const gaeasHerald = defineCard(() => ({
+    id: "aa52bc97-109a-4de5-b287-bce21dad6a9c", // PLS 80
+    name: "Gaea's Herald",
+    rarity: "rare",
+    oracleText: "Creature spells can't be countered.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "spell-counter-immunity",
+            id: "gaeas-herald-creature-spells",
+            spells: { types: "Creature" },
+            controlledBy: "any-player",
+            oracleText: "Creature spells can't be countered.",
+        },
+    ],
+}));
 
 // Gaea's Might — {G} Instant. "Domain — Target creature gets +1/+1 until
 // end of turn for each basic land type among lands you control." (CR 702
