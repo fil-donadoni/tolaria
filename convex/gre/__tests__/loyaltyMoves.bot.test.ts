@@ -191,18 +191,13 @@ describe("loyalty abilities reach the bot's move enumerator (CR 606.2)", () => {
             }
         }
 
-        // Sorin, Lord of Innistrad's `-6` carries a DYNAMIC target requirement
-        // (`getTargetRequirement`), which `enumerateAbilityMoves` excludes for
-        // every ability alike — an orthogonal limitation of the move planner,
-        // not a loyalty one, and explicitly out of scope for issue #2491.
-        expect(missing).toEqual([
-            "Sorin, Lord of Innistrad :: sorin-lord-of-innistrad-minus6",
-        ]);
-        // Derived, never a catalogue-wide literal: every new walker moved a
-        // hand-kept total, so two walker PRs always conflicted on this line
-        // (PR #7815 vs PR #7935). `missing` above pins exactly what is not
-        // offered; the rest of the catalogue must be.
-        expect(offeredCount).toBe(totalCount - missing.length);
+        // Every loyalty ability is offered — Sorin, Lord of Innistrad's `-6`
+        // included, whose DYNAMIC target requirement (`getTargetRequirement`)
+        // the enumerator resolves since issue #7924. Derived, never a
+        // catalogue-wide literal: every new walker moved a hand-kept total, so
+        // two walker PRs always conflicted on this line (PR #7815 vs PR #7935).
+        expect(missing).toEqual([]);
+        expect(offeredCount).toBe(totalCount);
     });
 
     it("never offers a loyalty move the server's own gate would reject", () => {

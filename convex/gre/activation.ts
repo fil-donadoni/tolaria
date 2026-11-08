@@ -87,6 +87,7 @@ import {
     resolvePhyrexianActivationPayment,
 } from "./phyrexian";
 import {
+    abilityTargetRequirement,
     effectiveRequirementForSource,
     getLegalTargets,
     isCastableLibraryTopSpell,
@@ -2428,9 +2429,7 @@ export function activateAbilityOnState(
         ? multiModeGroups[0]?.requirement
         : chosenMode
           ? chosenMode.targetRequirement
-          : ability.getTargetRequirement
-            ? ability.getTargetRequirement(card, state)
-            : ability.targetRequirement;
+          : abilityTargetRequirement(ability, card, state);
     // CR 612.6 — a color-targeted ability follows its source's active
     // color-word changes (Sleight of Mind on a Circle of Protection
     // retargets its "<color> source of your choice"). The substituted
