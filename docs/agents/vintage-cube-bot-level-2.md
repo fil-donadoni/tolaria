@@ -84,19 +84,27 @@ Such a row still owes its missing half. Everything else is new.
 
 ## Storm and combo
 
-| Card               | Right                                                 | Wrong: must not                                               | Has |
-| ------------------ | ----------------------------------------------------- | ------------------------------------------------------------- | --- |
-| Tendrils of Agony  | storm count is lethal: cast it                        | fire it early for a little life                               |     |
-| Yawgmoth's Will    | a full graveyard: cast it, then replay                | cast it with an empty graveyard                               |     |
-| Underworld Breach  | a graveyard that pays escape: cast it and escape      | cast it with nothing to escape, then die to the sacrifice     |     |
-| Bolas's Citadel    | life to spare, a live top card: play from the top     | pay life down to lethal                                       |     |
-| Dark Ritual        | it enables a spell this turn: cast it                 | cast it with nothing to spend on                              | yes |
-| Thassa's Oracle    | the alternate win is on: cast it                      | Demonic Consultation first, into a counterspell (issue #8709) | yes |
-| Flash              | a fatty in hand: cast it for the enter effect         | cast it for a body it cannot pay or use                       | yes |
-| Oath of Druids     | the opponent has more creatures: cast it              | cast it when it feeds only the opponent                       |     |
-| Natural Order      | a poor green creature: sacrifice it for the strongest | sacrifice a stronger creature for a weaker one                |     |
-| Green Sun's Zenith | the X that finds the creature it needs                | spend more X than the find needs                              |     |
-| Walking Ballista   | shoot to close the game                               | shoot off counters with no gain                               | yes |
+| Card               | Right                                                                                                                       | Wrong: must not                                                                              | Has |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --- |
+| Tendrils of Agony  | storm count is lethal: cast it                                                                                              | fire it early for a little life                                                              |     |
+| Yawgmoth's Will    | a full graveyard: cast it, then replay                                                                                      | cast it with an empty graveyard                                                              |     |
+| Underworld Breach  | a graveyard that pays escape: cast it and escape                                                                            | cast it with nothing to escape, then die to the sacrifice                                    |     |
+| Bolas's Citadel    | life to spare, a live top card: play from the top                                                                           | pay life down to lethal                                                                      |     |
+| Dark Ritual        | it enables a spell this turn: cast it                                                                                       | cast it with nothing to spend on                                                             | yes |
+| Thassa's Oracle    | the alternate win is on: cast it; with Demonic Consultation, respond to its trigger naming a card the library does not hold | Demonic Consultation first, into a possible counterspell (issue #8709: `stretch`, see below) | yes |
+| Flash              | a fatty in hand: cast it for the enter effect                                                                               | cast it for a body it cannot pay or use                                                      | yes |
+| Oath of Druids     | the opponent has more creatures: cast it                                                                                    | cast it when it feeds only the opponent                                                      |     |
+| Natural Order      | a poor green creature: sacrifice it for the strongest                                                                       | sacrifice a stronger creature for a weaker one                                               |     |
+| Green Sun's Zenith | the X that finds the creature it needs                                                                                      | spend more X than the find needs                                                             |     |
+| Walking Ballista   | shoot to close the game                                                                                                     | shoot off counters with no gain                                                              | yes |
+
+Thassa's Oracle + Demonic Consultation (issue #8709): the response to the
+trigger and the empty-library name are `must`. The order against an opponent
+who MAY hold a counterspell is `stretch`: the search still prefers Consultation
+first, a gap that widens with budget (suspected opponent strategy fusion in
+the search's shared opponent node, followed in its own issue). Against a list
+of only counterspells neither order wins, the Bot names a card still in its
+library, and the two orders tie, so that position pins nothing.
 
 ## Lands
 

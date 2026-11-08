@@ -51,6 +51,7 @@ import {
     castTargetsOnlyNamed,
     kickedCastOffered,
     altCostCastOffered,
+    namesCardAbsentFromLibrary,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -14884,6 +14885,171 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #4895 (issue #4758 review), fixed by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins on the spot (CR 104.2b). The win check is the Op AFTER the trigger's look-and-distribute keep (CR 401.4), and `look-distribute` had no candidate generator, so neither the 1-ply probe nor the tree got past the keep — the search passed on 5/5 seeds. The opponent's library is five cards deep so passing does not win by decking within the horizon: with both libraries at one card, passing ALSO read as a won game and the material tie-break preferred the later win with Thassa still in hand. With the generator 5/5 cast on `mean-reward`; without it 1/5.",
+    },
+    // Issue #8709 — the one-turn Thassa's Oracle + Demonic Consultation win,
+    // sequenced Oracle first with Consultation in response to the trigger.
+    // Demonic Consultation's name is sought in its caster's library
+    // (`nameSoughtIn`), so the name is a search decision: one still in the
+    // library digs it out, one that is not exiles the whole library, and the
+    // trigger, reading X as it resolves (CR 608.2h), finds X >= 0 cards
+    // (CR 700.5, CR 104.2b).
+    {
+        label: "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Thassa's Oracle",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Demonic Consultation", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Thassa's Oracle" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Demonic Consultation" }],
+        },
+        note: "Issue #8709 — the trigger is on the stack with devotion 2 against a 20-card library; Consultation naming a card the library does not hold exiles it all, and the trigger wins as it resolves. Before the change the name stopped the walk (no candidate generator, `forcedChoiceAnswer` answered only an as-enters name), the win was never seen and the cast won on `material-tiebreak`; with it, `mean-reward` on 5/5 seeds. The name itself is pinned by the entry below.",
+    },
+    {
+        label: "Oracle combo: Demonic Consultation names a card its library does not hold",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Thassa's Oracle",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Demonic Consultation", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "etb-trigger", card: "Thassa's Oracle" },
+            { kind: "cast", card: "Demonic Consultation" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => namesCardAbsentFromLibrary(move, state),
+            describe:
+                "names a card absent from its own library, so Consultation exiles it all",
+        },
+        note: "Issue #8709 — the name window of Consultation, resolving above Thassa's Oracle's trigger, is the root. Proof of failure: without the `name-card` generator the window is no search node and the runner refuses the entry (the Bot owes no searched decision); the live Brain then fell back to `nameCardDefaultFor`'s \"Plains\", which keeps a library holding a Plains.",
+    },
+    {
+        label: "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that holds no counterspell",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Thassa's Oracle", owner: "me", zone: "hand" },
+                { name: "Demonic Consultation", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                // Physically a Counterspell in both halves — `determinize`
+                // re-derives this hand from the decklist.
+                { name: "Counterspell", owner: "opp", zone: "hand" },
+            ],
+            // The last main phase: a sorcery-speed Oracle has no later window
+            // this turn, so `last-window-deferral` does not hold the pick.
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // Two Islands are on the battlefield, so the unseen remainder is one
+        // Counterspell and one Island: the hand holds the counter half the time.
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: ["Counterspell", "Island", "Island", "Island"],
+            },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            sweptTo: { iterations: 1600 },
+            note: "Issue #8709 — Oracle first wins when the hand holds no counter and loses nothing when it does; Consultation first (naming a card absent from the library) loses to a counter on Oracle. Measured: Consultation 0.62 / Oracle 0.52 mean reward at 400, 0.68 / 0.54 at 1600 — the gap WIDENS with budget. Suspected opponent strategy fusion: the opponent's node is shared across worlds with and without the counter, so it does not hold the counter for Oracle. Against a list of ONLY counterspells neither order wins and the Bot names a card still in its library, so the orders tie (0.52 / 0.49, flat to 4000): no rules-forced pair exists there.",
+        },
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Thassa's Oracle" }],
+        },
+    },
+    {
+        label: "Oracle combo: either order when the decklist holds no counterspell",
+        // Twin of the entry above; only the decklist differs. Not a `pairOf`
+        // half: a pair's halves must carry the same deck knowledge.
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that may hold a counterspell",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Thassa's Oracle", owner: "me", zone: "hand" },
+                { name: "Demonic Consultation", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                // Physically a Counterspell in both halves — `determinize`
+                // re-derives this hand from the decklist.
+                { name: "Counterspell", owner: "opp", zone: "hand" },
+            ],
+            // The last main phase: a sorcery-speed Oracle has no later window
+            // this turn, so `last-window-deferral` does not hold the pick.
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        deckKnowledge: [{ seat: "opp", cards: ["Island"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Thassa's Oracle" },
+                { kind: "cast-spell", card: "Demonic Consultation" },
+            ],
+        },
+        note: "Issue #8709 — nothing can answer either half, so both orders win this turn; holding the combo (pass) is the wrong play.",
     },
     {
         label: "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",

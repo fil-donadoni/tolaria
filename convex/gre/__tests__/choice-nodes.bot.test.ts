@@ -268,7 +268,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // Miracle reveal window (issue #1267). Unregistered, the bot took the
         // minimal-legal decline on every first-draw miracle card.
         expect(hasChoiceCandidateGenerator("miracle-reveal")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(22);
+        // CR 201.4 (issue #8709) — a name sought in the chooser's own library
+        // (Demonic Consultation). Only that shape applies; see
+        // `librarySoughtName.bot.test.ts`.
+        expect(hasChoiceCandidateGenerator("name-card")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(23);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
