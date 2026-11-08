@@ -8,7 +8,7 @@ Amended by ADR 0008 (index Status, issue #8699; see `docs/research/adr-audit-202
 
 ## Context
 
-CR 502.1 lets cards cap or skip the active player's untap step (Winter Orb,
+CR 502.3 lets cards cap or skip the active player's untap step (Winter Orb,
 Smoke, Stasis, Meekstone, and the per-permanent "doesn't untap" axis on
 Basalt Monolith / Mana Vault / Paralyze). The pre-ADR engine encoded each
 restriction as a bespoke `staticAbilities` keyword marker:
@@ -33,7 +33,7 @@ problems:
    caps lands only. The hardcoded branch made the Oracle fix a behavior
    change spread across keyword, dispatcher, display map, and tests.
 3. **No prompt support.** Deterministic "first tapped match" silently
-   removes player agency. Under CR 502.1 + 701.39 the cap is permissive —
+   removes player agency. Under CR 502.3 + 701.26b (ids re-pointed 2026-11-08, the CR renumbered) the cap is permissive —
    the active player MAY untap zero (a tactical zero-branch — see ADR
    0003). Without a prompt path, a player can never declare the skip.
 

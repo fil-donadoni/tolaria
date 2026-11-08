@@ -81,8 +81,8 @@ coffin that untaps holding nothing therefore pushes no do-nothing trigger.
 ### A general `PERMANENT_UNTAPPED` event
 
 `untapPermanent(state, card)` is the single choke point for "becomes untapped"
-(CR 701.20b): it flips `isTapped` and emits `PERMANENT_UNTAPPED` **only on a
-real tapped → untapped transition**. The untap step (CR 502.2) and untap effects
+(CR 701.26b, re-pointed 2026-11-08, the CR renumbered): it flips `isTapped` and emits `PERMANENT_UNTAPPED` **only on a
+real tapped → untapped transition**. The untap step (CR 502.3) and untap effects
 (Twiddle's `ctx.untap`) both route through it, so the event — and the new
 `untapTrigger` factory — is reusable by any future "when ~ becomes untapped"
 card.

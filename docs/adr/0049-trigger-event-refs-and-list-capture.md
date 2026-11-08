@@ -53,7 +53,7 @@ resolve }`. It is the single decision point:
 - **LKI reuses the ADR 0048 capture semantics — no new machinery.** An
   `$event` object id is captured at trigger-fire (object alive), re-bound
   fresh at the effect's run; if the object has left by then the Op skips
-  (CR 608.2b + 701.7c: destroying an absent permanent is a no-op). The three
+  (CR 608.2b + 701.8a, re-pointed 2026-11-08, the CR renumbered: destroying an absent permanent is a no-op). The three
   unblocked cards only **act** on the event object (destroy / poison), never
   **read** a characteristic of a departed one, so true CR 603.10 read-LKI
   (preserving a scheduling-time snapshot of a gone object's P/T) is not built
