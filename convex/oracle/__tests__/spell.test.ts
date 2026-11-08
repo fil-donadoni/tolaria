@@ -523,6 +523,57 @@ describe("spell slot — flashback (CR 702.34a)", () => {
         expect(r.ok).toBe(false);
     });
 
+    it('reads the em-dash form\'s "Discard a card" leg beside the mana (CR 701.9a)', () => {
+        // Twinned Vision's flashback line, over a base effect the grammar reads.
+        const def = compiled(
+            spellCard({
+                manaCost: "{1}{U/R}",
+                oracleText:
+                    "Draw a card.\nFlashback—{1}{U/R}{U/R}, Discard a card.",
+            })
+        );
+        expect(def.flashback).toEqual({
+            mana: {
+                X: 1,
+                hybrid: [
+                    ["U", "R"],
+                    ["U", "R"],
+                ],
+            },
+            discard: { count: 1 },
+        });
+    });
+
+    it("Twinned Vision's flashback line consumes: its one gap is the cast-zone clause", () => {
+        // The real corpus row, whole. Its other line is a separate, below-floor
+        // gap (hand-written), so the card compiles to `unparsed` — but on that
+        // line alone, never on the flashback one.
+        const outcome = compileCard(
+            spellCard({
+                name: "Twinned Vision",
+                manaCost: "{1}{U/R}",
+                oracleText:
+                    "Draw a card. If this spell wasn't cast from your hand, draw two cards instead.\nFlashback—{1}{U/R}{U/R}, Discard a card. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps.map((g) => g.line)).toEqual([
+            "Draw a card. If this spell wasn't cast from your hand, draw two cards instead.",
+        ]);
+    });
+
+    it("REFUSES a flashback discard other than one untyped card", () => {
+        // "Discard X cards" (Conflagrate) has no announced-X flashback leg;
+        // a typed or counted discard is a form no flashback card prints.
+        for (const line of [
+            "Flashback—{R}{R}, Discard X cards.",
+            "Flashback—{R}{R}, Discard two cards.",
+            "Flashback—{R}{R}, Discard a creature card.",
+        ])
+            expect(spellSlot.run(line, sorcery).ok, line).toBe(false);
+    });
+
     it("REFUSES a flashback component `FlashbackCost` cannot encode", () => {
         // "Behold three Elementals" (Kindle the Inner Flame) has no atom.
         const r = spellSlot.run(

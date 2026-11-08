@@ -328,6 +328,7 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         sacrifice?: PermanentFilter;
         life?: number;
         exileXFromGraveyard?: { color?: Color };
+        discard?: { count: number };
     } = {};
     for (const atom of parsed.value.atoms as readonly CostAtomIR[]) {
         if (atom.kind === "mana") {
@@ -362,6 +363,18 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         if (atom.kind === "exile-x-from-graveyard") {
             out.exileXFromGraveyard =
                 atom.color === undefined ? {} : { color: atom.color };
+            continue;
+        }
+        // CR 702.34a flashback, CR 701.9a discard — "Discard a card" (Twinned Vision): the cast
+        // path joins it to the cast's one hand-cost picker. Exactly the printed
+        // form — one card, any card; a typed or counted discard is a
+        // neighbour no corpus flashback prints, refused.
+        if (
+            atom.kind === "discard" &&
+            atom.count === 1 &&
+            Object.keys(atom.filter).length === 0
+        ) {
+            out.discard = { count: 1 };
             continue;
         }
         return fail(

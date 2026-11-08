@@ -2338,6 +2338,9 @@ function hasPayableFlashbackAdditionalCost(
     if (add.life !== undefined && add.life > 0 && player.life < add.life) {
         return false;
     }
+    // CR 702.34a flashback, CR 701.9a discard — "Discard a card" (Twinned Vision): any card in
+    // hand pays it; the flashback card itself is in the graveyard (CR 601.2a).
+    if (add.discard && player.hand.length < add.discard.count) return false;
     if (add.exileFromHand) {
         const wantColor = add.exileFromHand.color;
         const hasCard = player.hand.some((c) =>

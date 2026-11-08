@@ -271,6 +271,13 @@ export interface FlashbackCost {
      *  caster's life total is at least N, paid atomically with the mana as the
      *  spell is cast. */
     life?: number;
+    /** CR 702.34a flashback, CR 701.9a discard — "Discard a card" flashback-only additional cost
+     *  (Twinned Vision: "Flashback—{1}{U/R}{U/R}, Discard a card."). The
+     *  caster picks WHICH `count` cards leave their hand through the cast's
+     *  ONE hand-cost picker (`CostLegs.hand` with `action: "discard"`), the
+     *  same leg retrace's land discard rides; the flashback card itself is in
+     *  the graveyard, never in hand (CR 601.2a). */
+    discard?: { count: number };
 }
 
 /** CR 702.138 — Escape. A card with escape may be cast from its owner's
