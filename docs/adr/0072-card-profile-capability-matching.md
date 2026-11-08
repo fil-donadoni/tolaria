@@ -7,6 +7,10 @@ _Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (mechanics
 accepted (2026-07-26)
 
 Amended by ADR 0167 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+The single `cardProfiles` table below is superseded: since issue #8890 a Card
+Profile is two layers — `cardCapabilities` keyed `cardId` and `cardArchetypes`
+keyed `(scope, cardId)`, each with its own `reviewed` flag — recomposed by
+`resolveEventCardProfile` (`convex/limited/cardProfilesCore.ts`).
 
 ## Context
 
