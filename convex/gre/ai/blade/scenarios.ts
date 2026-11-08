@@ -637,12 +637,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // TAPPING CONVERTER — the SPARE half (CR 605.1a / 302.6, issue
         // #8448). The same Drum, Forest and Grizzly Bears, but TWO creatures
-        // could pay the Drum: Runeclaw Bear, untapped and able to attack an
-        // opponent at 2 with nothing to block (lethal), and a summoning-sick
-        // Hill Giant that cannot attack this turn. Tap the Giant; the Bear
-        // swings. Runeclaw Bear is listed FIRST so a fodder pick that ignores
-        // summoning sickness lands on it.
-        label: "tap-other mana: the Drum taps the creature that cannot attack, sparing the lethal attacker",
+        // could pay the Drum: Runeclaw Bear, untapped and free to attack into
+        // an empty board, and a summoning-sick Hill Giant that cannot attack
+        // this turn. Tap the Giant for the Bears and keep the Bear's two
+        // damage. Runeclaw Bear is listed FIRST, so a fodder pick that ignores
+        // summoning sickness lands on it — and the Bears then cost the attack.
+        label: "tap-other mana: the Drum taps the creature that cannot attack, sparing the attacker",
         classification: { kind: "absolute" },
         spec: {
             cards: [
@@ -662,7 +662,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Forest", owner: "me", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "me", zone: "hand" },
             ],
-            life: { opp: 2 },
             phase: "PRECOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
@@ -676,16 +675,20 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // there is no preference here for the weight fit to read.
         expect: {
             predicate: (move, state) => {
-                if (move?.kind !== "cast-spell") return true;
-                const attacker = instanceIdsForName(state, "Runeclaw Bear");
-                return !move.tapPlan.some((t) =>
-                    (t.tapOtherIds ?? []).some((id) => attacker.has(id))
+                if (move?.kind !== "cast-spell") return false;
+                const drum = instanceIdsForName(state, "Springleaf Drum");
+                const giant = instanceIdsForName(state, "Hill Giant");
+                return move.tapPlan.some(
+                    (t) =>
+                        drum.has(t.cardInstanceId) &&
+                        (t.tapOtherIds ?? []).length === 1 &&
+                        giant.has(t.tapOtherIds![0])
                 );
             },
             describe:
-                "never taps Runeclaw Bear (the lethal attacker) for the Drum's mana",
+                "casts Grizzly Bears with Springleaf Drum tapping the summoning-sick Hill Giant",
         },
-        note: "Issue #8448, the SPARE half of the pair above: a fodder pick that ignores summoning sickness taps the attacker and throws the win away; one that never feeds the Drum fails the entry above.",
+        note: "Issue #8448, the SPARE half of the pair above: a fodder pick that ignores summoning sickness taps the attacker (the Bot then trades the attack for the cast, or skips it); one that never feeds the Drum fails the entry above.",
     },
     {
         // FLOATING-MANA reachability (CR 106.6, issue #3235). `me` has NO
