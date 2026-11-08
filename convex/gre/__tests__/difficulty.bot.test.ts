@@ -54,19 +54,25 @@ describe("difficulty presets — one knob (issue #114)", () => {
 
     it("budgetFor maps a difficulty and falls back to the default for junk", () => {
         expect(budgetFor("hard")).toBe(DIFFICULTY_BUDGETS.hard);
-        expect(budgetFor("easy")).toBe(DIFFICULTY_BUDGETS.easy);
         expect(budgetFor("expert")).toBe(DIFFICULTY_BUDGETS.expert);
         expect(budgetFor(null)).toBe(DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]);
         expect(budgetFor("nonsense")).toBe(
             DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]
         );
     });
+
+    it("expert is the default, and the easy preset no longer exists", () => {
+        expect(DEFAULT_DIFFICULTY).toBe("expert");
+        expect(DIFFICULTIES).toEqual(["medium", "hard", "expert"]);
+        expect(budgetFor("easy")).toBe(DIFFICULTY_BUDGETS.expert);
+        expect(knowsOpponent("easy")).toBe(true);
+    });
 });
 
 describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
     it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
         expect(knowsOpponent("expert")).toBe(true);
-        expect(knowsOpponent("hard")).toBe(false);
+        expect(knowsOpponent("hard")).toBe(true);
         expect(knowsOpponent(null)).toBe(
             DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );
@@ -80,10 +86,8 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
     // Survive-lethal: p1 attacks with a lethal 3/3 and p2 (the bot) sits at 3
     // life with a Bolt + an untapped Mountain and no blocker. The ONLY survival
     // is to Bolt the attacker; passing is death (a huge negative for the bot, so
-    // the engine's evaluation reads this cleanly and monotonically). A deeper
-    // search finds the response reliably; a very shallow one (the `easy` preset)
-    // explores too little of the tree and misreads it on many seeds — exactly
-    // what makes `easy` beatable.
+    // the engine's evaluation reads this cleanly and monotonically). A deep search
+    // finds the response reliably.
     const creature = (cardId: string, controllerId: string, id: string) =>
         makeInstance(cardId, {
             controllerId,
@@ -144,10 +148,8 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
         return move?.kind === "cast-spell" && move.targets[0]?.id === "ogre";
     };
 
-    // Hard reads the forced response every time; easy misses it often. Split
-    // per seed (issue #5477) so no single case carries the whole seed loop:
-    // hard survives on EVERY seed, and easy misses on at least one — together
-    // exactly the old `hardHits === SEEDS.length && hardHits > easyHits`.
+    // Hard reads the forced response every time. Split per seed (issue #5477)
+    // so no single case carries the whole seed loop.
     it.each(SEEDS)(
         "the hard preset survives the lethal attack (seed %i)",
         (seed) => {

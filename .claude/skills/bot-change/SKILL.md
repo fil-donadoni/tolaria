@@ -42,10 +42,10 @@ Two invariants worth internalising:
   see, or a choice kind with no candidate generator.
 - **Difficulty is budget plus knowledge, never logic.** `difficulty.ts`
   presets differ by `SearchBudget` (iterations / timeMs) and by
-  `DIFFICULTY_KNOWS_OPPONENT` (today only `expert` searches with the
-  opponent's decklist; the others face an opponent whose hidden cards are
-  placeholders that never get cast — `determinize.ts`). There is no weak-bot
-  code path; never add one. Issue #8692 moves the default to `expert`.
+  `DIFFICULTY_KNOWS_OPPONENT` (today every preset searches with the
+  opponent's decklist; a level switched off would face hidden cards that are
+  placeholders never cast — `determinize.ts`). There is no weak-bot code path;
+  never add one. The default is `expert`.
 
 ## Phase 0 — "the bot did something stupid" (symptom-driven entry)
 

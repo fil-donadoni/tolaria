@@ -188,8 +188,8 @@ export function unseenRemainder(
 // ---------------------------------------------------------------------------
 //
 // WHY THIS LIVES HERE. `observedColors.ts` owns the opponent's colour-demand
-// estimate and is the single home for it (issue #2306, issue #3532). What it
-// could not see is the one thing an `expert` search is legitimately handed:
+// estimate and is the single home for it. What it
+// could not see is the one thing a knowing search is legitimately handed:
 // the seat's real decklist. A deck that is 40% green says more about what
 // denying green costs than two Forests on the battlefield do — but that has to
 // SHARPEN the existing evidence hierarchy, never bypass it, so the decklist is
@@ -272,15 +272,15 @@ export function deckColorEvidence(
  *  THE OBSERVER IS EXCLUDED, and that exclusion is the gate, not a tidiness.
  *  The client hands the Bot its OWN decklist at every difficulty (the `blind`
  *  shape in `useVsAiDriver`), so "a decklist exists for this seat" is true on
- *  `easy` as readily as on `expert`. What is true only at `expert`
- *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`) is that a decklist exists
+ *  a blind search as readily as on a knowing one. What is true only at a knowing
+ *  level (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`) is that a decklist exists
  *  for a seat the searcher is not sitting in — and `evaluate` runs from BOTH
  *  seats' viewpoints inside one search (`materialMargin(state, moverId)`,
  *  `policyValue(fired, pid, …)`), so a gate that missed this would have
  *  sharpened the estimate of the BOT's own colours at every difficulty.
  *
  *  `undefined` when there is nothing to stamp, so the caller can leave the
- *  state object untouched and byte-identical on every non-expert path. */
+ *  state object untouched and byte-identical on every blind path. */
 export function deckColorsForSearch(
     deckKnowledge: DeckKnowledgeBySeat | undefined,
     observerId: string

@@ -10,7 +10,10 @@ import {
 } from "./deckStore";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
-import { difficultyValidator } from "./limited/botDifficulty";
+import {
+    difficultyValidator,
+    resolveEventBotDifficulty,
+} from "./limited/botDifficulty";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
     getLatestManualState,
@@ -62,7 +65,7 @@ export const getMatchBotDifficulty = query({
         const game = await ctx.db.get(args.gameId);
         if (!game?.matchId) return null;
         const match = await ctx.db.get(game.matchId);
-        return match?.botDifficulty ?? null;
+        return match?.botDifficulty ? resolveEventBotDifficulty(match) : null;
     },
 });
 
@@ -199,7 +202,7 @@ export const getDefinitionManifest = query({
  *  (`withSeatDefinitionIds`) and stores the result on the seat's manifest row
  *  (`convex/definitionManifest.ts`). Gated on SEAT ownership like
  *  `getSeatDeck` — vs the Bot one user owns both seats, so the driver reads
- *  the human's too, and `expert` alone hands it to the search
+ *  the human's too, and a knowing level hands it to the search
  *  (`convex/gre/difficulty.ts`). `null` for a seat the caller does not own,
  *  a Game not built yet, or a row written before the field (the driver then
  *  falls back to `getSeatDeck`'s entries). One point read, no definition. */
