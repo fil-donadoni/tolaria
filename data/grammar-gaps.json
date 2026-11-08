@@ -1936,11 +1936,6 @@
         },
         {
             "kind": "grammar",
-            "key": "spell › effect clause › mass subject › mvFilter",
-            "issue": 8865
-        },
-        {
-            "kind": "grammar",
             "key": "spell › effect clause › each creature target opponent controls",
             "issue": 4557
         },
@@ -1998,6 +1993,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › mass subject › excludeColors",
             "issue": 4589
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › mass subject › mvFilter",
+            "issue": 8865
         },
         {
             "kind": "grammar",
@@ -2389,7 +2389,6 @@
             "key": "static › static clause › Terravore's power and toughness are each equal to the number of land cards in all graveyards",
             "issue": 5375
         },
-
         {
             "kind": "grammar",
             "key": "static › static clause › This creature attacks each combat if able",
@@ -5759,6 +5758,11 @@
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"gravestorm\" is not implemented in the Mechanics Registry",
             "issue": 6289
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"harmonize\" is not implemented in the Mechanics Registry",
+            "issue": 8876
         },
         {
             "kind": "mechanic",
