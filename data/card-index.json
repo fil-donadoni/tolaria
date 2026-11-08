@@ -52867,6 +52867,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mystic Meditation",
+        "scryfallId": "d169f469-10d5-4ae8-88fe-12a8e20ab01b",
+        "oracleId": "d7c18aa7-4184-4658-9a5a-0b64992348ee",
+        "firstSet": "dtk",
+        "firstPrintId": "d169f469-10d5-4ae8-88fe-12a8e20ab01b",
+        "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mystic Melting",
         "scryfallId": "bf4ff91d-acc1-4be7-a327-58fcb036b452",
         "oracleId": "850fe8ad-f6b8-4d01-a94b-2b69adc3d8f0",
@@ -82664,6 +82674,36 @@
         "firstSet": "bro",
         "firstPrintId": "793a51ab-59fb-424f-a315-3f63e8990322",
         "firstPrintSet": "bro",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thirst for Identity",
+        "scryfallId": "c3949f8c-d1c5-45c2-80ed-a57f4f9af86e",
+        "oracleId": "045ece1e-23aa-4122-8726-86b2af4345ba",
+        "firstSet": "ecl",
+        "firstPrintId": "c3949f8c-d1c5-45c2-80ed-a57f4f9af86e",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thirst for Knowledge",
+        "scryfallId": "0ff1f608-203e-4413-8753-37fc49731c87",
+        "oracleId": "939e6f71-185e-41f2-9d54-72cce06f1dce",
+        "firstSet": "mrd",
+        "firstPrintId": "0ff1f608-203e-4413-8753-37fc49731c87",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thirst for Meaning",
+        "scryfallId": "2422973d-36ee-4b8c-9a47-fcd160aa9f63",
+        "oracleId": "70e58068-90d2-4720-a11c-5d243046b4a3",
+        "firstSet": "thb",
+        "firstPrintId": "2422973d-36ee-4b8c-9a47-fcd160aa9f63",
+        "firstPrintSet": "thb",
         "rarity": "common",
         "source": "compiled"
     },
