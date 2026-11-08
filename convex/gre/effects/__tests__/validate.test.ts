@@ -3465,6 +3465,31 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
         ).toBe(true);
     });
 
+    it('accepts "next-upkeep" either way: bare (any upkeep) or with a targetPlayer ("your next upkeep", CR 603.7a)', () => {
+        for (const scoped of [false, true]) {
+            const errors = validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-upkeep",
+                            oracleText: "x",
+                            ...(scoped ? { targetPlayer: "controller" } : {}),
+                            effects: [
+                                {
+                                    op: "gainLife",
+                                    player: "controller",
+                                    amount: 1,
+                                },
+                            ],
+                        } as never,
+                    ],
+                })
+            );
+            expect(errors).toEqual([]);
+        }
+    });
+
     it("rejects a capture ref naming an undefined outer binding", () => {
         const errors = validateEffectScript(
             host({

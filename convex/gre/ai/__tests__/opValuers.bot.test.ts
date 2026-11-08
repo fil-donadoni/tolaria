@@ -893,6 +893,46 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
         });
     });
 
+    describe("loseGame (CR 104.3e) — the win sentinel, signed by the loser", () => {
+        it("prices the controller's own loss at minus the sentinel, an opponent's at plus", () => {
+            expect(
+                valueOp({ op: "loseGame", player: "controller" }, cf).points
+            ).toBe(-100000);
+            expect(
+                valueOp({ op: "loseGame", player: "opponent" }, cf).points
+            ).toBe(100000);
+        });
+
+        // CR 118.12 — the Pact's "If you don't, you lose the game": the loss
+        // happens only if the payment is declined, which the search reads off
+        // the real `gameOver`; the latent reading must not price the card at
+        // minus the sentinel (it would never be cast).
+        it("values a loss gated on a declined payment at nothing", () => {
+            const pact: EffectOp = {
+                op: "delayedTrigger",
+                timing: "next-upkeep",
+                targetPlayer: "controller",
+                oracleText:
+                    "At the beginning of your next upkeep, pay {2}{B}. If you don't, you lose the game.",
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        cost: { X: 2, B: 1 },
+                        prompt: "Pay {2}{B}?",
+                        bind: "$paid",
+                    },
+                    {
+                        op: "if",
+                        predicate: { not: { binding: "$paid" } },
+                        then: [{ op: "loseGame", player: "controller" }],
+                    },
+                ],
+            };
+            expect(valueOp(pact, cf).points).toBe(0);
+        });
+    });
+
     describe("mill (CR 701.17) — card-selection/denial", () => {
         it("scores milling the opponent as a small positive denial, scaled by count", () => {
             const op: EffectOp = { op: "mill", player: "opponent", count: 3 };
