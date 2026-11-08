@@ -1,5 +1,5 @@
 // Exile the top of a library (CR 701.13a) and the impulse-play tail that
-// grants the exiled card (CR 601.2 + CR 305.1) — issue #5171.
+// grants the exiled card or cards (CR 601.2 + CR 305.1) — issue #5171.
 //
 // Three layers:
 //
@@ -116,12 +116,62 @@ describe("exile the top, then play that card (CR 601.2 + CR 305.1)", () => {
     });
 });
 
+describe("exile the top, then play those cards (CR 601.2 + CR 305.1 + CR 608.2c)", () => {
+    const grant = {
+        op: "grantCastFromExile",
+        card: { ref: "$exiled1" },
+        player: "controller",
+        window: "until-end-of-your-next-turn",
+        includesLand: true,
+    };
+
+    it("a printed count: Reckless Impulse", () => {
+        expect(
+            effectsOf(
+                "Exile the top two cards of your library. Until the end of your next turn, you may play those cards."
+            )
+        ).toEqual([
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 2,
+                bindAll: "$exiled1",
+            },
+            grant,
+        ]);
+    });
+
+    it("the spell's X: Commune with Lava", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (row) => row.card.name === "Commune with Lava"
+        )!;
+        const outcome = compileCard(fixture.card);
+        if (outcome.state === "unparsed")
+            throw new Error(JSON.stringify(outcome.gaps));
+        expect(outcome.definition.effects).toEqual([
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: { X: true },
+                bindAll: "$exiled1",
+            },
+            grant,
+        ]);
+    });
+});
+
 describe("exile the top of a library — refusals (fail-closed)", () => {
     it.each([
-        // several cards: "those cards" is a grant over a set
+        // "those cards" is read only in the leading next-turn window
         "Exile the top two cards of your library. You may play those cards this turn.",
+        "Exile the top two cards of your library. Until end of turn, you may play those cards.",
         // one card exiled, several named
         "Exile the top card of your library. You may play those cards this turn.",
+        "Exile the top card of your library. Until the end of your next turn, you may play those cards.",
+        // "those cards" with no exile before it
+        "Until the end of your next turn, you may play those cards.",
+        // a rider the grant does not read
+        "Exile the top two cards of your library. Until the end of your next turn, you may play those cards without paying their mana costs.",
         // "that card" after an exile of several cards names no ONE card
         "Exile the top two cards of your library. You may play that card this turn.",
         // a window the grant Op has no value for
