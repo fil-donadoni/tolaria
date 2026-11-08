@@ -29,6 +29,7 @@ import { defineCard, PERMANENT_TYPES } from "../../types";
 // is a copy "as [the permanent] looked immediately before it was
 // exiled" — the `createTokenCopy` Op reads the source live off the
 // battlefield, so it must run first; the target then exiles.
+// hand-tail: Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it. (#8505)
 export const fracturedIdentity = defineCard(() => ({
     id: "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f",
     name: "Fractured Identity",

@@ -15,6 +15,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // full rationale. No explicit `activatedAbilities` needed: Yavimaya's own
 // effect adds "Forest" to its own live `subtypes`, and the engine's
 // basic-land-type mana inference grants the {T}: Add {G} ability for free.
+// hand-tail: Each land is a Forest in addition to its other land types. (#8505)
 export const yavimayaCradleOfGrowth = defineCard(() => ({
     id: "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c",
     rarity: "rare",
@@ -100,6 +101,7 @@ function createUrzasSagaConstruct(ctx: SpellContext): void {
 // after the rule became "as a player's precombat main phase begins"
 // (CR 714.3c). Reminder text has no rules meaning (CR 207.2) and the engine
 // follows the rule, not the reminder (ADR 0078 context §2).
+// hand-tail: I — This Saga gains "{T}: Add {C}." (#8505)
 export const urzasSaga = defineCard(() => ({
     id: "c1e0f201-42cb-46a1-901a-65bb4fc18f6c",
     rarity: "rare",
@@ -242,6 +244,7 @@ export const urzasSaga = defineCard(() => ({
 //    equipped creature dealt the damage", and `$event.damagedPermanent`
 //    (ADR 0049) names the creature it damaged. Same shape as Voracious
 //    Cobra's destroy trigger (`inv/multicolor.cards.ts`), with `exile` instead.
+// hand-tail: Equipped creature gets +5/+5 and has first strike, trample, indestructible, haste, and "Whenever this creature deals combat damage to a creature, exile that creature." (#8505)
 export const kaldraCompleat = defineCard(() => ({
     id: "87cc2855-6b14-44dd-a398-7dc2bbae081f",
     name: "Kaldra Compleat",
@@ -322,6 +325,7 @@ export const kaldraCompleat = defineCard(() => ({
 // attached, CR 301.5c). Nettlecyst counts ITSELF (it is an artifact you
 // control), so a lone Nettlecyst on an otherwise empty board makes its Germ
 // a 1/1 — CR 604.3's "each" is a live board count with no self-exclusion.
+// hand-tail: Equipped creature gets +1/+1 for each artifact and/or enchantment you control. (#8505)
 export const nettlecyst = defineCard(() => ({
     id: "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba",
     name: "Nettlecyst",

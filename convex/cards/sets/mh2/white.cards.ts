@@ -58,6 +58,7 @@ export const prismaticEnding = defineCard(() => ({
 // `count 0..1` = "up to one". The resolve() then reads the announced slot via
 // `ctx.targets[0]`; life gain reads the target's power BEFORE exile (CR 613
 // last-known information).
+// hand-tail: Evoke—Exile a white card from your hand. (#8505)
 export const solitude = defineCard(() => ({
     id: "47a6234f-309f-4e03-9263-66da48b57153",
     rarity: "mythic",

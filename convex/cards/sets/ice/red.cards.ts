@@ -1934,6 +1934,7 @@ export const orcishLibrarian = defineCard(() => ({
 // combination of {R} and/or {G}." A mana ability (CR 605.1a, `useStack: false`)
 // whose Forest sacrifice cost uses `sacrificeFilter`; "any combination of R/G"
 // (3 mana) is enumerated as the four discrete `manaChoices` RRR/RRG/RGG/GGG.
+// hand-tail: {T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}. (#8505)
 export const orcishLumberjack = defineCard(() => ({
     id: "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
     name: "Orcish Lumberjack",

@@ -10,6 +10,7 @@ import { defineCard } from "../../types";
 // parameter on `SpellContext.counter` — issue #683's "put it on top of its
 // owner's library" redirect clause.) An unconditional counter — no
 // mayPay/if — so the effect is a single Op.
+// hand-tail: Counter target spell. If that spell is countered this way, put it on top of its owner's library instead of into that player's graveyard. (#8505)
 export const memoryLapse = defineCard(() => ({
     id: "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
     rarity: "common",

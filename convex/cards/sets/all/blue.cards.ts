@@ -9,6 +9,7 @@ import { defineCard } from "../../types";
 // concept (no keyword name) built from two legs — pay 1 life + exile a blue
 // card from hand — paid at cast commit; the on-resolution effect is a single
 // already-censused `counter` Op (ADR 0045, DSL-first).
+// hand-tail: You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost. (#8505)
 export const forceOfWill = defineCard(() => ({
     id: "9a879b60-4381-447d-8a5a-8e0b6a1d49ca", // ALL 28
     rarity: "uncommon",

@@ -1018,6 +1018,7 @@ export const livingWall = defineCard(() => ({
 // damage to you. {T}: Add {C}{C}{C}." (CR 502.1, 603.4 intervening-if,
 // 117.3a optional cost, 120.3 damage). The draw-step damage trigger uses an
 // intervening-if at both trigger and resolve time per CR 603.4.
+// hand-tail: At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you. (#8505)
 export const manaVault = defineCard(() => ({
     id: "19499cb7-eccb-4e69-af32-6002d447a160",
     rarity: "rare",

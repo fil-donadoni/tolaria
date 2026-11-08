@@ -19,6 +19,7 @@ import { defineCard } from "../../types";
 //      (mirrors the `this-turn-creature-blocks` shape, Battle Cry) and needs
 //      no `capture`: at fire time `ctx.controller` already IS the scheduling
 //      player (the resolving stack item's own controllerId).
+// hand-tail: Create X 2/2 red Human Knight creature tokens with trample and haste. (#8505)
 export const forthEorlingas = defineCard(() => ({
     id: "06c053d3-028e-4961-93a5-5b7bb5a8601c",
     rarity: "rare",

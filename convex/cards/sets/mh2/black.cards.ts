@@ -48,6 +48,7 @@ const archonOfCrueltyTriggerEffects: EffectOp[] = [
     { op: "gainLife", player: "controller", amount: 3 },
 ];
 
+// hand-tail: Whenever this creature enters or attacks, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life. (#8505)
 export const archonOfCruelty = defineCard(() => ({
     id: "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
     name: "Archon of Cruelty",
@@ -128,6 +129,7 @@ const griefTriggerEffects: EffectOp[] = [
     { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
 ];
 
+// hand-tail: Evoke—Exile a black card from your hand. (#8505)
 export const grief = defineCard(() => ({
     id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
     rarity: "mythic",
@@ -186,6 +188,7 @@ export const grief = defineCard(() => ({
  *  cast card itself is never eligible for the discard leg (it is on the stack
  *  by then); it is not a creature, so it is never a sacrifice candidate
  *  either. */
+// hand-tail: As an additional cost to cast this spell, sacrifice a creature or discard a card. (#8505)
 export const boneShards = defineCard(() => ({
     id: "1ee98955-4c47-4d45-9377-608dfa755337",
     name: "Bone Shards",
@@ -304,6 +307,7 @@ export const damn = defineCard(() => ({
 // creature can't block a non-shadow attacker either — not expressible by the
 // attacker-keyed `EvasionRule` shape). See the `mechanicsRegistry.ts` "shadow"
 // row for the split.
+// hand-tail: If a card would be put into an opponent's graveyard from anywhere, instead exile it with a void counter on it. (#8505)
 export const dauthiVoidwalker = defineCard(() => ({
     id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
     name: "Dauthi Voidwalker",

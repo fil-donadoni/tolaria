@@ -113,6 +113,7 @@ export const tishanasTidebinder = defineCard(() => ({
 //      finish the trigger with nothing cast. No later-in-turn window is ever
 //      granted (the impulse-window bug of the previous `grantCastFromGraveyard`
 //      implementation, issue #1344, is gone).
+// hand-tail: Whenever {self} deals combat damage to a player, put a chorus counter on it. Draw a card, then discard a card. If there are four or more chorus counters on {self}, you may cast the discarded card without paying its mana cost. (#8505)
 export const malcolmAlluringScoundrel = defineCard(() => ({
     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
     name: "Malcolm, Alluring Scoundrel",

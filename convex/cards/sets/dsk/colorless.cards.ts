@@ -9,6 +9,7 @@ import { makeVergeLand } from "../../abilities";
 // The DSK "Verge" cycle — see `makeVergeLand` in
 // `convex/cards/abilities/index.ts` for the shared board-conditional
 // second-ability shape. Vintage Cube free tranche (issue #675, ADR 0041).
+// hand-tail: {T}: Add {G}. Activate only if you control a Mountain or a Forest. (#8505)
 export const thornspireVerge = defineCard(() =>
     makeVergeLand({
         id: "7e1cdc03-6faa-4138-9a52-caafbe34fb59",
@@ -20,6 +21,7 @@ export const thornspireVerge = defineCard(() =>
     })
 );
 
+// hand-tail: {T}: Add {R}. Activate only if you control a Swamp or a Mountain. (#8505)
 export const blazemireVerge = defineCard(() =>
     makeVergeLand({
         id: "d151c8e2-d715-470d-868a-f45191db9fa0",

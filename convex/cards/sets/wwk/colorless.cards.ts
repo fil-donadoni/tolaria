@@ -19,6 +19,7 @@ import {
 // color replaces all previous colors" holds and the land reads blue+black to
 // protection / colour hosers exactly while it is animated. Vintage Cube free
 // tranche (issue #675, ADR 0041).
+// hand-tail: {1}{U}{B}: Until end of turn, this land becomes a 3/2 blue and black Elemental creature. It's still a land. It can't be blocked this turn. (#8505)
 export const creepingTarPit = defineCard(() => ({
     id: "0f427f0b-034c-4821-8758-e395c0042d8a",
     rarity: "rare",
@@ -85,6 +86,7 @@ export const creepingTarPit = defineCard(() => ({
 // to grant permanently — and is now merely one of two equivalent spellings:
 // the param carries the animation's own duration (CR 611.2a), so folding the
 // two keywords into the `animate` spec would produce the identical board.
+// hand-tail: {3}{W}{U}: Until end of turn, this land becomes a 4/4 white and blue Elemental creature with flying and vigilance. It's still a land. (#8505)
 export const celestialColonnade = defineCard(() => ({
     id: "f6929259-2903-4f6f-9b06-42048fd55c6a",
     rarity: "rare",
@@ -148,6 +150,7 @@ export const celestialColonnade = defineCard(() => ({
 // `manaAmount` hook — the same primitive Gaea's Cradle / the Urza land trio use
 // (`convex/gre/constants.ts` getDynamicManaProduced), counting the source's own
 // counters instead of the battlefield. Vintage Cube Kicker cluster (#692).
+// hand-tail: {T}: Add {C} for each charge counter on this artifact. (#8505)
 export const everflowingChalice = defineCard(() => ({
     id: "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd",
     rarity: "uncommon",

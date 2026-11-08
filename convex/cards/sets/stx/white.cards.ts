@@ -76,6 +76,7 @@ const eliteSpellbinderTriggerEffects: EffectOp[] = [
     },
 ];
 
+// hand-tail: When this creature enters, look at target opponent's hand. You may exile a nonland card from it. For as long as that card remains exiled, its owner may play it. A spell cast this way costs {2} more to cast. (#8505)
 export const eliteSpellbinder = defineCard(() => ({
     id: "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
     name: "Elite Spellbinder",

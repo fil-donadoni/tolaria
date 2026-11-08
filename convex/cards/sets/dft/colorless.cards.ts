@@ -8,6 +8,7 @@ import { makeVergeLand } from "../../abilities";
 // The DFT "Verge" cycle — see `makeVergeLand` in
 // `convex/cards/abilities/index.ts` for the shared board-conditional
 // second-ability shape. Vintage Cube free tranche (issue #675, ADR 0041).
+// hand-tail: {T}: Add {U}. Activate only if you control an Island or a Mountain. (#8505)
 export const riverpyreVerge = defineCard(() =>
     makeVergeLand({
         id: "57a93a71-d77c-417f-85d0-cd420f573331",
@@ -19,6 +20,7 @@ export const riverpyreVerge = defineCard(() =>
     })
 );
 
+// hand-tail: {T}: Add {W}. Activate only if you control a Plains or a Swamp. (#8505)
 export const bleachboneVerge = defineCard(() =>
     makeVergeLand({
         id: "52dcdabd-a186-45fe-9fee-6c0f1afeaf16",
@@ -30,6 +32,7 @@ export const bleachboneVerge = defineCard(() =>
     })
 );
 
+// hand-tail: {T}: Add {B}. Activate only if you control a Swamp or a Forest. (#8505)
 export const wastewoodVerge = defineCard(() =>
     makeVergeLand({
         id: "5ceacc7d-d407-4f82-af58-9bdf8426924e",

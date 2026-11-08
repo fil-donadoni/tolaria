@@ -22,6 +22,7 @@ import { defineCard } from "../../../../convex/cards/types";
 // `from: "graveyard"` source (issue #680), paired with `to: "battlefield"`.
 const TITANIA_ID = "224d904a-5972-4152-878a-9a922e7a55b6";
 
+// hand-tail: Whenever a land you control is put into a graveyard from the battlefield, create a 5/3 green Elemental creature token. (#8505)
 export const titaniaProtectorOfArgoth = defineCard(() => ({
     id: TITANIA_ID,
     name: "Titania, Protector of Argoth",

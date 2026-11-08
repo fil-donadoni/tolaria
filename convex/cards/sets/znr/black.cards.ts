@@ -12,6 +12,7 @@ import { defineCard } from "../../types";
 // (MV ≤ 2 → any), so the effect is a plain destroy and the kicked target set is
 // expressed with `kickedTargetRequirement` — announcement swaps in the wider
 // requirement (CR 702.33 / 601.2c). Vintage Cube Kicker cluster (issue #692).
+// hand-tail: Destroy target creature or planeswalker with mana value 2 or less. If this spell was kicked, instead destroy target creature or planeswalker. (#8505)
 export const bloodchiefsThirst = defineCard(() => ({
     id: "059e8447-6b1c-4651-a734-a8fea2cbf7b2",
     rarity: "uncommon",

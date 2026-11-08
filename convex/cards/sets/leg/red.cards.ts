@@ -65,6 +65,7 @@ export const gravitySphere = defineCard(() => ({
 // are the two decisions the Oracle prints (Chain of Vapor's shape, CR 118.12 /
 // CR 707.10): `copyResolvingSpell` offers the payer a new target for the copy
 // (CR 707.10c), and the copy re-runs this script, so the chain can recur.
+// hand-tail: {self} deals 3 damage to any target. Then that player or that permanent's controller may pay {R}{R}. If the player does, they may copy this spell and may choose a new target for that copy. (#8505)
 export const chainLightning = defineCard(() => ({
     id: "b5883762-ca0a-4932-8d2a-41a45796a5f8",
     rarity: "common",

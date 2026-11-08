@@ -19,6 +19,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // / Terror pattern (ice/black.cards.ts, lea/black.cards.ts) — the effect stays `resolve()`.
 // protocol card: `ctx.destroy(target, { cantBeRegenerated: true })` has no
 // Effect Script Op (the destroy Op carries no regeneration-suppression flag).
+// hand-tail: If you control a Swamp, you may pay 4 life rather than pay this spell's mana cost. (#8505)
 export const snuffOut = defineCard(() => ({
     id: "18a3cca1-e50e-49b6-9e1a-f86640e3b177", // MMQ 162
     rarity: "common",

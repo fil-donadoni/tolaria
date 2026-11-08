@@ -20,6 +20,7 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 //     reasoning and the deliberate divergence (tracked-by: #974) are documented in full on the
 //     emblem definition itself (`convex/cards/emblems.ts`,
 //     `DACK_FAYDEN_EMBLEM_ID`).
+// hand-tail: +1: Target player draws two cards, then discards two cards. (#8505)
 export const dackFayden = defineCard(() => ({
     id: "3fcb7810-1054-4001-855c-6e17939b3d3f", // CNS printing (scryfallId)
     name: "Dack Fayden",

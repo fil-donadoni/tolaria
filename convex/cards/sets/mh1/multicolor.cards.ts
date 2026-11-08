@@ -81,8 +81,8 @@ export const hogaakArisenNecropolis = defineCard(() => ({
 // The Oracle grammar consumes neither line: the keyword has no expansion rule,
 // and the trigger's exile-and-play clause is the cross-player impulse-draw
 // shape that has no Op for the compiler to emit.
-// compiler-gap: "Ninjutsu {2}{U}{B}" (#2693)
-// compiler-gap: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs." (#2693)
+// hand-tail: "Ninjutsu {2}{U}{B}" (#8505)
+// hand-tail: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs." (#8505)
 export const fallenShinobi = defineCard(() => ({
     id: "900c9dfd-ece1-4b09-a801-0fa05e1994b9", // MH1 199
     name: "Fallen Shinobi",
@@ -169,6 +169,7 @@ export const fallenShinobi = defineCard(() => ({
 // The card is the only exposure of Retrace (CR 702.81) in the pool: no card
 // prints the keyword yet, and the emblem's grant is what makes an instant or
 // sorcery in the graveyard castable for its printed cost plus a discarded land.
+// hand-tail: -7: You get an emblem with "Instant and sorcery cards in your graveyard have retrace." (#8505)
 export const wrennAndSix = defineCard(() => ({
     id: "4a706ecf-3277-40e3-871c-4ba4ead16e20",
     name: "Wrenn and Six",

@@ -14,6 +14,7 @@ import { defineCard } from "../../types";
 // nonland permanent card types (Creature, Artifact, Enchantment, Planeswalker;
 // Battle unused in this cube era). Card colour is green ({1}{G}); the kicker's
 // {B} does not change the card's colour. Vintage Cube Kicker cluster (#692).
+// hand-tail: Exile target artifact or enchantment. If this spell was kicked, exile target nonland permanent instead. (#8505)
 export const tearAsunder = defineCard(() => ({
     id: "629aa907-9533-4681-9bf2-9e56450a4cc2",
     rarity: "uncommon",

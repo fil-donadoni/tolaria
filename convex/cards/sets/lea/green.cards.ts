@@ -1346,6 +1346,7 @@ export const fog = defineCard(() => ({
 // Fastbond — {G} Enchantment. "You may play any number of lands on each of
 // your turns. Whenever you play a land, if it wasn't the first land you played
 // this turn, Fastbond deals 1 damage to you." (CR 305.2 — extra land drops)
+// hand-tail: Whenever you play a land, if it wasn't the first land you played this turn, this enchantment deals 1 damage to you. (#8505)
 export const fastbond = defineCard(() => ({
     id: "a575a9af-e1de-4a1d-91d8-440585377e4f",
     rarity: "rare",

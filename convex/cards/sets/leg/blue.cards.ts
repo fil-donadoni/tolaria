@@ -420,6 +420,7 @@ export const backfire = defineCard(() => ({
 // `getManaValue`) is snapshotted at resolution and carried on the delayed
 // trigger's payload; the {C} is added to the caster's pool when their next main
 // phase begins.
+// hand-tail: Counter target spell. At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value. (#8505)
 export const manaDrain = defineCard(() => ({
     id: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
     rarity: "uncommon",

@@ -97,6 +97,7 @@ const GOBLIN_SHAMAN_TOKEN: EffectTokenSpec = {
     ],
 };
 
+// hand-tail: I — Create a 2/2 red Goblin Shaman creature token with "Whenever this token attacks, create a Treasure token." (#8505)
 export const fableOfTheMirrorBreaker = defineCard(() => ({
     id: "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
     name: "Fable of the Mirror-Breaker",

@@ -26,6 +26,7 @@ import { createFoodTokenOp } from "../../abilities/tokens/foodToken";
 // 605.3a — `useStack: false`, `manaChoices` + `manaRestriction` +
 // `effect` fallback, exactly like Adarkar Unicorn / Mishra's Workshop); no
 // Effect Script / `resolve()` needed for either.
+// hand-tail: {T}: Add one mana of any color. Spend this mana only to cast a legendary spell, and that spell can't be countered. (#8505)
 export const delightedHalfling = defineCard(() => ({
     id: "71384418-173a-4f77-adab-56e52fa23692",
     name: "Delighted Halfling",

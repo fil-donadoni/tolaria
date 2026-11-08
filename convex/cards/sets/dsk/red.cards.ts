@@ -62,6 +62,7 @@ function hasDelirium(controllerId: string, state?: TriggerStateView): boolean {
 //  - "After this phase, there is an additional combat phase" is the
 //    `extraCombat` Op (CR 500.8), which queues one combat phase consumed at
 //    the END_OF_COMBAT exit.
+// hand-tail: Delirium — Whenever this creature attacks for the first time each turn, if there are four or more card types among cards in your graveyard, untap target creature. After this phase, there is an additional combat phase. (#8505)
 export const fearOfMissingOut = defineCard(() => ({
     id: "9d48aaff-46ab-411b-9456-171d4709f951",
     rarity: "rare",

@@ -17,6 +17,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // is subject to hexproof / protection / becomes-target triggers instead of the
 // old resolve()+requestChoice per-graveyard workaround. `type: "card"` = any
 // card type; `zone: "graveyard"` + `controller: "any"` = either player's bin.
+// hand-tail: {T}, Sacrifice this artifact: Exile each opponent's graveyard. (#8505)
 export const soulGuideLantern = defineCard(() => ({
     id: "7c850b94-75c9-4457-8b5e-1193352d6fcb",
     name: "Soul-Guide Lantern",

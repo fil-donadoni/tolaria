@@ -23,6 +23,7 @@ import { TREASURE_TOKEN } from "../../sharedTokens";
 // to a single Mountain, plus a `condition: your-turn`. The effect is a single
 // already-censused `dealDamage` Op to a creature-or-planeswalker target
 // (ADR 0045, DSL-first).
+// hand-tail: If it's your turn, you may sacrifice a Mountain rather than pay this spell's mana cost. (#8505)
 export const mineCollapse = defineCard(() => ({
     id: "56e2e8b5-660d-4469-a4fe-2367dfadb709", // MH2 135
     rarity: "common",
@@ -65,6 +66,7 @@ export const mineCollapse = defineCard(() => ({
 // reads the announcement-time divide snapshot off the trigger stack item — the
 // group counterpart to the single-`to` `dealDamage` Op; `total` mirrors
 // `divideAsChosen.total`.
+// hand-tail: Evoke—Exile a red card from your hand. (#8505)
 export const fury = defineCard(() => ({
     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
     rarity: "mythic",
@@ -109,6 +111,7 @@ export const fury = defineCard(() => ({
 // planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four
 // or more card types among cards in your graveyard." (Delirium ability word —
 // engine infra, no registry row.)
+// hand-tail: Delirium — {self} deals 6 damage instead if there are four or more card types among cards in your graveyard. (#8505)
 export const unholyHeat = defineCard(() => ({
     id: "2b73d294-6ab1-4051-9b0f-d8e335d37674",
     rarity: "common",

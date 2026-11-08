@@ -20,6 +20,7 @@ import { defineCard } from "../../types";
 // nontoken creature entering, either player's. A redirected creature never
 // actually touches the battlefield, so no ETB trigger observes it (matches
 // the printed ruling).
+// hand-tail: If a nontoken creature would enter and it wasn't cast, exile it instead. (#8505)
 export const containmentPriest = defineCard(() => ({
     id: "c2c794b9-09da-49be-b258-b0e21f1663e3", // C14 5
     name: "Containment Priest",

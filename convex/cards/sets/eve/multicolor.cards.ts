@@ -36,6 +36,7 @@ import { defineCard } from "../../types";
 // it simply does nothing if the condition is false), so they are an `if`
 // predicate inside the script: `objectMatchesFilter` (issue #1747), the
 // live-object predicate that reads the subtype an EARLIER activation granted.
+// hand-tail: {R/W}: This creature becomes a Kithkin Spirit with base power and toughness 2/2. (#8505)
 export const figureOfDestiny = defineCard(() => ({
     id: "0da69523-cece-425a-b08a-fb27fac29374",
     rarity: "rare",

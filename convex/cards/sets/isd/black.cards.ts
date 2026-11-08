@@ -27,6 +27,7 @@ import { defineCard } from "../../types";
 //     with divider = controller, chooser = the target player, chosen pile
 //     sacrificed via forEach{bound} → sacrifice (the Do or Die shape,
 //     inv/black.cards.ts, destroy→sacrifice and no type filter).
+// hand-tail: -6: Separate all permanents target player controls into two piles. That player sacrifices all permanents in the pile of their choice. (#8505)
 export const lilianaOfTheVeil = defineCard(() => ({
     id: "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
     name: "Liliana of the Veil",

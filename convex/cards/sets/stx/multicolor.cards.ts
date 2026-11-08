@@ -15,6 +15,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // re-runs on each submit, reading the stored answer once provided. The library
 // is mutated only after both picks resolve, so the candidate sets stay stable
 // across re-runs.
+// hand-tail: Look at the top three cards of your library. Put one of them into your hand, put one of them on the bottom of your library, and exile one of them. You may play the exiled card this turn. (#8505)
 export const expressiveIteration = defineCard(() => ({
     id: "31b770cc-09e7-4c0b-b2a4-462ab4f7200d",
     name: "Expressive Iteration",

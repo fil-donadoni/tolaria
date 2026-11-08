@@ -15,6 +15,7 @@ import { defineCard } from "../../types";
 // creature's mana value — against a variable threshold (2 without revolt, 4
 // with revolt). The frozen predicate grammar does not express "target's mana
 // value" as an EffectValue.
+// hand-tail: Destroy target creature if it has mana value 2 or less. (#8505)
 export const fatalPush = defineCard(() => ({
     id: "b5e81649-9954-424c-89d1-f87d73b66047",
     rarity: "uncommon",

@@ -50,6 +50,7 @@ function createKarnConstruct(ctx: SpellContext): void {
     ctx.createToken(KARN_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
 
+// hand-tail: +1: Reveal the top two cards of your library. An opponent chooses one of them. Put that card into your hand and exile the other with a silver counter on it. (#8505)
 export const karnScionOfUrza = defineCard(() => ({
     id: "07a3d9e8-8597-498b-869c-cff79e0df516",
     name: "Karn, Scion of Urza",

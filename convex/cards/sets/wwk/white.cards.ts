@@ -18,6 +18,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // it" clause is a `reveal` Op on the picked card (issue #945, CR 701.20): it
 // makes the found Equipment known to every player, placed BEFORE the
 // moveZone/shuffle so the knowledge rides the card into hand.
+// hand-tail: {1}{W}, {T}: You may put an Equipment card from your hand onto the battlefield. (#8505)
 export const stoneforgeMystic = defineCard(() => ({
     id: "19557351-b65f-4b04-b971-66abdc07000a",
     rarity: "rare",

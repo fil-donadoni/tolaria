@@ -126,6 +126,7 @@ export const retrofitterFoundry = defineCard(() => ({
 //     players), `gainControl` (indefinite reassignment, CR 613.1b — no
 //     duration, matching "gains control of this artifact" with no revert
 //     condition printed), then `tapUntap` (untap) of `$source`.
+// hand-tail: Whenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of this artifact. Untap it. (#8505)
 export const covetedJewel = defineCard(() => ({
     id: "f83ed433-fae3-4fa5-acad-bb8a5b535ce3", // C18 54
     rarity: "rare",

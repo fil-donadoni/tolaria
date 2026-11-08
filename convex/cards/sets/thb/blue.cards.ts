@@ -48,6 +48,7 @@ const thassasOracleValue: EffectOp[] = [
 //  and the rest on the bottom of your library in a random order. If X is
 //  greater than or equal to the number of cards in your library, you win the
 //  game." (CR 401.4 / CR 700.5 / CR 104.2a.)
+// hand-tail: When this creature enters, look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top of your library and the rest on the bottom of your library in a random order. If X is greater than or equal to the number of cards in your library, you win the game. (#8505)
 export const thassasOracle = defineCard(() => ({
     id: "726e8b29-13e9-4138-b6a9-d2a0d8188d1c",
     name: "Thassa's Oracle",

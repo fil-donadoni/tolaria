@@ -9,6 +9,7 @@ import { defineCard } from "../../types";
 // draw-then-discard goes on the stack and uses stepped resolution so the
 // irreversible two-card draw is not re-run when the discard choice suspends,
 // CR 608.2).
+// hand-tail: {T}: Add two mana in any combination of {U}, {B}, and/or {R}. (#8505)
 export const relicOfSauron = defineCard(() => ({
     id: "175b3d28-5c74-4972-9b5c-5e39762c78f4",
     name: "Relic of Sauron",

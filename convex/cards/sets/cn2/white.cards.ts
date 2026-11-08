@@ -27,6 +27,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `becomeMonarch`) is the smallest primitive that composes the existing
 // exile/return machinery with the new release condition rather than
 // inventing a card-shaped effect.
+// hand-tail: When this creature enters, exile target creature an opponent controls until an opponent becomes the monarch. (#8505)
 export const palaceJailer = defineCard(() => ({
     id: "78cef262-c753-4658-b3ec-fec8db47f944",
     rarity: "uncommon",

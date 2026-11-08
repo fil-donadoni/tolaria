@@ -41,6 +41,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // each mode a bare `addMana` for that colour, exactly as Phyrexian Altar
 // (inv/colorless.cards.ts) already ships — both Ops already exercised
 // catalogue-wide (per-Op regime, no hand-written test required).
+// hand-tail: {T}: Exile target land card from a graveyard. Add one mana of any color. (#8505)
 export const deathriteShaman = defineCard(() => ({
     id: "70496f16-c4c0-4c03-beef-454eb4824cd1",
     rarity: "rare",

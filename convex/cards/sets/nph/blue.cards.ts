@@ -61,6 +61,7 @@ export const gitaxianProbe = defineCard(() => ({
 // Artifact type (CR 707.9d). Declining (or no artifact/creature present) leaves
 // it a 0/0 artifact creature that dies to SBA (CR 704.5f). Mana cost carries a
 // Phyrexian pip `{U/P}` (pay {U} or 2 life).
+// hand-tail: You may have this creature enter as a copy of any artifact or creature on the battlefield, except it's an artifact in addition to its other types. (#8505)
 export const phyrexianMetamorph = defineCard(() => ({
     id: "d2e27911-87cb-49a0-a34f-6afe4bddd592",
     rarity: "rare",

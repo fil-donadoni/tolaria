@@ -47,6 +47,7 @@ import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 // deathtouch (CR 702.2b), lifelink (CR 702.15b), "damage from a red source",
 // protection-by-colour (CR 702.16e) — is then evaluated against THAT creature.
 // For Pyrogoyf's own ETB the two coincide and the same call is still correct.
+// hand-tail: Pyrogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1. (#8505)
 export const pyrogoyf = defineCard(() => ({
     id: "f60be310-4461-4b84-95f0-b2095108bd79",
     name: "Pyrogoyf",
