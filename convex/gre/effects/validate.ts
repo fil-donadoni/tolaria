@@ -7676,8 +7676,8 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         (keyHint === "manaCostOf" &&
                             !obj.ref.startsWith("$event.")) ||
                         // `grantCastFromExile`'s `card` field (issue #1156)
-                        // — a bare picks ref naming a `choice` Op's bind
-                        // (singular: the choice's `count: 1` pick).
+                        // — a bare picks ref naming a `choice` Op's bind or
+                        // an exile's `bindAll`; the grant reaches every card.
                         keyHint === "card" ||
                         // `exileSelf`'s `encodedOn` (CR 702.99a) — the same
                         // shape: the creature a `choice` Op picked.
