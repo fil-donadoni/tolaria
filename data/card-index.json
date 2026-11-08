@@ -30982,6 +30982,14 @@
         "firstPrintSet": "usg"
     },
     {
+        "name": "Gaea's Herald",
+        "scryfallId": "aa52bc97-109a-4de5-b287-bce21dad6a9c",
+        "oracleId": "f21c3d22-6149-475f-ae6e-37a25ef020e5",
+        "firstSet": "pls",
+        "firstPrintId": "aa52bc97-109a-4de5-b287-bce21dad6a9c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Gaea's Liege",
         "scryfallId": "e2b15221-c8b0-4861-9f8b-8a65834ad499",
         "oracleId": "8d134a60-e1e5-4163-8bdc-36af91567185",
