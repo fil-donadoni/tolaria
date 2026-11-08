@@ -7173,7 +7173,6 @@
         {"key":"838947b11225","text":"Each player antes the top card of their library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player antes the top card of their library"}},
         {"key":"9bbea5ca4073","text":"Each player can't cast more than one non-Phyrexian spell each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one non-Phyrexian spell each turn"}},
         {"key":"4aefd227979f","text":"Each player can't cast more than one noncreature spell each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one noncreature spell each turn"}},
-        {"key":"b9e7890e5452","text":"Each player can't cast more than one spell each turn.","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one spell each turn"}},
         {"key":"0f2a06f41d23","text":"Each player can't draw more than one card each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't draw more than one card each turn"}},
         {"key":"748d02451c47","text":"Each player chooses a card in their hand. Then each player reveals their chosen card. The owner of each creature card revealed this way with the lowest mana value puts it onto the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player chooses a card in their hand"}},
         {"key":"1ad92cf716fc","text":"Each player chooses a color. Then exile each permanent unless it's colorless or it's only the color its controller chose.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player chooses a color"}},
@@ -86445,7 +86444,7 @@
 
         {"oracleId":"ceeeacbc-01b0-4421-aaca-2ce6cdbe45d7","name":"Tetsuko Umezawa, Fugitive","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a2eb600ccd41"]},
 
-        {"oracleId":"ceef2d5a-77ea-4e56-9806-fd1a2d5be400","name":"Archon of Emeria","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["77f77b345b8f","b9e7890e5452"]},
+        {"oracleId":"ceef2d5a-77ea-4e56-9806-fd1a2d5be400","name":"Archon of Emeria","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["77f77b345b8f"]},
 
         {"oracleId":"cef11518-ecb2-4250-996c-a03fa9dfb09e","name":"Darkslick Drake","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Darkslick Drake","types":["Creature"],"subtypes":["Phyrexian","Drake"],"manaCost":{"X":2,"U":2},"power":2,"toughness":4,"oracleText":"Flying\nWhen this creature dies, draw a card.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"darkslick-drake-trigger","oracleText":"When this creature dies, draw a card.","head":{"kind":"died","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
@@ -90381,7 +90380,7 @@
 
         {"oracleId":"dc9d1d0c-5310-460a-a3cd-1ff1f4f83c8f","name":"Mortal Combat","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["30466261748b"]},
 
-        {"oracleId":"dc9da00f-7624-4926-8d75-fd945f1b8a29","name":"Mine, Mine, Mine!","state":"unparsed","gaps":["446fe79ffdf9","64fda4ce082c","a3616084c9e0","b9e7890e5452"]},
+        {"oracleId":"dc9da00f-7624-4926-8d75-fd945f1b8a29","name":"Mine, Mine, Mine!","state":"unparsed","gaps":["446fe79ffdf9","64fda4ce082c","a3616084c9e0"]},
 
         {"oracleId":"dca25245-523a-4587-a059-a14ee2ef908d","name":"Armored Armadillo","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["55aa76611cb8"]},
 
