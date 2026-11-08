@@ -1,7 +1,7 @@
 // Buyback capability (CR 702.27) — the cost-system infra built once and
 // reused by every buyback card (issue #1200). Mirrors
 // `convex/gre/__tests__/kicker.test.ts`'s structure/rationale: the project
-// has no convex-test harness for game.ts mutations (ADR 0001), so this drives
+// has no convex-test harness for game.ts mutations (ADR 0000), so this drives
 // the REAL exported pieces `announceCast` uses — `resolveBuybackChoice`
 // (validation) and `finalizeTargetSelection` (cost fold + `buybackPaid`
 // snapshot on the stack item) — over the real GRE state, in the same order

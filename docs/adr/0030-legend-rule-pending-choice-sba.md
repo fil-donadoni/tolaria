@@ -1,5 +1,7 @@
 # ADR 0030 — Legend rule as a pending-choice state-based action
 
+_Maintenance 2026-11-08 (issue #8723): ADR 0007 corrected to ADR 0008 (client-buffered submit)._
+
 **Status:** Accepted (2026-06-19)
 
 ## Context
@@ -26,7 +28,7 @@ Two properties of the rule shape the design:
    auto-resolved.
 
 The engine already has a generic mid-resolution choice mechanism
-(`state.pendingChoices`, a FIFO queue of `PendingChoice`; ADR 0007 covers the
+(`state.pendingChoices`, a FIFO queue of `PendingChoice`; ADR 0008 covers the
 client-buffered submit). It is normally raised by a spell/ability's resolve
 step and keyed to a stack item (`stackItemId`). Three existing choices, however,
 are **phase-level**: they are raised outside stack resolution and carry the

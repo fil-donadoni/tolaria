@@ -1,6 +1,6 @@
 // Integration: Subtlety "choose up to one target creature spell or planeswalker
 // spell" from the server pending-target build (the #1193 trigger-target path)
-// through to client target eligibility. No convex-test harness (ADR 0001), so
+// through to client target eligibility. No convex-test harness (ADR 0000), so
 // this drives the SAME exported builder `raiseTriggerTargetSelection` feeds a
 // trigger PendingTarget — `pendingTargetFiltersFromRequirement` — into the
 // client eligibility predicate (`wantsSpellTarget`, `matchesSpellPendingTarget`),

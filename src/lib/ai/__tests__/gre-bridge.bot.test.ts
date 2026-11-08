@@ -1,5 +1,5 @@
 // Proves the shared GRE package is importable and runnable from client code
-// (ADR 0001, issue #108 — acceptance: "GRE is importable from client code via
+// (ADR 0000, issue #108 — acceptance: "GRE is importable from client code via
 // a shared package"). If the client tsconfig/bundler cannot resolve or compile
 // the engine, this test fails to even import.
 import { describe, expect, it } from "vitest";

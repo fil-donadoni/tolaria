@@ -120,7 +120,7 @@ describe("Once Upon a Time — cast legality via the free alt cost (convex/gre/r
 
 describe("Once Upon a Time — commit + resolution (CR 118.9 / 601.2h, 401.4)", () => {
     // Mirrors dash.test.ts / pitch-cost.test.ts's pattern: this project has no
-    // convex-test harness for game.ts mutations (ADR 0001), so the REAL
+    // convex-test harness for game.ts mutations (ADR 0000), so the REAL
     // exported commit function is driven directly over a manually-parked
     // `pendingCast` with the mana cost already collapsed to `{}` — the exact
     // shape `announceCast`'s `chosenAltCost.mana ?? {}` produces for a

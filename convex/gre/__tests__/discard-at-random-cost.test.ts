@@ -1,6 +1,6 @@
 // Cluster O — random-discard as an activation cost (CR 118.3 / 701.8, Coral
 // Helm, #292). Integration test for the cost path that crosses GRE → game.ts →
-// UI. The project has no convex-test harness (ADR 0001), so — like
+// UI. The project has no convex-test harness (ADR 0000), so — like
 // sacrifice-cost-activation.test.ts — the production mutation handler's
 // `cost.discardAtRandom` branches (up-front empty-hand legality, the mana-
 // covered immediate commit, and the commit-time discard) are mirrored here as

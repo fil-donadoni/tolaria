@@ -17,7 +17,7 @@ import LimitedOpponentTile from "./limited-opponent-tile";
  *  Auto-Built deck — closing the study loop ("draft, build, then test your
  *  deck against the table's", PRD #1107 problem statement). Reuses the
  *  existing vsAi seat model UNCHANGED (`createSoloGame({ deck, deck2,
- *  vsAi: true })`, ADR 0001) — the bot's deck is tagged `format: "freeform"`
+ *  vsAi: true })`, ADR 0000) — the bot's deck is tagged `format: "freeform"`
  *  on the wire because it is no saved deck of the caller's (the ownership gate
  *  `loadLimitedPoolResolver` enforces for a `"limited"` deck would reject it
  *  outright); Freeform's validator is a permissive

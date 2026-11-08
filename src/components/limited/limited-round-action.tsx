@@ -108,7 +108,7 @@ export default function LimitedRoundAction({
                 deck: deckPayload(myDeck),
             });
             // A bot pairing starts as a vs-AI Match, where the viewer drives
-            // the `-p1` seat (ADR 0001); a human pairing is an ordinary
+            // the `-p1` seat (ADR 0000); a human pairing is an ordinary
             // 2-player Match seated on the user's own id.
             await enter(
                 gameId,

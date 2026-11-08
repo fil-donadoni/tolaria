@@ -1,5 +1,7 @@
 # ADR 0021 — Stronger opponent model & temporal flexibility
 
+_Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
+
 **Status:** Accepted and shipped (proposed 2026-06-17; `reactivePrior`, the
 hold-priority shapes and the instant-timing levers live in
 `convex/gre/search.ts`). The opponent-knowledge half was later re-decided per
@@ -42,7 +44,7 @@ blocks → cast the trick in response` — a multi-step, response-conditioned li
    ability to RESPOND this turn — carries no value distinct from the card's body.
    So holding and dumping look materially identical at the leaf the instant the
    card is spent, minus the card itself.
-3. **The opponent is modelled by the same weak policy.** ISMCTS (ADR 0001) descends
+3. **The opponent is modelled by the same weak policy.** ISMCTS (ADR 0000) descends
    and rolls out the opponent with the bot's own default policy. A bot that cannot
    represent "hold then react" also cannot anticipate that the opponent will block
    in a way the held trick punishes, so the value of holding is never realised even

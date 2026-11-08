@@ -1,4 +1,4 @@
-// Pure bot decision function (ADR 0001, issue #109). Worker-free — exercises
+// Pure bot decision function (ADR 0000, issue #109). Worker-free — exercises
 // decideBotAction directly. The pass-only bot keeps, declares nothing, passes.
 import { describe, expect, it } from "vitest";
 import {

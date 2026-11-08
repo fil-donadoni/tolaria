@@ -1,4 +1,4 @@
-// Determinization for the vs-AI Bot's ISMCTS search (ADR 0001, issue #112).
+// Determinization for the vs-AI Bot's ISMCTS search (ADR 0000, issue #112).
 //
 // Information-set Monte Carlo Tree Search reasons over the bot's OBSERVED
 // state, where the opponent's hand + both players' library orders are hidden.

@@ -2,7 +2,7 @@
 // CR 602.1 / 603.2 / 603.3.
 //
 // Integration test for the activation-commit path that crosses
-// GRE → game.ts → UI. The project has no convex-test harness (ADR 0001 /
+// GRE → game.ts → UI. The project has no convex-test harness (ADR 0000 /
 // moves-integration.test.ts), so the production `activateAbility` commit step
 // is mirrored here as a pure function that drives the REAL exported GRE
 // functions — including `emitAbilityActivated` and `processPendingActionTriggers`

@@ -574,7 +574,7 @@ describe("pickCoinTossWinner (G1 coin toss, CR 103.2-103.3)", () => {
 });
 
 describe("botIsChooser / isBotSeat (#394 — vs-AI auto-play)", () => {
-    it("the bot seat is the `${userId}-p2` seat (ADR 0001)", () => {
+    it("the bot seat is the `${userId}-p2` seat (ADR 0000)", () => {
         expect(isBotSeat("u1-p2")).toBe(true);
         expect(isBotSeat("u1-p1")).toBe(false);
         expect(isBotSeat("u1")).toBe(false);

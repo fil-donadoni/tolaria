@@ -3019,7 +3019,7 @@ export const getPublicState = query({
         // search dialog opens without its cards until a refresh re-syncs.
         // A vs-AI game is structurally solo but the two seats are distinct
         // viewpoints — the human stays pinned to their seat and the bot driver
-        // queries as its own seat (ADR 0001) — so it uses the requested playerId.
+        // queries as its own seat (ADR 0000) — so it uses the requested playerId.
         const viewerId =
             solo === true && vsAi !== true
                 ? computeSoloViewerId({
@@ -3375,7 +3375,7 @@ export const challengeLimitedSeat = mutation({
  * One action, two shapes, decided by the paired seat — never by the client:
  *
  * - **Against a bot seat** the Match starts immediately as the existing vs-AI
- *   Match (`createSoloGame`'s seat model, ADR 0001) against that seat's
+ *   Match (`createSoloGame`'s seat model, ADR 0000) against that seat's
  *   Auto-Built deck, resolved SERVER-SIDE off the seat's own drafted Pool
  *   (`resolveSeatAutoBuiltDeck`). The projection already publishes that deck
  *   for the unrecorded "Play vs Bots" playtest, but a pairing's result lands
@@ -3483,7 +3483,7 @@ export const startPairingMatch = mutation({
             );
             if (!botDeck)
                 throw new Error("Your opponent's deck is not ready yet.");
-            // Same seat model as `createSoloGame({ vsAi: true })` (ADR 0001):
+            // Same seat model as `createSoloGame({ vsAi: true })` (ADR 0000):
             // the caller drives `-p1`, the brain drives `-p2`. The bot deck is
             // tagged `freeform` because it belongs to no user's own Seat — the
             // Limited ownership gate would reject it — and it is legal by
@@ -3617,7 +3617,7 @@ export const createSoloGame = mutation({
         name: v.string(),
         deck: deckValidator,
         deck2: v.optional(deckValidator),
-        /** When true the second seat is driven by the AI brain (ADR 0001).
+        /** When true the second seat is driven by the AI brain (ADR 0000).
          *  Still structurally a solo game — no new game mode or move surface. */
         vsAi: v.optional(v.boolean()),
         /** Limited Event this playtest belongs to ("Play vs the Table", PRD
@@ -4712,7 +4712,7 @@ export { payLoyaltyCost };
  *  the Bot's enumerator reads it the same way.
  *
  *  Exported for the same reason `resolveBuybackChoice` below is: there is no
- *  convex-test harness for a `game.ts` mutation (ADR 0001). Note what that
+ *  convex-test harness for a `game.ts` mutation (ADR 0000). Note what that
  *  does NOT buy — the one-line spread at the announcement is still uncovered;
  *  a test calling this helper cannot see it removed. The helper itself is
  *  covered at three layers. */
@@ -4759,7 +4759,7 @@ export function advanceTargetGroupOrFinalize(
  *  additional [cost]" is singular, paid at most once per cast. Exported for
  *  the same reason `resolveKickerPayments` is: `convex/gre/__tests__/
  *  buyback.test.ts` drives the real cost/target commit path over the GRE
- *  state (no convex-test harness for game.ts mutations, ADR 0001). */
+ *  state (no convex-test harness for game.ts mutations, ADR 0000). */
 export function resolveBuybackChoice(
     cardDef: CardDefinition,
     requested: boolean | undefined
@@ -4804,7 +4804,7 @@ function foldBuybackCost(
  *
  *  Exported for the same reason `resolveBuybackChoice` is: the tests drive the
  *  real cost/commit path over the GRE state (no convex-test harness for
- *  game.ts mutations, ADR 0001). */
+ *  game.ts mutations, ADR 0000). */
 export function assertFlashSurchargeDeclaration(
     cardDef: CardDefinition,
     requested: boolean | undefined,
@@ -4840,7 +4840,7 @@ export function assertFlashSurchargeDeclaration(
  *  defined at the call site). */
 /** Exported (issue #3215) for the same reason `buildCastSacrificeSelection`
  *  and `assertKickerAnnouncementLegal` are: this project has no convex-test
- *  harness for `game.ts` mutations (ADR 0001), and CR 702.96b's "an overloaded
+ *  harness for `game.ts` mutations (ADR 0000), and CR 702.96b's "an overloaded
  *  spell won't require any targets" is a claim about THIS function, not about
  *  the stack item that eventually results from it. Driving it directly is the
  *  only way to assert the rule rather than one of its downstream shadows. */
@@ -6372,7 +6372,7 @@ export function buildCastSacrificeSelection(
  *
  *  Exported (not just inlined in `announceCast`) so integration tests can
  *  drive the identical composition the mutation runs, in the same order,
- *  without a convex-test mutation harness (ADR 0001) — see
+ *  without a convex-test mutation harness (ADR 0000) — see
  *  `additional-cost-cast.test.ts` for the established pattern. The downstream
  *  `assertCastPermanentCostsPayable` calls (in `finalizeTargetSelection` and the
  *  no-target branches here) remain as defence-in-depth. */

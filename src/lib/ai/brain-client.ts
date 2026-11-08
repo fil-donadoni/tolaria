@@ -1,4 +1,4 @@
-// Client-side handle to the Brain Web Worker (ADR 0001, issues #109/#110).
+// Client-side handle to the Brain Web Worker (ADR 0000, issues #109/#110).
 //
 // Lazily spawns a single module Worker and exposes `consultBrain(state, botId)`,
 // which resolves with the bot's chosen Move (or null when it owes nothing). A

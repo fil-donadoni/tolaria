@@ -1,4 +1,4 @@
-// vs-AI difficulty presets (ADR 0001, issue #114).
+// vs-AI difficulty presets (ADR 0000, issue #114).
 //
 // Difficulty is ONE KNOB: each preset is just a `SearchBudget` handed to the
 // same `search(state, playerId, budget, seed)`. There is no separate "dumb bot"

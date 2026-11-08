@@ -1,4 +1,4 @@
-// Position heuristic for the vs-AI Bot (ADR 0001, issue #111, ADR 0018).
+// Position heuristic for the vs-AI Bot (ADR 0000, issue #111, ADR 0018).
 //
 // `evaluate(state, playerId)` scores a GameState from `playerId`'s point of
 // view: higher is better for that player. It is the leaf estimate the greedy

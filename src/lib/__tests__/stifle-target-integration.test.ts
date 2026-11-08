@@ -1,7 +1,7 @@
 // Integration: Stifle "counter target activated or triggered ability" from the
 // server pending-target build through to client target eligibility (the bug
 // where the on-stack ability was never clickable). The project has no
-// convex-test harness (ADR 0001), so this drives the SAME exported builder the
+// convex-test harness (ADR 0000), so this drives the SAME exported builder the
 // `announceCast` mutation uses — `pendingTargetFiltersFromRequirement` — and
 // feeds its output into the client eligibility predicate `matchesSpellPendingTarget`
 // (game-stack.tsx), reproducing the full GRE→game.ts→UI path in one test.

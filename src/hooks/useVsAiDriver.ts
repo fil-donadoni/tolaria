@@ -1,4 +1,4 @@
-// Client driver for the vs-AI Bot (ADR 0001, issues #109/#110/#113).
+// Client driver for the vs-AI Bot (ADR 0000, issues #109/#110/#113).
 //
 // Watches the game FROM THE BOT'S OWN VIEWPOINT (a `getPublicState` query keyed
 // to the bot seat, so the bot's hand is visible and the human's stays hidden —

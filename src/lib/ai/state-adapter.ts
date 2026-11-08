@@ -1,5 +1,5 @@
 // Adapts the bot's projected wire state into a GameState the GRE move enumerator
-// can read (ADR 0001, issue #110).
+// can read (ADR 0000, issue #110).
 //
 // The brain consumes `projectPublicState(state, seq, botId)` — the SAME wire
 // projection a human client receives (criterion 5): the bot's own hand is

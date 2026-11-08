@@ -1,4 +1,4 @@
-// Visible "thinking" indicator for the vs-AI Bot (ADR 0001, issue #113).
+// Visible "thinking" indicator for the vs-AI Bot (ADR 0000, issue #113).
 //
 // The bot's search runs off the UI thread under a bounded time budget, so the
 // board never freezes — but the human still needs to know the opponent is

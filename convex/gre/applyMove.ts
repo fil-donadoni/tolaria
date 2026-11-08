@@ -1,10 +1,10 @@
-// Pure macro-move simulation for the vs-AI Bot's greedy search (ADR 0001,
+// Pure macro-move simulation for the vs-AI Bot's greedy search (ADR 0000,
 // issue #111).
 //
 // `applyMoveForSearch(state, playerId, move)` returns a NEW GameState in which
 // `move` has been played out to a stable, comparable point — the leaf the
 // greedy selector (`greedySelectMove`) hands to `evaluate`. It reuses the real
-// GRE resolution primitives (no second/approximate engine, ADR 0001): a spell
+// GRE resolution primitives (no second/approximate engine, ADR 0000): a spell
 // goes on the stack and resolves through `resolveTopOfStack`; combat damage is
 // applied through the same `applyAllCombatDamage` the phase machine uses. The
 // input state is never mutated — it is cloned first via `cloneGameState`.

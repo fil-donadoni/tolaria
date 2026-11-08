@@ -9,7 +9,7 @@
 //
 //   - Integration: the exact function the mutation calls —
 //     `finalizeTargetSelection` (the targeted cast commit) over real GRE state.
-//     The project has no convex-test harness for game.ts mutations (ADR 0001);
+//     The project has no convex-test harness for game.ts mutations (ADR 0000);
 //     this is the established substitute `additionalCostLegChoice.test.ts` and
 //     `delveCastCost.test.ts` use.
 //   - Resolution: the stamped snapshot drives the discard, and a colourless

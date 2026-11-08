@@ -1,4 +1,4 @@
-// enumerateMoves + planManaPayment (issue #110, ADR 0001).
+// enumerateMoves + planManaPayment (issue #110, ADR 0000).
 //
 // The bot's candidate move list must be COMPLETE for crafted positions and the
 // mana planner must produce a payable tap sequence. These are pure-function

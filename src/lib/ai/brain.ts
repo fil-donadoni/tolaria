@@ -1,5 +1,5 @@
 // The AI Bot's Brain gate — the pure "does the bot owe an action?" check
-// (ADR 0001, issues #109–#111).
+// (ADR 0000, issues #109–#111).
 //
 // `BotView` / `decideBotAction` are the cheap main-thread GATE: a constant-time
 // look at the current window that decides whether the bot owes any action at all
@@ -57,7 +57,7 @@ import {
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
- *  process — accepted, vs-AI is single-player; see ADR 0001). For the pass-only
+ *  process — accepted, vs-AI is single-player; see ADR 0000). For the pass-only
  *  bot only the current decision WINDOW matters, not card contents. */
 export type BotView = {
     /** The seat the bot controls (`${userId}-p2`). */
@@ -386,7 +386,7 @@ export type OwedChoice = {
 };
 
 /** A bot decision, realised by the executor through EXISTING mutations only
- *  (no new move surface — issue #109 / ADR 0001):
+ *  (no new move surface — issue #109 / ADR 0000):
  *   - `keep`              → `declareMulligan({ decision: "keep" })`
  *   - `mull`              → `declareMulligan({ decision: "mull" })`
  *   - `mulligan-bottom`   → `submitResolutionChoice` (kind "mulligan-bottom")

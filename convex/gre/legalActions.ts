@@ -18,7 +18,7 @@
 //
 // PURE: no mutation, no ctx, no randomness — callable from the server and
 // from the client-side bot code path (exported through the sanctioned
-// `convex/gre/index.ts` barrel, ADR 0001). Combinatorial windows are capped at
+// `convex/gre/index.ts` barrel, ADR 0000). Combinatorial windows are capped at
 // `MAX_COMBINATIONS`, same policy as `moves.ts`.
 
 import { isAlreadySelectedTarget } from "./targetFilters";

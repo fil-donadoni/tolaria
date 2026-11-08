@@ -1,4 +1,4 @@
-// Greedy 1-ply move selection for the vs-AI Bot (ADR 0001, issue #111).
+// Greedy 1-ply move selection for the vs-AI Bot (ADR 0000, issue #111).
 //
 // `greedySelectMove(state, playerId, rand?)` is the Bot's "search" for this
 // slice: it enumerates every legal macro-move (`enumerateMoves`), plays each one

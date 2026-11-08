@@ -895,7 +895,7 @@ describe("Collective Restraint (CR 508.1c/1g dynamic attack-mana-tax — Domain,
 // the aggregated tax on `combat.pendingAttackManaTax` and the attacking player
 // pays it via a prompt (auto-tap or manual land taps). Drives the real
 // `beginAttackManaTax` / `tryCommitAttackManaTax` game.ts helpers over GRE
-// primitives (the ADR 0001 mutation-replica convention — no convex-test harness).
+// primitives (the ADR 0000 mutation-replica convention — no convex-test harness).
 describe("Collective Restraint — parked mana attack tax (CR 508.1c/1g, #1053/#1066)", () => {
     /** p1 attacks with two Grizzly Bears into p2's Collective Restraint. p2 has
      *  Plains + Island → Domain 2, so the tax is {2}/attacker = {4} total. p1

@@ -1,5 +1,5 @@
 // Translates a bot Move into the EXISTING granular game mutations that realise
-// it (ADR 0001, issue #110). No new Convex move surface: the bot drives the
+// it (ADR 0000, issue #110). No new Convex move surface: the bot drives the
 // same mutation sequence a human's clicks would, validated server-side
 // identically (CR 720 — the server stays authoritative; an illegal Move is
 // rejected here, not applied).

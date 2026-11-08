@@ -1,4 +1,4 @@
-// Bot executor (ADR 0001, issue #110): every Move kind fires the correct
+// Bot executor (ADR 0000, issue #110): every Move kind fires the correct
 // EXISTING mutation sequence, on the bot seat, with the right args. This is the
 // client side of the GRE→game.ts contract — it catches wrong-mutation,
 // wrong-seat, and wrong-order bugs before they reach the server.

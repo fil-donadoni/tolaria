@@ -4,7 +4,7 @@
 // that needs them: "Bestow—{R}, Collect evidence 6 … You may cast this card
 // from your graveyard using its bestow ability."
 //
-// The project has no convex-test harness for `game.ts` mutations (ADR 0001),
+// The project has no convex-test harness for `game.ts` mutations (ADR 0000),
 // so — the `bestow.test.ts` / `escape.test.ts` pattern — the targeted commit
 // is driven through the real exported `finalizeTargetSelection` (the function
 // `announceCast` hands a completed `pendingTarget` to), the exile pick through

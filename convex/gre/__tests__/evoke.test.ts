@@ -7,7 +7,7 @@
 //   - the real cast-commit seam tags the resulting stack item `evoked: true`
 //     (`tryAutoCommitPendingCast`, convex/game.ts) — mirrors the Force of
 //     Will / pitch-cost.test.ts pattern (this project has no convex-test
-//     harness for game.ts mutations, ADR 0001, so the REAL exported commit
+//     harness for game.ts mutations, ADR 0000, so the REAL exported commit
 //     function is driven directly over a manually-parked `pendingCast`)
 //   - the `evoked` marker riding onto the resulting permanent for free (a
 //     stack item IS its CardInstanceState, the `escaped` precedent) via

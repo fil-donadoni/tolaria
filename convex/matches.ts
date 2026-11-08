@@ -340,7 +340,7 @@ export function allSeatsReady(match: {
     return match.players.length > 0 && match.players.every((p) => p.ready);
 }
 
-/** The bot's seat id in a vs-AI Match (`${userId}-p2`, ADR 0001), or null. The
+/** The bot's seat id in a vs-AI Match (`${userId}-p2`, ADR 0000), or null. The
  *  bot auto-readies with no swaps so the human is never blocked on it (#395). */
 export function botSeatId(match: {
     vsAi?: boolean;
@@ -357,7 +357,7 @@ export function botSeatId(match: {
  * This is a strictly HIGHER bar than `assertSeatOwnership`, and the two must
  * not be conflated. `assertSeatOwnership` asks "does the caller own this seat
  * HANDLE" — in a vs-AI pairing the human owns BOTH handles (`${uid}-p1` and
- * `${uid}-p2`, ADR 0001), which is exactly right for ordinary gameplay (the
+ * `${uid}-p2`, ADR 0000), which is exactly right for ordinary gameplay (the
  * client-side Brain drives the bot seat through `playCard`, `passPriority`, …
  * and must keep working) and exactly useless against a resignation aimed at
  * `${uid}-p2`. A round pairing's Match result is written into the Limited
@@ -475,7 +475,7 @@ export function toNextGamePlayers(seats: NextGameSeat[]) {
 export type PlayDrawChoice = "play" | "draw";
 
 /** In a vs-AI Match the bot seat is the `${userId}-p2` seat created by
- *  `createSoloGame` (ADR 0001). The human always holds `-p1`. */
+ *  `createSoloGame` (ADR 0000). The human always holds `-p1`. */
 export function isBotSeat(seatId: string): boolean {
     return seatId.endsWith("-p2");
 }
@@ -515,7 +515,7 @@ export function bladeLoadBotSeatId(game: {
     const botPlayerId = game.players.find((p) => isBotSeat(p.id))?.id;
     if (!botPlayerId) {
         throw new ConvexError(
-            "This game has no bot seat (ADR 0001: the second seat, `-p2`), " +
+            "This game has no bot seat (ADR 0000: the second seat, `-p2`), " +
                 "so a blade scenario has nothing to ask."
         );
     }
@@ -536,7 +536,7 @@ export function bladeLoadBotSeatId(game: {
  * vs-AI: the non-bot seat, whichever position it landed in. Otherwise (solo,
  * two-player): the `games` row's own first seat — its order never changes.
  *
- * `ConvexError`, not `Error`, on a malformed row (ADR 0001 promises a `-p2`
+ * `ConvexError`, not `Error`, on a malformed row (ADR 0000 promises a `-p2`
  * seat on every vs-AI game, so this is a genuine invariant violation, never a
  * shape a real caller hits) — matching `bladeLoadBotSeatId`'s own refusal
  * shape rather than a bare `undefined.id` `TypeError`.
