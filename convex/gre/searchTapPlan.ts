@@ -28,6 +28,7 @@ import {
 } from "./state";
 import {
     getManaTapOptionsDetailed,
+    isTapOtherTapManaAbilityCost,
     manaGateBattlefields,
     manaTapCounterCost,
     manaTapExertsSource,
@@ -99,6 +100,21 @@ export function applyTapPlanInSearch(
             for (const otherId of tap.tapOtherIds ?? []) {
                 const other = player.battlefield.find((c) => c.id === otherId);
                 if (other) other.isTapped = true;
+            }
+            // CR 605.1a — a {T} beside the tap-other leg (Springleaf Drum)
+            // taps the source too, as `activateManaAbility` does.
+            const source = player.battlefield.find(
+                (c) => c.id === tap.cardInstanceId
+            );
+            if (
+                source &&
+                getEffectiveActivatedAbilities(source).some(
+                    ({ ability }) =>
+                        ability.id === tap.abilityId &&
+                        isTapOtherTapManaAbilityCost(ability.cost)
+                )
+            ) {
+                source.isTapped = true;
             }
             continue;
         }

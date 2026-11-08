@@ -224,12 +224,10 @@ describe("Tap-other cost — the other noun phrases and the mana slot", () => {
     );
 });
 
-describe("Tap-other cost — the mana slot pays it only without {T} (CR 605.1a)", () => {
-    // `activateManaAbility` pays a tap-other pick; the `{T}` route
-    // (`tapUntap`) does not, so "{T}, Tap an untapped creature you control:
-    // Add one mana" would tap the source, tap nothing else and produce mana.
-    // Refused until that route has a tap-other leg
-    // (docs/findings/4140-mana-tap-route-pays-no-tap-other.md).
+describe("Tap-other cost — the mana slot pays it beside {T} (CR 605.1a)", () => {
+    // `activateManaAbility` pays `{T}` and the tap-other pick together (the
+    // picks travel up front); the tap route refuses the shape, so the leg is
+    // never dropped.
     it.each([
         {
             name: "Springleaf Drum",
@@ -237,6 +235,7 @@ describe("Tap-other cost — the mana slot pays it only without {T} (CR 605.1a)"
             typeLine: "Artifact",
             oracleText:
                 "{T}, Tap an untapped creature you control: Add one mana of any color.",
+            filterTypes: ["Creature"],
         },
         {
             name: "Gene Pollinator",
@@ -244,17 +243,54 @@ describe("Tap-other cost — the mana slot pays it only without {T} (CR 605.1a)"
             typeLine: "Artifact Creature — Robot Insect",
             oracleText:
                 "{T}, Tap an untapped permanent you control: Add one mana of any color.",
+            filterTypes: [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker",
+            ],
         },
-    ])("$name stays unparsed", (row) => {
+    ])("$name lowers {T} plus cost.tapOtherFilter", (row) => {
         const creature = row.typeLine.includes("Creature");
         const outcome = compileCard(
             oracleCard({
-                ...row,
+                name: row.name,
+                manaCost: row.manaCost,
+                typeLine: row.typeLine,
+                oracleText: row.oracleText,
                 power: creature ? "1" : undefined,
                 toughness: creature ? "2" : undefined,
             })
         );
-        expect(outcome.state).toBe("unparsed");
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "ready") return;
+        const [ability] = outcome.definition.activatedAbilities ?? [];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toEqual({
+            tap: true,
+            tapOtherFilter: {
+                filter: {
+                    types: row.filterTypes,
+                    controllerRelation: "you",
+                },
+                count: 1,
+            },
+        });
+    });
+
+    it("a leg activateManaAbility does not pay stays refused beside it", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Life Drum",
+                manaCost: "{1}",
+                typeLine: "Artifact",
+                oracleText:
+                    "{T}, Pay 1 life, Tap an untapped creature you control: Add one mana of any color.",
+            })
+        );
+        expect(outcome.state).not.toBe("ready");
     });
 });
 

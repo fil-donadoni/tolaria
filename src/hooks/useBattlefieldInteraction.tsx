@@ -24,6 +24,7 @@ import {
     getManaChoices,
     getManaChoiceSacrificeFlags,
     getNonTapManaChoices,
+    getClickTapOtherTapManaAbility,
     getActivatedManaMenuEntry,
     getEffectiveClientAbilities,
     getManaCostMenuAbility,
@@ -67,6 +68,7 @@ import {
     isTapOtherSelectionComplete,
     type TapOtherCandidate,
 } from "@convex/gre/tapOtherCost";
+import { isTapOtherTapManaAbilityCost } from "@convex/gre/constants";
 import type { ActivatableAbility } from "~/types/battlefield";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaTapOtherBanner from "~/components/board/mana-tap-other-banner";
@@ -246,6 +248,10 @@ export function useBattlefieldInteraction(player: Player) {
         position?: { x: number; y: number };
         inPayment: boolean;
         nonTapAbilityId?: string;
+        /** CR 605.1a — the finished tap-other picks a choice-output ability
+         *  (Springleaf Drum's "one mana of any color") carries to the same
+         *  `activateManaAbility` dispatch as its colour. */
+        tapOtherIds?: string[];
     } | null>(null);
 
     // CR 601.2b — X in an activated ability's mana cost is chosen before the
@@ -833,6 +839,17 @@ export function useBattlefieldInteraction(player: Player) {
             return;
         }
 
+        // CR 605.1a — a source whose click activates a {T} + tap-other mana
+        // ability (Springleaf Drum) is no tap toggle, in a payment or not: the
+        // creature to tap is picked first (`handleActivateAbility`).
+        const tapOtherTap = card.isTapped
+            ? null
+            : getClickTapOtherTapManaAbility(card);
+        if (tapOtherTap) {
+            handleActivateAbility(card.id, tapOtherTap.id, false);
+            return;
+        }
+
         // Mana source tap/untap (lands, mox, etc.)
         if (isInPayment) {
             const untapMutation = isPayingCast
@@ -1160,13 +1177,33 @@ export function useBattlefieldInteraction(player: Player) {
         picks: readonly TapOtherCandidate[]
     ) {
         setManaTapOtherPick(null);
+        const tapOtherIds = picks.map((p) => p.id);
+        // CR 605.1a / 106.1 — a choice output (Springleaf Drum's "one mana of
+        // any color") still owes its colour: the picker carries the picks to
+        // the same single dispatch.
+        const source = allPlayers
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === cardInstanceId);
+        const choices = source
+            ? getNonTapManaChoices(source, manaPlayers)
+            : null;
+        if (choices) {
+            setManaChoiceState({
+                cardId: cardInstanceId,
+                choices,
+                inPayment: false,
+                nonTapAbilityId: abilityId,
+                tapOtherIds,
+            });
+            return;
+        }
         guardMutation(
             activateManaAbility({
                 gameId,
                 playerId,
                 cardInstanceId,
                 abilityId,
-                tapOtherIds: picks.map((p) => p.id),
+                tapOtherIds,
             })
         );
     }
@@ -1215,7 +1252,21 @@ export function useBattlefieldInteraction(player: Player) {
             // declares a runtime CHOICE (Vivi's {U}/{R} split), open the
             // picker first and submit the chosen index alongside the
             // mutation instead of firing it directly.
-            if (!ability.cost.tap && !ability.cost.sacrifice) {
+            // CR 605.1a — "{T}, Tap an untapped creature you control"
+            // (Springleaf Drum) rides the same tap-other flow: the server's tap
+            // route refuses it, `activateManaAbility` pays both legs.
+            const tapOtherBesideTap = isTapOtherTapManaAbilityCost(
+                ability.cost
+            );
+            if (
+                tapOtherBesideTap &&
+                (card.isTapped || isTapLockedBySummoningSickness(card))
+            )
+                return;
+            if (
+                (!ability.cost.tap || tapOtherBesideTap) &&
+                !ability.cost.sacrifice
+            ) {
                 // CR 602.1 / 118.8 (issue #2371) — "Tap an untapped artifact
                 // you control" as this mana ability's own cost. The server
                 // wants the WHOLE pick set up front (`tapOtherIds`), so the
@@ -1398,6 +1449,12 @@ export function useBattlefieldInteraction(player: Player) {
                                     cardInstanceId: manaChoiceState.cardId,
                                     abilityId: manaChoiceState.nonTapAbilityId,
                                     manaChoiceIndex: index,
+                                    ...(manaChoiceState.tapOtherIds
+                                        ? {
+                                              tapOtherIds:
+                                                  manaChoiceState.tapOtherIds,
+                                          }
+                                        : {}),
                                 })
                             );
                             setManaChoiceState(null);
