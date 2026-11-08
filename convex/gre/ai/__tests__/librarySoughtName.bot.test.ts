@@ -8,12 +8,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildBladeState, findBladeScenario } from "../blade";
+import { buildBladeState, findBladeScenario, runBladeScenario } from "../blade";
 import { seatPlayerId } from "../blade/matcher";
 import { choiceCandidates, isSearchableChoiceNode } from "../choiceCandidates";
 import { tryGetDefinition } from "../../../cards";
 import type { GameState, PendingChoice } from "../../state";
 
+const RESPONSE =
+    "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation";
 const NAME_WINDOW =
     "Oracle combo: Demonic Consultation names a card its library does not hold";
 
@@ -57,5 +59,24 @@ describe("library-sought name window (CR 201.4, issue #8709)", () => {
         const unsaid: PendingChoice = { ...head, nameSoughtIn: undefined };
         expect(isSearchableChoiceNode(unsaid)).toBe(false);
         expect(choiceCandidates(state, unsaid)).toEqual([]);
+    });
+
+    it("the search answers the name window with a name that empties the library", () => {
+        const entry = findBladeScenario(NAME_WINDOW);
+        if (!entry) throw new Error(`No blade entry "${NAME_WINDOW}"`);
+        const result = runBladeScenario(entry);
+        expect(result.failureMessage).toBe("");
+    });
+
+    it("responds to the trigger because it sees the win, not on a tie-break", () => {
+        const entry = findBladeScenario(RESPONSE);
+        if (!entry) throw new Error(`No blade entry "${RESPONSE}"`);
+        const result = runBladeScenario(entry);
+        expect(result.failureMessage).toBe("");
+        // Before the name was a node the cast won on `material-tiebreak`: the
+        // walk stopped at the name and never reached the win.
+        expect(result.seeds.map((s) => s.mechanism)).toEqual(
+            result.seeds.map(() => "mean-reward")
+        );
     });
 });
