@@ -221,6 +221,9 @@ export default function PendingChoicePrompt({
     if (choice.kind === "random-reveal") {
         return (
             <RandomRevealOverlay
+                // A fresh reveal (the next of two simultaneous flip triggers)
+                // restarts playback and its once-only ack.
+                key={`${choice.stackItemId}:${choice.choiceId}`}
                 choice={choice}
                 playerId={playerId}
                 gameId={gameId}
