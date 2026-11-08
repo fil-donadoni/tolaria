@@ -15,8 +15,8 @@ Two Alpha cards are text-changing effects (CR 612, CR 613.1c layer 3):
   white" → "protection from blue", "target blue spell" → "target red spell" —
   **not** the object's own color.
 
-Both last **indefinitely** (CR 612.6) and end when the object changes zones
-(CR 612.7 — a new object).
+Both last **indefinitely** (CR 611.2a) and end when the object changes zones
+(CR 400.7 — a new object); ids re-pointed 2026-11-08, the CR renumbered.
 
 The hard part: Tolaria has **no card text at runtime**. Abilities are
 structured data (`StaticEffect` discriminated union, `staticAbilities: string[]`
@@ -41,7 +41,7 @@ textChanges?: { kind: "land-type" | "color-word"; from: string; to: string }[];
 - **Optional** — absent on essentially every instance. `applySubstitution`
   fast-paths `if (!instance.textChanges) return raw`, so normal cards pay
   nothing at read time and the field costs no memory when undefined.
-- **Carried on the instance** gives the CR 612.6/612.7 duration for free: on a
+- **Carried on the instance** gives the CR 611.2a/400.7 duration for free: on a
   zone change the instance is a new object, so the field is naturally dropped.
 - Added to `PERSISTED_OPTIONAL_KEYS` (`serialize.ts`) with a round-trip smoke
   test (CLAUDE.md serialization rule).
@@ -117,7 +117,7 @@ test. No reliance on a developer remembering.
 ## Out of scope
 
 - **Spell → permanent continuity.** Both cards can target a spell on the
-  stack; the effect should follow the permanent it becomes (CR 612.6). The
+  stack; the effect should follow the permanent it becomes (CR 400.7a, re-pointed 2026-11-08, the CR renumbered). The
   engine creates a fresh instance on resolution, so a stack-targeted text
   change does not yet carry onto the resulting permanent. Documented
   limitation — the common case (targeting a permanent) is correct.

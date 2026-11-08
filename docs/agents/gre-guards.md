@@ -250,6 +250,24 @@ over a fixture document. **41,276 baseline entries** were recorded on
 2026-09-15, after issue #3013 corrected the ten 616.1c/d sites; burning them
 down is issue #3675.
 
+**The prose sweep (`bun run cr:lint --all-prose`, issue #8724)** is the
+offline, model-free companion to the audit, and like it NEVER a gate (exit 0
+whatever it finds; the diff-scoped lint stays the gate). The gate reads a
+citation when its line is touched, so ADR prose written against an older CR
+keeps citing ids the CR has since renumbered (the untap step cited as
+502.1/502.2, a keyword action as 701.39, player control as 720). The sweep reads
+every `CR <id>` in `docs/**/*.md` once and reports (a) ids that resolve to
+nothing, (b) `701.N`/`702.N` ids whose section title is not the keyword the line
+names, (c) `confirmed` ledger entries whose printed rule text moved, and
+(d) **suspects**: ids whose printed rule shares no content word with the citing
+line (`scripts/lib/cr-prose-sweep.ts`). (d) is a heuristic — the only signal that
+sees a renumbering landing on a real rule under a line naming no keyword — so it
+is a reading list (`bun run cr <id>`, `--files` for all of it), not a verdict;
+prose in another language lists wholesale. Fix an ADR hit in place
+(`docs-follow-the-change.md` § 4): re-point the id, add a dated note at the
+citation, `bun run cr:ledger confirm <file>:<line>` per line; the decision text
+stays.
+
 **The audit (`bun run cr:audit`, issue #3675)** is how that baseline burns
 down, and it is the one CR tool that is NEVER a gate: it calls the model, and
 the gate is offline by contract (ADR 0098). Three resumable stages, each

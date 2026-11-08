@@ -16,6 +16,7 @@
  * Usage:
  *   bun run cr:lint            # report unresolvable citations, exit 1 if any
  *   bun run cr:lint --files    # also list every file/line for each bad id
+ *   bun run cr:lint --all-prose  # report only: every CR id in docs/**, any diff
  *
  * Wired into `check:guards` (issue #2429) once the 44 standing violations were
  * corrected. `scripts/__tests__/cr-citations.test.ts` is the regression guard —
@@ -33,7 +34,7 @@
  * only by a hand-rolled id-agnostic re-sweep; that is now the guard's job, not
  * the auditor's.
  *
- * A "line" is a LOGICAL line (`lib/cr-lines.ts`, issue #2514): a comment line
+ * A "line" is a LOGICAL line (`lib/cr-lines.ts`): a comment line
  * that ends mid-citation — its last token a bare `CR`, or a rule id — is joined
  * with the continuation that completes it, so a citation wrapped across two
  * comment lines is seen exactly as a reader sees it, and reported at the
@@ -50,7 +51,7 @@
  * was measured and rejected (ADR 0098 — it reds the gate on benchmark timings
  * and eval margins). That boundary is deliberate.
  *
- * WIDENING THE SCAN is a recorded operation (issue #3697): every citation a
+ * WIDENING THE SCAN is a recorded operation: every citation a
  * wider tokenizer newly sees needs a ledger entry (ADR 0133), and
  * `bun run cr:ledger widen` enters as `baseline` exactly the ones the change
  * uncovered on the merge-base tree — the gate re-derives that set from the
@@ -91,6 +92,7 @@ import {
     type LedgerReport,
     type Widening,
 } from "./lib/cr-ledger.ts";
+import { formatProseSweep, proseSweep } from "./lib/cr-prose-sweep.ts";
 import { loadRules } from "./lib/cr-rules.ts";
 import { citationLines, lineAt, MAY_CITE } from "./lib/cr-lines.ts";
 
@@ -531,8 +533,29 @@ function reportTargetedScan<H>(
     return 1;
 }
 
+/**
+ * `--all-prose` (issue #8724): read every `CR <id>` under `docs/**` once,
+ * whatever the diff touches, and REPORT (`lib/cr-prose-sweep.ts`). Never a
+ * gate — exit 0 whatever it finds; the diff-scoped lint stays the gate.
+ */
+function proseMain(showFiles: boolean): number {
+    const sources = readSources();
+    const { bad, citations } = scanCitations(sources, knownRuleIds());
+    const sweep = proseSweep({
+        sources,
+        citations,
+        unresolved: bad,
+        rules: loadRules(),
+        ledger: parseLedger(readFileSync(join(ROOT, LEDGER_PATH), "utf8")),
+        index: keywordIndex(),
+    });
+    console.log(formatProseSweep(sweep, showFiles));
+    return 0;
+}
+
 function main(): number {
     const showFiles = process.argv.includes("--files");
+    if (process.argv.includes("--all-prose")) return proseMain(showFiles);
     const ruleCount = knownRuleIds().size;
     const { bad, total, fileCount, citations } = scanRepo();
 
@@ -602,6 +625,7 @@ export function crLintInputs(): GuardInputs {
 // imports the exported scan functions; without this gate the import would tear
 // the test runner down with `process.exit`.
 if (import.meta.main) {
-    enterGuardCache(crLintInputs(), ROOT);
+    if (!process.argv.includes("--all-prose"))
+        enterGuardCache(crLintInputs(), ROOT);
     process.exit(main());
 }

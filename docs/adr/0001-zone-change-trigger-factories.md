@@ -9,7 +9,7 @@ need will arise for triggers anchored to other zone transitions:
 
 - "When ~ is discarded" (CR 701.9) — hand → graveyard or hand → exile
 - "When ~ is milled" (CR 701.17) — library → graveyard
-- "When ~ is put into a graveyard from anywhere" (CR 603.6c) — any zone → graveyard
+- "When ~ is put into a graveyard from anywhere" (CR 603.6, re-pointed 2026-11-08: the id cited before is now the leaves-the-battlefield rule) — any zone → graveyard
 - "When ~ is exiled from your library" — library → exile
 - Etc.
 
@@ -41,7 +41,7 @@ No god event with optional fields.
 ## Rationale
 
 1. **CR taxonomy diverges.** "Leaves the battlefield" (CR 603.10), "is
-   discarded" (CR 701.9), "is put into a graveyard from anywhere" (CR 603.6c)
+   discarded" (CR 701.9), "is put into a graveyard from anywhere" (CR 603.6, re-pointed 2026-11-08: the id cited before is now the leaves-the-battlefield rule)
    and "is milled" (CR 701.17) are distinct triggered ability conditions in the
    Comprehensive Rules. Oracle text uses different formulations. Collapsing them
    into a single `zoneChangeTrigger` erases the CR-level semantic distinction

@@ -46,7 +46,7 @@ modern game; Tolaria models neither the zone nor the pre-game removal.
 | **Demonic Attorney**    | Each player antes the top card of their library.    |
 | **Darkpact**            | Exchange an ante card with the top of your library. |
 
-### Whole-opponent control (CR 720)
+### Whole-opponent control (CR 723, re-pointed 2026-11-08, the CR renumbered)
 
 | Card                | Reason                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

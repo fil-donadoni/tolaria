@@ -92,6 +92,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "writes a throwaway README.md into a temp git fixture; reads no repo document",
     "scripts/__tests__/cr-audit.test.ts":
         "drives the out-of-gate cr:audit over in-memory fixture sources (the docs/notes.md path is synthetic) and reads package.json / guard sources only to prove it is wired into no gate; reads no repo document",
+    "scripts/__tests__/cr-prose-sweep.test.ts":
+        "drives the out-of-gate cr:lint --all-prose report over in-memory fixture sources (the docs/adr paths are synthetic); reads no repo document",
     "scripts/__tests__/orphan-worktree.test.ts":
         "the docs/issue-N strings are synthetic branch names proving a non-issue worktree is not adopted; it reads no repo document",
     "scripts/__tests__/queue-lint.test.ts":
