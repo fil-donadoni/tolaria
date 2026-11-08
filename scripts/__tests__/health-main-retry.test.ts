@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
 import {
     chmodSync,
+    mkdirSync,
     mkdtempSync,
     readdirSync,
     readFileSync,
     rmSync,
+    symlinkSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -136,7 +138,11 @@ describe("runStepWithRetry — the health-main seam", () => {
         // Exactly the failed project, then the chain that never started.
         expect(f.ran.map((s) => s.args)).toEqual([
             ["run", "test"],
-            ["scripts/gate.ts", "heavy", "vitest run --project node-engine"],
+            [
+                "scripts/gate.ts",
+                "heavy",
+                "bunx vitest run --project node-engine",
+            ],
             ["run", "test:bot"],
             ["run", "test:blade"],
         ]);
@@ -776,5 +782,69 @@ describe("a retry runs each project under the config declaring it", () => {
         ]);
         const out = await runStepWithRetry(TEST_STEP, f.run);
         expect(out.result.output).toBe(second);
+    });
+});
+
+/**
+ * The retry runs the tree's own vitest (issue #8915). health-main is launched
+ * by `bun run` from the primary checkout, so the PATH its steps inherit leads
+ * with the PRIMARY's `node_modules/.bin`; a bare `vitest` in the retry ran
+ * that runner against the health worktree's test imports — two
+ * `@vitest/expect` instances, every test "got none" assertions.
+ */
+describe("a retry resolves vitest from the tree it runs in (issue #8915)", () => {
+    it("runs the cwd's vitest, never the one leading the inherited PATH", async () => {
+        const f = fakeRunner([
+            result(false, FAIL_ENGINE),
+            result(false, FAIL_ENGINE),
+        ]);
+        await runStepWithRetry(TEST_STEP, f.run);
+        const retry = f.ran[1];
+        expect(retry.args.slice(0, 2)).toEqual(["scripts/gate.ts", "heavy"]);
+        // `gate.ts` runs its command as `sh -c <command>`.
+        const command = retry.args[2];
+
+        const dir = mkdtempSync(join(tmpdir(), "health-retry-vitest-"));
+        try {
+            const bin = (root: string, says: string): void => {
+                const pkg = join(root, "node_modules", "vitest");
+                mkdirSync(pkg, { recursive: true });
+                mkdirSync(join(root, "node_modules", ".bin"), {
+                    recursive: true,
+                });
+                writeFileSync(
+                    join(pkg, "package.json"),
+                    JSON.stringify({
+                        name: "vitest",
+                        version: "0.0.0",
+                        bin: { vitest: "cli.js" },
+                    })
+                );
+                const cli = join(pkg, "cli.js");
+                writeFileSync(cli, `#!/bin/sh\necho ${says}\n`);
+                chmodSync(cli, 0o755);
+                symlinkSync(
+                    "../vitest/cli.js",
+                    join(root, "node_modules", ".bin", "vitest")
+                );
+            };
+            const tree = join(dir, "health-worktree");
+            const primary = join(dir, "primary");
+            bin(tree, "TREE-VITEST");
+            bin(primary, "PRIMARY-VITEST");
+            const r = spawnSync("sh", ["-c", command], {
+                cwd: tree,
+                encoding: "utf8",
+                timeout: 30_000,
+                env: {
+                    ...process.env,
+                    PATH: `${join(primary, "node_modules", ".bin")}:${process.env.PATH}`,
+                },
+            });
+            expect(r.stdout, r.stderr).toContain("TREE-VITEST");
+            expect(r.stdout).not.toContain("PRIMARY-VITEST");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });
