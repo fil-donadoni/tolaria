@@ -619,7 +619,12 @@ export function settleFreshPass(
  * shared error). One error across many files is one cause — a broken run, a
  * shared helper — never that many independent flakes.
  */
-export function uniformFailure(evidence: string | null): string | null {
+export function uniformFailure(
+    evidence: string | null,
+    /** The files the RED names: all of them must be seen in the excerpt — a
+     *  capped one hides the files whose error might differ. */
+    expected?: readonly string[]
+): string | null {
     if (!evidence) return null;
     const from = evidence.indexOf("### Failures");
     if (from === -1) return null;
@@ -637,6 +642,7 @@ export function uniformFailure(evidence: string | null): string | null {
         if (error === undefined || error.trim().startsWith("~~~")) return null;
         errors.add(error.trim());
     }
+    if (expected && expected.some((f) => !files.has(f))) return null;
     return files.size >= 2 && errors.size === 1 ? [...errors][0] : null;
 }
 
@@ -667,7 +673,8 @@ export function flakyIssues(
         },
     ];
     if (plan.kind === "step") return step();
-    const uniform = plan.files.length > 1 ? uniformFailure(evidence) : null;
+    const uniform =
+        plan.files.length > 1 ? uniformFailure(evidence, plan.files) : null;
     if (uniform !== null) return step(uniform);
     return plan.files.map((f) => ({ subject: f, title: `Flaky test: ${f}` }));
 }

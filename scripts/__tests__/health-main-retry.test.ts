@@ -339,6 +339,9 @@ describe("a broken retry never becomes the RED (issue #8916)", () => {
         const issues = flakyIssues(plan, body);
         expect(issues.map((i) => i.title)).toEqual(["Flaky health step: test"]);
         expect(issues[0].uniform).toBe(NO_ASSERTION);
+        // A file the excerpt does not show may carry another error: per file.
+        const hidden = { ...plan, files: [...plan.files, "c.test.ts"] };
+        expect(flakyIssues(hidden, body)).toHaveLength(15);
         // Two files, two different errors: two independent flakes.
         const mixed = buildEvidence({
             sha: "c".repeat(40),
