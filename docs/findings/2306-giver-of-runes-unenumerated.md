@@ -1,7 +1,8 @@
 ---
 title: Giver of Runes' activated ability is never enumerated for the Bot at all
 discoveredBy: 2306
-status: draft
+status: triaged
+issue: 7924
 confidence: high
 ---
 
