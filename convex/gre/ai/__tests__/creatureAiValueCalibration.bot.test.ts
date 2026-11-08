@@ -1,23 +1,19 @@
-// A creature `aiValue` override replaces the WHOLE latent worth outright, so
-// it cannot follow the fitted `latentCreatureDiscount` by itself (issue #5012:
-// three overrides were hand-tuned against the removed fixed 0.85 and sat ~40%
-// high at the fitted ~0.55). This pins each to "discounted body + the stated
-// ability premium" at the COMMITTED discount: a refit that moves the discount
-// reds here, naming the override to re-derive.
+// A creature `aiValue` override replaces the WHOLE latent worth outright, so a
+// scalar cannot follow the fitted `latentCreatureDiscount` by itself (issue
+// #5012: three overrides were hand-tuned against the removed fixed 0.85 and sat
+// ~40% high at the fitted ~0.55; issue #7744: a base-side refit moved the
+// discount and red the base until the literals were re-typed by hand). An
+// override whose magnitude is "discounted body + premium" therefore declares
+// the body and the premium as DATA, and `latentValue` resolves it against the
+// discount of the weights doing the valuing. This pins the RESOLUTION: the
+// worth follows a moved discount, so no source literal can go stale.
 import { describe, expect, it } from "vitest";
 import { phantasmalImage } from "../../../cards/sets/m12/blue.cards";
 import { mirrorwoodTreefolk } from "../../../cards/sets/pls/green.cards";
 import { meddlingMage } from "../../../cards/sets/pls/multicolor.cards";
+import { cardValueById } from "../../cardValue";
 import { creatureValueRaw } from "../../creatureBody";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
-
-/** Allowed drift in Forge points between an override and its derivation. A PR
- *  that moves the fit lands on the COMMITTED discount and the base's refit
- *  follows it (ADR 0157 Amendment II), so an override has to hold under both
- *  vectors at once: issue #8271 moved the discount by 5 points of a 2/2 body,
- *  and a tolerance of 1 had no value satisfying both. The drift this exists to
- *  catch was ~40% (issue #5012). */
-const TOLERANCE = 4;
 
 const CASES = [
     // body = a representative 2/2 at MV2 (the copied body is unknowable).
@@ -28,17 +24,28 @@ const CASES = [
     { def: meddlingMage(), body: [2, 2, 2], premium: 7 },
 ] as const;
 
-describe("creature aiValue overrides track the fitted discount (issue #5012)", () => {
+/** Two discounts far enough apart that a frozen literal cannot match both. */
+const LOW = { creature: 0.5, flash: 0.6 };
+const HIGH = { creature: 0.8, flash: 0.9 };
+
+describe("creature aiValue overrides resolve against the live discount (issues #5012, #7744)", () => {
     for (const { def, body, premium } of CASES) {
-        it(`${def.name}: aiValue = discount × body + ${premium}`, () => {
-            const [p, t, mv] = body;
+        const [p, t, mv] = body;
+        const raw = creatureValueRaw(p, t, mv, []);
+
+        it(`${def.name}: latent worth = committed discount × body + ${premium}`, () => {
             const derived =
-                DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount *
-                    creatureValueRaw(p, t, mv, []) +
-                premium;
+                DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount * raw + premium;
             expect(
-                Math.abs((def.aiValue ?? NaN) - derived)
-            ).toBeLessThanOrEqual(TOLERANCE);
+                Math.abs(cardValueById(def.id) - derived)
+            ).toBeLessThanOrEqual(1);
+        });
+
+        it(`${def.name}: a moved discount moves its latent worth with the body`, () => {
+            const low = cardValueById(def.id, undefined, "hand", LOW);
+            const high = cardValueById(def.id, undefined, "hand", HIGH);
+            expect(low).toBeCloseTo(LOW.creature * raw + premium, 6);
+            expect(high).toBeCloseTo(HIGH.creature * raw + premium, 6);
         });
     }
 });

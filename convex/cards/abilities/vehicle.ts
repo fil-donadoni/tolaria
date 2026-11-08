@@ -39,6 +39,7 @@
 import {
     AURA_AFFECTS_HOST,
     type ActivatedAbility,
+    type AiValueOverride,
     type CardDefinition,
     type CardSupertype,
     type CardType,
@@ -226,7 +227,7 @@ export interface VehicleSpec {
     triggeredAbilities?: TriggeredAbility[];
     /** Activated abilities other than crew — crew is appended automatically. */
     activatedAbilities?: ActivatedAbility[];
-    aiValue?: number;
+    aiValue?: AiValueOverride;
 }
 
 /** Builds a Vehicle `CardDefinition` (CR 301.7): an Artifact — Vehicle with
