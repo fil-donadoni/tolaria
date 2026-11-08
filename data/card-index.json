@@ -7982,6 +7982,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blessed Breath",
+        "scryfallId": "9e2d8650-b8c3-4e89-9aa2-424a98715c38",
+        "oracleId": "e83e1f99-1f9b-49fc-bdc7-5f6335e401e4",
+        "firstSet": "chk",
+        "firstPrintId": "9e2d8650-b8c3-4e89-9aa2-424a98715c38",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blessed Hippogriff // Tyr's Blessing",
         "scryfallId": "b4590e53-ca8d-4896-a8cf-6af1e4bc456f",
         "oracleId": "3372b994-47de-4e89-9bfc-76e1cb3f1cfa",
@@ -15906,6 +15916,16 @@
         "source": "compiled"
     },
     {
+        "name": "Consuming Vortex",
+        "scryfallId": "493ee99c-74ca-4d78-ade2-c6a93b0bd4fd",
+        "oracleId": "863bb8d8-4571-4775-87e3-d6f3ec88c835",
+        "firstSet": "chk",
+        "firstPrintId": "493ee99c-74ca-4d78-ade2-c6a93b0bd4fd",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Consumptive Goo",
         "scryfallId": "0f0f549f-6607-483a-9d89-2019ca9ef571",
         "oracleId": "4bbfa49e-4460-439e-8f31-2e54316fbb5f",
@@ -17992,6 +18012,16 @@
         "firstSet": "plc",
         "firstPrintId": "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
         "firstPrintSet": "plc"
+    },
+    {
+        "name": "Dampen Thought",
+        "scryfallId": "a4806218-ff27-4df3-922d-5a085ffa44a6",
+        "oracleId": "fa0ef984-b4e0-4c48-978c-0648e49d53f5",
+        "firstSet": "chk",
+        "firstPrintId": "a4806218-ff27-4df3-922d-5a085ffa44a6",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dance of Many",
@@ -32920,6 +32950,16 @@
         "source": "compiled"
     },
     {
+        "name": "Glacial Ray",
+        "scryfallId": "5637a3b0-6204-4893-878e-c34babeab2e6",
+        "oracleId": "e65a8ab8-84a7-4fe2-b009-ceb87bec6b4e",
+        "firstSet": "chk",
+        "firstPrintId": "5637a3b0-6204-4893-878e-c34babeab2e6",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Glacial Stalker",
         "scryfallId": "8821c7b9-702b-416f-b006-941ad57f9e11",
         "oracleId": "49d06291-c8cb-4e22-b178-d0598582b2ee",
@@ -44506,6 +44546,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kodama's Might",
+        "scryfallId": "d0ef91bb-ec25-463f-9fc9-f0f9c0652cf5",
+        "oracleId": "c027a8ef-6cdd-4c14-9d4f-b21c63312874",
+        "firstSet": "chk",
+        "firstPrintId": "d0ef91bb-ec25-463f-9fc9-f0f9c0652cf5",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Kolaghan Warmonger",
         "scryfallId": "8361d9e2-b9fc-4d46-a1ba-a24139157f26",
         "oracleId": "4c7e6520-d179-4590-afdc-92eb2c0740a6",
@@ -46311,6 +46361,16 @@
         "firstSet": "lea",
         "firstPrintId": "11add837-7ee4-4104-b031-c161bce459ae",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Lifted by Clouds",
+        "scryfallId": "a5f08f3d-82ef-4c3f-af2d-a3c834e22b99",
+        "oracleId": "ef742509-4474-42d0-8bca-71ec2be3d4f1",
+        "firstSet": "chk",
+        "firstPrintId": "a5f08f3d-82ef-4c3f-af2d-a3c834e22b99",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Light of Hope",
@@ -61223,6 +61283,16 @@
         "firstPrintSet": "mh3"
     },
     {
+        "name": "Psychic Puppetry",
+        "scryfallId": "9e341d6b-f4b0-4347-8055-f5fab756334c",
+        "oracleId": "8d3c4e50-6709-42f9-97e7-3165ee501684",
+        "firstSet": "chk",
+        "firstPrintId": "9e341d6b-f4b0-4347-8055-f5fab756334c",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Psychic Venom",
         "scryfallId": "f3f5b68a-6b0e-431e-89f0-ff60f17687a5",
         "oracleId": "a60422e8-f2f4-4c37-a0f4-eedad27eb08c",
@@ -75972,6 +76042,16 @@
         "firstSet": "afr",
         "firstPrintId": "045c7c23-d418-42f0-b497-50c39e5321ad",
         "firstPrintSet": "afr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Soulless Revival",
+        "scryfallId": "6b36712c-1ccb-4efe-8db8-823b9b80a99f",
+        "oracleId": "5f00dcc4-38e7-4dde-96d4-f8d4c08b334a",
+        "firstSet": "chk",
+        "firstPrintId": "6b36712c-1ccb-4efe-8db8-823b9b80a99f",
+        "firstPrintSet": "chk",
         "rarity": "common",
         "source": "compiled"
     },
@@ -92721,6 +92801,16 @@
         "firstPrintId": "68bba622-a0ab-4c0e-88b1-9120690ea5a0",
         "firstPrintSet": "iko",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wear Away",
+        "scryfallId": "3e809799-ce47-4eaf-b2c2-2c8807182532",
+        "oracleId": "be7cd599-12b6-43b6-a22a-8a8f7dd1ecd2",
+        "firstSet": "chk",
+        "firstPrintId": "3e809799-ce47-4eaf-b2c2-2c8807182532",
+        "firstPrintSet": "chk",
+        "rarity": "common",
         "source": "compiled"
     },
     {

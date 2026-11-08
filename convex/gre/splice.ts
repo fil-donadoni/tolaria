@@ -38,19 +38,40 @@
 //     the interpreter's checkpoint/resume cursor (ADR 0100) spans both halves.
 //     An imperative `resolve()` body has no cursor to extend and would re-run
 //     from the top on a resume.
-//  2. **The SPLICED CARD must be an Effect Script with no targets.**
+//  2. **The SPLICED CARD must be one Effect Script whose targets, if any,
+//     the spell's announcement can carry** ({@link spliceTargetGroupIsAnnounceable}).
 //     CR 702.47b — "You can't choose to use a splice ability if you can't make
 //     the required choices (targets, etc.) for that card's rules text" — and
-//     CR 702.47d puts those choices at CR 601.2c, i.e. in the main spell's own
-//     announcement. The cast flow announces ONE `targetRequirement`, the
-//     spell's; there is no heterogeneous multi-requirement slot list to append
-//     the spliced card's to, so a targeting splice card (Glacial Ray) is not
-//     offered rather than offered and silently untargeted.
+//     CR 702.47d — "Choose targets for the added text normally (see rule
+//     601.2c)" — put the spliced card's targets in the MAIN spell's own
+//     announcement: its `targetRequirement` joins the spell's announced group
+//     list AFTER the spell's own groups ({@link splicedTargetGroups}), and the
+//     card's `{ target: i }` refs are rebased onto the slots that group
+//     occupies ({@link spliceMergedEffects}). A group is announceable when
+//     its width is FIXED and it never refers to an earlier group: the spliced
+//     groups sit at the tail of the flat slot list, so their slots are known
+//     from the END of the list whatever width the spell's own groups were
+//     given, and a reference to "the prior target" would name the main
+//     spell's, not the spliced card's own. A card reading its targets any
+//     other way than `{ target: i }` (`$target<N>.name`, `forEach
+//     { set: "targets" }`) is refused — those reads would see the spell's
+//     targets too. CR 702.47b's gate on the reveal itself is the
+//     announcement's: a spliced group nobody can fill refuses the cast
+//     (`firstUnfillableCastGroup`), the Bot enumerates no target tuple for it,
+//     and the client's cast dialog hides the toggle.
 //
 // CR 702.47e ("the spell loses any splice changes once it leaves the stack") is
 // free: the merge is derived per resolution from `StackItem.splicedCardIds`,
 // which leaves the stack with the item.
-import type { CardDefinition, EffectOp, KickerCost } from "../cards/types";
+import type {
+    CardDefinition,
+    EffectOp,
+    KickerCost,
+    TargetRequirement,
+} from "../cards/types";
+// Type-only: `kicker.ts` imports THIS module at runtime, so the reverse edge
+// must erase at compile time.
+import type { KickerPayments } from "./kicker";
 import { tryGetDefinition } from "../cards/registry";
 import type { CardInstanceState, PlayerState } from "./state/declarations";
 // issue #4451 — the one naming rule for a binding-declaring field, which the Op
@@ -58,6 +79,7 @@ import type { CardInstanceState, PlayerState } from "./state/declarations";
 // fields). A rule, not a list derived from the schema: this module runs in the
 // Brain worker, which must not bundle the validator.
 import { isBindingDeclarationField } from "./effects/bindingFields";
+import { TARGET_BINDING_PREFIX } from "./effects/targetRef";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
  *  carries the revealed hand card's INSTANCE id, not its printed card id: CR
@@ -104,7 +126,12 @@ export function spliceCardIsSupported(def: CardDefinition): boolean {
         def.splice !== undefined &&
         def.effects !== undefined &&
         def.effects.length > 0 &&
-        def.targetRequirement === undefined &&
+        (def.targetRequirement === undefined ||
+            spliceTargetGroupIsAnnounceable(def.targetRequirement)) &&
+        def.additionalTargetRequirements === undefined &&
+        def.kickedTargetRequirement === undefined &&
+        (def.targetRequirement === undefined ||
+            splicedTargetReadsAreRebasable(def.effects)) &&
         def.modes === undefined &&
         def.resolve === undefined &&
         def.resolveSteps === undefined &&
@@ -122,6 +149,86 @@ export function spliceCardIsSupported(def: CardDefinition): boolean {
         (def.staticEffects?.length ?? 0) === 0 &&
         (def.delayedTriggers?.length ?? 0) === 0
     );
+}
+
+/** CR 702.47d / 601.2c — can a spliced card's `targetRequirement` ride the
+ *  spell's announcement as a trailing group? See exclusion 2 in the file
+ *  header: a FIXED width (the spliced slots are located from the END of the
+ *  flat list, so the width must not depend on the caster's pick), and no
+ *  field that relates the group to an EARLIER one — in the merged
+ *  announcement the earlier groups are the main spell's, which the spliced
+ *  card's text never named. */
+export function spliceTargetGroupIsAnnounceable(
+    req: TargetRequirement
+): boolean {
+    return (
+        typeof req.count === "number" &&
+        req.count > 0 &&
+        req.divideAsChosen === undefined &&
+        req.announcedOnlyIfKicked === undefined &&
+        req.excludePriorTargets === undefined &&
+        req.zoneOwnerOfPriorPlayerTarget === undefined &&
+        req.zoneOwnerOfPriorPermanentController === undefined
+    );
+}
+
+/** True when every read of an announced target slot in `node` is an
+ *  `{ target: i }` ref — the one shape {@link spliceMergedEffects} rebases.
+ *  The reserved `$target<N>` string refs and the whole-set `forEach
+ *  { set: "targets" }` selector would read the merged spell's slots as their
+ *  own, so a spliced card using either is refused rather than mis-read. */
+function splicedTargetReadsAreRebasable(node: unknown): boolean {
+    if (typeof node === "string") {
+        return !node.startsWith(TARGET_BINDING_PREFIX);
+    }
+    if (Array.isArray(node)) return node.every(splicedTargetReadsAreRebasable);
+    if (!node || typeof node !== "object") return true;
+    for (const [key, value] of Object.entries(node)) {
+        if (key === "set" && value === "targets") return false;
+        if (!splicedTargetReadsAreRebasable(value)) return false;
+    }
+    return true;
+}
+
+/** The number of announced target slots a spliced card's text adds (CR
+ *  702.47d): its fixed-width group's count, or 0 for an untargeted card. */
+function splicedTargetWidth(def: CardDefinition | null | undefined): number {
+    const req = def?.targetRequirement;
+    return req && typeof req.count === "number" ? req.count : 0;
+}
+
+/** CR 702.47b/d — the printed card ids a cast's PAYMENTS reveal, in the order
+ *  their text (and so their target groups) joins the spell: the paid
+ *  synthesized entries of `def` (a {@link spliceAugmentedDefinition} output),
+ *  through the same {@link splicedCardIdsOfEntries} order the stack item is
+ *  stamped with at commit, so the announcement's groups and the resolution's
+ *  segments line up one to one. */
+export function splicedCardIdsOfPayments(
+    def: Pick<CardDefinition, "kickers"> | undefined,
+    payments: KickerPayments | undefined
+): string[] | undefined {
+    if (!def?.kickers || !payments) return undefined;
+    return splicedCardIdsOfEntries(
+        def.kickers.filter((k) => (payments[k.id] ?? 0) > 0)
+    );
+}
+
+/** CR 702.47d / 601.2c — the target GROUPS a cast's splice reveals add to the
+ *  spell's announcement, in reveal order, to be appended AFTER the spell's own
+ *  announced groups. Empty when nothing targeting was revealed. The ONE list
+ *  both announcers read — `announceCast` (`game.ts`) and the Bot's
+ *  `enumerateCastMoves` (`gre/moves.ts`) — so the Bot's target tuple is the
+ *  announcement the mutation opens. */
+export function splicedTargetGroups(
+    def: Pick<CardDefinition, "kickers"> | undefined,
+    payments: KickerPayments | undefined
+): TargetRequirement[] {
+    const groups: TargetRequirement[] = [];
+    for (const cardId of splicedCardIdsOfPayments(def, payments) ?? []) {
+        const req = tryGetDefinition(cardId)?.targetRequirement;
+        if (req) groups.push(req);
+    }
+    return groups;
 }
 
 /** CR 702.47a — one splice option: the hand card that would be revealed and
@@ -325,6 +432,32 @@ export function spliceSegmentBindingPrefix(segment: number): string {
     return `$splice${segment}`;
 }
 
+/** `node` with every `{ target: i }` ref rewritten to `{ target: i + offset }`.
+ *  The ref is matched by SHAPE — an object whose only key is `target`, holding
+ *  a number — which is the whole `EffectTargetRef` grammar, wherever an Op
+ *  nests it (`{ controllerOf: { target: 0 } }` included). */
+function spliceRebaseTargetRefs<T>(node: T, offset: number): T {
+    if (Array.isArray(node)) {
+        return node.map((child) =>
+            spliceRebaseTargetRefs(child, offset)
+        ) as unknown as T;
+    }
+    if (!node || typeof node !== "object") return node;
+    const entries = Object.entries(node);
+    if (
+        entries.length === 1 &&
+        entries[0][0] === "target" &&
+        typeof entries[0][1] === "number"
+    ) {
+        return { target: (entries[0][1] as number) + offset } as T;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of entries) {
+        out[key] = spliceRebaseTargetRefs(value, offset);
+    }
+    return out as T;
+}
+
 /** CR 702.47b/c — the op list a spliced spell resolves as: the main spell's own
  *  script first ("The effects of the main spell must happen first"), then each
  *  revealed card's script in `StackItem.splicedCardIds` order. Undefined when
@@ -336,6 +469,17 @@ export function spliceSegmentBindingPrefix(segment: number): string {
  *  on a choice resumes at the right op only if the merged list is the list it
  *  parked in. The merge is recomputed from the persisted record on every
  *  resolution attempt, so it is identical across a suspend/resume pair.
+ *
+ *  TARGETS are REBASED per spliced segment (CR 702.47d). The announcement put
+ *  each targeting card's group after the spell's own groups, in this same
+ *  order ({@link splicedTargetGroups}), so a spliced card's `{ target: 0 }` is
+ *  not slot 0 of the merged spell. Every spliced group has a fixed width
+ *  ({@link spliceTargetGroupIsAnnounceable}) and they sit at the TAIL of the
+ *  flat list, so a segment's first slot is `announcedTargetCount` minus the
+ *  widths of it and every later segment — whatever width the spell's own
+ *  groups were given. `announcedTargetCount` is the stack item's slot count
+ *  (`targets.length`; an illegal slot stays in place, CR 608.2b), and a copy,
+ *  which never carries `splicedCardIds` (CR 707.10), never reaches here.
  *
  *  BINDINGS are RENAMED per spliced segment, and order does not substitute for
  *  it. A binding is not an in-memory variable: `readBinding` goes through
@@ -359,26 +503,37 @@ export function spliceSegmentBindingPrefix(segment: number): string {
  *  contributes nothing rather than throwing. */
 export function spliceMergedEffects(
     def: CardDefinition,
-    splicedCardIds: readonly string[] | undefined
+    splicedCardIds: readonly string[] | undefined,
+    announcedTargetCount: number
 ): EffectOp[] | undefined {
     if (!splicedCardIds || splicedCardIds.length === 0) return undefined;
+    const splicedDefs = splicedCardIds.map((id) => tryGetDefinition(id));
+    // The first slot of segment k: the tail widths of segments k.. subtracted
+    // from the announced total (see the doc comment).
+    let firstSlot =
+        announcedTargetCount -
+        splicedDefs.reduce((sum, d) => sum + splicedTargetWidth(d), 0);
     const spliced: EffectOp[] = [];
-    splicedCardIds.forEach((cardId, segment) => {
-        const splicedDef = tryGetDefinition(cardId);
+    splicedDefs.forEach((splicedDef, segment) => {
+        const width = splicedTargetWidth(splicedDef);
+        const offset = firstSlot;
+        firstSlot += width;
         if (!splicedDef?.effects) return;
+        const effects =
+            width > 0
+                ? spliceRebaseTargetRefs(splicedDef.effects, offset)
+                : splicedDef.effects;
         const declared = new Set<string>();
-        spliceSegmentBindings(splicedDef.effects, declared);
+        spliceSegmentBindings(effects, declared);
         if (declared.size === 0) {
-            spliced.push(...splicedDef.effects);
+            spliced.push(...effects);
             return;
         }
         const prefix = spliceSegmentBindingPrefix(segment);
         const rename = new Map(
             [...declared].map((name) => [name, prefix + name.slice(1)])
         );
-        spliced.push(
-            ...spliceRenameBindings(splicedDef.effects as EffectOp[], rename)
-        );
+        spliced.push(...spliceRenameBindings(effects as EffectOp[], rename));
     });
     if (spliced.length === 0) return undefined;
     return [...(def.effects ?? []), ...spliced];

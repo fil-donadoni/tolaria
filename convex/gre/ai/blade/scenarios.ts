@@ -13053,6 +13053,67 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.47 splice reachability, and the end-to-end cover for the splice seam in `enumerateCastMoves` plus the `splicedCardIds` stamp in BOTH search sandboxes (`applyMove.ts`, `search.ts`) — the deterministic halves are in `spliceBot.bot.test.ts`. Proof-of-failure: dropping the `spliceAugmentedDefinition` call in `moves.ts` (back to the printed definition) reds this at every seed — the bot hard-casts Through the Breach.",
     },
     {
+        // SPLICING A TARGETING CARD (CR 702.47b/d, issue #8805). The bot's
+        // main phase, three untapped Mountains, a hand of Lava Spike ({R},
+        // Arcane: 3 to target player or planeswalker) and Glacial Ray ({1}{R},
+        // Arcane: 2 to any target, "Splice onto Arcane {1}{R}"); the opponent
+        // has a Grizzly Bears.
+        //
+        // Two lines spend the same three mana on the same two effects — 3 to
+        // the opponent, 2 to the Bears:
+        //
+        //   • CAST Glacial Ray at the Bears, then Lava Spike at the opponent —
+        //     both cards go to the graveyard.
+        //   • CAST Lava Spike, REVEALING Glacial Ray to splice, the Ray's own
+        //     target the Bears — CR 702.47c leaves the Ray IN HAND.
+        //
+        // Same board, one more card: the splice line strictly dominates. It is
+        // a REACHABILITY claim first, as the Through the Breach entry above
+        // is: the Ray's target group joins the Spike's announcement only
+        // through `splicedTargetGroups` (`gre/splice.ts`) in
+        // `enumerateCastMoves`' `groupsFor`, and without it the spliced Move
+        // carries one target for two groups and is never enumerated at all.
+        label: "splice a targeting card: reveals Glacial Ray off Lava Spike at the Bears rather than casting both",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a targeting splice card whose target is worth hitting",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lava Spike", owner: "me", zone: "hand" },
+                { name: "Glacial Ray", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE for the reason the entry above gives: a reachability
+        // claim feeds the weight fit no preference.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.targets?.length ?? 0) === 2 &&
+                Object.keys(move.kickerPayments ?? {}).some((id) =>
+                    id.startsWith(SPLICE_COST_ID_PREFIX)
+                ),
+            describe:
+                "casts Lava Spike paying Glacial Ray's splice cost, announcing a target for each",
+        },
+        note: "CR 702.47b/d targeting-splice reachability (issue #8805): the spliced card's group trails the spell's in the Bot's announcement (`splicedTargetGroups` in `moves.ts` `groupsFor`). The deterministic halves are in `spliceBot.bot.test.ts`.",
+    },
+    {
         // FORCED TARGET CHOICE (CR 601.2c, issue #3805). The opponent controls
         // Standard Bearer, a 1/1 Flagbearer: "while an opponent is choosing
         // targets as part of casting a spell they control …, that player must

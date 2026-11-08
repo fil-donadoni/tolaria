@@ -3447,9 +3447,12 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // it. `spliceAcceptsSpell` is what restricts the reveal to
             // script-bodied spells at announcement, so this branch never has to
             // splice onto an imperative body.
+            // CR 702.47d — the slot count the spliced segments' targets are
+            // rebased against: they were announced at the TAIL of this list.
             const splicedEffects = spliceMergedEffects(
                 cardDef,
-                top.splicedCardIds
+                top.splicedCardIds,
+                top.targets?.length ?? 0
             );
             const resolveFn = splicedEffects
                 ? compileEffectScript(splicedEffects)
