@@ -150,7 +150,13 @@ export type TriggerConditionIR =
      * predicate. Lowering reads it as the ability's once-per-turn cap
      * (`maxTriggersPerTurn: 1`), counted on the source object.
      */
-    | { readonly kind: "no-mana-added-by-this-ability-this-turn" };
+    | { readonly kind: "no-mana-added-by-this-ability-this-turn" }
+    /**
+     * CR 601.2h + CR 603.4 — "if no mana was spent to cast it": "it" is the
+     * spell a cast head introduced, so lowering refuses it behind any other
+     * head.
+     */
+    | { readonly kind: "no-mana-spent-to-cast" };
 
 /**
  * CR 109.5 + CR 603.4 — "an opponent controls more lands than you": a strict
@@ -174,6 +180,10 @@ const ARTICLES: readonly string[] = ["a ", "an "];
 /** `"you haven't added mana with this ability this turn"` (CR 603.2h). */
 const NO_MANA_ADDED_BY_THIS_ABILITY =
     /^you haven't added mana with this ability this turn$/;
+
+/** `"no mana was spent to cast it"` (CR 601.2h) — "it" only: "this spell"
+ *  names the source, a different referent no cast head here introduces. */
+const NO_MANA_SPENT_TO_CAST = /^no mana was spent to cast it$/;
 
 /**
  * Filter clauses the CONDITION cannot decide, and therefore must not compile.
@@ -237,6 +247,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
             return ok({
                 kind: "no-mana-added-by-this-ability-this-turn" as const,
             });
+        if (NO_MANA_SPENT_TO_CAST.test(clause))
+            return ok({ kind: "no-mana-spent-to-cast" as const });
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         if (COMPARATIVE_CONTROLS.test(clause))
