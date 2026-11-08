@@ -33,6 +33,13 @@ import {
     setVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
+import {
+    proposalCountsReport,
+    reportNoDecisionCaptured,
+    reportProposalCounts,
+    reportSampleFailed,
+    type JudgeOutcomeTally,
+} from "~/lib/ai/verdict-proposal-telemetry";
 import { consultBrain } from "~/lib/ai/brain-client";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
@@ -104,9 +111,10 @@ export function useVerdictProposalCapture(
         if (!active || !gameOver) return;
         const decisions = takeHumanDecisions(gameId);
         if (decisions.length === 0) {
-            console.info("verdict proposals: no decision captured", { gameId });
+            reportNoDecisionCaptured(gameId);
             return;
         }
+        const judged: JudgeOutcomeTally = {};
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
@@ -123,18 +131,18 @@ export function useVerdictProposalCapture(
                             source.knowledge,
                             undefined,
                             seed
-                        ).then((r) => (r.outcome === "move" ? r.move : null))
+                        ).then((r) => {
+                            judged[r.outcome] = (judged[r.outcome] ?? 0) + 1;
+                            return r.outcome === "move" ? r.move : null;
+                        })
                 )
             )
             .then((list) => {
-                // Why a game offers no review, or a shorter one than expected.
-                console.info("verdict proposals", {
-                    gameId,
-                    proposals: list.proposals.length,
-                    captured: list.captured,
-                    unidentified: list.unidentified,
-                    unjudged: list.unjudged,
-                });
+                // Why a game offers no review, or a shorter one than expected
+                // — to Sentry as well as the console (issue #8732).
+                reportProposalCounts(
+                    proposalCountsReport(gameId, list, judged)
+                );
                 if (capturingGame() === gameId) {
                     setVerdictProposals(gameId, list);
                 }
@@ -142,7 +150,7 @@ export function useVerdictProposalCapture(
             .catch((cause: unknown) => {
                 // A failed sample costs only questions, but it takes the
                 // post-game review with it: loud, or nobody can tell why.
-                console.error("verdict proposals: sample failed", cause);
+                reportSampleFailed(gameId, cause);
             });
     }, [active, gameId, gameOver]);
 }
