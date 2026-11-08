@@ -1,5 +1,9 @@
 # Combos are found through a CR 732 loop shortcut the engine offers as a Move, never through a per-card combo registry
 
+**Amended by ADR 0164 (2026-11-08, issue #8726):** a third knowledge source (the Executable-gated Combo Corpus) is admitted; the deletion of the boost layer stands.
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/gre/ai/comboAnnotations.ts`._
+
 ## Status
 
 accepted (2026-08-22, bot-roadmap grilling session; map #1892)

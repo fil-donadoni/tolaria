@@ -4,7 +4,7 @@ _Maintenance 2026-11-08 (issue #8723): ADR 0054 and 0055 corrected to ADR 0055 (
 
 ## Status
 
-accepted
+accepted (2026-08-25)
 
 ## Context
 

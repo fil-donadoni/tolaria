@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, and implemented by issue #2068 (`convex/gre/dependency.ts`), which
+accepted (2026-09-06), and implemented by issue #2068 (`convex/gre/dependency.ts`), which
 amended decisions 1 and 2 in place — see the amendment notes under each.
 Discharges ADR 0082 decision 3, which deferred these questions until the
 Continuous Effects Registry existed; its acceptance surface is issue #3098.

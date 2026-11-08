@@ -1,5 +1,7 @@
 # Turn controller surface + responsive board layout
 
+**Amended by ADR 0101 (2026-11-08, issue #8726):** §8 supersedes the landscape section; §5 changes the preview. The portrait contract stands.
+
 The spatial board (now the only board — the "board next" name is retired)
 presents the interactive priority + phase/combat-step surface as a **single,
 collapsed-by-default pod docked to the right edge**, and the whole board uses a
@@ -9,7 +11,7 @@ deliberate (issue #258).
 
 ## Status
 
-accepted
+accepted (2026-06-19)
 
 ## Decision
 

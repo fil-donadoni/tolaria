@@ -1,6 +1,8 @@
 # Kicker becomes plural and reuses the alternative-cost leg vocabulary (`CostLegs`)
 
-Status: accepted
+**Amended by ADR 0085 (2026-11-08, issue #8726):** `kickerPaid` is renamed `additionalCostPaid` (noted in place at the two sites).
+
+Status: accepted (2026-07-30)
 
 ## Context
 

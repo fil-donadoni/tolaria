@@ -1,6 +1,6 @@
 # One-shot layer-4 card-type SET as a first-class effect
 
-**Status:** accepted
+**Status:** accepted (2026-08-03)
 
 ## Context
 

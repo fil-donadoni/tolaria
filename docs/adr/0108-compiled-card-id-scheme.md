@@ -1,8 +1,12 @@
 # A compiled card's id is a Scryfall first-print id, joined through `card-index.json`, not an oracle-id-derived synthetic id
 
+**Amended by ADR 0114 (2026-11-08, issue #8726):** §3: "hand-written always wins" is replaced by divergence = RED.
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/oracle-pool.ts`, `data/oracle-compiled-pool.json`._
+
 ## Status
 
-accepted
+accepted (2026-08-26)
 
 ## Context
 

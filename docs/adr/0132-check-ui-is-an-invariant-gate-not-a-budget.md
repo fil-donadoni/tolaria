@@ -1,5 +1,7 @@
 # `check:ui` is an invariant gate: floors at zero and named assertions, never a numeric budget
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/ui-gate/budgets.json`._
+
 ## Status
 
 accepted (2026-09-15, grill on issue #3638). Retires `scripts/ui-gate/budgets.json`,

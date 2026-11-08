@@ -1,5 +1,7 @@
 # ADR 0002 — Trigger factory architecture
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/sets/lea.ts`._
+
 **Status:** Accepted (2026-05-22)
 
 ## Context

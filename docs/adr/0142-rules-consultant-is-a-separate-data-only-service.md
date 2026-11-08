@@ -1,5 +1,7 @@
 # The Rules Consultant is a separate service with a data-only scope; Tolaria is one Issuer, not its host
 
+_Dated (2026-11-08, issue #8726): "26.2 of 32 MiB" is a reading of 2026-09-19; the 32 MiB limit is not enforced and the binding bound is 90 MB zipped / the heap of one call (ADR 0113 Amendments III and IV)._
+
 ## Status
 
 accepted — grilled 2026-09-20. The terms it names are defined in `GLOSSARY.md`

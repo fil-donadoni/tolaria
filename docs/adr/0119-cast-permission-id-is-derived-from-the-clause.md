@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (issue #3268, under PRD #2693; the engine it constrains is issue
+accepted (2026-09-09; issue #3268, under PRD #2693; the engine it constrains is issue
 #2706)
 
 ## Context

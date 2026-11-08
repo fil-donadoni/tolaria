@@ -1,5 +1,7 @@
 # Coin-flip series: a counting Op, not a loop construct
 
+**Status:** Accepted (2026-09-23)
+
 Squee's Revenge (issue #3813) is the first card that repeats one action a
 bounded number of times and stops early: "Choose a number. Flip a coin that
 many times or until you lose a flip, whichever comes first. If you win all the

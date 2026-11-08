@@ -2,6 +2,8 @@
 
 _Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (EFFECT_OP_REGISTRY)._
 
+**Status:** Accepted (2026-07-04)
+
 ADR 0048 shipped the `delayedTrigger` Op with **single-value, explicit**
 `capture` and deliberately left two grammar gaps open (issues #865, #866).
 This record closes both. They are the last pieces of trigger-site data access

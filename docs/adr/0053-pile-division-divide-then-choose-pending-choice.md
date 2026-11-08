@@ -1,5 +1,7 @@
 # Pile division as a two-step divide-then-choose pending choice
 
+**Status:** Accepted (2026-07-12)
+
 ## Context
 
 Invasion (INV) introduces a recurring templated interaction — one player

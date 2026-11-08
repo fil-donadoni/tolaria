@@ -1,8 +1,10 @@
 # A modal double-faced card is its FRONT face plus a registered back twin; the CR 712.12 land play ships and the CR 712.11b cast option waits for a card (amends ADR 0041, extends ADR 0120 and ADR 0121)
 
+_Dated (2026-11-08, issue #8726): "34,890 corpus cards" is a reading of 2026-09-09; the corpus is now 35,353._
+
 ## Status
 
-accepted (amends [ADR 0041][adr-0041]'s out-of-scope clause for the modal
+accepted (2026-09-09; amends [ADR 0041][adr-0041]'s out-of-scope clause for the modal
 double-faced layout; extends [ADR 0120][adr-0120]'s twin-definition mechanism
 and amends its parenthetical that MDFC stays in the bucket; sibling of
 [ADR 0121][adr-0121]; decides issue #3226)

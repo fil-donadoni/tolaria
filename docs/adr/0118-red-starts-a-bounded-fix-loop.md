@@ -4,7 +4,7 @@
 
 ## Status
 
-accepted (extends ADR 0116's release gate; PRD issue #3197, slices #3199,
+accepted (2026-09-09; extends ADR 0116's release gate; PRD issue #3197, slices #3199,
 #3200, #3201)
 
 ## Context

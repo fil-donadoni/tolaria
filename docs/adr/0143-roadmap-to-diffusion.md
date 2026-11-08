@@ -1,5 +1,9 @@
 # Roadmap to Diffusion: milestones are Target Lists completed in order, and the board's bands follow them
 
+**Header note (2026-11-08, issue #8726):** the status below lists Amendments up to VIII; Amendment IX (issue #6676, 2026-10-28) also exists in the body and reverses Amendment VI (the metagame now completes on playable).
+
+_Dated (2026-11-08, issue #8726): "208/310 playable" is a reading of 2026-09-20; the metagame Target stands at 310/310 since 2026-10-28 (Amendment IX)._
+
 **Amendment IX's open integer 2 settled by ADR 0175 (2026-11-08, issue #8725):** `modern-metagame` ranks second.
 
 ## Status

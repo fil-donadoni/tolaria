@@ -1,5 +1,7 @@
 # Derived whole-file state leaves the PR: the lockfile's counts are derived on read, its header hashes and `data/catalogue/*` are written by the base after each merge, and the merge queue regenerates them in the tree it tests
 
+_Dated (2026-11-08, issue #8726): "34,890" is a reading of 2026-10-21; the corpus is now 35,353._
+
 ## Status
 
 **accepted** — the owner chose Option 1 on 2026-10-21 (issue #6173, parent

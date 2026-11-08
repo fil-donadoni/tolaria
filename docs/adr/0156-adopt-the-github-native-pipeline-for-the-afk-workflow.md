@@ -1,5 +1,7 @@
 # Adopt the GitHub-native pipeline for the AFK workflow: self-hosted Actions runners verify, a merge queue lands, scheduled workflows gate health and release; the home-built orchestration is retired and the whole shape becomes a template portable to any project
 
+**Amended by ADR 0158, 0160 and 0163 (2026-11-08, issue #8726):** 0158 (rungs 4–5), 0160 (§3, §7), 0163 (Contained RED). The status below says "amended seven times"; the body carries nine amendments, I–IX (2026-10-14 to 2026-11-04).
+
 ## Status
 
 accepted, amended seven times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31; Amendment VI, a pure revert's lane and a repair's queue priority, 2026-10-31; Amendment VII, the lane runner outranks the machine, 2026-11-03) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.

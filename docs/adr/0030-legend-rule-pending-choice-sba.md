@@ -2,6 +2,8 @@
 
 _Maintenance 2026-11-08 (issue #8723): ADR 0007 corrected to ADR 0008 (client-buffered submit)._
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/sets/leg.ts`._
+
 **Status:** Accepted (2026-06-19)
 
 ## Context

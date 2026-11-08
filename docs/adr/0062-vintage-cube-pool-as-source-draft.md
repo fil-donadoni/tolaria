@@ -1,5 +1,7 @@
 # ADR 0062 — Vintage Cube as a pool-as-source draft (no completeness gate)
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `data/cube/vintage-cube.json`._
+
 **Status:** Accepted
 **Date:** 2026-07-17
 **Supersedes / amends:** none (extends the Limited draft pipeline of ADR

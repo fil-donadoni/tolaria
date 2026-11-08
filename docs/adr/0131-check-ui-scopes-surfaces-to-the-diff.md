@@ -1,5 +1,9 @@
 # `check:ui` walks only the surfaces its diff can reach — ADR 0104 §2 is amended for this lane alone
 
+**Amended by ADR 0154 and its own amendments (2026-11-08, issue #8726):** 0154 §7 makes the walk owed by glob for every lane, overturning ADR 0104 for them; in-place amendments: issues #4913, #5074, #5075, #5076, #5378, #6143.
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/ui-gate/calibrate.ts`._
+
 ## Status
 
 accepted (2026-09-15, PRD #3625 slice B, issue #3628). Amends ADR 0104 §2

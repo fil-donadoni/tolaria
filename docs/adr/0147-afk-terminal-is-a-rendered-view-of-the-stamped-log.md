@@ -1,5 +1,7 @@
 # The AFK terminal is a rendered view of the stamped log; a pass is bound to its transcript by `--session-id`
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/loop-handoff.sh`, `scripts/loop-render.ts`, `scripts/lib/loop-render.ts`._
+
 **Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-render.ts` is deleted.
 
 ## Status

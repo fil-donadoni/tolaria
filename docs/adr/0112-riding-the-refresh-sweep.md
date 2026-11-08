@@ -1,8 +1,10 @@
 # A materialised static effect may ride the existing refresh sweep while the Continuous Effects Registry is unbuilt
 
+**Amended by its own Update (issue #2943) (2026-11-08, issue #8726):** the `refreshCounterGatedStatics` mechanism is gone, replaced by the Continuous Effects Registry (ADR 0082); the decision stands.
+
 ## Status
 
-accepted
+accepted (2026-08-30)
 
 ## Context
 

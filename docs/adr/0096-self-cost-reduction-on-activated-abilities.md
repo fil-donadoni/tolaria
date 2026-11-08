@@ -1,6 +1,6 @@
 # Self cost reduction is declared per ABILITY, and the self-host site grows an ability arm
 
-**Status:** accepted
+**Status:** accepted (2026-08-05)
 
 ## Context
 

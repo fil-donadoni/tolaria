@@ -1,5 +1,9 @@
 # The lane gate is paid once, at `land`, on the rebased tip; the full gate runs per batch of landings; a lane may run a fixed, content-classified partition of a project
 
+**Amended by ADR 0154 and ADR 0156 (2026-11-08, issue #8726):** 0154 §§5, 6, 7; 0156 makes the queue lane the payer and deletes the mutex and §7.
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/land.ts`._
+
 ## Status
 
 accepted (retired names and §7 mapped in the 2026-11-04 amendment) — amends ADR 0104 §2 (partitions), ADR 0110 §5 (the pre-PR gate) and

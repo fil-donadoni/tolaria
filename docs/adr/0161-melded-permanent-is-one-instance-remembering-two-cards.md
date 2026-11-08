@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (PRD #3227's five design calls, issue #3341; amends [ADR 0041][adr-0041]'s
+accepted (2026-10-31; PRD #3227's five design calls, issue #3341; amends [ADR 0041][adr-0041]'s
 out-of-scope clause for the meld layout, the last double-faced layout in that
 bucket; extends [ADR 0120][adr-0120]'s twin-definition mechanism and
 [ADR 0122][adr-0122]'s `CardBackFace.kind`). PRD #3227 and issue #3341 call

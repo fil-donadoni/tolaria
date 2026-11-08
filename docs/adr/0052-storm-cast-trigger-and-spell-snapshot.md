@@ -1,5 +1,7 @@
 # Storm as a cast-trigger over a spell snapshot
 
+**Status:** Accepted (2026-07-09)
+
 ## Context
 
 Storm (CR 702.40) is a keyword ability that reads: _"When you cast this spell,

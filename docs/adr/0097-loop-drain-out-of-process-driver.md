@@ -1,10 +1,12 @@
 # The AFK driver is an out-of-process shell loop, and its budget guard is a local proxy
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/loop-drain.sh`._
+
 **Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-drain.sh` is deleted; the dispatcher is `afk-dispatch`.
 
 ## Status
 
-accepted
+accepted (2026-08-08)
 
 ## Context
 

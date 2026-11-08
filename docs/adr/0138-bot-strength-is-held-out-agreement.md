@@ -1,5 +1,7 @@
 # Bot strength is held-out agreement with player Verdicts; the ladder keeps no objective
 
+**Amended by ADR 0148 (2026-11-08, issue #8726):** the split rule and paired Verdicts.
+
 ## Status
 
 accepted — grilled 2026-09-18 (issue #3852, under the roadmap map issue

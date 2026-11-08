@@ -1,5 +1,9 @@
 # The base branch takes landings under the lane gate; the full gate runs once, at release, and branch names are configuration
 
+**Amended by ADR 0136, ADR 0156 and ADR 0163 (2026-11-08, issue #8726):** 0136 changes the cadence, 0156 the carrier, 0163 the RED stacking rule (Contained RED).
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/land.ts`._
+
 ## Status
 
 accepted (reshapes ADR 0110's post-merge health gate; issue #3124; retired names mapped in the 2026-11-04 amendment)

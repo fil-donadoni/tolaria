@@ -1,5 +1,7 @@
 # Bot Findings: the measurement is a committed artifact, the proof is per CLASS, a finding's state is DERIVED
 
+_Dated (2026-11-08, issue #8726): "34,890" is a reading of 2026-09-20 (pinned to its sha); the corpus is now 35,353._
+
 ## Status
 
 accepted — grilled 2026-09-20 (issue #4149's measurement is its input). Extends

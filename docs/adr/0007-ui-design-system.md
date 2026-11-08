@@ -1,5 +1,9 @@
 # UI design system: semantic tokens + universal Panel frame
 
+**Amended by ADR 0069, ADR 0101 and ADR 0103 (2026-11-08, issue #8726):** the palette and frame were unified (0069); §2 identity of 0101 and 0103 replaced the Antique Bronze values, Beleren and the corner-bracket Panel with graphite, Geist and hairline panels. The semantic-token and single-`Panel` contracts stand; the hex values below are history.
+
+**Status:** Accepted (2026-05-26)
+
 The app's visual language (Zelda BotW–inspired, MTG-themed) is enforced through two centralized mechanisms: **semantic design tokens** in `src/index.css` (`surface`, `accent`, `danger`, `parchment`, `text`, etc.) and a **single shared `Panel` component** in `src/components/ui/panel.tsx` that owns the corner-bracket frame motif and is consumed by every panel-like surface (dialogs, lobby cards, deck rows, battlefield zones, stack, mana pool). Components never reach for chromatic Tailwind utilities (`bg-amber-30`, `bg-zinc-800`) or duplicate the frame's HTML/CSS — theming and shape changes happen in one place.
 
 ## Single palette: shadcn remapped to the semantic tokens (Antique Bronze)

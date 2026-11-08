@@ -1,5 +1,7 @@
 # Fading & Vanishing: implicit keyword expansion + counter-removed trigger
 
+**Status:** Accepted (2026-07-12)
+
 ## Context
 
 Fading (CR 702.32) and Vanishing (CR 702.63) are the engine's first

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (2026-07-17)
 
 ## Context
 
