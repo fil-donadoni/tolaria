@@ -463,6 +463,142 @@ describe("planner — a deferred higher band reserves its files (issue #6897)", 
     });
 });
 
+describe("planner — a waiting P0 holds every lower slot (issue #8920)", () => {
+    const NO_FILES = BODY.replace("## Target files", "");
+    /** #2 is the P0; `bodies` overrides a body, `files` a declared file. */
+    const queue = (
+        priority: QueuePort["priority"],
+        files: Record<number, string> = {},
+        bodies: Record<number, string> = {},
+        blockedBy: Record<number, number[]> = {}
+    ): QueuePort => {
+        const base = port(files);
+        return {
+            ...base,
+            priority,
+            issueDetail: (n) =>
+                bodies[n] !== undefined
+                    ? { ...base.issueDetail(n), body: bodies[n] }
+                    : base.issueDetail(n),
+            nativeBlockedBy: (n) => blockedBy[n] ?? [],
+        };
+    };
+    const inFlight = [{ number: 1, files: ["convex/cards/types.ts"] }];
+    const reason = (plan: ReturnType<typeof planBatch>, n: number) =>
+        plan.deferred.find((d) => d.number === n)?.reason;
+
+    it("a no-files P0 with work in flight holds a disjoint P2", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            queue({ 2: "P0", 3: "P2" }, { 3: "scripts/b.ts" }, { 2: NO_FILES })
+        );
+        expect(plan.batch).toEqual([]);
+        expect(reason(plan, 2)).toMatch(/runs solo, and #1 is in flight/);
+        expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+        expect(plan.priorityHold).toMatchObject({ number: 2 });
+        expect(plan.priorityHold?.reason).toMatch(/runs solo/);
+    });
+
+    it("without the P0 the same P2 is admitted", () => {
+        const plan = planBatch(
+            [issue(3)],
+            { ...CONFIG, inFlight },
+            queue({ 3: "P2" }, { 3: "scripts/b.ts" })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+        expect(plan.priorityHold).toBeUndefined();
+    });
+
+    it("a declared P0 overlapping in-flight holds a P1 on disjoint files", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            queue(
+                { 2: "P0", 3: "P1" },
+                { 2: "convex/cards/types.ts", 3: "scripts/b.ts" }
+            )
+        );
+        expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
+        expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("a `*` P0 waiting on in-flight work holds a lower band", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            queue({ 2: "P0", 3: "P2" }, { 2: "*", 3: "scripts/b.ts" })
+        );
+        expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("another P0 is not held by the waiting one", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            queue({ 2: "P0", 3: "P0" }, { 3: "scripts/b.ts" }, { 2: NO_FILES })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+
+    it("a P0 blocked by an open edge reserves nothing", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            queue(
+                { 2: "P0", 3: "P2" },
+                { 3: "scripts/b.ts" },
+                { 2: NO_FILES },
+                { 2: [9] }
+            )
+        );
+        expect(reason(plan, 2)).toBe("blocked by #9");
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+        expect(plan.priorityHold).toBeUndefined();
+    });
+
+    it("a repair whose own PR is in flight is not held by a waiting P0", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            {
+                ...CONFIG,
+                inFlight: [...inFlight, { number: 3, files: null }],
+            },
+            queue({ 2: "P0", 3: "P2" }, { 3: "scripts/b.ts" }, { 2: NO_FILES })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+
+    it("once the in-flight set empties, the P0 is admitted", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight: [] },
+            queue({ 2: "P0", 3: "P2" }, { 3: "scripts/b.ts" }, { 2: NO_FILES })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([2]);
+        expect(reason(plan, 3)).toBe("batch closed — #2 runs solo");
+        expect(plan.priorityHold).toBeUndefined();
+    });
+
+    it("within one plan, nothing below P0 is batched after a held P0", () => {
+        // #4 (P0) is admitted first; #2 (P0, no files) cannot join it, so the
+        // P1 behind it waits instead of joining #4's batch.
+        const plan = planBatch(
+            [issue(2), issue(3), issue(4, ["ready-for-agent", "bug"])],
+            CONFIG,
+            queue(
+                { 2: "P0", 3: "P1", 4: "P0" },
+                { 3: "scripts/b.ts", 4: "scripts/c.ts" },
+                { 2: NO_FILES }
+            )
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([4]);
+        expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+    });
+});
+
 describe("picker — in-flight edge cases (issue #6195)", () => {
     it("an unlabelled issue with an open PR occupies the PR's files", () => {
         const got = pick(

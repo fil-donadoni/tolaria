@@ -55,6 +55,7 @@ import {
     parseAreaModels,
     parseStalledPrHours,
     repairItems,
+    priorityHoldLine,
     stalledPrLine,
     type PlanConfig,
     type RepairItem,
@@ -828,7 +829,11 @@ async function main(): Promise<void> {
               ]),
         `release: ${plan.release.map((n) => `#${n}`).join(", ") || "none"}`,
         `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${repairing.has(d.issue) ? ` repair PR #${d.pr}` : d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
-        `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
+        // Why free slots stay empty on purpose (issue #8920).
+        ...(picked.plan.priorityHold
+            ? [priorityHoldLine(picked.plan.priorityHold)]
+            : []),
+        `resume waiting for its host:${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
         budgetLine,
         // A warning, never a failure or an edit of the PR (issue #8258).
