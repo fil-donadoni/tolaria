@@ -227,6 +227,20 @@ describe("a mass effect's declared outcome holds on the seeded board (CR 608.2)"
             ],
         ],
         [
+            "destroy, under a printed mana value ceiling",
+            [sweep(DESTROY, { type: "Creature", manaValueAtMost: 3 })],
+        ],
+        [
+            "destroy, type minus type under a ceiling",
+            [
+                sweep(DESTROY, {
+                    type: "Artifact",
+                    excludeType: "Land",
+                    manaValueAtMost: 4,
+                }),
+            ],
+        ],
+        [
             "the mana value guard of 'X or less'",
             [
                 sweep(
@@ -284,6 +298,16 @@ describe("a sweep that reads wider than its selector breaks the plan (CR 608.2)"
             "excluded keyword",
             sweep(TAP, { type: "Creature", excludeAbility: "flying" }),
             sweep(TAP, { type: "Creature" }),
+        ],
+        [
+            "mana value ceiling",
+            sweep(DESTROY, { type: "Creature", manaValueAtMost: 3 }),
+            sweep(DESTROY, { type: "Creature" }),
+        ],
+        [
+            "mana value ceiling, read as 'less than'",
+            sweep(DESTROY, { type: "Creature", manaValueAtMost: 3 }),
+            sweep(DESTROY, { type: "Creature", manaValueAtMost: 2 }),
         ],
         [
             "controller",
@@ -484,10 +508,37 @@ describe("what the seeded board cannot predict keeps the fail-closed skip", () =
             "a dynamic subtype",
             [sweep(DESTROY, { subtype: { ref: "$chosen" } })],
         ],
+        [
+            "a dynamic mana value ceiling",
+            [
+                sweep(DESTROY, {
+                    type: "Creature",
+                    manaValueAtMost: { X: true },
+                }),
+            ],
+        ],
     ];
 
     it.each(CASES)("%s", (_label, effects) => {
         expect(skipReasons(effects)).toContain(UNMODELLED);
+    });
+
+    it("a mana value ceiling beside a mana value guard: two bounds, no plan", () => {
+        const plan = planSmokeTest([
+            sweep(
+                {
+                    op: "if",
+                    predicate: {
+                        left: { manaValue: { of: { ref: "$each" } } },
+                        op: "le",
+                        right: { X: true },
+                    },
+                    then: [DESTROY],
+                },
+                { type: "Artifact", manaValueAtMost: 3 }
+            ),
+        ]);
+        expect(plan.kind).toBe("skip");
     });
 
     it("a body that is itself a planned sweep, which the nested walk leaves out", () => {

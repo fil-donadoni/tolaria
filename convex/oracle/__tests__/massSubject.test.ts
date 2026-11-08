@@ -11,7 +11,7 @@
 //     noun, the announced-X bound, and the kicked replacement.
 //  2. REFUSALS — the neighbours the corpus prints that a `forEach` selector
 //     cannot express (a colour, a keyword, a combat role, another controller,
-//     a numeric mana-value bound). Each stays `unparsed` and names the
+//     a mana-value floor). Each stays `unparsed` and names the
 //     sub-grammar that refused it: a sweep that silently ignored "white" would
 //     destroy every creature.
 //  3. LOWERING invariants — what only the whole card decides: the X bound is an
@@ -394,19 +394,7 @@ describe("Mass subject — refusals (fail closed)", () => {
         ).toContain("mass subject");
     });
 
-    it("refuses a numeric mana-value bound and a lower bound: only `X or less` is read", () => {
-        expect(
-            refusal(
-                sorcery(
-                    "Test",
-                    "{2}{B}",
-                    "Destroy each creature with mana value 3 or less."
-                )
-            )
-        ).toMatchObject({
-            path: ["effect clause", "mass subject"],
-            span: "mvFilter",
-        });
+    it("refuses a lower mana-value bound: only a ceiling is read", () => {
         expect(
             refusal(
                 sorcery(
