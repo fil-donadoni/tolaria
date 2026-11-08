@@ -208,6 +208,31 @@ export interface RetriedStep {
     cause?: RetryCause;
     /** Set when the step failed and was NOT re-run: why (issue #5939). */
     refused?: string;
+    /** Set with `retried` when the retry failed tests the first run never
+     *  failed (issue #8916): why it is no reproduction. The result's output
+     *  is then the FIRST run's, so the evidence names what really failed. */
+    retryBroken?: string;
+}
+
+/**
+ * Why a failed retry is NOT a reproduction of the first failure, or null when
+ * it is (issue #8916). A retry re-runs exactly what failed; one whose FAIL
+ * lines name a test the first run never failed broke on its own (a second
+ * `@vitest/expect` instance redded all 221 tests of `bot-dom` with one error,
+ * issue #8915) — its output must not stand in for the RED, or every file it
+ * names becomes a fresh-run subject and, on a pass, its own `Flaky test:`
+ * issue. Read per FILE, the unit a fresh run re-runs and a flaky issue names:
+ * another test of a file that already failed is that file failing twice.
+ */
+export function retryNotReproduction(
+    firstOutput: string,
+    retryOutput: string
+): string | null {
+    const seen = new Set(failingFiles(firstOutput));
+    const extra = failLines(retryOutput).filter((l) => !seen.has(l.file));
+    if (extra.length === 0) return null;
+    const files = [...new Set(extra.map((l) => l.file))];
+    return `the retry failed ${extra.length} test(s) in ${files.length} file(s) where the first run failed none (${files.slice(0, 3).join(", ")}${files.length > 3 ? ", …" : ""}) — a broken retry, not a reproduction; the excerpt is the first run's`;
 }
 
 /**
@@ -258,7 +283,9 @@ function retrySteps(
  * Runs `step` through `run`; on a failure `retryDecision` plans, re-runs
  * exactly the failed projects (then the chain scripts that never started).
  * GREEN only when all pass; the second failure is returned as the result, so
- * RED names what failed twice. A failure it refuses comes back with the
+ * RED names what failed twice — unless the retry failed tests the first run
+ * never failed (`retryNotReproduction`, issue #8916): then the first run's
+ * output is the result and `retryBroken` says why. A failure it refuses comes back with the
  * refusal (`refused`), logged here and named in the evidence (issue #5939).
  */
 export async function runStepWithRetry(
@@ -303,6 +330,21 @@ export async function runStepWithRetry(
             ...result,
             output: `${first.output}\n${result.output}`,
         };
+    // A retry that failed what the first run passed broke on its own (issue
+    // #8916): the RED stands, but on the first run's failures, never the
+    // retry's — the full retry output stays in the log.
+    let retryBroken: string | undefined;
+    if (
+        !result.ok &&
+        !result.signal &&
+        !CRASH_LINE.test(plainOf(result.output))
+    )
+        retryBroken =
+            retryNotReproduction(first.output, result.output) ?? undefined;
+    if (retryBroken !== undefined) {
+        log(`health-main: ${retryBroken}\n`);
+        result = { ...result, output: first.output };
+    }
     for (const script of plan.remaining) {
         if (!result.ok) break;
         result = await run({
@@ -316,6 +358,7 @@ export async function runStepWithRetry(
         result,
         retried: plan.projects,
         cause: retryCauseOf(first.output),
+        ...(retryBroken !== undefined ? { retryBroken } : {}),
     };
 }
 

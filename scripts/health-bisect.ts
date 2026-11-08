@@ -43,8 +43,7 @@ import {
     culpritLines,
     failedTests,
     flakyIssueBody,
-    flakyIssueTitle,
-    flakySubjects,
+    flakyIssues,
     bisectWorktreePid,
     freshRunPlan,
     LADDER_MARK,
@@ -318,15 +317,20 @@ function runUrl(): string | undefined {
 
 /** Files the flake, once per subject: an open issue of the same title gets
  *  a comment instead. Never fatal — the GREEN is already written. */
-function fileFlake(ctx: Ctx, plan: Plan, evidence: string | undefined): void {
-    for (const subject of flakySubjects(plan)) {
-        const title = flakyIssueTitle(plan, subject);
+function fileFlake(
+    ctx: Ctx,
+    plan: Plan,
+    evidence: string | undefined,
+    evidenceBody: string | null
+): void {
+    for (const { subject, title, uniform } of flakyIssues(plan, evidenceBody)) {
         const body = flakyIssueBody({
             subject,
             sha: ctx.sha,
             step: plan.step,
             evidence,
             runUrl: runUrl(),
+            uniform,
         });
         if (ctx.dryRun) {
             note(ctx, `(dry run) would file "${title}"`);
@@ -683,7 +687,8 @@ function ladder(ctx: Ctx): number {
                 {
                     note: (line) => note(ctx, line),
                     writeGreen: (v) => store.write(v),
-                    fileFlake: () => fileFlake(ctx, plan, verdict?.log),
+                    fileFlake: () =>
+                        fileFlake(ctx, plan, verdict?.log, evidence),
                     publish: (line) => publishCulprit(ctx, [line]),
                 }
             )

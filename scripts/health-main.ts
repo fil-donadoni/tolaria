@@ -267,6 +267,9 @@ interface LastRun {
     /** `red` only, never with `retried`: why the failed step was not re-run
      *  (issue #5939) — the evidence names it. */
     retryRefused?: string;
+    /** `red` only, with `retried`: the retry failed tests the first run never
+     *  failed (issue #8916) — the RED stands on the first run's failures. */
+    retryBroken?: string;
     /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
     infraCause?: InfraCause;
     reason?: string;
@@ -556,11 +559,17 @@ interface RunCtx {
 }
 
 /** The retry half of a record (issues #5461, #5484, #5939). */
-type RetryFields = Pick<LastRun, "retried" | "retryCause" | "retryRefused">;
+type RetryFields = Pick<
+    LastRun,
+    "retried" | "retryCause" | "retryRefused" | "retryBroken"
+>;
 
 /** What `health:status` says of a retried step. */
 function retryOutcome(last: LastRun): string {
-    if (last.status !== "green") return "failed twice";
+    if (last.status !== "green")
+        return last.retryBroken
+            ? `retry broken — ${last.retryBroken}`
+            : "failed twice";
     return last.retryCause === "timeout"
         ? "timed out once, passed on the re-run (a near-miss on its testTimeout — see the log's headroom: line)"
         : "failed once, passed on the re-run (a flake)";
@@ -752,6 +761,7 @@ function publishEvidence(
         retried: retry?.retried,
         retryCause: retry?.retryCause,
         retryRefused: retry?.retryRefused,
+        retryBroken: retry?.retryBroken,
         at: new Date().toISOString(),
     });
     let pointer = ctx.logPath;
@@ -1600,7 +1610,13 @@ async function main(): Promise<void> {
             );
             const r = run.result;
             if (run.retried)
-                retry = { retried: run.retried, retryCause: run.cause };
+                retry = {
+                    retried: run.retried,
+                    retryCause: run.cause,
+                    ...(run.retryBroken
+                        ? { retryBroken: run.retryBroken }
+                        : {}),
+                };
             else if (run.refused) retry = { retryRefused: run.refused };
             if (!r.ok) {
                 // Read at once: a later sleep must not reach back to this step.

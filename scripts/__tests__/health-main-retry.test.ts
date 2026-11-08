@@ -12,7 +12,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { failingFiles, failLines } from "../lib/health-evidence";
+import {
+    buildEvidence,
+    evidenceFiles,
+    failingFiles,
+    failLines,
+} from "../lib/health-evidence";
+import { flakyIssues, freshRunPlan } from "../lib/health-bisect";
 import {
     healthStepCommand,
     noBailChain,
@@ -28,6 +34,7 @@ import {
     retryCauseOf,
     retryDecision,
     retryNote,
+    retryNotReproduction,
     runStepWithRetry,
 } from "../lib/health-retry";
 import {
@@ -184,6 +191,178 @@ describe("runStepWithRetry — the health-main seam", () => {
         const out = await runStepWithRetry(TEST_STEP, f.run);
         expect(out.result.ok).toBe(false);
         expect(f.ran).toHaveLength(3);
+    });
+});
+
+/**
+ * The `c0980cd465fa` shape (issue #8916, run 42404465368): the first run
+ * failed ONE test of `bot-dom`; the retry, broken by a second
+ * `@vitest/expect` instance (issue #8915), failed every test of 14 files with
+ * one error. The evidence named all 14, the fresh run passed them, and 14
+ * `Flaky test:` issues were filed — 13 false.
+ */
+describe("a broken retry never becomes the RED (issue #8916)", () => {
+    const REAL = "src/components/verdict-proposal-queue.bot.test.tsx";
+    const BROKEN = [
+        REAL,
+        ...Array.from(
+            { length: 13 },
+            (_, i) => `src/lib/ai/other-${i}.bot.test.tsx`
+        ),
+    ];
+    const NO_ASSERTION =
+        "Error: expected any number of assertion, but got none";
+
+    /** A vitest run's output: its FAIL blocks, then its summary. */
+    function vitestOutput(
+        fails: { file: string; name: string; error: string }[]
+    ): string {
+        return [
+            BOT_CMD,
+            ` ⎯⎯⎯⎯⎯⎯ Failed Tests ${fails.length} ⎯⎯⎯⎯⎯⎯⎯`,
+            "",
+            ...fails.flatMap((f, i) => [
+                ` FAIL  |bot-dom| ${f.file} > ${f.name}`,
+                f.error,
+                ` ❯ ${f.file}:10:5`,
+                "",
+                `⎯⎯⎯[${i + 1}/${fails.length}]⎯`,
+                "",
+            ]),
+            ` Test Files  ${new Set(fails.map((f) => f.file)).size} failed`,
+            `      Tests  ${fails.length} failed`,
+        ].join("\n");
+    }
+
+    const FIRST = vitestOutput([
+        {
+            file: REAL,
+            name: "queue > proposes the verdict",
+            error: "AssertionError: expected 2 to be 3",
+        },
+    ]);
+    const RETRY = vitestOutput(
+        BROKEN.flatMap((file) =>
+            [1, 2].map((n) => ({
+                file,
+                name: `suite > t${n}`,
+                error: NO_ASSERTION,
+            }))
+        )
+    );
+
+    it("a retry failing tests the first run passed is no reproduction", () => {
+        expect(retryNotReproduction(FIRST, RETRY)).toMatch(
+            /the retry failed 26 test\(s\) in 13 file\(s\) where the first run failed none/
+        );
+        // The same file failing twice — any of its tests — is a reproduction.
+        expect(retryNotReproduction(FIRST, FIRST)).toBeNull();
+        const sameFile = vitestOutput(
+            [1, 2].map((n) => ({
+                file: REAL,
+                name: `suite > t${n}`,
+                error: NO_ASSERTION,
+            }))
+        );
+        expect(retryNotReproduction(FIRST, sameFile)).toBeNull();
+    });
+
+    it("keeps the first run's failures as the evidence, the retry flagged broken", async () => {
+        const f = fakeRunner([result(false, FIRST), result(false, RETRY)]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.result.ok).toBe(false);
+        expect(out.retried).toEqual(["bot-dom"]);
+        expect(out.retryBroken).toMatch(/broken retry, not a reproduction/);
+        expect(failingFiles(out.result.output)).toEqual([REAL]);
+        const ev = buildEvidence({
+            sha: "c0980cd465fa".padEnd(40, "0"),
+            step: "test",
+            machine: "mac",
+            logPath: "/log",
+            output: out.result.output,
+            status: out.result.status,
+            signal: out.result.signal,
+            retried: out.retried,
+            retryCause: out.cause,
+            retryBroken: out.retryBroken,
+            at: "2026-11-07T00:00:00Z",
+        });
+        expect(evidenceFiles(ev.body)).toEqual([REAL]);
+        expect(ev.body).toContain("— broken: the retry failed");
+    });
+
+    it("replayed through the fresh-run plan, files exactly one Flaky test: issue", async () => {
+        const f = fakeRunner([result(false, FIRST), result(false, RETRY)]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        const body = buildEvidence({
+            sha: "c".repeat(40),
+            step: "test",
+            machine: "mac",
+            logPath: "/log",
+            output: out.result.output,
+            status: out.result.status,
+            signal: out.result.signal,
+            retried: out.retried,
+            retryCause: out.cause,
+            retryBroken: out.retryBroken,
+            at: "2026-11-07T00:00:00Z",
+        }).body;
+        const plan = freshRunPlan(
+            { status: "red", step: "test (retry: bot-dom, assertion)" },
+            evidenceFiles(body),
+            ["test"]
+        );
+        if (plan.kind === "none") throw new Error(plan.reason);
+        expect(flakyIssues(plan, body).map((i) => i.title)).toEqual([
+            `Flaky test: ${REAL}`,
+        ]);
+    });
+
+    it("a uniform failure across many files files one step issue, never one per file", () => {
+        const body = buildEvidence({
+            sha: "c".repeat(40),
+            step: "test",
+            machine: "mac",
+            logPath: "/log",
+            output: RETRY,
+            status: 1,
+            signal: null,
+            at: "2026-11-07T00:00:00Z",
+        }).body;
+        const plan = freshRunPlan(
+            { status: "red", step: "test" },
+            evidenceFiles(body),
+            ["test"]
+        );
+        if (plan.kind === "none") throw new Error(plan.reason);
+        expect(plan.kind === "tests" && plan.files).toHaveLength(14);
+        const issues = flakyIssues(plan, body);
+        expect(issues.map((i) => i.title)).toEqual(["Flaky health step: test"]);
+        expect(issues[0].uniform).toBe(NO_ASSERTION);
+        // Two files, two different errors: two independent flakes.
+        const mixed = buildEvidence({
+            sha: "c".repeat(40),
+            step: "test",
+            machine: "mac",
+            logPath: "/log",
+            output: vitestOutput([
+                { file: "a.test.ts", name: "x", error: "Error: one" },
+                { file: "b.test.ts", name: "y", error: "Error: two" },
+            ]),
+            status: 1,
+            signal: null,
+            at: "2026-11-07T00:00:00Z",
+        }).body;
+        const two = freshRunPlan(
+            { status: "red", step: "test" },
+            evidenceFiles(mixed),
+            ["test"]
+        );
+        if (two.kind === "none") throw new Error(two.reason);
+        expect(flakyIssues(two, mixed).map((i) => i.title)).toEqual([
+            "Flaky test: a.test.ts",
+            "Flaky test: b.test.ts",
+        ]);
     });
 });
 

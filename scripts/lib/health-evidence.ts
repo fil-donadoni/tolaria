@@ -330,6 +330,9 @@ export interface EvidenceInput {
     retryCause?: string;
     /** Why a failed step was NOT re-run (`retryDecision`, issue #5939). */
     retryRefused?: string;
+    /** Set with `retried`: why the retry is no reproduction (issue #8916) —
+     *  the output is then the first run's. */
+    retryBroken?: string;
     at: string;
 }
 
@@ -356,9 +359,11 @@ export function buildEvidence(input: EvidenceInput): Evidence {
         `- **machine:** ${input.machine} · **at:** ${input.at}`,
         `- **projects:** ${projects.length > 0 ? projects.join(", ") : "none named"}`,
         `- **files:** ${files.length > 0 ? files.map((f) => `\`${f}\``).join(", ") : "none named"}`,
-        input.retried && input.retried.length > 0
-            ? `- **retry:** re-ran ${input.retried.join(", ")} once (first failure: ${input.retryCause ?? "unrecorded"}) — failed again; the excerpt is the retry's`
-            : `- **retry:** none — ${input.retryRefused ?? "not a retryable test failure"}`,
+        input.retried && input.retried.length > 0 && input.retryBroken
+            ? `- **retry:** re-ran ${input.retried.join(", ")} once (first failure: ${input.retryCause ?? "unrecorded"}) — broken: ${input.retryBroken}`
+            : input.retried && input.retried.length > 0
+              ? `- **retry:** re-ran ${input.retried.join(", ")} once (first failure: ${input.retryCause ?? "unrecorded"}) — failed again; the excerpt is the retry's`
+              : `- **retry:** none — ${input.retryRefused ?? "not a retryable test failure"}`,
         `- **log on ${input.machine}:** \`${input.logPath}\``,
         "",
     ].join("\n");
