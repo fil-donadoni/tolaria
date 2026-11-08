@@ -91,7 +91,7 @@ four declarations — `GameState`, `PlayerState`, `CardInstanceState`,
 tell: `PlayerPreferences` (reached through `GameState.playerPreferences`, which
 is in `PERSISTED_OPTIONAL_KEYS`, so persisted state shape) carries
 `libraryOfLengRouting`, and `TriggerStateView` carries the
-`gazeOfPainActiveThisTurn` mirror that #1917 explicitly lists for rename. Both
+`gazeOfPainActiveThisTurn` mirror that #1917 explicitly listed for rename. Both
 were live violations, invisible to the four-name sweep (both renamed by the
 #1917 sweep, to `discardRouting` and `turnScopedTriggerGrants`). Sweeping the
 two files is the same work and closes the class. The AST is used rather than a runtime key
