@@ -7988,6 +7988,14 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.winGame(playerId);
     },
+    // CR 104.3e — "an effect may state that a player loses the game": a thin
+    // skin over `SpellContext.loseGame`, the same `state.gameOver` seam.
+    // Skipped when the player cannot be resolved (CR 608.2b).
+    loseGame(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.loseGame(playerId);
+    },
     // CR-generic "separate into two piles, another player chooses one" cycle
     // (ADR 0053, pile division, issue #1067). Two sequential suspend points
     // within ONE Op execution — mirrors the multi-`requestChoice`-in-a-loop

@@ -2531,6 +2531,16 @@ export type SentenceIR =
           readonly effect: EffectSentenceIR;
       }
     /**
+     * CR 118.12 — "If you don't, you lose the game.": the consequence of a
+     * declined `pay` frame, folded into that chain's `otherwise` by
+     * `assembleSentences`. Only the `loseGame` frame is read behind it.
+     */
+    | {
+          readonly role: "if-you-dont";
+          readonly text: string;
+          readonly effect: FrameChainIR;
+      }
+    /**
      * CR 701.21a — "Then that permanent's controller may sacrifice a land of
      * their choice.", the first half of an `optional` sacrifice by that player; the
      * `if-the-player-does` after it is the second.
@@ -3406,6 +3416,32 @@ export function assembleSentences(
             });
             payVariable = null;
             continue;
+        }
+        if (sentence.role === "if-you-dont") {
+            // CR 118.12 — the `If you don't` Composition Rule: the sentence
+            // is the consequence of declining the lone payment before it.
+            const last = effects[effects.length - 1];
+            if (
+                last !== undefined &&
+                last.kind === undefined &&
+                isLoneFrame(last, "pay") &&
+                last.delayed !== undefined &&
+                last.otherwise === undefined
+            ) {
+                effects[effects.length - 1] = {
+                    ...last,
+                    otherwise: sentence.effect,
+                    delayed: {
+                        ...last.delayed,
+                        text: `${last.delayed.text}. ${sentence.text}.`,
+                    },
+                };
+                continue;
+            }
+            return {
+                ok: false,
+                reason: '"If you don\'t, …" follows no delayed upkeep payment',
+            };
         }
         if (sentence.role === "if-you-do") {
             // CR 118.12 — the `If you do` Composition Rule (issue #6557):
@@ -4641,6 +4677,20 @@ export function assembleSentences(
             ok: false,
             reason: '"…, its controller searches their library for …" is the last sentence and puts the find nowhere',
         };
+    // CR 118.12 — a payment is a cost whose consequence the next sentence
+    // states; one left without it pays for nothing.
+    if (
+        effects.some(
+            (e) =>
+                e.kind === undefined &&
+                e.frames.some((f) => f.frame === "pay") &&
+                (e.otherwise === undefined || e.delayed === undefined)
+        )
+    )
+        return {
+            ok: false,
+            reason: '"Pay {cost}" is read only as a delayed upkeep payment followed by "If you don\'t, …"',
+        };
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
     return { ok: true, effects, restrictions };
@@ -5628,6 +5678,13 @@ const AND_ASSIGNS_NO_COMBAT_DAMAGE =
     /^(.+) and (.+) assigns no combat damage this turn$/;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
+/** CR 118.12 — the consequence sentence of a declined payment. */
+const IF_YOU_DONT = /^If you don't, (.+)$/;
+/**
+ * CR 603.7a — a delayed triggered ability created by the resolving effect,
+ * firing at the beginning of the controller's own next upkeep (CR 502).
+ */
+const AT_YOUR_NEXT_UPKEEP = /^At the beginning of your next upkeep, (.+)$/;
 /** CR 701.21a — "Then that permanent's controller may sacrifice a land of
  *  their choice": the optional sacrifice of one permanent of a type, by the
  *  controller of the object the sentence before acted on. */
@@ -6578,6 +6635,63 @@ function readBasicLandTypes(span: string): readonly string[] | null {
  * an ANCHORED pattern over the whole span, so an unrecognised trailing clause
  * fails the sentence instead of being ignored.
  */
+/** A chain of exactly one frame of the given name, opened without "Then". */
+function isLoneFrame(
+    chain: FrameChainIR,
+    frame: FrameChainIR["frames"][number]["frame"]
+): boolean {
+    return (
+        chain.continuation === undefined &&
+        chain.frames.length === 1 &&
+        chain.frames[0]!.frame === frame
+    );
+}
+
+/**
+ * CR 603.7a + CR 118.12 — "At the beginning of your next upkeep, pay {2}{B}":
+ * the head of a delayed triggered ability whose body is a lone `pay` frame
+ * (its "If you don't, …" is the NEXT sentence, folded by `assembleSentences`).
+ * `null` when the sentence is not this form, so every other "At the beginning
+ * of your next upkeep" body keeps the reading and gap key it had.
+ */
+function readDelayedUpkeepPayment(
+    span: string,
+    ctx: unknown
+): RuleResult<SentenceIR> | null {
+    const head = span.match(AT_YOUR_NEXT_UPKEEP);
+    if (head === null) return null;
+    const chain = readFrameChain(capitalise(head[1]!), ctx);
+    if (chain === null || !chain.ok || !isLoneFrame(chain.value, "pay"))
+        return null;
+    return ok({
+        role: "effect" as const,
+        effect: {
+            ...chain.value,
+            delayed: { timing: "your-next-upkeep" as const, text: span },
+        },
+    });
+}
+
+/**
+ * CR 118.12 + CR 104.3e — "If you don't, you lose the game": `null` for any
+ * other consequence, which keeps the reading it had.
+ */
+function readIfYouDont(
+    span: string,
+    ctx: unknown
+): RuleResult<SentenceIR> | null {
+    const m = span.match(IF_YOU_DONT);
+    if (m === null) return null;
+    const chain = readFrameChain(capitalise(m[1]!), ctx);
+    if (chain === null || !chain.ok || !isLoneFrame(chain.value, "loseGame"))
+        return null;
+    return ok({
+        role: "if-you-dont" as const,
+        text: span,
+        effect: chain.value,
+    });
+}
+
 export const sentenceRule: Rule<SentenceIR> = subGrammar(
     EFFECT_CLAUSE,
     rule<SentenceIR>(EFFECT_CLAUSE, (printed, ctx) => {
@@ -6592,6 +6706,10 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // the list is a closed CR census, so a per-card subset would be a
         // catalogue of card names wearing a grammar's clothes.
         const span = withoutAbilityWord(printed);
+        const delayedPayment = readDelayedUpkeepPayment(span, ctx);
+        if (delayedPayment !== null) return delayedPayment;
+        const ifYouDont = readIfYouDont(span, ctx);
+        if (ifYouDont !== null) return ifYouDont;
         // CR 608.2g — the second half of a fold, not an optional effect (a
         // site with no optional marker reaches it here).
         if (EXILE_UNTIL_OFFER.test(span))

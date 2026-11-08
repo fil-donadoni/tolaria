@@ -5584,11 +5584,66 @@ function lowerExileReturnTransformed(
  *    reveal and the move to hand (outside the game is not a zone, so no
  *    `choice`/`moveZone` pair can name it).
  */
+/**
+ * CR 118.12 — "Pay {2}{B}. If you don't, <effect>": the payment is a cost
+ * paid as the ability resolves, so it is a `mayPay` whose REQUIRED bind is
+ * false when the player declines or cannot pay, and the consequence runs
+ * behind `if { not }`. Read only under "At the beginning of your next
+ * upkeep, …" (CR 603.7a): the two are the body of a delayed triggered
+ * ability, controlled by the resolving effect's controller (CR 603.7d /
+ * 603.7e) and firing at that player's own next upkeep (`next-upkeep` +
+ * `targetPlayer`).
+ */
+function lowerDeclinedPayment(
+    sentence: FrameChainIR,
+    otherwise: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const frame = sentence.frames[0];
+    if (sentence.frames.length !== 1 || frame?.frame !== "pay")
+        return unlowerable('"If you don\'t, …" follows no lone payment');
+    const inner = gatedSentence(otherwise, walk, site);
+    if (!inner.ok) return inner;
+    const bind = walk.nextBind("paid");
+    const body: EffectOp[] = [
+        {
+            op: "mayPay",
+            // CR 603.7d — "you" is the delayed ability's controller, the
+            // player who controlled the spell as it resolved.
+            player: "controller",
+            cost: frame.mana,
+            prompt: `Pay ${frame.phrase}?`,
+            bind,
+        },
+        {
+            op: "if",
+            predicate: { not: { binding: bind } },
+            then: inner.value,
+        },
+    ];
+    if (sentence.delayed === undefined)
+        return unlowerable("a payment is read only under its delayed head");
+    return lowered([
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            targetPlayer: "controller",
+            oracleText: sentence.delayed.text,
+            effects: body,
+        },
+    ]);
+}
+
 function lowerFrameChain(
     sentence: FrameChainIR,
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    if (sentence.otherwise !== undefined)
+        return lowerDeclinedPayment(sentence, sentence.otherwise, walk, site);
+    if (sentence.delayed !== undefined)
+        return unlowerable("a delayed payment has no consequence");
     if (sentence.perActedOnController !== undefined)
         return lowerPerActedOnController(
             sentence,
@@ -5869,6 +5924,16 @@ function lowerFrameChain(
             case "winGame":
                 ops.push({ op: "winGame", player: "controller" });
                 break;
+            // CR 104.3e — the controller loses the game.
+            case "loseGame":
+                ops.push({ op: "loseGame", player: "controller" });
+                break;
+            // CR 118.12 — a payment is lowered with its consequence only
+            // (`lowerDeclinedPayment`); `assembleSentences` refuses it bare.
+            case "pay":
+                return unlowerable(
+                    '"Pay {cost}" is lowered only with its "If you don\'t, …"'
+                );
             // CR 701.37a / 701.37b — "this permanent": only permanents can
             // become monstrous, so a spell's own text has nothing to act on.
             case "monstrosity":

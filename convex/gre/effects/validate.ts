@@ -7166,9 +7166,15 @@ const OP_SCHEMAS: OpSchemaTable = {
                     `timing "${String(entry.timing)}" is player-scoped (CR 504/505) — field "targetPlayer" is required`
                 );
             }
-            if (!playerScoped && "targetPlayer" in entry) {
+            // CR 603.7 — "next-upkeep" is the one timing scoped EITHER way:
+            // bare, "the next turn's upkeep" fires at whichever upkeep comes
+            // first; with a target player, "your next upkeep" waits for that
+            // player's own (the fire path's `targetPlayerId` filter, the one
+            // Rebound already rides).
+            const playerOptional = entry.timing === "next-upkeep";
+            if (!playerScoped && !playerOptional && "targetPlayer" in entry) {
                 errors.push(
-                    `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase" / "player-next-turn-end-step"`
+                    `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase" / "player-next-turn-end-step" (optional on "next-upkeep")`
                 );
             }
             // CR 603.7a / 603.10 (issues #731 / #1470) / 509.1h — every
@@ -7231,6 +7237,8 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 104.2a (issue #1066) — designate the winning player, through the
     // SAME `state.gameOver` seam State-Based Actions use.
     winGame: { required: { player: isPlayerRef } },
+    // CR 104.3e — the named player loses the game (the `winGame` twin).
+    loseGame: { required: { player: isPlayerRef } },
     // ADR 0053 (pile division, issue #1067) — divide-then-choose. `objects`
     // is validated by shape here; `divider`/`chooser` resolve as ordinary
     // player refs (ordered ref pass); `chosenBind`/`otherBind` declare two

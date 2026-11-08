@@ -207,6 +207,10 @@
         "code": "op-own-tests",
         "reason": "Op \"loseAllAbilitiesWhileSourceRemains\" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests"
     },
+    "loseGame": {
+        "code": "op-own-tests",
+        "reason": "Op \"loseGame\" sets state.gameOver — covered by the Op's own interpreter test"
+    },
     "loseLife": "runs",
     "manifestDread": {
         "code": "suspends-for-input",
