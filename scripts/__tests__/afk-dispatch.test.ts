@@ -41,6 +41,7 @@ import {
 import { claimFate, pick } from "../lib/picker";
 import { classifyClaims } from "../lib/claim-verdict";
 import {
+    priorityHoldLine,
     repairItems,
     type IssueDetail,
     type PlanConfig,
@@ -903,6 +904,21 @@ describe("afk-dispatch repairs (issue #6795)", () => {
             [repair(7, 70), repair(40, 400), repair(41, 410)]
         );
         expect(plan.dispatch.map((d) => d.issue)).toEqual([7, 40]);
+    });
+
+    it("a P0 hold empties the batch but never the repairs, and names itself (issue #8920)", () => {
+        const base = picked(facts([], [], [], []));
+        const hold = { number: 9, reason: "target files overlap in-flight #1" };
+        const plan = planDispatch(
+            { ...base, plan: { ...base.plan, batch: [], priorityHold: hold } },
+            { free: ["mbp", "hw"], online: ["mbp", "hw"] },
+            () => null,
+            [repair(40, 400)]
+        );
+        expect(plan.dispatch.map((d) => d.issue)).toEqual([40]);
+        expect(priorityHoldLine(hold)).toBe(
+            "held for P0 #9 (target files overlap in-flight #1)"
+        );
     });
 
     it("two land-failed PRs naming one issue repair it once", () => {

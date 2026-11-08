@@ -551,6 +551,20 @@ export function stalledPrsOf(
     return out.sort((a, b) => a.pr - b.pr);
 }
 
+/** The first P0 deferred for a reason draining clears (issue #8920): it holds
+ *  every slot below P0 until it is admitted. */
+export interface PriorityHold {
+    number: number;
+    /** The P0's own deferral reason. */
+    reason: string;
+}
+
+/** The dispatcher's line for a P0 hold (issue #8920), so a quiet
+ *  `dispatch: none` with free slots explains itself. */
+export function priorityHoldLine(h: PriorityHold): string {
+    return `held for P0 #${h.number} (${h.reason})`;
+}
+
 /** One warning line per stalled PR — the plan's and the dispatcher's text. */
 export function stalledPrLine(s: {
     pr: number;
@@ -629,6 +643,9 @@ export interface BatchPlan {
     /** Stalled PRs (issue #8258): a warning, never a block — they occupy
      *  nothing. Each names its issue, hours stalled and overlapping candidates. */
     stalledPrs?: Omit<StalledPr, "files">[];
+    /** A P0 waiting on in-flight work (issue #8920): every lower band is
+     *  deferred behind it. Absent = no such P0. */
+    priorityHold?: PriorityHold;
     /**
      * Issues held by a claim the planner judged LIVE — `in-progress`, not
      * stale, and not a PRD umbrella (which is skipped before the claim branch
@@ -1037,8 +1054,15 @@ export function planBatch(
             ),
         }));
     // Files a higher band waits on (issue #6897), filled as candidates are
-    // deferred for in-flight overlap, in plan order.
-    const reserved: { number: number; rank: number; files: string[] }[] = [];
+    // deferred for in-flight overlap, in plan order. `all` is a P0's hold
+    // (issue #8920): every slot, not only its files.
+    const reserved: {
+        number: number;
+        rank: number;
+        files: string[];
+        all: boolean;
+    }[] = [];
+    let priorityHold: PriorityHold | undefined;
     const stalledOverlap = new Map<number, Set<number>>();
     const inFlightUnknown = (config.inFlight ?? [])
         .filter((f) => f.files === null)
@@ -1171,6 +1195,25 @@ export function planBatch(
         return a.number - b.number;
     };
     candidates.sort(order);
+
+    // A P0 deferred for a reason draining clears reserves EVERYTHING below P0
+    // (issue #8920). Left to the file rule, a no-files or `*` P0 reserved
+    // nothing and a declared one only its files, so in a busy queue — where
+    // something is always in flight — the lower bands kept every slot and the
+    // P0 starved overnight. Deferrals draining cannot clear (a `Blocked by`
+    // edge, a claim, HITL, lint) never call this: they must not freeze the
+    // queue. Returns whether the hold was taken.
+    const holdForP0 = (issue: QueueIssue, reason: string): boolean => {
+        if (band(issue) !== priorityRank("P0")) return false;
+        reserved.push({
+            number: issue.number,
+            rank: band(issue),
+            files: [],
+            all: true,
+        });
+        priorityHold ??= { number: issue.number, reason };
+        return true;
+    };
 
     // ── Stage 2: admission ──────────────────────────────────────────────────
     /** Set once a solo issue is admitted: nothing else may join it. */
@@ -1393,17 +1436,21 @@ export function planBatch(
         );
         const unknownHolder = othersInFlight.find((f) => f.files === null);
         if (unknownHolder) {
+            const reason = `in-flight radius unknown #${unknownHolder.number} — held until its PR opens or its claim ends`;
+            holdForP0(issue, reason);
             deferred.push({
                 number: issue.number,
-                reason: `in-flight radius unknown #${unknownHolder.number} — held until its PR opens or its claim ends`,
+                reason,
                 conflictsWith: unknownHolder.number,
             });
             continue;
         }
         if (blastRadius === "unknown" && othersInFlight.length > 0) {
+            const reason = `no declared target files and none inferred — an unknown blast radius runs solo, and #${othersInFlight[0].number} is in flight`;
+            holdForP0(issue, reason);
             deferred.push({
                 number: issue.number,
-                reason: `no declared target files and none inferred — an unknown blast radius runs solo, and #${othersInFlight[0].number} is in flight`,
+                reason,
                 conflictsWith: othersInFlight[0].number,
             });
             continue;
@@ -1420,16 +1467,19 @@ export function planBatch(
             // The deferred issue keeps its files (issue #6897): left free, the
             // slot goes to a lower band on the same hot file, whose PR then
             // occupies it for the whole queue wait — and the next one after.
-            // A `*` radius reserves nothing: it would hold the whole repo.
-            if (batchable)
+            // A `*` radius reserves nothing below P0: it would hold the whole
+            // repo. A P0 holds every slot whatever its radius (issue #8920).
+            const reason = `target files overlap in-flight #${busy.number}`;
+            if (!holdForP0(issue, reason) && batchable)
                 reserved.push({
                     number: issue.number,
                     rank: band(issue),
                     files: comparable,
+                    all: false,
                 });
             deferred.push({
                 number: issue.number,
-                reason: `target files overlap in-flight #${busy.number}`,
+                reason,
                 conflictsWith: busy.number,
             });
             continue;
@@ -1440,16 +1490,20 @@ export function planBatch(
         // every reservation, so it waits while any higher band does — bounded
         // by the in-flight PR's life, which is the point. An equal band keeps
         // the order it already has; a repair (its own PR in flight) already
-        // holds its files, so deferring it frees nothing.
+        // holds its files, so deferring it frees nothing — and holding it
+        // behind a P0's drain would deadlock the drain (issue #8920).
         const touchesAll =
             blastRadius === "unknown" || blastRadius === "everything";
-        const repairing = occupied.some((f) => f.number === issue.number);
+        const repairing = (config.inFlight ?? []).some(
+            (f) => f.number === issue.number
+        );
         const holder =
             !repairing &&
             reserved.find(
                 (r) =>
                     r.rank < band(issue) &&
-                    (touchesAll ||
+                    (r.all ||
+                        touchesAll ||
                         r.files.some((a) =>
                             comparable.some((c) => pathsOverlap(a, c))
                         ))
@@ -1457,7 +1511,9 @@ export function planBatch(
         if (holder) {
             deferred.push({
                 number: issue.number,
-                reason: `target files reserved by higher-priority #${holder.number}`,
+                reason: holder.all
+                    ? `every slot reserved by higher-priority #${holder.number} — a waiting P0 drains the in-flight set first`
+                    : `target files reserved by higher-priority #${holder.number}`,
                 conflictsWith: holder.number,
             });
             continue;
@@ -1465,12 +1521,14 @@ export function planBatch(
 
         if (batch.length > 0) {
             if (!batchable) {
+                const reason =
+                    blastRadius === "unknown"
+                        ? "no declared target files and none inferred — an unknown blast radius overlaps everything, so it runs solo"
+                        : "declares `*` — it runs solo";
+                holdForP0(issue, reason);
                 deferred.push({
                     number: issue.number,
-                    reason:
-                        blastRadius === "unknown"
-                            ? "no declared target files and none inferred — an unknown blast radius overlaps everything, so it runs solo"
-                            : "declares `*` — it runs solo",
+                    reason,
                     conflictsWith: batch[0].number,
                 });
                 continue;
@@ -1490,9 +1548,11 @@ export function planBatch(
             // admitted or deferred exactly as if the mislabelled one had
             // never been in the queue (acceptance criterion 2).
             if (batch[0].lane !== lane) {
+                const reason = `lane mismatch — batch is ${batch[0].lane} (from #${batch[0].number}), this issue's target files land in ${lane}`;
+                holdForP0(issue, reason);
                 deferred.push({
                     number: issue.number,
-                    reason: `lane mismatch — batch is ${batch[0].lane} (from #${batch[0].number}), this issue's target files land in ${lane}`,
+                    reason,
                     conflictsWith: batch[0].number,
                 });
                 continue;
@@ -1504,9 +1564,11 @@ export function planBatch(
                 )
             );
             if (clash) {
+                const reason = `target files overlap #${clash.number}`;
+                holdForP0(issue, reason);
                 deferred.push({
                     number: issue.number,
-                    reason: `target files overlap #${clash.number}`,
+                    reason,
                     conflictsWith: clash.number,
                 });
                 continue;
@@ -1556,6 +1618,7 @@ export function planBatch(
         staleClaims,
         activeClaims,
         ...(inFlightUnknown.length > 0 ? { inFlightUnknown } : {}),
+        ...(priorityHold ? { priorityHold } : {}),
         ...((config.stalledPrs ?? []).length > 0
             ? {
                   stalledPrs: config.stalledPrs!.map((st) => ({
