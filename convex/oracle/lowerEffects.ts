@@ -2175,13 +2175,6 @@ function lowerSentenceBody(
                 sentence.toughness,
                 sentence.perDomain === true
             );
-            // The grammar reads a keyword grant on one object only; a sweep
-            // carrying one would drop it here, so it is refused, not lowered.
-            if (
-                sentence.subject.kind === "mass" &&
-                sentence.grant !== undefined
-            )
-                return unlowerable("a pump-and-grant names one object");
             if (sentence.subject.kind === "mass")
                 return sweepOps(sentence.subject, site, slots, (target) => ({
                     op: "pump",
@@ -2192,8 +2185,6 @@ function lowerSentenceBody(
                 }));
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
-            // CR 613.1f — the keyword rides the pump's one selector and its
-            // one duration (CR 611.2a), after it in printed order.
             return lowered([
                 {
                     op: "pump",
@@ -2202,16 +2193,6 @@ function lowerSentenceBody(
                     toughness,
                     duration: durationSpec(sentence.duration),
                 },
-                ...(sentence.grant !== undefined
-                    ? [
-                          {
-                              op: "grantAbility" as const,
-                              target: target.value,
-                              ability: sentence.grant.ability,
-                              duration: durationSpec(sentence.duration),
-                          },
-                      ]
-                    : []),
             ]);
         }
         case "animate": {
