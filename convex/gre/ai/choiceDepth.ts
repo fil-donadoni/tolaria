@@ -85,6 +85,8 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // CR 701.38 Vote (issue #2071) — one `choose-permanents` pick per voter.
     vote: true,
     coinFlip: true,
+    // CR 705 (issue #5519) — the Flip Sequence reveal, like `coinFlip`.
+    coinFlipSeries: true,
     divideIntoPiles: true,
     draw: true,
     hideaway: true,
@@ -122,8 +124,6 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     attach: false,
     becomeMonarch: false,
     captureBinding: false,
-    // CR 705 (issue #3813) — draws its bits inline and binds counts; no input.
-    coinFlipSeries: false,
     counter: false,
     counters: false,
     // CR 716.2a (issue #3234) — writes a field and emits an event; it asks the

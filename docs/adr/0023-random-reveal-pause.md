@@ -191,3 +191,34 @@ callers that flip more than once are later slices of PRD #4433.
 Rejected: encoding whole records in `collectedChoices`. Its values are string
 lists read by every resume path, and the flippers are already stable across
 replays, so a record encoding would hold a second copy of what the caller passes.
+
+## Amendment II (issue #5519) — a series is shown flip by flip
+
+`coinFlipSeries` (ADR 0144) now flips through the Flip Sequence primitive, so
+Squee's Revenge suspends ONCE on a reveal carrying every flip it made, and its
+`flips` / `wins` / `losses` bindings are written after the ack. The Op's
+bindings, its stop rule and its draws are unchanged.
+
+- **Playback.** The overlay plays the list round by round: toss, HOLD the
+  result, toss the next. The shared pacing table (`src/lib/random-reveal-pacing.ts`,
+  read by the overlay, the lingering viewer overlay and the vs-AI driver) is
+  `tossMs(i) = max(650, round(1600 · 0.7^i))`, `holdMs(i) = max(650, 1100 − 120·i)`
+  and `sequenceDurationMs(n) = Σ tossMs(i) + Σ_{i<n−1} holdMs(i) + 1400`. The
+  final hold grows from 800 to 1400 ms, for single flips too.
+- **History.** Landed flips pile up under the coin as numbered mini-coins
+  ("1 · Win", "2 · Lose"). The series length is not shown until it ends, when
+  "not flipped" ghosts fill up to the number the card announced and the
+  consequence line appears. Click-to-end jumps to that state.
+- **`flipLimit`.** The envelope gains one optional public field, the number the
+  effect announced (`FlipSequenceRequest.announcedLimit`), behind the heading
+  "Flip k of up to N". A series with no announced number shows no heading, so a
+  single flip's heading never hints at its length.
+- **Consequence.** A series' `realized.consequence` is derived from its flips
+  ("Every flip was won." / "Not every flip was won."), never authored per card;
+  what winning means is the Oracle excerpt above it.
+- **Bot.** A Bot flipper's ack waits `sequenceDurationMs(rounds)`. The vs-AI
+  liveness watchdog starts its interval after that wait, since a long series
+  outlasts `BOT_WATCHDOG_MS` by design.
+- **Summary toast.** Every reveal, a single flip included, yields a client-only
+  ~4 s toast (source, each flipper's tally, consequence) once it stops being the
+  prompt. No engine state.
