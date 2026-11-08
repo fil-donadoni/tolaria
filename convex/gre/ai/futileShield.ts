@@ -744,7 +744,8 @@ const HARMLESS_OPS: ReadonlySet<string> = new Set([
  *   * no readable script: a delayed trigger, a modal object with chosen
  *     modes, an unknown source, an empty script (`stackItemScript`); a
  *     permanent spell too, unlike the shield prune — its body is not a script;
- *   * an Op outside the non-tapping harmless set, a construct, a mode;
+ *   * an Op outside the non-tapping harmless set, a construct, a modal
+ *     `optionChoice` (even one whose every mode is harmless);
  *   * an Op that names an object (`target`, `to`, `source`, `match`) or a
  *     player other than the object's controller, or lets another player
  *     choose (a fateseal `chooser`, CR 701.29a).
@@ -767,6 +768,8 @@ const OBJECT_SELECTOR_KEYS = ["target", "to", "source", "match"] as const;
 /** The Op's only subject is the resolving object's controller (`"controller"`
  *  — CR 109.5: "you" on an object is its controller). */
 function actsOnlyOnItsController(op: EffectOp): boolean {
+    // Its mode is picked as it resolves (CR 608.2d): not read here.
+    if (!("op" in op) || op.op === "optionChoice") return false;
     const fields = op as Record<string, unknown>;
     if (fields.player !== "controller") return false;
     if ("chooser" in fields && fields.chooser !== "controller") return false;

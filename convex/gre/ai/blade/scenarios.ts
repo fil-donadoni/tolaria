@@ -6673,6 +6673,250 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #4757: the fire half of the issue-#2248 hold. At the opponent's end step (CR 513.1) the flash body is cast; the search already does so on mean reward (green under the no-rule variant).",
     },
+    // --- Keep mana open through an inert stack (issue #7828) ---------------
+    // An opposing object that cannot touch the bot's side (a surveil trigger)
+    // is no reason to act now: priority comes back after it resolves
+    // (CR 117.3b), so the own-side instant waits exactly as on an empty
+    // stack. The board is the user report's, trimmed.
+    {
+        label: "keep mana open: holds Tamiyo's Safekeeping through the opponent's surveil trigger",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a removal spell aimed at the creature on the stack",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Undercity Sewers", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Starting Town", owner: "me", zone: "battlefield" },
+                { name: "Godless Shrine", owner: "me", zone: "battlefield" },
+                {
+                    name: "Underground Mortuary",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Force of Will", owner: "me", zone: "hand" },
+                { name: "Mana Leak", owner: "me", zone: "hand" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Celestial Colonnade",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Spara's Headquarters",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Gaea's Cradle", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Adeline, Resplendent Cathar",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "The One Ring", owner: "opp", zone: "hand" },
+                { name: "Tamiyo's Safekeeping", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 11,
+            life: { me: 14, opp: 20 },
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+        },
+        // The opponent's surveil land enters: its trigger is on the stack and
+        // the active player passes, so the bot holds priority over it.
+        setup: [
+            {
+                kind: "etb-trigger",
+                card: "Underground Mortuary",
+                controller: "me",
+            },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Tamiyo's Safekeeping" }],
+        },
+        note: "Issue #7828: the user report. With only the opponent's surveil trigger on the stack the bot cast its one protection spell on Adeline, wasting it: any stack object switched off both `last-window-deferral` (clause 3 of the deferral perimeter) and the quiet-position reading that zeroes a this-turn grant. `isInertStackItemFor` reads the trigger as acting on its controller alone, so the cast waits. Proof of failure: before the fix every seed casts (`material-tiebreak`). Mirror: the entry below.",
+    },
+    {
+        label: "keep mana open: casts Tamiyo's Safekeeping in response to removal aimed at its creature",
+        pairOf: {
+            anchor: "keep mana open: holds Tamiyo's Safekeeping through the opponent's surveil trigger",
+            discriminant: {
+                kind: "stack",
+                detail: "a removal spell aimed at the creature on the stack",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Undercity Sewers", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Starting Town", owner: "me", zone: "battlefield" },
+                { name: "Godless Shrine", owner: "me", zone: "battlefield" },
+                {
+                    name: "Underground Mortuary",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Force of Will", owner: "me", zone: "hand" },
+                { name: "Mana Leak", owner: "me", zone: "hand" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Celestial Colonnade",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Spara's Headquarters",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Gaea's Cradle", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Adeline, Resplendent Cathar",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "The One Ring", owner: "opp", zone: "hand" },
+                { name: "Tamiyo's Safekeeping", owner: "opp", zone: "hand" },
+                { name: "Doom Blade", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 11,
+            life: { me: 14, opp: 20 },
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+        },
+        // The opponent casts Doom Blade at Adeline; the `cast` step passes
+        // the caster's window, so the bot holds priority over it.
+        setup: [
+            {
+                kind: "cast",
+                card: "Doom Blade",
+                by: "me",
+                target: "Adeline, Resplendent Cathar",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Tamiyo's Safekeeping",
+                    target: "Adeline, Resplendent Cathar",
+                },
+            ],
+        },
+        note: "Issue #7828, the discriminating twin: a destroy spell aimed at Adeline can reach the bot's side, so the stack is not inert and indestructible (CR 702.12b) answers it now. The hold above must never become a mute button.",
+    },
+    {
+        label: "keep mana open: holds Impulse through the opponent's surveil trigger",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
+        },
+        spec: {
+            cards: [
+                { name: "Undercity Sewers", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Starting Town", owner: "me", zone: "battlefield" },
+                { name: "Godless Shrine", owner: "me", zone: "battlefield" },
+                {
+                    name: "Underground Mortuary",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Force of Will", owner: "me", zone: "hand" },
+                { name: "Mana Leak", owner: "me", zone: "hand" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Celestial Colonnade",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Spara's Headquarters",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Gaea's Cradle", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Adeline, Resplendent Cathar",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "The One Ring", owner: "opp", zone: "hand" },
+                { name: "Impulse", owner: "opp", zone: "hand" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 11,
+            life: { me: 14, opp: 20 },
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+        },
+        // The opponent's surveil land enters: its trigger is on the stack and
+        // the active player passes, so the bot holds priority over it.
+        setup: [
+            {
+                kind: "etb-trigger",
+                card: "Underground Mortuary",
+                controller: "me",
+            },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Impulse" }],
+        },
+        note: "Issue #7828: the class, not the card. A draw instant protects nothing, yet held the same way the entries above hold it in the bot's own main: the surveil trigger is inert for the bot, so the cast waits for the last window. Proof of failure: before the fix every seed casts (`material-tiebreak`).",
+    },
     // --- Removal / response timing (issue #4765, PRD #4754) ----------------
     // Report-only measurements of whether the SEARCH already times
     // interaction: removal and combat responses are outside the deferral

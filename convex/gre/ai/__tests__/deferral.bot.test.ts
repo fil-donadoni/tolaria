@@ -44,6 +44,7 @@ const GROWTH = getCardByName("Giant Growth").id;
 const WALL = getCardByName("Wall of Stone").id;
 const RITUAL = getCardByName("Dark Ritual").id;
 const HIBERNATION = getCardByName("Hibernation").id;
+const DIVINATION = getCardByName("Divination").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -261,6 +262,42 @@ describe("not a response", () => {
         pushSpell(state, BOLT, "p2", [{ type: "player", id: "p1" }]);
         expect(isDeferrableAction(state, "p1", cast("impulse"))).toBe(false);
     });
+
+    it("reads an inert opposing stack as empty only under `throughInertStack` (CR 117.3b)", () => {
+        const through = { throughInertStack: true };
+        const state = board({ hand: [card(IMPULSE, "impulse")] });
+        // An opposing draw spell acts on its controller alone.
+        pushSpell(state, DIVINATION, "p2");
+        // The Verdict lowering's strict reading is unchanged.
+        expect(isDeferrableAction(state, "p1", cast("impulse"))).toBe(false);
+        expect(isDeferrableAction(state, "p1", cast("impulse"), through)).toBe(
+            true
+        );
+        // One object that can reach the holder's side refuses the whole stack.
+        pushSpell(state, BOLT, "p2", [{ type: "player", id: "p1" }]);
+        expect(isDeferrableAction(state, "p1", cast("impulse"), through)).toBe(
+            false
+        );
+    });
+
+    it("never defers a pre-attack grant through an inert stack (CR 508.1a)", () => {
+        const through = { throughInertStack: true };
+        const state = board({
+            hand: [card(SPEED, "speed")],
+            battlefield: [
+                makeInstance(BEARS, {
+                    id: "sick",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: true,
+                }),
+            ],
+        });
+        pushSpell(state, DIVINATION, "p2");
+        const grant = cast("speed", [{ type: "permanent", id: "sick" }]);
+        expect(isPreAttackGrant(state, "p1", grant, through)).toBe(true);
+        expect(isDeferrableAction(state, "p1", grant, through)).toBe(false);
+    });
 });
 
 describe("no attack declared (CR 508.1)", () => {
@@ -450,6 +487,15 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
     it("refuses a ritual: its mana empties with the step (CR 106.4 / 500.5)", () => {
         const state = board({ hand: [card(RITUAL, "ritual")] });
         expect(waitsUnchanged(state, "p1", cast("ritual"))).toBe(false);
+    });
+
+    it("answers through an inert opposing object on the stack (CR 117.3b)", () => {
+        const draw = board({ hand: [card(IMPULSE, "impulse")] });
+        pushSpell(draw, DIVINATION, "p2");
+        expect(waitsUnchanged(draw, "p1", cast("impulse"))).toBe(true);
+        const ritual = board({ hand: [card(RITUAL, "ritual")] });
+        pushSpell(ritual, DIVINATION, "p2");
+        expect(waitsUnchanged(ritual, "p1", cast("ritual"))).toBe(false);
     });
 
     it("refuses an untargeted effect that reaches the opponent's side", () => {
