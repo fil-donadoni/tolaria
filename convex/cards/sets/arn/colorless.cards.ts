@@ -158,6 +158,7 @@ export const elephantGraveyard = defineCard(() => ({
     ],
 }));
 
+// hand-tail: {T}: Draw a card. Activate only if you have exactly seven cards in hand. (#8505)
 export const libraryOfAlexandria = defineCard(() => ({
     id: "ee266113-34ce-4189-84e7-ee2c86a2722c",
     rarity: "uncommon",

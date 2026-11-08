@@ -25,6 +25,7 @@ import { defineCard, BASIC_LAND_SUBTYPES } from "../../types";
 //    type", `lea/blue.cards.ts`. Once the subtype is set, the land's `{T}: Add
 //    [colour]` mana ability is INTRINSIC (`getBasicLandMana` reads
 //    live/effective subtypes) — no `activatedAbilities` needed.
+// hand-tail: As this land enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped. (#8505)
 export const multiversalPassage = defineCard(() => ({
     id: "f5fb426a-5618-4dd4-9c51-0cc847be8c1d",
     name: "Multiversal Passage",

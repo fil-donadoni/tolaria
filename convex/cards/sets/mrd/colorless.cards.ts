@@ -39,6 +39,7 @@ const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
 // choices, Fellwar Stone's own mechanism) reads them back to offer exactly
 // the exiled card's colours; a card with no colours (or no imprint) offers
 // none.
+// hand-tail: {T}: Add one mana of any of the exiled card's colors. (#8505)
 export const chromeMox = defineCard(() => ({
     id: CHROME_MOX_ID,
     name: "Chrome Mox",

@@ -22,6 +22,7 @@ import { defineCard } from "../../types";
 // simply two separate `activatedAbilities` entries, each carrying its own
 // cost. `entersTappedUnless` reads `LandEntryStateView.activePlayerId` +
 // each player's `turnsTaken` directly — see the field-level fix below.
+// hand-tail: This land enters tapped unless it's your first, second, or third turn of the game. (#8505)
 export const startingTown = defineCard(() => ({
     id: "fc7d1912-7e27-49ef-bd98-375d975a42b0",
     name: "Starting Town",

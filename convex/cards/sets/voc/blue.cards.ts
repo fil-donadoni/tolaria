@@ -12,6 +12,7 @@ const OCCULT_EPIPHANY_ID = "6920c895-bc98-4871-a53f-219fa27a74e5";
 // (irreversible), then the discard pick — the discarded cards' types are read
 // from the hand BEFORE they move, and one flying Spirit is made per distinct
 // card type among them.
+// hand-tail: Draw X cards, then discard X cards. Create a 1/1 white Spirit creature token with flying for each card type among cards discarded this way. (#8505)
 export const occultEpiphany = defineCard(() => ({
     id: OCCULT_EPIPHANY_ID,
     name: "Occult Epiphany",

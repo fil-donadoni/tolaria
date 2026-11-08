@@ -56,6 +56,7 @@ export const ignobleHierarch = defineCard(() => ({
 // then reads the announced slot via `ctx.targets[0]` and hands its player id
 // to `putGraveyardOnBottomOfLibrary`, the CR-faithful "bottom of library in a
 // random order" bulk move (seeded PRNG, knowledge cleared — ADR 0026).
+// hand-tail: Evoke—Exile a green card from your hand. (#8505)
 export const endurance = defineCard(() => ({
     id: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
     rarity: "mythic",

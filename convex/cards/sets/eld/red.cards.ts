@@ -144,8 +144,8 @@ export const robberOfTheRich = defineCard(() => ({
 // the game-scoped anti-prevention clause is a brand-new Op this slice mints, so
 // the grammar could not have had a rule for it. Named as fragments rather than
 // baselined — a new card cannot be added to that baseline.
-// compiler-gap: "Whenever this creature becomes the target of a spell, this creature deals 2 damage to that spell's controller." (#2693)
-// compiler-gap: "Damage can't be prevented this turn." (#2693)
+// hand-tail: "Whenever this creature becomes the target of a spell, this creature deals 2 damage to that spell's controller." (#8505)
+// hand-tail: "Damage can't be prevented this turn." (#8505)
 export const bonecrusherGiant = defineCard(() => ({
     id: "ff984a4c-1818-4f8f-a9d7-fce57e77937d", // ELD 115
     rarity: "rare",

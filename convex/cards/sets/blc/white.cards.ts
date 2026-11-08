@@ -40,6 +40,7 @@ import { RABBIT_TOKEN } from "../../sharedTokens";
 // EFFECTIVE power through the layer system, so the Ravenous counters (and any
 // other pump) are included, which is what "equal to this creature's power"
 // means (CR 613). Ouroboroid (`sets/eoe/green.ts`) is the reference shape.
+// hand-tail: Whenever this creature attacks, create a number of 1/1 white Rabbit creature tokens equal to this creature's power. (#8505)
 export const jackedRabbit = defineCard(() => ({
     id: "2c695df6-6bf2-4e6b-8500-e3116137ca27",
     name: "Jacked Rabbit",

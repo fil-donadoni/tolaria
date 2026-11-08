@@ -24,6 +24,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
  *  itself is never eligible (CR 601.2a — it is on the stack by then). With an
  *  empty hand AND 3 or less life NEITHER leg is payable, so the spell is not
  *  castable at all (CR 601.2h). */
+// hand-tail: As an additional cost to cast this spell, discard a card or pay 3 life. (#8505)
 export const bitterTriumph = defineCard(() => ({
     id: "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
     name: "Bitter Triumph",
@@ -49,19 +50,19 @@ export const bitterTriumph = defineCard(() => ({
     effects: [{ op: "destroy", target: { target: 0 } }],
 }));
 
-// Deep-Cavern Bat — {1}{B} Creature — Bat, 1/1 (LCI, issue #2523).
+// Deep-Cavern Bat — {1}{B} Creature — Bat, 1/1 (LCI).
 //
 // Elite Spellbinder's script (`stx/white.cards.ts`) minus its `grantCastFromExile`
 // clause, plus the linked-exile round trip Tidehollow Sculler ships
-// (`ala/multicolor.cards.ts`, issue #2522). No new Op, no new `SpellContext`
+// (`ala/multicolor.cards.ts`). No new Op, no new `SpellContext`
 // primitive, no `resolve()`:
 //
-//   - `lookHand` (CR 400.2, issue #2383) — the PRIVATE whole-hand look. Not
+//   - `lookHand` (CR 400.2) — the PRIVATE whole-hand look. Not
 //     redundant with the pick below: the look is its OWN game action and
 //     still happens when the pick never raises (an all-lands hand matches the
 //     nonland filter nowhere, so no choice is offered per CR 608.2b and the
 //     Bat has still looked), and the knowledge it grants OUTLIVES the pick
-//     window that `handPickZoneOwner` opens (issue #1698). It is a PRIVATE
+//     window that `handPickZoneOwner` opens. It is a PRIVATE
 //     look, so it must not become the Thoughtseize template's public
 //     `reveal` (CR 701.20a): the hand is a hidden zone (CR 400.2) and the
 //     grant is per-viewer (`markKnown`, ADR 0026).
@@ -71,7 +72,7 @@ export const bitterTriumph = defineCard(() => ({
 //     range, not a CR clause. Chooser is the controller and
 //     zone owner the announced opponent (`zoneOwnerId`).
 //   - `moveZone` `cards` shape, `from: "hand"` -> `to: "exile"`, with
-//     `linkToSource: true` (issue #1947) stamping `exiledBySourceId` = this
+//     `linkToSource: true` stamping `exiledBySourceId` = this
 //     creature's own instance (CR 607 linked abilities).
 //   - `leftTrigger` running the sixth `moveZone` shape,
 //     `target: { exiledWithSource: true }` -> `to: "hand"` (issue #1323),
@@ -114,8 +115,8 @@ export const bitterTriumph = defineCard(() => ({
 // The Oracle compiler has no grammar for either printed line yet, so Guard C
 // is satisfied by declaring the fragments rather than by a round trip
 // (PRD #2693).
-// compiler-gap: When this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield. (#2693)
-// compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
+// hand-tail: When this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield. (#8505)
+// hand-tail: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#8505)
 export const deepCavernBat = defineCard(() => ({
     id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
     name: "Deep-Cavern Bat",

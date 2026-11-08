@@ -15,6 +15,7 @@ import { unearthAbility } from "../../abilities/unearth";
 // CR 605 activated ability with a self-sacrifice cost (DSL `exile` Op). Both
 // Ops are already interpreter-exercised — no hand-written test required
 // (per-Op regime, ADR 0046).
+// hand-tail: {G}, Sacrifice this creature: Exile target noncreature artifact or noncreature enchantment. (#8505)
 export const haywireMite = defineCard(() => ({
     id: "847a175e-ead1-4596-baf3-5f7f57859e0b",
     name: "Haywire Mite",

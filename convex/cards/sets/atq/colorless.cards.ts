@@ -1277,6 +1277,7 @@ export const ashnodsAltar = defineCard(() => ({
 // (restrictionAllowsSpell). It can never pay for an activated ability or a
 // non-artifact spell. Per ADR 0022 this reuses the restricted-mana storage,
 // serialization, emptying, and settlement machinery as-is — no new subsystem.
+// hand-tail: {T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells. (#8505)
 export const mishrasWorkshop = defineCard(() => ({
     id: "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
     rarity: "rare",

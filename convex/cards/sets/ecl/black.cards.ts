@@ -121,6 +121,7 @@ function moonshadowRemoveCounter(): TriggeredAbility {
     };
 }
 
+// hand-tail: Whenever one or more permanent cards are put into your graveyard from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter from this creature. (#8505)
 export const moonshadow = defineCard(() => ({
     id: "2573e694-eaa0-42ca-b470-2ab507cbcec1",
     name: "Moonshadow",

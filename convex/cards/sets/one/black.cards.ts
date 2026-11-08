@@ -18,6 +18,7 @@ import { defineCard } from "../../types";
 // resolves directly to `"opponent"` (2-player-only scope, no `forEach` needed —
 // Syphon Soul precedent, `convex/cards/sets/leg/black.cards.ts`). The nontoken/token
 // split is the `isToken` filter field (issue #920).
+// hand-tail: Choose one — • Each opponent sacrifices a nontoken creature of their choice. • Each opponent sacrifices a creature token of their choice. • Each opponent sacrifices a planeswalker of their choice. (#8505)
 export const sheoldredsEdict = defineCard(() => ({
     id: "a9225cc3-90f0-448f-a8d9-7c6c2796d077",
     name: "Sheoldred's Edict",

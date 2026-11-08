@@ -151,6 +151,7 @@ const PHELIA_ID = "55707746-da6e-46e5-a5ca-7ac843fdc38e";
 // passes an explicit `controllerId` override to `returnToBattlefield` (a
 // "steal" flicker) still branches correctly, because the check reads
 // control AFTER the return, not ownership captured before it.
+// hand-tail: Whenever {self} attacks, exile up to one other target nonland permanent. At the beginning of the next end step, return that card to the battlefield under its owner's control. If it entered under your control, put a +1/+1 counter on {self}. (#8505)
 export const phelia = defineCard(() => ({
     id: PHELIA_ID,
     name: "Phelia, Exuberant Shepherd",
@@ -423,7 +424,7 @@ const CONTROLS_OTHER_RED_PERMANENT: EffectPredicate = {
 //
 // Hand-written under Guard C: the oracle compiler refuses the transform
 // layout as a whole (the Grammar Gap below); every clause here is DSL.
-// compiler-gap: Legendary Creature — Cat Warrior // Legendary Planeswalker — Ajani (#7217)
+// hand-tail: Legendary Creature — Cat Warrior // Legendary Planeswalker — Ajani (#8505)
 export const ajaniNacatlPariah = defineCard(() => ({
     id: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
     name: "Ajani, Nacatl Pariah",

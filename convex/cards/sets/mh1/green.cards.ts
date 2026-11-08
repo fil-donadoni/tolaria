@@ -14,6 +14,7 @@ import { levelBandStatics, levelUpAbility } from "../../abilities/levelUp";
 // targets ({ target: 0 } / { target: 1 }); an unchosen second target resolves
 // to nothing and its Op is skipped (CR 608.2b), so 0/1/2 targets all work
 // (ADR 0045, DSL-first).
+// hand-tail: Destroy up to two target artifacts and/or enchantments. (#8505)
 export const forceOfVigor = defineCard(() => ({
     id: "017c415b-d635-43c6-92b8-8c95d1c4ff8d", // MH1 164
     rarity: "rare",

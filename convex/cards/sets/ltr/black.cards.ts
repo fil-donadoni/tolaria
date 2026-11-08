@@ -30,6 +30,7 @@ const ORCISH_BOWMASTERS_TRIGGER =
 // (it would wrongly exempt an opponent's first upkeep draw, and wrongly punish
 // their draw-step draw on any turn they drew earlier), and the CR 504.1
 // turn-based-action flag is the only faithful reading.
+// hand-tail: When this creature enters and whenever an opponent draws a card except the first one they draw in each of their draw steps, this creature deals 1 damage to any target. Then amass Orcs 1. (#8505)
 export const orcishBowmasters = defineCard(() => ({
     id: "7c024bae-5631-4e20-ac69-df392ac9e109",
     name: "Orcish Bowmasters",

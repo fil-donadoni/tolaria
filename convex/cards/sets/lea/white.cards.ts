@@ -199,6 +199,7 @@ function balanceEqualizeHand(ctx: SpellContext): void {
     }
 }
 
+// hand-tail: Each player chooses a number of lands they control equal to the number of lands controlled by the player who controls the fewest, then sacrifices the rest. Players discard cards and sacrifice creatures the same way. (#8505)
 export const balance = defineCard(() => ({
     id: "6f9ea46a-411f-40ce-a873-a905180093f4",
     rarity: "rare",

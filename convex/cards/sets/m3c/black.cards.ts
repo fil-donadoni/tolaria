@@ -44,6 +44,7 @@ import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 // the same channel Chain Lightning uses to survive an irreversible op mid-
 // resolution); step 2 offers the optional creature retrieval, restricted to
 // exactly those milled ids via `candidateIds` (never the whole graveyard).
+// hand-tail: Barrowgoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1. (#8505)
 export const barrowgoyf = defineCard(() => ({
     id: "f979fc86-2c7e-49b3-965e-607a203cbfb1",
     name: "Barrowgoyf",

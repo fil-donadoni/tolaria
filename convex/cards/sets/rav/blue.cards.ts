@@ -8,6 +8,7 @@ import { defineCard } from "../../types";
 // owner's hand" redirect clause, followed by an unconditional draw.) An
 // unconditional counter + draw — no mayPay/if — so the effect is two Ops in
 // sequence.
+// hand-tail: Counter target spell. If that spell is countered this way, put it into its owner's hand instead of into that player's graveyard. (#8505)
 export const remand = defineCard(() => ({
     id: "581f3780-c480-48c6-b15c-1618f2feccb9",
     rarity: "uncommon",

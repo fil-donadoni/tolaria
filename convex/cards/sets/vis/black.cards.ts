@@ -120,6 +120,7 @@ function sourceIsOnBattlefield(
 // `LeavingPermanent.attachedToBeforeLeave` (CR 603.10a — leaves-the-battlefield
 // abilities look back in time), a `leftTrigger`-only payload the Effect Script
 // interpreter has no ref selector for.
+// hand-tail: When this enchantment enters, if it's on the battlefield, it becomes an Aura with "enchant creature put onto the battlefield with {self}." Put target creature card from a graveyard onto the battlefield under your control and attach this enchantment to it. When this enchantment leaves the battlefield, that creature's controller sacrifices it. (#8505)
 export const necromancy = defineCard(() => ({
     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
     name: "Necromancy",

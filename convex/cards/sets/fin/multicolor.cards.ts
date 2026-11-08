@@ -40,6 +40,7 @@ import { defineCard, PERMANENT_TYPES } from "../../types";
 // — this ability is reached ONLY through the activated-ability menu.
 const VIVI_ORNITIER_ID = "ecc1027a-8c07-44a0-bdde-fa2844cff694";
 
+// hand-tail: Whenever you cast a noncreature spell, put a +1/+1 counter on {self} and it deals 1 damage to each opponent. (#8505)
 export const viviOrnitier = defineCard(() => ({
     id: VIVI_ORNITIER_ID,
     name: "Vivi Ornitier",

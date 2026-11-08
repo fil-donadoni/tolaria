@@ -83,6 +83,7 @@ const MOX_OPAL_COLORS = ["W", "U", "B", "R", "G"] as const;
 // DSL fallback (no board-conditional colour narrowing needed here — unlike
 // Chrome Mox's imprint set, Mox Opal always offers all five colours once
 // active, so no `getManaChoices` override is needed).
+// hand-tail: Metalcraft — {T}: Add one mana of any color. Activate only if you control three or more artifacts. (#8505)
 export const moxOpal = defineCard(() => ({
     id: "6be9b1d5-9ab8-4adb-ba54-2c0117e842fa",
     name: "Mox Opal",

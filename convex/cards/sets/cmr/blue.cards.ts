@@ -20,6 +20,7 @@ import { TREASURE_TOKEN } from "../../sharedTokens";
 //     "{T}, Sacrifice this artifact: Add one mana of any color" mana ability
 //     ships via the token-scoped `activatedAbilities` passthrough (issue #778,
 //     `TREASURE_TOKEN` in `cards/sharedTokens.ts`).
+// hand-tail: If an opponent would draw a card except the first one they draw in each of their draw steps, instead you create a Treasure token. (#8505)
 export const hullbreacher = defineCard(() => ({
     id: "4df8aabc-7fcb-4b7b-980b-18f499e6c170",
     name: "Hullbreacher",

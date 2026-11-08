@@ -34,6 +34,7 @@ export const lorienRevealed = defineCard(() => ({
 // power/toughness gate on a "spell" target that didn't exist before this
 // card). No mayPay/if — an unconditional counter, so the effect is a single
 // Op.
+// hand-tail: Counter target creature spell with power or toughness 2 or less. (#8505)
 export const sternScolding = defineCard(() => ({
     id: "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
     rarity: "uncommon",

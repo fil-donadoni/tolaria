@@ -23,6 +23,7 @@ import {
 // Op reads the announced graveyard card's printed values; CR 611.2a / 514.2 —
 // "until end of turn" is its timed form. CR 207.2c — Delirium is an ability
 // word: the rules weight is the printed restriction, carried as data.
+// hand-tail: This land enters tapped unless you control a Forest. (#8505)
 export const shiftingWoodland = defineCard(() => ({
     id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
     rarity: "rare",

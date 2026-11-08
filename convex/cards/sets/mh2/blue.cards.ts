@@ -18,6 +18,7 @@ import { affinityForArtifacts } from "../../abilities/affinity";
 // targeting foundation — `raiseTriggerTargetSelection` locks the target as the
 // trigger is put on the stack, offering only creature/planeswalker spells below
 // it. "Up to one" ⇒ min 0, so the controller may decline.
+// hand-tail: Evoke—Exile a blue card from your hand. (#8505)
 export const subtlety = defineCard(() => ({
     id: "701256d5-1389-48b7-9581-d6037209bd06",
     rarity: "mythic",

@@ -41,6 +41,7 @@ import { equipAbility, jobSelect } from "../../abilities/equipment";
 //    `event` form stays legal per the DSL's "no `$event` read on an
 //    array-event trigger" rule.
 //  - Equip cost is `{2}`, printed on its own with the flavour prefix.
+// hand-tail: Diana — Equip {2} (#8505)
 export const astrologiansPlanisphere = defineCard(() => ({
     id: "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6", // FIN 46
     name: "Astrologian's Planisphere",

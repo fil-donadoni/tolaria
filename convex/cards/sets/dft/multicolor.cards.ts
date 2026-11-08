@@ -31,6 +31,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // 2). The "reveal them" clause is a `reveal` Op on the picked cards (issue
 // #945, CR 701.20): it makes the found cards known to every player, placed
 // BEFORE the moveZone/shuffle so the knowledge rides them into hand.
+// hand-tail: When this creature enters, you may search your library for up to two artifact, creature, and/or enchantment cards with mana value 1 or less, reveal them, put them into your hand, then shuffle. (#8505)
 export const brightglassGearhulk = defineCard(() => ({
     id: "3dea5b45-925c-4732-8e9d-fa8232792736",
     name: "Brightglass Gearhulk",

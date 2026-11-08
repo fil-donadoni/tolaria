@@ -52,6 +52,7 @@ import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../emblems";
 // The back face's `activatedAbilities` are JSON-encoded into the synthesized
 // back-face definition id (`tokenDefinitionId`), so every one of them must be
 // pure data — no `getTargetRequirement` closure, no `resolve()`. All three are.
+// hand-tail: -9: You get an emblem with "Whenever you cast a spell, target opponent mills five cards." (#8505)
 export const jaceVrynsProdigy = defineCard(() => ({
     id: "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
     name: "Jace, Vryn's Prodigy",

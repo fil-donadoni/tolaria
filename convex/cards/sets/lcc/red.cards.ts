@@ -19,6 +19,7 @@ import { boastAbility } from "../../abilities/boast";
 // INFORMATION (CR 608.2h) read off the stack item's
 // `additionalSacrificeSnapshot` via the `sacrificed` EffectValue member —
 // NOT a live-battlefield `manaValue` selector, which could never reach it.
+// hand-tail: Boast — Sacrifice another creature or artifact: This creature deals damage equal to 2 plus the sacrificed permanent's mana value to any target. (#8505)
 export const broadsideBombardiers = defineCard(() => ({
     id: "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
     name: "Broadside Bombardiers",

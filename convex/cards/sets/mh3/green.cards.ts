@@ -92,6 +92,7 @@ export const fanaticOfRhonas = defineCard(() => ({
 // own `graveyard` leg). The Eldrazi Spawn is the shared
 // `ELDRAZI_SPAWN_TOKEN` spec (`sharedTokens.ts`), pinned to its own printed
 // Scryfall art.
+// hand-tail: Reveal the top four cards of your library. You may put a permanent card from among them into your hand. Put the rest into your graveyard. Create a 0/1 colorless Eldrazi Spawn creature token with "Sacrifice this token: Add {C}." (#8505)
 export const malevolentRumble = defineCard(() => ({
     id: "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
     rarity: "common",
