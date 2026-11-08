@@ -30,7 +30,7 @@ const packSlots = standardPackSlots(CUBE_SOURCE_KEY);
  *  diverge from the ground truth for a reason that has nothing to do with
  *  the scorer changing — exactly the spurious-divergence class issue #1613's
  *  fixup closed for Pick Ratings. */
-const getCardProfile = buildDraftLabCardProfile(packSlots, () => null);
+const getCardProfile = buildDraftLabCardProfile(packSlots);
 
 /** Builds the replay-engine seat input from a completed synthetic draft's
  *  final state — the SAME shape `eventProjection.ts` would hand the client

@@ -3,13 +3,21 @@
 // the checked-in files; the second proves it reds on a card missing either.
 import { describe, it, expect } from "vitest";
 import { buildCubePool, CUBE_SOURCE_KEY } from "../cube";
-import { getCardProfileFile } from "../cardProfilesCore";
+import {
+    getCardArchetypeFile,
+    getCardCapabilityFile,
+} from "../cardProfilesCore";
 import { getPickRatingFile } from "../pickRatings";
 import { cubePoolCoverageGaps } from "../cubePoolCoverage";
 
 describe("every Vintage Cube pool card has a Card Profile and a Pick Rating (issue #8274)", () => {
     it("no pool id lacks a profile or a rating", () => {
-        const profiles = getCardProfileFile(CUBE_SOURCE_KEY)!.profiles;
+        // Profiled = a row in EITHER layer's seed (ADR 0167): the split keeps
+        // a censused-empty card in both, so no census verdict drops out.
+        const profiles = {
+            ...getCardCapabilityFile().capabilities,
+            ...getCardArchetypeFile(CUBE_SOURCE_KEY)!.archetypes,
+        };
         const ratings = getPickRatingFile(CUBE_SOURCE_KEY)!.ratings;
         expect(
             cubePoolCoverageGaps(buildCubePool(), profiles, ratings)

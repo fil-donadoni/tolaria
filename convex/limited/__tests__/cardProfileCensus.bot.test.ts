@@ -7,30 +7,36 @@
 //      worth testing explicitly now that a real file exists);
 //   2. a profile edited through the Admin write boundary takes effect on the
 //      bot's next pick;
-//   3. scope isolation holds — a `vintage-cube` profile has no effect on a
-//      `lea` event, at BOTH layers (checked-in seed and database);
+//   3. scope isolation holds for ARCHETYPES — a `vintage-cube` Archetype row
+//      has no effect on a `lea` event, in the seed and in the database —
+//      while CAPABILITIES are scope-free and do reach it (ADR 0167 §1);
 //   4. reviewing a row measurably increases its contribution (ADR 0072's
 //      half-weight rule for `reviewed: false`, issue #1611's
 //      `UNREVIEWED_PROFILE_WEIGHT`).
 //
 // Pure functions throughout — no convex-test harness, same discipline as
 // `cardRatings.bot.test.ts` (the mutation shells are exercised through their
-// extracted pure pieces: `cardProfileWriteErrors`, `buildCardProfileRow`).
+// extracted pure pieces: `cardProfileWriteErrors`, `buildCardProfileRows`).
 import { describe, it, expect } from "vitest";
 import {
-    buildCardProfileRow,
-    buildDbProfileLookup,
+    buildCardProfileRows,
+    buildDbProfileLayers,
     buildScopeCardProfiles,
     cardProfileWriteErrors,
-    getAllCheckedInCardProfileFiles,
-    getCardProfile,
-    getCardProfileFile,
+    EMPTY_PROFILE_LAYERS,
+    getAllCheckedInCardArchetypeFiles,
+    getCardArchetypeFile,
+    getCardCapabilityFile,
+    getSeedCardArchetypes,
+    getSeedCardCapabilities,
     normalizeArchetypes,
     resolveEventCardProfile,
-    validateCardProfileFile,
+    toEditorCardProfile,
+    validateCardArchetypeFile,
+    validateCardCapabilityFile,
     type CardProfile,
-    type GetDbProfile,
-    type ScopedCardProfile,
+    type EditorCardProfile,
+    type ProfileLayers,
 } from "../cardProfilesCore";
 import {
     listScopeCards,
@@ -50,7 +56,8 @@ import { tryGetCardByName } from "../../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../../cards/colors";
 import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 
-const CUBE_FILE = getCardProfileFile(CUBE_SOURCE_KEY);
+const CUBE_ARCHETYPES = getCardArchetypeFile(CUBE_SOURCE_KEY);
+const CAPABILITIES = getCardCapabilityFile();
 
 /** Canonical `CardDefinition.id` for a cube card, by name — the census is
  *  keyed by id, so every assertion below resolves through the real registry
@@ -61,39 +68,62 @@ function cardId(name: string): string {
     return def.id;
 }
 
-/** The census row for a named cube card (throws when the card carries no
- *  row — every card these tests name is deliberately profiled). */
-function censusProfile(name: string): CardProfile {
-    const profile = getCardProfile(CUBE_SOURCE_KEY, cardId(name));
+/** The census rows for a named cube card, in the editor's one-profile
+ *  shape (throws when the card carries no row — every card these tests name
+ *  is deliberately profiled). */
+function censusProfile(name: string): EditorCardProfile {
+    const id = cardId(name);
+    const profile = toEditorCardProfile(
+        getSeedCardCapabilities(id),
+        getSeedCardArchetypes(CUBE_SOURCE_KEY, id)
+    );
     if (!profile) throw new Error(`test fixture: "${name}" has no seed row`);
     return profile;
 }
 
+/** The DB layers a sequence of editor saves would leave behind. */
+function dbAfterSaves(
+    ...saves: ReturnType<typeof buildCardProfileRows>[]
+): ProfileLayers {
+    return buildDbProfileLayers({
+        capabilities: saves.map((save) => save.capabilities),
+        archetypes: saves.map((save) => save.archetypes),
+    });
+}
+
 describe("Vintage Cube Card Profile census (issue #1614): every seeded Capability is a registry row", () => {
-    it("ships a non-empty checked-in seed file for the Vintage Cube scope", () => {
-        expect(CUBE_FILE).not.toBeNull();
-        expect(CUBE_FILE!.scope).toBe(CUBE_SOURCE_KEY);
-        expect(Object.keys(CUBE_FILE!.profiles).length).toBeGreaterThan(100);
+    it("ships a non-empty Capability file and a non-empty Vintage Cube Archetype file", () => {
+        expect(Object.keys(CAPABILITIES.capabilities).length).toBeGreaterThan(
+            100
+        );
+        expect(CUBE_ARCHETYPES).not.toBeNull();
+        expect(CUBE_ARCHETYPES!.scope).toBe(CUBE_SOURCE_KEY);
+        expect(Object.keys(CUBE_ARCHETYPES!.archetypes).length).toBeGreaterThan(
+            100
+        );
     });
 
-    it("the catalogue-wide guard sweep COVERS this file — it is no longer vacuous", () => {
-        // `capabilityRegistry.bot.test.ts` validates every file
-        // `getAllCheckedInCardProfileFiles` returns. Before this issue that
-        // collection was empty, so the guard passed without checking
-        // anything; this asserts the seed file is actually inside it.
-        const scopes = getAllCheckedInCardProfileFiles().map((f) => f.scope);
+    it("the Archetype guard sweep COVERS the cube file — it is not vacuous", () => {
+        // `archetypeRegistry.bot.test.ts` validates every file
+        // `getAllCheckedInCardArchetypeFiles` returns; a sweep over an empty
+        // collection passes without checking anything.
+        const scopes = getAllCheckedInCardArchetypeFiles().map((f) => f.scope);
         expect(scopes).toContain(CUBE_SOURCE_KEY);
     });
 
-    it("validates against the closed Capability vocabulary and the real card catalogue", () => {
-        expect(validateCardProfileFile(CUBE_FILE!)).toEqual({
+    it("both files validate against their closed vocabularies and the real card catalogue", () => {
+        expect(validateCardCapabilityFile(CAPABILITIES)).toEqual({
+            valid: true,
+            errors: [],
+        });
+        expect(validateCardArchetypeFile(CUBE_ARCHETYPES!)).toEqual({
             valid: true,
             errors: [],
         });
     });
 
     it("every provides/requires string is a registry row (the check, spelled out per row)", () => {
-        for (const [id, profile] of Object.entries(CUBE_FILE!.profiles)) {
+        for (const [id, profile] of Object.entries(CAPABILITIES.capabilities)) {
             for (const capability of [
                 ...profile.provides,
                 ...profile.requires,
@@ -106,9 +136,12 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
         }
     });
 
-    it("every generated row lands unreviewed (ADR 0072: LLM-seeded, human-reviewed)", () => {
-        for (const [id, profile] of Object.entries(CUBE_FILE!.profiles)) {
-            expect(profile.reviewed, id).toBe(false);
+    it("every generated row lands unreviewed, in both layers (ADR 0072: LLM-seeded, human-reviewed)", () => {
+        for (const [id, row] of Object.entries(CAPABILITIES.capabilities)) {
+            expect(row.reviewed, id).toBe(false);
+        }
+        for (const [id, row] of Object.entries(CUBE_ARCHETYPES!.archetypes)) {
+            expect(row.reviewed, id).toBe(false);
         }
     });
 
@@ -165,7 +198,7 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
 // Admin write boundary (`setCardProfile` / `clearCardProfile` pure pieces)
 // ─────────────────────────────────────────────────────────────────────────
 
-const EMPTY: CardProfile = {
+const EMPTY: EditorCardProfile = {
     archetypes: [],
     provides: [],
     requires: [],
@@ -179,13 +212,17 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
                 ...EMPTY,
                 provides: ["dies-value"],
             })
-        ).toEqual(['unregistered Capability provided: "dies-value"']);
+        ).toEqual([
+            `"${cardId("Reanimate")}" provides unregistered Capability "dies-value"`,
+        ]);
         expect(
             cardProfileWriteErrors(cardId("Reanimate"), {
                 ...EMPTY,
                 requires: ["graveyard-scaling"],
             })
-        ).toEqual(['unregistered Capability required: "graveyard-scaling"']);
+        ).toEqual([
+            `"${cardId("Reanimate")}" requires unregistered Capability "graveyard-scaling"`,
+        ]);
     });
 
     it("rejects a cardId that does not resolve to a real card", () => {
@@ -224,40 +261,53 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
         ).toEqual(["reanimator", "storm"]);
     });
 
-    it("buildCardProfileRow lowercases the scope and normalizes archetypes, carrying the rest verbatim", () => {
-        const row = buildCardProfileRow("VINTAGE-Cube", cardId("Griselbrand"), {
-            archetypes: ["Reanimator"],
+    it("buildCardProfileRows splits one save into a scope-free Capability row and a lowercased-scope Archetype row", () => {
+        const rows = buildCardProfileRows(
+            "VINTAGE-Cube",
+            cardId("Griselbrand"),
+            {
+                archetypes: ["Reanimator"],
+                provides: ["reanimatable", "reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        expect(rows.capabilities).toEqual({
+            cardId: cardId("Griselbrand"),
             provides: ["reanimatable"],
             requires: [],
             reviewed: true,
         });
-        expect(row.scope).toBe(CUBE_SOURCE_KEY);
-        expect(row.archetypes).toEqual(["reanimator"]);
-        expect(row.provides).toEqual(["reanimatable"]);
-        expect(row.reviewed).toBe(true);
+        expect(rows.archetypes).toEqual({
+            scope: CUBE_SOURCE_KEY,
+            cardId: cardId("Griselbrand"),
+            archetypes: ["reanimator"],
+            reviewed: true,
+        });
     });
 
     it("an Admin edit overrides the checked-in census row for the same (scope, cardId)", () => {
         const wurmId = cardId("Worldspine Wurm");
-        const edited = buildCardProfileRow(CUBE_SOURCE_KEY, wurmId, {
+        const edited = buildCardProfileRows(CUBE_SOURCE_KEY, wurmId, {
             ...censusProfile("Worldspine Wurm"),
             reviewed: true,
         });
         const lookup = resolveEventCardProfile(
             [CUBE_SOURCE_KEY],
-            buildDbProfileLookup([edited])
+            dbAfterSaves(edited)
         );
-        expect(lookup(wurmId)!.reviewed).toBe(true);
-        // …and the seed row itself is untouched: clearing the DB row falls
-        // straight back to the unreviewed census entry, no "revert" step.
-        expect(getCardProfile(CUBE_SOURCE_KEY, wurmId)!.reviewed).toBe(false);
+        expect(lookup(wurmId)!.capabilitiesReviewed).toBe(true);
+        expect(lookup(wurmId)!.archetypesReviewed).toBe(true);
+        // …and the seed rows themselves are untouched: clearing the DB rows
+        // falls straight back to the unreviewed census, no "revert" step.
+        expect(getSeedCardCapabilities(wurmId)!.reviewed).toBe(false);
     });
 
     it("the editor read query's pure core shows BOTH layers per card", () => {
         const cards: ScopeCard[] = [
             { cardId: cardId("Griselbrand"), name: "Griselbrand" },
         ];
-        const dbRow = buildCardProfileRow(
+        const dbRows = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             { ...EMPTY, archetypes: ["control"], reviewed: true }
@@ -265,20 +315,55 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
         const [row] = buildScopeCardProfiles(
             CUBE_SOURCE_KEY,
             cards,
-            buildDbProfileLookup([dbRow])
+            dbAfterSaves(dbRows)
         );
         expect(row.dbProfile!.archetypes).toEqual(["control"]);
+        expect(row.dbProfile!.reviewed).toBe(true);
         expect(row.seedProfile!.provides).toContain("reanimatable");
+        expect(row.seedProfile!.reviewed).toBe(false);
+    });
+
+    it("a ONE-layer override shows the other layer from the seed, never blank", () => {
+        const id = cardId("Griselbrand");
+        const [row] = buildScopeCardProfiles(
+            CUBE_SOURCE_KEY,
+            [{ cardId: id, name: "Griselbrand" }],
+            buildDbProfileLayers({
+                capabilities: [],
+                archetypes: [
+                    {
+                        scope: CUBE_SOURCE_KEY,
+                        cardId: id,
+                        archetypes: ["control"],
+                        reviewed: true,
+                    },
+                ],
+            })
+        );
+        expect(row.dbProfile!.archetypes).toEqual(["control"]);
+        expect(row.dbProfile!.provides).toEqual(row.seedProfile!.provides);
+        // the seed Capability half is unreviewed, so the card is not
+        // reviewed as a whole
+        expect(row.dbProfile!.reviewed).toBe(false);
     });
 
     it("the editor lists exactly the scope's cards — the SAME enumeration the Pick Rating editor uses", () => {
         const cards = listScopeCards(CUBE_SOURCE_KEY);
-        const rows = buildScopeCardProfiles(CUBE_SOURCE_KEY, cards, () => null);
+        const rows = buildScopeCardProfiles(
+            CUBE_SOURCE_KEY,
+            cards,
+            EMPTY_PROFILE_LAYERS
+        );
         expect(rows).toHaveLength(cards.length);
         // Every census row is reachable from the editor listing (a profiled
-        // card the editor can't show is a row no human can ever review).
+        // card the editor can't show is a row no human can ever review). The
+        // Capability census is the cube's today, so the cube editor lists
+        // every one of its cards too.
         const listed = new Set(rows.map((row) => row.cardId));
-        for (const id of Object.keys(CUBE_FILE!.profiles)) {
+        for (const id of [
+            ...Object.keys(CUBE_ARCHETYPES!.archetypes),
+            ...Object.keys(CAPABILITIES.capabilities),
+        ]) {
             expect(listed.has(id), id).toBe(true);
         }
     });
@@ -288,37 +373,45 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
 // Scope isolation + the bot-pick effect
 // ─────────────────────────────────────────────────────────────────────────
 
-describe("scope isolation (issue #1614 acceptance): a cube profile has no effect on a lea event", () => {
-    it("the SEED layer is scoped — the census answers for vintage-cube and only vintage-cube", () => {
+describe("scope isolation (ADR 0167): cube Archetypes never reach a lea event; Capabilities do", () => {
+    it("the SEED Archetype layer is scoped — the census answers for vintage-cube and only vintage-cube", () => {
         const wurmId = cardId("Worldspine Wurm");
-        expect(getCardProfile(CUBE_SOURCE_KEY, wurmId)).not.toBeNull();
-        expect(getCardProfile("lea", wurmId)).toBeNull();
+        expect(getSeedCardArchetypes(CUBE_SOURCE_KEY, wurmId)).not.toBeNull();
+        expect(getSeedCardArchetypes("lea", wurmId)).toBeNull();
     });
 
-    it("a lea event resolves nothing from the cube census, even for a card the cube profiles", () => {
-        const lookup = resolveEventCardProfile(["lea"], () => null);
-        expect(lookup(cardId("Worldspine Wurm"))).toBeNull();
+    it("a lea event reads the census's Capabilities for a cube-profiled card, but none of its Archetypes", () => {
+        const wurmId = cardId("Worldspine Wurm");
+        const inLea = resolveEventCardProfile(
+            ["lea"],
+            EMPTY_PROFILE_LAYERS
+        )(wurmId)!;
+        const inCube = resolveEventCardProfile(
+            [CUBE_SOURCE_KEY],
+            EMPTY_PROFILE_LAYERS
+        )(wurmId)!;
+        expect(inLea.provides).toEqual(inCube.provides);
+        expect(inLea.provides).toContain("value-on-death");
+        expect(inCube.archetypes.length).toBeGreaterThan(0);
+        expect(inLea.archetypes).toEqual([]);
     });
 
-    it("an Admin's cube DATABASE row does not leak into a lea event either", () => {
-        const row: ScopedCardProfile = buildCardProfileRow(
-            CUBE_SOURCE_KEY,
-            cardId("Griselbrand"),
-            { ...EMPTY, provides: ["reanimatable"], reviewed: true }
+    it("an Admin's cube DATABASE Archetype row does not leak into a lea event; its Capability row does", () => {
+        const id = cardId("Griselbrand");
+        const db = dbAfterSaves(
+            buildCardProfileRows(CUBE_SOURCE_KEY, id, {
+                ...EMPTY,
+                archetypes: ["control"],
+                provides: ["value-on-etb"],
+                reviewed: true,
+            })
         );
-        const getDbProfile: GetDbProfile = buildDbProfileLookup([row]);
+        const inLea = resolveEventCardProfile(["lea"], db)(id)!;
+        expect(inLea.archetypes).toEqual([]);
+        expect(inLea.provides).toEqual(["value-on-etb"]);
         expect(
-            resolveEventCardProfile(
-                ["lea"],
-                getDbProfile
-            )(cardId("Griselbrand"))
-        ).toBeNull();
-        expect(
-            resolveEventCardProfile(
-                [CUBE_SOURCE_KEY],
-                getDbProfile
-            )(cardId("Griselbrand"))
-        ).not.toBeNull();
+            resolveEventCardProfile([CUBE_SOURCE_KEY], db)(id)!.archetypes
+        ).toEqual(["control"]);
     });
 
     it("Pick Ratings and Card Profiles stay independent axes — a profile edit is not a rating edit", () => {
@@ -420,7 +513,10 @@ describe("a Card Profile edit takes effect on the bot's next pick (issue #1614 a
     const poolCards = poolCardsOf(["Griselbrand"]);
 
     it("the checked-in census already pairs Reanimate's `requires` with Griselbrand's `provides`", () => {
-        const seeded = resolveEventCardProfile([CUBE_SOURCE_KEY], () => null);
+        const seeded = resolveEventCardProfile(
+            [CUBE_SOURCE_KEY],
+            EMPTY_PROFILE_LAYERS
+        );
         expect(
             capabilityFitOf(pack, poolMeta, seeded, "Reanimate")
         ).toBeGreaterThan(0);
@@ -430,14 +526,14 @@ describe("a Card Profile edit takes effect on the bot's next pick (issue #1614 a
         // The exact correction the review flag exists to make possible: a
         // human decides the census over-claimed, clears `provides`, and the
         // bot stops seeing a synergy that was never there.
-        const corrected = buildCardProfileRow(
+        const corrected = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             { ...censusProfile("Griselbrand"), provides: [], reviewed: true }
         );
         const edited = resolveEventCardProfile(
             [CUBE_SOURCE_KEY],
-            buildDbProfileLookup([corrected])
+            dbAfterSaves(corrected)
         );
         expect(capabilityFitOf(pack, poolMeta, edited, "Reanimate")).toBe(0);
     });
@@ -461,21 +557,21 @@ describe("a Card Profile edit takes effect on the bot's next pick (issue #1614 a
         );
 
         // An Admin reviews the two census rows through the editor
-        // (`setCardProfile` -> a `cardProfiles` row -> the layered lookup
+        // (`setCardProfile` -> the two layer rows -> the layered lookup
         // `convex/limitedEvents.ts#loadEventCardProfile` injects into
         // `chooseBotPick`). The very next pick changes.
         const reviewed = resolveEventCardProfile(
             [CUBE_SOURCE_KEY],
-            buildDbProfileLookup([
-                buildCardProfileRow(CUBE_SOURCE_KEY, cardId("Griselbrand"), {
+            dbAfterSaves(
+                buildCardProfileRows(CUBE_SOURCE_KEY, cardId("Griselbrand"), {
                     ...censusProfile("Griselbrand"),
                     reviewed: true,
                 }),
-                buildCardProfileRow(CUBE_SOURCE_KEY, cardId("Reanimate"), {
+                buildCardProfileRows(CUBE_SOURCE_KEY, cardId("Reanimate"), {
                     ...censusProfile("Reanimate"),
                     reviewed: true,
-                }),
-            ])
+                })
+            )
         );
         const pickReviewed = chooseBotPick(pack, poolCards, evalMeta, {
             ...options,
@@ -493,23 +589,20 @@ describe("reviewing a row measurably increases its contribution (ADR 0072 half w
     const poolMeta = poolMetaOf(["Griselbrand"]);
 
     function fitWithReviewed(reviewed: boolean): number {
-        const rows = [
-            buildCardProfileRow(CUBE_SOURCE_KEY, cardId("Griselbrand"), {
+        const db = dbAfterSaves(
+            buildCardProfileRows(CUBE_SOURCE_KEY, cardId("Griselbrand"), {
                 ...censusProfile("Griselbrand"),
                 reviewed,
             }),
-            buildCardProfileRow(CUBE_SOURCE_KEY, cardId("Reanimate"), {
+            buildCardProfileRows(CUBE_SOURCE_KEY, cardId("Reanimate"), {
                 ...censusProfile("Reanimate"),
                 reviewed,
-            }),
-        ];
+            })
+        );
         return capabilityFitOf(
             pack,
             poolMeta,
-            resolveEventCardProfile(
-                [CUBE_SOURCE_KEY],
-                buildDbProfileLookup(rows)
-            ),
+            resolveEventCardProfile([CUBE_SOURCE_KEY], db),
             "Reanimate"
         );
     }
@@ -525,7 +618,7 @@ describe("reviewing a row measurably increases its contribution (ADR 0072 half w
         const seeded = capabilityFitOf(
             pack,
             poolMeta,
-            resolveEventCardProfile([CUBE_SOURCE_KEY], () => null),
+            resolveEventCardProfile([CUBE_SOURCE_KEY], EMPTY_PROFILE_LAYERS),
             "Reanimate"
         );
         expect(seeded).toBeLessThan(fitWithReviewed(true));

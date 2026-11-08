@@ -26,7 +26,8 @@ import {
 } from "@/lib/limited/draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
 import {
-    buildDbProfileLookup,
+    buildDbProfileLayers,
+    EMPTY_PROFILE_LAYER_ROWS,
     type GetCardProfile,
 } from "@convex/limited/cardProfilesCore";
 
@@ -74,7 +75,7 @@ export function useDraftLab(): UseDraftLabResult {
 
     // Live DB-layer Card Profiles for the current Pack Source scope(s) — a
     // read-only query, `undefined` while the first response hasn't landed
-    // yet (`buildDbProfileLookup(undefined ?? [])` degrades to "no DB rows",
+    // yet (`buildDbProfileLayers(EMPTY_PROFILE_LAYER_ROWS)` = "no DB rows",
     // the SAME empty-layer behavior the seed-only path already had, so a
     // slow/loading query never breaks rendering, only delays a badge).
     const scopeCardProfiles = useQuery(
@@ -85,7 +86,9 @@ export function useDraftLab(): UseDraftLabResult {
         () =>
             buildDraftLabCardProfile(
                 packSlots,
-                buildDbProfileLookup(scopeCardProfiles ?? [])
+                buildDbProfileLayers(
+                    scopeCardProfiles ?? EMPTY_PROFILE_LAYER_ROWS
+                )
             ),
         [packSlots, scopeCardProfiles]
     );

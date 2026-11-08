@@ -1,6 +1,7 @@
 /**
  * Vintage Cube pool completeness (issue #8274): every id of the implemented
- * pool owns a Card Profile (`data/card-profiles/vintage-cube.json`) AND a Pick
+ * pool owns a Card Profile (a row in `data/card-profiles/capabilities.json` or
+ * `data/card-profiles/archetypes/vintage-cube.json`) AND a Pick
  * Rating (`data/pick-ratings/vintage-cube.json`). Pure — the caller hands in
  * the pool and the two files' keys.
  *
