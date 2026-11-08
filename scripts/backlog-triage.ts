@@ -87,6 +87,7 @@ import {
     type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
+import { poolOracleIds } from "./oracle-compile";
 import { fetchBoardPriority, type BoardPriority } from "./lib/board-priority";
 import { gh } from "./lib/gh";
 import { BAND_UMBRELLAS } from "./lib/gap-issues";
@@ -454,7 +455,9 @@ export function runTriage(opts: {
         parseClaimRows(allowlist, ALLOWLIST_PATH),
         lock,
         gapIndex(lock).gapKeys,
-        byName
+        byName,
+        // A grammar gap's hand-written cards are served (issue #8945).
+        poolOracleIds()
     );
 
     const errors: string[] = [];

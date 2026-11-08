@@ -99,8 +99,8 @@ import {
 } from "./lib/gh";
 import {
     cardBandIndex,
+    gapCardBand,
     openCardIssueIndex,
-    strongestCardBand,
 } from "./lib/backlog-triage";
 import {
     applyUpdatedCuts,
@@ -175,6 +175,7 @@ import {
     type BotFindingVerdict,
 } from "./lib/bot-findings-merge";
 import { parseLockfile } from "./lib/oracle-lockfile";
+import { poolOracleIds } from "./oracle-compile";
 import {
     claimId,
     gapIndex,
@@ -1010,10 +1011,15 @@ export function buildAllFilings(
         opUserOracleIds(ctx.byName),
         inputs.gapKeys
     );
+    // A grammar gap's hand-written cards are served and lend no band
+    // (issue #8945): it falls to the lowest-ranked Target.
+    const playable = poolOracleIds();
     const strongest = (filing: GapFiling) =>
-        strongestCardBand(
+        gapCardBand(
+            filing.kind,
             reached.get(claimId(filing.kind, filing.key)) ?? [],
-            index
+            index,
+            playable
         );
     // A `never-chosen` card a `must` Test Position covers carries no Bot Gap
     // (ADR 0143, issue #4825): it lends neither its name nor its band.
