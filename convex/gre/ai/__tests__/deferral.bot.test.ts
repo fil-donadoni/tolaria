@@ -24,6 +24,8 @@ import {
 } from "../deferral";
 import { waitsUnchanged } from "../../search";
 import { timingPairClassifier } from "../verdicts/evalPairs";
+import { findBladeScenario } from "../blade/registry";
+import { runBladeScenario } from "../blade/runner";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";
 import {
@@ -601,5 +603,19 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
             };
             expect(waitsUnchanged(state, "p1", cast("strix"))).toBe(true);
         });
+    });
+});
+
+describe("the root rule holds through an inert opposing stack (CR 117.3b)", () => {
+    // The registry's own `must` entries, at one seed: the blade suite runs
+    // every seed, this proves the root rule's reading on the real search.
+    it.each([
+        "keep mana open: holds Tamiyo's Safekeeping through the opponent's surveil trigger",
+        "keep mana open: holds Impulse through the opponent's surveil trigger",
+    ])("%s", (label) => {
+        const entry = findBladeScenario(label);
+        expect(entry, label).toBeDefined();
+        const result = runBladeScenario({ ...entry!, seeds: [0xb1ade] });
+        expect(result.ok, result.failureMessage).toBe(true);
     });
 });
