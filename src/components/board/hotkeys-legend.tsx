@@ -20,9 +20,9 @@ const HOTKEYS: HotkeyRow[] = [
     },
     {
         keys: [<CornerDownLeft className="w-3.5 h-3.5" aria-label="Enter" />],
-        label: "Pass turn",
+        label: "Pass until opponent acts",
     },
-    { keys: ["P"], label: "Pass until opponent acts" },
+    { keys: ["P"], label: "Pass turn" },
     { keys: ["A"], label: "Auto-tap while paying a cost" },
     { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },

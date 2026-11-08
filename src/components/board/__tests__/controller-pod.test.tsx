@@ -1,6 +1,6 @@
 // Controller pod (#331): the collapsed surface that replaced the phase rail +
 // bottom-right action bar. Two contracts are tested here:
-//   1. Space/Enter/U hotkey routing (ported verbatim from the old
+//   1. Space/Enter/P/U hotkey routing (ported verbatim from the old
 //      action-bar.test.tsx — the logic moved into `useControllerActions`).
 //   2. Render-level beats: the plain-language phase label, the priority cue,
 //      and that each rendered action button dispatches the SAME mutation as the
@@ -32,6 +32,7 @@ vi.mock("@convex/_generated/api", () => ({
             autoTapForAttackTax: "autoTapForAttackTax",
             cancelAttackTax: "cancelAttackTax",
             endTurn: "endTurn",
+            passUntilAction: "passUntilAction",
             cancelAutoPass: "cancelAutoPass",
             submitMayPay: "submitMayPay",
         },
@@ -225,20 +226,63 @@ describe("ControllerPod Space hotkey", () => {
     });
 });
 
-describe("ControllerPod Enter / U hotkeys", () => {
-    it("Enter ends the turn when the player has priority", () => {
+describe("ControllerPod Enter / P / U hotkeys", () => {
+    // Issue #7423 swapped the two pass keys: Enter arms Pass Until Action,
+    // P passes the turn. Each test pins one key AND rules out the other's
+    // mutation, so a half-swap (both keys on one action) reds.
+    it("Enter arms Pass Until Action and never ends the turn", () => {
         renderPod();
         fireEvent.keyDown(window, { code: "Enter" });
+        const refs = calls.map((c) => c.ref);
+        expect(refs).toEqual(["passUntilAction"]);
+        expect(calls[0]?.args).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+        });
+        expect(refs).not.toContain("endTurn");
+    });
+
+    it("P ends the turn and never arms Pass Until Action", () => {
+        renderPod();
+        fireEvent.keyDown(window, { key: "p" });
+        const refs = calls.map((c) => c.ref);
         const endTurn = calls.find((c) => c.ref === "endTurn");
         expect(endTurn?.args).toMatchObject({
             gameId: "game-id",
             playerId: "me",
         });
+        expect(refs).not.toContain("passUntilAction");
     });
 
-    it("Enter cancels an active auto-pass instead of ending the turn", () => {
+    it("P with a modifier held does nothing", () => {
+        renderPod();
+        fireEvent.keyDown(window, { key: "p", metaKey: true });
+        expect(calls.map((c) => c.ref)).not.toContain("endTurn");
+    });
+
+    it("P never ends the turn while a cast is being paid", () => {
+        renderPod({
+            pendingCast: {
+                playerId: "me",
+                cardInstanceId: "c1",
+            } as never,
+        });
+        fireEvent.keyDown(window, { key: "p" });
+        expect(calls.map((c) => c.ref)).not.toContain("endTurn");
+    });
+
+    it("Enter cancels an active auto-pass instead of arming a new pass", () => {
         renderPod({ autoPassPlayers: ["me"] });
         fireEvent.keyDown(window, { code: "Enter" });
+        const refs = calls.map((c) => c.ref);
+        expect(refs).toContain("cancelAutoPass");
+        expect(refs).not.toContain("passUntilAction");
+        expect(refs).not.toContain("endTurn");
+    });
+
+    it("P cancels an active auto-pass instead of ending the turn", () => {
+        renderPod({ autoPassPlayers: ["me"] });
+        fireEvent.keyDown(window, { key: "p" });
         const refs = calls.map((c) => c.ref);
         expect(refs).toContain("cancelAutoPass");
         expect(refs).not.toContain("endTurn");
