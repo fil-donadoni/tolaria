@@ -495,7 +495,6 @@ const SELF_DEPARTURE_HEADS: ReadonlySet<TriggerHeadIR["kind"]> = new Set([
 /** CR 301.5a / CR 303.4b — the sentence acts on the source's host. */
 function readsHost(sentence: EffectSentenceIR): boolean {
     if (sentence.kind === "optional") return readsHost(sentence.effect);
-    if (sentence.kind === "upgrade-if-host-is") return true;
     return "subject" in sentence && sentence.subject.kind === "host";
 }
 

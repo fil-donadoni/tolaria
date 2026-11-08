@@ -5338,35 +5338,48 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 301.5a / CR 608.2c — "put a +1/+1 counter on equipped creature. If
-    // equipped creature is a Vampire, put two +1/+1 counters on it instead" on
+    // CR 301.5a / CR 115.10 — "put a +1/+1 counter on equipped creature" on
     // an Equipment's own triggered ability: the host is named by the text,
-    // never announced, so `counters` acts on `{ ref: "$host" }` and the
-    // replacement is an `if` on the host's live subtype. Exhibits both smoke
-    // skips the canned scenario raises for it — `counters` on a subject it
-    // does not seed, and an `if` reading the runtime `$host` binding — so this
-    // fixture clears the plain host-counters form too.
+    // never announced, so `counters` acts on `{ ref: "$host" }`. Exhibits the
+    // smoke skip the canned scenario raises for it — `counters` on a subject
+    // it does not seed — so this fixture is the evidence the grammar emits
+    // the host counter for every Equipment trigger printing it.
     {
         rule: "effect clause",
         card: {
-            oracleId: "8985e545-07c3-45f9-9058-fe3c1f50de04",
-            name: "Blade of the Bloodchief",
-            manaCost: "{1}",
-            typeLine: "Artifact — Equipment",
-            oracleText:
-                "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
-            layout: "normal",
+            oracleId: "4af03564-1d1c-4582-9248-cfe9551bad30",
+            name: "Ghost Lantern // Bind Spirit",
+            manaCost: "{B} // {1}{B}",
+            typeLine: "Artifact — Equipment // Instant — Adventure",
+            oracleText: "",
+            layout: "adventure",
+            faces: [
+                {
+                    name: "Ghost Lantern",
+                    manaCost: "{B}",
+                    typeLine: "Artifact — Equipment",
+                    oracleText:
+                        "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.\nEquip {1}",
+                },
+                {
+                    name: "Bind Spirit",
+                    manaCost: "{1}{B}",
+                    typeLine: "Instant — Adventure",
+                    oracleText:
+                        "Return target creature card from your graveyard to your hand. (Then exile this card. You may cast the artifact later from exile.)",
+                },
+            ],
         },
         expected: {
-            name: "Blade of the Bloodchief",
+            name: "Ghost Lantern",
             types: ["Artifact"],
             subtypes: ["Equipment"],
-            manaCost: { X: 1 },
+            manaCost: { B: 1 },
             oracleText:
-                "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
+                "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.\nEquip {1}",
             activatedAbilities: [
                 {
-                    id: "blade-of-the-bloodchief-equip",
+                    id: "ghost-lantern-equip",
                     oracleText: "Equip {1}",
                     cost: { mana: { generic: 1 } },
                     sorcerySpeedOnly: true,
@@ -5381,39 +5394,39 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
             compiledTriggeredAbilities: [
                 {
-                    id: "blade-of-the-bloodchief-trigger",
+                    id: "ghost-lantern-trigger",
                     oracleText:
-                        "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.",
-                    head: { kind: "died", scope: "any" },
+                        "Whenever a creature you control dies, put a +1/+1 counter on equipped creature.",
+                    head: { kind: "died", scope: "yours" },
                     effects: [
                         {
-                            op: "if",
-                            predicate: {
-                                objectMatchesFilter: { ref: "$host" },
-                                filter: { subtype: "Vampire" },
-                            },
-                            then: [
-                                {
-                                    op: "counters",
-                                    action: "add",
-                                    counter: "+1/+1",
-                                    target: { ref: "$host" },
-                                    count: 2,
-                                },
-                            ],
-                            else: [
-                                {
-                                    op: "counters",
-                                    action: "add",
-                                    counter: "+1/+1",
-                                    target: { ref: "$host" },
-                                    count: 1,
-                                },
-                            ],
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$host" },
+                            count: 1,
                         },
                     ],
                 },
             ],
+            insetSpell: {
+                kind: "adventure",
+                name: "Bind Spirit",
+                manaCost: { X: 1, B: 1 },
+                types: ["Instant"],
+                subtypes: ["Adventure"],
+                oracleText:
+                    "Return target creature card from your graveyard to your hand. (Then exile this card. You may cast the artifact later from exile.)",
+                effects: [
+                    { op: "moveZone", target: { target: 0 }, to: "hand" },
+                ],
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            },
         },
     },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
