@@ -1138,6 +1138,13 @@
             "needsSetup": true
         }
     ],
+    "Tamiyo's Safekeeping": [
+        {
+            "label": "keep mana open: casts Tamiyo's Safekeeping in response to removal aimed at its creature",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Teferi's Drake": [
         {
             "label": "phasing: casts a phasing creature rather than holding it",

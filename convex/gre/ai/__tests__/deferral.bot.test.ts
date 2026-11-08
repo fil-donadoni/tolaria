@@ -24,6 +24,8 @@ import {
 } from "../deferral";
 import { waitsUnchanged } from "../../search";
 import { timingPairClassifier } from "../verdicts/evalPairs";
+import { findBladeScenario } from "../blade/registry";
+import { runBladeScenario } from "../blade/runner";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";
 import {
@@ -44,6 +46,7 @@ const GROWTH = getCardByName("Giant Growth").id;
 const WALL = getCardByName("Wall of Stone").id;
 const RITUAL = getCardByName("Dark Ritual").id;
 const HIBERNATION = getCardByName("Hibernation").id;
+const DIVINATION = getCardByName("Divination").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -261,6 +264,42 @@ describe("not a response", () => {
         pushSpell(state, BOLT, "p2", [{ type: "player", id: "p1" }]);
         expect(isDeferrableAction(state, "p1", cast("impulse"))).toBe(false);
     });
+
+    it("reads an inert opposing stack as empty only under `throughInertStack` (CR 117.3b)", () => {
+        const through = { throughInertStack: true };
+        const state = board({ hand: [card(IMPULSE, "impulse")] });
+        // An opposing draw spell acts on its controller alone.
+        pushSpell(state, DIVINATION, "p2");
+        // The Verdict lowering's strict reading is unchanged.
+        expect(isDeferrableAction(state, "p1", cast("impulse"))).toBe(false);
+        expect(isDeferrableAction(state, "p1", cast("impulse"), through)).toBe(
+            true
+        );
+        // One object that can reach the holder's side refuses the whole stack.
+        pushSpell(state, BOLT, "p2", [{ type: "player", id: "p1" }]);
+        expect(isDeferrableAction(state, "p1", cast("impulse"), through)).toBe(
+            false
+        );
+    });
+
+    it("never defers a pre-attack grant through an inert stack (CR 508.1a)", () => {
+        const through = { throughInertStack: true };
+        const state = board({
+            hand: [card(SPEED, "speed")],
+            battlefield: [
+                makeInstance(BEARS, {
+                    id: "sick",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: true,
+                }),
+            ],
+        });
+        pushSpell(state, DIVINATION, "p2");
+        const grant = cast("speed", [{ type: "permanent", id: "sick" }]);
+        expect(isPreAttackGrant(state, "p1", grant, through)).toBe(true);
+        expect(isDeferrableAction(state, "p1", grant, through)).toBe(false);
+    });
 });
 
 describe("no attack declared (CR 508.1)", () => {
@@ -444,12 +483,57 @@ describe("timing pairs, both directions (issue #4764)", () => {
             false
         );
     });
+
+    it("reads an inert opposing stack as empty before the last window only (CR 117.3b)", () => {
+        const early = board({
+            hand: [card(IMPULSE, "impulse"), card(BEARS, "bears")],
+        });
+        pushSpell(early, DIVINATION, "p2");
+        expect(
+            timingPairClassifier(
+                early,
+                "p1",
+                moves
+            )({
+                rightIndex: PASS,
+                otherIndex: IMPULSE_CAST,
+            })
+        ).toBe(true);
+        // The fire half acts only on an empty stack: in the last window the
+        // strict reading keeps the pair in the fit.
+        const last = board({
+            hand: [card(IMPULSE, "impulse")],
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            phase: "END_STEP",
+        });
+        pushSpell(last, DIVINATION, "p2");
+        expect(
+            timingPairClassifier(
+                last,
+                "p1",
+                moves
+            )({
+                rightIndex: IMPULSE_CAST,
+                otherIndex: PASS,
+            })
+        ).toBe(false);
+    });
 });
 
 describe("waitsUnchanged — the root rule's premise: nothing in between it would change (issue #4757)", () => {
     it("refuses a ritual: its mana empties with the step (CR 106.4 / 500.5)", () => {
         const state = board({ hand: [card(RITUAL, "ritual")] });
         expect(waitsUnchanged(state, "p1", cast("ritual"))).toBe(false);
+    });
+
+    it("answers through an inert opposing object on the stack (CR 117.3b)", () => {
+        const draw = board({ hand: [card(IMPULSE, "impulse")] });
+        pushSpell(draw, DIVINATION, "p2");
+        expect(waitsUnchanged(draw, "p1", cast("impulse"))).toBe(true);
+        const ritual = board({ hand: [card(RITUAL, "ritual")] });
+        pushSpell(ritual, DIVINATION, "p2");
+        expect(waitsUnchanged(ritual, "p1", cast("ritual"))).toBe(false);
     });
 
     it("refuses an untargeted effect that reaches the opponent's side", () => {
@@ -555,5 +639,19 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
             };
             expect(waitsUnchanged(state, "p1", cast("strix"))).toBe(true);
         });
+    });
+});
+
+describe("the root rule holds through an inert opposing stack (CR 117.3b)", () => {
+    // The registry's own `must` entries, at one seed: the blade suite runs
+    // every seed, this proves the root rule's reading on the real search.
+    it.each([
+        "keep mana open: holds Tamiyo's Safekeeping through the opponent's surveil trigger",
+        "keep mana open: holds Impulse through the opponent's surveil trigger",
+    ])("%s", (label) => {
+        const entry = findBladeScenario(label);
+        expect(entry, label).toBeDefined();
+        const result = runBladeScenario({ ...entry!, seeds: [0xb1ade] });
+        expect(result.ok, result.failureMessage).toBe(true);
     });
 });
