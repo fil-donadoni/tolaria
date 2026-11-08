@@ -19,7 +19,7 @@
 //   submit-target    → selectTargets? [→ confirmTargets] (the STANDALONE answer
 //                      to an engine-raised target selection — CR 603.3d
 //                      targeted trigger / CR 115.7 retarget / CR 707.10c copy
-//                      retarget, issue #2283; nothing is announced or paid)
+//                      retarget; nothing is announced or paid)
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -27,7 +27,7 @@
 // spell once the pool covers the cost — so an empty tapPlan means the cost was
 // already covered by floating mana and no tap is fired.
 //
-// issue #1779 / PRD #1776 T4 — the bot already knows its whole target set and
+// PRD #1776 T4: the bot already knows its whole target set and
 // tap plan BEFORE dispatch (both are computed by search up front), so the
 // cast-spell/activate-ability cases below submit them as ONE batched
 // `selectTargets` call and (for cast-spell) ONE batched `tapForPayment` call,

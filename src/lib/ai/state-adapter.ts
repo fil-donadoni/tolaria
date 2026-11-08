@@ -28,7 +28,7 @@
 // player's hand. `determinize` then pools hand+library and re-deals at the same
 // sizes, so the padded hand stays consistent across ISMCTS iterations.
 //
-// Libraries, however, MUST be rebuilt to their wire `count` (issue #136).
+// Libraries, however, MUST be rebuilt to their wire `count`.
 // Enumeration ignores libraries, but the ISMCTS search SIMULATES the game
 // forward — resolving draw spells, the draw step, AND fetch/tutor searches. A
 // draw from an empty library trips the deck-out SBA (CR 704.5b) and returns a
@@ -37,7 +37,7 @@
 // gives simulated draws a card to take; a genuinely-empty library (count 0)
 // still decks out, preserving CR 704.5b.
 //
-// Deck knowledge — REAL identities, PER SEAT (issue #2788, generalising
+// Deck knowledge — REAL identities, PER SEAT (generalising
 // #1509). A seat's own deck content is public knowledge to its owner; only the
 // ORDER is hidden (see `determinize`). The caller supplies a
 // `DeckKnowledgeBySeat` — zero or more `{ playerId, cardIds }` entries, one per
@@ -55,7 +55,7 @@
 // even after a simulated draw puts one in hand. This blind mode is not a
 // fallback to delete later: the lower difficulty levels use it on purpose.
 //
-// WHERE AN INFORMED OPPONENT'S IDENTITIES ACTUALLY COME FROM (issue #2789).
+// WHERE AN INFORMED OPPONENT'S IDENTITIES ACTUALLY COME FROM.
 // Not from here. This adapter reconstructs a library only for a seat whose
 // HAND it can read — in practice the bot's own. For any other informed seat it
 // emits placeholders at the right counts and `determinize` samples both hidden

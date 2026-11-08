@@ -9,7 +9,7 @@
 // The UI thread is never blocked — enumeration + selection live in the Worker,
 // and submission is a normal async mutation sequence.
 //
-// ── LIVENESS INVARIANT (issue #2284) ────────────────────────────────────────
+// ── LIVENESS INVARIANT ────────────────────────────────────────
 //
 // **If the engine's Expected Input names the bot as the player being waited on,
 // the game state advances within a bounded time.** The driver owns that
@@ -46,7 +46,7 @@
 // cleared, the state re-read, the submission retried within
 // `BOT_SUBMIT_RETRY_LIMIT`, and then the ladder takes over.
 //
-// ── Tick-gated subscription (PRD #1776 T3, issue #1778) ─────────────────────
+// ── Tick-gated subscription (PRD #1776 T3) ─────────────────────
 //
 // Holding a second full `getPublicState` subscription (3-9 KB) alongside the
 // human seat's own meant every write to `gameStates` cost two query
@@ -60,7 +60,7 @@
 // cached value) across the tick-driven mount/unmount cycle can never drive the
 // same tick twice, nor act on a state the tick has already superseded.
 //
-// `owedPlayerIds` is an ARRAY, not a single id (issue #1778 review finding 1):
+// `owedPlayerIds` is an ARRAY, not a single id (review finding 1):
 // the CR 510.1c/702.22j-k combat-damage-assignment sub-flow folds into a plain
 // `{kind:"priority"}` window gated `anyPlayer: true`, where the real actor is
 // NOT `priorityPlayerId`, and banding can even split authority so both players
@@ -68,12 +68,12 @@
 // equality with a single id — see `computeOwedPlayerIds`
 // (`convex/gre/expectedInput.ts`).
 //
-// No-tick fail-open (issue #1778 review finding 4): a vs-AI game already in
+// No-tick fail-open (review finding 4): a vs-AI game already in
 // progress when this feature deploys has no `gameTicks` row yet — `tick`
 // resolves to `null`, not `undefined`. Treat that as "unknown, might owe input"
 // and mount the full state rather than staying silent forever.
 //
-// Responsiveness gate (issue #113): before paying for a Worker round-trip + the
+// Responsiveness gate: before paying for a Worker round-trip + the
 // bounded-time search, a cheap pure `shouldThink` check decides whether the
 // window is worth searching at all. On a trivial priority pass it short-circuits
 // to an IMMEDIATE `passPriority` (no Worker, no think beat, no "thinking"
