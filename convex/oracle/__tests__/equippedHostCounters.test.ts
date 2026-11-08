@@ -232,9 +232,13 @@ function resolveTrigger(state: GameState, definition: CardDefinition): void {
         triggerSourceId: source.id,
         triggerEvent: {
             type: "CREATURE_DIED",
-            instanceId: "victim",
-            controllerId: "p2",
-        } as StackItem["triggerEvent"],
+            creatureInstanceId: "victim",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 1,
+            creatureToughness: 1,
+        },
         targets: undefined,
     } as StackItem);
     resolveTopOfStack(state);
