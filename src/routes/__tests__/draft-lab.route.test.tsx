@@ -31,7 +31,8 @@ const useQueryCalls: { name: string; args: unknown }[] = [];
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }, args: unknown) => {
         useQueryCalls.push({ name: query._name, args });
-        if (query._name === "listScopeCardProfiles") return [];
+        if (query._name === "listScopeCardProfiles")
+            return { capabilities: [], archetypes: [] };
         return undefined;
     },
 }));

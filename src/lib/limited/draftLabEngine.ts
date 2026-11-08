@@ -33,11 +33,13 @@ import {
 } from "@convex/limited/botDrafter";
 import { resolveEventPickRating } from "@convex/limited/cardRatingsCore";
 import {
-    buildDbProfileLookup,
+    buildDbProfileLayers,
+    EMPTY_PROFILE_LAYER_ROWS,
+    EMPTY_PROFILE_LAYERS,
     resolveEventCardProfile,
     type GetCardProfile,
-    type GetDbProfile,
-    type ScopedCardProfile,
+    type ProfileLayerRows,
+    type ProfileLayers,
 } from "@convex/limited/cardProfilesCore";
 import type {
     DraftPackCard,
@@ -154,7 +156,7 @@ export interface DraftLabState {
      *  a pure function of `(state, getPickRating)` alone. `useDraftLab.ts`
      *  additionally GATES Start until the query has resolved, so the snapshot
      *  is never an accidentally-empty one. */
-    cardProfileRows: readonly ScopedCardProfile[];
+    cardProfileRows: ProfileLayerRows;
 }
 
 /** Builds the Lab's layered Pick Rating lookup for a set of pack sources
@@ -172,15 +174,16 @@ export function buildDraftLabPickRating(
 /** Builds the Lab's layered Card Profile lookup (`resolveEventCardProfile`,
  *  `convex/limited/cardProfiles.ts`) the same way `buildDraftLabPickRating`
  *  layers Pick Ratings, with one difference (issue #1612 fixup): the DB
- *  layer is now a REAL read, not a permanent `() => null`. `getDbProfile`
- *  defaults to `() => null` so a caller that genuinely has no live data
- *  (a unit test, e.g.) gets the pre-fixup seed-only behavior unchanged; the
- *  Lab's own caller (`useDraftLab.ts`) passes a `GetDbProfile` built from a
- *  live `useQuery(api.limited.cardProfiles.listScopeCardProfiles, …)`
- *  result via `buildDbProfileLookup` — a READ, never a mutation/action, so
- *  ADR 0074's "the Draft Lab writes nothing" guarantee is untouched.
- *  Surfaces `reviewed` (issue #1612: "surface unreviewed profiles visibly")
- *  for every card the Lab shows.
+ *  layer is now a REAL read, not a permanent `() => null`. `db` defaults to
+ *  `EMPTY_PROFILE_LAYERS` so a caller that genuinely has no live data (a
+ *  unit test, e.g.) gets the seed-only behavior; the Lab's own caller
+ *  (`useDraftLab.ts`) passes both layers built from a live
+ *  `useQuery(api.limited.cardProfiles.listScopeCardProfiles, …)` result via
+ *  `buildDbProfileLayers` — a READ, never a mutation/action, so ADR 0074's
+ *  "the Draft Lab writes nothing" guarantee is untouched. The SAME split
+ *  resolver as the server (ADR 0167, issue #8890): Capabilities scope-free,
+ *  Archetypes per scope, one review flag per layer (issue #1612: "surface
+ *  unreviewed profiles visibly").
  *
  *  Determinism (issue #1612's "same seed ⇒ same draft") — UPDATED by issue
  *  #1611. Card Profiles are now SCORE-BEARING (Archetype Fit, Capability Fit,
@@ -193,9 +196,9 @@ export function buildDraftLabPickRating(
  *  never change a pick inside a running draft. */
 export function buildDraftLabCardProfile(
     packSlots: readonly string[],
-    getDbProfile: GetDbProfile = () => null
+    db: ProfileLayers = EMPTY_PROFILE_LAYERS
 ): GetCardProfile {
-    return resolveEventCardProfile(packSlots, getDbProfile);
+    return resolveEventCardProfile(packSlots, db);
 }
 
 /** Standard packSlots for a Draft table off one Pack Source (issue #1612's
@@ -241,7 +244,7 @@ export function initDraftLab(
     seed: number,
     packSlots: readonly string[],
     seatCount: number = DRAFT_LAB_SEAT_COUNT,
-    cardProfileRows: readonly ScopedCardProfile[] = []
+    cardProfileRows: ProfileLayerRows = EMPTY_PROFILE_LAYER_ROWS
 ): DraftLabState {
     const cubePool = packSlots.some(isCubeSource) ? buildCubePool() : undefined;
     const seats = createBotSeats(
@@ -311,7 +314,7 @@ export function stepDraftLab(
     // cost is one Map build over a bounded row set per pick.
     const getCardProfile = buildDraftLabCardProfile(
         state.packSlots,
-        buildDbProfileLookup(state.cardProfileRows)
+        buildDbProfileLayers(state.cardProfileRows)
     );
 
     const seat = state.seats[seatIndex];
@@ -412,7 +415,7 @@ export function runFullDraftLab(
     seed: number,
     packSlots: readonly string[],
     seatCount: number = DRAFT_LAB_SEAT_COUNT,
-    cardProfileRows: readonly ScopedCardProfile[] = [],
+    cardProfileRows: ProfileLayerRows = EMPTY_PROFILE_LAYER_ROWS,
     options: DraftLabRunOptions = {}
 ): DraftLabState {
     const getPickRating = buildDraftLabPickRating(packSlots);

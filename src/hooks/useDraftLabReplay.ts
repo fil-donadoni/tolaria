@@ -65,9 +65,9 @@ import {
     type ScopedCardRating,
 } from "@convex/limited/cardRatingsCore";
 import {
-    buildDbProfileLookup,
+    buildDbProfileLayers,
     resolveEventCardProfile,
-    type ScopedCardProfile,
+    type ProfileLayerRows,
 } from "@convex/limited/cardProfilesCore";
 
 export interface UseDraftLabReplayResult {
@@ -130,7 +130,7 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
 
     // …and the SAME treatment for the second scoring layer the real event was
     // drafted under (PRD #1607, ADR 0072): `convex/limitedEvents.ts`'s
-    // `loadEventCardProfile` folds any admin-edited `cardProfiles` row over
+    // `loadEventCardProfile` folds any admin-edited Card Profile row over
     // the checked-in census before injecting `GetCardProfile` into
     // `chooseBotPick`. Recomputing a replayed pick WITHOUT that layer
     // reintroduces finding 2 verbatim, just on the Card Profile axis: a
@@ -154,7 +154,7 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
     const [ratingsSnapshot, setRatingsSnapshot] = useState<{
         eventId: string;
         rows: readonly ScopedCardRating[];
-        profileRows: readonly ScopedCardProfile[];
+        profileRows: ProfileLayerRows;
     } | null>(null);
 
     if (ratingsSnapshot && ratingsSnapshot.eventId !== selectedEventId) {
@@ -187,7 +187,7 @@ export function useDraftLabReplay(): UseDraftLabReplayResult {
         const getPickRating = resolveEventPickRating(packSlots, getDbRating);
         const getCardProfile = resolveEventCardProfile(
             packSlots,
-            buildDbProfileLookup(ratingsSnapshot.profileRows)
+            buildDbProfileLayers(ratingsSnapshot.profileRows)
         );
         const seatInputs: ReplayEventSeatInput[] = selectedEvent.seats.map(
             (s) => ({

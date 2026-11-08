@@ -415,13 +415,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
                     archetypes: [],
                     provides: [],
                     requires: ["value-on-death"],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
                 [wurm.cardId]: {
                     archetypes: [],
                     provides: ["value-on-death"],
                     requires: [],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
             }),
         });
@@ -467,25 +469,49 @@ describe("Capability-aware spell selection (issue #1615)", () => {
         const profiled = poolProfiles(
             [flash, wurm],
             profileLookup({
-                [flash.cardId]: { ...requiresValueOnDeath, reviewed: true },
-                [wurm.cardId]: { ...providesValueOnDeath, reviewed: true },
+                [flash.cardId]: {
+                    ...requiresValueOnDeath,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
+                },
+                [wurm.cardId]: {
+                    ...providesValueOnDeath,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
+                },
             })
         );
         const fullWeightFit = capabilityFitTerm(
             flash,
-            { ...requiresValueOnDeath, reviewed: true },
+            {
+                ...requiresValueOnDeath,
+                archetypesReviewed: true,
+                capabilitiesReviewed: true,
+            },
             profiled
         ).rawValue;
         const halfWeightProfiled = poolProfiles(
             [flash, wurm],
             profileLookup({
-                [flash.cardId]: { ...requiresValueOnDeath, reviewed: false },
-                [wurm.cardId]: { ...providesValueOnDeath, reviewed: false },
+                [flash.cardId]: {
+                    ...requiresValueOnDeath,
+                    archetypesReviewed: false,
+                    capabilitiesReviewed: false,
+                },
+                [wurm.cardId]: {
+                    ...providesValueOnDeath,
+                    archetypesReviewed: false,
+                    capabilitiesReviewed: false,
+                },
             })
         );
         const halfWeightFit = capabilityFitTerm(
             flash,
-            { ...requiresValueOnDeath, reviewed: false },
+            {
+                ...requiresValueOnDeath,
+                archetypesReviewed: false,
+                capabilitiesReviewed: false,
+            },
             halfWeightProfiled
         ).rawValue;
 
@@ -500,13 +526,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
                     archetypes: [],
                     provides: [],
                     requires: ["value-on-death"],
-                    reviewed: false,
+                    archetypesReviewed: false,
+                    capabilitiesReviewed: false,
                 },
                 [wurm.cardId]: {
                     archetypes: [],
                     provides: ["value-on-death"],
                     requires: [],
-                    reviewed: false,
+                    archetypesReviewed: false,
+                    capabilitiesReviewed: false,
                 },
             }),
         });
@@ -523,13 +551,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
                     archetypes: [],
                     provides: [],
                     requires: ["reanimatable"],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
                 [wurm.cardId]: {
                     archetypes: [],
                     provides: ["value-on-death"],
                     requires: [],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
             }),
         });
@@ -544,13 +574,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
                     archetypes: [],
                     provides: [],
                     requires: ["value-on-death"],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
                 [wurm.cardId]: {
                     archetypes: [],
                     provides: ["value-on-death"],
                     requires: [],
-                    reviewed: true,
+                    archetypesReviewed: true,
+                    capabilitiesReviewed: true,
                 },
             }),
         ]) {
@@ -602,13 +634,15 @@ describe("Capability-aware spell selection (issue #1615)", () => {
                 archetypes: [],
                 provides: [],
                 requires: ["value-on-death"],
-                reviewed: true,
+                archetypesReviewed: true,
+                capabilitiesReviewed: true,
             },
             [payoff.cardId]: {
                 archetypes: [],
                 provides: ["value-on-death"],
                 requires: [],
-                reviewed: true,
+                archetypesReviewed: true,
+                capabilitiesReviewed: true,
             },
         });
 
