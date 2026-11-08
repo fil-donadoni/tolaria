@@ -70,7 +70,7 @@ describe("defaults (PRD #5383 stories 17-19)", () => {
             sealedBoosterCount: 6,
             timerEnabled: true,
             gamesFormat: "bo3",
-            botDifficulty: "medium",
+            botDifficulty: "expert",
             roundDeadlineMinutes: undefined,
             openDecklists: false,
         });
@@ -297,7 +297,7 @@ describe("showcase helpers", () => {
             {
                 key: "table",
                 title: "Table",
-                answer: "8 seats · Bo3 · Medium · timer",
+                answer: "8 seats · Bo3 · Expert · timer",
             },
         ]);
     });

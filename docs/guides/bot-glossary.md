@@ -54,13 +54,12 @@ iterations, never time, so results are reproducible on any machine. Code:
 <a id="difficulty"></a>**Difficulty** — a named preset carrying TWO knobs
 (`convex/gre/difficulty.ts`): a [search budget](#search-budget) and the
 [deck knowledge](#deck-knowledge) the search may hold about the opponent.
-Four presets today — `easy`, `medium` (the default, 400 iterations / 1500 ms),
-`hard` (1200 / 3000 ms), `expert` (1320 / 3300 ms). Only `expert` knows the
-opponent's decklist (`DIFFICULTY_KNOWS_OPPONENT`, issue #2790); every other
-preset searches against an [opponent it cannot see](#deck-knowledge). A
-stronger Bot is the same Brain given more budget and more knowledge, not
-different logic; there is no "weak bot" code path. Issue #8692 (open) makes
-`expert` the default everywhere and removes `easy`.
+Three presets — `medium` (400 iterations / 1500 ms), `hard` (1200 / 3000 ms),
+`expert` (the default, 1320 / 3300 ms). For now all three know the opponent's
+decklist (`DIFFICULTY_KNOWS_OPPONENT`, issue #8692), so they differ by budget
+alone; the record stays so a level can be switched off later. A stronger Bot is
+the same Brain given more budget, not different logic; there is no "weak bot"
+code path.
 
 <a id="time-management"></a>**Time management / early stopping** — spending
 less of the [budget](#search-budget) when the decision is already settled and
@@ -98,20 +97,20 @@ owner, order hidden). For the OPPONENT there are two worlds:
 - **Informed** — the seat's decklist is supplied, so every determinization
   SAMPLES the opponent's hand and library from the cards that list still
   admits, and the simulated opponent casts real spells. Live play supplies
-  it only at the `expert` [difficulty](#difficulty) (`useVsAiDriver` builds
-  the `informed` list from the human's seat).
+  it at every [difficulty](#difficulty) (`useVsAiDriver` builds the `informed`
+  list from the human's seat).
 - **Blind** — no entry for the seat: its hidden cards stay anonymous
   placeholders that resolve to no card definition, so in every rollout the
   simulated opponent casts NOTHING from now to the end of the game. A
-  systematic optimism no budget corrects; it is what `easy`, `medium` and
-  `hard` search against today. The ladder's `SearchVariant.opponentModel:
-"blind"` forces this world on purpose (issue #2791), to measure what the
-  knowledge is worth by removing it.
+  systematic optimism no budget corrects, so no preset searches against it
+  today. The ladder's `SearchVariant.opponentModel: "blind"` forces this world
+  on purpose (issue #2791), to measure what the knowledge is worth by removing
+  it.
 
 PRD issue #2787 (opponent model) is CLOSED: it delivered the informed seat
-above (issues #2789, #2791). Nothing replaces the placeholders for the blind
-presets; the owner's direction (2026-11-07, issue #8692) is to retire blind
-presets instead — knowledge at every level, budget the only difference.
+above (issues #2789, #2791). Nothing replaces the placeholders; the owner's
+decision (2026-11-07, issue #8692) retired the blind presets instead —
+knowledge at every level, budget the only difference.
 
 <a id="iteration"></a>**Iteration** — one pass of the search: pick a path down
 the tree ([selection](#selection)), add one new node ([expansion](#expansion)),

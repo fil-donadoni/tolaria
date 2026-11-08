@@ -54,7 +54,7 @@ export function clearDeckPresetId() {
 export function getStoredDifficulty(): Difficulty {
     const stored = localStorage.getItem(DIFFICULTY_KEY);
     // Checked against the live list, not a hand-maintained union member by
-    // member — a hard-coded `"easy" | "medium" | "hard"` here is exactly how
+    // member — a hard-coded `"medium" | "hard"` here is exactly how
     // issue #2790's `expert` almost fell back to the default silently despite
     // being a perfectly valid stored value.
     if (stored && (DIFFICULTIES as readonly string[]).includes(stored)) {

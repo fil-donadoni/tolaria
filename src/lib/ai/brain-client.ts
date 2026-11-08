@@ -137,7 +137,7 @@ export const MAX_BRAIN_WORKER_FAILURES = 2;
  *  full `hard` budget (3,000 ms) would freeze the tab for three seconds per
  *  decision. It is deliberately a fraction of the weakest real think, and it is
  *  a CEILING rather than a replacement: a caller already asking for less
- *  (`easy`) keeps its own smaller numbers. Weak, but a weak move beats the
+ *  keeps its own smaller numbers. Weak, but a weak move beats the
  *  `move: null` this whole file exists to stop turning into a silent pass. */
 export const BRAIN_FALLBACK_BUDGET: SearchBudget = {
     iterations: 120,

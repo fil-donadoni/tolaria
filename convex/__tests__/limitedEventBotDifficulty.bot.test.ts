@@ -7,7 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getMatchBotDifficulty } from "../gameReads";
 import { createLimitedEvent } from "../limitedEvents";
-import { DEFAULT_DIFFICULTY } from "../gre/difficulty";
+import { DEFAULT_DIFFICULTY, type Difficulty } from "../gre/difficulty";
 import { resolveEventBotDifficulty } from "../limited/botDifficulty";
 import {
     makeInMemoryDb,
@@ -17,7 +17,7 @@ import {
 type Handler<A, R, C> = { _handler: (ctx: C, args: A) => Promise<R> };
 
 async function createEvent(
-    botDifficulty?: "easy" | "medium" | "hard" | "expert"
+    botDifficulty?: Difficulty
 ): Promise<Record<string, unknown>> {
     const docs = new Map<string, Record<string, unknown>>([
         ["user1", { _id: "user1", nickname: "Creator" }],
@@ -51,12 +51,18 @@ describe("createLimitedEvent — Bot difficulty (issue #6916)", () => {
         expect((await createEvent("hard")).botDifficulty).toBe("hard");
     });
 
-    it("defaults to medium when the setup sends none", async () => {
-        expect((await createEvent()).botDifficulty).toBe("medium");
+    it("defaults to expert when the setup sends none", async () => {
+        expect((await createEvent()).botDifficulty).toBe("expert");
     });
 
-    it("resolves an event row written before the field to medium", () => {
-        expect(resolveEventBotDifficulty({})).toBe("medium");
+    it("resolves a row stored with the retired easy preset to the default", () => {
+        expect(resolveEventBotDifficulty({ botDifficulty: "easy" })).toBe(
+            DEFAULT_DIFFICULTY
+        );
+    });
+
+    it("resolves an event row written before the field to expert", () => {
+        expect(resolveEventBotDifficulty({})).toBe("expert");
         expect(resolveEventBotDifficulty({})).toBe(DEFAULT_DIFFICULTY);
         expect(resolveEventBotDifficulty({ botDifficulty: "expert" })).toBe(
             "expert"
@@ -86,6 +92,14 @@ describe("getMatchBotDifficulty (issue #6916)", () => {
             games: [row({ _id: "g1", matchId: "m1" })],
         };
         expect(await ask(tables, "g1")).toBe("hard");
+    });
+
+    it("answers the default for a Match stored with the retired easy preset", async () => {
+        const tables = {
+            matches: [row({ _id: "m1", botDifficulty: "easy" })],
+            games: [row({ _id: "g1", matchId: "m1" })],
+        };
+        expect(await ask(tables, "g1")).toBe(DEFAULT_DIFFICULTY);
     });
 
     it("answers null for a Match that carries none (lobby Match, legacy row)", async () => {

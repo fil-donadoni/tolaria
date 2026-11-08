@@ -104,7 +104,7 @@ describe("LimitedSetupFlow (issue #5387)", () => {
             sealedBoosterCount: 6,
             timerEnabled: true,
             gamesFormat: "bo3",
-            botDifficulty: "medium",
+            botDifficulty: "expert",
             roundDeadlineMinutes: undefined,
             openDecklists: false,
         });

@@ -25,7 +25,10 @@ import {
     areRoundsRunning,
     isEventConcluded,
 } from "./eventStatus";
-import { resolveEventBotDifficulty } from "./botDifficulty";
+import {
+    resolveEventBotDifficulty,
+    type StoredDifficulty,
+} from "./botDifficulty";
 import { resolveEventGamesFormat } from "./gamesFormat";
 import type { Difficulty } from "../gre/difficulty";
 import { findSeatPairing, isRoundComplete } from "./rounds";
@@ -66,8 +69,8 @@ export interface LimitedEventRow {
      *  see `LimitedEventView.gamesFormat`. */
     gamesFormat?: LimitedGamesFormat;
     /** Bot difficulty of the event's vs-AI Matches (issue #6916) — absent on
-     *  legacy rows, resolved to "medium" by `resolveEventBotDifficulty`. */
-    botDifficulty?: Difficulty;
+     *  legacy rows, resolved to "expert" by `resolveEventBotDifficulty`. */
+    botDifficulty?: StoredDifficulty;
     /** Pre-rename key (issue #5337): read-only, see `resolveEventGamesFormat`. */
     matchFormat?: LimitedGamesFormat;
     roundDeadlineMinutes?: number;
