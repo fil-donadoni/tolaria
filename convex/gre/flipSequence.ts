@@ -28,6 +28,11 @@ export const FLIP_SEQUENCE_ROUND_LIMIT = 1000;
 export type FlipSequenceRequest = {
     choiceId: string;
     flippers: string[];
+    /** The number the effect announced as the most flips it may make ("choose
+     *  a number … that many times"). Shown to both seats as "Flip k of up to
+     *  N"; absent when the effect announced none, so the heading never hints
+     *  at the length. */
+    announcedLimit?: number;
     realize?: (flips: readonly FlipRecord[]) => RealizedOutcome;
 } & (
     | { stop: FlipStopRule; faceOnly?: false }
