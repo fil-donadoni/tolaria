@@ -1,5 +1,5 @@
 // Builds the slim `BotView` the cheap main-thread gate reasons about, from the
-// bot's projected wire state (ADR 0001, issues #109/#145). Pure and React-free
+// bot's projected wire state (ADR 0000, issues #109/#145). Pure and React-free
 // so it can be unit/integration tested without a browser: the driver hook and
 // the tests share this one builder.
 //

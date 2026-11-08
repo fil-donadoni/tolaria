@@ -1,4 +1,4 @@
-// Thin Web Worker shell for the AI Bot's Brain (ADR 0001, issues #109–#112).
+// Thin Web Worker shell for the AI Bot's Brain (ADR 0000, issues #109–#112).
 //
 // The thinking runs off the UI thread so the app stays interactive while the
 // bot decides. This shell holds NO judgement of its own and NO logic worth

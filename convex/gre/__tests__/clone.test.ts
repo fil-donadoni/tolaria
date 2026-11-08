@@ -1,4 +1,4 @@
-// Structural-sharing clone (ADR 0001, issue #108 — vs-AI feasibility slice).
+// Structural-sharing clone (ADR 0000, issue #108 — vs-AI feasibility slice).
 import { describe, expect, it } from "vitest";
 import { cloneGameState } from "../clone";
 import { advancePhase } from "../phases";

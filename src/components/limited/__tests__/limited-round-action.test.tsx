@@ -144,7 +144,7 @@ describe("LimitedRoundAction — starting the pairing (PRD stories 8-11)", () =>
         expect(startPairingMatch.mock.calls[0][0]).toMatchObject({
             eventId: EVENT_ID,
         });
-        // vs-AI Match: the viewer drives the `-p1` seat (ADR 0001).
+        // vs-AI Match: the viewer drives the `-p1` seat (ADR 0000).
         await waitFor(() =>
             expect(storeSession).toHaveBeenCalledWith("game-1", "user1-p1")
         );

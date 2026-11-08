@@ -1,10 +1,10 @@
-// Pure macro-move simulation for the vs-AI Bot's greedy search (ADR 0001,
+// Pure macro-move simulation for the vs-AI Bot's greedy search (ADR 0000,
 // issue #111).
 //
 // `applyMoveForSearch(state, playerId, move)` returns a NEW GameState in which
 // `move` has been played out to a stable, comparable point — the leaf the
 // greedy selector (`greedySelectMove`) hands to `evaluate`. It reuses the real
-// GRE resolution primitives (no second/approximate engine, ADR 0001): a spell
+// GRE resolution primitives (no second/approximate engine, ADR 0000): a spell
 // goes on the stack and resolves through `resolveTopOfStack`; combat damage is
 // applied through the same `applyAllCombatDamage` the phase machine uses. The
 // input state is never mutated — it is cloned first via `cloneGameState`.
@@ -25,7 +25,7 @@
 // its real legal blocker set, the block that minimises the bot's evaluation,
 // then combat damage is applied. This is the one place the 1-ply selector looks
 // past its own move; full game-tree search (instant responses, multi-step
-// combat) is deferred to ISMCTS (issue #112).
+// combat) is deferred to ISMCTS.
 //
 // Known, documented simulation limits for this slice (the server stays the sole
 // authority, so an inexact sandbox only costs move quality, never legality):
@@ -34,17 +34,17 @@
 //   * `activate-ability` applies its costs but does NOT resolve the ability's
 //     effect. The original note here claimed the greedy selector therefore
 //     never *prefers* such an activation — that stopped being true when
-//     loyalty abilities became enumerable (issue #2491): a `+N` loyalty cost
+//     loyalty abilities became enumerable: a `+N` loyalty cost
 //     is a board GAIN, so the sandbox pays it, skips the payoff, and still
 //     scores the leaf above `pass`. The reason this is a documented limit
 //     rather than a bug is that the path is DEAD in production —
 //     `greedySelectMove` (`gre/greedy.ts`) has no live caller, the Brain
 //     (`src/lib/ai/brain-request.ts`) runs `searchWithTrace`, and the ISMCTS
 //     sandbox `applyMoveInSearch` (`gre/search.ts`) does push the ability so
-//     its payoff and its price are scored together (issue #1920). Anything
+//     its payoff and its price are scored together. Anything
 //     that revives the greedy selector owes this leg the same push.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
-//   * A cast trigger whose PLACEMENT suspends is dropped (issue #3026). Since
+//   * A cast trigger whose PLACEMENT suspends is dropped. Since
 //     the `cast-spell` leaf started announcing through the real choke point,
 //     `processPendingActionTriggers` can park a `pendingTarget` for a TARGETING
 //     cast trigger, or stash two-or-more orderable ones off-stack in

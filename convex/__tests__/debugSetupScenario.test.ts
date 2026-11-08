@@ -15,7 +15,7 @@ import { forest } from "../cards/sets/lea/colorless.cards";
 import type { ScenarioSpec } from "../debugScenarioSpec";
 
 /** The live game's two seats in every fixture below — deliberately NOT
- *  `p1`/`p2`, and deliberately not ending in the ADR 0001 bot suffix on the
+ *  `p1`/`p2`, and deliberately not ending in the ADR 0000 bot suffix on the
  *  human's side, so a test that accidentally fell back to a positional
  *  convention would read as passing for the wrong reason. */
 const HUMAN_SEAT = "user_abc123-p1";

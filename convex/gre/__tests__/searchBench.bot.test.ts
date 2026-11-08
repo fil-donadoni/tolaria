@@ -1,4 +1,4 @@
-// Feasibility benchmark (ADR 0001, issue #108). Runs the clone + truncated
+// Feasibility benchmark (ADR 0000, issue #108). Runs the clone + truncated
 // dummy rollout loop and reports iterations/sec, plus the structuredClone
 // baseline so the structural-sharing speedup is visible. CI-safe: asserts only
 // that the harness runs and produces positive throughput — NOT a hard perf

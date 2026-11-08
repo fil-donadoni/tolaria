@@ -80,6 +80,13 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/artefact-classification.test.ts",
         admits: /^data\/|^\.gitattributes$/,
     },
+    // docs, .claude, convex, src, scripts, GLOSSARY.md — no ADR 0001 beside an
+    // ISMCTS/Brain word, no dead link into docs/adr/ (issue #8723); the guard
+    // reads files through fs, so no import edge reaches it
+    {
+        test: "scripts/__tests__/adr-citation-drift.test.ts",
+        admits: /^(docs|\.claude|convex|src|scripts)\/|^GLOSSARY\.md$/,
+    },
     // docs/adr/ — every ADR has its index row
     { test: "scripts/__tests__/adr-index.test.ts", admits: /^docs\/adr\// },
     // scripts/**/*.ts — no module but the lockfile's own reads the fragment table

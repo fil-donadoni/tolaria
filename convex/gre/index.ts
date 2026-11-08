@@ -1,10 +1,10 @@
-// Shared GRE package surface (ADR 0001, issue #108 — vs-AI feasibility slice).
+// Shared GRE package surface (ADR 0000, issue #108 — vs-AI feasibility slice).
 //
 // The GRE in `convex/gre/` is already pure and isomorphic (no `convex/server`,
 // `convex/values`, `_generated`, or `ctx.*` imports). This barrel is the
 // SANCTIONED public surface through which the client-side AI brain imports the
 // engine, deliberately and narrowly relaxing the documented boundary
-// "frontend never imports `convex/gre/`" (see ADR 0001 § Consequences).
+// "frontend never imports `convex/gre/`" (see ADR 0000 § Consequences).
 //
 // Multiplayer keeps using the server GRE unchanged; the client GRE is used
 // ONLY as the bot's thinking sandbox in vs-AI games — never authoritative.

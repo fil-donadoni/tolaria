@@ -1,4 +1,4 @@
-// Headless bot-vs-bot game loop (ADR 0001 self-play harness). Plays a full game
+// Headless bot-vs-bot game loop (ADR 0000 self-play harness). Plays a full game
 // to its natural end (life / decked) with NO Convex runtime: both seats are
 // driven by the SAME production decision stack the live bot uses —
 //

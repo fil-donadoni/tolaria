@@ -1,8 +1,10 @@
 # ADR 0018 — Forge-style evaluation enrichment (card value, danger clock, Forge-scale)
 
+_Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
+
 **Status:** Accepted (2026-06-16)
 
-**Refines:** [ADR 0001](0001-ai-opponent-client-side-ismcts.md) (the `evaluate`
+**Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the `evaluate`
 leaf heuristic of the client-side ISMCTS opponent). **Resolves the deferral in**
 [ADR 0015](0015-rollout-terminates-at-turn-boundary.md) (the residual high-budget
 leaf-eval blind spot) and [ADR 0016](0016-bot-resolution-choice-default-policy.md)
@@ -29,7 +31,7 @@ not magnitude — and two consumers have now hit its ceiling:
   work.
 
 Both gaps are the same missing concept: **the worth of a specific card**, beyond
-its raw stats. Forge — the established reference engine (ADR 0001) — solves this
+its raw stats. Forge — the established reference engine (ADR 0000) — solves this
 with a derived numeric `evaluateCreature` heuristic plus per-card AI hints
 (`SVar:AI*`), and reads the race with a predicted-damage / life-in-danger check.
 We adopt that model, scaled to our engine.

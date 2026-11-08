@@ -12,7 +12,7 @@ function seatBelongsToViewer(seatId: string, viewerId: string): boolean {
     return seatId === viewerId || seatId.startsWith(`${viewerId}-`);
 }
 
-/** The bot seat in a vs-AI Match is `${userId}-p2` (ADR 0001). */
+/** The bot seat in a vs-AI Match is `${userId}-p2` (ADR 0000). */
 function isBotSeat(seatId: string): boolean {
     return seatId.endsWith("-p2");
 }

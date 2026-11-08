@@ -81,7 +81,7 @@ describe("Natural Order (CR 118.8 additional cost / 701.23 / 400.7 / 701.24)", (
 // The tax is DIRECTED — only a source controlled by the player BEING attacked
 // taxes; the collector `collectAttackManaTax` enforces that. Coverage below
 // drives the read-only combat seam and the exact auto-tap enforcement loop
-// `confirmAttackers` runs (mirrored here — no convex-test harness, ADR 0001).
+// `confirmAttackers` runs (mirrored here — no convex-test harness, ADR 0000).
 // ===========================================================================
 
 /** Builds a DECLARE_ATTACKERS state: p1 (active) attacks with `attackers`;

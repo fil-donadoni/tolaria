@@ -1,8 +1,10 @@
 # ADR 0016 — Bot resolves interactive choices with a legal default; smart selection deferred to eval work
 
+_Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
+
 **Status:** Accepted (2026-06-16)
 
-**Relates to:** [ADR 0001](0001-ai-opponent-client-side-ismcts.md) (the vs-AI
+**Relates to:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the vs-AI
 opponent). Smart selection is gated on the evaluation enrichment from the Forge
 comparison effort.
 

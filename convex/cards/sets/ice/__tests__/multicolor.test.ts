@@ -1243,7 +1243,7 @@ describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3
 // confirmation: one land sacrificed per taxed attacker. Coverage below drives
 // both the read-only combat seam (`collectAttackSacrificeTax`) and the exact
 // enforcement loop `confirmAttackers` runs (mirrored here — no convex-test
-// harness, ADR 0001): reject when lands are insufficient, sacrifice N when they
+// harness, ADR 0000): reject when lands are insufficient, sacrifice N when they
 // suffice, and untaxed attackers pay nothing.
 // ===========================================================================
 

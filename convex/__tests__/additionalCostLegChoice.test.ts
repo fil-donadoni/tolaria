@@ -10,7 +10,7 @@
 //     `finalizeTargetSelection` (the targeted cast commit),
 //     `recordCastAlternativeHandCostPick` + `tryAutoCommitPendingCast` (the
 //     discard leg's picker) — over real GRE state. The project has no
-//     convex-test harness for game.ts mutations (ADR 0001), the established
+//     convex-test harness for game.ts mutations (ADR 0000), the established
 //     substitute used by delveCastCost.test.ts and additional-cost-cast.test.ts.
 //   - Wire format: the parked picker and the chosen leg survive
 //     `projectPublicState` un-slimmed, which is what the client dialog reads.

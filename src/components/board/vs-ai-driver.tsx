@@ -1,4 +1,4 @@
-// Mount point for the vs-AI Bot driver (ADR 0001, issues #109/#110/#113). Runs
+// Mount point for the vs-AI Bot driver (ADR 0000, issues #109/#110/#113). Runs
 // the driver hook for the bot seat and surfaces its "thinking" state as a small
 // indicator. The hook queries the bot's own viewpoint and drives its moves;
 // Board conditionally mounts this only for vs-AI games, so the hook itself stays

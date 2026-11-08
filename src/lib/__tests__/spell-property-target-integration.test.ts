@@ -18,7 +18,7 @@
 // verdict over the PROJECTED state equals `getLegalTargets`' verdict over the
 // fat state, for every item on the stack".
 //
-// The project has no convex-test harness (ADR 0001), so the server side is
+// The project has no convex-test harness (ADR 0000), so the server side is
 // driven through the SAME exported builder `announceCast` uses
 // (`pendingTargetFiltersFromRequirement`) — the established shape of
 // `stifle-target-integration.test.ts`.

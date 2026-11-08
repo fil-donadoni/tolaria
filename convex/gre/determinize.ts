@@ -1,4 +1,4 @@
-// Determinization for the vs-AI Bot's ISMCTS search (ADR 0001, issue #112).
+// Determinization for the vs-AI Bot's ISMCTS search (ADR 0000, issue #112).
 //
 // Information-set Monte Carlo Tree Search reasons over the bot's OBSERVED
 // state, where the opponent's hand + both players' library orders are hidden.
@@ -28,7 +28,7 @@
 // mutates the input. Given the same `rng` sequence it returns the same world.
 //
 // NOTE on the production projection: the bot consults its OWN wire viewpoint.
-//   * The OBSERVER's library — since issue #1509 the state adapter rebuilds it
+//   * The OBSERVER's library — since the state adapter rebuilds it
 //     from the bot's real decklist (own-deck content is public to its owner),
 //     so `determinizeObserver`'s shuffle does real work here: it hides the
 //     ORDER the bot must not know while keeping the content the bot legitimately
@@ -39,7 +39,7 @@
 //     the bot searches without inventing specific opponent cards.
 // Fed a full-information state (as the unit tests do), it re-deals for real.
 //
-// INFORMED SEATS (issue #2789, PRD #2787). When the caller supplies deck
+// INFORMED SEATS (PRD #2787). When the caller supplies deck
 // knowledge for a seat OTHER than the observer, that seat's hidden zones stop
 // being re-dealt and start being SAMPLED from the cards its decklist still
 // admits (`unseenRemainder`). This is the difference between imagining an

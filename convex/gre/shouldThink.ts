@@ -1,4 +1,4 @@
-// Pre-search responsiveness gate for the vs-AI Bot (ADR 0001, issue #113).
+// Pre-search responsiveness gate for the vs-AI Bot (ADR 0000, issue #113).
 //
 // A full ISMCTS `search` is not free: it costs a Worker round-trip and a
 // bounded slice of wall-clock. Yet the vast majority of priority windows the

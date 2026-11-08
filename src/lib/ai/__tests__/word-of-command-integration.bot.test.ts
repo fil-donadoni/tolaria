@@ -16,7 +16,7 @@
 //     human Acting Player (`playerId === human !== botId`), so the bot surfaces
 //     NO owed choice and makes no decision.
 //
-// Authority stays server-side (ADR 0001): the bot's picks are submitted and
+// Authority stays server-side (ADR 0000): the bot's picks are submitted and
 // validated by `applyPendingChoiceSubmit` exactly like a human move.
 
 import { describe, expect, it } from "vitest";

@@ -1,5 +1,5 @@
 // Integration: enumerateMoves → executor sequence → server primitives
-// (issue #110, ADR 0001). The project has no convex-test harness, so — like
+// (issue #110, ADR 0000). The project has no convex-test harness, so — like
 // casting-flow.test.ts — this drives the SAME pure GRE primitives the game.ts
 // mutations call, in the order the executor fires them, and asserts the
 // resulting state matches what the move predicted. It also proves enumeration
@@ -352,7 +352,7 @@ describe("menace — Goblin War Drums grant through the confirm-blockers seam", 
 // FEM C2 (#571) — full-path coverage for the new cost / choice shapes.
 // CAPABILITY K (dynamic cost = enchanted creature's mana cost), the High Tide
 // mana funnel rider, and CAPABILITY I (optional skip-untap) are driven through
-// the same pure GRE primitives the game.ts mutations call (ADR 0001).
+// the same pure GRE primitives the game.ts mutations call (ADR 0000).
 // ---------------------------------------------------------------------------
 
 const ISLAND = getCardByName("Island").id;

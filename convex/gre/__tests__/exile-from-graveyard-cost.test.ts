@@ -1,7 +1,7 @@
 // Cluster C1 (FEM, #569) — exile-from-graveyard as an activation cost.
 // CR 602.1 / 118.5 / 406. Full-path integration test for the cost-CHOICE
 // submission that crosses GRE → game.ts → UI. The project has no convex-test
-// harness (ADR 0001 / moves-integration.test.ts), so — like
+// harness (ADR 0000 / moves-integration.test.ts), so — like
 // sacrifice-cost-activation.test.ts — the production mutation handlers
 // (activateAbility's legality + deferral, selectActivationExileCost, and the
 // tryAutoCommitPendingActivation commit step) are mirrored here as pure

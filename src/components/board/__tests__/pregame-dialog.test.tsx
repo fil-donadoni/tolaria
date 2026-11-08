@@ -94,7 +94,7 @@ describe("PregameDialog — waiting (opponent won the toss)", () => {
 
 describe("PregameDialog — auto (vs-AI bot won the toss)", () => {
     it("auto-continues once with no explicit choice", async () => {
-        // vs-AI Match whose chooser is the bot seat (`-p2`, ADR 0001).
+        // vs-AI Match whose chooser is the bot seat (`-p2`, ADR 0000).
         matchValue = baseMatch({
             vsAi: true,
             playDrawChooserId: "user-p2",

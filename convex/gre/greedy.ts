@@ -1,4 +1,4 @@
-// Greedy 1-ply move selection for the vs-AI Bot (ADR 0001, issue #111).
+// Greedy 1-ply move selection for the vs-AI Bot (ADR 0000, issue #111).
 //
 // `greedySelectMove(state, playerId, rand?)` is the Bot's "search" for this
 // slice: it enumerates every legal macro-move (`enumerateMoves`), plays each one
@@ -11,7 +11,7 @@
 // This replaces the random-legal selection from issue #110: the Bot now blocks
 // to survive/trade, avoids walking creatures into a wall, and casts the move
 // that most improves its position. Full lookahead (opponent instant responses,
-// multi-ply combat) is ISMCTS's job (issue #112); the seam here — enumerate →
+// multi-ply combat) is ISMCTS's job; the seam here — enumerate →
 // apply → evaluate → argmax — is exactly the one the search will reuse.
 
 import type { GameState } from "./state";

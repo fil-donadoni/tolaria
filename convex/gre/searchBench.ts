@@ -1,4 +1,4 @@
-// Feasibility benchmark harness for the vs-AI brain (ADR 0001, issue #108).
+// Feasibility benchmark harness for the vs-AI brain (ADR 0000, issue #108).
 //
 // One ISMCTS iteration, modelled with stub moves: clone the (determinized) root
 // state, run a truncated rollout of depth K applying cheap stub moves in place

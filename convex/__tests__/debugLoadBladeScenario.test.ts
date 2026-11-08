@@ -52,7 +52,7 @@ import { applyBladeSetup } from "../gre/ai/blade/setup";
 
 /** The live game's BOT seat, in `arbitraryCurrentGameBaseState()` below.
  *  `${userId}-p2` is the bot seat by construction in every solo/vs-AI game
- *  (ADR 0001, `isBotSeat` in `convex/matches.ts`), and the mutation reads it
+ *  (ADR 0000, `isBotSeat` in `convex/matches.ts`), and the mutation reads it
  *  off the immutable `games` row before calling the function under test. */
 const BOT_SEAT = "user_abc123-p2";
 /** The other one. */
@@ -544,7 +544,7 @@ describe("debugLoadBladeScenario — the game kind decides whether an entry can 
 
     it("names the `-p2` seat for solo and vs-AI alike", () => {
         // Deliberately blind to `vsAi`: a vs-AI game IS a solo game whose
-        // second seat has a Brain on it (ADR 0001), and the seat is the same
+        // second seat has a Brain on it (ADR 0000), and the seat is the same
         // either way — which is what makes the conversion the CALLER's job
         // and leaves nothing here to branch on.
         expect(

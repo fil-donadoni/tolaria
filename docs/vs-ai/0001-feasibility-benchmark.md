@@ -1,6 +1,6 @@
 # vs-AI #1 — feasibility benchmark (go/no-go)
 
-Issue #108 · ADR [0001](../adr/0001-ai-opponent-client-side-ismcts.md) · HITL go/no-go gate
+Issue #108 · ADR [0000](../adr/0000-ai-opponent-client-side-ismcts.md) · HITL go/no-go gate
 
 ## Question
 
@@ -72,7 +72,7 @@ truncated rollout), then re-measure with **real** moves replacing the stub.
    genuinely interesting priority windows; auto-pass the rest.
 3. **Share more read-only fields** by reference in the clone (UI-only fields,
    animation) beyond the card definition.
-4. **Last resort:** move the brain to a Convex action (ADR 0001 fallback),
+4. **Last resort:** move the brain to a Convex action (ADR 0000 fallback),
    accepting per-move server compute.
 
 ## Scope notes for the reviewer
@@ -82,6 +82,6 @@ truncated rollout), then re-measure with **real** moves replacing the stub.
   bridge (`src/lib/ai/gre-bridge.ts`) — not a workspace/package extraction. The
   GRE is already pure and isomorphic, so this is the "packaging/boundary move,
   not a rewrite" the issue calls for. The boundary relaxation is documented in
-  ADR 0001 and at both module headers.
+  ADR 0000 and at both module headers.
 - No new Convex mutation or action was introduced; the authoritative server
   path is unchanged.

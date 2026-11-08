@@ -1,4 +1,4 @@
-// Structural-sharing clone for the AI search sandbox (ADR 0001, issue #108).
+// Structural-sharing clone for the AI search sandbox (ADR 0000, issue #108).
 //
 // The GRE applies moves by mutating a GameState in place; isolation between
 // transactions comes from `structuredClone(gameState.state)` at the `game.ts`

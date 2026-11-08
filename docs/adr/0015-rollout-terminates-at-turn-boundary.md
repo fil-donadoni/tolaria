@@ -1,13 +1,15 @@
 # ADR 0015 — ISMCTS rollout terminates at a turn boundary, not a fixed ply count
 
+_Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
+
 **Status:** Accepted (2026-06-16)
 
-**Refines:** [ADR 0001](0001-ai-opponent-client-side-ismcts.md) (the rollout
+**Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the rollout
 truncation parameter of the client-side ISMCTS opponent).
 
 ## Context
 
-The vs-AI opponent (ADR 0001) is an ISMCTS search over the real GRE. Each
+The vs-AI opponent (ADR 0000) is an ISMCTS search over the real GRE. Each
 search iteration descends the tree, then plays a **truncated rollout** forward
 to a leaf and scores it with `evaluate`. The rollout is bounded by
 `ROLLOUT_DEPTH = 8` **plies**, where a ply is one decision by whoever holds

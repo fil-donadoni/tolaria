@@ -1,5 +1,7 @@
 # Card synergy as computed Capability matching, not enumerated card pairs
 
+_Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (mechanics registry)._
+
 ## Status
 
 accepted
@@ -51,7 +53,7 @@ to fine:
 (`convex/limited/capabilityRegistry.ts`), each row carrying the precise meaning
 of the name, with a catalogue-wide guard test rejecting any unregistered
 Capability — the same authority-plus-CI-guard pattern
-`convex/cards/mechanicsRegistry.ts` (ADR 0046) already establishes for keyword
+`convex/cards/mechanicsRegistry.ts` (ADR 0045) already establishes for keyword
 and Op names. Without it the vocabulary silently forks into `value-on-death`,
 `dies-value` and `death-trigger`, which no longer match each other; the model
 then degrades to nothing while every test stays green.

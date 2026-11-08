@@ -1,6 +1,6 @@
 // Kicker capability (CR 702.33 Kicker, CR 702.33e Multikicker) — the
 // cost-system infra built once and reused by every kicker card (issue #692).
-// The project has no convex-test harness for game.ts mutations (ADR 0001), so
+// The project has no convex-test harness for game.ts mutations (ADR 0000), so
 // this drives the REAL exported pieces `announceCast` uses —
 // `resolveKickerPayments` (validation), `finalizeTargetSelection` (cost fold +
 // per-kicker payment snapshot on the stack item), and `getLegalTargets` (the

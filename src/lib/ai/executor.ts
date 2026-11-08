@@ -1,5 +1,5 @@
 // Translates a bot Move into the EXISTING granular game mutations that realise
-// it (ADR 0001, issue #110). No new Convex move surface: the bot drives the
+// it (ADR 0000, issue #110). No new Convex move surface: the bot drives the
 // same mutation sequence a human's clicks would, validated server-side
 // identically (CR 720 — the server stays authoritative; an illegal Move is
 // rejected here, not applied).
@@ -19,7 +19,7 @@
 //   submit-target    → selectTargets? [→ confirmTargets] (the STANDALONE answer
 //                      to an engine-raised target selection — CR 603.3d
 //                      targeted trigger / CR 115.7 retarget / CR 707.10c copy
-//                      retarget, issue #2283; nothing is announced or paid)
+//                      retarget; nothing is announced or paid)
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -27,7 +27,7 @@
 // spell once the pool covers the cost — so an empty tapPlan means the cost was
 // already covered by floating mana and no tap is fired.
 //
-// issue #1779 / PRD #1776 T4 — the bot already knows its whole target set and
+// PRD #1776 T4: the bot already knows its whole target set and
 // tap plan BEFORE dispatch (both are computed by search up front), so the
 // cast-spell/activate-ability cases below submit them as ONE batched
 // `selectTargets` call and (for cast-spell) ONE batched `tapForPayment` call,

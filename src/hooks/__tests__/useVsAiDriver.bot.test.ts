@@ -1,4 +1,4 @@
-// Driver integration (ADR 0001, issue #110): the full client path
+// Driver integration (ADR 0000, issue #110): the full client path
 // query(bot viewpoint) → gate → consultBrain (Worker; here the inline fallback
 // in jsdom enumerates with the real GRE) → executor → existing mutation. Mocks
 // only the Convex transport (useQuery/useMutation); everything else is the real
