@@ -83,13 +83,11 @@ export const phantasmalImage = defineCard(() => ({
     // (`dslSpellScriptValue` feeds only the NON-creature branch). A
     // top-level `aiEffects` sketch here would pass the catalogue guard but
     // be silently inert for valuation, which is exactly the class of bug
-    // this mechanism exists to prevent — so the scalar override is the only
+    // this mechanism exists to prevent — so the `aiValue` override is the only
     // lever that actually moves this card off its printed 0/0 body.
-    // Magnitude: a representative 2/2 body at this card's own mana value
-    // (the fitted `latentCreatureDiscount`, about 0.61, ×
-    // `creatureValueRaw(2, 2, 2, [])` 168 ≈ 102 — a refit moves the body
-    // this tracks, which `creatureAiValueCalibration.bot.test.ts` reports)
-    // — the same
+    // Magnitude: a representative 2/2 body at this card's own mana value,
+    // resolved against the live `latentCreatureDiscount` (issue #7744 — a
+    // refit moves it with every vanilla creature's) — the same
     // "unknown copied body" representative stat `createTokenCopy`'s
     // `COPY_TOKEN_REPRESENTATIVE_STAT` uses for the analogous "copies an
     // unknowable creature" shape (`gre/ai/opValuers.ts`). Deliberately an
@@ -97,7 +95,10 @@ export const phantasmalImage = defineCard(() => ({
     // for "becomes a copy of a good but unpredictable creature", tempered by
     // the sacrifice-on-becoming-a-target drawback and the (rarer) whiff when
     // no legal copy target exists.
-    aiValue: 102,
+    aiValue: {
+        representativeBody: { power: 2, toughness: 2, manaValue: 2 },
+        premium: 0,
+    },
     // The granted trigger's template lives here (kept off `triggeredAbilities`
     // — the `StaticTriggeredGrant`/`grantedTriggeredAbilities` convention —
     // so the un-copied base card doesn't fire it), referenced by
