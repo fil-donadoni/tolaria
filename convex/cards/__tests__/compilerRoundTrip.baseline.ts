@@ -1154,7 +1154,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Volcanic Eruption",
     "Voldaren Epicure",
     "Voracious Cobra",
-    "Walking Ballista",
     "Walking Wall",
     "Wall of Caltrops",
     "Wall of Tombstones",

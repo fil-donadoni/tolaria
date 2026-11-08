@@ -264,10 +264,15 @@ export type StaticClauseIR =
           readonly asThoughFlash?: true;
       }
     /** CR 614.1c / 122.1 — "<self> enters with N <kind> counters on it":
-     *  the entry replacement with no other rider (Gemstone Mine). */
+     *  the entry replacement with no other rider (Gemstone Mine). `"X"`:
+     *  CR 107.3m — the X chosen as the spell was cast (Chalice of the Void),
+     *  legal only on a card whose mana cost prints {X} (checked in `lower.ts`). */
     | {
           readonly kind: "enters-with-counters";
-          readonly counters: { readonly type: string; readonly count: number };
+          readonly counters: {
+              readonly type: string;
+              readonly count: number | "X";
+          };
       }
     /** CR 614.1c / 122.1 — how this permanent enters. */
     | {
@@ -1570,6 +1575,14 @@ const entersWithCounters: Rule<StaticClauseIR> = pattern(
                 `"${match[1]}" is not this permanent (CR 109.2)`,
                 match[1]!
             );
+        // CR 107.3m — "enters with X … counters": the replacement reads the
+        // X chosen for the spell that became this permanent. Only a bare
+        // "X" — a "where X is …" tail is another form and fails the anchor.
+        if (match[2] === "X")
+            return ok({
+                kind: "enters-with-counters" as const,
+                counters: { type: match[3]!, count: "X" as const },
+            });
         const count = readNumberWord(match[2]!);
         if (count === null)
             return fail(`"${match[2]}" is not a number word`, match[2]!);

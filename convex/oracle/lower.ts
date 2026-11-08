@@ -163,7 +163,7 @@ interface Accumulator {
     definesPowerToughnessLines: string[];
     entersWithCounters: {
         type: string;
-        count: number | "kicker" | { additionalCostPaid: string };
+        count: number | "X" | "kicker" | { additionalCostPaid: string };
     }[];
     /** CR 702.33e — how each kicker-counted entry rider reads the tally, and
      *  (CR 702.33f) which one kicker a "with its {A} kicker" rider names. */
@@ -819,8 +819,16 @@ function lowerLine(
             }
             if (out.definesPowerToughness === true)
                 acc.definesPowerToughnessLines.push(parsed.line);
-            if (out.entersWithCounters !== undefined)
+            if (out.entersWithCounters !== undefined) {
+                // CR 107.3m — "enters with X counters" reads the X chosen for
+                // the spell; a card whose cost prints no {X} never chooses one.
+                if (
+                    out.entersWithCounters.count === "X" &&
+                    !hasVariableX(card.manaCost)
+                )
+                    return "an enters-with-X-counters rider on a card with no {X} to announce (CR 107.3m)";
                 acc.entersWithCounters.push(out.entersWithCounters);
+            }
             if (out.kickerCounters !== undefined) {
                 // Same-type entries SUM, so a second rider reading the SAME
                 // payment would add to the first silently — a sign a line was

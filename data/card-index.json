@@ -7202,6 +7202,16 @@
         "source": "compiled"
     },
     {
+        "name": "Big Bertha",
+        "scryfallId": "bca1d8ba-69a5-4246-bfb8-150d72206c18",
+        "oracleId": "32654ffa-b869-4f8b-a153-4242e8f9d92e",
+        "firstSet": "msc",
+        "firstPrintId": "bca1d8ba-69a5-4246-bfb8-150d72206c18",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Big Game Hunter",
         "scryfallId": "a61f38a9-6f15-4186-a602-78cdb00f2d75",
         "oracleId": "ab55834f-c935-4773-89c6-bec9712284eb",
@@ -24776,6 +24786,16 @@
         "source": "compiled"
     },
     {
+        "name": "Endless One",
+        "scryfallId": "64820f4f-1f78-4338-beb8-5ed5a447cfe4",
+        "oracleId": "7a51780a-fa28-4ee0-94c7-4330800ca9cb",
+        "firstSet": "bfz",
+        "firstPrintId": "64820f4f-1f78-4338-beb8-5ed5a447cfe4",
+        "firstPrintSet": "bfz",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Endless Wurm",
         "scryfallId": "53772435-e20e-4b9e-a2f1-c1c6a4dcac79",
         "oracleId": "ce4d714c-c22b-47be-a372-a3139c4e5b1c",
@@ -27433,6 +27453,16 @@
         "firstPrintId": "c957bbb7-0322-46d1-89e1-1a59515b3b1b",
         "firstPrintSet": "msc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Feral Hydra",
+        "scryfallId": "46f76986-e9fb-4c51-b946-880b501775b0",
+        "oracleId": "b5d5dd1f-2d31-4849-8cb9-08354dd48d31",
+        "firstSet": "ala",
+        "firstPrintId": "46f76986-e9fb-4c51-b946-880b501775b0",
+        "firstPrintSet": "ala",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -41256,6 +41286,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ivy Elemental",
+        "scryfallId": "fc441d3a-e917-4dd6-b5f9-f99075ec398f",
+        "oracleId": "38517711-e570-4337-b269-addcf8bfdd74",
+        "firstSet": "ody",
+        "firstPrintId": "fc441d3a-e917-4dd6-b5f9-f99075ec398f",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Ixalli's Diviner",
         "scryfallId": "b22b55f6-681f-45da-bc57-a0cf7b8f671d",
         "oracleId": "56c930c4-77e8-4547-8d55-663dc68ccf13",
@@ -44022,6 +44062,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krakilin",
+        "scryfallId": "a90442e8-9d22-4767-9e08-bd314169ea70",
+        "oracleId": "3eb49097-42f8-4388-907d-32a738749d8a",
+        "firstSet": "tmp",
+        "firstPrintId": "a90442e8-9d22-4767-9e08-bd314169ea70",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Kranioceros",
         "scryfallId": "52aece74-cc1f-4f32-ad1f-00733eb79007",
         "oracleId": "c66342bb-bbc1-4aaf-8d99-0af68292081e",
@@ -45772,6 +45822,16 @@
         "firstPrintId": "271febe5-98ea-403d-87be-7865cf9f426d",
         "firstPrintSet": "mir",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lightning Serpent",
+        "scryfallId": "f6b4f4b6-51cd-4ae0-9585-82ad964853ba",
+        "oracleId": "d07b4bb6-0c8d-44ea-a5b3-eeb6e36f3631",
+        "firstSet": "csp",
+        "firstPrintId": "f6b4f4b6-51cd-4ae0-9585-82ad964853ba",
+        "firstPrintSet": "csp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -50879,6 +50939,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mistcutter Hydra",
+        "scryfallId": "3c844ed7-8ed2-4a39-9134-e14e476ab0c4",
+        "oracleId": "30b5b764-478a-46fa-8f95-a1f515925a2d",
+        "firstSet": "ths",
+        "firstPrintId": "3c844ed7-8ed2-4a39-9134-e14e476ab0c4",
+        "firstPrintSet": "ths",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mistfire Adept",
         "scryfallId": "acdb2388-9ec4-496a-a63e-6b3f33a608a7",
         "oracleId": "794255b1-d94d-4de4-ac0a-87ef743f9102",
@@ -54092,6 +54162,16 @@
         "firstPrintId": "5d239c66-3e3f-4dc4-bede-f264864583b1",
         "firstPrintSet": "m15",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Nimbus Swimmer",
+        "scryfallId": "d691cd3b-afe5-4f28-95a9-125475515126",
+        "oracleId": "ce02ef24-d53e-4025-bc45-ca27aba89fe9",
+        "firstSet": "gtc",
+        "firstPrintId": "d691cd3b-afe5-4f28-95a9-125475515126",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -60358,6 +60438,16 @@
         "firstPrintId": "e2803fdc-2ae1-438c-b5b1-559817e85fdb",
         "firstPrintSet": "plc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Pterafractyl",
+        "scryfallId": "ecd33152-e290-4505-addd-a8d08cefdddd",
+        "oracleId": "cca03b76-dd3c-4228-b97a-f7fa20819b2e",
+        "firstSet": "sos",
+        "firstPrintId": "ecd33152-e290-4505-addd-a8d08cefdddd",
+        "firstPrintSet": "sos",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -67458,6 +67548,16 @@
         "source": "compiled"
     },
     {
+        "name": "Savageborn Hydra",
+        "scryfallId": "2f2b73cd-6179-4885-9d92-1782d0b492c1",
+        "oracleId": "fa8e5291-1a50-4c05-820c-8ae756364d33",
+        "firstSet": "dgm",
+        "firstPrintId": "2f2b73cd-6179-4885-9d92-1782d0b492c1",
+        "firstPrintSet": "dgm",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Savai Crystal",
         "scryfallId": "6954a5c1-89b1-4edd-814e-8f88fd49cda3",
         "oracleId": "cd0c1165-673d-4936-8254-deedd0ebbe97",
@@ -70592,6 +70692,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Shifting Wall",
+        "scryfallId": "49b7a950-bf79-46fa-8b29-b7856b38e0fd",
+        "oracleId": "7c852dfe-8238-461e-814e-9667807f2cf5",
+        "firstSet": "sth",
+        "firstPrintId": "49b7a950-bf79-46fa-8b29-b7856b38e0fd",
+        "firstPrintSet": "sth",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Shifting Woodland",
         "scryfallId": "059164e1-894d-4586-9800-e60d6fbd6eb6",
         "oracleId": "7c2a4fe5-43e8-4e20-bef2-0278d18afc4b",
@@ -70795,6 +70905,16 @@
         "firstPrintId": "e585631c-bd41-4b48-aac4-4b6f5636ecd5",
         "firstPrintSet": "mom",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Shivan Devastator",
+        "scryfallId": "1f5d274c-3a03-4f0d-97e8-7eef6508105d",
+        "oracleId": "b7daa74c-6142-4107-9355-be98af6ccf13",
+        "firstSet": "dmu",
+        "firstPrintId": "1f5d274c-3a03-4f0d-97e8-7eef6508105d",
+        "firstPrintSet": "dmu",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -77135,6 +77255,16 @@
         "firstPrintId": "3d641aaf-e2ff-4ccb-9e4e-27bbfc31ba8c",
         "firstPrintSet": "mrd",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Steelbane Hydra",
+        "scryfallId": "91d0e54d-6e18-44a5-adc2-d875d5b6784f",
+        "oracleId": "e38e3723-05f5-4a51-8364-1cda19f9cc49",
+        "firstSet": "eld",
+        "firstPrintId": "91d0e54d-6e18-44a5-adc2-d875d5b6784f",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -93500,6 +93630,16 @@
         "firstSet": "mir",
         "firstPrintId": "f00115bc-b551-4bf5-a121-bebb37201575",
         "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Worldsoul Colossus",
+        "scryfallId": "b5186304-b0fb-44a6-ba61-0265b7f42da4",
+        "oracleId": "6970f285-dc2b-437b-b099-ca1d3ef106ab",
+        "firstSet": "grn",
+        "firstPrintId": "b5186304-b0fb-44a6-ba61-0265b7f42da4",
+        "firstPrintSet": "grn",
         "rarity": "uncommon",
         "source": "compiled"
     },

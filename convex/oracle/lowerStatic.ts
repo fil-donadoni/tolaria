@@ -165,7 +165,8 @@ export interface LoweredStatic {
     readonly damageLifeFloor?: DamageLifeFloor;
     readonly entersWithCounters?: {
         readonly type: string;
-        readonly count: number;
+        /** `"X"`: CR 107.3m, the cast X (`lower.ts` checks the {X} pip). */
+        readonly count: number | "X";
     };
     /** CR 614.12a / 205.3m — "As this enters, choose a creature type". */
     readonly asEntersCreatureType?: true;
