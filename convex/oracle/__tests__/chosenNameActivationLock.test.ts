@@ -133,9 +133,18 @@ describe("chosen-name activation lock — refusals (fail-closed)", () => {
             )
         ).toBe("unparsed");
     });
-    it("the choice alone, read by no line, is refused", () => {
-        expect(refused("As this artifact enters, choose a card name.")).toBe(
-            "unparsed"
+    it("a choice no line reads is refused, beside a line that compiles", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Probe Revoker",
+                manaCost: "{2}",
+                typeLine: "Artifact Creature — Phyrexian Horror",
+                oracleText:
+                    "Flying\nAs this creature enters, choose a card name.",
+                power: "2",
+                toughness: "1",
+            })
         );
+        expect(outcome.state).toBe("unparsed");
     });
 });
