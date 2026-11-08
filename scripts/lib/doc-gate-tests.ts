@@ -15,6 +15,7 @@
  */
 export const DOC_GATE_TESTS = [
     "scripts/__tests__/action-space.test.ts",
+    "scripts/__tests__/adr-citation-drift.test.ts",
     "scripts/__tests__/adr-index.test.ts",
     "scripts/__tests__/agents-md-drift.test.ts",
     "scripts/__tests__/bot-globs.test.ts",

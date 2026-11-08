@@ -1,5 +1,5 @@
 // The Brain's request/response protocol and the PURE handler behind it
-// (ADR 0001, issues #109–#112, #2470).
+// (ADR 0000, issues #109–#112, #2470).
 //
 // Lives apart from `brain.worker.ts` because that file is a Worker ENTRY POINT:
 // importing it assigns `self.onmessage` as a side effect, so its handler could

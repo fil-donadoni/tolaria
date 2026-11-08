@@ -1,5 +1,7 @@
 # 0076 — Limited Event play phase: embedded in the event document, bot matches evaluated not simulated
 
+_Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
+
 ## Status
 
 Accepted. **Supersedes ADR 0055 decision 1** ("the Limited Event ends at the
@@ -125,7 +127,7 @@ through a logistic curve **clamped to roughly 25–75 %**, then rolled per game
 with an RNG seeded from `(eventId, roundNumber, seatA, seatB)`.
 
 Rejected: **playing the match through the GRE.** The gameplay Brain is
-client-side (ADR 0001); a real simulation would need either a server-side port
+client-side (ADR 0000); a real simulation would need either a server-side port
 of it or a connected client driving it — and the latter lets a closed browser
 tab freeze the whole table. The evaluator sits behind a seam, so a future
 server-side Brain could replace it without touching rounds, standings or the

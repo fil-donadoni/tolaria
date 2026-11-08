@@ -11,7 +11,7 @@
 //     `castAdjustedTargetRequirement` (`convex/game.ts`, exported for this)
 //   - the real cast-commit seam tags the stack item `overloaded: true` AND
 //     pays the OVERLOAD mana, driven over a manually-parked `pendingCast`
-//     (this project has no convex-test harness for game.ts mutations, ADR 0001)
+//     (this project has no convex-test harness for game.ts mutations, ADR 0000)
 //   - the text change itself (CR 702.96a): the same script resolving against
 //     one announced target, then against every matching object
 //   - CR 702.96b's second sentence — an overloaded spell reaches objects that

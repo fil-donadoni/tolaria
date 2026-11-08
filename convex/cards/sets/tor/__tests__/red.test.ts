@@ -3,7 +3,7 @@
 // Grim Lavamancer introduces `owner: "you"` on the exileFromGraveyard
 // activation cost (CR 118.5 — "Exile two cards from YOUR graveyard"), a
 // generalization of the existing Night Soil cost (any single graveyard). The
-// project has no convex-test harness (ADR 0001), so the production
+// project has no convex-test harness (ADR 0000), so the production
 // mutation-handler cost logic (activate legality's `canPayExileFromGraveyard`
 // + `selectActivationExileCost`'s owner/single-graveyard/count checks) is
 // mirrored here as a pure function that keeps the SAME branch order and gating

@@ -635,7 +635,7 @@ The multiplayer board mode that shows every **Player**'s **Battlefield** at once
 _Avoid_: Overview, minimap, summary tiles (a summary is not the board)
 
 **vs-AI Game**:
-A single-user game where one seat is controlled by the **AI Opponent** instead of the human. Structurally a **Solo Mode** game in which one seat's moves are chosen by the **Bot** rather than clicked by the user. Authority stays server-side: the **Bot**'s move is submitted and validated like any human move (see ADR 0001).
+A single-user game where one seat is controlled by the **AI Opponent** instead of the human. Structurally a **Solo Mode** game in which one seat's moves are chosen by the **Bot** rather than clicked by the user. Authority stays server-side: the **Bot**'s move is submitted and validated like any human move (see ADR 0000).
 _Avoid_: AI mode, bot match, practice mode
 
 **AI Opponent / Bot**:

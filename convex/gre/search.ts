@@ -1,4 +1,4 @@
-// ISMCTS search for the vs-AI Bot (ADR 0001).
+// ISMCTS search for the vs-AI Bot (ADR 0000).
 //
 // `search(state, playerId, budget, seed)` upgrades the bot from greedy 1-ply
 // to real lookahead: Single-Observer Information-Set Monte Carlo
@@ -7016,7 +7016,7 @@ function isDeferredEngineActivation(
  *  `MAX_VICTIM_VARIANTS`) and the standing-spend HOLD rule (behind
  *  `isStandingSpendActivation`, once, on the robust pick). Never on the hot
  *  path from either. The clone goes through `cloneGameState`, the search's
- *  own seam (ADR 0001 / #108), never `structuredClone`.
+ *  own seam (ADR 0000 / #108), never `structuredClone`.
  *
  *  The two sides compare like with like only while the ROOT STATE carries
  *  neither live combat nor a non-empty stack, and each caller earns that

@@ -2,7 +2,7 @@
 // is the exact function every public game mutation in `convex/game.ts` calls
 // — once, before its action-specific validation — to answer "is this the right
 // moment, from the right player, for this kind of input?". The project has no
-// convex-test harness (ADR 0001), so these tests drive that shared gate
+// convex-test harness (ADR 0000), so these tests drive that shared gate
 // function directly: it is the seam the mutations delegate to, so exercising it
 // is equivalent to exercising the rejection through every mutation that routes
 // through it. Each Expected Input variant is checked for a legal pass, a

@@ -46,7 +46,7 @@ import { pentadPrism } from "../../cards/sets/5dn/colorless.cards";
  * This file guards both halves of it: the seam captures (behaviour), and no
  * cast-commit site bypasses it or drops the captured record on the floor
  * (source guard — the stack-item assembly lives inside a Convex mutation this
- * project has no harness to call, ADR 0001).
+ * project has no harness to call, ADR 0000).
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -230,7 +230,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Source guard. `announceCast` is a Convex mutation and this project has no
-// harness that can call one (ADR 0001), so the two branches inside it are
+// harness that can call one (ADR 0000), so the two branches inside it are
 // reachable from a test only through the seams they call. These assertions
 // cover the rest: that every cast-commit site pays through the shared seam,
 // and that each one puts the captured record ON the stack item it pushes.

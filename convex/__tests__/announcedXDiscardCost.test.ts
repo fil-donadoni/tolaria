@@ -17,7 +17,7 @@
 //     largest legal X) and `additionalCostHandLeg` (the cost leg it prices)
 //     against the real catalogue definition.
 //  2. **Full path** — driven through the REGISTERED `announceCast` mutation
-//     via `gameMutationHarness.fixture.ts` (the established game.ts seam, ADR 0001 —
+//     via `gameMutationHarness.fixture.ts` (the established game.ts seam, ADR 0000 —
 //     never a hand-rolled reimplementation of the handler's body): the cards
 //     actually leave hand, the spell reaches the stack carrying its X, and an
 //     X above the ceiling is refused.

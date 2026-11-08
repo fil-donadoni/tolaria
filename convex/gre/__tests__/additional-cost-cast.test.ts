@@ -4,7 +4,7 @@
 // illegal to announce when the caster controls no matching permanent — you
 // can't announce a spell whose additional cost can't be paid.
 //
-// The project has no convex-test harness for game.ts mutations (ADR 0001 /
+// The project has no convex-test harness for game.ts mutations (ADR 0000 /
 // moves-integration.test.ts), so — like repro-mox.test.ts and
 // sacrifice-cost-activation.test.ts — this drives the REAL exported pieces
 // `announceCast` calls, in the same order, over the real GRE state:

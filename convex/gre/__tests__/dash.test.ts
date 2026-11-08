@@ -17,7 +17,7 @@
 //     AND actually pays the dash mana (not a zeroed cost — the bug class the
 //     generic `AlternativeCost.mana` leg exists to close) —
 //     `tryAutoCommitPendingCast`, convex/game.ts (this project has no
-//     convex-test harness for game.ts mutations, ADR 0001, so the REAL
+//     convex-test harness for game.ts mutations, ADR 0000, so the REAL
 //     exported commit function is driven directly over a manually-parked
 //     `pendingCast`, mirroring evoke.test.ts / Force-of-Will's
 //     pitch-cost.test.ts pattern)

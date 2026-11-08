@@ -354,7 +354,7 @@ describe("getLegalTargets", () => {
 // `matchesBattlefieldController` is the single authority both `getLegalTargets`
 // (offered set) and the `selectTarget` mutation's permanent branch (accepted
 // set — the authoritative anti-spoof gate) route through. The project has no
-// convex-test harness (ADR 0001), so these tests drive that shared predicate
+// convex-test harness (ADR 0000), so these tests drive that shared predicate
 // directly: it is the exact decision the mutation makes, so exercising it is
 // equivalent to exercising the mutation's controller rejection. A negative
 // (server rejects a wrong-controller permanent) + positive (accepts the right

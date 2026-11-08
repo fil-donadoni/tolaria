@@ -6,7 +6,7 @@
 //   This activated ability functions only while this card is in your hand.
 // CR 702.29b: A card may be cycled any time its owner could cast an instant.
 //
-// The project has no convex-test harness (ADR 0001), so this drives the REAL
+// The project has no convex-test harness (ADR 0000), so this drives the REAL
 // exported cost-commit primitives (`buildPendingActivation` +
 // `tryAutoCommitPendingActivation` from game.ts — the same functions the
 // `activateAbility` mutation calls) and the REAL `resolveTopOfStack`. A

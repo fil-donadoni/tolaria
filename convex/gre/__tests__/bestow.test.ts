@@ -1,7 +1,7 @@
 // Bestow (CR 702.103) — the cast mode built in issue #2388, exercised end to
 // end on its first (and so far only) card, Springheart Nantuko (MH3).
 //
-// The project has no convex-test harness for `game.ts` mutations (ADR 0001),
+// The project has no convex-test harness for `game.ts` mutations (ADR 0000),
 // so — mirroring `buyback.test.ts` / `escape.test.ts` / `flashback.test.ts` —
 // the MUTATION layer is driven through the real exported
 // `finalizeTargetSelection`, the same function `announceCast` hands a

@@ -1,5 +1,7 @@
 # A Limited Deck carries its own Pool; the Limited Event is its provenance, not its authority
 
+_Maintenance 2026-11-08 (issue #8723): ADR 0054 and 0055 corrected to ADR 0055 (ADR 0054 is Fading/Vanishing)._
+
 ## Status
 
 accepted
@@ -7,7 +9,7 @@ accepted
 ## Context
 
 `format: "limited"` is the one Format whose legality is not set membership
-(ADR 0054/0055). `allowedSets` is `null`, `checkSets` never runs, and the whole
+(ADR 0055). `allowedSets` is `null`, `checkSets` never runs, and the whole
 legality surface is `checkPoolMembership` against the Pool of the Seat the deck
 was built at. The deck row stores `limitedEventId` + `limitedSeatId`, and every
 validation site resolves the Pool through them:

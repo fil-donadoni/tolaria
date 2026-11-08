@@ -1,5 +1,7 @@
 # Trigger-site event refs and list-valued capture
 
+_Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (EFFECT_OP_REGISTRY)._
+
 ADR 0048 shipped the `delayedTrigger` Op with **single-value, explicit**
 `capture` and deliberately left two grammar gaps open (issues #865, #866).
 This record closes both. They are the last pieces of trigger-site data access
@@ -25,7 +27,7 @@ not the literal event shape:
 ```
 
 A new **`EVENT_FIELD_REGISTRY`** — a name-authority table beside
-`EFFECT_OP_REGISTRY` (ADR 0046) — maps `(GameEventType, field) → { family,
+`EFFECT_OP_REGISTRY` (ADR 0045) — maps `(GameEventType, field) → { family,
 resolve }`. It is the single decision point:
 
 - **Vocabulary is censused, not free-form.** A friendly field resolves through

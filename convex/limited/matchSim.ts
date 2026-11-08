@@ -5,7 +5,7 @@
 // rolls the match off that score difference with an injected RNG.
 //
 // **Evaluated, not simulated.** The match is deliberately NOT played through
-// the GRE. The gameplay Brain is CLIENT-side (ADR 0001) — a real simulation
+// the GRE. The gameplay Brain is CLIENT-side (ADR 0000) — a real simulation
 // would need either a server-side port of it or a connected client driving the
 // game, which would let one closed tab freeze the whole table. The evaluator
 // sits behind this seam precisely so a future server-side Brain could replace

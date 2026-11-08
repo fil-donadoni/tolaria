@@ -98,7 +98,7 @@ type BoardProps = {
     playerId: string;
     /** Solo (single-user) game: viewer auto-follows the priority player. */
     solo: boolean;
-    /** vs-AI game (ADR 0001): the second seat is driven by the bot and the
+    /** vs-AI game (ADR 0000): the second seat is driven by the bot and the
      *  viewer stays pinned to the human's seat. */
     vsAi: boolean;
     showAllCards: boolean;
@@ -254,7 +254,7 @@ export default function Board({
     // by p2 (e.g. Copy Artifact's copy-target choice owed by the p2 caster);
     // submitting it as p1 is rejected by the Expected Input gate (ADR 0047,
     // "waiting for choice input from another player"). vs-AI / 2p stays pinned
-    // to the human's own seat (ADR 0001).
+    // to the human's own seat (ADR 0000).
     const viewerId =
         solo && !vsAi && state
             ? computeSoloViewerId({
@@ -428,7 +428,7 @@ export default function Board({
     };
 
     // vs-AI: the bot is the seat the human does not control. The driver queries
-    // the bot's own viewpoint and enumerates its moves (ADR 0001) — it only
+    // the bot's own viewpoint and enumerates its moves (ADR 0000) — it only
     // needs the seat id from here.
     const botId = vsAi
         ? (allPlayers.find((p) => p.id !== playerId)?.id ?? null)

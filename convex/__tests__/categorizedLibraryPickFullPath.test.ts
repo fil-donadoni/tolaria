@@ -16,7 +16,7 @@
 //     the picker a count of five. Driven exactly as
 //     `additional-cost-cast.test.ts` drives it: the real exported pieces, in
 //     the order the mutation calls them (the project has no convex-test
-//     harness for the cast path, ADR 0001).
+//     harness for the cast path, ADR 0000).
 //
 //  2. The SUBMISSION, through the REGISTERED `submitResolutionChoice`
 //     `_handler` over the stub `MutationCtx`, not through

@@ -1,4 +1,4 @@
-// Macro-move enumeration for the vs-AI Bot (ADR 0001, issue #110).
+// Macro-move enumeration for the vs-AI Bot (ADR 0000, issue #110).
 //
 // `enumerateMoves(state, playerId)` returns the complete set of legal ATOMIC
 // macro-moves at the current decision point: a single `Move` bundles a player's

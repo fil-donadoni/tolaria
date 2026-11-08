@@ -24,7 +24,7 @@
 // the base state's turn holder, i.e. the coin toss's), and the rebuilt
 // position must owe its input to seat one. `buildStateFromScenario`
 // (`convex/gre/scenarioBuilder.ts`) maps `"me"` to the first seat and `"opp"`
-// to the second, and the second is the Bot's (`-p2`, ADR 0001,
+// to the second, and the second is the Bot's (`-p2`, ADR 0000,
 // `bladeLoadBotSeatId`) — the seat `computeExpectedInput` must never name.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";

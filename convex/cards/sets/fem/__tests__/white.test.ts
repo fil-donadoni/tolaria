@@ -69,7 +69,7 @@ const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
 // view (buildTriggerStateView exposes isTapped + colors). The mutation's
 // pick step (`selectActivationCost`) is mirrored here as a pure helper that
 // pushes onto the real `tapOtherChoice.pickedIds` — same branch order/gating
-// the mutation uses (ADR 0001, no convex-test harness).
+// the mutation uses (ADR 0000, no convex-test harness).
 // ===========================================================================
 
 /** Mirror of selectActivationCost's tap-other picker: validate + record one
