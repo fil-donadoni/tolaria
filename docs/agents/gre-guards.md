@@ -92,8 +92,9 @@ tell: `PlayerPreferences` (reached through `GameState.playerPreferences`, which
 is in `PERSISTED_OPTIONAL_KEYS`, so persisted state shape) carries
 `libraryOfLengRouting`, and `TriggerStateView` carries the
 `gazeOfPainActiveThisTurn` mirror that #1917 explicitly lists for rename. Both
-were live violations, invisible to the four-name sweep. Sweeping the two files
-is the same work and closes the class. The AST is used rather than a runtime key
+were live violations, invisible to the four-name sweep (both renamed by the
+#1917 sweep, to `discardRouting` and `turnScopedTriggerGrants`). Sweeping the
+two files is the same work and closes the class. The AST is used rather than a runtime key
 list because a type has no runtime keys, and because it sees the REQUIRED
 members too — `PERSISTED_OPTIONAL_KEYS` is exhaustive over the OPTIONAL ones
 only.
@@ -114,8 +115,10 @@ lost; at 4 the six extra pairs are all English substrings ("Bind" inside
 
 - `ALLOWLIST` — (surface, identifier, card) rows that ARE card-named and not
   renamed yet, each with its tracking issue. Pre-populated with the #1917 sweep
-  deliberately: landing the guard BEFORE the sweep is what makes it impossible
-  for the sweep to stop halfway. A row matching nothing reds, so it only shrinks.
+  deliberately: landing the guard BEFORE the sweep is what made it impossible
+  for the sweep to stop halfway. After it, only the two High Tide rows remain,
+  deleted rather than renamed by issue #1916. A row matching nothing reds, so it
+  only shrinks.
 - `RULES_VOCABULARY_NAMES` — a card name that is also ordinary rules vocabulary
   (`Island`, `Flash`, `Overload`, `Regeneration`, `Sacrifice`, `Blessing`,
   `Exclude`, `Recall`), dropped from the corpus across all surfaces. This is the
@@ -132,7 +135,7 @@ read — a mapped type, an intersection, a namespace, a split interface — reds
 instead of silently shrinking the surface.
 
 **Stated scope limit.** An anonymous inline shape is not a declaration and is not
-swept: `types.ts`'s `preferences?: { libraryOfLengRouting?: … }` is invisible
+swept: `types.ts`'s `preferences?: { discardRouting?: … }` is invisible
 while the `PlayerPreferences` member it mirrors is caught. A rename sweep greps
 the old name, so the mirror travels with the original; what the guard promises is
 that the original cannot be missed.

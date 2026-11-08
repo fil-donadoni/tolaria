@@ -130,7 +130,7 @@ const PROTECTION_COMPLETENESS = {
     flatPrevent: { num: 7, den: 6 },
     /** Player-wide "can't be attacked except by flying/islandwalk" — ground
      *  only, so a tempered protection. */
-    islandSanctuary: { num: 1, den: 3 },
+    evasionGatedAttacks: { num: 1, den: 3 },
     /** Player-wide untargetable + ALL damage prevented for a full turn cycle
      *  — strictly stronger than Island Sanctuary (no evasion carve-out,
      *  covers burn and abilities too). */
@@ -3359,14 +3359,11 @@ const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
 // islandwalk" protection — a broad defensive effect, but tempered vs.
 // `restrictCombat`'s per-creature `cant-attack` (RESTRICT_COMBAT_VALUE)
 // because it only stops GROUND attackers, not evasive ones.
-const setIslandSanctuaryProtection: Valuer<"setIslandSanctuaryProtection"> = (
-    _op,
-    ctx
-) => ({
+const restrictAttackers: Valuer<"restrictAttackers"> = (_op, ctx) => ({
     points: pricedFraction(
         ctx,
         "protection",
-        PROTECTION_COMPLETENESS.islandSanctuary
+        PROTECTION_COMPLETENESS.evasionGatedAttacks
     ),
     tags: ["protection"],
 });
@@ -3375,7 +3372,7 @@ const setIslandSanctuaryProtection: Valuer<"setIslandSanctuaryProtection"> = (
 // CR 702.16b/e/i) — the strongest defensive Op in the vocabulary: it blanks
 // EVERY damage source and every targeted removal/burn aimed at the player for
 // a full turn cycle, with no evasion carve-out to play around (contrast
-// `setIslandSanctuaryProtection`, which only stops ground attackers).
+// `restrictAttackers`, which only stops ground attackers).
 const setProtectionFromEverything: Valuer<"setProtectionFromEverything"> = (
     _op,
     ctx
@@ -3669,7 +3666,7 @@ export const OP_VALUERS: {
     grantManaSubstitution,
     replaceManaProductionColor,
     restrictCombat,
-    setIslandSanctuaryProtection,
+    restrictAttackers,
     setProtectionFromEverything,
     reveal,
     lookRandomHand,
@@ -3920,7 +3917,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     cascade: "beneficial",
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",
-    setIslandSanctuaryProtection: "beneficial",
+    restrictAttackers: "beneficial",
     emblem: "beneficial",
     // CR 712 / 400.7 (issue #2380) — the ORI flip-walker template: the
     // permanent's OWNER gets it back, upgraded to its planeswalker face. Always

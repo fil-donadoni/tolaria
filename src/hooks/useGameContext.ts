@@ -80,7 +80,7 @@ type GameContext = {
     /** Melee (#669) — the attacking (active) player declares blocks this
      *  combat. Flows from the projected GameState so block-declaration UI flips
      *  to the right seat. */
-    meleeCombat?: boolean;
+    blocksDeclaredByAttacker?: boolean;
     /** CR 514.3a (issue #2472) — the cleanup step's ONE priority window is
      *  open. Forwarded from the wire `GameState.pendingExtraCleanupStep` so
      *  `computeHasPriority` / `computePriorityState` stop treating CLEANUP as a

@@ -18323,14 +18323,14 @@ export function buildSpellContext(
             state.combatDamageRedirectToPermanent = list;
         },
 
-        markGazeOfPainActive(playerId: string): void {
+        grantTurnScopedTrigger(playerId: string): void {
             // ICE Gaze of Pain — "until end of turn" turn-scoped floating
             // trigger (CR 603.7a). Records that `playerId` has an active rider;
             // the card's graveyard-zone trigger reads this flag. Idempotent;
             // cleared at CLEANUP.
-            const list = state.gazeOfPainActiveThisTurn ?? [];
+            const list = state.turnScopedTriggerGrants ?? [];
             if (!list.includes(playerId)) list.push(playerId);
-            state.gazeOfPainActiveThisTurn = list;
+            state.turnScopedTriggerGrants = list;
         },
 
         replaceLandManaWithBlue(playerId: string): void {
@@ -18366,8 +18366,8 @@ export function buildSpellContext(
             state.landManaRidersThisTurn = list;
         },
 
-        setIslandSanctuaryProtection(playerId: string): void {
-            state.islandSanctuaryProtection = playerId;
+        restrictAttackers(playerId: string): void {
+            state.playerAttackRequirements = playerId;
         },
 
         setPlayerProtectionFromEverything(playerId: string): void {
@@ -18972,13 +18972,13 @@ export function buildSpellContext(
         // "each creature in a pile that can block the creature that pile is
         // assigned to does so"). The forced blocks are written into
         // `combat.blockerAssignments`; the DECLARE_BLOCKERS step auto-confirms.
-        applyCamouflagePileBlocks(defenderId: string, piles: string[][]): void {
+        predetermineBlocks(defenderId: string, piles: string[][]): void {
             const combat = state.combat;
             if (!combat) return;
             // Marks "declare-blockers replaced by Camouflage" for this combat;
             // consumed by the DECLARE_BLOCKERS phase hook. Cleared at end of
             // combat alongside the other combat-scoped state.
-            state.camouflageCombat = true;
+            state.blocksPredeterminedThisCombat = true;
 
             const defender = getPlayer(state, defenderId);
             const attackerOwner = getPlayer(state, state.activePlayerId);
@@ -19046,7 +19046,7 @@ export function buildSpellContext(
             // is consumed by the block-selection mutations (which route to the
             // active player) and the blocker-confirmation rider; cleared at end
             // of combat alongside the other combat-scoped state.
-            state.meleeCombat = true;
+            state.blocksDeclaredByAttacker = true;
         },
         copyStackItem(targetStackItemId, modifications): string | null {
             const original = state.stack.find(

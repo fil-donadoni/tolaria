@@ -26,7 +26,7 @@ export type HasPriorityCtx = {
      *  combat's blocks instead of the defending player. Survives the wire
      *  projection (top-level GameState key kept in `PublicGameState`), so the
      *  client's "who selects blockers" mirror flips to match the server. */
-    meleeCombat?: boolean;
+    blocksDeclaredByAttacker?: boolean;
     /** CR 514.3a (issue #2472) — set while the cleanup step's ONE priority
      *  window is open. CLEANUP is otherwise a no-priority step (CR 514.3), so
      *  without this the client's own reducers refuse to believe the server:
@@ -40,9 +40,9 @@ export type HasPriorityCtx = {
 
 /** The seat that declares this combat's blocks (CR 509.1): the defending
  *  (non-active) player normally, or the attacking (active) player under Melee
- *  (`meleeCombat`, #669). */
+ *  (`blocksDeclaredByAttacker`, #669). */
 function blockDeclarerIsLocal(ctx: HasPriorityCtx): boolean {
-    return ctx.meleeCombat
+    return ctx.blocksDeclaredByAttacker
         ? ctx.playerId === ctx.activePlayerId
         : ctx.playerId !== ctx.activePlayerId;
 }

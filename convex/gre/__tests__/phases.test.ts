@@ -1596,7 +1596,7 @@ describe("declare-blockers priority with no legal block (CR 117.3a, issue #3086)
         // DECLARATION, not the step. CR 117.3a knows no exception for it.
         const state = makeGameState({
             phase: "DECLARE_ATTACKERS",
-            camouflageCombat: true,
+            blocksPredeterminedThisCombat: true,
             combat: {
                 attackerIds: ["atk"],
                 confirmed: true,
@@ -3220,7 +3220,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
             "graveyardPlayPermissionUsesThisTurn",
             [{ playerId: "p1", sourceId: "lurrus" }],
         ],
-        ["gazeOfPainActiveThisTurn", ["p1"]],
+        ["turnScopedTriggerGrants", ["p1"]],
         ["damageCapShields", [{ playerId: "p1", maxDamage: 1 }]],
         ["landManaReplacedToBlueThisTurn", ["p1"]],
         ["highTideThisTurn", ["p1"]],

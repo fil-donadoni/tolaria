@@ -38,7 +38,7 @@
 //
 // SCOPE LIMIT, stated rather than hidden: an ANONYMOUS inline shape is not a
 // declaration and is not swept — `types.ts`'s
-// `preferences?: { libraryOfLengRouting?: … }` is invisible here while the
+// `preferences?: { discardRouting?: … }` is invisible here while the
 // `PlayerPreferences` member it mirrors is caught. A rename sweep greps the
 // old name, so the mirror travels with the original; what the guard promises
 // is that the original cannot be missed.
@@ -137,7 +137,8 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
  *  tracking issue that renames it; the well-formedness test below fails on a
  *  row that no longer matches anything, so this list can only shrink. It is
  *  pre-populated deliberately: landing the guard BEFORE the rename sweep
- *  (issue #1917) is what makes it impossible for that sweep to stop halfway. */
+ *  (issue #1917) is what made it impossible for that sweep to stop halfway;
+ *  the High Tide rows are deleted, not renamed, by issue #1916. */
 const ALLOWLIST: ReadonlyArray<{
     readonly surface: string;
     readonly identifier: string;
@@ -146,75 +147,15 @@ const ALLOWLIST: ReadonlyArray<{
 }> = [
     {
         surface: "GameState",
-        identifier: "camouflageCombat",
-        card: "Camouflage",
-        issue: 1917,
-    },
-    {
-        surface: "GameState",
-        identifier: "meleeCombat",
-        card: "Melee",
-        issue: 1917,
-    },
-    {
-        surface: "GameState",
-        identifier: "islandSanctuaryProtection",
-        card: "Island Sanctuary",
-        issue: 1917,
-    },
-    {
-        surface: "GameState",
-        identifier: "gazeOfPainActiveThisTurn",
-        card: "Gaze of Pain",
-        issue: 1917,
-    },
-    {
-        surface: "GameState",
         identifier: "highTideThisTurn",
         card: "High Tide",
-        issue: 1917,
-    },
-    {
-        surface: "Op",
-        identifier: "setIslandSanctuaryProtection",
-        card: "Island Sanctuary",
-        issue: 1917,
-    },
-    {
-        surface: "SpellContext",
-        identifier: "setIslandSanctuaryProtection",
-        card: "Island Sanctuary",
-        issue: 1917,
-    },
-    {
-        surface: "SpellContext",
-        identifier: "markGazeOfPainActive",
-        card: "Gaze of Pain",
-        issue: 1917,
-    },
-    {
-        surface: "SpellContext",
-        identifier: "applyCamouflagePileBlocks",
-        card: "Camouflage",
-        issue: 1917,
+        issue: 1916,
     },
     {
         surface: "SpellContext",
         identifier: "addHighTide",
         card: "High Tide",
-        issue: 1917,
-    },
-    {
-        surface: "TriggerStateView",
-        identifier: "gazeOfPainActiveThisTurn",
-        card: "Gaze of Pain",
-        issue: 1917,
-    },
-    {
-        surface: "PlayerPreferences",
-        identifier: "libraryOfLengRouting",
-        card: "Library of Leng",
-        issue: 1917,
+        issue: 1916,
     },
 ];
 

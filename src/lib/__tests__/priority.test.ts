@@ -480,20 +480,20 @@ describe("Melee — attacker declares blocks (#669, CR 509.1)", () => {
         expect(isWaitingOnOpponent(attacker)).toBe(true);
     });
 
-    it("under meleeCombat: the ATTACKING (active) player selects blockers", () => {
+    it("under blocksDeclaredByAttacker: the ATTACKING (active) player selects blockers", () => {
         const attacker = makePriorityCtx({
             playerId: "p1",
             activePlayerId: "p1",
             phase: "DECLARE_BLOCKERS",
             combat: blockersOpen,
-            meleeCombat: true,
+            blocksDeclaredByAttacker: true,
         });
         const defender = makePriorityCtx({
             playerId: "p2",
             activePlayerId: "p1",
             phase: "DECLARE_BLOCKERS",
             combat: blockersOpen,
-            meleeCombat: true,
+            blocksDeclaredByAttacker: true,
         });
         // Seat flips: the attacker now declares; the defender waits.
         expect(isSelectingBlockers(attacker)).toBe(true);

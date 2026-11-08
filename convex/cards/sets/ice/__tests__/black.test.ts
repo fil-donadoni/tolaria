@@ -2819,7 +2819,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
         });
         pushSpell(state, gazeOfPain.id, "p1");
         resolveTopOfStack(state);
-        expect(state.gazeOfPainActiveThisTurn).toContain("p1");
+        expect(state.turnScopedTriggerGrants).toContain("p1");
         // Sorcery went to the graveyard (source for the graveyard-zone trigger).
         expect(state.players[0].graveyard.some((c) => c.id !== undefined)).toBe(
             true
@@ -2860,7 +2860,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
                 }),
                 makePlayer("p2", { battlefield: [victim] }),
             ],
-            gazeOfPainActiveThisTurn: ["p1"],
+            turnScopedTriggerGrants: ["p1"],
         });
         const triggers = collectTriggers(state, [unblockedEvent]);
         const trig = triggers.find(
@@ -2895,7 +2895,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
                 makePlayer("p1", { graveyard: [gaze] }),
                 makePlayer("p2"),
             ],
-            // no gazeOfPainActiveThisTurn
+            // no turnScopedTriggerGrants
         });
         const triggers = collectTriggers(state, [unblockedEvent]);
         expect(
@@ -2917,7 +2917,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
                 makePlayer("p1", { graveyard: [gaze] }),
                 makePlayer("p2"),
             ],
-            gazeOfPainActiveThisTurn: ["p1"],
+            turnScopedTriggerGrants: ["p1"],
         });
         const opponentAttack = {
             ...unblockedEvent,
