@@ -1594,6 +1594,17 @@ export function lowerCard(
             reason: '"the chosen name" on a card with no as-enters card-name choice',
             fragment: acc.readsChosenNameLines[0]!,
         };
+    // CR 614.12a — the reverse: a name choice no line of the card reads is a
+    // choice the compiled card would ask for and never use — refuse.
+    if (
+        acc.asEntersCardNameLines.length > 0 &&
+        acc.readsChosenNameLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: "an as-enters card-name choice no line of the card reads",
+            fragment: acc.asEntersCardNameLines[0]!,
+        };
     // CR 607.2d — "the chosen type" with no creature-type choice on the card
     // names nothing (the predicate matches no creature): refuse, don't ship inert.
     if (
