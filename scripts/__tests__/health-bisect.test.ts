@@ -15,8 +15,7 @@ import {
     remainingGates,
     culpritLine,
     flakeVerdict,
-    flakyIssueTitle,
-    flakySubjects,
+    flakyIssues,
     freshRunPlan,
     ladderRed,
     lastGreenOf,
@@ -174,13 +173,14 @@ describe("a RED that does not reproduce closes as GREEN and files the flake", ()
             step: "test",
             files: ["a.test.ts", "b.test.ts"],
         };
-        expect(
-            flakySubjects(plan).map((s) => flakyIssueTitle(plan, s))
-        ).toEqual(["Flaky test: a.test.ts", "Flaky test: b.test.ts"]);
+        expect(flakyIssues(plan).map((i) => i.title)).toEqual([
+            "Flaky test: a.test.ts",
+            "Flaky test: b.test.ts",
+        ]);
         const step = { kind: "step" as const, step: "check:all" };
-        expect(
-            flakySubjects(step).map((s) => flakyIssueTitle(step, s))
-        ).toEqual(["Flaky health step: check:all"]);
+        expect(flakyIssues(step).map((i) => i.title)).toEqual([
+            "Flaky health step: check:all",
+        ]);
     });
 });
 

@@ -611,21 +611,72 @@ export function settleFreshPass(
     return 0;
 }
 
-/** What a flaky-test issue is about: each file, or the step itself. */
-export function flakySubjects(
-    plan: Exclude<FreshRun, { kind: "none" }>
-): string[] {
-    return plan.kind === "tests" ? [...plan.files] : [plan.step];
+/**
+ * The one error line every failure of a published body's `### Failures`
+ * excerpt carries, when they span two files or more — else null (issue
+ * #8916). Each FAIL line's error is the next line that is neither blank, a
+ * FAIL line nor a `⎯` rule (vitest prints consecutive FAIL lines over one
+ * shared error). One error across many files is one cause — a broken run, a
+ * shared helper — never that many independent flakes.
+ */
+export function uniformFailure(
+    evidence: string | null,
+    /** The files the RED names: all of them must be seen in the excerpt — a
+     *  capped one hides the files whose error might differ. */
+    expected?: readonly string[]
+): string | null {
+    if (!evidence) return null;
+    const from = evidence.indexOf("### Failures");
+    if (from === -1) return null;
+    const to = evidence.indexOf("### Output tail", from);
+    const lines = evidence.slice(from, to === -1 ? undefined : to).split("\n");
+    const isFail = (l: string) => /^\s*(?:[❯>×✗]\s*)?FAIL\s+\S/.test(l);
+    const errors = new Set<string>();
+    const files = new Set<string>();
+    for (let i = 0; i < lines.length; i++) {
+        if (!isFail(lines[i])) continue;
+        for (const l of failLines(lines[i])) files.add(l.file);
+        const error = lines
+            .slice(i + 1)
+            .find((l) => l.trim() !== "" && !isFail(l) && !/^\s*⎯/.test(l));
+        if (error === undefined || error.trim().startsWith("~~~")) return null;
+        errors.add(error.trim());
+    }
+    if (expected && expected.some((f) => !files.has(f))) return null;
+    return files.size >= 2 && errors.size === 1 ? [...errors][0] : null;
 }
 
-/** The title an issue about one flaky subject carries — the dedup key. */
-export function flakyIssueTitle(
+/** One flaky issue to file: its subject and its title — the dedup key. */
+export interface FlakyIssue {
+    subject: string;
+    title: string;
+    /** Set when the issue stands for many files that failed with ONE error
+     *  (`uniformFailure`): that error. */
+    uniform?: string;
+}
+
+/**
+ * The flaky issues a closed RED files: one per failing file, or one for the
+ * step — when the plan re-ran a step, or when every failure in the RED's
+ * `evidence` carried the same error across files (`uniformFailure`, issue
+ * #8916: one broken run fanned out into 13 false `Flaky test:` issues).
+ */
+export function flakyIssues(
     plan: Exclude<FreshRun, { kind: "none" }>,
-    subject: string
-): string {
-    return plan.kind === "tests"
-        ? `Flaky test: ${subject}`
-        : `Flaky health step: ${subject}`;
+    evidence: string | null = null
+): FlakyIssue[] {
+    const step = (uniform?: string): FlakyIssue[] => [
+        {
+            subject: plan.step,
+            title: `Flaky health step: ${plan.step}`,
+            ...(uniform ? { uniform } : {}),
+        },
+    ];
+    if (plan.kind === "step") return step();
+    const uniform =
+        plan.files.length > 1 ? uniformFailure(evidence, plan.files) : null;
+    if (uniform !== null) return step(uniform);
+    return plan.files.map((f) => ({ subject: f, title: `Flaky test: ${f}` }));
 }
 
 /** The body of a filed flaky-test issue. */
@@ -635,12 +686,20 @@ export function flakyIssueBody(input: {
     step: string;
     evidence?: string;
     runUrl?: string;
+    /** `FlakyIssue.uniform`: the one error every failing file carried. */
+    uniform?: string;
 }): string {
     return [
         "## What happened",
         "",
         `Batch health went RED at \`${input.sha.slice(0, 12)}\` (step \`${input.step}\`) on \`${input.subject}\`. A fresh run of it at the same sha passed, so the RED closed as GREEN (issue #5645's flake check) and this issue records the flake.`,
         "",
+        ...(input.uniform
+            ? [
+                  `Every failing file carried one error — \`${input.uniform.replace(/`/g, "'")}\` — so this is one issue for the run, not one per file (issue #8916): suspect the run, not the tests.`,
+                  "",
+              ]
+            : []),
         input.evidence
             ? `- **evidence:** ${input.evidence}`
             : "- **evidence:** none published",
