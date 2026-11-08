@@ -1,5 +1,7 @@
 # UI identity v4: "quiet chrome, loud world" — graphite ground, monochrome ivory chrome, Geist display, hairline panels, full-card board (amends 0007 / 0069 values; leaves 0101 untouched)
 
+_Maintenance note (2026-11-08, issue #8725): this record does overturn ADR 0101 §2 (Antique Bronze, Beleren, 10px brackets) — "leaves 0101 untouched" holds for the rest of 0101 only; ADR 0069's hex values are dead the same way._
+
 **Status:** accepted (2026-08-23). Supersedes the Antique Bronze _values_ of ADR 0007 and ADR 0069; keeps their _contract_ (semantic token roles, one `Panel`, one `Button`, shadcn remapped onto the palette). Leaves ADR 0101 (layout, viewport matrix, shell modes, touch model) untouched.
 
 ## Context

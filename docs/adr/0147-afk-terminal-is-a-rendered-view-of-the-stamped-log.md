@@ -1,5 +1,7 @@
 # The AFK terminal is a rendered view of the stamped log; a pass is bound to its transcript by `--session-id`
 
+**Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-render.ts` is deleted.
+
 ## Status
 
 accepted — grilled 2026-09-26 (PRD #4717). Amends ADR 0099 and the issue

@@ -1,5 +1,7 @@
 # A finished pass hands the loop off to a driver, and a crash is retried
 
+**Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-handoff.sh` is deleted.
+
 ## Status
 
 accepted (the `--from-pass` autostart is superseded by ADR 0109; the terminal is a rendered view of the log, not the same bytes — ADR 0147; the

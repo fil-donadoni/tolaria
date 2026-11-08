@@ -1,5 +1,7 @@
 # The card catalogue stays in code — measured, with the precondition for revisiting it
 
+**Revisit answered by ADR 0172 (2026-11-08, issue #8725):** neither precondition fired for the hand-written catalogue; the compiled pool in `data/` is a separate population.
+
 ## Status
 
 accepted

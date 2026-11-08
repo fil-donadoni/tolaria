@@ -1,5 +1,7 @@
 # A pass never starts the driver, and the driver's token budget is mandatory
 
+**Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** the driver is retired; admission is by queue depth.
+
 ## Status
 
 accepted (supersedes the `--from-pass` autostart of ADR 0099)

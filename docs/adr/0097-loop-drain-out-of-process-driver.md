@@ -1,5 +1,7 @@
 # The AFK driver is an out-of-process shell loop, and its budget guard is a local proxy
 
+**Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-drain.sh` is deleted; the dispatcher is `afk-dispatch`.
+
 ## Status
 
 accepted
