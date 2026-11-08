@@ -22672,6 +22672,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dual Casting",
+        "scryfallId": "7aa45bfd-7075-470d-8aaa-16e34109eb5a",
+        "oracleId": "4d22b01b-63dd-4698-a221-0acaefb2000b",
+        "firstSet": "avr",
+        "firstPrintId": "7aa45bfd-7075-470d-8aaa-16e34109eb5a",
+        "firstPrintSet": "avr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Dual-Sun Adepts",
         "scryfallId": "c7e8c830-77ae-437f-8e28-ce61c5fde6b6",
         "oracleId": "155e01a1-5809-4be9-ad38-c11553a4a723",
@@ -54283,6 +54293,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nivix Guildmage",
+        "scryfallId": "9d3fde47-8d9e-4a84-b8a5-dcfe0c1d443c",
+        "oracleId": "d04356f1-0e1a-4689-8e54-f88c4c6dd936",
+        "firstSet": "rtr",
+        "firstPrintId": "9d3fde47-8d9e-4a84-b8a5-dcfe0c1d443c",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "No Admittance",
         "scryfallId": "11ba4fdd-cc03-4bb6-a493-91a9785771d0",
         "oracleId": "d53ae01b-87e1-48e1-9fc3-23a734ce6622",
@@ -65527,6 +65547,16 @@
         "firstPrintId": "9a686ed6-fc13-4882-b56c-667f556d9804",
         "firstPrintSet": "tmp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rootha, Mercurial Artist",
+        "scryfallId": "acb8f24d-8d1d-48aa-a534-238e969a474c",
+        "oracleId": "3735559f-efe5-43ad-9b3e-3ef127c0ceda",
+        "firstSet": "stx",
+        "firstPrintId": "acb8f24d-8d1d-48aa-a534-238e969a474c",
+        "firstPrintSet": "stx",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

@@ -21746,6 +21746,27 @@ export type EffectOp =
           /** Who controls the copy and chooses its new targets. */
           player: EffectPlayerRef;
       }
+    /** CR 707.10 + CR 707.10c — "copy target instant or sorcery spell [you
+     *  control]. You may choose new targets for the copy" (issue #8580): a
+     *  DIFFERENT spell, announced as a target, is copied onto the stack under
+     *  the resolving controller's control (CR 707.10 — the copy is controlled
+     *  by the player under whose control it was put on the stack), above the
+     *  resolving object so it resolves next. Routes through
+     *  `SpellContext.copyStackItem` then, with `newTargets`,
+     *  `SpellContext.requestCopyRetarget` — the same two primitives Fork
+     *  calls. The copy keeps the original's targets unless `newTargets` is
+     *  set (CR 707.10c: only an effect that says so offers new ones).
+     *  Skipped when the target already left the stack (CR 608.2b). What it
+     *  deliberately does NOT do: copy the resolving spell itself
+     *  (`copyResolvingSpell`), copy an ability, name a copier other than the
+     *  resolving controller, or override the copy's colour (Fork's "except
+     *  that the copy is red"). */
+    | {
+          op: "copySpell";
+          target: EffectTargetRef;
+          /** CR 707.10c — the copy's controller may choose new targets. */
+          newTargets?: true;
+      }
     /** CR 115.7a — "change the target of target spell": the effect's
      *  controller picks ANOTHER legal target for the announced spell, written
      *  onto the original stack item in place (not a copy). Routes through

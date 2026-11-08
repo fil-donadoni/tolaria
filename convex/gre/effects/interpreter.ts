@@ -7586,6 +7586,16 @@ export const OP_EXECUTORS: {
         const copyId = ctx.copyResolvingSpell({ controllerId: playerId });
         if (copyId) ctx.requestCopyRetarget(copyId);
     },
+    // CR 707.10 + CR 707.10c — the announced spell is copied under the
+    // resolving controller's control; with `newTargets` that player is offered
+    // new targets for the copy. Skipped (CR 608.2b) when the target already
+    // left the stack.
+    copySpell(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (!target || target.type !== "spell") return;
+        const copyId = ctx.copyStackItem(target.id);
+        if (copyId && op.newTargets) ctx.requestCopyRetarget(copyId);
+    },
     // CR 115.7a — change the target of the announced spell: raise the
     // `retarget` selection for the effect's controller over the spell's OWN
     // requirement, so only a target legal for it is offered. A silent no-op

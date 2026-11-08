@@ -6927,6 +6927,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
         },
     },
+    // CR 707.10 — copy the announced spell; CR 707.10c's new-targets offer is
+    // `newTargets`, and only `true` is a form.
+    copySpell: {
+        required: {
+            target: isTargetRef,
+        },
+        optional: { newTargets: (v: unknown) => v === true },
+    },
     // CR 115.7a — change the target of the target spell. The new target is
     // picked at resolution against the spell's own requirement; `chooseNew`
     // reads "you may choose new targets" instead (CR 115.7d), and only `true`

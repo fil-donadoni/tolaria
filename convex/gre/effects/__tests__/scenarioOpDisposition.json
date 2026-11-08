@@ -70,6 +70,10 @@
         "code": "op-own-tests",
         "reason": "Op \"copyResolvingSpell\" copies the resolving spell onto the stack — covered by the Op's interpreter tests"
     },
+    "copySpell": {
+        "code": "op-own-tests",
+        "reason": "Op \"copySpell\" copies a target spell on the stack — covered by the Op's interpreter tests"
+    },
     "counter": {
         "code": "unmodelled-object-or-zone",
         "reason": "Op \"counter\" targets a spell on the stack — covered by the card's own resolution test"
