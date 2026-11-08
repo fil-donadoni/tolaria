@@ -236,7 +236,16 @@ export type CompiledTriggerCondition =
      * view fails closed. Functions from the graveyard (`zone`), which the
      * lowering sets beside it.
      */
-    | { readonly kind: "graveyard-creature-above" };
+    | { readonly kind: "graveyard-creature-above" }
+    /**
+     * CR 601.2h + CR 603.4 — "if no mana was spent to cast it": the spell the
+     * cast head fired on paid its total cost with no mana (a zero-cost spell,
+     * one cast without paying its mana cost, a fully convoked one). Read off
+     * the SPELL_CAST event (`manaSpentToCast`), which fixes it as the spell is
+     * cast, so the resolution re-check reads the same answer. An event that
+     * does not carry the count fails closed.
+     */
+    | { readonly kind: "no-mana-spent-to-cast" };
 
 /**
  * The predicate of a condition decided from the SOURCE permanent alone — a
@@ -525,6 +534,8 @@ function conditionHolds(
     }
     if (condition.kind === "graveyard-creature-above")
         return creatureCardDirectlyAboveInGraveyard(state, self);
+    if (condition.kind === "no-mana-spent-to-cast")
+        return event?.type === "SPELL_CAST" && event.manaSpentToCast === 0;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
     if (condition.kind === "basic-land-types") {

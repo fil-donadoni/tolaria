@@ -12566,6 +12566,15 @@ export interface SpellCastEvent {
      *  `StackItem.castFromZone`, for "whenever you cast a spell from exile".
      *  Optional like the tallies above: a hand-built fixture has no zone. */
     spellCastFromZone?: CastFromZone;
+    /** CR 601.2h — how much mana was spent to pay the spell's total cost: the
+     *  mana leg the Cast Commit paid, after every reduction, convoke tap and
+     *  life-paid pip took its share (none of those is mana spent). `0` for a
+     *  zero-cost spell or one cast without paying its mana cost. Read by a cast
+     *  trigger's "if no mana was spent to cast it" (CR 603.4). ABSENT where the
+     *  emitter cannot say — a hand-built fixture, the Bot's search cast, whose
+     *  tap plan is a coarse mana model — and an absent count fails such a
+     *  condition closed rather than reading as zero. */
+    manaSpentToCast?: number;
 }
 
 /** "A player copies a spell" (CR 707.10) — one event per copy, emitted by the

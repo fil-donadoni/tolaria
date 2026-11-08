@@ -20049,7 +20049,6 @@
         {"key":"22eef827505c","text":"Whenever a player casts a spell, if it's not their turn, that player draws a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it's not their turn"}},
         {"key":"f33b805a2a03","text":"Whenever a player casts a spell, if it's not their turn, this creature deals 4 damage to them.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["condition"],"span":"it's not their turn"}},
         {"key":"387dc79310c4","text":"Whenever a player casts a spell, if no colored mana was spent to cast it, counter that spell.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"no colored mana was spent to cast it"}},
-        {"key":"7f35c58fc178","text":"Whenever a player casts a spell, if no mana was spent to cast it, counter that spell.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"no mana was spent to cast it"}},
         {"key":"db05826b4fd4","text":"Whenever a player casts a spell, if no mana was spent to cast that spell, this enchantment deals 5 damage to that player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"no mana was spent to cast that spell"}},
         {"key":"9929ac4a4f54","text":"Whenever a player casts a spell, if the amount of mana spent to cast it was less than its mana value, {self} deal 3 damage to that player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"the amount of mana spent to cast it was less than its mana value"}},
         {"key":"bfa939c7caee","text":"Whenever a player casts a spell, move that player's pop! counter up one.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Move that player's pop! counter up one"}},
@@ -20417,7 +20416,6 @@
         {"key":"c241c4993911","text":"Whenever an opponent casts a spell, counter it unless that player pays {1}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"it unless that player pays {1}"}},
         {"key":"28b30b379a8d","text":"Whenever an opponent casts a spell, if it has a single target, change the target to enchanted creature if able.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it has a single target"}},
         {"key":"78b7938aedc8","text":"Whenever an opponent casts a spell, if it's not their turn, you create a 3/3 green Elephant creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it's not their turn"}},
-        {"key":"00f8c9126b56","text":"Whenever an opponent casts a spell, if no mana was spent to cast it, counter that spell.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["condition"],"span":"no mana was spent to cast it"}},
         {"key":"32198667ec6d","text":"Whenever an opponent casts a spell, if this card is suspended, remove a time counter from it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"this card is suspended"}},
         {"key":"60832753d57a","text":"Whenever an opponent casts a spell, if this card is suspended, that player may put a time counter on this card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"this card is suspended"}},
         {"key":"49c86189a008","text":"Whenever an opponent casts a spell, put a +1/+1 counter on this creature and you gain 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature and you gain 1 life"}},
@@ -48621,7 +48619,7 @@
 
         {"oracleId":"450e84c7-afbe-4b30-a3e9-1dff968a5200","name":"Kor Halberd","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["attach"],"definition":{"name":"Kor Halberd","types":["Artifact"],"subtypes":["Equipment"],"manaCost":{"W":1},"oracleText":"Equipped creature gets +1/+1 and has vigilance.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)","activatedAbilities":[{"id":"kor-halberd-equip","oracleText":"Equip {1}","cost":{"mana":{"generic":1}},"sorcerySpeedOnly":true,"targetRequirement":{"type":"Creature","count":1,"controller":"you"},"useStack":true,"effects":[{"op":"attach","target":{"target":0}}]}],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":1,"toughness":1},{"kind":"keyword-grant","appliesTo":"host","keyword":"vigilance"}]},"botReach":"played"},
 
-        {"oracleId":"4514777d-0589-4631-978b-ff244167c176","name":"Vexing Bauble","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["legacy","vintage"],"gaps":["7f35c58fc178"]},
+        {"oracleId":"4514777d-0589-4631-978b-ff244167c176","name":"Vexing Bauble","state":"ready","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["legacy","vintage"],"slots":["activated","triggered"],"opsUsed":["counter","draw"],"definition":{"name":"Vexing Bauble","types":["Artifact"],"manaCost":{"X":1},"oracleText":"Whenever a player casts a spell, if no mana was spent to cast it, counter that spell.\n{1}, {T}, Sacrifice this artifact: Draw a card.","activatedAbilities":[{"id":"vexing-bauble-ability","oracleText":"{1}, {T}, Sacrifice this artifact: Draw a card.","cost":{"mana":{"X":1},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledTriggeredAbilities":[{"id":"vexing-bauble-trigger","oracleText":"Whenever a player casts a spell, if no mana was spent to cast it, counter that spell.","head":{"kind":"spell-cast","scope":"any"},"condition":{"kind":"no-mana-spent-to-cast"},"effects":[{"op":"counter","target":{"ref":"$event.spell"}}]}]},"botReach":"played"},
 
         {"oracleId":"451486df-6160-4ff7-b47c-dd3760417a31","name":"Squirrel Mob","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["a8d846b74f03"]},
 
@@ -65323,7 +65321,7 @@
 
         {"oracleId":"81b90905-fbc0-426a-a084-c3300533abb4","name":"Lightning Axe","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d788e0679bdf"]},
 
-        {"oracleId":"81ba3a33-0e04-4f68-9a42-1dd717733b57","name":"Lavinia, Azorius Renegade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["00f8c9126b56","66a3420f561d"]},
+        {"oracleId":"81ba3a33-0e04-4f68-9a42-1dd717733b57","name":"Lavinia, Azorius Renegade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["66a3420f561d"]},
 
         {"oracleId":"81ba75af-eddc-4344-befb-419ebfb855a3","name":"Rikku, Resourceful Guardian","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0f6ff53e8951","7a7a6efb7904"]},
 
@@ -89009,7 +89007,7 @@
 
         {"oracleId":"d72489b5-a213-4bd8-a519-8caeb1acea5f","name":"Renegade Reaper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3e3a49028590"]},
 
-        {"oracleId":"d72b57e5-1c6e-4f02-968f-7e2dd24f0d3c","name":"Boromir, Warden of the Tower","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["00f8c9126b56","1f7aa0688af6"]},
+        {"oracleId":"d72b57e5-1c6e-4f02-968f-7e2dd24f0d3c","name":"Boromir, Warden of the Tower","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1f7aa0688af6"]},
 
         {"oracleId":"d72b69aa-fb61-441e-9b62-4534d7a32a69","name":"Harbor Guardian","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c0a24657bf24"]},
 

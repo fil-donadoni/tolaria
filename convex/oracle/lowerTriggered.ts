@@ -470,6 +470,12 @@ function lowerCondition(
                 atLeast: condition.atLeast,
             };
         }
+        case "no-mana-spent-to-cast":
+            // CR 601.2h — "it" is the spell another player's (or any) cast
+            // head introduced; "when you cast this spell" prints "this spell".
+            return head.kind === "spell-cast" && head.scope !== "self"
+                ? { kind: "no-mana-spent-to-cast" }
+                : '"no mana was spent to cast it" needs a head that introduced the spell cast';
         case "no-mana-added-by-this-ability-this-turn":
             // The ability's once-per-turn quota, lifted into
             // `maxTriggersPerTurn` by `lowerTriggeredAbility`, never a gate.

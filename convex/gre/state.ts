@@ -8493,7 +8493,14 @@ export function exileUntilMonarchChanges(
  *  cast-trigger collection pass (`collectCastTriggers`) so a keyword-
  *  synthesized cast trigger (today only storm) goes on the stack above this
  *  spell in the same atomic step the spell itself is announced. */
-export function emitSpellCastEvent(state: GameState, item: StackItem): void {
+export function emitSpellCastEvent(
+    state: GameState,
+    item: StackItem,
+    /** CR 601.2h — the mana the cast paid, from the Cast Commit that paid it
+     *  (`SpellCastEvent.manaSpentToCast`); omitted by an emitter that cannot
+     *  say. */
+    manaSpentToCast?: number
+): void {
     const cardId = (item.card as { id?: string }).id;
     if (!cardId) return;
     // Arboria (CR 508.1c) — record that this player cast a spell this turn,
@@ -8564,6 +8571,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         priorSpellCount,
         casterSpellCountThisTurn,
         casterSpellTypeCountsThisTurn,
+        ...(manaSpentToCast !== undefined ? { manaSpentToCast } : {}),
     };
     // CR 702.33d (issue #1097) — "a player kicks a spell" rides the SAME cast
     // choke point, one event per KICK (a Multikicker paid N times is N kicks).
