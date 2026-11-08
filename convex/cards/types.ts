@@ -9366,6 +9366,10 @@ export interface StaticEffectStateView {
          *  no call site that would have to fabricate one. */
         id: string;
         battlefield: ReadonlyArray<PermanentView>;
+        /** Spells this player has cast this turn (`PlayerState`, CR 601.2i),
+         *  read by a per-turn spell cap at the cast gate (CR 601.3). Optional:
+         *  only the full `GameState` the gate receives carries it. */
+        readonly spellsCastThisTurn?: number;
         /** Cards in this player's graveyard, exposed for graveyard-counting
          *  characteristic-defining abilities (CR 604.3) — e.g. Lhurgoyf, whose
          *  power equals "the number of creature cards in all graveyards".

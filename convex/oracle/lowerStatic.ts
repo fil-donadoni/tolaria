@@ -790,6 +790,23 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 601.3 — the read-time cast gate on every player whose spell
+        // count this turn already reached the cap.
+        case "each-player-one-spell-per-turn":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "cast-restriction",
+                            id: nextId("spell-cap"),
+                            oracleText:
+                                "Each player can't cast more than one spell each turn.",
+                            maxSpellsEachTurn: 1,
+                        },
+                    ],
+                },
+            };
         // CR 601.3 + CR 307.1 — the read-time timing gate on every opponent
         // of the source's controller.
         case "opponents-sorcery-timing-lock":

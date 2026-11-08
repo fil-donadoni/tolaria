@@ -3458,6 +3458,16 @@
         "source": "compiled"
     },
     {
+        "name": "Arcane Laboratory",
+        "scryfallId": "2f4a88e8-aab0-488a-a0b8-fa3feedbf278",
+        "oracleId": "f5e3c26c-c28c-455f-a682-2597e4b92d10",
+        "firstSet": "usg",
+        "firstPrintId": "2f4a88e8-aab0-488a-a0b8-fa3feedbf278",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Arcane Melee",
         "scryfallId": "32355574-34ed-4427-86d9-72295d32ac4f",
         "oracleId": "9967b292-1239-4aed-b871-72e40d1f3e26",
@@ -23972,6 +23982,16 @@
         "source": "compiled"
     },
     {
+        "name": "Eidolon of Rhetoric",
+        "scryfallId": "c3bc8b9e-4d22-41ba-b593-d383fd301ef9",
+        "oracleId": "33017203-233e-498e-806e-94b1dccf5c35",
+        "firstSet": "jou",
+        "firstPrintId": "c3bc8b9e-4d22-41ba-b593-d383fd301ef9",
+        "firstPrintSet": "jou",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Eiganjo Free-Riders",
         "scryfallId": "fe47bbc5-6f7f-4135-9e83-9e2a428c97f5",
         "oracleId": "0e381b7e-2d32-4a9a-a327-e9dd1236dc1b",
@@ -38256,6 +38276,16 @@
         "firstSet": "mmq",
         "firstPrintId": "f4c58683-65a6-4df9-8952-458e397b1374",
         "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "High Noon",
+        "scryfallId": "9995e0e6-7c9c-4fef-8fd2-8fb1622e6ec8",
+        "oracleId": "3c8cbf0f-0288-4b5e-bd4f-0f208670b6b5",
+        "firstSet": "otj",
+        "firstPrintId": "9995e0e6-7c9c-4fef-8fd2-8fb1622e6ec8",
+        "firstPrintSet": "otj",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -66916,6 +66946,16 @@
         "firstSet": "arn",
         "firstPrintId": "b28f9e63-e5e4-44b5-a17e-8301ff17c623",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Rule of Law",
+        "scryfallId": "246a68e9-fd19-4a1e-8c7b-fcd3f7306dfb",
+        "oracleId": "53e88e64-6f82-4154-a66e-6aeb0154b368",
+        "firstSet": "mrd",
+        "firstPrintId": "246a68e9-fd19-4a1e-8c7b-fcd3f7306dfb",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Rumble Arena",
