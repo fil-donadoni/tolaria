@@ -8,7 +8,15 @@
 // mocked only at its boundary, routing the call into the handler over an
 // in-memory ctx) → the stored row, read back the way the corpus reads it.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterEach,
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from "vitest";
 import {
     cleanup,
     fireEvent,
@@ -70,6 +78,11 @@ import {
 import { clearAiTraces, pushAiTrace } from "~/lib/ai/trace-store";
 import GameOverDialog from "~/components/board/game-over-dialog";
 import AiDecisionTrace from "../ai-decision-trace";
+import {
+    findQuizQuestion,
+    WARM_VERDICT_QUIZ_MS,
+    warmVerdictQuiz,
+} from "./verdict-quiz-warmup.fixture";
 
 const GAME = "game-3986";
 const SEQ = 314;
@@ -189,6 +202,9 @@ function storedVerdicts(): Row[] {
 
 const previousUrl = process.env.CONVEX_CLOUD_URL;
 
+// The quiz's on-demand loads, paid before its first open (issue #8781).
+beforeAll(warmVerdictQuiz, WARM_VERDICT_QUIZ_MS);
+
 beforeEach(() => {
     cleanup();
     clearVerdictProposals();
@@ -221,7 +237,7 @@ describe("the post-game review queue (issue #3986)", () => {
 
         renderGameOver();
         await openReview(1);
-        await screen.findByText("Which move was right here?");
+        await findQuizQuestion();
         // The player's move and the Bot's are both marked, apart.
         expect(screen.getByText("You played this")).toBeTruthy();
         expect(screen.getByText("Bot's pick")).toBeTruthy();
@@ -290,7 +306,7 @@ describe("the post-game review queue (issue #3986)", () => {
         fireEvent.click(
             screen.getByRole("button", { name: "Judge this move" })
         );
-        await screen.findByText("Which move was right here?");
+        await findQuizQuestion();
         fireEvent.click(
             screen.getByRole("button", { name: "The Bot was right" })
         );
@@ -300,7 +316,7 @@ describe("the post-game review queue (issue #3986)", () => {
         await endGame([decision]);
         renderGameOver();
         await openReview(1);
-        await screen.findByText("Which move was right here?");
+        await findQuizQuestion();
         fireEvent.click(
             screen.getByRole("button", { name: "The Bot was right" })
         );
@@ -324,7 +340,7 @@ describe("the post-game review queue (issue #3986)", () => {
         renderGameOver();
         await openReview(2);
 
-        await screen.findByText("Which move was right here?");
+        await findQuizQuestion();
         fireEvent.click(screen.getByRole("button", { name: "Skip" }));
         await screen.findByText("2 / 2");
         fireEvent.click(screen.getByRole("button", { name: "Skip" }));
