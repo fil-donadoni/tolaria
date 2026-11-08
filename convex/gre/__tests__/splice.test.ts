@@ -12,7 +12,8 @@
 //   702.47a — reveal as you cast a [quality] spell, pay [cost] additionally
 //   702.47b — no card twice; several cards compose; main spell's effects first
 //   702.47c — the spell gains the TEXT; the card stays in hand, uncast
-//   702.47d — the added text's targets (the one shape that fails closed)
+//   702.47d — the added text's targets (the shapes a trailing group carries;
+//             the end-to-end cast is `convex/__tests__/spliceTargetGroup.test.ts`)
 //   702.47e — the splice changes leave with the spell
 import { describe, it, expect } from "vitest";
 import { finalizeTargetSelection } from "../../game";
@@ -326,7 +327,11 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
             throughTheBreach().id,
             throughTheBreach().id,
         ]);
-        const merged = spliceMergedEffects(lavaSpike(), item.splicedCardIds)!;
+        const merged = spliceMergedEffects(
+            lavaSpike(),
+            item.splicedCardIds,
+            item.targets?.length ?? 0
+        )!;
         expect(merged).toHaveLength(
             (lavaSpike().effects?.length ?? 0) +
                 2 * (throughTheBreach().effects?.length ?? 0)
@@ -385,18 +390,70 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
     });
 });
 
-describe("splice — the added text's targets are the one shape that fails CLOSED (CR 702.47d)", () => {
-    it("accepts only a script-bodied spell and an untargeted, script-bodied splice card", () => {
+describe("splice — which spell and splice-card shapes a reveal can honour (CR 702.47c/d)", () => {
+    it("accepts only a script-bodied spell and a script-bodied splice card whose targets can trail the announcement", () => {
         expect(spliceAcceptsSpell(lavaSpike())).toBe(true);
         expect(spliceCardIsSupported(throughTheBreach())).toBe(true);
         // CR 702.47d puts the added text's targets in the main spell's own
-        // CR 601.2c announcement, which carries ONE requirement — so a
-        // targeting splice card is not offered rather than offered untargeted.
+        // CR 601.2c announcement as a TRAILING group, located from the end of
+        // the slot list — so a fixed-width group that names nothing earlier is
+        // offered, and every other shape is refused rather than mis-slotted.
+        const ray = {
+            ...throughTheBreach(),
+            targetRequirement: { type: "any" as const, count: 1 },
+            effects: [
+                { op: "dealDamage" as const, amount: 2, to: { target: 0 } },
+            ],
+        };
+        expect(spliceCardIsSupported(ray)).toBe(true);
+        for (const targetRequirement of [
+            { type: "any" as const, count: { min: 0, max: 2 } },
+            { type: "any" as const, count: "X" as const },
+            { type: "any" as const, count: 1, excludePriorTargets: true },
+            {
+                type: "any" as const,
+                count: 2,
+                divideAsChosen: { total: 2 },
+            },
+        ]) {
+            expect(
+                spliceCardIsSupported({
+                    ...ray,
+                    targetRequirement,
+                } as unknown as typeof ray),
+                JSON.stringify(targetRequirement)
+            ).toBe(false);
+        }
         expect(
             spliceCardIsSupported({
-                ...throughTheBreach(),
-                targetRequirement: { type: ["Creature"], count: 1 },
+                ...ray,
+                additionalTargetRequirements: [{ type: "any", count: 1 }],
             })
+        ).toBe(false);
+        // A whole-set or reserved-name read would see the SPELL's slots too.
+        expect(
+            spliceCardIsSupported({
+                ...ray,
+                effects: [
+                    {
+                        op: "forEach",
+                        over: { set: "targets" },
+                        do: [],
+                    },
+                ],
+            } as unknown as typeof ray)
+        ).toBe(false);
+        expect(
+            spliceCardIsSupported({
+                ...ray,
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: 2,
+                        to: { ref: "$target0" },
+                    },
+                ],
+            } as unknown as typeof ray)
         ).toBe(false);
         // CR 702.47c gives the spell "the rules text of EACH of the spliced
         // cards" — all of it. `spliceMergedEffects` contributes `effects` and

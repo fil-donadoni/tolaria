@@ -399,7 +399,7 @@ import {
 // a group receives, so the prompt can say it per slot instead of leaving the
 // caster to infer it from click order.
 import { announcedRoleScript, announcedTargetRoles } from "./gre/targetRoles";
-import { spliceAugmentedDefinition } from "./gre/splice";
+import { spliceAugmentedDefinition, splicedTargetGroups } from "./gre/splice";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { assertExpectedInput } from "./gre/expectedInput";
@@ -7419,6 +7419,17 @@ export const announceCast = mutation({
                         // record is partitioned onto the stack item.
                         kickedCountOfPayments(castSubjectDef, kickerPayments) >
                             0
+                    ).concat(
+                        // CR 702.47d — "Choose targets for the added text
+                        // normally (see rule 601.2c)": each targeting card
+                        // revealed to splice adds its group AFTER the spell's
+                        // own, in the order its text will run — the order the
+                        // resolution rebases its `{ target: i }` refs against
+                        // (`spliceMergedEffects`). A group nobody can fill
+                        // refuses the cast below: CR 702.47b, "You can't choose
+                        // to use a splice ability if you can't make the
+                        // required choices (targets, etc.)".
+                        splicedTargetGroups(cardDef, kickerPayments)
                     );
         // The group the selection OPENS with — normally the card's printed
         // `targetRequirement`, but an ADDITIONAL group when the card declares
@@ -7478,6 +7489,19 @@ export const announceCast = mutation({
             }
         );
         const requiresTargets = resolvedCount !== undefined;
+        // CR 702.47b/d — a revealed card's targets are announced only through
+        // the group list above. A cast whose OPENING group takes no targets
+        // (X = 0) or that announces none at all (overload, morph) never opens
+        // that list, so the spliced text would resolve with its slots
+        // missing: refused, since the caster cannot make its choices.
+        if (
+            !requiresTargets &&
+            splicedTargetGroups(cardDef, kickerPayments).length > 0
+        ) {
+            throw new Error(
+                "Cannot splice a targeting card onto a cast that announces no targets"
+            );
+        }
 
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting

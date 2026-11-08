@@ -15,7 +15,11 @@
 // would mask a stripped field and does not count.
 
 import { describe, it, expect } from "vitest";
-import { getCardByName, registerTokenDefinition } from "@convex/cards";
+import {
+    getCardByName,
+    registerTokenDefinition,
+    withTemporaryDefinition,
+} from "@convex/cards";
 import {
     makeInstance,
     makePlayer,
@@ -299,6 +303,96 @@ describe("affordableKickersForCard — cast-cost dialog gate (CR 702.33a, ADR 00
             offered.some((k) => k.id === "splice:spell1"),
             "the card being cast was offered as a splice onto itself"
         ).toBe(false);
+    });
+
+    // CR 702.47b (issue #8805) — "You can't choose to use a splice ability if
+    // you can't make the required choices (targets, etc.)". A targeting splice
+    // card's group joins the spell's announcement (CR 702.47d), so a reveal
+    // whose group has no candidate on the board is not a toggle the dialog may
+    // offer — `announceCast` would refuse the cast it builds. Driven through
+    // the projection, the view the dialog actually reads.
+    it("HIDES a targeting splice reveal whose target group has no candidate on the board", () => {
+        const spike = getCardByName("Lava Spike");
+        const might: CardDefinition = {
+            id: "might-splice-client-probe",
+            name: "Might Probe",
+            rarity: "common",
+            types: ["Instant"],
+            subtypes: ["Arcane"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Target creature gets +2/+2 until end of turn.\nSplice onto Arcane {G}",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            splice: {
+                subtype: "Arcane",
+                cost: { mana: { G: 1 } },
+                description: "Splice onto Arcane {G}",
+            },
+        };
+        const offeredWith = (creatures: number): string[] =>
+            withTemporaryDefinition(might, () => {
+                const state = makeState({
+                    players: [
+                        makePlayer("p1", {
+                            hand: [
+                                makeInstance(spike.id, {
+                                    id: "spell1",
+                                    controllerId: "p1",
+                                    ownerId: "p1",
+                                    zone: "hand",
+                                }),
+                                makeInstance(might.id, {
+                                    id: "might1",
+                                    controllerId: "p1",
+                                    ownerId: "p1",
+                                    zone: "hand",
+                                }),
+                            ],
+                        }),
+                        makePlayer("p2", {
+                            battlefield: Array.from(
+                                { length: creatures },
+                                (_, i) =>
+                                    makeInstance(
+                                        getCardByName("Grizzly Bears").id,
+                                        {
+                                            id: `bears${i}`,
+                                            controllerId: "p2",
+                                            ownerId: "p2",
+                                            zone: "battlefield",
+                                        }
+                                    )
+                            ),
+                        }),
+                    ],
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                });
+                const view = projectPublicState(state, 1, "p1") as unknown as {
+                    players: Player[];
+                    activePlayerId: string;
+                };
+                const card = view.players[0].hand.find(
+                    (c) => c?.id === "spell1"
+                ) as CardInstance;
+                return affordableKickersForCard(
+                    card,
+                    "p1",
+                    view.players,
+                    view.activePlayerId
+                ).map((k) => k.id);
+            });
+        expect(offeredWith(0)).toEqual([]);
+        expect(offeredWith(1)).toEqual(["splice:might1"]);
     });
 
     it("survives a HIDDEN hand slot rather than throwing the dialog away", () => {

@@ -1,16 +1,17 @@
 // Catalogue-wide Splice declaration guard (CR 702.47, issue #2394).
 //
 // `gre/splice.ts` fails CLOSED on two shapes it cannot honour end to end: a
-// spell whose body is not an Effect Script, and a splice card that announces
-// targets (see that module's header for the CR reasoning on each). Failing
+// spell whose body is not an Effect Script, and a splice card whose targets
+// cannot trail the spell's announcement (see that module's header for the CR
+// reasoning on each). Failing
 // closed is the right runtime behaviour — a half-honoured reveal would put text
 // on a spell and then not run it — but on its own it is INVISIBLE: the card
 // ships reading "Splice onto Arcane" and the option is simply never offered, in
 // exactly the silent way a `planned` keyword ships inert (Guard A, issue #962).
 //
 // So the acceptance set is asserted here, once, over the whole catalogue. A
-// future Arcane spell with an imperative body, or a targeting splice card
-// (Glacial Ray), reds THIS file rather than shipping as a dead keyword — which
+// future Arcane spell with an imperative body, or a splice card whose targets
+// cannot trail the announcement (a variable-width group), reds THIS file rather than shipping as a dead keyword — which
 // makes the gap a scoping decision someone has to make, not a discovery someone
 // has to happen upon.
 //
@@ -39,16 +40,16 @@ describe("Splice declarations (CR 702.47, issue #2394)", () => {
 
     it("every splice card's text is a shape a reveal can actually add (CR 702.47a/b)", () => {
         // CR 702.47a adds the card's RULES TEXT verbatim, which this engine
-        // reads as its `effects`; CR 702.47b refuses the reveal when the
-        // caster cannot make its choices, and the cast flow announces only the
-        // MAIN spell's one `targetRequirement`. A card failing this would be
-        // offered by nothing and do nothing.
+        // reads as its `effects`; CR 702.47d announces its targets as a
+        // trailing group of the MAIN spell's announcement, which carries only
+        // a fixed-width group that names nothing earlier. A card failing this
+        // would be offered by nothing and do nothing.
         const bad = spliceCards
             .filter((c) => !spliceCardIsSupported(c))
             .map((c) => `${c.name} (${c.id})`);
         expect(
             bad,
-            "splice cards whose text `gre/splice.ts` cannot add to a spell — see its header; a targeting splice card needs a heterogeneous target-slot list first"
+            "splice cards whose text `gre/splice.ts` cannot add to a spell — see exclusion 2 in its header"
         ).toEqual([]);
     });
 
@@ -125,7 +126,19 @@ describe("Splice declarations (CR 702.47, issue #2394)", () => {
         for (const spell of spells) {
             for (const card of spliceCards) {
                 for (const reveals of [[card.id], [card.id, card.id]]) {
-                    const merged = spliceMergedEffects(spell, reveals);
+                    // CR 702.47d — the slot count the announcement opens:
+                    // the spell's own fixed groups, then each reveal's.
+                    const slots = [
+                        spell.targetRequirement,
+                        ...(spell.additionalTargetRequirements ?? []),
+                        ...reveals.map(() => card.targetRequirement),
+                    ].reduce(
+                        (n, req) =>
+                            n +
+                            (typeof req?.count === "number" ? req.count : 0),
+                        0
+                    );
+                    const merged = spliceMergedEffects(spell, reveals, slots);
                     if (!merged) {
                         failures.push(
                             `${spell.name} + ${reveals.length}× ${card.name}: merged to nothing`

@@ -112,7 +112,7 @@ import {
 // different halves of the effect, so the enumerator knows when an ORDERING is
 // its own announcement rather than the same one twice.
 import { announcedRoleScript, announcedTargetSlotsDiffer } from "./targetRoles";
-import { spliceAugmentedDefinition } from "./splice";
+import { spliceAugmentedDefinition, splicedTargetGroups } from "./splice";
 import {
     announceableModeCombinations,
     modeInstanceTargetGroups,
@@ -3812,10 +3812,12 @@ function enumerateCastMovesFromZone(
         // leaves the announcement half-filled and the next `tapForPayment`
         // throwing `assertExpectedInput(expect: "priority")` — the same
         // Bot-stalls-on-its-own-move shape Hull Breach's groups had.
+        // CR 702.47d — a splice reveal's target groups follow the spell's
+        // own, from the SAME list `announceCast` appends (`splicedTargetGroups`).
         return castAnnouncedTargetGroups(
             [primary, ...extra],
             def ? kickedCountOfPayments(def, kickerPayments) > 0 : false
-        );
+        ).concat(splicedTargetGroups(def ?? undefined, kickerPayments));
     };
     // CR 614.12a (issue #2019) — a card whose modal pick is an AS-ENTERS choice
     // (Voice of All, Prismatic Ward, Quirion Elves, Jihad) does not announce a

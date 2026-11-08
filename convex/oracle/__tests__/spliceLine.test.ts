@@ -15,6 +15,8 @@
 import { describe, expect, it } from "vitest";
 import { getAllRawCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
+import type { CardDefinition } from "../../cards/types";
+import { spliceCardIsSupported } from "../../gre/splice";
 import { sortKeys } from "../gates";
 import { keywordLineSlot, spliceRule } from "../grammar/slots/keywordLine";
 import { oracleCard, parseContext } from "./oracle.fixture";
@@ -114,11 +116,11 @@ describe("Splice line — refusals (fail-closed)", () => {
         );
     });
 
-    it("Glacial Ray: a targeting splice card stays unparsed (CR 702.47b/d)", () => {
-        // The engine announces ONE target requirement, the main spell's, so a
-        // reveal of a targeting card is never offered (`gre/splice.ts`
-        // exclusion 2). Compiled, it would ship a splice keyword that does
-        // nothing.
+    it("Glacial Ray: a targeting splice card compiles, its target requirement riding the reveal (CR 702.47b/d)", () => {
+        // CR 702.47d — the added text's targets are chosen "normally (see rule
+        // 601.2c)", in the main spell's announcement: the engine appends the
+        // card's requirement as a trailing group (`splicedTargetGroups`,
+        // `gre/splice.ts`), so the requirement is text a reveal delivers.
         const outcome = compileCard(
             arcaneInstant(
                 "Glacial Ray",
@@ -126,10 +128,29 @@ describe("Splice line — refusals (fail-closed)", () => {
                 `Glacial Ray deals 2 damage to any target.\nSplice onto Arcane {1}{R}${SPLICE_REMINDER}`
             )
         );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(JSON.stringify(outcome.gaps)).toContain(
-            "a splice card whose text is not one untargeted Effect Script (CR 702.47b)"
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "ready") return;
+        expect(outcome.definition.splice?.subtype).toBe("Arcane");
+        expect(outcome.definition.targetRequirement).toMatchObject({
+            type: "any",
+            count: 1,
+        });
+        expect(
+            spliceCardIsSupported(outcome.definition as CardDefinition)
+        ).toBe(true);
+    });
+
+    it("a splice card with a VARIABLE-width target group stays unparsed (CR 702.47d)", () => {
+        // The spliced slots are located from the END of the merged slot list,
+        // so their width must not depend on the pick
+        // (`spliceTargetGroupIsAnnounceable`): "up to two" is refused.
+        const outcome = compileCard(
+            arcaneInstant(
+                "Probe Sweep",
+                "{1}{R}",
+                `Probe Sweep deals 1 damage to each of up to two target creatures.\nSplice onto Arcane {1}{R}${SPLICE_REMINDER}`
+            )
         );
+        expect(outcome.state).not.toBe("ready");
     });
 });
