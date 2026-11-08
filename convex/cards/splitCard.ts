@@ -36,6 +36,11 @@ import { isTwinDefinitionId, parentIdOfTwin, twinDefinitionId } from "./twinId";
 export const SPLIT_HALF_SIDES = ["left", "right"] as const;
 export type SplitHalfSide = (typeof SPLIT_HALF_SIDES)[number];
 
+/** CR 709.3 / 702.102a — what a split card's cast announces: one half, or —
+ *  for a split card with fuse cast from its owner's hand — both halves as ONE
+ *  fused split spell (`cards/fusedSplit.ts`). */
+export type SplitCastSide = SplitHalfSide | "fused";
+
 /** CR 709.4a — the separator Wizards prints and Scryfall records between a
  *  split card's two names. Shared with the corpus, so a combined name derived
  *  here matches the one the Oracle pipeline reads. */

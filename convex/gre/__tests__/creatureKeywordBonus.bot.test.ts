@@ -170,6 +170,10 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.53a — transmute functions only from the hand: its worth is the
     // tutor the search reaches, never a quality of the body on the battlefield.
     "transmute",
+    // CR 702.102a — fuse is found only on split cards and applies while the
+    // card is in a hand: its worth is the fused cast the search reaches, never
+    // a quality of a body on the battlefield.
+    "fuse",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

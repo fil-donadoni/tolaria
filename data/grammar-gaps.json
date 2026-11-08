@@ -786,11 +786,6 @@
         },
         {
             "kind": "grammar",
-            "key": "(card) › split card with Fuse (CR 702.102) is out of scope",
-            "issue": 8574
-        },
-        {
-            "kind": "grammar",
             "key": "(card) › the meld keyword action (CR 701.42) is not in grammar v0",
             "issue": 8176
         },

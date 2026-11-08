@@ -794,6 +794,42 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 715.3 Adventure reachability. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape (as for overload / dash). Also the end-to-end cover for the `suppressDamagePrevention` Op inside Stomp's script.",
     },
     {
+        // FUSE reachability (CR 702.102a). The bot holds Wear // Tear and
+        // exactly {1}{R}{W}; the opponent has a Juggernaut (an artifact) and a
+        // Crusade (an enchantment), so each half has its own target and only
+        // the fused split spell answers both. The claim is that the search
+        // ENUMERATES the third cast option at all — a fused cast is a separate
+        // announcement (`split-fused:`), with the right half's target group
+        // after the left's — and prefers it to either half alone.
+        label: "fuse: casts Wear // Tear fused on the artifact AND the enchantment",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Wear // Tear", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+                { name: "Crusade", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.alternativeCostId ?? "").startsWith("split-fused:") &&
+                (move.targets?.length ?? 0) === 2,
+            describe: "casts Wear // Tear fused, one target per half",
+        },
+        note: "CR 702.102 Fuse reachability and preference: both targets present, the fused cost exactly affordable. Predicate shape because `MoveMatcher` has no field for `alternativeCostId` (as for the Adventure entry above).",
+    },
+    {
         // PREPARATION reachability (CR 722.3c). The bot controls a PREPARED
         // Skycoach Conductor — the builder stages "enters prepared" with its
         // exiled copy of All Aboard — one Island, and a Flametongue Kavu; the

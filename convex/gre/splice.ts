@@ -78,8 +78,12 @@ import type { CardInstanceState, PlayerState } from "./state/declarations";
 // Schema is type-checked against (the static ref pass declares from the same
 // fields). A rule, not a list derived from the schema: this module runs in the
 // Brain worker, which must not bundle the validator.
-import { isBindingDeclarationField } from "./effects/bindingFields";
-import { TARGET_BINDING_PREFIX } from "./effects/targetRef";
+import {
+    declaredBindingNames,
+    rebaseTargetRefs,
+    renameBindings,
+    targetReadsAreRebasable,
+} from "./effects/scriptSegment";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
  *  carries the revealed hand card's INSTANCE id, not its printed card id: CR
@@ -131,7 +135,7 @@ export function spliceCardIsSupported(def: CardDefinition): boolean {
         def.additionalTargetRequirements === undefined &&
         def.kickedTargetRequirement === undefined &&
         (def.targetRequirement === undefined ||
-            splicedTargetReadsAreRebasable(def.effects)) &&
+            targetReadsAreRebasable(def.effects)) &&
         def.modes === undefined &&
         def.resolve === undefined &&
         def.resolveSteps === undefined &&
@@ -170,24 +174,6 @@ export function spliceTargetGroupIsAnnounceable(
         req.zoneOwnerOfPriorPlayerTarget === undefined &&
         req.zoneOwnerOfPriorPermanentController === undefined
     );
-}
-
-/** True when every read of an announced target slot in `node` is an
- *  `{ target: i }` ref — the one shape {@link spliceMergedEffects} rebases.
- *  The reserved `$target<N>` string refs and the whole-set `forEach
- *  { set: "targets" }` selector would read the merged spell's slots as their
- *  own, so a spliced card using either is refused rather than mis-read. */
-function splicedTargetReadsAreRebasable(node: unknown): boolean {
-    if (typeof node === "string") {
-        return !node.startsWith(TARGET_BINDING_PREFIX);
-    }
-    if (Array.isArray(node)) return node.every(splicedTargetReadsAreRebasable);
-    if (!node || typeof node !== "object") return true;
-    for (const [key, value] of Object.entries(node)) {
-        if (key === "set" && value === "targets") return false;
-        if (!splicedTargetReadsAreRebasable(value)) return false;
-    }
-    return true;
 }
 
 /** The number of announced target slots a spliced card's text adds (CR
@@ -362,63 +348,6 @@ export function splicedCardIdsOfEntries(
     return spliced.length > 0 ? spliced : undefined;
 }
 
-/** The binding names `node` declares, anywhere in its op tree. */
-function spliceSegmentBindings(node: unknown, out: Set<string>): void {
-    if (Array.isArray(node)) {
-        for (const child of node) spliceSegmentBindings(child, out);
-        return;
-    }
-    if (!node || typeof node !== "object") return;
-    for (const [key, value] of Object.entries(node)) {
-        if (
-            typeof value === "string" &&
-            value.startsWith("$") &&
-            isBindingDeclarationField(key)
-        ) {
-            out.add(value);
-        }
-        spliceSegmentBindings(value, out);
-    }
-}
-
-/** `node` with every reference to a name in `rename` rewritten, structurally.
- *
- *  A binding is referred to as a plain STRING everywhere it appears — the
- *  declaration (`bind: "$x"`), the whole-object ref (`{ ref: "$x" }`) and the
- *  property ref (`{ ref: "$x.power" }`) — so one deep string rewrite covers
- *  every grammar position, present and future, without this module having to
- *  know the shape of any Op. Only the part before the first `.` is matched, and
- *  only names the segment itself declared: `$source`, `$host`, `$each` and
- *  `$event` are engine-provided, never declared, and so never rewritten.
- *  Object KEYS are left alone — a `delayedTrigger`'s `capture` keys name a
- *  payload local to that trigger instance, not a script binding. */
-function spliceRenameBindings<T>(
-    node: T,
-    rename: ReadonlyMap<string, string>
-): T {
-    if (Array.isArray(node)) {
-        return node.map((child) =>
-            spliceRenameBindings(child, rename)
-        ) as unknown as T;
-    }
-    if (typeof node === "string") {
-        if (!node.startsWith("$")) return node;
-        const dot = node.indexOf(".");
-        const base = dot === -1 ? node : node.slice(0, dot);
-        const renamed = rename.get(base);
-        if (renamed === undefined) return node;
-        return (dot === -1
-            ? renamed
-            : renamed + node.slice(dot)) as unknown as T;
-    }
-    if (!node || typeof node !== "object") return node;
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) {
-        out[key] = spliceRenameBindings(value, rename);
-    }
-    return out as T;
-}
-
 /** The prefix each spliced segment's binding names are rewritten under.
  *
  *  Alphanumeric after the `$`, because that is the whole binding-name grammar
@@ -430,32 +359,6 @@ function spliceRenameBindings<T>(
  *  onto every spliced-onto spell and reds on a duplicate binding. */
 export function spliceSegmentBindingPrefix(segment: number): string {
     return `$splice${segment}`;
-}
-
-/** `node` with every `{ target: i }` ref rewritten to `{ target: i + offset }`.
- *  The ref is matched by SHAPE — an object whose only key is `target`, holding
- *  a number — which is the whole `EffectTargetRef` grammar, wherever an Op
- *  nests it (`{ controllerOf: { target: 0 } }` included). */
-function spliceRebaseTargetRefs<T>(node: T, offset: number): T {
-    if (Array.isArray(node)) {
-        return node.map((child) =>
-            spliceRebaseTargetRefs(child, offset)
-        ) as unknown as T;
-    }
-    if (!node || typeof node !== "object") return node;
-    const entries = Object.entries(node);
-    if (
-        entries.length === 1 &&
-        entries[0][0] === "target" &&
-        typeof entries[0][1] === "number"
-    ) {
-        return { target: (entries[0][1] as number) + offset } as T;
-    }
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of entries) {
-        out[key] = spliceRebaseTargetRefs(value, offset);
-    }
-    return out as T;
 }
 
 /** CR 702.47b/c — the op list a spliced spell resolves as: the main spell's own
@@ -521,10 +424,10 @@ export function spliceMergedEffects(
         if (!splicedDef?.effects) return;
         const effects =
             width > 0
-                ? spliceRebaseTargetRefs(splicedDef.effects, offset)
+                ? rebaseTargetRefs(splicedDef.effects, offset)
                 : splicedDef.effects;
         const declared = new Set<string>();
-        spliceSegmentBindings(effects, declared);
+        declaredBindingNames(effects, declared);
         if (declared.size === 0) {
             spliced.push(...effects);
             return;
@@ -533,7 +436,7 @@ export function spliceMergedEffects(
         const rename = new Map(
             [...declared].map((name) => [name, prefix + name.slice(1)])
         );
-        spliced.push(...spliceRenameBindings(effects as EffectOp[], rename));
+        spliced.push(...renameBindings(effects as EffectOp[], rename));
     });
     if (spliced.length === 0) return undefined;
     return [...(def.effects ?? []), ...spliced];

@@ -541,7 +541,11 @@ import {
     castSubjectView,
     ridesManaCostReplacement,
 } from "./gre/castMode";
-import { isSplitCastId, offersPrintedCast } from "./gre/splitCast";
+import {
+    fusedCastZoneAllowed,
+    isSplitCastId,
+    offersPrintedCast,
+} from "./gre/splitCast";
 import { isModalBackCastId } from "./gre/modalBackCast";
 import {
     applyPlayLandFromAnyZone,
@@ -6841,6 +6845,15 @@ export const announceCast = mutation({
         // Read off the ID rather than the resolved cost, because it is the id
         // that the client, the Bot's `Move` and this mutation all carry.
         const splitCastSide = isSplitCastId(cardDef, args.alternativeCostId);
+        // CR 702.102a — "if a player casts a split card with fuse FROM THEIR
+        // HAND, the player may choose to cast both halves". The offering list
+        // (`splitCastOptionsFor`) never shows the fused option elsewhere; this
+        // refuses a crafted call.
+        if (splitCastSide === "fused" && !fusedCastZoneAllowed(castFromZone)) {
+            throw new Error(
+                "A split card with fuse is cast fused only from your hand (CR 702.102a)"
+            );
+        }
         // CR 712.11b (issue #7200) — the BACK face of a modal double-faced
         // card was announced; same channel, same reason as the split half.
         const isModalBackCast = isModalBackCastId(
@@ -7429,8 +7442,12 @@ export const announceCast = mutation({
                                     isMorphCost,
                                     isOverloadCost
                                 ),
+                            // CR 702.102b — the SUBJECT's groups too: a fused
+                            // split spell announces its right half's group as
+                            // an additional one. Identity for every card whose
+                            // subject is itself.
                             ...(chosenMode?.additionalTargetRequirements ??
-                                cardDef.additionalTargetRequirements ??
+                                castSubjectDef.additionalTargetRequirements ??
                                 []),
                         ],
                         // ADR 0085 — "kicked" is CR 702.33d, over KICKER costs

@@ -1823,7 +1823,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Fuse",
         kind: "keyword-ability",
         cr: "702.102",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/fusedSplit.ts",
+        note: "CR 702.102a-d: a split card whose `staticAbilities` carries `fuse` registers a THIRD twin beside its halves, the fused split spell (`${id}#fused`): the combined name, the union of the type lines, the summed cost (702.102b/c), the left half's target group then the right half's, and the left half's Effect Script followed by the right half's with its target slots shifted past the left half's (702.102d). It is offered as a third split cast option (`split-fused:`) only while the card is in a hand (702.102a, `fusedCastZoneAllowed`), so every cast surface — timing, affordability, the target walk, the Bot's enumerator, the client picker — reads it through the cast-mode census. Halves whose scripts cannot be concatenated positionally (a variable left target count before a targeting right half, a whole-target-set sweep beside the other half's targets, a reserved `$target<N>` read on the right half) build no fused twin; a binding name both halves declare is renamed on the right half (`$fusedRight`), and the compiler refuses those cards under `fusedSplitShapeRefusal`'s reason.",
     },
     // 702.103 Bestow
     {
