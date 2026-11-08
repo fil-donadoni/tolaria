@@ -210,6 +210,19 @@ export interface RetriedStep {
     refused?: string;
 }
 
+/**
+ * The retry's vitest, resolved from the tree under test (issue #8915). A bare
+ * `vitest` inside `sh -c` resolves through the inherited PATH — health-main is
+ * itself launched by `bun run` from the PRIMARY checkout, so that PATH leads
+ * with the primary's `node_modules/.bin`. That runner, in the health worktree,
+ * loads the worktree's `vitest` for the tests' imports: two `@vitest/expect`
+ * instances, so `requireAssertions` counts zero in every test and the whole
+ * project reds with "expected any number of assertion, but got none". The
+ * chain itself never hits this: `bun run` puts the cwd's `node_modules/.bin`
+ * first. `bunx` resolves from the cwd the same way, as the lane's retry does.
+ */
+export const RETRY_VITEST = "bunx vitest run";
+
 /** The retry's own steps: the failed projects under the config declaring
  *  each. The root's run together under the heavy gate; another config's run
  *  as the chain script that names it. */
@@ -227,7 +240,7 @@ function retrySteps(
             args: [
                 "scripts/gate.ts",
                 "heavy",
-                `vitest run ${root.map((p) => `--project ${p}`).join(" ")}`,
+                `${RETRY_VITEST} ${root.map((p) => `--project ${p}`).join(" ")}`,
             ],
         });
     for (const p of projects)
