@@ -1,5 +1,6 @@
 import type {
     AbilityMode,
+    ActivatedAbility,
     CardDefinition,
     CardSupertype,
     CardType,
@@ -4598,8 +4599,7 @@ function triggerTargetMinMax(
  *  Manifold Key) — cannot serve here twice over: a back face's activated
  *  abilities are JSON-encoded into their synthesized definition id
  *  (`backFaceAsTokenSpec`), so a closure does not survive a client-side decode,
- *  and `enumerateAbilityMoves` skips any ability carrying one, which would make
- *  the ability invisible to the bot. */
+ *  and an opaque closure is not data any static reader can inspect. */
 export function applySourceDirectives(
     req: TargetRequirement,
     sourceInstanceId: string
@@ -4652,6 +4652,28 @@ export function effectiveRequirementForSource(
             : req,
         sourceInstanceId
     );
+}
+
+/** The ability-level target requirement of an activated ability, read
+ *  against its source — the ONE resolver for the static-vs-dynamic choice
+ *  (issue #7924). A dynamic `getTargetRequirement(source, state)` closure
+ *  (Stone Giant's "toughness less than ~'s power", Giver of Runes' "another
+ *  target creature") overrides the static `targetRequirement`. The
+ *  announcement (`activateAbilityOnState`, CR 602.2b → 601.2c) and the Bot's
+ *  enumerator (`enumerateAbilityMoves`) both call this, so the requirement
+ *  the Bot builds target tuples from is the one the mutation then
+ *  validates against — never a second copy of the closure call. A modal
+ *  ability's chosen mode overrides both (CR 700.2d); callers pick the mode
+ *  first. Source directives (`applySourceDirectives`) are applied by the
+ *  caller afterwards, exactly as for a static requirement. */
+export function abilityTargetRequirement(
+    ability: ActivatedAbility,
+    source: CardInstanceState,
+    state: GameState
+): TargetRequirement | undefined {
+    return ability.getTargetRequirement
+        ? ability.getTargetRequirement(source, state)
+        : ability.targetRequirement;
 }
 
 export function triggerTargetLegality(

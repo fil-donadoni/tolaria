@@ -1004,15 +1004,20 @@ function activationsInFlight(
  *  through the one door closing issue #1920 does not shut.
  *
  *  Every remaining check is FAIL CLOSED — an option this function cannot prove
- *  is live scores no flexibility. The first three are properties of the ability
+ *  is live scores no flexibility. The first two are properties of the ability
  *  itself, so they apply announced or not:
  *
  *    * `activateFromHand` / `activateFromGraveyard` (CR 113.6) — the ability
  *      functions from another zone, so it is not an option this permanent offers.
- *    * `getTargetRequirement` — a dynamic target this leaf heuristic does not
- *      evaluate, exactly as the move enumerator refuses to (`moves.ts`).
  *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
  *      may activate is not this player's option to hold.
+ *
+ *  A target requirement — static or a dynamic `getTargetRequirement` closure —
+ *  is not a gate here: this leaf heuristic never asks whether a target exists
+ *  for a static one, so it asks it for no dynamic one either. The closure used
+ *  to fail closed on its own, mirroring an enumerator that skipped it; since
+ *  issue #7924 the enumerator resolves it (`abilityTargetRequirement`), and the
+ *  two shapes are credited alike.
  *
  *  The rest are AVAILABILITY, which an announced ability has already cleared —
  *  it is on the stack, so re-testing them would reject the very state the
@@ -1054,7 +1059,6 @@ function hasFlexibleActivation(
     for (const { ability } of abilities) {
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
-        if (ability.getTargetRequirement) continue;
         // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
         // the Holy Nimbus). It is not an option THIS player holds at all, and
         // `enumerateMoves` offers them none; without this gate the term credited
