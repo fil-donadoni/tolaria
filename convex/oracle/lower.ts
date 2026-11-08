@@ -152,6 +152,8 @@ interface Accumulator {
     asEntersCreatureTypeLines: string[];
     /** CR 614.12a — the "as this enters, choose a nonland card name" lines. */
     asEntersCardNameLines: string[];
+    /** CR 201.4 / 201.4a — which names the one card-name choice allows. */
+    asEntersCardNames?: "nonland" | "any";
     /** CR 614.12a — the "as this enters, choose an opponent" lines read. */
     asEntersOpponentLines: string[];
     /** CR 614.12a — the "as this enters, choose a color" lines read. */
@@ -796,12 +798,13 @@ function lowerLine(
                     return "a card declares an as-enters creature-type choice twice";
                 acc.asEntersCreatureTypeLines.push(parsed.line);
             }
-            if (out.asEntersNonlandCardName === true) {
+            if (out.asEntersCardName !== undefined) {
                 // Same argument as the creature type: two name choices make
                 // "the chosen name" (CR 607.2d) ambiguous.
                 if (acc.asEntersCardNameLines.length > 0)
                     return "a card declares an as-enters card-name choice twice";
                 acc.asEntersCardNameLines.push(parsed.line);
+                acc.asEntersCardNames = out.asEntersCardName;
             }
             if (out.asEntersOpponent === true) {
                 // Two opponent choices make "the chosen player" ambiguous.
@@ -1605,6 +1608,17 @@ export function lowerCard(
             reason: '"the chosen name" on a card with no as-enters card-name choice',
             fragment: acc.readsChosenNameLines[0]!,
         };
+    // CR 614.12a — the reverse: a name choice no line of the card reads is a
+    // choice the compiled card would ask for and never use — refuse.
+    if (
+        acc.asEntersCardNameLines.length > 0 &&
+        acc.readsChosenNameLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: "an as-enters card-name choice no line of the card reads",
+            fragment: acc.asEntersCardNameLines[0]!,
+        };
     // CR 607.2d — "the chosen type" with no creature-type choice on the card
     // names nothing (the predicate matches no creature): refuse, don't ship inert.
     if (
@@ -1718,14 +1732,17 @@ export function lowerCard(
                 ? { asEnters: [{ kind: "mode" as const }] }
                 : {}),
             // CR 614.12a / 201.4a — "nonland card name", enforced exactly by
-            // the filter (the shape Meddling Mage is hand-written with).
+            // the filter (the shape Meddling Mage is hand-written with); CR
+            // 201.4 — a bare "card name" allows every name, so no filter.
             ...(acc.asEntersCardNameLines.length > 0
                 ? {
                       asEnters: [
-                          {
-                              kind: "name" as const,
-                              filter: { excludeType: "Land" as const },
-                          },
+                          acc.asEntersCardNames === "any"
+                              ? { kind: "name" as const }
+                              : {
+                                    kind: "name" as const,
+                                    filter: { excludeType: "Land" as const },
+                                },
                       ],
                   }
                 : {}),

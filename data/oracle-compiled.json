@@ -1008,8 +1008,6 @@
         {"key":"b07510efccbf","text":"Activated abilities of lands you control cost {1} less to activate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of lands you control cost {1} less to activate"}},
         {"key":"39f781a77a86","text":"Activated abilities of lands your opponents control can't be activated unless they're mana abilities.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of lands your opponents control can't be activated unless they're mana abilities"}},
         {"key":"8b82577ca1cc","text":"Activated abilities of nontoken Rebels cost an additional \"Sacrifice a land\" to activate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of nontoken Rebels cost an additional \"Sacrifice a land\" to activate"}},
-        {"key":"59dd79b87197","text":"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities.","reason":"no slot consumed the line","cards":4,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities"}},
-        {"key":"686bd33a0a33","text":"Activated abilities of sources with the chosen name can't be activated.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of sources with the chosen name can't be activated"}},
         {"key":"85a82fef59d5","text":"Activated abilities of sources with the chosen name cost {2} more to activate unless they're mana abilities.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of sources with the chosen name cost {2} more to activate unless they're mana abilities"}},
         {"key":"46b94b1b7fc1","text":"Activated abilities of sources with the chosen name cost {2} more to activate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause","object descriptor"],"span":"sources with the chosen name"}},
         {"key":"e7cfc027b7f7","text":"Activated abilities of the chosen permanent can't be activated.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Activated abilities of the chosen permanent can't be activated"}},
@@ -2019,7 +2017,6 @@
         {"key":"ed9216528337","text":"As the game begins, if this creature is your commander, choose two creature types. For the rest of the game, treat those two types like they're the same among your creatures and creature cards everywhere.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As the game begins, if this creature is your commander, choose two creature types. For the rest of the game, treat those two types like they're the same among your creatures and creature cards everywhere"}},
         {"key":"5bff1b5f193d","text":"As the game begins, if {self} is your commander, or as {self} enters the battlefield if it's not your commander, name a character from the Magic storyline. Choose up to three colors, two creature types, and then two keywords from among vigilance, flying, haste, trample, and menace. {self} has the chosen name, types, colors, and keywords.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As the game begins, if {self} is your commander, or as {self} enters the battlefield if it's not your commander, name a character from the Magic storyline. Choose up to three colors, two creature types, and then two keywords from among vigilance, flying, haste, trample, and menace. {self} has the chosen name, types, colors, and keywords"}},
         {"key":"24c3b0dcbd65","text":"As this Aura enters, choose a basic land type.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"As this Aura enters, choose a basic land type"}},
-        {"key":"11bcab4a0b64","text":"As this Aura enters, choose a card name.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Aura enters, choose a card name"}},
         {"key":"beeb2eb8bd1f","text":"As this Aura enters, choose a creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Aura enters, choose a creature"}},
         {"key":"57d9569c52bb","text":"As this Aura enters, choose a land type.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Aura enters, choose a land type"}},
         {"key":"8bfb8cc4f751","text":"As this Aura enters, choose a person outside the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Aura enters, choose a person outside the game"}},
@@ -2032,7 +2029,6 @@
         {"key":"8ffa09d5f883","text":"As this Equipment becomes attached to a creature, choose an exiled creature card used to craft this Equipment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Equipment becomes attached to a creature, choose an exiled creature card used to craft this Equipment"}},
         {"key":"bff8a1f9fb60","text":"As this Equipment enters, choose a creature you control it could be attached to. If you do, it enters attached to that creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this Equipment enters, choose a creature you control it could be attached to. If you do, it enters attached to that creature"}},
         {"key":"5380baaf1ef1","text":"As this artifact enters, choose Elemental, Elf, Faerie, Giant, Goblin, Kithkin, Merfolk, or Treefolk.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this artifact enters, choose Elemental, Elf, Faerie, Giant, Goblin, Kithkin, Merfolk, or Treefolk"}},
-        {"key":"f01dd54570a8","text":"As this artifact enters, choose a card name.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"As this artifact enters, choose a card name"}},
         {"key":"b3befd611fe1","text":"As this artifact enters, choose a color and a creature type.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"As this artifact enters, choose a color and a creature type"}},
         {"key":"b3733ff364bd","text":"As this artifact enters, choose a consonant other than N, R, S, or T.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this artifact enters, choose a consonant other than N, R, S, or T"}},
         {"key":"c29b5f3419e4","text":"As this artifact enters, choose a creature type. This artifact enters with a fellowship counter on it for each creature you control of the chosen type.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this artifact enters, choose a creature type. This artifact enters with a fellowship counter on it for each creature you control of the chosen type"}},
@@ -2123,7 +2119,6 @@
         {"key":"f14d21a59ee1","text":"As this enchantment enters, choose NCR or Legion.\n• NCR — At the beginning of your end step, return target creature card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it.\n• Legion — Whenever a creature you control dies, put two +1/+1 counters on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose NCR or Legion.\n• NCR — At the beginning of your end step, return target creature card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it.\n• Legion — Whenever a creature you control dies, put two +1/+1 counters on target creature you control"}},
         {"key":"2c243db44d34","text":"As this enchantment enters, choose Sultai or Abzan.\n• Sultai — Whenever a counter is put on a creature you control, draw a card. This ability triggers only once each turn.\n• Abzan — Whenever you attack, put a +1/+1 counter on target attacking creature. It gains menace until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose Sultai or Abzan.\n• Sultai — Whenever a counter is put on a creature you control, draw a card. This ability triggers only once each turn.\n• Abzan — Whenever you attack, put a +1/+1 counter on target attacking creature. It gains menace until end of turn"}},
         {"key":"ba0c8235adc1","text":"As this enchantment enters, choose Temur or Sultai.\n• Temur — Whenever you cast an instant or sorcery spell, target player mills four cards.\n• Sultai — You may play lands from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose Temur or Sultai.\n• Temur — Whenever you cast an instant or sorcery spell, target player mills four cards.\n• Sultai — You may play lands from your graveyard"}},
-        {"key":"d4881c447048","text":"As this enchantment enters, choose a card name.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose a card name"}},
         {"key":"fa2cce4e5013","text":"As this enchantment enters, choose a color and an opponent.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose a color and an opponent"}},
         {"key":"3ccff5a97c89","text":"As this enchantment enters, choose a color and balance this enchantment on your head.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose a color and balance this enchantment on your head"}},
         {"key":"fe1d97ac3657","text":"As this enchantment enters, choose a color word.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As this enchantment enters, choose a color word"}},
@@ -30564,7 +30559,7 @@
 
         {"oracleId":"02fde433-955d-49df-bd72-270b6feac9e7","name":"Raze","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Raze","types":["Sorcery"],"manaCost":{"R":1},"oracleText":"As an additional cost to cast this spell, sacrifice a land.\nDestroy target land.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Land","count":1},"additionalCosts":{"sacrificeFilter":{"types":["Land"]}}},"botReach":"played"},
 
-        {"oracleId":"02fe8ed4-3c5d-4875-b584-b33b819c47be","name":"Gideon's Intervention","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a3851f56f3fc","a4048a8788d4","d4881c447048"]},
+        {"oracleId":"02fe8ed4-3c5d-4875-b584-b33b819c47be","name":"Gideon's Intervention","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a3851f56f3fc","a4048a8788d4"]},
 
         {"oracleId":"02ffacbf-8d1d-4e87-b11a-0e2a46c0cba6","name":"Hadran, Naya Sunseeder","state":"unparsed","gaps":["c05cc9a551b3","ec5516b50963"]},
 
@@ -35482,7 +35477,7 @@
 
         {"oracleId":"14c8f55d-d177-4c25-a931-ebeb9e6062a0","name":"Grizzly Bears","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Grizzly Bears","types":["Creature"],"subtypes":["Bear"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2},"botReach":"played"},
 
-        {"oracleId":"14cefb15-d833-4c70-80c9-f2d34b6c846b","name":"Runed Halo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["08217b93fc49","d4881c447048"]},
+        {"oracleId":"14cefb15-d833-4c70-80c9-f2d34b6c846b","name":"Runed Halo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["08217b93fc49"]},
 
         {"oracleId":"14d06354-4827-41b4-a9b7-e1cd89dfaf40","name":"Pirate's Landing","state":"unparsed","gaps":["06f60add0e30"]},
 
@@ -36978,7 +36973,7 @@
 
         {"oracleId":"1a1a16e5-ce4f-42b8-a1c6-05dd635d83cc","name":"Aether Snap","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f7551dbdbd5b"]},
 
-        {"oracleId":"1a1a6548-26ef-49f4-9e6d-b98bea1bd149","name":"Voidstone Gargoyle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["686bd33a0a33"]},
+        {"oracleId":"1a1a6548-26ef-49f4-9e6d-b98bea1bd149","name":"Voidstone Gargoyle","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Voidstone Gargoyle","types":["Creature"],"subtypes":["Gargoyle"],"manaCost":{"X":3,"W":2},"power":3,"toughness":3,"oracleText":"Flying\nAs this creature enters, choose a nonland card name.\nSpells with the chosen name can't be cast.\nActivated abilities of sources with the chosen name can't be activated.","staticAbilities":["flying"],"compiledStaticEffects":[{"kind":"cast-restriction","id":"voidstone-gargoyle-name-lock","oracleText":"Spells with the chosen name can't be cast."},{"kind":"activation-restriction","id":"voidstone-gargoyle-name-activation-lock","sourcesNamed":"chosen-name","oracleText":"Activated abilities of sources with the chosen name can't be activated."}],"entersWith":{"asEnters":[{"kind":"name","filter":{"excludeType":"Land"}}]}},"botReach":"played"},
 
         {"oracleId":"1a2030cc-d7ee-4059-b2d7-fb95ea8e267b","name":"Gravedigger","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["if","mayPay","moveZone"],"definition":{"name":"Gravedigger","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":3,"B":1},"power":2,"toughness":2,"oracleText":"When this creature enters, you may return target creature card from your graveyard to your hand.","compiledTriggeredAbilities":[{"id":"gravedigger-trigger","oracleText":"When this creature enters, you may return target creature card from your graveyard to your hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"mayPay","player":"controller","prompt":"Return target creature card from your graveyard to your hand?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]}]},"botReach":"played"},
 
@@ -44614,7 +44609,7 @@
 
         {"oracleId":"36e1485d-3b8c-4c23-9d12-6937fd216b25","name":"Ghoulcaller's Bell","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["17382ed0e603"]},
 
-        {"oracleId":"36e267c5-ea98-4e26-b2b4-3faa05493eb4","name":"Curse of Silence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["11bcab4a0b64","6a55f22452d1","bc278cac62a7","de08f53e0413"]},
+        {"oracleId":"36e267c5-ea98-4e26-b2b4-3faa05493eb4","name":"Curse of Silence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a55f22452d1","bc278cac62a7","de08f53e0413"]},
 
         {"oracleId":"36e937a9-e15e-4404-bcdd-c2b0943a34ad","name":"Extract","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Extract","types":["Sorcery"],"manaCost":{"U":1},"oracleText":"Search target player's library for a card and exile it. Then that player shuffles.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","zoneOwnerId":{"target":0},"count":1,"prompt":"Search that player's library for a card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":{"target":0},"from":"library","to":"exile"},{"op":"libraryLook","action":"shuffle","player":{"target":0}}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
@@ -53188,7 +53183,7 @@
 
         {"oracleId":"55c60b29-52c5-428c-9229-11ed0e26bd71","name":"Glory Seeker","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Glory Seeker","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2},"botReach":"played"},
 
-        {"oracleId":"55c71732-6ba1-401d-8759-4d64dae22133","name":"Declaration of Naught","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd22203b2cb8","d4881c447048"]},
+        {"oracleId":"55c71732-6ba1-401d-8759-4d64dae22133","name":"Declaration of Naught","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd22203b2cb8"]},
 
         {"oracleId":"55c7ce94-3cd3-42f3-9dd8-0c118fa626c8","name":"Secrets of the Key","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["cc04c377c79d"]},
 
@@ -62782,7 +62777,7 @@
 
         {"oracleId":"786b2028-cf24-4f00-b1d6-05b94e78d617","name":"Aysen Bureaucrats","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["tapUntap"],"definition":{"name":"Aysen Bureaucrats","types":["Creature"],"subtypes":["Human","Advisor"],"manaCost":{"X":1,"W":1},"power":1,"toughness":1,"oracleText":"{T}: Tap target creature with power 2 or less.","activatedAbilities":[{"id":"aysen-bureaucrats-ability","oracleText":"{T}: Tap target creature with power 2 or less.","cost":{"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"max":2}}}]},"botReach":"played"},
 
-        {"oracleId":"786b3657-b595-4b38-83f2-d40915e51e2b","name":"Phyrexian Revoker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["686bd33a0a33"]},
+        {"oracleId":"786b3657-b595-4b38-83f2-d40915e51e2b","name":"Phyrexian Revoker","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Phyrexian Revoker","types":["Artifact","Creature"],"subtypes":["Phyrexian","Horror"],"manaCost":{"X":2},"power":2,"toughness":1,"oracleText":"As this creature enters, choose a nonland card name.\nActivated abilities of sources with the chosen name can't be activated.","compiledStaticEffects":[{"kind":"activation-restriction","id":"phyrexian-revoker-name-activation-lock","sourcesNamed":"chosen-name","oracleText":"Activated abilities of sources with the chosen name can't be activated."}],"entersWith":{"asEnters":[{"kind":"name","filter":{"excludeType":"Land"}}]}},"botReach":"played"},
 
         {"oracleId":"786baa29-afd4-40f0-95c8-920a972b9175","name":"Kari Zev, Skyship Raider","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d5830b8dcc8c"]},
 
@@ -62852,7 +62847,7 @@
 
         {"oracleId":"78a1f291-22ed-41f1-87fd-0bdc97f9c065","name":"Ghostblade Eidolon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["64f93e00d4fa"]},
 
-        {"oracleId":"78a2972c-14f4-41f3-99f9-167948bdd73a","name":"Petrified Hamlet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59dd79b87197","8eff17d32028","bee02d31fd14"]},
+        {"oracleId":"78a2972c-14f4-41f3-99f9-167948bdd73a","name":"Petrified Hamlet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8eff17d32028","bee02d31fd14"]},
 
         {"oracleId":"78a48f4e-ba4c-4d8d-938a-9ddb342a885b","name":"Junji, the Midnight Sky","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["47bcc3d87102"]},
 
@@ -74144,7 +74139,7 @@
 
         {"oracleId":"a1841bcc-738e-4f4b-a88f-571a93c59ad7","name":"Zephyr Scribe","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["choice","discard","draw","tapUntap"],"definition":{"name":"Zephyr Scribe","types":["Creature"],"subtypes":["Human","Monk"],"manaCost":{"X":2,"U":1},"power":2,"toughness":1,"oracleText":"{U}, {T}: Draw a card, then discard a card.\nWhenever you cast a noncreature spell, untap this creature.","activatedAbilities":[{"id":"zephyr-scribe-ability","oracleText":"{U}, {T}: Draw a card, then discard a card.","cost":{"mana":{"U":1},"tap":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}]}],"compiledTriggeredAbilities":[{"id":"zephyr-scribe-trigger","oracleText":"Whenever you cast a noncreature spell, untap this creature.","head":{"kind":"spell-cast","scope":"you","filter":{"excludeTypes":["Creature"]}},"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
-        {"oracleId":"a188fe7e-68de-4c7c-806c-bfe8fc7b44bf","name":"Pithing Needle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59dd79b87197","f01dd54570a8"]},
+        {"oracleId":"a188fe7e-68de-4c7c-806c-bfe8fc7b44bf","name":"Pithing Needle","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Pithing Needle","types":["Artifact"],"manaCost":{"X":1},"oracleText":"As this artifact enters, choose a card name.\nActivated abilities of sources with the chosen name can't be activated unless they're mana abilities.","compiledStaticEffects":[{"kind":"activation-restriction","id":"pithing-needle-name-activation-lock","sourcesNamed":"chosen-name","exemptManaAbilities":true,"oracleText":"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities."}],"entersWith":{"asEnters":[{"kind":"name"}]}},"botReach":"played"},
 
         {"oracleId":"a189e20f-1072-4608-9e50-da2a9d7a7ee3","name":"Riot Control","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6d6da61e15e1"]},
 
@@ -78656,7 +78651,7 @@
 
         {"oracleId":"b2151d51-39f6-49cc-a5cc-8202dd028336","name":"Pyroclastic Hellion","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e64efe0af3c9"]},
 
-        {"oracleId":"b2187f45-80ae-4ac4-9f83-5eb7a00978e2","name":"Sorcerous Spyglass","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["24a34f0305c3","59dd79b87197"]},
+        {"oracleId":"b2187f45-80ae-4ac4-9f83-5eb7a00978e2","name":"Sorcerous Spyglass","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["24a34f0305c3"]},
 
         {"oracleId":"b218f1f8-984c-488e-8222-37f05c674a6b","name":"Hawkeye, Bowslinger","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8a1269bdbf03"]},
 
@@ -88848,7 +88843,7 @@
 
         {"oracleId":"d6c008c7-6c87-4677-ba0e-6d95f10d10bc","name":"Sages of the Anima","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["920dd21e0a66"]},
 
-        {"oracleId":"d6c46906-1339-4440-8cd0-2bb9890d4975","name":"Disruptor Flute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["439fdd087283","59dd79b87197","f01dd54570a8"]},
+        {"oracleId":"d6c46906-1339-4440-8cd0-2bb9890d4975","name":"Disruptor Flute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["439fdd087283"]},
 
         {"oracleId":"d6c7d7a6-2d38-4c06-ab83-bee9cc18de52","name":"Guardian Scalelord","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["343cea620c68","a507c0109cb2"]},
 

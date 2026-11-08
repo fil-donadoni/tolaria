@@ -307,10 +307,14 @@ export type StaticClauseIR =
     | { readonly kind: "as-enters-choose-creature-type" }
     /**
      * CR 614.12a / 201.4 / 201.4a — "As this creature enters, choose a
-     * nonland card name": the name kept on the permanent (`chosenName`) for
+     * nonland card name" (`names: "nonland"`) or "choose a card name"
+     * (`names: "any"`): the name kept on the permanent (`chosenName`) for
      * the abilities that read "the chosen name".
      */
-    | { readonly kind: "as-enters-choose-card-name" }
+    | {
+          readonly kind: "as-enters-choose-card-name";
+          readonly names: "nonland" | "any";
+      }
     /**
      * CR 614.1c / 614.12a — "As this artifact enters, choose an opponent": a
      * choice made BEFORE the permanent enters, kept on the permanent as its
@@ -323,6 +327,15 @@ export type StaticClauseIR =
      *  `chosenName` an `as-enters-choose-card-name` line of the SAME card
      *  made (checked in `lower.ts`). */
     | { readonly kind: "chosen-name-spells-cant-be-cast" }
+    /** CR 602.5 / 113.7 — "Activated abilities of sources with the chosen
+     *  name can't be activated[ unless they're mana abilities]." Reads the
+     *  `chosenName` an `as-enters-choose-card-name` line of the SAME card
+     *  made (checked in `lower.ts`); CR 605.1a — the tail exempts mana
+     *  abilities. */
+    | {
+          readonly kind: "chosen-name-activation-lock";
+          readonly exemptManaAbilities: boolean;
+      }
     /**
      * CR 614.1c / 702.33e — "If this creature was kicked, it enters with N
      * <kind> counters on it" (`per: "kicked"`) and "This creature enters with
@@ -1619,20 +1632,26 @@ const asEntersChooseCreatureType: Rule<StaticClauseIR> = pattern(
 
 // ── Frame: as-enters card-name choice (CR 614.12a / 201.4) ─────────────────
 
-const AS_ENTERS_CHOOSE_NONLAND_CARD_NAME =
-    /^As (.+) enters, choose a nonland card name$/;
+const AS_ENTERS_CHOOSE_CARD_NAME =
+    /^As (.+) enters, choose a (nonland )?card name$/;
 
 /**
- * "As <self> enters, choose a nonland card name" — anchored on the WHOLE
- * sentence: "a card name" (lands included) or an "other than …" tail is
- * another form (CR 201.4a restricts the legal names) and refuses here.
+ * "As <self> enters, choose a [nonland ]card name" — anchored on the WHOLE
+ * sentence: "nonland" is the one characteristic read (CR 201.4a restricts
+ * the legal names to it); any other characteristic ("a land card name"), an
+ * "other than …" tail or a lead-in ("look at an opponent's hand, then …") is
+ * another form and refuses here. Without it every card name is legal (CR
+ * 201.4).
  */
-const asEntersChooseNonlandCardName: Rule<StaticClauseIR> = pattern(
-    "as enters choose a nonland card name",
-    AS_ENTERS_CHOOSE_NONLAND_CARD_NAME,
+const asEntersChooseCardName: Rule<StaticClauseIR> = pattern(
+    "as enters choose a card name",
+    AS_ENTERS_CHOOSE_CARD_NAME,
     (match): RuleResult<StaticClauseIR> =>
         isSelfPhrase(uncapitalise(match[1]!))
-            ? ok({ kind: "as-enters-choose-card-name" as const })
+            ? ok({
+                  kind: "as-enters-choose-card-name" as const,
+                  names: match[2] ? ("nonland" as const) : ("any" as const),
+              })
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
@@ -1680,6 +1699,24 @@ const chosenNameSpellsCantBeCast: Rule<StaticClauseIR> = pattern(
     /^Spells with the chosen name can't be cast$/,
     (): RuleResult<StaticClauseIR> =>
         ok({ kind: "chosen-name-spells-cant-be-cast" as const })
+);
+
+// ── Frame: the chosen-name activation lock (CR 602.5 / 605.1a) ─────────────
+
+/**
+ * CR 602.5 / 113.7 — "Activated abilities of sources with the chosen name
+ * can't be activated[ unless they're mana abilities]" (Phyrexian Revoker,
+ * Pithing Needle). Anchored on the whole sentence: the one tail read is the
+ * CR 605.1a mana-ability exemption; any other qualifier refuses.
+ */
+const chosenNameActivationLock: Rule<StaticClauseIR> = pattern(
+    "chosen name activation lock",
+    /^Activated abilities of sources with the chosen name can't be activated( unless they're mana abilities)?$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "chosen-name-activation-lock" as const,
+            exemptManaAbilities: match[1] !== undefined,
+        })
 );
 
 // ── Frame: kicked entry riders (CR 614.1c / 702.33e) ───────────────────────
@@ -2985,10 +3022,11 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         cantBeCounteredRule,
         entersWithCounters,
         asEntersChooseCreatureType,
-        asEntersChooseNonlandCardName,
+        asEntersChooseCardName,
         asEntersChooseOpponent,
         asEntersChooseColor,
         chosenNameSpellsCantBeCast,
+        chosenNameActivationLock,
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,

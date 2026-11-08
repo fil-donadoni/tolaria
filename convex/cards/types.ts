@@ -11486,17 +11486,34 @@ export interface StaticCastTimingLock {
  *
  *  Consumed by `activationRestrictionViolation`
  *  (`gre/activationRestrictions.ts`). */
-export interface StaticActivationRestriction {
+export type StaticActivationRestriction = {
     kind: "activation-restriction";
     id: string;
-    /** The permanents whose activated abilities can't be activated. */
-    filter: PermanentFilter;
     /** CR 605.1a — "unless they're mana abilities": mana abilities stay
      *  activatable. Absent: every activated ability is locked. */
     exemptManaAbilities?: true;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
-}
+} & (
+    | {
+          /** The permanents whose activated abilities can't be activated. */
+          filter: PermanentFilter;
+          sourcesNamed?: never;
+      }
+    | {
+          /** CR 602.5 / 113.7 — "Activated abilities of sources with the
+           *  chosen name can't be activated": the lock reads the restricting
+           *  permanent's own `chosenName` (an as-enters name choice, CR
+           *  614.12a) and covers every SOURCE bearing that name, in ANY zone
+           *  — a "source" is the object generating the ability (CR 113.7), so
+           *  a card's cycling in hand or its graveyard ability is locked too,
+           *  unlike `filter`'s permanents-only scope. No chosen name yet: no
+           *  lock. Names are compared by `objectHasChosenName` (CR 201.4b /
+           *  709.4a — a split card has each half's name). */
+          sourcesNamed: "chosen-name";
+          filter?: never;
+      }
+);
 
 /** Battlefield-scanned "<spells> can't be countered" (CR 701.6a — to counter
  *  a spell is to remove it from the stack; CR 101.2 — the "can't" effect
@@ -13629,6 +13646,11 @@ export interface TriggerStateView {
              *  suppressing this permanent; a suppressed permanent generates no
              *  static effect (`activationRestrictionViolation`). */
             abilitiesSuppressedBy?: ReadonlyArray<unknown>;
+            /** CR 614.12a — the as-enters name choice, read by a
+             *  `sourcesNamed: "chosen-name"` activation restriction
+             *  (`activationRestrictionViolation`). Dropping it hides the lock
+             *  from every affordance built on this view. */
+            chosenName?: string;
             /** Tap state (CR 701.26a). Exposed so a frontend affordability hint
              *  for a `tapOtherFilter` activation cost (Hand of Justice) can
              *  count untapped matching permanents the controller controls. */
