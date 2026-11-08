@@ -153,7 +153,8 @@ export function activationRestrictionViolation(
             for (const effect of restrictions) {
                 if (isManaAbility && effect.exemptManaAbilities) continue;
                 if (effect.sourcesNamed === "chosen-name") {
-                    // CR 614.12a — no name chosen (yet): nothing is locked.
+                    // CR 614.12a — no name chosen (yet): nothing is locked. Also a
+                    // cheap skip of the off-battlefield source search.
                     if (lock.chosenName === undefined) continue;
                     if (anyZone === null)
                         anyZone =
