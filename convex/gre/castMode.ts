@@ -51,6 +51,7 @@
 import { tryGetDefinition } from "../cards";
 import type { AlternativeCost, CardDefinition, CardType } from "../cards/types";
 import { offersPrintedCast } from "../cards/splitCard";
+import { hasFuse } from "../cards/fusedSplit";
 import { applyBestowCharacteristics } from "./bestow";
 import { turnFaceDown } from "./faceDown";
 import {
@@ -98,6 +99,7 @@ export type CastMode =
     | "adventure"
     | "split-left"
     | "split-right"
+    | "split-fused"
     | "modal-back";
 
 type CastModeRow = {
@@ -247,6 +249,17 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
             def?.splitHalves ? splitCastAltCostId(def, "right") : undefined,
         subject: (def) => splitTwin(def, "right") ?? def,
         stamp: (_state, item) => castAsSplitHalf(item, "right"),
+    },
+    // CR 702.102a/b — "the player may choose to cast both halves … The
+    // resulting spell is a fused split spell", with "the combined
+    // characteristics of its two halves". Its subject is the fused twin
+    // (`cards/fusedSplit.ts`), so timing, affordability and BOTH halves'
+    // targets are judged against the one spell actually announced.
+    "split-fused": {
+        idOf: (def) =>
+            hasFuse(def) ? splitCastAltCostId(def!, "fused") : undefined,
+        subject: (def) => splitTwin(def, "fused") ?? def,
+        stamp: (_state, item) => castAsSplitHalf(item, "fused"),
     },
     // CR 712.11c / 712.8f (issue #7200) — "only the face that will be face up
     // on the stack is evaluated to determine if it can be cast", and on the
@@ -484,6 +497,7 @@ const FACE_CHOICE_MODES: readonly CastMode[] = [
     "adventure",
     "split-left",
     "split-right",
+    "split-fused",
     "modal-back",
 ];
 

@@ -65,6 +65,7 @@ import {
 } from "./modalDfc";
 import { meldedManaValueCost, meldResultTwinDefinition } from "./meld";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
+import { fusedSplitTwinDefinition } from "./fusedSplit";
 import { parentIdOfTwin } from "./twinId";
 import { hasDevoid } from "./colors";
 import { setColorDefiningCostLookup } from "./manaCostLookup";
@@ -504,6 +505,13 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
                 setRegistryEntry(half.id, half);
                 twinIds.push(half.id);
             }
+        }
+        // CR 702.102 — a split card with fuse has a THIRD castable object,
+        // the fused split spell, registered on the same terms as its halves.
+        const fused = fusedSplitTwinDefinition(def);
+        if (fused) {
+            setRegistryEntry(fused.id, fused);
+            twinIds.push(fused.id);
         }
         // CR 712.8f (ADR 0122 §1) — the same seam for a MODAL double-faced
         // card's back face: "while a modal double-faced permanent is on the

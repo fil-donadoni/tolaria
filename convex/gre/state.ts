@@ -141,7 +141,12 @@ import {
     independentCastOptionsFor,
     ridesManaCostReplacement,
 } from "./castMode";
-import { offersPrintedCast, revertSplitIdentity } from "./splitCast";
+import {
+    fusedCastZoneAllowed,
+    isSplitCastId,
+    offersPrintedCast,
+    revertSplitIdentity,
+} from "./splitCast";
 import { revertModalBackCastIdentity } from "./modalBackCast";
 import {
     isModalDoubleFaced,
@@ -21654,6 +21659,14 @@ export function buildSpellContext(
                 alternativeCostId === undefined
                     ? !offersPrintedCast(def)
                     : !ridesManaCostReplacement(def, alternativeCostId)
+            ) {
+                return false;
+            }
+            // CR 702.102a — a fused split spell is cast only "from their
+            // hand"; from any other zone only the halves exist.
+            if (
+                isSplitCastId(def, alternativeCostId) === "fused" &&
+                !fusedCastZoneAllowed(sourceZone)
             ) {
                 return false;
             }

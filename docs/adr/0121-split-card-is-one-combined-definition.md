@@ -212,5 +212,25 @@ that does not exist.
   everything it needs is either derived, or a row in a census ADR 0120 already
   widened.
 
+## Amendment I (issue #8447) — Fuse is a third registered twin
+
+Fuse (CR 702.102) is built, without a new concept: a split card whose
+`staticAbilities` carries `fuse` registers a THIRD twin beside its halves,
+`${id}#fused` (`cards/fusedSplit.ts`). 702.102b/c give it the combination
+this record already derives (combined name, union of type lines, summed
+cost); 702.102d is the left half's Effect Script followed by the right half's,
+merged the way Splice merges a segment (`gre/effects/scriptSegment.ts`: the
+right half's `{ target: i }` refs rebased past the left half's fixed-width
+group, its bindings renamed). The twin announces the left half's target group,
+then the right half's as an additional one.
+
+It is offered as a third split cast option (`split-fused:`, a `CastMode`
+census row) only while the card is in a hand (702.102a), so timing,
+affordability, the target walk, the Bot's enumerator and the client picker
+reach it through the `subject` seam this record set up. The compiler lifts the
+Fuse line off each face onto the card and refuses only halves that cannot be
+merged positionally (`fusedSplitShapeRefusal`). The out-of-scope bullet above
+is superseded.
+
 [adr-0041]: 0041-worklist-driven-cross-set-card-implementation.md
 [adr-0120]: 0120-inset-spell-is-a-registered-twin-definition.md

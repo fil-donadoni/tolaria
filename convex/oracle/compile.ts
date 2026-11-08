@@ -40,6 +40,11 @@ import type {
 import { PERMANENT_TYPES } from "../cards/types";
 import { deriveSplitCombination } from "../cards/splitCard";
 import {
+    FUSE_KEYWORD,
+    FUSE_LINE,
+    fusedSplitShapeRefusal,
+} from "../cards/fusedSplit";
+import {
     classLevelBarsViolation,
     isGateableStaticEffect,
 } from "../cards/abilities/classLevels";
@@ -93,10 +98,12 @@ const CLASS_SECTION_FIELDS = new Set<string>([
  * tell them apart: measured against the vendored corpus, 137 split cards split
  * into 30 with a PERMANENT face (CR 709.5's shared type line — every one an
  * `Enchantment — Room`), 23 with Fuse (CR 702.102), and 84 with two
- * instant/sorcery halves. Only the last class is modelled, so the gate is a
- * PERMANENCE test and a Fuse test, never a card-name list that would rot:
- * 709.5's own first sentence is "some split cards are PERMANENT CARDS with a
- * single shared type line".
+ * instant/sorcery halves. The permanent class is not modelled, so the gate is
+ * a PERMANENCE test, never a card-name list that would rot: 709.5's own first
+ * sentence is "some split cards are PERMANENT CARDS with a single shared type
+ * line". The Fuse class compiles like the third, plus the card's `fuse`
+ * keyword and the fused split spell's shape check (CR 702.102,
+ * `cards/fusedSplit.ts`).
  *
  * Aftermath (Refuse // Cooperate, CR 702.127) sits in the admitted class and
  * needs nothing here: aftermath is a keyword on a half, ordinary card text,
@@ -951,23 +958,24 @@ function compileSplitLayout(card: OracleCard): CompileOutcome {
             ]);
         }
     }
-    // CR 702.102 — Fuse ("you may cast one or both halves of this card from
-    // your hand"). Unbuilt: a fused spell is ONE spell with both halves'
-    // combined characteristics on the stack (CR 709.4d), which is the exact
-    // opposite of 709.3b's "only the characteristics of the half being cast
-    // exist" this module implements.
-    const fused = faces.find((f) => /^Fuse\b/m.test(f.oracleText));
-    if (fused) {
-        return unparsed([
-            {
-                line: fused.oracleText,
-                fragment: "Fuse",
-                reason: "split card with Fuse (CR 702.102) is out of scope",
-            },
-        ]);
-    }
+    // CR 702.102a — Fuse is a static ability of the CARD ("found on some split
+    // cards … applies while the card with fuse is in a player's hand"), which
+    // Scryfall prints on each face. It is lifted off the faces before they
+    // compile — a half carries no keywords (`SplitHalf`) — and lands on the
+    // combined definition, where `cards/fusedSplit.ts` reads it.
+    const fused = faces.some((f) =>
+        f.oracleText.split("\n").some((line) => FUSE_LINE.test(line))
+    );
     const compiled = faces.map((face) =>
-        compileCard(faceAsOracleCard(card, face))
+        compileCard(
+            faceAsOracleCard(card, {
+                ...face,
+                oracleText: face.oracleText
+                    .split("\n")
+                    .filter((line) => !FUSE_LINE.test(line))
+                    .join("\n"),
+            })
+        )
     );
     const unparsedFaces = compiled.filter((c) => c.state === "unparsed");
     if (unparsedFaces.length > 0) {
@@ -1003,9 +1011,26 @@ function compileSplitLayout(card: OracleCard): CompileOutcome {
                 : {}),
         });
     }
+    // CR 702.102d — a fused split spell follows the left half's instructions
+    // and then the right half's; halves whose scripts cannot be concatenated
+    // that way are refused rather than shipped with a fuse option that
+    // resolves wrongly (`fusedSplitShapeRefusal`).
+    const fuseRefusal = fused
+        ? fusedSplitShapeRefusal([halves[0], halves[1]])
+        : undefined;
+    if (fuseRefusal !== undefined) {
+        return unparsed([
+            {
+                line: faces[0].oracleText,
+                fragment: "Fuse",
+                reason: fuseRefusal,
+            },
+        ]);
+    }
     const definition: CompiledDefinition = {
         ...deriveSplitCombination([halves[0], halves[1]]),
         oracleText: faces.map((f) => f.oracleText).join("\n"),
+        ...(fused ? { staticAbilities: [FUSE_KEYWORD] } : {}),
     };
     const parsedFaces = compiled.filter(
         (c): c is Extract<CompileOutcome, { opsUsed: readonly string[] }> =>

@@ -5038,14 +5038,21 @@ function enumerateCastMovesFromZone(
                   )
                 : 0;
         if (altPayLife > player.life) continue;
-        const altReq = subjectDef?.targetRequirement;
+        // CR 601.2c — EVERY group the subject announces, in order: a fused
+        // split spell (CR 702.102b) announces the left half's group and then
+        // the right half's as an additional one.
+        const altGroups: (TargetRequirement | undefined)[] = [
+            subjectDef?.targetRequirement,
+            ...(subjectDef?.additionalTargetRequirements ?? []),
+        ];
+        const altLastReq = altGroups[altGroups.length - 1];
         // CR 601.2c (issue #4193) — the SUBJECT's script, paired with the
-        // SUBJECT's requirement above: an Adventure or split half is its own
+        // SUBJECT's requirements above: an Adventure or split half is its own
         // definition (CR 715.3a/b, ADR 0120 §4), so reading the printed card
         // here would pick one half's targets by the other half's rules.
         const altOrdered = orderedGroupFlags(
             announcedRoleScript(subjectDef, undefined),
-            [altReq],
+            altGroups,
             undefined
         );
         for (const altTapPlan of altTapPlans) {
@@ -5053,7 +5060,7 @@ function enumerateCastMovesFromZone(
                 state,
                 player,
                 subject,
-                [altReq],
+                altGroups,
                 undefined,
                 undefined,
                 altOrdered
@@ -5064,7 +5071,7 @@ function enumerateCastMovesFromZone(
                     alternativeCostId: alt.id,
                     targets,
                     confirmTargets: announcedTargetsNeedConfirm(
-                        altReq,
+                        altLastReq,
                         lastGroupSize,
                         undefined
                     ),
