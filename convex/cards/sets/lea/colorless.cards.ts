@@ -931,7 +931,7 @@ export const kormusBell = defineCard(() => ({
 // so multiple copies / mid-turn enter/leave events need no bookkeeping.
 //
 // The "may" clause is resolved via `state.playerPreferences[playerId]
-// .libraryOfLengRouting`, which the UI can toggle through a dedicated
+// .discardRouting`, which the UI can toggle through a dedicated
 // mutation. The default is "library" (Library of Leng activates) — set to
 // "graveyard" to opt OUT and route the discard normally. Modeling player
 // choice this way (state-level preference) avoids the mid-event suspension
@@ -968,10 +968,10 @@ export const libraryOfLeng = defineCard(() => ({
                     (p) => p.id === event.playerId
                 );
                 // "May" opt-out: the player can preset
-                // libraryOfLengRouting: "graveyard" to bypass the redirect.
+                // discardRouting: "graveyard" to bypass the redirect.
                 // Default (undefined) routes to the library.
                 return (
-                    (player?.preferences?.libraryOfLengRouting ?? "library") ===
+                    (player?.preferences?.discardRouting ?? "library") ===
                     "library"
                 );
             },

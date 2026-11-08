@@ -297,7 +297,7 @@ type GameState = {
 ```
 
 Il resto è **opzionale e assente per default**. Una partita normale non porta
-`highTideThisTurn` né `gazeOfPainActiveThisTurn`: quei campi esistono solo quando
+`highTideThisTurn` né `turnScopedTriggerGrants`: quei campi esistono solo quando
 la carta corrispondente è in gioco. È il compromesso scelto per il costo di
 lettura Convex — lo stato serializzato resta piccolo — al prezzo di una superficie
 di tipo ampia.

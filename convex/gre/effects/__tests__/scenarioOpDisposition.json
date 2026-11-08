@@ -349,9 +349,9 @@
         "code": "op-own-tests",
         "reason": "Op \"setColor\" is new — covered by the Op's own interpreter + wire-format tests"
     },
-    "setIslandSanctuaryProtection": {
+    "restrictAttackers": {
         "code": "later-outcome",
-        "reason": "Op \"setIslandSanctuaryProtection\" only manifests at a later declare-attackers step — covered by hand-written tests"
+        "reason": "Op \"restrictAttackers\" only manifests at a later declare-attackers step — covered by hand-written tests"
     },
     "setLevel": "runs",
     "setProtectionFromEverything": {

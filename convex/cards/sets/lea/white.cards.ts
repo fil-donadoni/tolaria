@@ -827,7 +827,7 @@ export const islandSanctuary = defineCard(() => ({
             scope: "your",
             // Migrated resolve()→effects[] (ADR 0045, issue #1283): the
             // "skip" branch's player-scoped combat-restriction flag now has
-            // a registered Op — `setIslandSanctuaryProtection` (a thin skin
+            // a registered Op — `restrictAttackers` (a thin skin
             // over the same SpellContext primitive the old resolve() called
             // directly; `restrictCombat` stays permanent-scoped and doesn't
             // cover this player-scoped "except by …" shape). The binary
@@ -844,7 +844,7 @@ export const islandSanctuary = defineCard(() => ({
                             label: "Skip draw (gain protection)",
                             effects: [
                                 {
-                                    op: "setIslandSanctuaryProtection",
+                                    op: "restrictAttackers",
                                     player: "controller",
                                 },
                             ],

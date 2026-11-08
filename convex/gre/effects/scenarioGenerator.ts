@@ -2230,9 +2230,9 @@ const SCENARIO_SKIPS = {
     // mode, which already forces a skip on its own. Explicit skip for
     // exhaustiveness — covered by the Op's own interpreter test plus
     // Island Sanctuary's hand-written combat test.
-    setIslandSanctuaryProtection: {
+    restrictAttackers: {
         code: "later-outcome",
-        reason: `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`,
+        reason: `Op "restrictAttackers" only manifests at a later declare-attackers step — covered by hand-written tests`,
     },
     // CR 702.16b/e/i (issue #674) — protection from everything is a
     // GLOBAL player-scoped designation (`GameState.

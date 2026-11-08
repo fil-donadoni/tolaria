@@ -2429,7 +2429,7 @@ function performPhaseEntry(state: GameState): void {
             // and replaces this step entirely — so do NOT reset the assignments;
             // the auto-confirm below declares them with no blocker prompt
             // (the step still opens its own priority round — CR 117.3a).
-            if (state.combat && !state.camouflageCombat) {
+            if (state.combat && !state.blocksPredeterminedThisCombat) {
                 state.combat.blockerAssignments = {};
                 state.combat.blockedAttackerIds = undefined;
                 state.combat.pendingBlockerId = undefined;
@@ -3234,7 +3234,7 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 603.7a / 514.2 — Gaze of Pain's floating "until end of turn" rider,
     // which fires on `ATTACKER_UNBLOCKED`: it must survive END_OF_COMBAT to
     // still be armed for a second combat phase.
-    "gazeOfPainActiveThisTurn",
+    "turnScopedTriggerGrants",
     // CR 615 / 514.2 — Forcefield's one-shot damage cap is a "this turn"
     // prevention shield; unconsumed, it survives to the next combat phase.
     "damageCapShields",
@@ -3845,14 +3845,14 @@ function advanceTurn(state: GameState): void {
         p.permanentYouControlledLeftThisTurn = undefined;
     // Island Sanctuary: clear protection when the protected player's turn starts
     if (
-        state.islandSanctuaryProtection &&
-        state.islandSanctuaryProtection === state.activePlayerId
+        state.playerAttackRequirements &&
+        state.playerAttackRequirements === state.activePlayerId
     ) {
-        state.islandSanctuaryProtection = undefined;
+        state.playerAttackRequirements = undefined;
     }
     // The One Ring (CR 702.16b/e/i, issue #674) — "you gain protection from
     // everything UNTIL YOUR NEXT TURN": drop the grantee's entry the moment
-    // their own next turn begins (same boundary as islandSanctuaryProtection /
+    // their own next turn begins (same boundary as playerAttackRequirements /
     // castTimingFlashGrants, NOT CLEANUP — the protection has to survive the
     // whole intervening opponent turn, which is the entire point of the card).
     if (state.playerProtectionFromEverything) {
@@ -3866,7 +3866,7 @@ function advanceTurn(state: GameState): void {
     }
     // Teferi, Time Raveler +1 (CR 601.3b) — a "cast as though it had flash"
     // grant lasts "until your next turn"; drop the grantee's entries the moment
-    // their own next turn begins (same boundary as islandSanctuaryProtection).
+    // their own next turn begins (same boundary as playerAttackRequirements).
     if (state.castTimingFlashGrants) {
         state.castTimingFlashGrants = state.castTimingFlashGrants.filter(
             (g) => g.playerId !== state.activePlayerId
@@ -3878,7 +3878,7 @@ function advanceTurn(state: GameState): void {
     // CR 606 / 603.7a (issue #2385) — a `until-next-turn-creature-attacks-
     // you` delayed trigger (Tamiyo, Seasoned Scholar's +2) lasts "until your
     // next turn": drop the instance the moment ITS OWN controller's next
-    // turn begins (same boundary as islandSanctuaryProtection /
+    // turn begins (same boundary as playerAttackRequirements /
     // playerProtectionFromEverything), NOT the unconditional CLEANUP purge
     // the "this-turn-*" repeating timings use (`finalizeCleanup` above).
     if (state.delayedTriggers?.length) {
@@ -3985,9 +3985,9 @@ function endCombatStep(state: GameState): void {
     }
     state.combatBlockRestrictions = undefined;
     // Camouflage's combat-scoped flag lifts with the rest of combat (ADR 0012).
-    state.camouflageCombat = undefined;
+    state.blocksPredeterminedThisCombat = undefined;
     // Melee's attacker-chooses-blocks flag is likewise combat-scoped (#669).
-    state.meleeCombat = undefined;
+    state.blocksDeclaredByAttacker = undefined;
     // CR 511.2 / 500.5a — "until end of combat" effects expire at the end
     // of the combat phase (not merely as the step begins); this call sits at
     // the END_OF_COMBAT step's exit, which is also the combat phase's exit.
@@ -4167,7 +4167,7 @@ export function advancePhase(state: GameState): Phase[] {
         state.phase === "DECLARE_BLOCKERS" &&
         hadAttackers &&
         !!state.combat &&
-        !!state.camouflageCombat &&
+        !!state.blocksPredeterminedThisCombat &&
         !state.combat.blockersConfirmed;
     if (autoConfirmCamouflageBlockers && state.combat) {
         markDeclaredBlockers(state);
