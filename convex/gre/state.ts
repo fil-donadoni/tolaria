@@ -7352,7 +7352,8 @@ function retireDepartingCombatant(
  *  shields, summoning sickness, combat flags, granted/animation state) is
  *  cleared so a later re-cast or reanimation re-enters cleanly. For
  *  graveyard/exile the historical state is preserved (e.g. `damagedBySources`
- *  is read post-death by Sengir-style triggers).
+ *  is read post-death by Sengir-style triggers), but never a characteristic:
+ *  the Card Field Lifecycle table's `departure` scope goes on all four.
  *
  *  Returns the moved card (its `.zone` is the ACTUAL landing zone — an
  *  `exileOnLeave` grant or a CR 614 graveyard-bound replacement can silently
@@ -7501,6 +7502,11 @@ export function removePermanentTo(
     // CR 603.10a / 613.1f — the keywords it had, before an Aura's or its own
     // effects stop applying and before the identity reverts recompose layer 6.
     const lkiKeywords = [...initial.card.staticAbilities];
+    // CR 603.10a (issue #8730) — and, at the same instant, whether it had lost
+    // its abilities and which triggered abilities it was granted: every
+    // departure ends both on the card below (CR 400.7), so the look-back reads
+    // this instead.
+    const lkiAbilities = snapshotAbilitiesAtLeave(initial.card);
     // Before the effects below stop applying: they are what the object last was.
     stampDepartedEntrySubject(state, initial.card);
     // CR 611.2 — a static effect from a source stops applying when the source
@@ -7696,11 +7702,10 @@ export function removePermanentTo(
     // departure, not only the hand/library one that runs
     // `resetBattlefieldTransientState` below.
     clearGrantedEnchantRestriction(creature);
-    // CR 400.7 / 508.1d (issue #1972) — same site, same reasoning: a granted
-    // "attacks each combat if able" belongs to the object that was on the
-    // battlefield, so it goes on EVERY departure, not only the ones that run
-    // `resetBattlefieldTransientState`.
-    delete creature.grantedAttackRequirements;
+    // CR 400.7 / 508.1d (issue #1972) — a granted "attacks each combat if
+    // able" belongs to the object that was on the battlefield, so it goes on
+    // EVERY departure: a `departure` row of the Card Field Lifecycle table,
+    // cleared by both branches below.
     // CR 702.103f / 400.7 — a bestowed Aura leaving the battlefield ceases to
     // be bestowed, and (unlike the granted restriction cleared immediately
     // above) bestow also rewrote the object's TYPE LINE in place, so the
@@ -7763,8 +7768,18 @@ export function removePermanentTo(
         // any card that does not itself DECLARE off-battlefield
         // characteristics (CR 113.6c, Grist), which is every card but a
         // handful.
+        //
+        // Issue #8730 — ONE declared scope, not a hand-kept list: every
+        // characteristic-bearing field is a `departure` row of the Card Field
+        // Lifecycle table (layers 3-6 ledgers and outputs: text changes, type
+        // and supertype holds, colours, ability loss, granted abilities), and
+        // the generic clear below removes them all AFTER the reverts that read
+        // them. The printed keywords come back with layer 6's base, so a card
+        // that left as an Elk shows what it prints and its graveyard abilities
+        // work again; the look-back reads `abilitiesAtLeave` instead.
         revertTypeLine(creature);
-        revertColorChanges(creature);
+        resetLayer6ToBase(creature);
+        clearCardFieldsAt(creature, "departure");
         // CR 400.7 (ADR 0082, PRD #2064 S6) — but the registry residue goes on
         // EVERY departure, not only the two the full reset covers. The card
         // that lands in the graveyard or in exile is a new object, so an
@@ -7806,6 +7821,13 @@ export function removePermanentTo(
         delete creature.keywordsAtLeave;
     } else {
         creature.keywordsAtLeave = lkiKeywords;
+    }
+    // CR 603.10a — likewise: the card in the new zone shows neither (the
+    // departure scope above, or the hand/library reset).
+    if (lkiAbilities) {
+        creature.abilitiesAtLeave = lkiAbilities;
+    } else {
+        delete creature.abilitiesAtLeave;
     }
     delete creature.counters;
     // CR 400.7 / 716.2b — the class level goes with the object on EVERY
@@ -10541,17 +10563,44 @@ export function revertTypeLine(card: CardInstanceState): void {
     revertTypeProvenance(card);
 }
 
-/** CR 400.7 / 613.1e — the colour half of the same revert: the card that lands
- *  in the graveyard or in exile is a new object showing the colours it PRINTS,
- *  because `getEffectiveColors` folds these fields over the printed cost. A
- *  colour an every-zone static (CR 613.1e, `affectsEveryZone`) gives a card in
- *  that zone is derived anew by the next `syncLayers2to5`. */
-function revertColorChanges(card: CardInstanceState): void {
-    delete card.colorOverride;
-    delete card.colorOverrideSeq;
-    delete card.temporaryColorOverrides;
-    delete card.grantedColors;
-    delete card.colorSet;
+/** CR 400.7 / 613.1f — layer 6 goes back to its BASE: `baseStaticAbilities`
+ *  is exactly the pre-layer-6 multiset, so the printed keywords come back. The
+ *  ledgers and derived outputs beside it (ability-loss holds, granted activated
+ *  and triggered abilities) are `departure` rows of the Card Field Lifecycle
+ *  table, deleted by the caller's generic clear AFTER this read.
+ *
+ *  The base is KEPT, and set to what was just written (PRD #2064 S6b-part-2).
+ *  Leaving it deleted would hand the next `captureLayer6Base` an UNCOMPOSED
+ *  `staticAbilities` while registry entries naming this instance were still
+ *  live, and the capture's formula — base = staticAbilities + removals -
+ *  grants — is exact only over a COMPOSED multiset. An identity swap re-seats
+ *  the base from the new copiable values (`gre/identitySwap.ts`), which is the
+ *  only thing CR 400.7 asks for here. */
+function resetLayer6ToBase(card: CardInstanceState): void {
+    card.staticAbilities = [
+        ...(card.baseStaticAbilities ?? card.staticAbilities),
+    ];
+    card.baseStaticAbilities = [...card.staticAbilities];
+}
+
+/** CR 603.10a / 613.1f — the layer-6 state the look-back (`lookBackSelf`)
+ *  needs beside `keywordsAtLeave`, taken while the permanent is still on the
+ *  battlefield with every effect applying. `undefined` when it had lost no
+ *  abilities and was granted no triggered ability: nothing to remember. */
+function snapshotAbilitiesAtLeave(
+    card: CardInstanceState
+): CardInstanceState["abilitiesAtLeave"] {
+    const suppressedBy = card.abilitiesSuppressedBy?.length
+        ? card.abilitiesSuppressedBy.map((s) => ({ ...s }))
+        : undefined;
+    const grantedTriggered = card.grantedTriggeredAbilities?.length
+        ? card.grantedTriggeredAbilities.map((g) => ({ ...g }))
+        : undefined;
+    if (!suppressedBy && !grantedTriggered) return undefined;
+    return {
+        ...(suppressedBy ? { suppressedBy } : {}),
+        ...(grantedTriggered ? { grantedTriggered } : {}),
+    };
 }
 
 /** CR 400.7 / 509.1c (issue #3713) — removes `attackerId` from every
@@ -10645,17 +10694,7 @@ export function resetBattlefieldTransientState(
     // back still flying, because the re-entry path re-derived grants but not
     // removals. Nothing is re-derived one kind at a time any more — the next
     // `syncLayer6` recomputes grants AND removals from the same registry walk.
-    card.staticAbilities = [
-        ...(card.baseStaticAbilities ?? card.staticAbilities),
-    ];
-    // The base is KEPT, and set to what was just written (PRD #2064 S6b-part-2).
-    // Leaving it deleted would hand the next `captureLayer6Base` an UNCOMPOSED
-    // `staticAbilities` while registry entries naming this instance were still
-    // live, and the capture's formula — base = staticAbilities + removals -
-    // grants — is exact only over a COMPOSED multiset. An identity swap re-seats
-    // the base from the new copiable values (`gre/identitySwap.ts`), which is
-    // the only thing CR 400.7 asks for here.
-    card.baseStaticAbilities = [...card.staticAbilities];
+    resetLayer6ToBase(card);
     // CR 400.7 (PRD #2064 S4) — the same reset, one layer group down: layers
     // 2-5 go back to their BASES and every ledger row goes with the old object.
     // A ledger is CR 611.2a residue attached to an OBJECT; the object that

@@ -241,6 +241,14 @@
           "keywordsAtLeave": [
             "undying"
           ],
+          "abilitiesAtLeave": {
+            "suppressedBy": [
+              {
+                "sourceId": "src-8",
+                "seq": 15
+              }
+            ]
+          },
           "capturedBindings": {
             "exiled": [
               "inst-x"
@@ -722,6 +730,14 @@
       "keywordsAtLeave": [
         "undying"
       ],
+      "abilitiesAtLeave": {
+        "suppressedBy": [
+          {
+            "sourceId": "src-8",
+            "seq": 15
+          }
+        ]
+      },
       "capturedBindings": {
         "exiled": [
           "inst-x"
