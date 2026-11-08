@@ -11,7 +11,7 @@
 // Two decisions, because PRD #3397 names both: an ordinary main-phase pass and
 // a combat declaration.
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import {
     render,
     cleanup,
@@ -58,6 +58,11 @@ import { verdictIdOf } from "@convex/gre/ai/verdicts/identity";
 import { pushAiTrace, clearAiTraces } from "~/lib/ai/trace-store";
 import { QUIZ_REFUSALS } from "~/lib/ai/verdict-quiz";
 import AiDecisionTrace from "../ai-decision-trace";
+import {
+    findQuizQuestion,
+    WARM_VERDICT_QUIZ_MS,
+    warmVerdictQuiz,
+} from "./verdict-quiz-warmup.fixture";
 
 const SEQ = 4242;
 
@@ -157,7 +162,7 @@ function pushDecision(
 
 async function openQuiz() {
     fireEvent.click(screen.getByRole("button", { name: "Judge this move" }));
-    await screen.findByText("Which move was right here?");
+    await findQuizQuestion();
 }
 
 function lastSubmission() {
@@ -176,6 +181,9 @@ function lastSubmission() {
 }
 
 const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+
+// The quiz's on-demand loads, paid before its first open (issue #8781).
+beforeAll(warmVerdictQuiz, WARM_VERDICT_QUIZ_MS);
 
 beforeEach(() => {
     cleanup();
