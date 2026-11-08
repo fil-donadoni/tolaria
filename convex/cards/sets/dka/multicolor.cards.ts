@@ -98,9 +98,11 @@ export const sorinLordOfInnistrad = defineCard(() => ({
             // authority both `getLegalTargets` and `selectTarget` read
             // (`excludeInstanceIds` → `intrinsicPermanentTargetViolation`), so
             // offered == accepted; a UI-only filter is the known bug class.
-            // An activated ability has no `triggerSourceId`, so the reflexive
-            // `excludeSource` flag (triggered-only) does not apply — the
-            // documented activated-ability form is this dynamic requirement.
+            // The static `excludeSource` flag would say the same for an
+            // activated ability too (`applySourceDirectives` merges it at
+            // announcement and in the Bot's enumerator); this dynamic form is
+            // resolved by both through `abilityTargetRequirement` (issue
+            // #7924), so either reaches the Bot.
             getTargetRequirement: (source) => ({
                 type: ["Creature", "Planeswalker"],
                 count: { min: 0, max: 3 },

@@ -1000,19 +1000,23 @@ function activationsInFlight(
  *  clause, `pass` scored 192.5 and the activation 186.5 — a deficit of exactly
  *  `W_FLEX`, so `selectRolloutMove`'s exact-equality argmax dropped the
  *  activation out of the bucket entirely and NO rng value could return it. That
- *  is the regression this term was held back from PR #1919 to avoid, arriving
- *  through the one door closing issue #1920 does not shut.
+ *  is the regression this term was held back to avoid, arriving through the
+ *  one door the stack-payoff fix does not shut.
  *
  *  Every remaining check is FAIL CLOSED — an option this function cannot prove
- *  is live scores no flexibility. The first three are properties of the ability
+ *  is live scores no flexibility. The first two are properties of the ability
  *  itself, so they apply announced or not:
  *
  *    * `activateFromHand` / `activateFromGraveyard` (CR 113.6) — the ability
  *      functions from another zone, so it is not an option this permanent offers.
- *    * `getTargetRequirement` — a dynamic target this leaf heuristic does not
- *      evaluate, exactly as the move enumerator refuses to (`moves.ts`).
  *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
  *      may activate is not this player's option to hold.
+ *
+ *  A target requirement — static or a dynamic `getTargetRequirement` closure —
+ *  is not a gate here: this leaf heuristic never asks whether a target exists
+ *  for a static one, so it asks it for no dynamic one either: the enumerator
+ *  resolves the closure (`abilityTargetRequirement`) and offers the ability, so
+ *  the two shapes are credited alike.
  *
  *  The rest are AVAILABILITY, which an announced ability has already cleared —
  *  it is on the stack, so re-testing them would reject the very state the
@@ -1021,7 +1025,7 @@ function activationsInFlight(
  *
  *    * a `canActivate` closure that fails (CR 602.5), evaluated through
  *      `activationPreconditionViolation` — the predicate the enumerator and
- *      the mutation share (issue #3441).
+ *      the mutation share.
  *    * `oncePerTurn` already used (CR 602.5) and an already-animated
  *      `animatesSelf` manland (CR 611.1) — spent options, not held ones.
  *    * `controllerTurnOnly` off-turn — not activatable in the very window the
@@ -1054,7 +1058,6 @@ function hasFlexibleActivation(
     for (const { ability } of abilities) {
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
-        if (ability.getTargetRequirement) continue;
         // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
         // the Holy Nimbus). It is not an option THIS player holds at all, and
         // `enumerateMoves` offers them none; without this gate the term credited

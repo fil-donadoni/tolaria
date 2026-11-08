@@ -6275,11 +6275,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // itself — the two Plains fund the cost through the real
         // `enumerateMoves`/`applyMoveInSearch` seam the `activate` step's
         // `target` field uses. (Giver of Runes was tried first and dropped:
-        // its `getTargetRequirement` closure hits a documented, pre-existing
-        // gap in `moves.ts`'s ability enumerator — a dynamic target
-        // requirement is skipped outright — so the Bot can
-        // never activate it at all, unrelated to colour choice. Out of
-        // scope for #2306; see the PR description / findings note.)
+        // at the time its `getTargetRequirement` closure was skipped outright
+        // by `moves.ts`'s ability enumerator. Issue #7924 closed that gap;
+        // the Giver entry below pins it.)
         setup: [
             {
                 kind: "cast",
@@ -6303,6 +6301,62 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             moves: [{ kind: "resolution-choice", option: "protection-blue" }],
         },
         note: "Issue #2306 acceptance criterion 2 — the SAME fix at the shared `protectionColorModes` seam, proven on a SECOND card.",
+    },
+    {
+        label: "dynamic target requirement: Giver of Runes protects its Bears from a Lightning Bolt",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a removal spell on the stack aimed at another creature the bot controls",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Giver of Runes",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        // "me" holds priority on a fresh board, so it casts first; the Bolt
+        // hands priority to "opp", whose one answer is Giver's "{T}: another
+        // target creature you control gains protection".
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Grizzly Bears",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Giver of Runes",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: 'Issue #7924. Giver of Runes\' requirement is a dynamic `getTargetRequirement(source)` closure ("another target creature you control"), which `enumerateAbilityMoves` used to skip outright — the activation was not a move, so the Bot could only pass and lose the Bears. The enumerator now resolves the closure through `abilityTargetRequirement`, the resolver the announcement uses.',
     },
     {
         label: "protection colour choice: negative control — the lethal threat's colour wins over evidence share",

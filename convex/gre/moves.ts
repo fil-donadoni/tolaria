@@ -142,6 +142,7 @@ import {
     flashSurchargeRequired,
     foldFlashSurchargeCost,
     applySourceDirectives,
+    abilityTargetRequirement,
 } from "./rules";
 import { castPermissionAltCosts } from "./castPermissions";
 // issue #2283 — the origin classification that decides whether a live
@@ -5164,9 +5165,6 @@ function enumerateAbilityMoves(
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;
-        // A dynamic target requirement needs a target selection the move
-        // shape does not carry.
-        if (ability.getTargetRequirement) continue;
         // CR 602.5 (issue #3441) — the ability's own printed restriction
         // (`canActivate`), evaluated through the SAME predicate the mutation's
         // legality gate reads, against the source exactly as the server
@@ -5644,8 +5642,14 @@ function enumerateAbilityMoves(
                 : [
                       {
                           chosenModeIds: undefined,
+                          // Issue #7924 — a dynamic `getTargetRequirement`
+                          // closure is resolved against the source through
+                          // the SAME resolver the announcement uses, then
+                          // enumerated like any static requirement.
                           groups: [
-                              selfExcluded(ability.targetRequirement),
+                              selfExcluded(
+                                  abilityTargetRequirement(ability, perm, state)
+                              ),
                               ...abilityExtraGroups,
                           ],
                           groupInstances: undefined,

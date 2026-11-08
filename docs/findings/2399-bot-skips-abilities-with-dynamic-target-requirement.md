@@ -1,7 +1,8 @@
 ---
 title: enumerateAbilityMoves skips every ability with getTargetRequirement, so four shipped "another target" abilities are invisible to the bot
 discoveredBy: 2399
-status: draft
+status: triaged
+issue: 7924
 confidence: high
 ---
 

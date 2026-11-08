@@ -385,6 +385,13 @@
             "needsSetup": false
         }
     ],
+    "Giver of Runes": [
+        {
+            "label": "dynamic target requirement: Giver of Runes protects its Bears from a Lightning Bolt",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Goblin Bombardment": [
         {
             "label": "sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies",
