@@ -23785,6 +23785,15 @@ export interface CardDefinition {
      *  only inside the linked trigger's resolution, never from the cast
      *  picker. */
     miracle?: ManaCost;
+    /** CR 702.180a — Harmonize [cost]. The cost this card may be cast for from
+     *  its owner's graveyard "rather than paying this spell's mana cost" (an
+     *  alternative cost, CR 118.9), reduced by the power of up to one untapped
+     *  creature its caster taps (CR 702.180b); the spell is exiled instead of
+     *  leaving the stack anywhere else. DATA only for now: the Mechanics
+     *  Registry row is `planned` and no engine module reads this field yet, so
+     *  the Oracle compiler quarantines every card carrying it
+     *  (`planned-mechanic`) rather than shipping it inert (issue #2764). */
+    harmonize?: ManaCost;
     /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
      *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the
      *  CR 702.30a upkeep trigger from it and the engine arms `echoPending` on

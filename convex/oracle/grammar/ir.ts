@@ -348,6 +348,12 @@ export type SlotIR =
      */
     | { readonly kind: "foretell"; readonly cost: ManaCost }
     /**
+     * CR 702.180a — a "Harmonize [cost]" line: the alternative cost a card is
+     * cast for from its owner's graveyard, lowered onto
+     * `CardDefinition.harmonize`.
+     */
+    | { readonly kind: "harmonize"; readonly cost: ManaCost }
+    /**
      * CR 702.94a — a "Miracle [cost]" line: the cost a card revealed as its
      * owner's first draw of the turn is cast for, lowered onto
      * `CardDefinition.miracle`.

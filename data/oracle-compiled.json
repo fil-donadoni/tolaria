@@ -8965,14 +8965,6 @@
         {"key":"d884dae52be8","text":"Hand Backup 1","reason":"no slot consumed the line","cards":1},
         {"key":"3bd819040d30","text":"Harbinger of Despair — Whenever this creature or another nontoken artifact you control is put into a graveyard from the battlefield or is put into exile from the battlefield, target opponent loses 1 life and you gain 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever this creature or another nontoken artifact you control is put into a graveyard from the battlefield or is put into exile from the battlefield"}},
         {"key":"4ae8e09c302e","text":"Harmonious Grovestrider's power and toughness are each equal to the number of lands you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Harmonious Grovestrider's power and toughness are each equal to the number of lands you control"}},
-        {"key":"91426b775d66","text":"Harmonize {4}{G}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {4}{G}"}},
-        {"key":"bf918d216a97","text":"Harmonize {4}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {4}{R}"}},
-        {"key":"15ed276a6fbf","text":"Harmonize {4}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {4}{U}"}},
-        {"key":"3145937fe91a","text":"Harmonize {4}{U}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {4}{U}{R}"}},
-        {"key":"5aa6d195b06c","text":"Harmonize {5}{G}{U}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {5}{G}{U}{R}"}},
-        {"key":"101f054c255a","text":"Harmonize {5}{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {5}{R}{R}"}},
-        {"key":"961ea05e8e07","text":"Harmonize {5}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {5}{U}"}},
-        {"key":"742059fe0965","text":"Harmonize {8}{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {8}{R}{R}"}},
         {"key":"375f5d7397b8","text":"Harmonize {X}{G}{G}{G}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {X}{G}{G}{G}{G}"}},
         {"key":"f89de5c45b7a","text":"Harmonize {X}{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Harmonize {X}{R}{R}"}},
         {"key":"5fc040adf87f","text":"Haste, double team","reason":"no slot consumed the line","cards":1},
@@ -56424,7 +56416,7 @@
 
         {"oracleId":"6191a7eb-04b5-47e6-a31f-43f9aa91d4d7","name":"Artificer's Assistant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8b84d436eb67"]},
 
-        {"oracleId":"61978202-538b-4f92-acfc-e95f4a6ce466","name":"Wild Ride","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3398171ef774","bf918d216a97"]},
+        {"oracleId":"61978202-538b-4f92-acfc-e95f4a6ce466","name":"Wild Ride","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3398171ef774"]},
 
         {"oracleId":"619c7d51-51d1-4467-a58b-4f275ff9df0f","name":"Injector Crocodile","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["bf9f105aa270","c689495bc326"]},
 
@@ -60186,7 +60178,7 @@
 
         {"oracleId":"6f2ba142-5e7c-4709-ae03-e028cb2a9872","name":"Super-Soldier Serum","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a3394cd8d71c","d90fb7685bc4"]},
 
-        {"oracleId":"6f2e4607-bece-42ba-a2a3-5dc50f246793","name":"Mammoth Bellow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5aa6d195b06c"]},
+        {"oracleId":"6f2e4607-bece-42ba-a2a3-5dc50f246793","name":"Mammoth Bellow","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["createToken"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Mammoth Bellow","types":["Sorcery"],"manaCost":{"X":2,"U":1,"R":1,"G":1},"oracleText":"Create a 5/5 green Elephant creature token.\nHarmonize {5}{G}{U}{R} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"createToken","token":{"name":"Elephant","types":["Creature"],"subtypes":["Elephant"],"power":5,"toughness":5,"colors":["G"]},"controller":"controller"}],"harmonize":{"X":5,"U":1,"R":1,"G":1}}},
 
         {"oracleId":"6f2e8083-29af-4cdb-a2cb-216b2f3f5616","name":"Tea, Earl Grey, Hot","state":"unparsed","gaps":["154c0fea7303"]},
 
@@ -69222,7 +69214,7 @@
 
         {"oracleId":"8f968470-ce00-43a3-95f5-2e3fe987be19","name":"Fell","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Fell","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"Destroy target creature.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"8f976399-29a9-4eb7-844d-3d3f2fdf6ea7","name":"Glacial Dragonhunt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3145937fe91a","8a34e92eb1af"]},
+        {"oracleId":"8f976399-29a9-4eb7-844d-3d3f2fdf6ea7","name":"Glacial Dragonhunt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8a34e92eb1af"]},
 
         {"oracleId":"8f98806e-c6b7-44af-b436-88acf36d25ec","name":"Gríma Wormtongue","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0ef7fb9472b8","b1b4e7dda09e"]},
 
@@ -69610,7 +69602,7 @@
 
         {"oracleId":"91108ed7-5b24-4b51-b01d-85005998c69d","name":"Retreat to Valakut","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c3f50b22fb44"]},
 
-        {"oracleId":"91179937-6f55-4d1b-8f06-2efe1c8fea7a","name":"Channeled Dragonfire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["101f054c255a"]},
+        {"oracleId":"91179937-6f55-4d1b-8f06-2efe1c8fea7a","name":"Channeled Dragonfire","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Channeled Dragonfire","types":["Sorcery"],"manaCost":{"R":1},"oracleText":"Channeled Dragonfire deals 2 damage to any target.\nHarmonize {5}{R}{R} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"dealDamage","amount":2,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1},"harmonize":{"X":5,"R":2}}},
 
         {"oracleId":"911b8849-dd0a-4383-8403-ea80227c5d7d","name":"Diviner Spirit","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["f314286027a0"]},
 
@@ -69698,7 +69690,7 @@
 
         {"oracleId":"915d70ac-46ce-41d0-a137-f17e7aaea87d","name":"Wanderbrine Trapper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9c4e8262a03c"]},
 
-        {"oracleId":"91617de2-4aab-4efc-94a1-053dfaac3ae5","name":"Ureni's Counsel","state":"unparsed","gaps":["742059fe0965","864fe53c57d1","8c25cbd84c87"]},
+        {"oracleId":"91617de2-4aab-4efc-94a1-053dfaac3ae5","name":"Ureni's Counsel","state":"unparsed","gaps":["864fe53c57d1","8c25cbd84c87"]},
 
         {"oracleId":"91638137-06ba-4b21-b088-28d2b4d1d8da","name":"Raptor Hatchling","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Raptor Hatchling","types":["Creature"],"subtypes":["Dinosaur"],"manaCost":{"X":1,"R":1},"power":1,"toughness":1,"oracleText":"Enrage — Whenever this creature is dealt damage, create a 3/3 green Dinosaur creature token with trample.","compiledTriggeredAbilities":[{"id":"raptor-hatchling-trigger","oracleText":"Enrage — Whenever this creature is dealt damage, create a 3/3 green Dinosaur creature token with trample.","head":{"kind":"damage-taken","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Dinosaur","types":["Creature"],"subtypes":["Dinosaur"],"power":3,"toughness":3,"colors":["G"],"staticAbilities":["trample"]},"controller":"controller"}]}]},"botReach":"played"},
 
@@ -82634,7 +82626,7 @@
 
         {"oracleId":"c0b3bbce-977c-42a9-afcb-dabdfc717c97","name":"Atarka, World Render","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ee234284e4a6"]},
 
-        {"oracleId":"c0b7e989-8194-484c-93aa-a44df0764a77","name":"Ureni's Rebuff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["961ea05e8e07"]},
+        {"oracleId":"c0b7e989-8194-484c-93aa-a44df0764a77","name":"Ureni's Rebuff","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["moveZone"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Ureni's Rebuff","types":["Sorcery"],"manaCost":{"X":1,"U":1},"oracleText":"Return target creature to its owner's hand.\nHarmonize {5}{U} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"Creature","count":1},"harmonize":{"X":5,"U":1}}},
 
         {"oracleId":"c0b8ab40-3c27-48bd-ae19-fb1a155a0522","name":"Rank and File","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["6dc7149f0577"]},
 
@@ -84016,7 +84008,7 @@
 
         {"oracleId":"c5d69038-d6c6-4c80-af86-a5df237d280f","name":"Modular Monstrosity","state":"unparsed","gaps":["71718e84a1cf"]},
 
-        {"oracleId":"c5da5c31-0cf1-4393-8701-eda7880ecebc","name":"Unending Whisper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["961ea05e8e07"]},
+        {"oracleId":"c5da5c31-0cf1-4393-8701-eda7880ecebc","name":"Unending Whisper","state":"quarantine","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["draw"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Unending Whisper","types":["Sorcery"],"manaCost":{"U":1},"oracleText":"Draw a card.\nHarmonize {5}{U} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"draw","player":"controller","count":1}],"harmonize":{"X":5,"U":1}}},
 
         {"oracleId":"c5dc5546-e9e5-4b5b-b812-5716d4bdee0e","name":"Fangren Hunter","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Fangren Hunter","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":3,"G":2},"power":4,"toughness":4,"oracleText":"Trample","staticAbilities":["trample"]},"botReach":"played"},
 
@@ -86608,7 +86600,7 @@
 
         {"oracleId":"cf1e1d8d-c02e-4b66-b1db-49ec48fa4b03","name":"Wither and Bloom","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ece40c8fc38b"]},
 
-        {"oracleId":"cf2355f3-11d2-4b03-b663-9fad6b07e4b2","name":"Roamer's Routine","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["91426b775d66"]},
+        {"oracleId":"cf2355f3-11d2-4b03-b663-9fad6b07e4b2","name":"Roamer's Routine","state":"quarantine","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","libraryLook","moveZone"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"harmonize\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Roamer's Routine","types":["Sorcery"],"manaCost":{"X":2,"G":1},"oracleText":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nHarmonize {4}{G} (You may cast this card from your graveyard for its harmonize cost. You may tap a creature you control to reduce that cost by {X}, where X is its power. Then exile this spell.)","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Land","supertype":"Basic"},"count":{"min":0,"max":1},"prompt":"Search your library for a basic land card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield","tapped":true},{"op":"libraryLook","action":"shuffle","player":"controller"}],"harmonize":{"X":4,"G":1}}},
 
         {"oracleId":"cf252d71-77e7-438f-b774-28e5ab2f09f6","name":"Serpentine Kavu","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility"],"definition":{"name":"Serpentine Kavu","types":["Creature"],"subtypes":["Kavu"],"manaCost":{"X":4,"G":1},"power":4,"toughness":4,"oracleText":"{R}: This creature gains haste until end of turn.","activatedAbilities":[{"id":"serpentine-kavu-ability","oracleText":"{R}: This creature gains haste until end of turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"haste","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -88704,7 +88696,7 @@
 
         {"oracleId":"d6464ee4-23fc-4d68-bbda-3b53772015d1","name":"Primal Rage","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Primal Rage","types":["Enchantment"],"manaCost":{"X":1,"G":1},"oracleText":"Creatures you control have trample. (A creature with trample can deal excess combat damage to the player or planeswalker it's attacking.)","compiledStaticEffects":[{"kind":"keyword-grant","filter":{"types":["Creature"],"controllerRelation":"you"},"keyword":"trample"}]},"botReach":"played"},
 
-        {"oracleId":"d64687e4-ec37-4db2-9e60-4626c7a3b011","name":"Winternight Stories","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["15ed276a6fbf","47b21e4098c2"]},
+        {"oracleId":"d64687e4-ec37-4db2-9e60-4626c7a3b011","name":"Winternight Stories","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["47b21e4098c2"]},
 
         {"oracleId":"d646e42b-5635-4798-b633-29c093b66a55","name":"Inspiring Overseer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8b3a3439241a"]},
 
@@ -98844,7 +98836,7 @@
 
         {"oracleId":"fa9dfcf7-069c-4441-9ea0-133de47ecada","name":"Tortured Existence","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["moveZone"],"definition":{"name":"Tortured Existence","types":["Enchantment"],"manaCost":{"B":1},"oracleText":"{B}, Discard a creature card: Return target creature card from your graveyard to your hand.","activatedAbilities":[{"id":"tortured-existence-ability","oracleText":"{B}, Discard a creature card: Return target creature card from your graveyard to your hand.","cost":{"mana":{"B":1},"discardFilter":{"filter":{"type":"Creature"},"count":1}},"useStack":true,"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"}}]},"botReach":"played"},
 
-        {"oracleId":"faa0055b-c1d2-4ce7-875f-41b4be8030bd","name":"Synchronized Charge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5ef9af4e8d8f","91426b775d66"]},
+        {"oracleId":"faa0055b-c1d2-4ce7-875f-41b4be8030bd","name":"Synchronized Charge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5ef9af4e8d8f"]},
 
         {"oracleId":"faa01ed1-ccfa-4e58-951f-cd81f9068027","name":"Mortify","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Mortify","types":["Instant"],"manaCost":{"X":1,"W":1,"B":1},"oracleText":"Destroy target creature or enchantment.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Creature","Enchantment"],"count":1}},"botReach":"played"},
 
