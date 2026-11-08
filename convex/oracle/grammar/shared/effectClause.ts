@@ -5035,6 +5035,14 @@ function sweepRecipient(
             "a creature sweep joined to every player names no announced opponent or bound",
             "each player"
         );
+    // CR 120.3 — the creature half is a CREATURE sweep: "each creature and
+    // each planeswalker and each player" would be a three-set union nobody
+    // prints, and stays refused rather than read through this pair.
+    if (mass.select.filter?.type !== "Creature")
+        return fail(
+            "a sweep joined to every player is a creature sweep",
+            "each player"
+        );
     return ok({
         kind: "each-creature-and-player" as const,
         creatures: mass.select,
