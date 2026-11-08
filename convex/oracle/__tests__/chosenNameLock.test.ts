@@ -65,9 +65,11 @@ describe("chosen-name cast lock — golden (CR 614.12a, 601.3a)", () => {
 });
 
 describe("chosen-name cast lock — refusals (fail-closed)", () => {
-    it("a card name that admits lands is another form", () => {
+    it("a card name with another characteristic is another form", () => {
         expect(
-            refused("As this creature enters, choose a card name.").state
+            refused(
+                "As this creature enters, choose a land card name.\nSpells with the chosen name can't be cast."
+            ).state
         ).toBe("unparsed");
     });
     it("the lock without the choice reads nothing", () => {
@@ -75,11 +77,10 @@ describe("chosen-name cast lock — refusals (fail-closed)", () => {
             refused("Spells with the chosen name can't be cast.").state
         ).toBe("unparsed");
     });
-    it("the activated-ability lock is a different clause", () => {
+    it("a choice no line reads is refused", () => {
         expect(
-            refused(
-                "As this creature enters, choose a nonland card name.\nActivated abilities of sources with the chosen name can't be activated unless they're mana abilities."
-            ).state
+            refused("As this creature enters, choose a nonland card name.")
+                .state
         ).toBe("unparsed");
     });
 });

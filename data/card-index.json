@@ -58329,6 +58329,16 @@
         "source": "compiled"
     },
     {
+        "name": "Phyrexian Revoker",
+        "scryfallId": "7c7bec21-61b0-4e72-848b-82f38e1910e0",
+        "oracleId": "786b3657-b595-4b38-83f2-d40915e51e2b",
+        "firstSet": "mbs",
+        "firstPrintId": "7c7bec21-61b0-4e72-848b-82f38e1910e0",
+        "firstPrintSet": "mbs",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Phyrexian Scuta",
         "scryfallId": "eb57e656-c94e-4cc2-ae8d-9300f51f941f",
         "oracleId": "af2845cf-8770-4efa-8a83-bf9eb4122b78",
@@ -58796,6 +58806,16 @@
         "firstPrintId": "28e960c6-6da0-4679-87eb-55bac890e0c6",
         "firstPrintSet": "nph",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Pithing Needle",
+        "scryfallId": "78eb9e1d-113e-45ff-8435-32ee42fa5631",
+        "oracleId": "a188fe7e-68de-4c7c-806c-bfe8fc7b44bf",
+        "firstSet": "sok",
+        "firstPrintId": "78eb9e1d-113e-45ff-8435-32ee42fa5631",
+        "firstPrintSet": "sok",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -89758,6 +89778,16 @@
         "firstSet": "ons",
         "firstPrintId": "7441e7f9-a326-4f61-b7b1-e0dbed06046f",
         "firstPrintSet": "ons",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Voidstone Gargoyle",
+        "scryfallId": "583741a1-0faf-4fb3-8536-b9b1cc8a3b6f",
+        "oracleId": "1a1a6548-26ef-49f4-9e6d-b98bea1bd149",
+        "firstSet": "plc",
+        "firstPrintId": "583741a1-0faf-4fb3-8536-b9b1cc8a3b6f",
+        "firstPrintSet": "plc",
         "rarity": "rare",
         "source": "compiled"
     },

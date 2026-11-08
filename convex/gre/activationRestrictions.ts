@@ -14,6 +14,7 @@
 // predicate (ADR 0074 — the client reads, never decides).
 
 import { tryGetDefinition } from "../cards";
+import { objectHasChosenName } from "../cards/cardNames";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent } from "../cards/filters";
 import type {
@@ -90,20 +91,54 @@ export function boardDeclaresActivationRestriction(
     return false;
 }
 
+/** A source row in a zone other than the battlefield, when the view carries
+ *  the zone (a `GameState` does; a mana census's battlefield-only board does
+ *  not). Only a name-keyed restriction reads it — `filter` names permanents. */
+function findOffBattlefieldSource(
+    state: RestrictionBoardView,
+    id: string
+): NamedSource | undefined {
+    for (const player of state.players as ReadonlyArray<OffBattlefieldZones>) {
+        for (const zone of [player.hand, player.graveyard, player.exile]) {
+            if (!Array.isArray(zone)) continue;
+            const row = (zone as ReadonlyArray<NamedSource | null>).find(
+                (c) => c !== null && typeof c === "object" && c.id === id
+            );
+            if (row) return row;
+        }
+    }
+    return undefined;
+}
+
+/** The fields a name comparison reads (CR 201.4b / 709.4a, `objectHasChosenName`). */
+type NamedSource = Parameters<typeof objectHasChosenName>[0] & { id: string };
+
+type OffBattlefieldZones = {
+    hand?: unknown;
+    graveyard?: unknown;
+    exile?: unknown;
+};
+
 /** CR 602.5 — the rejection reason (the restricting card's Oracle text) when
  *  an `activation-restriction` static on any battlefield prohibits activating
- *  an ability of the permanent `sourceId`, else `null`.
+ *  an ability of the object `sourceId`, else `null`.
  *
  *  `isManaAbility` (CR 605.1a) decides whether an `exemptManaAbilities`
- *  restriction applies. A source that is not on the battlefield — a hand
- *  card's cycling, a graveyard ability — is never restricted: the filter
- *  describes permanents (CR 109.2). */
+ *  restriction applies. A `filter` restriction describes permanents (CR
+ *  109.2), so a source that is not on the battlefield — a hand card's
+ *  cycling, a graveyard ability — escapes it; a `sourcesNamed` restriction
+ *  covers a source in any zone (CR 113.7), found on the view's own zones or
+ *  supplied as `source` by a caller that already resolved it. */
 export function activationRestrictionViolation(
     state: RestrictionBoardView,
     sourceId: string,
-    isManaAbility: boolean
+    isManaAbility: boolean,
+    source?: NamedSource
 ): string | null {
-    let source: BattlefieldRow | undefined | null = null;
+    // Resolved only once a live restriction exists — the common board has
+    // none and never pays for either lookup.
+    let onBattlefield: BattlefieldRow | undefined | null = null;
+    let anyZone: NamedSource | undefined | null = null;
     for (const player of state.players) {
         for (const lock of player.battlefield) {
             const cardId = (lock.card as { id?: string } | undefined)?.id;
@@ -113,15 +148,34 @@ export function activationRestrictionViolation(
             if (restrictions.length === 0 || abilitiesSuppressed(lock)) {
                 continue;
             }
-            // Resolved only once a live restriction exists — the common board
-            // has none and never pays for the lookup.
-            if (source === null) source = findBattlefieldRow(state, sourceId);
-            if (!source) return null;
+            if (onBattlefield === null)
+                onBattlefield = findBattlefieldRow(state, sourceId);
             for (const effect of restrictions) {
                 if (isManaAbility && effect.exemptManaAbilities) continue;
+                if (effect.sourcesNamed === "chosen-name") {
+                    // CR 614.12a — no name chosen (yet): nothing is locked. Also a
+                    // cheap skip of the off-battlefield source search.
+                    if (lock.chosenName === undefined) continue;
+                    if (anyZone === null)
+                        anyZone =
+                            onBattlefield ??
+                            source ??
+                            findOffBattlefieldSource(state, sourceId);
+                    if (
+                        anyZone &&
+                        objectHasChosenName(
+                            anyZone,
+                            lock.chosenName,
+                            tryGetDefinition
+                        )
+                    )
+                        return effect.oracleText;
+                    continue;
+                }
+                if (!onBattlefield) continue;
                 if (
                     matchesPermanentFilter(
-                        source as MatchablePermanent,
+                        onBattlefield as MatchablePermanent,
                         effect.filter,
                         {
                             selfInstanceId: lock.id,

@@ -64,7 +64,8 @@ export function activationPreconditionViolation(
     const restricted = activationRestrictionViolation(
         state,
         source.id,
-        isManaAbility
+        isManaAbility,
+        source
     );
     if (restricted !== null) return restricted;
     // CR 702.151a — "Activate only if this permanent is attached to a creature".
