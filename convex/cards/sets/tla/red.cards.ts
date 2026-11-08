@@ -36,9 +36,9 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 //
 //         The two Ops are joined by `linkToSource` + `{ exiledWithSource:
 //         true }` (CR 607 / 406.6), NOT by a `bindAll` picks binding: the
-//         grant's picks shape reads the FIRST pick only, so a binding would
-//         silently make two of the three cards unplayable. The link is also
-//         the CR's own answer to "which exiled cards".
+//         link names the cards exiled with the Saga itself, which is the
+//         CR's own answer to "which exiled cards" for a permanent's chapter
+//         ability.
 //
 //   II  — "Add one mana of any color." No new Op, and no dependency on issue
 //         #1368 despite the brief citing one. That issue asks for a
@@ -120,8 +120,8 @@ export const theLegendOfRoku = defineCard(() => ({
                     player: "controller",
                     count: 3,
                     // CR 607 / 406.6 — link all three to the Saga so the grant
-                    // below reaches EVERY exiled card. A `bindAll` picks
-                    // binding would reach only the first (see the header).
+                    // below reaches EVERY exiled card through the Saga's own
+                    // link (see the header).
                     linkToSource: true,
                 },
                 {

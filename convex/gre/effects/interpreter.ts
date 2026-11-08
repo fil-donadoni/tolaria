@@ -3947,10 +3947,10 @@ export const OP_EXECUTORS: {
         if ("exiledWithSource" in op.card) {
             ids = ctx.getCardsExiledWith(ctx.sourceInstanceId).map((c) => c.id);
         } else {
-            // Historical picks shape: the FIRST pick only (Dauthi Voidwalker
-            // picks exactly one card; no shipped card grants over a multi-pick).
-            const picks = resolvePicks(ctx, op.card);
-            ids = picks && picks.length > 0 ? [picks[0]] : undefined;
+            // CR 608.2c — a picks binding names EVERY card it holds: one for
+            // a `choice` of one (Dauthi Voidwalker's "that card"), each card
+            // an exile's `bindAll` moved for "you may play those cards".
+            ids = resolvePicks(ctx, op.card);
         }
         if (!ids || ids.length === 0) return;
         for (const cardInstanceId of ids) {

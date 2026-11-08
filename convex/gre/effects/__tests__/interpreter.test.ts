@@ -36492,7 +36492,40 @@ describe("Effect Script Op: exileTopOfLibrary (CR 701.13 / 406.3)", () => {
         expect(state.players[0].life).toBe(22);
     });
 
-    it("`linkToSource` + `{ exiledWithSource: true }` grants EVERY exiled card, which a picks binding could not (CR 607)", () => {
+    it("a `bindAll` picks ref grants EVERY exiled card, not only the first ('you may play those cards', CR 608.2c)", () => {
+        const id = registerScript("test-op-exile-top-bindall-grant", [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 2,
+                bindAll: "$exiled",
+            },
+            {
+                op: "grantCastFromExile",
+                card: { ref: "$exiled" },
+                player: "controller",
+                window: "until-end-of-your-next-turn",
+                includesLand: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(3) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const granted = (cardId: string) =>
+            state.players[0].exile.find((c) => c.id === cardId)
+                ?.castableFromExileBy;
+        expect(granted("lib0")).toBe("p1");
+        expect(granted("lib1")).toBe("p1");
+        // The third card never left the library: no grant reaches it.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["lib2"]);
+    });
+
+    it("`linkToSource` + `{ exiledWithSource: true }` grants EVERY exiled card the source linked (CR 607)", () => {
         const id = registerScript("test-op-exile-top-linked", [
             {
                 op: "exileTopOfLibrary",

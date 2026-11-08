@@ -17643,8 +17643,10 @@ export type EffectOp =
     | {
           op: "grantCastFromExile";
           /** Which exiled card the permission reaches. Two shapes:
-           *   - a bare PICKS ref (`{ ref: "$picked" }`) — the card a preceding
-           *     `choice(zone: "exile")` Op bound (Dauthi Voidwalker);
+           *   - a bare PICKS ref (`{ ref: "$picked" }`) — every card the binding
+           *     holds: the one a preceding `choice(zone: "exile")` Op bound
+           *     (Dauthi Voidwalker), or each card an `exileTopOfLibrary`
+           *     `bindAll` moved ("you may play those cards");
            *   - `{ exiledWithSource: true }` (CR 607 linked abilities, issue
            *     #783) — the card(s) the SOURCE permanent itself exiled and
            *     stamped via `SpellContext.linkExileToSource`, read back through

@@ -4083,12 +4083,19 @@ export function assembleSentences(
                     reason: '"you may play that card" follows no exile of the top of a library',
                 };
             // "that card" is singular: an exile of several cards, or of an
-            // unprinted number, names no ONE card to grant.
+            // unprinted number, names no ONE card to grant. "those cards" is
+            // plural: an exile of exactly one card names no set.
             const count = last.object.count;
-            if (count.kind !== "fixed" || count.value !== 1)
+            const exilesOne = count.kind === "fixed" && count.value === 1;
+            if (sentence.play.referent === "one" && !exilesOne)
                 return {
                     ok: false,
                     reason: '"that card" follows an exile of other than one card',
+                };
+            if (sentence.play.referent === "several" && exilesOne)
+                return {
+                    ok: false,
+                    reason: '"those cards" follows an exile of one card',
                 };
             effects[effects.length - 1] = { ...previous, play: sentence.play };
             continue;

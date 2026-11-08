@@ -15054,6 +15054,44 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 701.13a + CR 601.2 + CR 305.1 — "Exile the top X cards of your
+    // library. Until the end of your next turn, you may play those cards.":
+    // the plural grant over every card the exile moved, sized by the spell's
+    // X, which the canned smoke scenario cannot size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "f4aa0f64-d202-42a1-af62-0e53bbe87782",
+            name: "Commune with Lava",
+            manaCost: "{X}{R}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Exile the top X cards of your library. Until the end of your next turn, you may play those cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Commune with Lava",
+            types: ["Instant"],
+            manaCost: { X: "X", R: 2 },
+            oracleText:
+                "Exile the top X cards of your library. Until the end of your next turn, you may play those cards.",
+            effects: [
+                {
+                    op: "exileTopOfLibrary",
+                    player: "controller",
+                    count: { X: true },
+                    bindAll: "$exiled1",
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: "$exiled1" },
+                    player: "controller",
+                    window: "until-end-of-your-next-turn",
+                    includesLand: true,
+                },
+            ],
+        },
+    },
     // CR 701.13a + CR 601.2 + CR 305.1 — the same exile-and-play pair inside a triggered ability.
     {
         rule: "effect clause",
