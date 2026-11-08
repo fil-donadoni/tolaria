@@ -28,6 +28,7 @@ import {
     claimedCards,
     issueCards,
     filingGaps,
+    gapCardBand,
     labelBand,
     planClear,
     planUmbrellas,
@@ -47,6 +48,7 @@ import {
     type TriageIssue,
 } from "../lib/backlog-triage";
 import type { BoardPriority } from "../lib/board-priority";
+import { LOWEST_RANKED_TARGET } from "../lib/gap-issues";
 import type { CardRow } from "../lib/oracle-lockfile";
 
 // ── Synthetic lockfile + registry ────────────────────────────────────────
@@ -1029,6 +1031,77 @@ describe("backlog-triage — cards named or unlocked", () => {
         expect(claimed.has(13)).toBe(false);
         expect(claimed.has(14)).toBe(false);
     });
+
+    it("a grammar claim does not unlock a card already playable (issue #8945)", () => {
+        const rows = [
+            { oracleId: CARDS.Meta, name: "Meta", gaps: [0] },
+            { oracleId: CARDS.Cube, name: "Cube", gaps: [0] },
+        ] as unknown as CardRow[];
+        const claimed = claimedCards(
+            [
+                { kind: "grammar", key: "slot › shape", issue: 10 },
+                { kind: "hand-tail", key: "Cube", issue: 12 },
+            ],
+            { cards: rows },
+            () => ["slot › shape"],
+            byName,
+            new Set([CARDS.Cube])
+        );
+        // The hand-written Cube is served: the grammar claim keeps only Meta…
+        expect([...(claimed.get(10) ?? [])]).toEqual([CARDS.Meta]);
+        // …while a hand-tail claim still names its own card.
+        expect([...(claimed.get(12) ?? [])]).toEqual([CARDS.Cube]);
+    });
+});
+
+describe("backlog-triage — gapCardBand: a grammar gap on playable cards (issue #8945)", () => {
+    const playable = new Set([CARDS.Cube, CARDS.Meta]);
+    // The synthetic registry leaves format-premodern unranked; the real one
+    // ranks it third — lend it P3 here as `targetBand` does on the tree.
+    const bandOf = (id: string) =>
+        id === LOWEST_RANKED_TARGET ? "P3" : syntheticBand(id);
+
+    it("a grammar gap reaching only playable ranked cards falls to the lowest-ranked Target", () => {
+        expect(
+            gapCardBand(
+                "grammar",
+                [CARDS.Cube, CARDS.Meta],
+                index,
+                playable,
+                bandOf
+            )
+        ).toEqual({ band: "P3", target: LOWEST_RANKED_TARGET });
+    });
+
+    it("an unplayable ranked card keeps its Target's band", () => {
+        expect(
+            gapCardBand(
+                "grammar",
+                [CARDS.Cube, CARDS.SetOnly],
+                index,
+                playable,
+                bandOf
+            )
+        ).toEqual({ band: "P3", target: "set-4ed" });
+        expect(
+            gapCardBand("grammar", [CARDS.Cube], index, new Set(), bandOf)
+        ).toEqual({ band: "P2", target: "vintage-cube" });
+    });
+
+    it("a grammar gap reaching no ranked card stays residue", () => {
+        expect(
+            gapCardBand("grammar", [CARDS.Loose], index, playable, bandOf)
+        ).toBeNull();
+    });
+
+    it.each(["bot", "mechanic", "scenario", "hand-tail"])(
+        "a %s gap keeps the band of its playable cards",
+        (kind) => {
+            expect(
+                gapCardBand(kind, [CARDS.Meta], index, playable, bandOf)
+            ).toEqual({ band: "P1", target: "premodern-metagame" });
+        }
+    );
 });
 
 describe("backlog-triage — `## Cards` (issue #4086)", () => {
