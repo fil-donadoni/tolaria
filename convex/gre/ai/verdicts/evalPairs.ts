@@ -380,14 +380,24 @@ export function resolveVerdictMoves(
  *  own rebuilt position: "pass" over a deferrable action in a window that is
  *  not the last, or a deferrable action over "pass" in the last one. Any other
  *  shape — two actions, or "pass" against an action outside the perimeter —
- *  is a question of WHAT, and stays in the fit. */
+ *  is a question of WHAT, and stays in the fit.
+ *
+ *  Before the last window the perimeter reads an inert opposing stack as
+ *  empty (`throughInertStack`), exactly as the `last-window-deferral` hold
+ *  half does: holding through a surveil trigger is the same timing judgement
+ *  as holding on an empty stack, and a weight bent to answer it would be
+ *  bent for nothing. In the last window the strict reading stands — the
+ *  rule's fire half acts only on an empty stack, so nothing else would own
+ *  such a pair. */
 export function timingPairClassifier(
     state: GameState,
     botId: string,
     moves: readonly Move[]
 ): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
     const last = isLastDeferralWindow(state, botId);
-    const deferrable = moves.map((m) => isDeferrableAction(state, botId, m));
+    const deferrable = moves.map((m) =>
+        isDeferrableAction(state, botId, m, { throughInertStack: !last })
+    );
     const isPass = moves.map((m) => m.kind === "pass");
     return ({ rightIndex, otherIndex }) =>
         last

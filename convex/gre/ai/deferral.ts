@@ -48,6 +48,7 @@ import {
     isTransientOnlyAbility,
     isTransientOnlyScript,
 } from "./abilityTiming";
+import { isInertStackItemFor } from "./futileShield";
 
 /** Whether `pid` is at the LAST priority window of this turn cycle in which
  *  deferring still costs nothing — the opponent's end step (CR 513.1, issue
@@ -79,16 +80,23 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     timing is the search's, whose leaves simulate the opponent's turn.
  *  3. **Not a response** — the stack is empty. With something on it, "later"
  *     is after that object resolves, a different board (counters and
- *     responses are the search's).
+ *     responses are the search's). A caller in a window before the last may
+ *     pass `{ throughInertStack: true }`: then a stack whose every object is
+ *     {@link isInertStackItemFor} `pid` (an opposing surveil trigger, a
+ *     cantrip) reads as empty — it resolves without touching `pid`'s side and
+ *     priority comes back (CR 117.3b / 117.3c). Both consumers do so there:
+ *     the root rule's hold half, and the Verdict lowering, so a pair the rule
+ *     answers never also bends the Weight Fit. In the last window both keep
+ *     the strict reading (the fire half acts only on an empty stack).
  *  4. **No attack declared** (CR 506.1 / 508.1) — a combat trick's window is
  *     combat itself; that is the search's too.
- *  5. **Not a pre-attack grant** (issue #4768). A haste grant on the
+ *  5. **Not a pre-attack grant.** A haste grant on the
  *     mover's own summoning-sick body, in its own turn before attackers are
  *     declared ({@link isPreAttackGrant}), has no "same action on the same
  *     board" at the opponent's end step: its last USEFUL window is before the
  *     declaration (CR 508.1a / 302.6), and held past it the grant expires at
  *     this turn's cleanup (CR 514.2) having enabled nothing. The root rule
- *     of issue #4757 (`last-window-deferral`), which makes the bot wait for the end step, must
+ *     (`last-window-deferral`), which makes the bot wait for the end step, must
  *     never hold it.
  *
  *     Deliberately NOT every this-turn effect (`isTransientOnlyScript`):
@@ -97,14 +105,14 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     phase IS a timing judgement (the grant is worth the response window it
  *     is held for), and the committed weights stopped being the fit of the
  *     committed verdicts. What such an effect is worth at the end step itself
- *     is the last-window rule's own question (issue #4757): nothing, and
+ *     is the last-window rule's own question: nothing, and
  *     {@link isTransientOnlyAction} is how it refuses to spend one there.
  *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
  * Safekeeper's) is a CONVERSION, and whether a land is worth two life is a
  * question of WHAT, not when. It is the question the last-window FIRE rule
- * asks the evaluation (`firingBeatsHolding`, issue #2939), so the pairs that
+ * asks the evaluation (`firingBeatsHolding`), so the pairs that
  * price it must stay in the fit: measured, routing them out moved
  * `manaWeight` far enough that a land-for-two-life conversion read as paying
  * and the engine stopped being held. A source that sacrifices ITSELF (a
@@ -113,16 +121,17 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
 export function isDeferrableAction(
     state: GameState,
     pid: string,
-    move: Move
+    move: Move,
+    reading: StackReading = {}
 ): boolean {
-    if (state.stack.length > 0) return false;
+    if (!stackAllowsDeferral(state, pid, reading)) return false;
     if ((state.combat?.attackerIds.length ?? 0) > 0) return false;
     const player = state.players.find((p) => p.id === pid);
     if (!player) return false;
     if (move.kind === "cast-spell") {
         const card = castCardOf(player, move.cardInstanceId);
         if (!card || !hasInstantSpeed(card)) return false;
-        if (isPreAttackGrant(state, pid, move)) return false;
+        if (isPreAttackGrant(state, pid, move, reading)) return false;
         return reachesOnlyOwnSide(state, pid, move.targets, card);
     }
     if (move.kind === "activate-ability") {
@@ -139,6 +148,27 @@ export function isDeferrableAction(
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
+}
+
+/** How clause 3 reads the stack — see {@link isDeferrableAction}. */
+export type StackReading = {
+    /** A stack of objects that cannot touch the mover's side reads as
+     *  empty. Off by default: the strict reading of the last window. */
+    throughInertStack?: boolean;
+};
+
+/** Clause 3: the stack is empty, or — under `throughInertStack` — holds only
+ *  objects {@link isInertStackItemFor} `pid`. */
+function stackAllowsDeferral(
+    state: GameState,
+    pid: string,
+    reading: StackReading
+): boolean {
+    if (state.stack.length === 0) return true;
+    return (
+        !!reading.throughInertStack &&
+        state.stack.every((item) => isInertStackItemFor(item, pid))
+    );
 }
 
 /**
@@ -161,8 +191,8 @@ export function isDeferrableAction(
  *
  * All required, every doubt answering `false`:
  *
- *  - own turn, precombat main or beginning of combat, empty stack, no attack
- *    declared;
+ *  - own turn, precombat main or beginning of combat, empty stack (or an
+ *    inert one, under the caller's `reading` — clause 3), no attack declared;
  *  - a CAST of an instant-speed card whose script expires this turn and
  *    grants haste at its top level. Activations are out, fail-closed: an
  *    activated haste grant is the `hold-trick` rule's (a transient activation
@@ -179,7 +209,8 @@ export function isDeferrableAction(
 export function isPreAttackGrant(
     state: GameState,
     pid: string,
-    move: Move
+    move: Move,
+    reading: StackReading = {}
 ): boolean {
     if (move.kind !== "cast-spell") return false;
     if (state.activePlayerId !== pid) return false;
@@ -189,7 +220,7 @@ export function isPreAttackGrant(
     ) {
         return false;
     }
-    if (state.stack.length > 0) return false;
+    if (!stackAllowsDeferral(state, pid, reading)) return false;
     if ((state.combat?.attackerIds.length ?? 0) > 0) return false;
     const player = state.players.find((p) => p.id === pid);
     if (!player) return false;

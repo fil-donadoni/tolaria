@@ -85,6 +85,34 @@ describe("isFutileThisTurnMove — regeneration (CR 701.19a)", () => {
         expect(isFutileThisTurnMove(state, move)).toBe(true);
     });
 
+    it("prunes Regenerate against a surveil trigger (CR 701.25a)", () => {
+        // Surveil only arranges its controller's library: nothing to regenerate from.
+        const state = position(
+            {
+                ...TROLL_VS_SPELLS,
+                cards: [
+                    ...TROLL_VS_SPELLS.cards,
+                    {
+                        name: "Underground Mortuary",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                ],
+            },
+            [
+                {
+                    kind: "etb-trigger",
+                    card: "Underground Mortuary",
+                    controller: "me",
+                },
+                { kind: "pass", seat: "me" },
+            ]
+        );
+        expect(state.stack).toHaveLength(1);
+        const move = onlyActivation(state, 1, "Charging Troll");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
     it("keeps Regenerate against a destroy spell on the stack", () => {
         const state = position(TROLL_VS_SPELLS, castAtTroll("Vindicate"));
         const move = onlyActivation(state, 1, "Charging Troll");

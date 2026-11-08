@@ -6056,7 +6056,9 @@ export function selectRootMove(
     // Keep mana open, HOLD half (issue #4757, PRD #4754): a deferrable
     // action (`isDeferrableAction`) in a window earlier than the opponent's
     // end step (CR 513.1) waits for it unless it beats `pass` by more than
-    // `OUTCOME_EPS`. Identical-vector proof (ADR 0124 §5): acting now and at
+    // `OUTCOME_EPS` — also through a stack of opposing objects that cannot
+    // touch the bot's side (`throughInertStack`: priority comes back after
+    // each resolves, CR 117.3b). Identical-vector proof (ADR 0124 §5): acting now and at
     // the last window reach the same board, so no weight separates them
     // (issue #4757 records the measurement). `waitsUnchanged` checks that
     // premise per action. Standing spends (a fetchland) stay with
@@ -6071,7 +6073,9 @@ export function selectRootMove(
         ruleOn("last-window-deferral") &&
         !isLastDeferralWindow(rootState, botId) &&
         !floatsMana(rootState, botId) &&
-        isDeferrableAction(rootState, botId, best.move) &&
+        isDeferrableAction(rootState, botId, best.move, {
+            throughInertStack: true,
+        }) &&
         !isStandingSpendActivation(rootState, botId, best.move)
     ) {
         const hold = pool.find(

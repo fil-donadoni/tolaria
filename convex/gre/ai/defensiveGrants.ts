@@ -41,6 +41,7 @@
 
 import type { CardInstanceState, GameState } from "../state";
 import { castableHeldInteraction } from "../heldInteraction";
+import { isInertStackItemFor } from "./futileShield";
 import { isProtectionAbility } from "../protection";
 import { renderKeyword } from "../continuousEffects";
 
@@ -166,10 +167,13 @@ function facesCombatDamage(state: GameState, card: CardInstanceState): boolean {
  * Every clause fails closed (see the module header):
  *
  *  * ANY object on the stack controlled by an opponent counts, whether or not
- *    it targets this permanent and whatever it does. A board wipe targets
- *    nothing and is the archetypal reason to buy indestructible (CR 702.12b);
- *    reading the object's script to decide would be a second, weaker copy of
- *    the Op semantics, and getting it wrong un-prices a real answer.
+ *    it targets this permanent, unless it provably cannot touch this
+ *    permanent's controller at all (`isInertStackItemFor`, the one reading
+ *    the deferral perimeter shares: an untargeted script whose every Op acts
+ *    on its own controller — a surveil trigger, a cantrip). A board wipe
+ *    targets nothing and is the archetypal reason to buy indestructible
+ *    (CR 702.12b); it names no player, so it is never inert, and every Op
+ *    the reading cannot place answers "not quiet".
  *  * combat damage still headed at the permanent, per `facesCombatDamage`.
  *  * an instant-speed answer the opponent can pay for, through the engine's
  *    existing predictor (`heldInteraction.ts` — an opt-in `aiCombatHint`
@@ -180,7 +184,8 @@ function facesCombatDamage(state: GameState, card: CardInstanceState): boolean {
  */
 export function isQuietFor(state: GameState, card: CardInstanceState): boolean {
     for (const item of state.stack) {
-        if (item.castById !== card.controllerId) return false;
+        if (item.castById === card.controllerId) continue;
+        if (!isInertStackItemFor(item, card.controllerId)) return false;
     }
     if (facesCombatDamage(state, card)) return false;
     const opponent = state.players.find((p) => p.id !== card.controllerId);

@@ -124,10 +124,52 @@ describe("indestructible granted in a quiet position (#2937, CR 702.12b)", () =>
         expect(evaluateCreature(state, elf)).toBeGreaterThan(before);
     });
 
-    it("is not quiet while ANY opposing object sits on the stack", () => {
-        // Fail-closed: the object is not read, so a board wipe — which targets
-        // nothing and is the archetypal reason to buy indestructible — counts
-        // exactly like a spell aimed at the creature.
+    it("stays quiet through an opposing object that acts on its controller alone", () => {
+        // A surveil trigger (CR 701.25a) resolves without touching the Elf's
+        // side, so the grant it would be bought for is still worth nothing.
+        const scenario: BladeScenario = {
+            label: "defensive-grant-inert-stack",
+            spec: {
+                cards: [
+                    {
+                        name: ELF,
+                        owner: "opp",
+                        zone: "battlefield",
+                        summoningSick: false,
+                    },
+                    {
+                        name: "Underground Mortuary",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                libraryCount: 20,
+            },
+            setup: [
+                {
+                    kind: "etb-trigger",
+                    card: "Underground Mortuary",
+                    controller: "me",
+                },
+            ],
+            bot: "opp",
+            budget: { iterations: 1 },
+            seeds: [1],
+            tier: "must",
+            expect: { forbidden: [{ kind: "pass" }] },
+        };
+        const state = buildBladeState(scenario);
+        expect(state.stack).toHaveLength(1);
+        expect(isQuietFor(state, theElf(state))).toBe(true);
+    });
+
+    it("is not quiet while an opposing object that can reach it sits on the stack", () => {
+        // Fail-closed: a board wipe — which targets nothing and is the
+        // archetypal reason to buy indestructible — names no player, so it is
+        // never read as inert and counts exactly like a spell aimed at the
+        // creature.
         const scenario: BladeScenario = {
             label: "defensive-grant-stack",
             spec: {
