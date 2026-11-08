@@ -88,6 +88,9 @@ export interface KickerIR {
     /** CR 701.59c — "you may collect evidence N" as an optional additional
      *  cost: the threshold. Marks the entry `keyword: "collect-evidence"`. */
     readonly collectEvidence?: number;
+    /** CR 702.56a — Replicate: the entry is `keyword: "replicate"`, whose
+     *  engine row adds the cast-copy trigger. Always `multi`. */
+    readonly replicate?: boolean;
 }
 
 /**
