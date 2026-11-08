@@ -1516,9 +1516,15 @@ function contingentBindingWeight(op: EffectOp, scope: ScriptScope): number {
  *  `if` through the GRE and `evaluate` scores the resulting `gameOver`. The
  *  rest of the branch keeps the default certain reading. Only the `if`
  *  construct is covered: a win gated by a triggered ability's own
- *  `condition` is read on the trigger path, not here. */
-function withoutConditionalWin(branch: readonly EffectOp[]): EffectOp[] {
-    return branch.filter((o) => o.op !== "winGame");
+ *  `condition` is read on the trigger path, not here.
+ *
+ *  A gated LOSS (CR 104.3e, the Pact's "If you don't, you lose the game") is
+ *  the same sentinel with the sign flipped: assumed certain, it prices the
+ *  card at minus the sentinel and the Bot never casts it, although the loss
+ *  only happens if the upkeep payment is declined. Stripped for the same
+ *  reason — when the predicate holds, the search scores the real `gameOver`. */
+function withoutConditionalGameEnd(branch: readonly EffectOp[]): EffectOp[] {
+    return branch.filter((o) => o.op !== "winGame" && o.op !== "loseGame");
 }
 
 /** issue #4470 — does `predicate` read as "this `coinFlipSeries` landed at
@@ -3531,6 +3537,17 @@ const winGame: Valuer<"winGame"> = () => ({
     tags: [],
 });
 
+/** CR 104.3e — the mirror of `winGame`: the game lost is the whole stake, so
+ *  the sentinel's magnitude, negative when the loser is the script's own
+ *  controller. A GATED loss (the Pact's "if you don't pay") is stripped from
+ *  the `if` walk like a gated win (`withoutConditionalGameEnd`). */
+const loseGame: Valuer<"loseGame"> = (op, ctx) => ({
+    points: ctx.isSelf(op.player, "opponent")
+        ? -WIN_GAME_VALUE
+        : WIN_GAME_VALUE,
+    tags: [],
+});
+
 /** The full Op dispatch table — one valuer per non-structural implemented Op
  *  (charter Ops from issue #1426, backfilled Ops from issues #1430 and
  *  #1515). Keyed by Op name exactly like `OP_EXECUTORS`. Kept a `Partial`
@@ -3666,6 +3683,7 @@ export const OP_VALUERS: {
     exileAndReturnTransformed,
     unattach,
     winGame,
+    loseGame,
     meld,
     sacrificeAndReturn,
 };
@@ -3713,7 +3731,7 @@ export function valueOp(
             // dropped the scope would leave the card that surfaced the bug
             // still priced as removal.
             const branch = valueEffectScript(
-                withoutConditionalWin(op.then),
+                withoutConditionalGameEnd(op.then),
                 ctx,
                 scope
             );
@@ -3942,6 +3960,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     dealDamageDividedAsChosen: "harmful",
     dealDamageToEach: "harmful",
     loseLife: "harmful",
+    loseGame: "harmful",
     destroy: "harmful",
     // CR 701.14a — the stake is the `other` combatant; the fighter's sign is
     // split to neutral per slot (`SPLIT_SIGN_OPS` in `beneficence.ts`), which

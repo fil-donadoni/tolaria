@@ -2113,6 +2113,10 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`,
     },
+    loseGame: {
+        code: "op-own-tests",
+        reason: `Op "loseGame" sets state.gameOver — covered by the Op's own interpreter test`,
+    },
     // CR 701.21a / 608.2b (issue #7206) — needs TWO announced slots of
     // different zones (a battlefield permanent and a graveyard card of the
     // same player) and an all-or-nothing gate on both; the canned generator
