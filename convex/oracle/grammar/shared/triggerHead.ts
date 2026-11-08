@@ -83,6 +83,13 @@ export type TriggerHeadIR =
            * `PermanentFilter.powerAtLeast`.
            */
           readonly powerAtLeast?: number;
+          /**
+           * CR 205.3i + CR 305.6 — "a Forest you control": narrows the
+           * entering permanent by a land SUBTYPE rather than a card type (a
+           * Forest is any permanent with that land type, Dryad Arbor
+           * included). Lowers to `PermanentFilter.subtypes`.
+           */
+          readonly subtype?: "Forest";
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
@@ -394,6 +401,19 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "whenever a creature an opponent controls enters",
         { kind: "enters", scope: "opponents", creaturesOnly: true },
+    ],
+    // CR 603.6a + CR 205.3i — an entering permanent of yours narrowed by a
+    // land subtype. The one subtype the corpus prints on this head; another
+    // land type, "a land you control" or "an opponent controls" is a
+    // neighbour that earns its own row and fixture.
+    [
+        "whenever a forest you control enters",
+        {
+            kind: "enters",
+            scope: "yours",
+            creaturesOnly: false,
+            subtype: "Forest",
+        },
     ],
     // CR 603.6 — a creature dying. The event is `CREATURE_DIED`, so the type
     // narrowing is the EVENT's, not a filter's — a "creaturesOnly" flag here

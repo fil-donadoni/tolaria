@@ -4931,6 +4931,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Roiling Canopy",
+            "issue": 8843
+        },
+        {
+            "kind": "hand-tail",
             "key": "Root Greevil",
             "issue": 4595
         },
