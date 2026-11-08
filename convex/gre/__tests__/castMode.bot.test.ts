@@ -47,6 +47,7 @@ import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { WARP_PROBE_ID } from "./fixtures/warpProbe.fixture";
 import { modalBackCastAltCostId } from "../modalBackCast";
 import { MODAL_CREATURE_BACK_PROBE_ID } from "./fixtures/modalBackProbe.fixture";
+import { FUSED_SPLIT_PROBE_ID } from "./fixtures/fusedSplitProbe.fixture";
 
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
@@ -352,6 +353,25 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.toughness).toBeUndefined();
         },
     },
+    // CR 702.102a/b — the FUSED split spell: both halves as ONE spell with
+    // the combined characteristics. Three Mountains buy {R} + {1}{R}, so the
+    // move found is the fused cast's or a single half's — the row keys on the
+    // fused id (`modeCastMove`).
+    "split-fused": {
+        cardId: FUSED_SPLIT_PROBE_ID,
+        land: MOUNTAIN,
+        landCount: 3,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.splitHalf).toBe(true);
+            expect(m.cardId).toBe(`${FUSED_SPLIT_PROBE_ID}#fused`);
+            expect(m.types).toEqual(["Instant"]);
+            expect(m.subtypes).toEqual([]);
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+        },
+    },
     // CR 712.11b / 712.8f (issue #7200) — the BACK face of a modal
     // double-faced card. A permanent back face: the greedy sandbox resolves it
     // onto the battlefield, where it STAYS back face up, so the two executors
@@ -451,6 +471,9 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return splitCastAltCostId(def, "left");
         case "split-right":
             return splitCastAltCostId(def, "right");
+        // CR 702.102a — the fused cast, synthesized per card like a half's.
+        case "split-fused":
+            return splitCastAltCostId(def, "fused");
         // CR 712.11b — synthesized per card, like the split half's.
         case "modal-back":
             return modalBackCastAltCostId(def);

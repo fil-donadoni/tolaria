@@ -21604,6 +21604,16 @@
         "source": "compiled"
     },
     {
+        "name": "Down // Dirty",
+        "scryfallId": "c35c63c1-6344-4d8c-8f7d-cd253d12f9ae",
+        "oracleId": "eba21e3b-e2b2-4e0b-82e3-f0849943fd89",
+        "firstSet": "dgm",
+        "firstPrintId": "c35c63c1-6344-4d8c-8f7d-cd253d12f9ae",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Downsize",
         "scryfallId": "e8408a52-d34a-4e03-9312-700dec75d844",
         "oracleId": "46537bac-b1eb-4c02-ba43-6c6b16c7729c",
@@ -27017,6 +27027,16 @@
         "firstPrintId": "35521ad2-f701-48d6-8686-537ef1f079da",
         "firstPrintSet": "msc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Far // Away",
+        "scryfallId": "d13cdb71-a499-41db-84e6-95f84650c524",
+        "oracleId": "e4b1ef6a-6f05-472e-aaed-1c24dd6605c7",
+        "firstSet": "dgm",
+        "firstPrintId": "d13cdb71-a499-41db-84e6-95f84650c524",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -60451,6 +60471,16 @@
         "source": "compiled"
     },
     {
+        "name": "Protect // Serve",
+        "scryfallId": "9b8acd7d-f3e2-4358-91ab-40901b68d64c",
+        "oracleId": "2e0cd5a5-3aee-4b32-873a-e5a40bfba3e9",
+        "firstSet": "dgm",
+        "firstPrintId": "9b8acd7d-f3e2-4358-91ab-40901b68d64c",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Protective Sphere",
         "scryfallId": "ef5ef13e-1cf0-42a9-95d0-30ade254d6a8",
         "oracleId": "2037c4bf-bf0d-46ab-8b4b-61d9a50c431e",
@@ -91774,6 +91804,16 @@
         "firstSet": "iko",
         "firstPrintId": "68bba622-a0ab-4c0e-88b1-9120690ea5a0",
         "firstPrintSet": "iko",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wear // Tear",
+        "scryfallId": "d169a3b2-18ae-4414-98ef-d879676fdcc0",
+        "oracleId": "9842734c-1eac-4509-a731-4c22017ae586",
+        "firstSet": "dgm",
+        "firstPrintId": "d169a3b2-18ae-4414-98ef-d879676fdcc0",
+        "firstPrintSet": "dgm",
         "rarity": "uncommon",
         "source": "compiled"
     },

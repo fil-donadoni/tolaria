@@ -33,10 +33,19 @@ import {
     offersPrintedCast,
     SPLIT_HALF_SIDES,
     splitHalfDefinitionId,
-    type SplitHalfSide,
+    type SplitCastSide,
 } from "../cards/splitCard";
+import { fusedSplitDefinitionId, hasFuse } from "../cards/fusedSplit";
 import type { AlternativeCost, CardDefinition } from "../cards/types";
 import type { CardInstanceState } from "./state/declarations";
+
+export type { SplitCastSide };
+
+/** Every split cast, in menu order: left, right, then the fused spell. */
+export const SPLIT_CAST_SIDES: readonly SplitCastSide[] = [
+    ...SPLIT_HALF_SIDES,
+    "fused",
+];
 
 /** Namespace prefix per side for the `alternativeCostId` that announces a split
  *  half's cast. Mirrors `ADVENTURE_CAST_ALT_COST_PREFIX`'s shape so the
@@ -45,9 +54,10 @@ import type { CardInstanceState } from "./state/declarations";
  *  `Record<SplitHalfSide, …>` rather than two constants: a side added to the
  *  union cannot compile without its own prefix, and every scan below iterates
  *  the record instead of naming "left" and "right" a second time. */
-export const SPLIT_CAST_ALT_COST_PREFIX: Record<SplitHalfSide, string> = {
+export const SPLIT_CAST_ALT_COST_PREFIX: Record<SplitCastSide, string> = {
     left: "split-left:",
     right: "split-right:",
+    fused: "split-fused:",
 };
 
 /** The `alternativeCostId` that announces `def`'s `side` half. Carries the
@@ -55,7 +65,7 @@ export const SPLIT_CAST_ALT_COST_PREFIX: Record<SplitHalfSide, string> = {
  *  stamp needs to resolve the twin. */
 export function splitCastAltCostId(
     def: CardDefinition,
-    side: SplitHalfSide
+    side: SplitCastSide
 ): string {
     return `${SPLIT_CAST_ALT_COST_PREFIX[side]}${def.id}`;
 }
@@ -65,9 +75,9 @@ export function splitCastAltCostId(
  *  the fail-closed form that also proves the card HAS that half. */
 export function splitSideOfAltCostId(
     altCostId: string | undefined
-): SplitHalfSide | undefined {
+): SplitCastSide | undefined {
     if (altCostId === undefined) return undefined;
-    return SPLIT_HALF_SIDES.find((side) =>
+    return SPLIT_CAST_SIDES.find((side) =>
         altCostId.startsWith(SPLIT_CAST_ALT_COST_PREFIX[side])
     );
 }
@@ -79,9 +89,15 @@ export function splitSideOfAltCostId(
  *  reader sees. */
 export function splitTwin(
     def: CardDefinition | undefined,
-    side: SplitHalfSide
+    side: SplitCastSide
 ): CardDefinition | undefined {
     if (!def?.splitHalves) return undefined;
+    // CR 702.102b — the fused split spell is its own registered twin
+    // (`cards/fusedSplit.ts`), present only for a card that has fuse.
+    if (side === "fused") {
+        if (!hasFuse(def)) return undefined;
+        return tryGetDefinition(fusedSplitDefinitionId(def.id)) ?? undefined;
+    }
     return tryGetDefinition(splitHalfDefinitionId(def.id, side)) ?? undefined;
 }
 
@@ -95,7 +111,7 @@ export function splitTwin(
  *  hydrate offers no option at all rather than one that cannot resolve. */
 export function splitCastAlternativeCost(
     def: CardDefinition | undefined,
-    side: SplitHalfSide
+    side: SplitCastSide
 ): AlternativeCost | undefined {
     const twin = splitTwin(def, side);
     if (!twin) return undefined;
@@ -103,7 +119,11 @@ export function splitCastAlternativeCost(
         id: splitCastAltCostId(def!, side),
         // The picker row names the half being cast — the one thing the player
         // is choosing. `alt-cost-picker.tsx` renders `description` verbatim.
-        description: `Cast ${twin.name} — ${twin.oracleText ?? ""}`.trim(),
+        // CR 702.102a — the fused row says it casts BOTH halves.
+        description:
+            side === "fused"
+                ? `Fuse — cast both halves: ${twin.name}`
+                : `Cast ${twin.name} — ${twin.oracleText ?? ""}`.trim(),
         ...(twin.manaCost ? { mana: twin.manaCost } : {}),
     };
 }
@@ -124,11 +144,22 @@ export function splitCastOptionsFor(
     const def = tryGetDefinition(cardId) ?? undefined;
     if (!def?.splitHalves) return [];
     const options: AlternativeCost[] = [];
-    for (const side of SPLIT_HALF_SIDES) {
+    for (const side of SPLIT_CAST_SIDES) {
+        // CR 702.102a — fuse "applies while the card with fuse is in a
+        // player's hand": "if a player casts a split card with fuse FROM
+        // THEIR HAND". Cast from any other zone, only the halves exist.
+        if (side === "fused" && !fusedCastZoneAllowed(card.zone)) continue;
         const alt = splitCastAlternativeCost(def, side);
         if (alt) options.push(alt);
     }
     return options;
+}
+
+/** CR 702.102a — whether a split card in `zone` may be cast fused: only from
+ *  a hand. The one predicate the offering list above and the announcement
+ *  (`game.ts`) both read. */
+export function fusedCastZoneAllowed(zone: string | undefined): boolean {
+    return zone === "hand";
 }
 
 /** The side `altCostId` announces for THIS card, fail-closed: `undefined`
@@ -139,9 +170,10 @@ export function splitCastOptionsFor(
 export function isSplitCastId(
     def: CardDefinition | undefined,
     altCostId: string | undefined
-): SplitHalfSide | undefined {
+): SplitCastSide | undefined {
     const side = splitSideOfAltCostId(altCostId);
     if (side === undefined || def?.splitHalves === undefined) return undefined;
+    if (side === "fused" && !hasFuse(def)) return undefined;
     return altCostId === splitCastAltCostId(def, side) ? side : undefined;
 }
 
@@ -159,7 +191,7 @@ export function isSplitCastId(
  *  characteristics do not exist — so the live arrays are written outright. */
 export function castAsSplitHalf(
     item: CardInstanceState,
-    side: SplitHalfSide
+    side: SplitCastSide
 ): void {
     if (item.splitHalfOf !== undefined) return;
     const parentId = (item.card as { id?: string }).id;

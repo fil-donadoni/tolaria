@@ -11,7 +11,7 @@
 import type { EnlistPair } from "../../cards/abilities/enlist";
 import type { SpellFilter } from "../../cards/filters";
 import type { PlayLandFace } from "../../cards/modalDfc";
-import type { SplitHalfSide } from "../../cards/splitCard";
+import type { SplitCastSide } from "../../cards/splitCard";
 import type {
     AsEntersChoice,
     AuthoredEntryState,
@@ -3236,8 +3236,9 @@ export type PendingCast = {
      *  half being cast exist"). Without it the deferred commit — a cast whose
      *  mana was paid across a separate `tapForPayment` mutation — would put
      *  the COMBINED card on the stack for a cast the caster paid one half's
-     *  price for. */
-    castAsSplitHalf?: SplitHalfSide;
+     *  price for. `"fused"` (CR 702.102a) announced BOTH halves as one fused
+     *  split spell. */
+    castAsSplitHalf?: SplitCastSide;
     /** CR 712.11b (issue #7200) — this cast announced the BACK face of a modal
      *  double-faced card. Same kind of thing as `castAsSplitHalf` above and
      *  carried for the same reason: without it the deferred commit would put
