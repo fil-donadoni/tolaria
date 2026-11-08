@@ -844,7 +844,12 @@ describe("a retry resolves vitest from the tree it runs in (issue #8915)", () =>
             expect(r.stdout, r.stderr).toContain("TREE-VITEST");
             expect(r.stdout).not.toContain("PRIMARY-VITEST");
         } finally {
-            rmSync(dir, { recursive: true, force: true });
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });
