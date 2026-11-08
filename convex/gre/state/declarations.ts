@@ -5312,7 +5312,7 @@ export type GameState = {
      *  priority round, which CR 117.3a owes every step. Combat-scoped:
      *  cleared at end of combat. Persisted so a mid-combat stable-point save
      *  preserves the "blockers already declared" state. */
-    camouflageCombat?: boolean;
+    blocksPredeterminedThisCombat?: boolean;
     /** Combat-scoped flag set by Melee (CR 509.1 variant — attacker-driven
      *  block override, #669). When true, the ATTACKING (active) player declares
      *  this combat's blocks instead of the defending player: the block-selection
@@ -5325,7 +5325,7 @@ export type GameState = {
      *  `combat.blockedAttackerIds`. Combat-scoped: cleared at end of combat
      *  alongside the other combat-scoped state. Persisted so a mid-combat
      *  stable-point save preserves the "attacker chooses blocks" routing. */
-    meleeCombat?: boolean;
+    blocksDeclaredByAttacker?: boolean;
     /** Per-player preferences that drive "may"-style replacement opt-ins.
      *  Persisted in state so the choice is replay-stable and toggleable
      *  through a mutation rather than requiring mid-event suspension.
@@ -5598,7 +5598,7 @@ export type GameState = {
      *  its Gaze of Pain card's graveyard-zone triggered ability fires on each
      *  `ATTACKER_UNBLOCKED` by a creature that controller controls. Cleared at
      *  CLEANUP so the rider expires "until end of turn". */
-    gazeOfPainActiveThisTurn?: string[];
+    turnScopedTriggerGrants?: string[];
     /** One-shot damage-cap shields (Forcefield, CR 615). When an unblocked
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -5606,7 +5606,7 @@ export type GameState = {
     /** Player protected by Island Sanctuary's draw-skip: can only be attacked
      *  by creatures with flying or islandwalk. Cleared at the start of that
      *  player's next turn (via advanceTurn). */
-    islandSanctuaryProtection?: string;
+    playerAttackRequirements?: string;
     /** CR 702.16b/e/i (issue #674, The One Ring) — the players who currently
      *  have PROTECTION FROM EVERYTHING. Protection from everything is protection
      *  from each and every object regardless of its characteristics
@@ -5626,7 +5626,7 @@ export type GameState = {
      *  Each grantee's entry is dropped at the START of THEIR OWN next turn
      *  (via `advanceTurn`) — the "until your next turn" boundary, mirroring
      *  `castTimingFlashGrants`, NOT CLEANUP. A LIST rather than a single slot
-     *  (unlike `islandSanctuaryProtection`) because both players can hold the
+     *  (unlike `playerAttackRequirements`) because both players can hold the
      *  protection at once — each casting their own The One Ring on successive
      *  turns overlaps the two windows, and a single slot would clobber the
      *  first grant. */
@@ -5649,7 +5649,7 @@ export type GameState = {
      *  (`hasCastTimingFlashGrant`, `convex/cards/castRestrictions.ts`) that both
      *  `getLegalActions` and the client read. Cleared at the START of that
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
-     *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
+     *  boundary, mirroring `playerAttackRequirements`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
     /** CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2: "Artifact,
      *  instant, and sorcery spells you cast this turn cost {2} less to cast")
@@ -6001,13 +6001,13 @@ export type ExpectedInput =
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
  *  means "use the replacement effect's default behavior" (typically the
- *  player accepts the redirect). Set `libraryOfLengRouting: "graveyard"`
+ *  player accepts the redirect). Set `discardRouting: "graveyard"`
  *  to bypass Library of Leng's discard replacement. */
 export type PlayerPreferences = {
     /** Library of Leng (CR 614 discard → library top). Set to "graveyard"
      *  to opt OUT of the library-top reroute and let the discard go to the
      *  graveyard normally. Default "library" (Library of Leng activates). */
-    libraryOfLengRouting?: "library" | "graveyard";
+    discardRouting?: "library" | "graveyard";
 };
 
 /** State-level transient damage replacement (CR 614). Four kinds cover the

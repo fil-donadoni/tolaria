@@ -187,7 +187,7 @@ describe("computeExpectedInput — variant selection (ADR 0047)", () => {
         const state = makeState({
             phase: "DECLARE_BLOCKERS",
             activePlayerId: "p1",
-            meleeCombat: true,
+            blocksDeclaredByAttacker: true,
             combat: combatWithAttackers(),
         });
         expect(computeExpectedInput(state)).toEqual({

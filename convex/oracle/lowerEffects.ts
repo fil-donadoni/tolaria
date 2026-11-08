@@ -5221,7 +5221,7 @@ function lowerSentenceBody(
             // their next turn; the Op owns the boundary (`gre/phases.ts`).
             return lowered([
                 {
-                    op: "setIslandSanctuaryProtection",
+                    op: "restrictAttackers",
                     player: "controller",
                 },
             ]);

@@ -6602,7 +6602,7 @@ export interface SpellContext {
      *  "until end of turn, whenever a creature you control attacks and isn't
      *  blocked …"). Turn-scoped floating trigger flag read by Gaze of Pain's
      *  graveyard-zone triggered ability; idempotent; cleared at CLEANUP. */
-    markGazeOfPainActive: (playerId: string) => void;
+    grantTurnScopedTrigger: (playerId: string) => void;
     /** Registers a turn-scoped delayed lifegain effect on `target` (CR 603.7 /
      *  119, Glyph of Life). For `duration`, whenever `target` is dealt combat
      *  damage by an attacking creature (CR 506.2 — the source is in
@@ -6939,7 +6939,7 @@ export interface SpellContext {
      *  `state.castTimingFlashGrants`, honored by the shared cast gate
      *  (`hasCastTimingFlashGrant`) and cleared at the start of that player's
      *  next turn (via `advanceTurn`), NOT at CLEANUP — mirroring
-     *  `islandSanctuaryProtection`'s "until your next turn" boundary. `cardTypes`
+     *  `playerAttackRequirements`'s "until your next turn" boundary. `cardTypes`
      *  omitted grants flash for every spell. */
     grantCastTiming: (playerId: string, cardTypes?: CardType[]) => void;
     /** CR 601.2f (issue #3340, Urza, Planeswalker's +2) — installs a FLOATING
@@ -7046,7 +7046,7 @@ export interface SpellContext {
     }) => void;
     /** Sets Island Sanctuary protection: the given player can only be attacked
      *  by creatures with flying or islandwalk until their next turn. */
-    setIslandSanctuaryProtection: (playerId: string) => void;
+    restrictAttackers: (playerId: string) => void;
     /** Grants `playerId` PROTECTION FROM EVERYTHING until their next turn
      *  (CR 702.16b/e/i applied to a player via CR 115.4 — The One Ring): they
      *  can't be the target of any spell or ability, and all damage that would
@@ -7280,16 +7280,16 @@ export interface SpellContext {
      *  random via the seeded PRNG (deterministic for replay), then each creature
      *  in a pile that can legally block its assigned attacker is forced to do so
      *  — the blocks are written straight into `combat.blockerAssignments`. Sets
-     *  `state.camouflageCombat` so the DECLARE_BLOCKERS step auto-confirms the
+     *  `state.blocksPredeterminedThisCombat` so the DECLARE_BLOCKERS step auto-confirms the
      *  declaration with no blocker prompt (the step's own priority round still
      *  opens — CR 117.3a). No-op if there is no active combat. */
-    applyCamouflagePileBlocks: (defenderId: string, piles: string[][]) => void;
+    predetermineBlocks: (defenderId: string, piles: string[][]) => void;
     /** Melee (CR 509.1 variant — attacker-driven block override, #669). Sets
-     *  `state.meleeCombat` so that, for THIS combat, the ATTACKING (active)
+     *  `state.blocksDeclaredByAttacker` so that, for THIS combat, the ATTACKING (active)
      *  player declares blocks instead of the defending player: the
      *  block-selection mutations route to the active player, with the same
      *  `validateBlockerEligibility` legality gating every assignment (only LEGAL
-     *  blocks can be forced). Distinct from `applyCamouflagePileBlocks`, which
+     *  blocks can be forced). Distinct from `predetermineBlocks`, which
      *  assigns the defender's piles at random — Melee hands the live choice to
      *  the attacker. No-op if there is no active combat. */
     enableAttackerChoosesBlocks: () => void;
@@ -13847,8 +13847,8 @@ export interface TriggerStateView {
     };
     /** Controllers with an active Gaze of Pain rider this turn (ICE). Exposed
      *  so Gaze of Pain's graveyard-zone trigger can gate on "until end of turn"
-     *  membership. Mirrors `GameState.gazeOfPainActiveThisTurn`. */
-    gazeOfPainActiveThisTurn?: ReadonlyArray<string>;
+     *  membership. Mirrors `GameState.turnScopedTriggerGrants`. */
+    turnScopedTriggerGrants?: ReadonlyArray<string>;
 }
 
 /** CR 714.2 — one Oracle chapter line on a Saga, declared as data (ADR 0078).
@@ -15102,7 +15102,7 @@ export interface ReplacementStateView {
         /** Per-player replacement preferences (CR "may" opt-ins). Read by
          *  Library of Leng's discard replacement to honor a player's
          *  toggled "send to graveyard instead" override. */
-        preferences?: { libraryOfLengRouting?: "library" | "graveyard" };
+        preferences?: { discardRouting?: "library" | "graveyard" };
     }>;
     /** Read-only snapshot of the active combat state (CR 506). Defined only
      *  during combat phases (DECLARE_ATTACKERS through END_OF_COMBAT). Read
@@ -17562,7 +17562,7 @@ export type EffectOp =
      *  both the GRE `getLegalActions` and the client legal-actions view honor.
      *  Cleared at the START of that player's next turn (via `advanceTurn`) —
      *  the "until your next turn" boundary (CR 514.2 analogue), NOT CLEANUP,
-     *  mirroring `islandSanctuaryProtection`. `cardTypes` narrows the grant to
+     *  mirroring `playerAttackRequirements`. `cardTypes` narrows the grant to
      *  the listed card types (Teferi: `["Sorcery"]`); omitted grants flash for
      *  every spell. Skipped when the player cannot be resolved (CR 608.2b). The
      *  inverse of `restrictCasting` (a timing lock) — a permission, not a
@@ -22255,8 +22255,8 @@ export type EffectOp =
     /** CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "until your
      *  next turn, you can't be attacked except by creatures with flying
      *  and/or islandwalk" protection. A thin declarative skin over the single
-     *  SpellContext primitive `setIslandSanctuaryProtection`, one execution
-     *  path (ADR 0045): sets `state.islandSanctuaryProtection` to `player`'s
+     *  SpellContext primitive `restrictAttackers`, one execution
+     *  path (ADR 0045): sets `state.playerAttackRequirements` to `player`'s
      *  id, read by the attack-declaration legality check
      *  (`convex/gre/combat.ts`) and cleared at the START of that player's
      *  next turn (`convex/gre/phases.ts`) — mirroring `grantCastTiming`'s
@@ -22269,7 +22269,7 @@ export type EffectOp =
      *  generalized "can't be attacked except by …" grammar (ADR 0045
      *  "generalize, don't add" — nothing else to generalize against yet).
      *  Skipped when the player cannot be resolved (CR 608.2b). */
-    | { op: "setIslandSanctuaryProtection"; player: EffectPlayerRef }
+    | { op: "restrictAttackers"; player: EffectPlayerRef }
     /** CR 702.16b/e/i (issue #674) — "you gain protection from everything until
      *  your next turn" (The One Ring). A thin declarative skin over the single
      *  SpellContext primitive `setPlayerProtectionFromEverything`, one
@@ -22280,7 +22280,7 @@ export type EffectOp =
      *  (the one chokepoint every player-damage sink routes through), and
      *  cleared at the START of that player's next turn (`convex/gre/phases.ts`)
      *  — the same "until your next turn" boundary
-     *  `setIslandSanctuaryProtection` / `grantCastTiming` use, NOT CLEANUP.
+     *  `restrictAttackers` / `grantCastTiming` use, NOT CLEANUP.
      *
      *  PLAYER-scoped and unconditional, which is what distinguishes it from
      *  every other protection surface: the card-scoped keyword

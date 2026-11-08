@@ -263,7 +263,7 @@ export default function Board({
                       state.priorityPlayerId ?? state.activePlayerId,
                   phase: state.phase ?? "UPKEEP",
                   combat: state.combat,
-                  meleeCombat: state.meleeCombat,
+                  blocksDeclaredByAttacker: state.blocksDeclaredByAttacker,
                   pendingCast: state.pendingCast,
                   pendingActivation: state.pendingActivation,
                   pendingTarget: state.pendingTarget,
@@ -390,7 +390,7 @@ export default function Board({
     const passUntilAction = state.passUntilAction;
     const queuedPassUntilAction = state.queuedPassUntilAction;
     const combat = state.combat;
-    const meleeCombat = state.meleeCombat;
+    const blocksDeclaredByAttacker = state.blocksDeclaredByAttacker;
     // CR 514.3a (issue #2472) — the cleanup step's one priority window. Read
     // by `computeHasPriority` / `computePriorityState` (via GameContext), which
     // otherwise treat CLEANUP as a no-priority step and render no Pass button.
@@ -464,7 +464,7 @@ export default function Board({
                 passUntilAction,
                 queuedPassUntilAction,
                 combat,
-                meleeCombat,
+                blocksDeclaredByAttacker,
                 pendingExtraCleanupStep,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,

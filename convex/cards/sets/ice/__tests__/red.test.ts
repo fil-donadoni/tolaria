@@ -1917,7 +1917,7 @@ describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", ()
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", () => {
-    it("sets meleeCombat when it resolves during the attacker's combat", () => {
+    it("sets blocksDeclaredByAttacker when it resolves during the attacker's combat", () => {
         const attacker = vanilla("atk", 2, 2, {
             controllerId: "p1",
             ownerId: "p1",
@@ -1939,11 +1939,11 @@ describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", ()
         });
         pushSpell(state, melee.id, "p1");
         resolveTopOfStack(state);
-        expect(state.meleeCombat).toBe(true);
+        expect(state.blocksDeclaredByAttacker).toBe(true);
         expect(state.stack).toHaveLength(0);
     });
 
-    it("sets meleeCombat when it resolves at beginning of combat, before any combat exists (CR 601.3)", () => {
+    it("sets blocksDeclaredByAttacker when it resolves at beginning of combat, before any combat exists (CR 601.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
             activePlayerId: "p1",
@@ -1952,7 +1952,7 @@ describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", ()
         expect(state.combat).toBeFalsy();
         pushSpell(state, melee.id, "p1");
         resolveTopOfStack(state);
-        expect(state.meleeCombat).toBe(true);
+        expect(state.blocksDeclaredByAttacker).toBe(true);
     });
 
     it("untaps and removes from combat every attacker left unblocked", () => {
@@ -1980,7 +1980,7 @@ describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", ()
             ],
             activePlayerId: "p1",
             phase: "DECLARE_BLOCKERS",
-            meleeCombat: true,
+            blocksDeclaredByAttacker: true,
             combat: {
                 attackerIds: ["blocked", "free"],
                 confirmed: true,

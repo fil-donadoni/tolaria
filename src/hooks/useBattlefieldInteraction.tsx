@@ -135,7 +135,7 @@ export function useBattlefieldInteraction(player: Player) {
         pendingTarget,
         pendingChoices,
         combat,
-        meleeCombat,
+        blocksDeclaredByAttacker,
         allPlayers,
         cannotActivateAbilitiesThisTurn,
         lifeGainedThisTurn,
@@ -173,9 +173,9 @@ export function useBattlefieldInteraction(player: Player) {
     // combat-damage assigner still counts and the solo seat follows the one
     // the viewer is acting for.
     const viewerOwes = viewerOwesInput(game, playerId);
-    // Melee (#669) — under `meleeCombat` the attacking (active) player declares
+    // Melee (#669) — under `blocksDeclaredByAttacker` the attacking (active) player declares
     // blocks; otherwise the defending (non-active) player does.
-    const blockDeclarerId = meleeCombat
+    const blockDeclarerId = blocksDeclaredByAttacker
         ? activePlayerId
         : allPlayers.find((p) => p.id !== activePlayerId)?.id;
 

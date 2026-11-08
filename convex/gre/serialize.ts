@@ -41,6 +41,7 @@ import type { CastFromZone, Duration } from "./state";
 import type {
     CardInstanceState,
     GameState,
+    PlayerPreferences,
     PlayerState,
     StackItem,
 } from "./state";
@@ -1460,8 +1461,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "lifeLostThisTurn",
     "damageRedirections",
     "combatBlockRestrictions",
-    "camouflageCombat",
-    "meleeCombat",
+    "blocksPredeterminedThisCombat",
+    "blocksDeclaredByAttacker",
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
@@ -1473,12 +1474,12 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "cannotPlayLandsThisTurn",
     "extraLandDropsThisTurn",
     "combatDamageRedirectToPermanent",
-    "gazeOfPainActiveThisTurn",
+    "turnScopedTriggerGrants",
     "landManaReplacedToBlueThisTurn",
     "highTideThisTurn",
     "landManaRidersThisTurn",
     "damageCapShields",
-    "islandSanctuaryProtection",
+    "playerAttackRequirements",
     "playerProtectionFromEverything",
     // CR 611.2a — "for the rest of the game" player locks (can't gain life):
     // plain `{ playerId, kind }` data that must survive every save.
@@ -1582,6 +1583,40 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // must survive the save that follows the pick or no seat ever sees it.
     "lastPileChoice",
 ] as const;
+
+/** Issue #1917 — persisted keys renamed from the card that introduced them to
+ *  the mechanic they implement. A snapshot saved before the rename still
+ *  carries the old spelling, so `expandState` reads it under the new name and
+ *  an in-flight game keeps its state; `compactState` only ever writes the new
+ *  one. New name → pre-rename spelling. Remove once no pre-rename row is live. */
+export const RENAMED_PERSISTED_KEYS: Readonly<
+    Partial<Record<(typeof PERSISTED_OPTIONAL_KEYS)[number], string>>
+> = {
+    blocksPredeterminedThisCombat: "camouflageCombat",
+    blocksDeclaredByAttacker: "meleeCombat",
+    turnScopedTriggerGrants: "gazeOfPainActiveThisTurn",
+    playerAttackRequirements: "islandSanctuaryProtection",
+};
+
+/** Issue #1917 — the same rename one level down: the per-player
+ *  `PlayerPreferences.discardRouting` was persisted under its card-named
+ *  spelling inside `playerPreferences`. */
+function migrateRenamedPlayerPreferences(state: GameState): void {
+    const prefs = state.playerPreferences;
+    if (!prefs) return;
+    const legacyKey = "libraryOfLengRouting";
+    if (!Object.values(prefs).some((p) => legacyKey in p)) return;
+    state.playerPreferences = Object.fromEntries(
+        Object.entries(prefs).map(([id, p]) => {
+            const { [legacyKey]: legacy, ...rest } = p as PlayerPreferences &
+                Record<typeof legacyKey, PlayerPreferences["discardRouting"]>;
+            return [
+                id,
+                { ...rest, discardRouting: rest.discardRouting ?? legacy },
+            ];
+        })
+    );
+}
 
 /** Optional GameState keys that are intentionally ephemeral — never
  *  persisted to the DB. The schema drift guard test accepts keys in this
@@ -1747,10 +1782,12 @@ export function expandState(data: Record<string, unknown>): GameState {
         rngCounter: data.rngCounter as number,
     };
     for (const k of PERSISTED_OPTIONAL_KEYS) {
-        const v = data[k];
+        const legacyKey = RENAMED_PERSISTED_KEYS[k];
+        const v = data[k] ?? (legacyKey ? data[legacyKey] : undefined);
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;
     }
+    migrateRenamedPlayerPreferences(result);
     // CR 702.50a — mirror of `compactState`.
     if (result.delayedTriggers?.some((t) => t.spellToCopy)) {
         result.delayedTriggers = result.delayedTriggers.map((t) =>

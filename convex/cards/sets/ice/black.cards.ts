@@ -919,7 +919,7 @@ export const gangrenousZombies = defineCard(() => ({
 // equal to its power to a target creature. If you do, it assigns no combat
 // damage this turn." Modelled as a turn-scoped floating trigger (CR 603.7a):
 // the spell records an active rider for its controller
-// (`markGazeOfPainActive`, cleared at CLEANUP so it lasts "until end of turn"),
+// (`grantTurnScopedTrigger`, cleared at CLEANUP so it lasts "until end of turn"),
 // and a GRAVEYARD-zone triggered ability fires on each ATTACKER_UNBLOCKED by a
 // creature that controller controls while the flag is set. protocol card: the
 // trigger reads the event's attacker and installs the "assigns no combat
@@ -938,7 +938,7 @@ export const gazeOfPain = defineCard(() => ({
     resolve: (ctx: SpellContext) => {
         // "Until end of turn, whenever a creature you control attacks and
         // isn't blocked, …" — arm the rider for this turn.
-        ctx.markGazeOfPainActive(ctx.controller);
+        ctx.grantTurnScopedTrigger(ctx.controller);
     },
     triggeredAbilities: [
         {
@@ -950,7 +950,7 @@ export const gazeOfPain = defineCard(() => ({
             matches: (event, self, state) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerControllerId === self.controllerId &&
-                (state?.gazeOfPainActiveThisTurn?.includes(self.controllerId) ??
+                (state?.turnScopedTriggerGrants?.includes(self.controllerId) ??
                     false),
             resolve: (ctx: SpellContext, event) => {
                 if (event?.type !== "ATTACKER_UNBLOCKED") return;

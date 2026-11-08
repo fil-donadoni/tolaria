@@ -146,7 +146,7 @@ import { buildBladeState } from "./build";
  * (CR 500.7 — a queued extra turn from the live game would fire after the
  * loaded position's turn), `queuedEndTurn` (a standing pass-turn intent that
  * is deliberately turn-boundary-crossing, so `resetPerTurnFields` never
- * clears it) and `islandSanctuaryProtection` when it belongs to the
+ * clears it) and `playerAttackRequirements` when it belongs to the
  * NON-active player. A denylist over the live state is structurally leaky:
  * every `GameState` field not named in it survives untouched, so each new
  * field added to the type is a leak until someone remembers to list it here
@@ -161,7 +161,7 @@ import { buildBladeState } from "./build";
  * still pointing at the discarded `p1`/`p2` strings; see `buildBladeBaseState`
  * for why identity is threaded through instead). Every other field — turn
  * counters, life, mana, poison/energy, `extraTurns`, `queuedEndTurn`,
- * `islandSanctuaryProtection`, RNG state, every future field — comes from
+ * `playerAttackRequirements`, RNG state, every future field — comes from
  * the harness's own construction, by definition, not by remembering to
  * clear it. Leak-proof against every field `GameState` has today AND every
  * one it grows tomorrow.

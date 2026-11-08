@@ -1552,7 +1552,7 @@ export const waterElemental = defineCard(() => ({
 // subset picks, each from the still-unassigned creatures (the per-pile
 // `candidateIds` allow-list shrinks as creatures are placed). The random
 // assignment + forced legal blocks are applied by
-// `ctx.applyCamouflagePileBlocks` once every pile has been chosen. Single
+// `ctx.predetermineBlocks` once every pile has been chosen. Single
 // defending player, matching the rest of combat.
 export const camouflage = defineCard(() => ({
     id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
@@ -1607,7 +1607,7 @@ export const camouflage = defineCard(() => ({
         }
 
         // Random pile→attacker assignment + forced legal blocks (CR 509.1).
-        ctx.applyCamouflagePileBlocks(defenderId, piles);
+        ctx.predetermineBlocks(defenderId, piles);
     },
 }));
 

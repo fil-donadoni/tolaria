@@ -75,7 +75,7 @@ export function computeExpectedInput(
         state.combat.attackerIds.length > 0 &&
         !state.combat.blockersConfirmed
     ) {
-        const declarer = state.meleeCombat
+        const declarer = state.blocksDeclaredByAttacker
             ? state.activePlayerId
             : getOpponentId(state, state.activePlayerId);
         return { kind: "blockers", playerId: declarer };
