@@ -25680,6 +25680,103 @@ describe("Effect Script Op: winGame (CR 104.2a, issue #1066)", () => {
     });
 });
 
+describe("Effect Script Op: loseGame (CR 104.3e, issue #8583)", () => {
+    it("ends the game with the resolving controller as the loser", () => {
+        const id = registerScript("test-op-losegame-controller", [
+            { op: "loseGame", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gameOver?.loserId).toBe("p1");
+        expect(state.gameOver?.winnerId).toBe("p2");
+    });
+
+    it('names the OPPONENT as the loser when player: "opponent"', () => {
+        const id = registerScript("test-op-losegame-opponent", [
+            { op: "loseGame", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gameOver?.loserId).toBe("p2");
+        expect(state.gameOver?.winnerId).toBe("p1");
+    });
+
+    // The Pact's whole script: a delayed trigger at the CASTER's own next
+    // upkeep (CR 603.7a / 603.7d), whose body is a payment and the loss on
+    // declining it (CR 118.12).
+    const PACT_BODY = [
+        {
+            op: "delayedTrigger" as const,
+            timing: "next-upkeep" as const,
+            targetPlayer: "controller" as const,
+            oracleText:
+                "At the beginning of your next upkeep, pay {2}{B}. If you don't, you lose the game.",
+            effects: [
+                {
+                    op: "mayPay" as const,
+                    player: "controller" as const,
+                    cost: { X: 2, B: 1 },
+                    prompt: "Pay {2}{B}?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if" as const,
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "loseGame" as const,
+                            player: "controller" as const,
+                        },
+                    ],
+                },
+            ],
+        },
+    ];
+
+    it("Pact: waits for the caster's own upkeep, and declining the payment loses the game", () => {
+        const id = registerScript("test-op-losegame-pact-declined", PACT_BODY);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers![0].targetPlayerId).toBe("p1");
+        // The opponent's upkeep does not consume it (CR 603.7a — "your").
+        state.activePlayerId = "p2";
+        fireDelayedTriggers(state, "next-upkeep");
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers).toHaveLength(1);
+        state.activePlayerId = "p1";
+        fireDelayedTriggers(state, "next-upkeep");
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.gameOver?.loserId).toBe("p1");
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.gameOver?.loserId).toBe("p1");
+        expect(projected.gameOver?.winnerId).toBe("p2");
+    });
+
+    it("Pact: paying at the upkeep keeps the game going", () => {
+        const id = registerScript("test-op-losegame-pact-paid", PACT_BODY);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { B: 1, C: 2 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        fireDelayedTriggers(state, "next-upkeep");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.gameOver).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
 describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
     it("creates one command-zone emblem owned by the controller", () => {
         const id = registerScript("test-op-emblem-create", [

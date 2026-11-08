@@ -55441,6 +55441,16 @@
         "source": "compiled"
     },
     {
+        "name": "One with Death",
+        "scryfallId": "6e5d8808-c997-4302-82ee-1d179b4976b8",
+        "oracleId": "f60d0b8c-3086-425f-a53a-769c5badab45",
+        "firstSet": "cmb1",
+        "firstPrintId": "6e5d8808-c997-4302-82ee-1d179b4976b8",
+        "firstPrintSet": "cmb1",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "One With the Wind",
         "scryfallId": "2c00f8bf-0088-44ad-b40b-26a2951a2428",
         "oracleId": "9203bee0-718a-4ede-9556-5521417c4080",
@@ -56574,6 +56584,26 @@
         "firstPrintId": "0f88c3aa-63e1-4617-bf1f-48f44988e7d6",
         "firstPrintSet": "grn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Pact of Negation",
+        "scryfallId": "cca467a2-a2b3-4bdf-9d60-62979f675347",
+        "oracleId": "f3e213a4-ba5a-468a-93b3-c0a34e1bd725",
+        "firstSet": "fut",
+        "firstPrintId": "cca467a2-a2b3-4bdf-9d60-62979f675347",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Pact of the Titan",
+        "scryfallId": "8f332ef3-335a-494d-a90f-61a9e9834ccd",
+        "oracleId": "cf4959bf-92ae-4c9b-b631-724ce100cbb8",
+        "firstSet": "fut",
+        "firstPrintId": "8f332ef3-335a-494d-a90f-61a9e9834ccd",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -73224,6 +73254,16 @@
         "source": "compiled"
     },
     {
+        "name": "Slaughter Pact",
+        "scryfallId": "42696fdb-de1f-44ae-bef3-b6af068958d0",
+        "oracleId": "67c4b1d5-757c-46cf-8bb1-9889d9ed1a1f",
+        "firstSet": "fut",
+        "firstPrintId": "42696fdb-de1f-44ae-bef3-b6af068958d0",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Slay",
         "scryfallId": "eccda747-2680-4793-8a13-35e49b4de12f",
         "oracleId": "64418e1f-4fb1-4029-a31e-135b2d2c0ab9",
@@ -78667,6 +78707,16 @@
         "firstPrintId": "ed82afba-df51-4bd9-853c-d3ef323095a6",
         "firstPrintSet": "zen",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Summoner's Pact",
+        "scryfallId": "948b026c-cfce-462b-afb6-7a383bd121de",
+        "oracleId": "782dcbc4-5a11-42f5-b8d9-4572e36d45b3",
+        "firstSet": "fut",
+        "firstPrintId": "948b026c-cfce-462b-afb6-7a383bd121de",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

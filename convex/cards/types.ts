@@ -21873,8 +21873,10 @@ export type EffectOp =
            *  binding name the body reads it back under. */
           capture?: Record<string, EffectCaptureSource>;
           /** REQUIRED for the player-scoped timings (CR 504/505, and
-           *  `player-next-turn-end-step`); rejected for the global-boundary
-           *  timings. Resolved at scheduling time. */
+           *  `player-next-turn-end-step`); OPTIONAL on `next-upkeep` (CR 603.7
+           *  — absent: the next upkeep of any player; present: "your next
+           *  upkeep", that player's own); rejected for the other
+           *  global-boundary timings. Resolved at scheduling time. */
           targetPlayer?: EffectPlayerRef;
           /** REQUIRED for every INSTANCE-SCOPED timing: both leave-watches
            *  (`leaves-battlefield` and its indefinite twin
@@ -22021,6 +22023,16 @@ export type EffectOp =
      *  player CAN win as a result of a spell or ability", not the Op deciding
      *  who wins). */
     | { op: "winGame"; player: EffectPlayerRef }
+    /** CR 104.3e — "An effect may state that a player loses the game": the
+     *  named player loses, through the SAME `state.gameOver` seam
+     *  (`SpellContext.loseGame`), the loss-side twin of `winGame`. The Pact
+     *  cycle's "If you don't, you lose the game" gates it behind a `mayPay`
+     *  `if`; the Op itself carries no predicate. Skipped when the player
+     *  cannot be resolved (CR 608.2b); a no-op once the game has ended
+     *  (`endGame`'s first-writer guard). Deliberately NOT a lose-game
+     *  REPLACEMENT event: the shipped "you don't lose the game" replacement
+     *  (Lich) is scoped to the CR 704.5a life loss, which this is not. */
+    | { op: "loseGame"; player: EffectPlayerRef }
     /** CR-generic "separate into two piles, another player chooses one" cycle
      *  (ADR 0053, pile division — Fact or Fiction, Do or Die, Death or Glory,
      *  Bend or Break, Fight or Flight, Stand or Fall). Drives a new two-step

@@ -227,6 +227,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     transform: false,
     unattach: false,
     winGame: false,
+    loseGame: false,
 };
 
 /** Longest chain of resolution choices one execution path through `effects`

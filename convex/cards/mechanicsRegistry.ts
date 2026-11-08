@@ -3998,6 +3998,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Designate the winning player (CR 104.2a, issue #1066 — Coalition Victory). A thin declarative skin over the single SpellContext primitive `winGame`, one execution path (ADR 0045): sets `state.gameOver` through the SAME seam State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`) — winnerId = the resolved `player`, loserId = the opponent, reason "alternate-win" (the only `gameOver.reason` with no CR 704.5 "why the loser lost" story, since there is none — the winner is DESIGNATED, not the loser defeated). No-op if the game already ended (mirrors `drawGame`\'s guard). The Op itself carries no predicate — Coalition Victory gates it behind nested `if`s (a `{ domain: { of } } >= 5` land-of-each-basic-type check, five `count` checks for a creature of each color) built entirely from EXISTING constructs, so the win condition needed no new predicate grammar. SCOPE (issue #1066): the 2-player `state.gameOver` seam only — no "can\'t win the game" replacement hook (Platinum Angel) exists yet; noted as a future extension point, not built (no INV card needs it).',
     },
     {
+        op: "loseGame",
+        status: "implemented",
+        cr: "104.3e",
+        binding: "SpellContext.loseGame",
+        note: 'The named player loses the game (CR 104.3e, "an effect may state that a player loses the game"), issue #8583. The loss-side twin of `winGame`: a thin declarative skin over the existing `SpellContext.loseGame` primitive, one execution path (ADR 0045), which ends the game through `endGame` (first writer wins, so a decided game is never re-decided). The Op carries no predicate: the Pact cycle (Slaughter Pact, Summoner\'s Pact, Pact of Negation, Pact of the Titan) gates it inside a `delayedTrigger` body behind a `mayPay` and an `if { not }` ("At the beginning of your next upkeep, pay {2}{B}. If you don\'t, you lose the game."). Not routed through the CR 614 lose-game replacement loop: the only shipped "you don\'t lose the game" replacement (Lich) is scoped to the CR 704.5a life loss.',
+    },
+    {
         op: "sacrificeAndReturn",
         status: "implemented",
         cr: "701.21",

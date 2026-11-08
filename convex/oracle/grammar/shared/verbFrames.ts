@@ -120,6 +120,7 @@
  */
 
 import { readNumberWord } from "./quantity";
+import { readManaCost } from "../../manaCost";
 import type { ImpulsePlayIR } from "./impulsePlay";
 import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -128,6 +129,7 @@ import type {
     PlayerCounterKind,
     EffectCardFilter,
     EffectChoiceSuperlative,
+    ManaCost,
     TargetRequirement,
 } from "../../../cards/types";
 import { SELF_MARKER } from "../../normalize";
@@ -468,6 +470,28 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 104.3e — "you lose the game": an effect states that the
+           * controller loses. Only the bare "you" subject is read; the gate
+           * ("If you don't, …") is the enclosing Composition Rule's.
+           */
+          readonly frame: "loseGame";
+      }
+    | {
+          /**
+           * CR 118.12 — "pay {2}{B}": the "[Do something]" of "[Do
+           * something]. If [a player] doesn't, [effect]", a cost paid as the
+           * ability resolves. Mana pips only. Never a chain member alone: the
+           * `If you don't` Composition Rule folds the consequence in as the
+           * chain's `otherwise`, and `assembleSentences` refuses a payment
+           * left without one.
+           */
+          readonly frame: "pay";
+          readonly mana: ManaCost;
+          /** The pips as printed, for the prompt. */
+          readonly phrase: string;
+      }
+    | {
+          /**
            * CR 701.37a — "Monstrosity N": if the permanent the ability is
            * printed on isn't monstrous, put N +1/+1 counters on it and it
            * becomes monstrous. A printed count only: "Monstrosity X" (CR
@@ -713,6 +737,23 @@ export interface FrameChainIR {
     /** CR 603.12 — the sentence text when `then` is a reflexive ability. */
     readonly reflexive?: string;
     /**
+     * CR 118.12 — the "If you don't, <effect>." sentence behind a lone `pay`
+     * frame, folded in by `assembleSentences` (the `If you don't`
+     * Composition Rule): the effect runs only when the payment was declined.
+     */
+    readonly otherwise?: EffectSentenceIR;
+    /**
+     * CR 603.7a + CR 603.7d — "At the beginning of your next upkeep, <chain>":
+     * the chain (with its `otherwise`) is not done now but is the body of a
+     * delayed triggered ability the resolving effect creates, controlled by
+     * that effect's controller and firing at that player's own next upkeep.
+     * `text` is the delayed ability as printed, completed by the fold.
+     */
+    readonly delayed?: {
+        readonly timing: "your-next-upkeep";
+        readonly text: string;
+    };
+    /**
      * CR 608.2c + CR 608.2h + CR 701.23h — "For each <noun> <verb>ed this
      * way, its controller searches their library for <a card>. Those players
      * put those cards …, then shuffle.": the chain is performed once by EACH
@@ -789,6 +830,8 @@ export const VERB_FRAMES: readonly {
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
     { name: "manifestDread", opens: /^manifest dread\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
+    { name: "loseGame", opens: /^you lose the game\b/i },
+    { name: "pay", opens: /^pay \{/i },
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     { name: "adapt", opens: /^adapt \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
@@ -939,6 +982,10 @@ const EMPOWER_JACE = /^empower jace (\S+?)(?:, where X is (.+))?$/i;
 const BECOME_MONARCH = "you become the monarch";
 /** CR 104.2b — the whole sentence, nothing trailing. */
 const WIN_GAME = "you win the game";
+/** CR 104.3e — the whole sentence, nothing trailing. */
+const LOSE_GAME = "you lose the game";
+/** CR 118.12 — "pay" then mana pips only, whole. */
+const PAY_MANA = /^pay ((?:\{[^{}]+\})+)$/;
 /** CR 701.62a — the bare keyword action, nothing trailing. */
 const MANIFEST_DREAD = "manifest dread";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
@@ -2200,6 +2247,26 @@ function readMember(
                 refused: `"${member}" — only the bare "You win the game" is read`,
             };
         return { frames: [{ frame: "winGame" }], referent };
+    }
+    if (opensFrame("loseGame", lower)) {
+        if (lower !== LOSE_GAME)
+            return {
+                refused: `"${member}" — only the bare "You lose the game" is read`,
+            };
+        return { frames: [{ frame: "loseGame" }], referent };
+    }
+    if (opensFrame("pay", lower)) {
+        const pay = lower.match(PAY_MANA);
+        if (pay === null)
+            return {
+                refused: `"${member}" — only a payment of mana pips is read`,
+            };
+        const read = readManaCost(pay[1]!);
+        if (!read.ok) return { refused: read.reason };
+        return {
+            frames: [{ frame: "pay", mana: read.cost, phrase: pay[1]! }],
+            referent,
+        };
     }
     if (opensFrame("monstrosity", lower)) {
         const count = readNumberWord(lower.match(MONSTROSITY)![1]!);

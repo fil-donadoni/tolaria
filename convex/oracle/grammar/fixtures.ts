@@ -5769,6 +5769,77 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 603.7a (delayed trigger) + CR 104.3e — the
+    // to-hand tutor of a creature card of one COLOUR, then the Pact's delayed
+    // upkeep payment (issue #8583). The runtime-sized `choice` over a coloured
+    // creature filter is the card-dependent form no other fixture exhibits;
+    // the delayed payment itself scenario-izes (Slaughter Pact reaches `ready`
+    // without a row).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "782dcbc4-5a11-42f5-b8d9-4572e36d45b3",
+            name: "Summoner's Pact",
+            manaCost: "{0}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for a green creature card, reveal it, put it into your hand, then shuffle.\nAt the beginning of your next upkeep, pay {2}{G}{G}. If you don't, you lose the game.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Summoner's Pact",
+            types: ["Instant"],
+            manaCost: {},
+            oracleText:
+                "Search your library for a green creature card, reveal it, put it into your hand, then shuffle.\nAt the beginning of your next upkeep, pay {2}{G}{G}. If you don't, you lose the game.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Creature", color: "G" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a green creature card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    targetPlayer: "controller",
+                    oracleText:
+                        "At the beginning of your next upkeep, pay {2}{G}{G}. If you don't, you lose the game.",
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: { X: 2, G: 2 },
+                            prompt: "Pay {2}{G}{G}?",
+                            bind: "$paid2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$paid2" } },
+                            then: [{ op: "loseGame", player: "controller" }],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
     // "Search your library for an artifact or enchantment card, reveal it, then shuffle and put
     // that card on top": the tutor-to-top. Exhibits the same three
