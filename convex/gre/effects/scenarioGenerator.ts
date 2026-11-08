@@ -3272,6 +3272,7 @@ const SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
     "excludeType",
     "excludeSubtype",
     "excludeAbility",
+    "manaValueAtMost",
 ]);
 /** The Ops a sweep's assertions stay independent of: neither reads or moves a
  *  seeded permanent, a life total or a hand. */
@@ -3379,6 +3380,12 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
     if (!Object.keys(f).every((key) => SWEEP_FILTER_KEYS.has(key))) return null;
     if (typeof f.subtype === "object" && !Array.isArray(f.subtype)) return null;
     if (f.color !== undefined && typeof f.color !== "string") return null;
+    // CR 202.3 — a printed ceiling ("with mana value 3 or less") seats every
+    // member AT it and one bystander just above, telling "at most" from both
+    // "less than" and the ceiling's absence. A dynamic ceiling (`{ X: true }`)
+    // is the announced X the canned cast does not choose: unread, unplanned.
+    const ceiling = f.manaValueAtMost;
+    if (ceiling !== undefined && typeof ceiling !== "number") return null;
     const types = asList<SweepCardType>(f.type);
     const subtypes = asList<string>(f.subtype as string | string[] | undefined);
     const noTypes = asList<SweepCardType>(f.excludeType);
@@ -3402,6 +3409,7 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
         types: [baseType],
         subtypes: [subtypes[0] ?? otherSubtype],
         ...(f.color === undefined ? {} : { color: f.color }),
+        ...(ceiling === undefined ? {} : { manaValue: ceiling }),
     };
 
     const bystanders: SweepCardSpec[] = [
@@ -3421,6 +3429,8 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
         bystanders.push({ ...base, color: f.color === "W" ? "U" : "W" });
     if (f.excludeAbility !== undefined)
         bystanders.push({ ...base, ability: f.excludeAbility });
+    if (ceiling !== undefined)
+        bystanders.push({ ...base, manaValue: ceiling + 1 });
 
     return {
         members: [
@@ -3585,6 +3595,10 @@ function planSweep(
         { set: "permanents" }
     >;
     const guard = manaValueGuard(body);
+    // A guard seats members on its own mana values, which would overwrite the
+    // ones a filter ceiling seated: the pair is two bounds no card prints.
+    if (guard !== null && select.filter?.manaValueAtMost !== undefined)
+        return null;
     const outcome = permanentBodyOutcome(guard?.then ?? body);
     if (outcome === null || !outcomeReadableOn(outcome, selector.specs.members))
         return null;
