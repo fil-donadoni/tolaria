@@ -1,5 +1,7 @@
 # A PERMANENT split card is one permanent whose characteristics are DERIVED from its unlocked-designation set (CR 709.5 — every Room), and that set is CARRIED IN THE PRESENTED DEFINITION ID (amends ADR 0041, extends ADR 0121)
 
+**accepted, not built as of 2026-11-07** (issue #8725).
+
 ## Status
 
 accepted (amends [ADR 0041][adr-0041]'s out-of-scope clause for CR 709.5;

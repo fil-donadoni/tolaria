@@ -1,5 +1,7 @@
 # Roadmap to Diffusion: milestones are Target Lists completed in order, and the board's bands follow them
 
+**Amendment IX's open integer 2 settled by ADR 0175 (2026-11-08, issue #8725):** `modern-metagame` ranks second.
+
 ## Status
 
 accepted — grilled 2026-09-20 (issue #3854, the final ticket of the roadmap

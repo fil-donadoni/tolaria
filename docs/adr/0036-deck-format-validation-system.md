@@ -1,5 +1,7 @@
 # Deck Format validation system
 
+**Amended by ADR 0057 and ADR 0170 (2026-11-08, issue #8725):** "everything is code-side" no longer holds for banlists, and `FormatId` has six members, not three.
+
 ## Status
 
 accepted

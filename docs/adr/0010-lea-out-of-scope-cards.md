@@ -1,5 +1,7 @@
 # ADR 0010 — LEA cards declared permanently out of scope
 
+**Narrowed by ADR 0169 (2026-11-08, issue #8725):** Word of Command and Camouflage are implemented; ante, Chaos Orb and subgames stay out of scope; the "284 of 290" count is retired.
+
 **Status:** Accepted (2026-06-14)
 
 ## Context

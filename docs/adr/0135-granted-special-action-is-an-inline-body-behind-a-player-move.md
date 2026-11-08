@@ -1,5 +1,7 @@
 # ADR 0135 — A Granted Special Action is an inline Effect Script body behind a repeatable, cost-gated player Move
 
+**accepted, not built as of 2026-11-07** (issue #8725): no `grantSpecialAction` in `convex/`.
+
 **Status:** Accepted (2026-09-16, issue #2122). Extends ADR 0045 and mirrors
 ADR 0048.
 

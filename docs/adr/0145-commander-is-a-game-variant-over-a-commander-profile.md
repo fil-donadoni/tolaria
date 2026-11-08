@@ -1,5 +1,7 @@
 # Commander is a Game Variant over a Commander Profile, not a Format
 
+**accepted, not built as of 2026-11-07** (issue #8725).
+
 ## Status
 
 accepted — grilled 2026-09-24. Plans v2 of ADR 0143 (Amendment III); no code

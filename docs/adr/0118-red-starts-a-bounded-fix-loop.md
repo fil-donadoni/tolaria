@@ -1,5 +1,7 @@
 # A RED release verdict starts a bounded fix loop; the fixer's return channel is a file, fail-closed, and only with a TTY
 
+**Amended by ADR 0174 (2026-11-08, issue #8725):** the fix loop is for hand runs; the hosted `release.yml` runs `--no-fix`, and RED repair follows ADR 0156 / 0158.
+
 ## Status
 
 accepted (extends ADR 0116's release gate; PRD issue #3197, slices #3199,

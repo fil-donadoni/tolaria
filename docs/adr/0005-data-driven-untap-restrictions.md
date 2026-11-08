@@ -1,5 +1,7 @@
 # ADR 0005 — Data-driven untap-step restrictions
 
+**Amended by ADR 0008 (2026-11-08, issue #8725):** the accumulate / `confirmUntapPick` flow written here was replaced by 0008's client-buffered submit; `confirmUntapPick` no longer exists. The data-driven restriction decision itself stands.
+
 **Status:** Accepted (2026-05-24)
 
 ## Context

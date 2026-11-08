@@ -260,7 +260,7 @@ Something a **Player** may do without using the **Stack** and without passing **
 _Avoid_: Activated Ability (uses the Stack), free action
 
 **Granted Special Action**:
-A **Special Action** that a resolving spell or ability hands to its controller for a duration rather than one printed as a rule (CR 116.2c): "until end of turn, you may pay {1} any time you could cast an instant; if you do, prevent the next 1 damage…" (Guardian Angel). Taken at any **Priority**, repeatable, each use paying its cost and running the granted body against the objects fixed when the grant resolved. In an **Effect Script** it is written inline, like a **Delayed Triggered Ability** — but a player's choice fires it, not an event. It lapses only when its duration ends, not when those objects are gone.
+_Planned, not built as of 2026-11-07 (ADR 0135 is accepted; no `grantSpecialAction` exists in `convex/`)._ A **Special Action** that a resolving spell or ability hands to its controller for a duration rather than one printed as a rule (CR 116.2c): "until end of turn, you may pay {1} any time you could cast an instant; if you do, prevent the next 1 damage…" (Guardian Angel). Taken at any **Priority**, repeatable, each use paying its cost and running the granted body against the objects fixed when the grant resolved. In an **Effect Script** it is written inline, like a **Delayed Triggered Ability** — but a player's choice fires it, not an event. It lapses only when its duration ends, not when those objects are gone.
 _Avoid_: Floating ability, emblem, standing mayPay
 
 ### Abilities
