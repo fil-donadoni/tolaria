@@ -1,8 +1,12 @@
 # A split card is ONE combined definition with two registered half twins; a PERMANENT split card (CR 709.5 — every Room) stays out of scope (amends ADR 0041, extends ADR 0120)
 
+_Dated (2026-11-08, issue #8726): "34,890 corpus cards" is a reading of 2026-09-09; the corpus is now 35,353._
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/sets/pls/multicolor.ts`._
+
 ## Status
 
-accepted (amends [ADR 0041][adr-0041]'s out-of-scope clause for CR 709.1–709.4;
+accepted (2026-09-09; amends [ADR 0041][adr-0041]'s out-of-scope clause for CR 709.1–709.4;
 extends [ADR 0120][adr-0120]'s twin-definition mechanism and amends its
 parenthetical that split stays in the bucket; decides issue #3224 for the split
 half, re-files the Room half)

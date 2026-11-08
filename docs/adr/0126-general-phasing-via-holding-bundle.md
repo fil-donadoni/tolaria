@@ -1,5 +1,7 @@
 # ADR 0126 — General phasing via a silent holding-bundle move
 
+**Renumbering note (2026-11-08, issue #8726):** originally ADR 0021, renumbered to 0126 on 2026-09-13 (issue #3527); the 2026-06-16 date below is its pre-renumbering date.
+
 **Status:** Accepted (2026-06-16)
 
 ## Context

@@ -1,8 +1,10 @@
 # 0055 — Limited Event: ends at the deck, pool-as-sideboard, server-side Bot Drafter
 
+**Amended by ADR 0060, ADR 0076 and ADR 0106 (2026-11-08, issue #8726):** 0060 (named in the status below) made the draft-time Pool the working deck; 0076 supersedes decision 1 (the event ends at the deck); 0106 (the deck carries its own pool) overtakes decision 2 (validation against the Pool on the seat).
+
 ## Status
 
-Accepted. **Amended by ADR 0060** (draft-time Pool becomes the working deck; Auto-Pick honours the Selected Card before the heuristic; timer is on/off on the official descending schedule).
+Accepted (2026-07-12). **Amended by ADR 0060** (draft-time Pool becomes the working deck; Auto-Pick honours the Selected Card before the heuristic; timer is on/off on the official descending schedule).
 
 ## Context
 

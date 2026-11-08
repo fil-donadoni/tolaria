@@ -1,8 +1,10 @@
 # Set-file decomposition by colour for parallel agentic throughput
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/sets/ice.ts`._
+
 ## Status
 
-accepted — file names amended by issue #4811 (§ Amendment)
+accepted (2026-06-26) — file names amended by issue #4811 (§ Amendment)
 
 ## Context
 

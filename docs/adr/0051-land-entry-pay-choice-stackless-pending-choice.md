@@ -1,5 +1,7 @@
 # Land-entry pay-choice as a stackless pending choice (shock lands)
 
+**Status:** Accepted (2026-07-06)
+
 ## Context
 
 The RAV/GPT/DIS "shock land" cycle (Steam Vents, Godless Shrine, Watery Grave,

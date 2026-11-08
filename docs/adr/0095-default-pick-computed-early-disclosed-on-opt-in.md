@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. **Extends ADR 0060** (which owns the **Selected Card** and made the
+Accepted (2026-08-05). **Extends ADR 0060** (which owns the **Selected Card** and made the
 draft-time Pool the working deck). Closes issue #2271.
 
 ## Context

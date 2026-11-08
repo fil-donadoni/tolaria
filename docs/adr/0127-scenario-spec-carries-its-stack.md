@@ -1,5 +1,7 @@
 # A scenario spec carries its stack: the position is declared, not replayed
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/gre/ai/verdicts/journal.ts`, `src/lib/ai/stack-journal.ts`._
+
 ## Status
 
 accepted (2026-09-12, verdict-quiz design session; PRD #3397, issue #3513)

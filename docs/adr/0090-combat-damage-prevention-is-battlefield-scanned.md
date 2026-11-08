@@ -1,6 +1,6 @@
 # Combat-damage prevention is a battlefield-scanned static with an explicit direction
 
-**Status:** accepted
+**Status:** accepted (2026-08-03)
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amends [ADR 0041][adr-0041]'s out-of-scope clause for two of the six
+accepted (2026-09-09; amends [ADR 0041][adr-0041]'s out-of-scope clause for two of the six
 layouts it names; builds on ADR 0067, ADR 0083, ADR 0102; decides issue #3223)
 
 ## Context

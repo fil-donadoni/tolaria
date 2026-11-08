@@ -1,5 +1,7 @@
 # ADR 0125 — Destroy-replacement via the replacement framework; regeneration kept separate
 
+**Renumbering note (2026-11-08, issue #8726):** originally ADR 0020, renumbered to 0125 on 2026-09-13 (issue #3527); the 2026-06-16 date below is its pre-renumbering date.
+
 **Status:** Accepted (2026-06-16)
 
 ## Context

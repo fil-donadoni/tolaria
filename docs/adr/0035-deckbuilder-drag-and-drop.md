@@ -1,5 +1,9 @@
 # Deck builder drag & drop with touch-delay disambiguation
 
+**Amended by ADR 0101 (2026-11-08, issue #8726):** §4 removes the 400 ms hold-preview on editing surfaces such as the deckbuilder; the 250 ms long-press drag stands.
+
+**Status:** Accepted (2026-06-22)
+
 The deck builder's primary card interaction is drag & drop (`@dnd-kit/react`):
 drag a search result onto the Maindeck or Sideboard drop zone to add it, drag a
 card between zones to move it. Plain click stays as the fast path (result →

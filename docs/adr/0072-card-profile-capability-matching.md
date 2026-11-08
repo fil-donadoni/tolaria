@@ -4,7 +4,7 @@ _Maintenance 2026-11-08 (issue #8723): ADR 0046 corrected to ADR 0045 (mechanics
 
 ## Status
 
-accepted
+accepted (2026-07-26)
 
 ## Context
 

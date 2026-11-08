@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted and shipped (proposed 2026-08-03; foretell shipped on the shared primitives — `canForetell`, `applyForetell`, `exileCastPermission` — under identifiers that differ from the ones below). Status line corrected (2026-11-08, issue #8726).
 
 ## Context
 

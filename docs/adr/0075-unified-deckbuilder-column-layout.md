@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. **Amends ADR 0060** (which fixed the draft-time Pool as a set of
+Accepted (2026-07-26). **Amends ADR 0060** (which fixed the draft-time Pool as a set of
 _fixed Mana-Value columns_ and the Pool Arrangement as a per-card `column`
 override).
 

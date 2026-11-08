@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted and shipped (proposed 2026-08-03; Payment Park is defined in `GLOSSARY.md` and lives in `convex/game.ts` and `convex/gre/activation.ts`). Status line corrected (2026-11-08, issue #8726).
 
 ## Context
 

@@ -1,5 +1,7 @@
 # Gate lanes narrow which projects a diff is admitted to skip — #2431 stands unmodified, #2655 is deliberately narrowed
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/land.ts`._
+
 ## Status
 
 **Superseded by ADR 0154 (2026-10-11).** Decision item 2 — "lane content is

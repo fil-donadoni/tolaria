@@ -1,10 +1,12 @@
 # 0077 — Phase Stops drain server-side: preferences out of `GameState`, one engine predicate built on the Expected Input
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/gre/autoPass.ts` (never built)._
+
 **accepted, not built as of 2026-11-07** (issue #8725): client-side auto-pass remains; the server drain was not built.
 
 ## Status
 
-Accepted. Design record for issue #1777 (T1 of PRD #1776, "cut Convex function
+Accepted (2026-07-28). Design record for issue #1777 (T1 of PRD #1776, "cut Convex function
 calls and read bandwidth"). Depends on ADR 0047 (Expected Input as the single
 authoritative declaration of what the game is waiting for). The implementation
 lands in #1777; this record fixes the decisions it builds on, which were

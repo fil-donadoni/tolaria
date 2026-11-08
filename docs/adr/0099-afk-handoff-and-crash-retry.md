@@ -1,10 +1,12 @@
 # A finished pass hands the loop off to a driver, and a crash is retried
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/loop-drain.sh`, `scripts/loop-handoff.sh`._
+
 **Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** `loop-handoff.sh` is deleted.
 
 ## Status
 
-accepted (the `--from-pass` autostart is superseded by ADR 0109; the terminal is a rendered view of the log, not the same bytes — ADR 0147; the
+accepted (2026-08-11; the `--from-pass` autostart is superseded by ADR 0109; the terminal is a rendered view of the log, not the same bytes — ADR 0147; the
 unconditional detach is amended by issue #4389 — the foreground is now the
 default and `--detach` the opt-in)
 

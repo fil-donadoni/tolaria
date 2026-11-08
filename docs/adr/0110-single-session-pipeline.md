@@ -1,5 +1,7 @@
 # Single-session pipeline: one context closes one issue
 
+**Amended by ADR 0116, ADR 0136 and ADR 0156 (2026-11-08, issue #8726):** 0116 reshapes post-merge health, 0136 §5 the pre-PR gate, 0156 the `land`/mutex/driver names (mapped in the 2026-11-04 amendment below).
+
 ## Status
 
 accepted (reshapes the fan-out pipeline of ADR 0097/0099; builds on ADR 0109; retired names mapped in the 2026-11-04 amendment)

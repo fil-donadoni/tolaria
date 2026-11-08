@@ -1,5 +1,11 @@
 # The compiled-card store is the WHOLE corpus, resident: bundled server-side, one content-addressed immutable asset client-side — never lazy-by-id
 
+**Amended by ADR 0140 and its own Amendments I–VII (2026-11-08, issue #8726):** the status below names Amendments III and IV and ADR 0140 only; Amendments I, II, V (2026-10-14), VI (2026-10-17) and VII (2026-10-18) are in the body. The core "resident, never lazy-by-id" stands.
+
+_Dated (2026-11-08, issue #8726): "1,957 pool rows" and "34,890 corpus cards" are readings of 2026-09-02; `ready` rows are now 6,631 and the corpus 35,353._
+
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `data/oracle-compiled-pool.json`, `scripts/oracle-pool.ts`, `convex/cardIndex.ts`._
+
 ## Status
 
 accepted (settles the "separate grill" PRD #2693 deferred; supersedes that

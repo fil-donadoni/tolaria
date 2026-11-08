@@ -1,5 +1,7 @@
 # The Bot-play sweep leaves the PR: sharded over worker threads, a session plays only its graduations, the base replays drift after each merge; a RED is reverted first and fixed forward as an ordinary pass
 
+**Amended by ADR 0159 (2026-11-08, issue #8726):** §2b is reversed.
+
 ## Status
 
 **accepted** — owner's decision of 2026-10-24, on the pipeline telemetry

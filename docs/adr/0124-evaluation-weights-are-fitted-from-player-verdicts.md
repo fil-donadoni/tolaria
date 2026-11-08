@@ -1,5 +1,7 @@
 # The evaluation's weights are fitted from player Verdicts by a deterministic Weight Fit, never hand-picked and never tuned on the Ladder
 
+**Amended by ADR 0151 (2026-11-08, issue #8726):** the latent script value (symmetric effect by Differential, latent floor).
+
 ## Status
 
 accepted (2026-09-10, "Grill sul game bot" session; map #1892, issue #3393)

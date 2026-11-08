@@ -1,6 +1,6 @@
 # One graveyard play permission record, sources differ only by duration
 
-**Status:** accepted
+**Status:** accepted (2026-08-05)
 
 ## Context
 

@@ -1,10 +1,12 @@
 # The loop's fan-out stays model-driven; the Workflow tool is not adopted
 
+_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `scripts/lib/train-order.ts`._
+
 **Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** the loop driver is retired.
 
 ## Status
 
-accepted
+accepted (2026-08-05)
 
 ## Context
 

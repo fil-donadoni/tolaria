@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted and shipped (proposed 2026-08-03; face-down permanents carry `faceDownBy` — kinds morph, megamorph, manifest — in `convex/gre/faceDown.ts` and `convex/gre/morph.ts`; the `faceDownKind` name below became `faceDownBy`). Status line corrected (2026-11-08, issue #8726).
 
 ## Context
 

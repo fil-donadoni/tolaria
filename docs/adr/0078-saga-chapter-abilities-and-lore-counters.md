@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Design record for the Saga framework (CR 714) and its first two
+Accepted (2026-07-29). Design record for the Saga framework (CR 714) and its first two
 consumers, History of Benalia (dom) and Urza's Saga (mh2). Builds directly on
 ADR 0054 (implicit keyword expansion at the `getDefinition` seam;
 `COUNTER_REMOVED` as a first-class trigger event) and reuses the

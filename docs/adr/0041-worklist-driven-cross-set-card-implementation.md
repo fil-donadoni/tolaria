@@ -1,8 +1,10 @@
 # Worklist-driven cross-set card implementation
 
+**Amended by ADR 0120, 0121, 0122, 0123 and 0161 (2026-11-08, issue #8726):** the out-of-scope layouts (adventure, split, modal double-faced, Room, meld) are carved out one by one; Room (0123) is accepted but not built.
+
 ## Status
 
-accepted
+accepted (2026-06-24)
 
 ## Context
 

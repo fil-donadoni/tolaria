@@ -4,7 +4,7 @@ _Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decis
 
 ## Status
 
-Accepted. **Supersedes ADR 0055 decision 1** ("the Limited Event ends at the
+Accepted (2026-07-27). **Supersedes ADR 0055 decision 1** ("the Limited Event ends at the
 built Deck; pairing, rounds and standings are deferred"). ADR 0055's decisions 2
 (pool-as-sideboard) and 3 (server-side Bot Drafter) are unchanged and this
 record depends on both.
