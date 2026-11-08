@@ -14,7 +14,7 @@ etc.), the engine can either:
    ≤ the required selection count.
 
 The Comprehensive Rules technically allow the player to "choose" in both
-cases (CR 701.9a, 502.3 etc. — the player makes the choice even when only one
+cases (CR 701.9b, 502.3 etc. — the player makes the choice even when only one
 option exists; ids re-pointed 2026-11-08, the CR renumbered). MTG Arena resolves these automatically to streamline the
 common case.
 
