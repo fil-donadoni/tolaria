@@ -457,6 +457,7 @@ import {
     getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
+    type ManaReplacementView,
     isAppendedSacrificeManaTapOption,
     primaryManaTapOptions,
     hasFilteredGiveUpCost,
@@ -1690,14 +1691,20 @@ function resolveManaTapChoice(
     }>,
     manaChoiceIndex: number,
     /** CR 613 (PRD #2064 S6) — see `manaTapNeedsChoice`. */
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    /** CR 616.1 — the per-turn replacements, so an index naming an option
+     *  only they reach (a chosen-colour basic's appended {C} under Chaos Moon,
+     *  `getManaTapOptionsDetailed`) resolves. Every other option keeps its
+     *  index whether or not they are passed. */
+    replacements?: ManaReplacementView
 ): ResolvedManaTapChoice | null {
     const options = getManaTapOptionsDetailed(
         card,
         controllerId,
         battlefields,
         undefined,
-        continuousEffects
+        continuousEffects,
+        replacements
     );
     const opt = options[manaChoiceIndex];
     if (!opt) return null;
@@ -2059,7 +2066,8 @@ export function tapSourceIntoPayment(
             player.id,
             manaTapBattlefields(state),
             manaChoiceIndex,
-            state.continuousEffects
+            state.continuousEffects,
+            state
         );
         if (!resolved) {
             throw new Error(MANA_CHOICE_REJECTION);
@@ -2653,7 +2661,8 @@ function filterCostManaAbilityForTap(
             player.id,
             manaTapBattlefields(state),
             manaChoiceIndex,
-            state.continuousEffects
+            state.continuousEffects,
+            state
         );
         return withFilterCost(resolved?.ability, resolved?.choiceIndex);
     }
@@ -14693,7 +14702,8 @@ export const tapUntap = mutation({
                     player.id,
                     manaTapBattlefields(state),
                     args.manaChoiceIndex,
-                    state.continuousEffects
+                    state.continuousEffects,
+                    state
                 );
                 if (!resolved) {
                     throw new Error(MANA_CHOICE_REJECTION);

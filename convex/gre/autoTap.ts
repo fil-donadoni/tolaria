@@ -569,6 +569,10 @@ export function solveAutoTap(
 ): AutoTapPlan | null {
     if (isManaCostCovered(pool, cost, substitutions)) return [];
 
+    // Subtrees already proven to hold no plan under the current `limit`; see
+    // {@link deadSubtreeKey}.
+    let dead = new Set<string>();
+
     function dfs(
         index: number,
         trialPool: Record<string, number>,
@@ -580,7 +584,19 @@ export function solveAutoTap(
         if (index >= sources.length) return null;
         // Prune: not enough sources left to reach the tap budget.
         if (sources.length - index < limit - chosen.length) return null;
+        const key = deadSubtreeKey(index, chosen.length, trialPool);
+        if (dead.has(key)) return null;
+        const found = dfsTap(index, trialPool, chosen, limit);
+        if (found === null) dead.add(key);
+        return found;
+    }
 
+    function dfsTap(
+        index: number,
+        trialPool: Record<string, number>,
+        chosen: AutoTapPlan,
+        limit: number
+    ): AutoTapPlan | null {
         const src = sources[index];
         const ordered = [...src.options].sort((a, b) => {
             const ha = helpsColoredNeed(trialPool, cost, substitutions, a.mana)
@@ -619,10 +635,34 @@ export function solveAutoTap(
     }
 
     for (let limit = 1; limit <= sources.length; limit++) {
+        dead = new Set<string>();
         const plan = dfs(0, pool, [], limit);
         if (plan) return plan;
     }
     return null;
+}
+
+/** Memo key of an auto-tap search subtree: what the rest of the search below a
+ *  node depends on — the next source's index, the taps spent and the trial
+ *  pool — and never the path that reached it. Two paths that tap different
+ *  sources, or the same sources for different options, into the same pool at
+ *  the same index explore an identical subtree, so a subtree proven to hold no
+ *  plan is never walked twice. This is what keeps a board of interchangeable
+ *  multi-option sources (basic lands that each tap for any colour under a
+ *  chosen-colour land-mana substitution, a row of Birds of Paradise) from
+ *  costing options^sources on a cost it cannot pay: the distinct pools number
+ *  only the multisets of what was added. Exact — the plan returned (or
+ *  collected) is the one the unmemoised walk returns, in the same order. */
+function deadSubtreeKey(
+    index: number,
+    taps: number,
+    pool: Record<string, number>
+): string {
+    const entries = Object.keys(pool)
+        .filter((k) => (pool[k] ?? 0) !== 0)
+        .sort()
+        .map((k) => `${k}:${pool[k]}`);
+    return `${index}|${taps}|${entries.join(",")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -736,6 +776,8 @@ function enumerateKTapPlans(
 ): { plans: AutoTapPlan[]; overflow: boolean } {
     const plans: AutoTapPlan[] = [];
     let overflow = false;
+    // Subtrees proven to collect no plan; see {@link deadSubtreeKey}.
+    const dead = new Set<string>();
 
     function dfs(
         index: number,
@@ -755,7 +797,18 @@ function enumerateKTapPlans(
         if (index >= sources.length) return;
         // Prune: not enough sources left to reach exactly k taps.
         if (sources.length - index < k - chosen.length) return;
+        const key = deadSubtreeKey(index, chosen.length, trialPool);
+        if (dead.has(key)) return;
+        const before = plans.length;
+        dfsTap(index, trialPool, chosen);
+        if (plans.length === before && !overflow) dead.add(key);
+    }
 
+    function dfsTap(
+        index: number,
+        trialPool: Record<string, number>,
+        chosen: AutoTapPlan
+    ): void {
         const src = sources[index];
         // Tap this source (one branch per mana option), in index order.
         for (const opt of src.options) {
