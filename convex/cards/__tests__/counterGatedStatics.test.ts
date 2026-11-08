@@ -96,6 +96,7 @@ const KIND_MATERIALIZATION: Record<
     "cast-restriction": "recomputed",
     "cast-timing-lock": "recomputed",
     "activation-restriction": "recomputed",
+    "spell-counter-immunity": "recomputed",
     "cast-permission": "recomputed",
     // --- materialized by beginApplyingStaticEffects -----------------------
     "keyword-grant": "materialized",

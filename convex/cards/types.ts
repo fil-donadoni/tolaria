@@ -11498,6 +11498,38 @@ export interface StaticActivationRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned "<spells> can't be countered" (CR 701.6a — to counter
+ *  a spell is to remove it from the stack; CR 101.2 — the "can't" effect
+ *  beats the instruction to counter it). A PERMANENT's continuous ability
+ *  covering a CLASS of spells: Gaea's Herald ("Creature spells can't be
+ *  countered.", any player's) and Hexing Squelcher ("Spells you control
+ *  can't be countered.").
+ *
+ *  The board-state sibling of the two per-spell carriers the counter choke
+ *  point already reads — `CardDefinition.cantBeCountered` (the spell's own
+ *  ability, CR 113.6g) and `StackItem.dynamicCantBeCountered` (a mana rider).
+ *  Read-time only, like `cast-restriction`: nothing is stamped onto the
+ *  spell, so the protection holds exactly while the source is on the
+ *  battlefield with its abilities (CR 611.3b, 613.1f) and a spell already on
+ *  the stack becomes counterable the moment the source leaves.
+ *
+ *  Consumed by `spellCounterImmunitySource` (`gre/spellCounterImmunity.ts`),
+ *  called from `SpellContext.counter()`. Abilities are never covered: the
+ *  Oracle says "spells" (CR 113.9). */
+export interface StaticSpellCounterImmunity {
+    kind: "spell-counter-immunity";
+    id: string;
+    /** The spells covered, matched by the single `matchesSpellFilter`
+     *  authority against the spell's CURRENT stack characteristics. Absent:
+     *  every spell. Gaea's Herald: `{ types: "Creature" }`. */
+    spells?: SpellFilter;
+    /** Whose spells: `"any-player"` (Gaea's Herald's unqualified "Creature
+     *  spells") or `"controller"` ("Spells YOU control" — the source's
+     *  controller; a spell's controller is its caster, CR 601.2a). */
+    controlledBy: "any-player" | "controller";
+    oracleText: string;
+}
+
 /** CR 613.5 / 122.1 — counter dependency declaration, carried by EVERY static
  *  effect kind (issue #1711).
  *
@@ -11861,6 +11893,7 @@ export type StaticEffect =
         | StaticCastTimingLock
         | StaticCastPermission
         | StaticActivationRestriction
+        | StaticSpellCounterImmunity
     ) &
         CounterGatedStatic &
         DependencyReads;
