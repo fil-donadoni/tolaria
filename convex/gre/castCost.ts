@@ -18,6 +18,7 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import type {
     AdditionalCostSpec,
     AlternativeCost,
+    CostLegs,
     ManaCost,
 } from "../cards/types";
 import type {
@@ -1465,6 +1466,32 @@ export function flashbackLifeCost(
 ): number {
     if (zone !== "graveyard" || hasEscape(state, card)) return 0;
     return getFlashbackAdditionalCost(card)?.life ?? 0;
+}
+
+/** CR 702.34a flashback, CR 701.9a discard — the HAND leg a cast from `zone` owes for the card's
+ *  flashback cost ("Flashback—{1}{U/R}{U/R}, Discard a card."), `undefined`
+ *  when none. Gated exactly like {@link flashbackLifeCost}: only a graveyard
+ *  cast that actually uses flashback owes it, and escape beats flashback
+ *  (CR 702.138). Expressed in the shared `CostLegs` hand vocabulary so it
+ *  joins the cast's ONE hand-cost picker (`castExtraHandCostLegs`), the same
+ *  greedy affordability (`canPayHandCost`) and the same Bot pick realisation
+ *  as retrace's land discard. The seam the commit paths, the legal-action
+ *  gate and the search share, so the cards the server takes and the cards
+ *  the search prices cannot drift. */
+export function flashbackHandCostLeg(
+    state: GameState,
+    card: CardInstanceState,
+    zone: CastFromZone
+): CostLegs | undefined {
+    if (zone !== "graveyard" || hasEscape(state, card)) return undefined;
+    const discard = getFlashbackAdditionalCost(card)?.discard;
+    if (!discard || discard.count <= 0) return undefined;
+    return {
+        hand: {
+            action: "discard",
+            requirements: [{ filter: {}, count: discard.count }],
+        },
+    };
 }
 
 /** CR 601.3 (issue #2980) — the card a `cast-spell` Move is about to

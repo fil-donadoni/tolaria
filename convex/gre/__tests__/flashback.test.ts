@@ -30,7 +30,7 @@ import {
     hasFlashback,
 } from "../flashback";
 import { finalizeCleanup } from "../phases";
-import { flashbackLifeCost } from "../castCost";
+import { flashbackHandCostLeg, flashbackLifeCost } from "../castCost";
 import {
     locateCastSource,
     castRawManaCost,
@@ -39,6 +39,7 @@ import {
     recordCastExileCostPick,
     finalizeTargetSelection,
     tryAutoCommitPendingCast,
+    recordCastAlternativeHandCostPick,
 } from "../../game";
 import type { PendingTarget } from "../state";
 import { applySacrificeSelection } from "../sacrificeChoice";
@@ -824,6 +825,101 @@ describe("Flashback capability (CR 702.34)", () => {
                     )!;
                     expect(projFb.legalActions ?? []).toEqual(expected);
                 }
+            });
+        });
+
+        describe('"Discard a card" flashback leg (CR 702.34a flashback, CR 701.9a discard)', () => {
+            function discardFlashbackState(handCount: number) {
+                const fb = makeInstance(firebolt().id, {
+                    id: "fb",
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { discard: { count: 1 } },
+                });
+                const hand = Array.from({ length: handCount }, (_, i) =>
+                    makeInstance(grizzlyBears().id, {
+                        id: `h${i}`,
+                        zone: "hand",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    })
+                );
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    hand,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                return { state, fb };
+            }
+            const pt = (id: string): PendingTarget => ({
+                playerId: "p1",
+                cardInstanceId: id,
+                targetType: "any",
+                count: 1,
+                selected: [{ type: "player", id: "p2" }],
+            });
+
+            it("owes the hand leg only on a graveyard cast", () => {
+                const { state, fb } = discardFlashbackState(1);
+                expect(getFlashbackAdditionalCost(fb)).toEqual({
+                    discard: { count: 1 },
+                });
+                expect(flashbackHandCostLeg(state, fb, "graveyard")).toEqual({
+                    hand: {
+                        action: "discard",
+                        requirements: [{ filter: {}, count: 1 }],
+                    },
+                });
+                expect(flashbackHandCostLeg(state, fb, "hand")).toBeUndefined();
+            });
+
+            it('offers "cast" only with a card in hand to discard', () => {
+                for (const [handCount, expected] of [
+                    [1, ["cast"]],
+                    [0, []],
+                ] as const) {
+                    const { state, fb } = discardFlashbackState(handCount);
+                    expect(
+                        getLegalActions(state, getPlayer(state, "p1"), fb)
+                    ).toEqual(expected);
+                    const projFb = projectPublicState(
+                        state,
+                        1,
+                        "p1"
+                    ).players[0].graveyard.find((c) => c.id === fb.id)!;
+                    expect(projFb.legalActions ?? []).toEqual(expected);
+                }
+            });
+
+            it("a forced discard is paid at commit and the spell exiles on resolve", () => {
+                const { state, fb } = discardFlashbackState(1);
+                finalizeTargetSelection(state, pt(fb.id), "p1");
+                if (state.pendingCast) tryAutoCommitPendingCast(state, "p1");
+                const p1 = getPlayer(state, "p1");
+                expect(p1.hand).toHaveLength(0);
+                expect(p1.graveyard.map((c) => c.id)).toContain("h0");
+                const item = state.stack.find((s) => s.id === fb.id)!;
+                expect(item.exileOnResolve).toBe(true);
+            });
+
+            it("a real choice parks the cast on the hand-cost picker", () => {
+                const { state, fb } = discardFlashbackState(2);
+                finalizeTargetSelection(state, pt(fb.id), "p1");
+                expect(state.stack).toHaveLength(0);
+                expect(
+                    state.pendingCast?.alternativeCostHandChoice
+                ).toMatchObject({
+                    action: "discard",
+                    requirements: [{ filter: {}, count: 1 }],
+                });
+                recordCastAlternativeHandCostPick(state, "p1", ["h1"]);
+                expect(tryAutoCommitPendingCast(state, "p1")).not.toBeNull();
+                const p1 = getPlayer(state, "p1");
+                expect(p1.hand.map((c) => c.id)).toEqual(["h0"]);
+                expect(p1.graveyard.map((c) => c.id)).toContain("h1");
+                expect(state.stack.map((s) => s.id)).toEqual([fb.id]);
             });
         });
 

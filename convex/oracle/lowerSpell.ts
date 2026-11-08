@@ -400,7 +400,11 @@ export function lowerFlashback(
     // catalogue writes the mana-only case as a bare `ManaCost` (Firebolt's
     // `flashback: { X: 4, R: 1 }`). Emitting the same shape keeps a compiled
     // row reading like the cards beside it.
-    if (cost.sacrifice === undefined && cost.life === undefined) {
+    if (
+        cost.sacrifice === undefined &&
+        cost.life === undefined &&
+        cost.discard === undefined
+    ) {
         if (cost.mana === undefined)
             return { ok: false, reason: "a flashback cost with no components" };
         return { ok: true, value: cost.mana };
@@ -409,6 +413,8 @@ export function lowerFlashback(
     if (cost.mana !== undefined) full.mana = cost.mana;
     if (cost.sacrifice !== undefined) full.sacrifice = cost.sacrifice;
     if (cost.life !== undefined) full.life = cost.life;
+    if (cost.discard !== undefined)
+        full.discard = { count: cost.discard.count };
     return { ok: true, value: full };
 }
 

@@ -8656,7 +8656,6 @@
         {"key":"d11b38573882","text":"Flashback—Tap three untapped creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Flashback—Tap three untapped creatures you control"}},
         {"key":"1b122b65a4b6","text":"Flashback—Tap three untapped white creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["activation cost"],"span":"colors"}},
         {"key":"011a319143a4","text":"Flashback—{1}{R}, Behold three Elementals.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Flashback—{1}{R}"}},
-        {"key":"626183dd9267","text":"Flashback—{1}{U/R}{U/R}, Discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Flashback—{1}{U/R}{U/R}"}},
         {"key":"a55eda9d4a47","text":"Flashback—{3}{R}, Remove X loyalty counters from among planeswalkers you control. If you cast this spell this way, X can't be 0.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Flashback—{3}{R}"}},
         {"key":"7c95d4b21d66","text":"Flashback—{R}{R}, Discard X cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Flashback—{R}{R}"}},
         {"key":"fefc2dd3f412","text":"Flashback—{R}{R}, Sacrifice X Mountains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Flashback—{R}{R}"}},
@@ -98707,7 +98706,7 @@
 
         {"oracleId":"fa1be67e-a07e-42ce-88be-446acd643dc6","name":"Heartless Summoning","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Heartless Summoning","types":["Enchantment"],"manaCost":{"X":1,"B":1},"oracleText":"Creature spells you cast cost {2} less to cast.\nCreatures you control get -1/-1.","compiledStaticEffects":[{"kind":"cost-modifier","spells":{"types":["Creature"],"controller":"you"},"reduction":2},{"kind":"pt-buff","filter":{"types":["Creature"],"controllerRelation":"you"},"power":-1,"toughness":-1}]},"botReach":"ignored","botGap":"never-chosen › Enchantment › (no Ops)"},
 
-        {"oracleId":"fa1cc78f-26bc-4d5d-973b-7cb7d7490973","name":"Twinned Vision","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["39bd19afbe3f","626183dd9267"]},
+        {"oracleId":"fa1cc78f-26bc-4d5d-973b-7cb7d7490973","name":"Twinned Vision","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["39bd19afbe3f"]},
 
         {"oracleId":"fa1dc21d-f7f6-425f-a4ae-2b0f143091e3","name":"Zeriam, Golden Wind","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8bf3c462c01a"]},
 
