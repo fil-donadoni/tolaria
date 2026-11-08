@@ -38,15 +38,17 @@ One command, no browser plugin, no interactive session — the lane a headless
 agent can actually run:
 
 ```
-bun run check:ui                              # the surfaces this diff reaches, all five viewports
+bun run check:ui                              # the surfaces this diff reaches, all six viewports
 bun run check:ui -- --all                     # every surface, whatever the diff (by hand only)
 bun run check:ui -- --scope-only              # print the scope, no browser
                                                # (full/undecided: exit 5, impact
                                                # printed; --all is the owner's call)
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --headed                  # watch it walk
-bun run check:ui -- --parallel=1              # N viewports at once, 1..5
+bun run check:ui -- --parallel=1              # N viewports at once, 1..6
 bun run check:ui -- --serve=dev               # walk the Vite dev server instead of the built bundle
+bun run check:ui -- --viewport=1440x900x1     # one viewport (DIAGNOSTIC, never a receipt)
+bun run check:ui -- --raster-dump=<dir>       # 3× crops of every sampled face, screen beside reference
 ```
 
 **One browser run per machine** (issue #4687). Two `check:ui` runs on one
@@ -73,10 +75,10 @@ scoped receipt accepts not to see (the Tailwind class scan, a sibling section
 under an open layer, base-branch graph drift) has no automated backstop.
 
 **Speed is sized to the machine the run owns** (issue #3653, re-sized in
-issue #4687). The five viewports are independent, so the lane walks several at
+issue #4687). The six viewports are independent, so the lane walks several at
 once — one context per core past the three it holds back for its own server,
 itself and the local backend, capped by total memory (one GiB per context past
-a 6 GiB reserve), clamped to 2..5. The 1-minute load average is no longer an
+a 6 GiB reserve), clamped to 2..6. The 1-minute load average is no longer an
 input: on a shared machine it is the neighbours' test suites, and sizing from
 it ran the five viewports in series 24 runs out of 25. The admission lock above
 guarantees this is the one browser run, so the count is a function of the
@@ -120,7 +122,7 @@ one line `land` byte-compares. A broken surface therefore spends its retry
 budget once per viewport rather than once per run: a RED run is slower, a green
 one is not, and the verdict is the same.
 
-`--parallel=N` (1..5) overrides the sizing — that is how you reproduce a
+`--parallel=N` (1..6) overrides the sizing — that is how you reproduce a
 receipt on a machine whose load differs from the one that produced it. **It
 cannot change the verdict**: every viewport reports its cells, and they are
 folded back into the fixed Viewport Matrix order before anything is printed or
@@ -132,7 +134,8 @@ read by `land`.
 It owns the whole lifecycle: it checks the Convex deployment answers, serves
 the app itself on `127.0.0.1` and a free port (your `bun run dev` is left
 alone), registers the run's own throwaway account and signs in as it, walks
-each surface in `scripts/ui-gate/surfaces.ts` at each of the five viewports,
+each surface in `scripts/ui-gate/surfaces.ts` at each of the six viewports
+(the DPR 1 desktop only on a surface that declares `cards`, ADR 0168),
 injects `scripts/ui-gate/probe.js` and `axe-core`, and holds every Floor at
 zero (`scripts/ui-gate/floors.ts`). Only a FAILING cell is screenshotted
 (issue #6145), at CSS pixels, with every offending box outlined and labelled
@@ -439,7 +442,7 @@ whole board censused while the lane photographs one screen.
 | Status     | What it means                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------- |
 | `walked`   | a WALKED surface names the file in `mounts` — it is on screen when the probe fires                |
-| `specimen` | `/admin/design-system` mounts it live, measured at all five viewports with no game                |
+| `specimen` | `/admin/design-system` mounts it live, measured at every viewport with no game                    |
 | `exempt`   | reviewed: it paints no layout of its own. The reason must say WHY, never where                    |
 | `debt`     | reviewed: it DOES owe a measurement and has none, recorded against the issue that owns closing it |
 
@@ -450,7 +453,7 @@ only home is an unwalked surface is uncovered and the census says so — declare
 debt must not launder itself into coverage.
 
 **"It lives on the board" is not an exemption**, it is a routing instruction:
-that page already mounts a live modal specimen at all five viewports without a
+that page already mounts a live modal specimen at every viewport without a
 live game. A locational reason is refused mechanically (`exemptionFault`).
 
 **Neither list may absorb a NEW element.** `DEBT` is frozen at the shape HEAD
