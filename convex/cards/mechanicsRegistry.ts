@@ -1289,7 +1289,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Transmute",
         kind: "keyword-ability",
         cr: "702.53",
-        status: "planned",
+        status: "implemented",
+        binding: "transmuteAbility",
+        note: 'CR 702.53a is an ACTIVATED ability that functions only from the hand, so the keyword adds no activation path of its own: `transmuteAbility` (`convex/cards/abilities/transmute.ts`) builds an ordinary `ActivatedAbility` in the shape `cyclingAbility` established — `activateFromHand: true`, `cost: { mana, discardThis: true }` (the discard routes through the CR 701.9 choke point; NOT a cycling cost, so "when you cycle" never fires), `sorcerySpeedOnly: true` ("Activate only as a sorcery", CR 602.5d), and the typecycling tutor-to-hand Effect Script (search-library `choice` → `reveal` → `moveZone` → shuffle) filtered by `manaValueEquals`. "The same mana value as the discarded card" is the card\'s PRINTED mana value (CR 202.3 — what the engine\'s own graveyard-card mana-value read computes), passed by the caller as a literal; the Oracle compiler\'s `transmute` keyword-line rule reads it off the card\'s mana cost (none = 0, CR 202.3a — Tolaria West). Used by the compiled Transmute cards (Tolaria West, Dizzy Spell, Muddle the Mixture, …).',
     },
     // 702.54 Bloodthirst
     {

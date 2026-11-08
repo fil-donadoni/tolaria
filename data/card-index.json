@@ -20608,6 +20608,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dimir House Guard",
+        "scryfallId": "9a021caf-d9e7-470b-85be-3af42a3adfd3",
+        "oracleId": "35c027cd-f754-4e41-9242-8a9d0481171c",
+        "firstSet": "rav",
+        "firstPrintId": "9a021caf-d9e7-470b-85be-3af42a3adfd3",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dimir Locket",
         "scryfallId": "dfb6810b-9bc9-43c5-8cd9-817b12ee3110",
         "oracleId": "3ae4b679-2e3c-4f60-bcf4-b279917cdc54",
@@ -21302,6 +21312,16 @@
         "firstSet": "fra",
         "firstPrintId": "960c7335-331d-488b-be68-2ad1c1c695dc",
         "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dizzy Spell",
+        "scryfallId": "6e0db10d-fb6d-44df-9ff2-6f1e0e8f8209",
+        "oracleId": "7de04284-dcaa-4b63-a734-fcfe2698f83c",
+        "firstSet": "rav",
+        "firstPrintId": "6e0db10d-fb6d-44df-9ff2-6f1e0e8f8209",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -22264,6 +22284,16 @@
         "firstSet": "ala",
         "firstPrintId": "4b65b7ad-4ab0-4622-81f4-434254625a1e",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Drift of Phantasms",
+        "scryfallId": "c1096ce5-f776-4028-b231-e6eaee35014b",
+        "oracleId": "6ee51134-c4ad-4101-8ce2-23dde9359cd4",
+        "firstSet": "rav",
+        "firstPrintId": "c1096ce5-f776-4028-b231-e6eaee35014b",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -25699,6 +25729,16 @@
         "firstPrintId": "f47dd220-6193-4e31-a1df-591b6424ad27",
         "firstPrintSet": "soi",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ethereal Usher",
+        "scryfallId": "908901b7-fb40-4358-bca5-5e71bdafcbe7",
+        "oracleId": "3ad6e495-d0e6-4b07-8f91-fe057e173975",
+        "firstSet": "rav",
+        "firstPrintId": "908901b7-fb40-4358-bca5-5e71bdafcbe7",
+        "firstPrintSet": "rav",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -52361,6 +52401,16 @@
         "firstSet": "lrw",
         "firstPrintId": "50575eab-6c23-4f63-9667-458416c5caa5",
         "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Muddle the Mixture",
+        "scryfallId": "4cc785b0-0a77-4b02-b0b4-2bda2fc621cc",
+        "oracleId": "0826cf7d-7ccc-459b-a92f-29dc169628f8",
+        "firstSet": "rav",
+        "firstPrintId": "4cc785b0-0a77-4b02-b0b4-2bda2fc621cc",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -83964,6 +84014,16 @@
         "firstSet": "leg",
         "firstPrintId": "d43c01b7-443d-4061-a934-6863d230c9b8",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Tolaria West",
+        "scryfallId": "a9e80f06-ea05-4151-920f-7ddc88952169",
+        "oracleId": "46eefc72-2d9e-4389-8ae1-26d9ee472b5c",
+        "firstSet": "fut",
+        "firstPrintId": "a9e80f06-ea05-4151-920f-7ddc88952169",
+        "firstPrintSet": "fut",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Tolarian Academy",

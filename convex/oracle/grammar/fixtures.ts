@@ -30,6 +30,9 @@ export interface GoldenFixture {
     readonly expected: CompiledDefinition;
 }
 
+const TOLARIA_WEST_TEXT =
+    "This land enters tapped.\n{T}: Add {U}.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with mana value 0, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)";
+
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
@@ -344,6 +347,74 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             then: [
                                 { op: "draw", player: "controller", count: 1 },
                             ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.53a — "Transmute [cost]": the ability's library search binds the
+    // found card and reveals it and moves it into the hand — runtime-bound
+    // reads and a zone move the canned smoke scenario does not model. Tolaria
+    // West has no mana cost, so it searches for mana value 0 (CR 202.3a).
+    {
+        rule: "transmute",
+        card: {
+            oracleId: "46eefc72-2d9e-4389-8ae1-26d9ee472b5c",
+            name: "Tolaria West",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText: TOLARIA_WEST_TEXT,
+            layout: "normal",
+        },
+        expected: {
+            name: "Tolaria West",
+            types: ["Land"],
+            oracleText: TOLARIA_WEST_TEXT,
+            entersTapped: true,
+            activatedAbilities: [
+                {
+                    id: "tolaria-west-mana",
+                    oracleText: "{T}: Add {U}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { U: 1 },
+                },
+                {
+                    id: "transmute",
+                    oracleText:
+                        "Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)",
+                    cost: { mana: { X: 1, U: 2 }, discardThis: true },
+                    activateFromHand: true,
+                    useStack: true,
+                    sorcerySpeedOnly: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { manaValueEquals: 0 },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a card with mana value 0 (or none).",
+                            bind: "$transmuted",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$transmuted" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$transmuted" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
                         },
                     ],
                 },

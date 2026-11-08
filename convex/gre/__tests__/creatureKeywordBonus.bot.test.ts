@@ -167,6 +167,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.84a — unearth functions in the graveyard: its worth is the return
     // the search reaches, never a quality of the body on the battlefield.
     "unearth",
+    // CR 702.53a — transmute functions only from the hand: its worth is the
+    // tutor the search reaches, never a quality of the body on the battlefield.
+    "transmute",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

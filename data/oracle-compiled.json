@@ -15257,9 +15257,6 @@
         {"key":"db3bbf0d2814","text":"Transform all artifacts and Phyrexian creatures on their front face. Prevent all combat damage that would be dealt this turn by creatures other than Phyrexians.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"Transform all artifacts and Phyrexian creatures on their front face"}},
         {"key":"e6f7f3b91b9c","text":"Transform up to one target Werewolf you control. Creatures you control gain trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"Transform up to one target Werewolf you control"}},
         {"key":"170504dc0419","text":"Translocation Protocols — {3}, {T}: Mill three cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Translocation Protocols — {3}"}},
-        {"key":"4511a5d4aa18","text":"Transmute {1}{B}{B}","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Transmute {1}{B}{B}"}},
-        {"key":"bb23b22fae3d","text":"Transmute {1}{U}{B}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Transmute {1}{U}{B}"}},
-        {"key":"6500c1b73454","text":"Transmute {1}{U}{U}","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Transmute {1}{U}{U}"}},
         {"key":"104b8ff4b290","text":"Traproot Kami's toughness is equal to the number of Forests on the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Traproot Kami's toughness is equal to the number of Forests on the battlefield"}},
         {"key":"b0c47640122e","text":"Treasure Hunter — At the beginning of your upkeep, if you control thirty or more artifacts, you win the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you control thirty or more artifacts"}},
         {"key":"b6d37ef6b6fc","text":"Treasures you control are Equipment in addition to their other types and have \"Equipped creature gets +2/+0,\" equip Pirate {1}, and equip {3}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Treasures you control are Equipment in addition to their other types and have \"Equipped creature gets +2/+0,\" equip Pirate {1}, and equip {3}"}},
@@ -29648,6 +29645,7 @@
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant › choice+delayedTrigger+if+libraryLook+loseGame+mayPay+moveZone+reveal","outcome":"ignored","cards":1},
@@ -31980,7 +31978,7 @@
 
         {"oracleId":"08261b68-b261-4e47-a085-c489ba394108","name":"Tyrranax Atrocity","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e3e13633e9fb"]},
 
-        {"oracleId":"0826cf7d-7ccc-459b-a92f-29dc169628f8","name":"Muddle the Mixture","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6500c1b73454"]},
+        {"oracleId":"0826cf7d-7ccc-459b-a92f-29dc169628f8","name":"Muddle the Mixture","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","counter","libraryLook","moveZone","reveal"],"definition":{"name":"Muddle the Mixture","types":["Instant"],"manaCost":{"U":2},"oracleText":"Counter target instant or sorcery spell.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":2},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 2 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1,"spellTypeFilter":["Instant","Sorcery"]}},"botReach":"ignored","botGap":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal"},
 
         {"oracleId":"0828d891-f7c3-4e51-b42e-6ce88d48ac8b","name":"Icewrought Sentry","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d27144d297e9","de31adbe4ac0"]},
 
@@ -36010,7 +36008,7 @@
 
         {"oracleId":"16cadebf-c484-41f8-9e38-5c2c528f5b54","name":"Helm of Obedience","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["062a88750d12"]},
 
-        {"oracleId":"16cae855-d93a-445d-9cac-dbc5a7c18cb1","name":"Shred Memory","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4511a5d4aa18","e44d49c9273d"]},
+        {"oracleId":"16cae855-d93a-445d-9cac-dbc5a7c18cb1","name":"Shred Memory","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e44d49c9273d"]},
 
         {"oracleId":"16cb916d-bb19-42ec-9a01-969e9d067b40","name":"Symmetry Sage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fe6b0877fafd"]},
 
@@ -37060,7 +37058,7 @@
 
         {"oracleId":"1a6e8369-241f-4ddc-b4cd-a974d6b689a7","name":"Scoria Elemental","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Scoria Elemental","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":4,"R":1},"power":6,"toughness":1},"botReach":"played"},
 
-        {"oracleId":"1a6ed882-ea6c-4dc2-8614-541e4a56b43c","name":"Netherborn Phalanx","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c73e1e524da","4511a5d4aa18"]},
+        {"oracleId":"1a6ed882-ea6c-4dc2-8614-541e4a56b43c","name":"Netherborn Phalanx","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c73e1e524da"]},
 
         {"oracleId":"1a6fce11-e77c-41f1-9ff7-9a93b18071db","name":"Ebondeath, Dracolich","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c3761a39483c"]},
 
@@ -43138,7 +43136,7 @@
 
         {"oracleId":"316c265b-67e2-48b3-aac8-07a898dbb20f","name":"Crown of Convergence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["93a1da3e707e","d1e4602b0377"]},
 
-        {"oracleId":"316cae8b-31b0-4b76-8b72-8122005e1b4e","name":"Clutch of the Undercity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bb23b22fae3d","e3f3a6d6bfe7"]},
+        {"oracleId":"316cae8b-31b0-4b76-8b72-8122005e1b4e","name":"Clutch of the Undercity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e3f3a6d6bfe7"]},
 
         {"oracleId":"316d49a0-620b-4942-a5e8-04cff15e6c01","name":"Krav, the Unredeemed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["865ecbe0c899","b647fb980a51"]},
 
@@ -44330,7 +44328,7 @@
 
         {"oracleId":"35bf67e0-8141-4664-b762-2c613353e1eb","name":"Acolyte of the Inferno","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1cecf02da197","695fcd68604a"]},
 
-        {"oracleId":"35c027cd-f754-4e41-9242-8a9d0481171c","name":"Dimir House Guard","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4511a5d4aa18"]},
+        {"oracleId":"35c027cd-f754-4e41-9242-8a9d0481171c","name":"Dimir House Guard","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["choice","libraryLook","moveZone","regenerate","reveal"],"definition":{"name":"Dimir House Guard","types":["Creature"],"subtypes":["Skeleton"],"manaCost":{"X":3,"B":1},"power":2,"toughness":3,"oracleText":"Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nSacrifice a creature: Regenerate this creature.\nTransmute {1}{B}{B} ({1}{B}{B}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","staticAbilities":["fear"],"activatedAbilities":[{"id":"dimir-house-guard-ability","oracleText":"Sacrifice a creature: Regenerate this creature.","cost":{"sacrificeFilter":{"types":["Creature"]}},"useStack":true,"effects":[{"op":"regenerate","target":{"ref":"$source"}}]},{"id":"transmute","oracleText":"Transmute {1}{B}{B} ({1}{B}{B}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"B":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":4},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 4 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"35c416c6-f522-4b4c-93db-75c4e01843d1","name":"King Narfi's Betrayal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10119c0db91e","13146c1d3b52"]},
 
@@ -45756,7 +45754,7 @@
 
         {"oracleId":"3ad69bfb-2e51-4fe9-8d2f-7d071a4f1c69","name":"Okina, Temple to the Grandfathers","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability"],"opsUsed":["pump"],"definition":{"name":"Okina, Temple to the Grandfathers","types":["Land"],"supertypes":["Legendary"],"oracleText":"{T}: Add {G}.\n{G}, {T}: Target legendary creature gets +1/+1 until end of turn.","activatedAbilities":[{"id":"okina-temple-to-the-grandfathers-mana","oracleText":"{T}: Add {G}.","cost":{"tap":true},"useStack":false,"manaProduced":{"G":1}},{"id":"okina-temple-to-the-grandfathers-ability-2","oracleText":"{G}, {T}: Target legendary creature gets +1/+1 until end of turn.","cost":{"mana":{"G":1},"tap":true},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1,"supertypeFilter":["Legendary"]}}]},"botReach":"played"},
 
-        {"oracleId":"3ad6e495-d0e6-4b07-8f91-fe057e173975","name":"Ethereal Usher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6500c1b73454"]},
+        {"oracleId":"3ad6e495-d0e6-4b07-8f91-fe057e173975","name":"Ethereal Usher","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["choice","libraryLook","moveZone","restrictCombat","reveal"],"definition":{"name":"Ethereal Usher","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":5,"U":1},"power":2,"toughness":3,"oracleText":"{U}, {T}: Target creature can't be blocked this turn.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"ethereal-usher-ability","oracleText":"{U}, {T}: Target creature can't be blocked this turn.","cost":{"mana":{"U":1},"tap":true},"useStack":true,"effects":[{"op":"restrictCombat","restriction":"cant-be-blocked","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":6},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 6 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"3ad79bf0-f3dd-4433-b727-a3b285ea2412","name":"Network Marauder","state":"unparsed","gaps":["1be9473db504"]},
 
@@ -49118,7 +49116,7 @@
 
         {"oracleId":"46ed38d1-e642-4cea-99ed-a9c17fd982b1","name":"Sultai Charm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7d7914f00162"]},
 
-        {"oracleId":"46eefc72-2d9e-4389-8ae1-26d9ee472b5c","name":"Tolaria West","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6500c1b73454"]},
+        {"oracleId":"46eefc72-2d9e-4389-8ae1-26d9ee472b5c","name":"Tolaria West","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability","static"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Tolaria West","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {U}.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with mana value 0, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"tolaria-west-mana","oracleText":"{T}: Add {U}.","cost":{"tap":true},"useStack":false,"manaProduced":{"U":1}},{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":0},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 0 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"46f01d1c-7ab6-4a58-97ce-57a4eb99843c","name":"Wary Okapi","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Wary Okapi","types":["Creature"],"subtypes":["Antelope"],"manaCost":{"X":2,"G":1},"power":3,"toughness":2,"oracleText":"Vigilance","staticAbilities":["vigilance"]},"botReach":"played"},
 
@@ -60108,7 +60106,7 @@
 
         {"oracleId":"6ee431f3-64ec-4015-8f5a-9c2ac6004ebd","name":"Sinister Possession","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["02ea67ff7584"]},
 
-        {"oracleId":"6ee51134-c4ad-4101-8ce2-23dde9359cd4","name":"Drift of Phantasms","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6500c1b73454"]},
+        {"oracleId":"6ee51134-c4ad-4101-8ce2-23dde9359cd4","name":"Drift of Phantasms","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Drift of Phantasms","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":2,"U":1},"power":0,"toughness":5,"oracleText":"Defender (This creature can't attack.)\nFlying\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","staticAbilities":["defender","flying"],"activatedAbilities":[{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":3},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 3 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"6ee68855-c8c5-422b-88da-163c09a96416","name":"Scorched Ruins","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["4820ca4794ec"]},
 
@@ -64306,7 +64304,7 @@
 
         {"oracleId":"7de034a4-a42a-4e60-9ec9-5e9bb9987cfa","name":"Metallic Mastery","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fe2f24dc9c63"]},
 
-        {"oracleId":"7de04284-dcaa-4b63-a734-fcfe2698f83c","name":"Dizzy Spell","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6500c1b73454"]},
+        {"oracleId":"7de04284-dcaa-4b63-a734-fcfe2698f83c","name":"Dizzy Spell","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","libraryLook","moveZone","pump","reveal"],"definition":{"name":"Dizzy Spell","types":["Instant"],"manaCost":{"U":1},"oracleText":"Target creature gets -3/-0 until end of turn.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":1},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 1 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"effects":[{"op":"pump","target":{"target":0},"power":-3,"toughness":0,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"7de2a364-4383-437a-b6d6-55e4721a0141","name":"Dúnedain Rangers","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["46bad3d15943"]},
 
@@ -69014,7 +69012,7 @@
 
         {"oracleId":"8ecbbf14-68c3-4378-9fce-383f9d901bfa","name":"Kytheon's Tactics","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9f9ef2cad921"]},
 
-        {"oracleId":"8ecbc87e-a63e-4afc-b5eb-2fc3dcd685f5","name":"Grozoth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3db7dca9ee99","580067109345","6500c1b73454"]},
+        {"oracleId":"8ecbc87e-a63e-4afc-b5eb-2fc3dcd685f5","name":"Grozoth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3db7dca9ee99","580067109345"]},
 
         {"oracleId":"8ecd3743-7c32-41ce-9ac1-c8c855a47302","name":"Nurturing Pixie","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1aa482b0d189"]},
 
@@ -69408,7 +69406,7 @@
 
         {"oracleId":"904b9056-ad76-4805-b14f-c426e4a57bae","name":"Thunder Wall","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Thunder Wall","types":["Creature"],"subtypes":["Wall"],"manaCost":{"X":1,"U":2},"power":0,"toughness":2,"oracleText":"Defender (This creature can't attack.)\nFlying\n{U}: This creature gets +1/+1 until end of turn.","staticAbilities":["defender","flying"],"activatedAbilities":[{"id":"thunder-wall-ability","oracleText":"{U}: This creature gets +1/+1 until end of turn.","cost":{"mana":{"U":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"904f9e0c-cb7f-4611-8bf7-2e408e8ab237","name":"Perplex","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["36639da527fb","bb23b22fae3d"]},
+        {"oracleId":"904f9e0c-cb7f-4611-8bf7-2e408e8ab237","name":"Perplex","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["36639da527fb"]},
 
         {"oracleId":"90514aa5-84b6-4be7-b6d0-b05529c97140","name":"Hellcarver Demon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["175d2f16d94a"]},
 
@@ -85400,7 +85398,7 @@
 
         {"oracleId":"cab305d9-27fb-4a41-adf1-892e15167cb9","name":"Drowned Secrets","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["mill"],"definition":{"name":"Drowned Secrets","types":["Enchantment"],"manaCost":{"X":1,"U":1},"oracleText":"Whenever you cast a blue spell, target player mills two cards.","compiledTriggeredAbilities":[{"id":"drowned-secrets-trigger","oracleText":"Whenever you cast a blue spell, target player mills two cards.","head":{"kind":"spell-cast","scope":"you","filter":{"colors":["U"]}},"targetRequirement":{"type":"player","count":1},"effects":[{"op":"mill","player":{"target":0},"count":2}]}]},"botReach":"played"},
 
-        {"oracleId":"cab67380-4e1a-4210-a98b-d2a21022b4b7","name":"Dimir Machinations","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4511a5d4aa18","c8b4a3852cbd"]},
+        {"oracleId":"cab67380-4e1a-4210-a98b-d2a21022b4b7","name":"Dimir Machinations","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c8b4a3852cbd"]},
 
         {"oracleId":"cab718af-8e6f-4766-856e-3a61ba98f94d","name":"Qo'noS","state":"ready","slots":["mana-ability","static","triggered"],"opsUsed":["gainLife"],"definition":{"name":"Qo'noS","types":["Land"],"subtypes":["Planet"],"oracleText":"This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {B} or {R}.","activatedAbilities":[{"id":"qo-nos-mana","oracleText":"{T}: Add {B} or {R}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"B":1},{"R":1}]}],"compiledTriggeredAbilities":[{"id":"qo-nos-trigger","oracleText":"When this land enters, you gain 1 life.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"gainLife","player":"controller","amount":1}]}],"entersTapped":true},"botReach":"played"},
 
@@ -87514,7 +87512,7 @@
 
         {"oracleId":"d2145ad3-fe7e-459b-b155-1b3ed089e936","name":"Steady Progress","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e3756a6b7e3e"]},
 
-        {"oracleId":"d215127b-5f1d-4d3c-935b-c228c9c7f874","name":"Dimir Infiltrator","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8138921e417b","bb23b22fae3d"]},
+        {"oracleId":"d215127b-5f1d-4d3c-935b-c228c9c7f874","name":"Dimir Infiltrator","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8138921e417b"]},
 
         {"oracleId":"d215cd4a-412c-4632-ab2d-de51103e6a7d","name":"Argivian Avenger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ce5f10a6d841"]},
 
@@ -90688,7 +90686,7 @@
 
         {"oracleId":"dd45c284-c34c-4085-8066-dbeee223fb6e","name":"March of Progress","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ff717535e821"]},
 
-        {"oracleId":"dd464a76-5f96-4e21-b7c6-4a476e7f9ce6","name":"Brainspoil","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3e8258fcd1e6","4511a5d4aa18"]},
+        {"oracleId":"dd464a76-5f96-4e21-b7c6-4a476e7f9ce6","name":"Brainspoil","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3e8258fcd1e6"]},
 
         {"oracleId":"dd489f30-d1cf-4236-8390-9c21cd8659e0","name":"Blizzard Elemental","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["tapUntap"],"definition":{"name":"Blizzard Elemental","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":5,"U":2},"power":5,"toughness":5,"oracleText":"Flying\n{3}{U}: Untap this creature.","staticAbilities":["flying"],"activatedAbilities":[{"id":"blizzard-elemental-ability","oracleText":"{3}{U}: Untap this creature.","cost":{"mana":{"X":3,"U":1}},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
