@@ -25,6 +25,7 @@ import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { claimRefusal, issueLabelArgs } from "./lib/claim-labels";
 import { gh } from "./lib/gh";
+import { radiusRefusal } from "./lib/radius-check";
 import {
     isAdoptableWorktree,
     issueWorktree,
@@ -88,6 +89,22 @@ function main(): void {
     );
     if (refusal !== null) {
         console.error(`✗ wt:new: ${refusal}`);
+        process.exit(1);
+    }
+    // Nothing is branched for an issue with no readable radius (issue #8937);
+    // a failed read fails open.
+    let body: string | null = null;
+    try {
+        body = JSON.parse(
+            gh(["issue", "view", String(issue), "--json", "body"])
+        ).body as string;
+    } catch {
+        body = null;
+    }
+    const radius =
+        body === null ? null : radiusRefusal(`issue #${issue}`, body);
+    if (radius !== null) {
+        console.error(`✗ wt:new: ${radius}`);
         process.exit(1);
     }
     if (argv.includes("--resume")) {

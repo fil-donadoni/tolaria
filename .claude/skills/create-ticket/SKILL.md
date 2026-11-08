@@ -225,8 +225,10 @@ Create the issue — `<type>` = `bug` / `enhancement` (Step 4's Category),
 when not escalating):
 
 ```sh
-gh issue create --title "<title>" --body "<body>" --label "<type>" --label "area:<area>" --label "<queue>" --label "model:<opus|fable>"
+gh issue create --title "<title>" --body-file "$SCRATCHPAD/issue.md" --label "<type>" --label "area:<area>" --label "<queue>" --label "model:<opus|fable>"
 ```
+
+`## Target files` owed (issue #8937).
 
 Output the issue URL.
 
