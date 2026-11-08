@@ -734,15 +734,16 @@ describe("finalizeTargetSelection — a FORCED retrace discard survives the mana
 
 describe("castExtraHandCostLegs is the ONE authority every cast-commit path reads (issue #2358 review)", () => {
     it("folds the retrace leg only for a retrace cast, and the card's own discard leg always", () => {
-        expect(castExtraHandCostLegs(undefined, {})).toEqual([]);
-        expect(castExtraHandCostLegs(undefined, { viaRetrace: true })).toEqual([
-            RETRACE_COST_LEGS,
-        ]);
+        expect(castExtraHandCostLegs(undefined, {}, undefined)).toEqual([]);
+        expect(
+            castExtraHandCostLegs(undefined, { viaRetrace: true }, undefined)
+        ).toEqual([RETRACE_COST_LEGS]);
         // CR 118.8 + 702.81a on the same cast: both legs, declared cost first.
         expect(
             castExtraHandCostLegs(
                 { discard: { count: 1 } },
-                { viaRetrace: true }
+                { viaRetrace: true },
+                undefined
             )
         ).toEqual([
             {

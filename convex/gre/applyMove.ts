@@ -204,6 +204,7 @@ import { genericManaShortfall, spendGraveyardPlayPermission } from "./rules";
 import {
     buildCastExileCostChoice,
     castSourceForSearch,
+    flashbackHandCostLeg,
     findCastSourceCard,
     EXILE_ANY_TIME_LEAVES_STACK_FLAGS,
     graveyardGrantRiderFlags,
@@ -1724,6 +1725,29 @@ export function commitCastInSearch(
         const discard = cheapestFirst(player.hand)[0];
         if (!discard) return null;
         discardToGraveyard(state, playerId, discard.id, { kind: "cost" });
+    }
+    // CR 702.34a flashback, CR 701.9a discard — the flashback cost's discard leg (Twinned Vision),
+    // cheapest first like the jump-start discard above, through the seam the
+    // server commit reads. A stale Move whose hand cannot cover it is skipped.
+    if (castMechanism === "flashback") {
+        const handLeg = flashbackHandCostLeg(
+            state,
+            castSource.owner.graveyard.find(
+                (c) => c.id === move.cardInstanceId
+            )!,
+            castFromZone
+        )?.hand;
+        if (handLeg) {
+            const eligible = cheapestFirst(player.hand);
+            const picks = assignMayPayHandCards(
+                eligible,
+                handLeg,
+                eligible.map((c) => c.id)
+            );
+            if (!picks) return null;
+            for (const c of picks)
+                discardToGraveyard(state, playerId, c.id, { kind: "cost" });
+        }
     }
     // CR 702.143c — read before the removal clears the designation, exactly
     // as the server kernel (`castCommit.ts`) reads it.

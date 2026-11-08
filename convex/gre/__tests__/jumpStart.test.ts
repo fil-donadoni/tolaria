@@ -211,9 +211,13 @@ describe("Jump-start (CR 702.133a)", () => {
 
         it("castExtraHandCostLegs folds the leg only for a jump-start cast", () => {
             expect(
-                castExtraHandCostLegs(undefined, { viaJumpStart: true })
+                castExtraHandCostLegs(
+                    undefined,
+                    { viaJumpStart: true },
+                    undefined
+                )
             ).toEqual([JUMP_START_COST_LEGS]);
-            expect(castExtraHandCostLegs(undefined, {})).toEqual([]);
+            expect(castExtraHandCostLegs(undefined, {}, undefined)).toEqual([]);
         });
 
         it("a targeted cast discards the picked card, and the other stays in hand", () => {

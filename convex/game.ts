@@ -2560,6 +2560,7 @@ import {
     castRawManaCost,
     clearDeclinedExileRoute,
     exileCastRoutes,
+    flashbackHandCostLeg,
     flashbackLifeCost,
     libraryTopCastPayment,
     modalBackCastLicensed,
@@ -2577,7 +2578,11 @@ import type { CastFromZone } from "./gre/castCost";
  *     keyword-derived rather than declared on the definition and so can only be
  *     known from WHICH mechanism supplied this cast (`CastSource.viaRetrace`);
  *   - the JUMP-START additional cost (CR 702.133a — "discarding a card"),
- *     known the same way (`CastSource.viaJumpStart`).
+ *     known the same way (`CastSource.viaJumpStart`);
+ *   - the FLASHBACK cost's discard leg (CR 702.34a flashback, CR 701.9a discard — Twinned
+ *     Vision's "Discard a card"), passed in from `flashbackHandCostLeg`, the
+ *     seam that knows whether this graveyard cast uses flashback. REQUIRED
+ *     (pass `undefined` for none), for the same reason `extraLegs` is.
  *
  *  THE choke point (issue #2358 review, finding 1). It exists because the same
  *  cost was previously threaded per call site: `finalizeTargetSelection` spread
@@ -2595,6 +2600,7 @@ import type { CastFromZone } from "./gre/castCost";
 export function castExtraHandCostLegs(
     effectiveAdditionalCosts: AdditionalCostSpec | undefined,
     castSource: { viaRetrace?: true; viaJumpStart?: true },
+    flashbackHandLeg: CostLegs | undefined,
     // CR 601.2b / 118.4 — the announced X, for a `discard: { count: "X" }`
     // additional cost (Sickening Dreams, issue #2714). Every other leg ignores
     // it; a card with a fixed count is unaffected by its absence.
@@ -2608,6 +2614,7 @@ export function castExtraHandCostLegs(
         ...(additionalHandLeg ? [additionalHandLeg] : []),
         ...(castSource.viaRetrace ? [RETRACE_COST_LEGS] : []),
         ...(castSource.viaJumpStart ? [JUMP_START_COST_LEGS] : []),
+        ...(flashbackHandLeg ? [flashbackHandLeg] : []),
     ];
 }
 
@@ -5867,7 +5874,12 @@ export function finalizeTargetSelection(
         cardDef,
         kickerPayments,
         cardInstanceId,
-        castExtraHandCostLegs(effectiveAdditionalCosts, castSource, chosenX)
+        castExtraHandCostLegs(
+            effectiveAdditionalCosts,
+            castSource,
+            flashbackHandCostLeg(state, cardInHand, castZone),
+            chosenX
+        )
     );
     // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N cards"
     // additional cost: Flash of Insight's `flashbackExileFromGraveyard`, the
@@ -7842,6 +7854,7 @@ export const announceCast = mutation({
                 castExtraHandCostLegs(
                     effectiveAdditionalCosts,
                     castSource,
+                    flashbackHandCostLeg(state, cardInHand, castFromZone),
                     chosenX
                 )
             );
@@ -8246,7 +8259,12 @@ export const announceCast = mutation({
             cardDef,
             kickerPayments,
             args.cardInstanceId,
-            castExtraHandCostLegs(effectiveAdditionalCosts, castSource, chosenX)
+            castExtraHandCostLegs(
+                effectiveAdditionalCosts,
+                castSource,
+                flashbackHandCostLeg(state, cardInHand, castFromZone),
+                chosenX
+            )
         );
         // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N
         // cards" additional cost, in the ONE builder both commit sites read

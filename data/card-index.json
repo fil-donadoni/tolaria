@@ -85706,6 +85706,14 @@
         "source": "compiled"
     },
     {
+        "name": "Twinned Vision",
+        "scryfallId": "55f85984-0137-4899-8993-bbc8c4794d33",
+        "oracleId": "fa1cc78f-26bc-4d5d-973b-7cb7d7490973",
+        "firstSet": "fra",
+        "firstPrintId": "55f85984-0137-4899-8993-bbc8c4794d33",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Twins of Maurer Estate",
         "scryfallId": "3cc13a00-bd58-44fa-93af-846001ca4f84",
         "oracleId": "378110e9-62d6-4dcf-a2e3-813081c82ec4",

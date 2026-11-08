@@ -77,3 +77,42 @@ export const avatarOfBurgeoningEchoes = defineCard(() => ({
         },
     ],
 }));
+
+// Twinned Vision — {1}{U/R} Instant (FRA, issue #8656, modern-metagame).
+// "Draw a card. If this spell wasn't cast from your hand, draw two cards
+// instead. / Flashback—{1}{U/R}{U/R}, Discard a card."
+//
+// CR 601.2a — the branch reads the ZONE the spell was cast from (the
+// `castFromZone` predicate on `StackItem.castFromZone`): a flashback cast is
+// from the graveyard, so it draws two; a copy was never cast (CR 707.10), so
+// the predicate reads false and it draws two as well, which is what "wasn't
+// cast from your hand" says. CR 702.34a flashback, CR 701.9a discard — the flashback cost's
+// discard leg joins the cast's one hand-cost picker (`FlashbackCost.discard`).
+// hand-tail: "Draw a card. If this spell wasn't cast from your hand, draw two cards instead." (#8656)
+export const twinnedVision = defineCard(() => ({
+    id: "55f85984-0137-4899-8993-bbc8c4794d33",
+    name: "Twinned Vision",
+    rarity: "common",
+    oracleText:
+        "Draw a card. If this spell wasn't cast from your hand, draw two cards instead.\nFlashback—{1}{U/R}{U/R}, Discard a card. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+    manaCost: { X: 1, hybrid: [["U", "R"]] },
+    types: ["Instant"],
+    flashback: {
+        mana: {
+            X: 1,
+            hybrid: [
+                ["U", "R"],
+                ["U", "R"],
+            ],
+        },
+        discard: { count: 1 },
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: { castFromZone: "hand" },
+            then: [{ op: "draw", player: "controller", count: 1 }],
+            else: [{ op: "draw", player: "controller", count: 2 }],
+        },
+    ],
+}));

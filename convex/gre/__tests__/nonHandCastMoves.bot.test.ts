@@ -357,6 +357,43 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         });
     });
 
+    describe("flashback discard leg (CR 702.34a flashback, CR 701.9a discard)", () => {
+        // Ancestral Recall again: its resolution draws, so the graveyard is
+        // where the paid discard shows.
+        const discardBolt = () =>
+            makeInstance(ancestralRecall().id, {
+                id: "gyBolt",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+                grantedFlashback: { discard: { count: 1 } },
+            });
+
+        it("does not offer it with an empty hand", () => {
+            const state = graveyardBoard(discardBolt(), []);
+            expect(castOf(state, "p1", "gyBolt")).toBeUndefined();
+        });
+
+        it("the search sandbox discards a card from hand", () => {
+            const state = graveyardBoard(discardBolt(), []);
+            const p1 = getPlayer(state, "p1");
+            p1.hand = [
+                makeInstance(grizzlyBears().id, {
+                    id: "handBear",
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ];
+            const move = castOf(state, "p1", "gyBolt")!;
+            expect(move).toBeDefined();
+            const next = applyMoveForSearch(cloneGameState(state), "p1", move);
+            expect(getPlayer(next, "p1").graveyard.map((c) => c.id)).toContain(
+                "handBear"
+            );
+        });
+    });
+
     it("offers the INTRINSIC graveyard permission (CR 702.51 — Hogaak's shape)", () => {
         // The one shipped card with `castableFromOwnGraveyard` is Hogaak,
         // whose cost is payable ONLY by convoke + delve
