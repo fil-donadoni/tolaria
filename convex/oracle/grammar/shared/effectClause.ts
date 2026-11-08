@@ -4569,6 +4569,37 @@ export function assembleSentences(
                 ok: false,
                 reason: '"… protection from the chosen color" follows no "Choose a color."',
             };
+        // CR 707.10c — "You may choose new targets for the copy." is the
+        // offer of the copy the sentence right before it made, and of nothing
+        // else: it folds into that lone `copyTargetSpell` frame.
+        if (
+            sentence.effect.kind === undefined &&
+            isLoneFrame(sentence.effect, "chooseNewTargetsForCopy")
+        ) {
+            const previous = effects[effects.length - 1];
+            const copy =
+                previous !== undefined &&
+                previous.kind === undefined &&
+                isLoneFrame(previous, "copyTargetSpell")
+                    ? previous.frames[0]!
+                    : null;
+            if (
+                previous === undefined ||
+                previous.kind !== undefined ||
+                copy === null ||
+                copy.frame !== "copyTargetSpell" ||
+                copy.newTargets !== undefined
+            )
+                return {
+                    ok: false,
+                    reason: '"You may choose new targets for the copy." follows no copy of a target spell',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                frames: [{ ...copy, newTargets: true }],
+            };
+            continue;
+        }
         effects.push(sentence.effect);
     }
     const coinFlipRefused = flushCoinFlip();

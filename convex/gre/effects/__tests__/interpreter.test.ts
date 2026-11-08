@@ -29,6 +29,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../cards/__tests__/setup.helper";
 import {
     resolveTopOfStack,
@@ -37878,6 +37879,114 @@ describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
         );
         // No target recorded: the player slot is empty.
         resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.isCopy === true)).toBe(false);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+});
+
+describe("Effect Script Op: copySpell (CR 707.10, CR 707.10c)", () => {
+    // The copier is an ACTIVATED ability (Nivix Guildmage's shape): the copy
+    // is controlled by the player under whose control it was put on the stack
+    // (CR 707.10) — the ability's controller — whoever controls the original.
+    const COPIER_ID = "test-op-copy-spell-copier";
+    registerTokenDefinition({
+        id: COPIER_ID,
+        name: COPIER_ID,
+        rarity: "common",
+        manaCost: {},
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        activatedAbilities: [
+            {
+                id: "copy-offer",
+                cost: { mana: {} },
+                effects: [
+                    {
+                        op: "copySpell",
+                        target: { target: 0 },
+                        newTargets: true,
+                    },
+                ],
+                targetRequirement: { type: "spell", count: 1 },
+            },
+            {
+                id: "copy-keep",
+                cost: { mana: {} },
+                effects: [{ op: "copySpell", target: { target: 0 } }],
+                targetRequirement: { type: "spell", count: 1 },
+            },
+        ],
+    } as CardDefinition);
+    const BURN_ID = registerScript(
+        "test-op-copy-spell-burn",
+        [{ op: "dealDamage", to: { target: 0 }, amount: 1 }],
+        { types: ["Instant"], targetRequirement: { type: "any", count: 1 } }
+    );
+
+    function board() {
+        const copier = makeInstance(COPIER_ID, {
+            id: "copier",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [copier] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The original is p2's, aimed at p1: the copy must still be p1's.
+        const original = pushSpell(state, BURN_ID, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        return { state, copier, original };
+    }
+
+    it("copies the target spell under the ability's controller and offers them new targets (CR 707.10c)", () => {
+        const { state, copier, original } = board();
+        resolveActivated(state, copier, "copy-offer", [
+            { type: "spell", id: original.id },
+        ]);
+
+        const copy = state.stack.find((s) => s.isCopy === true);
+        expect(copy).toBeDefined();
+        expect((copy!.card as { id: string }).id).toBe(BURN_ID);
+        expect(copy!.controllerId).toBe("p1");
+        // CR 707.10 — the copy copies the original's targets.
+        expect(copy!.targets).toEqual([{ type: "player", id: "p1" }]);
+        // The copy sits above the original: it resolves first.
+        expect(state.stack.indexOf(copy!)).toBeGreaterThan(
+            state.stack.indexOf(original)
+        );
+        expect(state.pendingTarget?.kind).toBe("copy-retarget");
+        expect(state.pendingTarget?.cardInstanceId).toBe(copy!.id);
+        expect(state.pendingTarget?.playerId).toBe("p1");
+
+        // Wire format: the copy survives projection with its controller.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack.find((s) => s.id === copy!.id);
+        expect(slim?.controllerId).toBe("p1");
+    });
+
+    it("keeps the original's targets without `newTargets` (CR 707.10c)", () => {
+        const { state, copier, original } = board();
+        resolveActivated(state, copier, "copy-keep", [
+            { type: "spell", id: original.id },
+        ]);
+        const copy = state.stack.find((s) => s.isCopy === true);
+        expect(copy?.controllerId).toBe("p1");
+        expect(copy?.targets).toEqual([{ type: "player", id: "p1" }]);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("skips when the target spell already left the stack (CR 608.2b)", () => {
+        const { state, copier, original } = board();
+        state.stack = state.stack.filter((s) => s.id !== original.id);
+        resolveActivated(state, copier, "copy-offer", [
+            { type: "spell", id: original.id },
+        ]);
         expect(state.stack.some((s) => s.isCopy === true)).toBe(false);
         expect(state.pendingTarget).toBeUndefined();
     });

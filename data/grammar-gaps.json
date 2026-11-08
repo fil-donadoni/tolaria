@@ -4527,6 +4527,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Mirrorpool",
+            "issue": 8856
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mirrorwood Treefolk",
             "issue": 4595
         },

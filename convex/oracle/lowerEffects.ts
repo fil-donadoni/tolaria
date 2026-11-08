@@ -6205,6 +6205,33 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 707.10 + CR 707.10c — the announced spell is copied under
+            // the resolving controller's control, its controller offered new
+            // targets. The copy that keeps its targets has no fixture.
+            case "copyTargetSpell": {
+                if (frame.newTargets !== true)
+                    return unlowerable(
+                        "a copy of a target spell is read only with its new-targets offer"
+                    );
+                const target = spellSelector(
+                    { kind: "target", requirement: frame.requirement },
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                if ("ref" in target.value)
+                    return unlowerable("a copy names an announced spell");
+                ops.push({
+                    op: "copySpell",
+                    target: target.value,
+                    newTargets: true,
+                });
+                break;
+            }
+            case "chooseNewTargetsForCopy":
+                return unlowerable(
+                    '"new targets for the copy" follows no copy of a target spell'
+                );
             // CR 115.7d — "it" reads the one spell announced before it. No
             // "may" gate: declining the offer leaves the targets unchanged.
             case "chooseNewTargets": {
