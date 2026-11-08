@@ -303,17 +303,14 @@ function censusGrantedKeywords(
                 acc.plannedMechanics.push("protection");
             continue;
         }
-        // CR 613.1f — an animation that prints "with <keyword>", or a pump
-        // that prints "and gains <keyword>", grants it the same way a bare
-        // grant does, so it is censused against the same row.
+        // CR 613.1f — an animation that prints "with <keyword>" grants it the
+        // same way a bare grant does, so it is censused against the same row.
         const granted =
             sentence.kind === "grant-ability"
                 ? sentence.keyword
                 : sentence.kind === "animate"
                   ? sentence.self?.keyword
-                  : sentence.kind === "pump"
-                    ? sentence.grant
-                    : undefined;
+                  : undefined;
         if (granted === undefined) continue;
         const { ability, status } = granted;
         if (status !== "implemented") acc.plannedMechanics.push(ability);
