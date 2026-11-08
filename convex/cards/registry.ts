@@ -1,6 +1,7 @@
 import type {
     ActivatedAbility,
     AiCombatHint,
+    AiValueOverride,
     CardBackFace,
     CardDefinition,
     CardImageFace,
@@ -1568,8 +1569,8 @@ export function getPermanentManaValueCost(instance: {
  *  registry. Returns undefined when the card has no override. */
 export function getInstanceAiValue(instance: {
     card: Record<string, unknown>;
-}): number | undefined {
-    const embedded = (instance.card as { aiValue?: number }).aiValue;
+}): AiValueOverride | undefined {
+    const embedded = (instance.card as { aiValue?: AiValueOverride }).aiValue;
     if (embedded !== undefined) return embedded;
     const id = (instance.card as { id?: string }).id;
     return id ? (tryGetDefinition(id)?.aiValue ?? undefined) : undefined;

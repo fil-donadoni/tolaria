@@ -18,6 +18,7 @@
 // but now delegates their shared body math (`creatureValueRaw`, the latent
 // core) to this module so there is exactly one implementation.
 import type {
+    AiValueOverride,
     CardDefinition,
     PermanentFilter,
     PermanentView,
@@ -101,6 +102,22 @@ import { creatureValueRaw, nonCreatureBodyRaw } from "./creatureBody";
 // magnitude rather than an arbitrary new number.
 export const MAX_LATENT_SCRIPT_VALUE = 300;
 
+/** Issue #7744 — an `aiValue` override's worth at `discount`. A scalar is
+ *  taken verbatim; a representative body is `discount × creatureValueRaw(body)
+ *  + premium`, so it moves with the valuing weights' latent creature discount
+ *  exactly as every vanilla creature's latent worth does, and no source
+ *  literal goes stale when a refit moves that discount. */
+export function resolveAiValue(
+    override: AiValueOverride,
+    discount: number
+): number {
+    if (typeof override === "number") return override;
+    const { power, toughness, manaValue: mv } = override.representativeBody;
+    return (
+        discount * creatureValueRaw(power, toughness, mv, []) + override.premium
+    );
+}
+
 /** Latent worth from a card's raw characteristics (ADR 0018), with the
  *  DSL-derived semantic layer wired in (PRD #1423, issue #1426), and the
  *  `aiEffects` shadow-script mechanism (issue #1431). PRD #1423's precedence
@@ -157,7 +174,7 @@ export function latentValue(chars: {
     toughness: number;
     manaValue: number;
     staticAbilities: readonly string[];
-    aiValue?: number;
+    aiValue?: AiValueOverride;
     /** DSL spell-script value (a non-creature's `effects[]`/`aiEffects`);
      *  undefined when the card has no spell script. */
     dslSpellValue?: number;
@@ -237,16 +254,22 @@ export function latentValue(chars: {
     etbSelfSacrificeWeight?: number;
 }): number {
     if (chars.isCreature) {
-        // A creature's `aiValue` overrides its WHOLE computed worth (body +
-        // ability scripts) outright — unaffected by the effects[]→aiEffects
-        // chain below, which targets the spell-script (non-creature) path.
-        if (chars.aiValue !== undefined) return chars.aiValue;
-        const body =
-            (chars.staticAbilities.includes("flash") || chars.castAsThoughFlash
+        const discount =
+            chars.staticAbilities.includes("flash") || chars.castAsThoughFlash
                 ? (chars.flashCreatureDiscount ??
                   DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount)
                 : (chars.creatureDiscount ??
-                  DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount)) *
+                  DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount);
+        // A creature's `aiValue` overrides its WHOLE computed worth (body +
+        // ability scripts) outright — unaffected by the effects[]→aiEffects
+        // chain below, which targets the spell-script (non-creature) path. A
+        // representative-body override resolves at this same discount (issue
+        // #7744).
+        if (chars.aiValue !== undefined) {
+            return resolveAiValue(chars.aiValue, discount);
+        }
+        const body =
+            discount *
             (1 - (chars.etbSelfSacrificeWeight ?? 0)) *
             creatureValueRaw(
                 Math.max(0, chars.power),
@@ -268,8 +291,15 @@ export function latentValue(chars: {
     // A non-creature: an explicit `aiValue` override wins outright (issue
     // #1512 — PRD #1423's order applied to this branch too, matching the
     // CREATURE branch above instead of letting the DSL script silently
-    // outrank the per-card correction knob).
-    if (chars.aiValue !== undefined) return chars.aiValue;
+    // outrank the per-card correction knob). A representative body on a
+    // non-creature reads at the plain creature discount (issue #7744).
+    if (chars.aiValue !== undefined) {
+        return resolveAiValue(
+            chars.aiValue,
+            chars.creatureDiscount ??
+                DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount
+        );
+    }
     // No override: its DSL spell-script value (real `effects[]`, else its
     // `aiEffects` shadow script) if it has one, floored at the `base + MV`
     // fallback. The floor makes the semantic layer an UPLIFT — a card whose

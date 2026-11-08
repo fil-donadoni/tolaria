@@ -24,6 +24,26 @@ type CardId = string;
 /** Zones addressable by `SpellContext.moveZone`. Excludes `battlefield`
  *  (entering/leaving the battlefield needs ETB/LTB handling via destroy/exile)
  *  and `stack` (stack items are managed by the resolution engine). */
+/** A latent-worth override expressed as a representative creature body plus
+ *  an ability premium (issue #7744): `discount × creatureValueRaw(body) +
+ *  premium`, where `discount` is the valuing weights' latent creature (or
+ *  flash) discount. For a card whose own printed body misstates its worth —
+ *  a copy creature's 0/0, an as-enters choice no script can price — without
+ *  freezing a number computed at one fitted discount. The body carries no
+ *  keywords. */
+export interface RepresentativeBodyValue {
+    representativeBody: {
+        power: number;
+        toughness: number;
+        manaValue: number;
+    };
+    /** Forge points added on top of the discounted body, undiscounted. */
+    premium: number;
+}
+
+/** `CardDefinition.aiValue`: a scalar worth or a representative body. */
+export type AiValueOverride = number | RepresentativeBodyValue;
+
 export type MovableZone = "library" | "hand" | "graveyard" | "exile";
 
 /** Where a card revealed off the top of a library can be routed by the
@@ -22946,8 +22966,16 @@ export interface CardDefinition {
      *  (the bot's hand/library/graveyard valuation and resolution-choice
      *  ordering); the realized battlefield eval is unaffected. Optional and rare:
      *  derivation scales to the full catalog, this annotates just the
-     *  exceptions. */
-    aiValue?: number;
+     *  exceptions.
+     *
+     *  Two forms, mutually exclusive by construction (issue #7744): a scalar
+     *  worth, taken verbatim, or a {@link RepresentativeBodyValue} — a stand-in
+     *  creature body plus an ability premium, resolved by `latentValue`
+     *  against the LIVE `latentCreatureDiscount`, so a refit moves it with
+     *  every vanilla creature's. An override whose magnitude IS "discounted
+     *  body + premium" uses the second form; a scalar written as that formula
+     *  goes stale on the next refit that moves the discount. */
+    aiValue?: AiValueOverride;
     /** Opt-in structured AI combat hints (ADR 0021, issue #229). Card effects
      *  are imperative `resolve()` bodies the bot search cannot introspect, so a
      *  card whose body is a combat trick or instant-speed removal declares the
