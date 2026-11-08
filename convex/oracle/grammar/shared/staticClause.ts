@@ -353,6 +353,10 @@ export type StaticClauseIR =
      *  turn": a cast prohibition on every opponent of the source's controller
      *  while that controller is the active player. */
     | { readonly kind: "opponents-cant-cast-during-your-turn" }
+    /** CR 601.3 + CR 101.2 — "Each player can't cast more than one spell
+     *  each turn": a cast prohibition on every player who has already cast a
+     *  spell this turn. */
+    | { readonly kind: "each-player-one-spell-per-turn" }
     /** CR 601.3 + CR 307.1 — "Each opponent can cast spells only any time
      *  they could cast a sorcery": every opponent of the source's controller
      *  held to sorcery timing for every spell. */
@@ -2741,6 +2745,29 @@ const opponentsCantCastDuringYourTurnRule: Rule<StaticClauseIR> = rule(
             : fail("not the opponent cast-lock template", span)
 );
 
+// ── Frame: the per-turn spell cap (CR 601.3) ───────────────────────────────
+
+/**
+ * "Each player can't cast more than one spell each turn." (Rule of Law,
+ * Arcane Laboratory, Eidolon of Rhetoric, High Noon.) CR 601.3: a player can
+ * begin to cast a spell only if no effect prohibits it; this one prohibits
+ * every player who has already cast a spell this turn, counting spells cast
+ * before the source arrived. CR 101.2: the "can't" outweighs any permission.
+ * A class of spell ("… more than one noncreature spell …"), another caster
+ * ("You can't …", "Your opponents can't …") or another count differs from the
+ * exact match and stays refused.
+ */
+const EACH_PLAYER_ONE_SPELL_PER_TURN =
+    "Each player can't cast more than one spell each turn";
+
+const eachPlayerOneSpellPerTurnRule: Rule<StaticClauseIR> = rule(
+    "per-turn spell cap",
+    (span): RuleResult<StaticClauseIR> =>
+        span === EACH_PLAYER_ONE_SPELL_PER_TURN
+            ? ok({ kind: "each-player-one-spell-per-turn" as const })
+            : fail("not the per-turn spell cap template", span)
+);
+
 // ── Frame: the opponent sorcery-timing lock (CR 601.3) ─────────────────────
 
 /**
@@ -2969,6 +2996,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         lookAtLibraryTopRule,
         graveyardLandPlayRule,
         opponentsCantCastDuringYourTurnRule,
+        eachPlayerOneSpellPerTurnRule,
         opponentsSorceryTimingLockRule,
         asEntersDiscardRule,
         asEntersSacrificeRule,

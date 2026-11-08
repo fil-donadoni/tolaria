@@ -7173,7 +7173,6 @@
         {"key":"838947b11225","text":"Each player antes the top card of their library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player antes the top card of their library"}},
         {"key":"9bbea5ca4073","text":"Each player can't cast more than one non-Phyrexian spell each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one non-Phyrexian spell each turn"}},
         {"key":"4aefd227979f","text":"Each player can't cast more than one noncreature spell each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one noncreature spell each turn"}},
-        {"key":"b9e7890e5452","text":"Each player can't cast more than one spell each turn.","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't cast more than one spell each turn"}},
         {"key":"0f2a06f41d23","text":"Each player can't draw more than one card each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Each player can't draw more than one card each turn"}},
         {"key":"748d02451c47","text":"Each player chooses a card in their hand. Then each player reveals their chosen card. The owner of each creature card revealed this way with the lowest mana value puts it onto the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player chooses a card in their hand"}},
         {"key":"1ad92cf716fc","text":"Each player chooses a color. Then exile each permanent unless it's colorless or it's only the color its controller chose.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Each player chooses a color"}},
@@ -43437,7 +43436,7 @@
 
         {"oracleId":"33005c63-fe9f-4051-b781-eacf1ca5eec6","name":"Sporogenesis","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["9961f58cbaea","aa465fc95262"]},
 
-        {"oracleId":"33017203-233e-498e-806e-94b1dccf5c35","name":"Eidolon of Rhetoric","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b9e7890e5452"]},
+        {"oracleId":"33017203-233e-498e-806e-94b1dccf5c35","name":"Eidolon of Rhetoric","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Eidolon of Rhetoric","types":["Enchantment","Creature"],"subtypes":["Spirit"],"manaCost":{"X":2,"W":1},"power":1,"toughness":4,"oracleText":"Each player can't cast more than one spell each turn.","compiledStaticEffects":[{"kind":"cast-restriction","id":"eidolon-of-rhetoric-spell-cap","oracleText":"Each player can't cast more than one spell each turn.","maxSpellsEachTurn":1}]},"botReach":"played"},
 
         {"oracleId":"33042d12-f08b-4b3e-b106-c424ef868c13","name":"Blade of the Swarm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ba8259ac7ad9"]},
 
@@ -46153,7 +46152,7 @@
 
         {"oracleId":"3c8b0a8a-8f80-4c3e-8f27-fb1df94aa0d4","name":"Blinding Flare","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1e2afb6d0383","eb0fd3412662"]},
 
-        {"oracleId":"3c8cbf0f-0288-4b5e-bd4f-0f208670b6b5","name":"High Noon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b9e7890e5452"]},
+        {"oracleId":"3c8cbf0f-0288-4b5e-bd4f-0f208670b6b5","name":"High Noon","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["dealDamage"],"definition":{"name":"High Noon","types":["Enchantment"],"manaCost":{"X":1,"W":1},"oracleText":"Each player can't cast more than one spell each turn.\n{4}{R}, Sacrifice this enchantment: It deals 5 damage to any target.","activatedAbilities":[{"id":"high-noon-ability","oracleText":"{4}{R}, Sacrifice this enchantment: It deals 5 damage to any target.","cost":{"mana":{"X":4,"R":1},"sacrifice":true},"useStack":true,"effects":[{"op":"dealDamage","amount":5,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1}}],"compiledStaticEffects":[{"kind":"cast-restriction","id":"high-noon-spell-cap","oracleText":"Each player can't cast more than one spell each turn.","maxSpellsEachTurn":1}]},"botReach":"played"},
 
         {"oracleId":"3c8cc7e2-7bff-46e0-bb5b-1e721a56a3ef","name":"Sunlance","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage"],"definition":{"name":"Sunlance","types":["Sorcery"],"manaCost":{"W":1},"oracleText":"Sunlance deals 3 damage to target nonwhite creature.","effects":[{"op":"dealDamage","amount":3,"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"excludeColors":["W"]}},"botReach":"played"},
 
@@ -52595,7 +52594,7 @@
 
         {"oracleId":"53e86135-3b24-4618-bcc0-af4d81e672dd","name":"Death Begets Life","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7de3d36b5b39"]},
 
-        {"oracleId":"53e88e64-6f82-4154-a66e-6aeb0154b368","name":"Rule of Law","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b9e7890e5452"]},
+        {"oracleId":"53e88e64-6f82-4154-a66e-6aeb0154b368","name":"Rule of Law","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Rule of Law","types":["Enchantment"],"manaCost":{"X":2,"W":1},"oracleText":"Each player can't cast more than one spell each turn.","compiledStaticEffects":[{"kind":"cast-restriction","id":"rule-of-law-spell-cap","oracleText":"Each player can't cast more than one spell each turn.","maxSpellsEachTurn":1}]},"botReach":"played"},
 
         {"oracleId":"53ec394a-5aaa-4d83-82ec-f00e99902c0d","name":"Shalai's Acolyte","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Shalai's Acolyte","types":["Creature"],"subtypes":["Angel"],"manaCost":{"X":4,"W":1},"power":3,"toughness":4,"oracleText":"Kicker {1}{G} (You may pay an additional {1}{G} as you cast this spell.)\nFlying\nIf this creature was kicked, it enters with two +1/+1 counters on it.","staticAbilities":["flying"],"kickers":[{"id":"kicker","description":"Kicker {1}{G}","mana":{"X":1,"G":1}}],"entersWith":{"counters":[{"type":"+1/+1","count":"kicker"},{"type":"+1/+1","count":"kicker"}]}},"botReach":"played"},
 
@@ -86427,7 +86426,7 @@
 
         {"oracleId":"ceeeacbc-01b0-4421-aaca-2ce6cdbe45d7","name":"Tetsuko Umezawa, Fugitive","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a2eb600ccd41"]},
 
-        {"oracleId":"ceef2d5a-77ea-4e56-9806-fd1a2d5be400","name":"Archon of Emeria","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["77f77b345b8f","b9e7890e5452"]},
+        {"oracleId":"ceef2d5a-77ea-4e56-9806-fd1a2d5be400","name":"Archon of Emeria","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["77f77b345b8f"]},
 
         {"oracleId":"cef11518-ecb2-4250-996c-a03fa9dfb09e","name":"Darkslick Drake","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Darkslick Drake","types":["Creature"],"subtypes":["Phyrexian","Drake"],"manaCost":{"X":2,"U":2},"power":2,"toughness":4,"oracleText":"Flying\nWhen this creature dies, draw a card.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"darkslick-drake-trigger","oracleText":"When this creature dies, draw a card.","head":{"kind":"died","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
@@ -90363,7 +90362,7 @@
 
         {"oracleId":"dc9d1d0c-5310-460a-a3cd-1ff1f4f83c8f","name":"Mortal Combat","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["30466261748b"]},
 
-        {"oracleId":"dc9da00f-7624-4926-8d75-fd945f1b8a29","name":"Mine, Mine, Mine!","state":"unparsed","gaps":["446fe79ffdf9","64fda4ce082c","a3616084c9e0","b9e7890e5452"]},
+        {"oracleId":"dc9da00f-7624-4926-8d75-fd945f1b8a29","name":"Mine, Mine, Mine!","state":"unparsed","gaps":["446fe79ffdf9","64fda4ce082c","a3616084c9e0"]},
 
         {"oracleId":"dca25245-523a-4587-a059-a14ee2ef908d","name":"Armored Armadillo","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["55aa76611cb8"]},
 
@@ -97413,7 +97412,7 @@
 
         {"oracleId":"f5e2fb92-4678-410c-8c83-42aead9d29d3","name":"Arterial Flow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4be0d493439d"]},
 
-        {"oracleId":"f5e3c26c-c28c-455f-a682-2597e4b92d10","name":"Arcane Laboratory","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b9e7890e5452"]},
+        {"oracleId":"f5e3c26c-c28c-455f-a682-2597e4b92d10","name":"Arcane Laboratory","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Arcane Laboratory","types":["Enchantment"],"manaCost":{"X":2,"U":1},"oracleText":"Each player can't cast more than one spell each turn.","compiledStaticEffects":[{"kind":"cast-restriction","id":"arcane-laboratory-spell-cap","oracleText":"Each player can't cast more than one spell each turn.","maxSpellsEachTurn":1}]},"botReach":"played"},
 
         {"oracleId":"f5e9c69f-b949-4e9a-91d8-e0d52f8d8d3e","name":"Sunscourge Champion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7f023657ba2f"]},
 
