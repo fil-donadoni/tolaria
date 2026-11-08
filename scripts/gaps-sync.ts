@@ -141,6 +141,7 @@ import {
     buildGraduates,
     compilerGapCards,
     handTailMarkerIssues,
+    handWrittenOracleIds,
     opUserOracleIds,
 } from "./lib/coverage-context";
 import {
@@ -175,7 +176,6 @@ import {
     type BotFindingVerdict,
 } from "./lib/bot-findings-merge";
 import { parseLockfile } from "./lib/oracle-lockfile";
-import { poolOracleIds } from "./oracle-compile";
 import {
     claimId,
     gapIndex,
@@ -1013,7 +1013,7 @@ export function buildAllFilings(
     );
     // A grammar gap's hand-written cards are served and lend no band
     // (issue #8945): it falls to the lowest-ranked Target.
-    const playable = poolOracleIds();
+    const playable = handWrittenOracleIds();
     const strongest = (filing: GapFiling) =>
         gapCardBand(
             filing.kind,

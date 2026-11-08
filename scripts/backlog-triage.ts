@@ -87,10 +87,10 @@ import {
     type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
-import { poolOracleIds } from "./oracle-compile";
 import { fetchBoardPriority, type BoardPriority } from "./lib/board-priority";
 import { gh } from "./lib/gh";
 import { BAND_UMBRELLAS } from "./lib/gap-issues";
+import { handWrittenOracleIds } from "./lib/coverage-context";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     gapIndex,
@@ -457,7 +457,7 @@ export function runTriage(opts: {
         gapIndex(lock).gapKeys,
         byName,
         // A grammar gap's hand-written cards are served (issue #8945).
-        poolOracleIds()
+        handWrittenOracleIds()
     );
 
     const errors: string[] = [];
