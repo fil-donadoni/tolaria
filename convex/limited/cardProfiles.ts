@@ -182,15 +182,20 @@ async function loadArchetypesDoc(
         .unique();
 }
 
-/** Upserts one card's Capability row; a field absent from `row` (no
- *  `comboEdges`, no `rationale`) is left as stored on a patch. */
+/** Upserts one card's Capability row. A save is the WHOLE edge list:
+ *  `comboEdges` absent clears the stored ones (an `undefined` patch field
+ *  removes it). `rationale` is the census's, which the editor never sends,
+ *  so it is left as stored. */
 async function upsertCapabilities(
     ctx: MutationCtx,
     row: CardCapabilitiesRow
 ): Promise<void> {
     const existing = await loadCapabilitiesDoc(ctx, row.cardId);
     if (existing) {
-        await ctx.db.patch(existing._id, capabilitiesOf(row));
+        await ctx.db.patch(existing._id, {
+            ...capabilitiesOf(row),
+            comboEdges: row.comboEdges,
+        });
     } else {
         await ctx.db.insert("cardCapabilities", row);
     }
