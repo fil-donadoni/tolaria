@@ -2384,11 +2384,7 @@
             "key": "static › static clause › Terravore's power and toughness are each equal to the number of land cards in all graveyards",
             "issue": 5375
         },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › This artifact enters with X charge counters on it",
-            "issue": 8584
-        },
+
         {
             "kind": "grammar",
             "key": "static › static clause › This creature attacks each combat if able",
@@ -3583,6 +3579,11 @@
             "kind": "hand-tail",
             "key": "Chain of Smog",
             "issue": 3657
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Chalice of the Void",
+            "issue": 8851
         },
         {
             "kind": "hand-tail",

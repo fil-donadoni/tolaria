@@ -12,8 +12,8 @@
 //     per-creature head, nothing behind a head that names no object.
 //  3. REFUSALS — the neighbours with no "it" reading at their site: the
 //     possessive "her controller" (Liliana's Defeat), the player pronoun
-//     "he or she" (Power Struggle), the contraction "he's" (Whiplash), and an
-//     X count the entry replacement does not read for "it" either (Big Bertha).
+//     "he or she" (Power Struggle) and the contraction "he's" (Whiplash). An X
+//     count reads the cast X behind "her" as behind "it" (Big Bertha).
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -427,8 +427,8 @@ describe("gendered pronoun — refused neighbours", () => {
         expect(text("Her")).toBe("unparsed");
     });
 
-    it("Big Bertha's line: an X count is refused, as it is for 'it'", () => {
-        const outcome = compileCard(
+    it("Big Bertha's line: an X count reads the cast X, as it does for 'it' (CR 107.3m)", () => {
+        const outcome = definitionOf(
             creature({
                 oracleId: "32654ffa-b869-4f8b-a153-4242e8f9d92e",
                 name: "Big Bertha",
@@ -437,6 +437,8 @@ describe("gendered pronoun — refused neighbours", () => {
                 oracleText: "Big Bertha enters with X +1/+1 counters on her.",
             })
         );
-        expect(outcome.state).toBe("unparsed");
+        expect(outcome.definition.entersWith).toEqual({
+            counters: [{ type: "+1/+1", count: "X" }],
+        });
     });
 });
