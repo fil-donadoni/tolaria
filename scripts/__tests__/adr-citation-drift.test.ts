@@ -43,7 +43,7 @@ const SELF = path.join("scripts", "__tests__", "adr-citation-drift.test.ts");
 
 /** Words that mean "this line is about the Brain / client-side search". */
 const ISMCTS_CONTEXT =
-    /ISMCTS|\bBrain\b|brain\.worker|brain[A-Za-z]*\.ts|search\.ts|client-side/i;
+    /ISMCTS|\bBrain\b|brain\.worker|brain[A-Za-z]*\.ts|search\.ts|client-side|vs-AI|convex-test|bot seat/i;
 
 const WRONG_ADR_0001 = /ADR\s+0001\b/;
 const ADR_LINK = /\]\(([^)\s]*?\b\d{4}-[A-Za-z0-9-]+\.md)(?:#[^)\s]*)?\)/g;
@@ -152,6 +152,9 @@ describe("ADR citation drift (issue #8723)", () => {
                 "brain.worker",
                 "search.ts",
                 "client-side",
+                "vs-AI game",
+                "no convex-test harness",
+                "bot seat",
             ]) {
                 expect(
                     wrongNumberDrift("x.md", `${w} (ADR 0001)`)
