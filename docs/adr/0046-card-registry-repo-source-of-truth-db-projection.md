@@ -1,5 +1,7 @@
 # Card registry: repo as source of truth, DB as a rebuildable projection
 
+**Partly superseded by ADR 0171 (2026-11-08, issue #8725):** the deferred DB projection will not be built; ADR 0113's resident compiled corpus overtook it. The repo-as-source and `getDefinition` seam stand.
+
 ## Status
 
 accepted

@@ -1,5 +1,7 @@
 # A deck's Plan is the Capabilities its cards require, derived from card structure and priced as latent value — never an archetype label, never per-card knowledge
 
+**accepted, not built as of 2026-11-07** (issue #8725).
+
 ## Status
 
 accepted (2026-09-14, "formato verdicts" grill session, plan-and-archetype

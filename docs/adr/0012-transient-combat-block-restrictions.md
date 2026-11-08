@@ -1,5 +1,7 @@
 # ADR 0012 — Transient combat block-restrictions (Raging River, pile combat)
 
+**Amended by ADR 0169 (2026-11-08, issue #8725):** Camouflage is no longer out of scope; it is a live protocol card.
+
 **Status:** Accepted (2026-06-14)
 
 ## Context

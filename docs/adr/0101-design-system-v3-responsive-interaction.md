@@ -1,5 +1,7 @@
 # ADR 0101 — Design system v3: the responsive and touch interaction model (amends 0007, 0009, 0025, 0069)
 
+**§2 overturned by ADR 0103 (2026-11-08, issue #8725):** Antique Bronze, Beleren and the 10px Panel brackets are replaced by graphite, Geist and hairline panels. The responsive and touch model (§§1, 3–) stands.
+
 **Status:** Accepted (2026-08-19) — PRD #2405, decision register D1–D30
 (`tolaria-design-canvas/audit/revamp-decisions.md`), design canvas
 <https://claude.ai/code/artifact/2ff0a0f7-54a6-4d44-b339-0b38e2b541e1>,

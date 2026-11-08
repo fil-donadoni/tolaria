@@ -1,5 +1,7 @@
 # The loop's fan-out stays model-driven; the Workflow tool is not adopted
 
+**Superseded by ADR 0156 and ADR 0173 (2026-11-08, issue #8725):** the loop driver is retired.
+
 ## Status
 
 accepted

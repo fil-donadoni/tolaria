@@ -1,5 +1,7 @@
 # UI design system unification: one button, one banner, one modal, signal tokens
 
+**Values superseded by ADR 0103 (2026-11-08, issue #8725):** the hex token values are dead; the token roles and components stand.
+
 Phase 3 of the UI/UX revamp (spec `docs/superpowers/specs/2026-07-20-ui-ux-revamp-design.md`) collapses the drift the ADR-0007 system accumulated back into its single-palette / single-frame guarantees, and adds the missing token families the audit found hard-coded across 71 files.
 
 ## Decisions
