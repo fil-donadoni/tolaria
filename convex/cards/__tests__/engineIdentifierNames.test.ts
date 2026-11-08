@@ -38,7 +38,7 @@
 //
 // SCOPE LIMIT, stated rather than hidden: an ANONYMOUS inline shape is not a
 // declaration and is not swept — `types.ts`'s
-// `preferences?: { discardRouting?: … }` is invisible here while the
+// `preferences?: { libraryOfLengRouting?: … }` is invisible here while the
 // `PlayerPreferences` member it mirrors is caught. A rename sweep greps the
 // old name, so the mirror travels with the original; what the guard promises
 // is that the original cannot be missed.
