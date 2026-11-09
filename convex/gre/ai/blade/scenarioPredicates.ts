@@ -4,7 +4,12 @@
  * merge; the entries file is data and merges by union.
  */
 
-import type { BladeScenario, BladeSeat, MoveMatcher } from "./types";
+import type {
+    BladeScenario,
+    BladeSeat,
+    BladeSetupStep,
+    MoveMatcher,
+} from "./types";
 import type { Discriminant } from "../verdicts/types";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -22,6 +27,23 @@ import {
     tryGetDefinition,
 } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
+
+/** CR 500.1 / 117.3d — every pass that walks a two-player board with empty
+ *  hands of anything to respond with from the active player's precombat main
+ *  phase, after the stack has emptied, to the SAME player's next precombat
+ *  main: the rest of their turn, the opponent's whole turn, their own upkeep
+ *  and draw. Each step is passed by both players in turn (the holder of
+ *  priority first), and untap and cleanup give none (CR 502.4, 514.3).
+ *
+ *  It exists for the position a `ScenarioSpec` cannot write: an effect the
+ *  mover's planeswalker left LAST turn, whose loyalty ability is available
+ *  again this turn (CR 606.3). A step that finds a trigger or a choice in the
+ *  way is not this walk; the blade entry using it pins the turn it lands on. */
+export const PASSES_TO_OWN_NEXT_MAIN: BladeSetupStep[] = [
+    ...(["opp", "me", "opp", "me", "opp", "me", "opp", "me", "opp"] as const),
+    ...Array.from({ length: 7 }, () => ["opp", "me"] as const).flat(),
+    ...(["me", "opp", "me", "opp"] as const),
+].map((seat) => ({ kind: "pass" as const, seat }));
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the

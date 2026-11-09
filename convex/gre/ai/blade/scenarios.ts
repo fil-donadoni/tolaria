@@ -54,6 +54,7 @@ import {
     namesCardAbsentFromLibrary,
     FORCED_SACRIFICE_BOARD,
     sacrificeKeepsOrder,
+    PASSES_TO_OWN_NEXT_MAIN,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -23899,6 +23900,119 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #8271 — the same shrink on its own side. With Griselbrand the Bot did elk it: rollouts pay its 7 life to their own death, so stripping the ability read as a gain.",
+    },
+    {
+        label: "loyalty: Oko never re-elks an Elk while the Food is on offer",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 12,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 4,
+                    },
+                },
+                {
+                    name: "Tireless Tracker",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: {
+                        "+1/+1": 2,
+                    },
+                },
+                {
+                    name: "Chromatic Star",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Candelabra of Tawnos",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Portal to Phyrexia",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Talisman of Curiosity",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Jace, the Mind Sculptor",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 7,
+                    },
+                },
+                {
+                    name: "Oath of Druids",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Island",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "activate",
+                card: "Oko, Thief of Crowns",
+                ability: "oko-thief-of-crowns-plus1",
+                target: "Talisman of Curiosity",
+            },
+            { kind: "resolve-top" },
+            ...PASSES_TO_OWN_NEXT_MAIN,
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Talisman of Curiosity",
+                },
+            ],
+        },
+        note: "Issue #8729 — the turn-14 board: Oko elked the Talisman on turn 12, so its +1 there buys only the tick and the +2 buys the tick and a Food. The walk untaps the opponent's five lands (they were tapped in the game); with no hand they have nothing to spend them on.",
     },
     {
         label: "discard: Liliana of the Veil holds her +1 when it only costs her own card",
