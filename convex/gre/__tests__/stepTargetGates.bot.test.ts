@@ -79,17 +79,24 @@ describe("armedStepTargetGates (CR 603.3d)", () => {
 });
 
 describe("search: a move arming the opponent's Oath (issue #8734)", () => {
-    // Five seeds of a 400-iteration search, each enumeration probing every
-    // Oko activation for loyalty-tick dominance: past the 60 s default under
-    // runner load, so the budget is explicit (fixed iterations, never time).
-    it("Oko takes its +2, keeping creatures level, on every seed", () => {
-        const result = runBladeScenario(entry(ANCHOR));
+    // Two of the `must` entry's seeds (the blade suite runs all of them):
+    // 0xb1ade alone goes wrong under each of the three mechanisms removed,
+    // seed 2 under two. A 400-iteration search probes every Oko activation
+    // for loyalty-tick dominance at each enumeration, so even two seeds pass
+    // the 60 s default under runner load: the budget is explicit (fixed
+    // iterations, never time).
+    it("Oko takes its +2, keeping creatures level, on the discriminating seeds", () => {
+        const result = runBladeScenario({
+            ...entry(ANCHOR),
+            seeds: [0xb1ade, 2],
+        });
         expect(result.ok, result.failureMessage).toBe(true);
+        expect(result.seeds.map((s) => s.seed)).toEqual([0xb1ade, 2]);
         for (const seed of result.seeds) {
             expect(seed.move, seed.moveDescription).toMatchObject({
                 kind: "activate-ability",
                 abilityId: "oko-thief-of-crowns-plus2",
             });
         }
-    }, 300_000);
+    }, 240_000);
 });
