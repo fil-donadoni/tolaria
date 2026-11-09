@@ -381,13 +381,56 @@ const MAX_TREE_DEPTH = 40;
 export const REWARD_PER_MARGIN_POINT =
     rewardPerMarginPoint(DEFAULT_EVAL_WEIGHTS);
 
-/** Map a material margin to [-1, 1], linear (constant slope) until it saturates
- *  at ±`weights.materialFull`. Linear is deliberate: the discriminating
- *  quantity is a fixed material delta, which must move the reward by the same
- *  amount whether the absolute margin is small or large. */
-function materialSignal(margin: number, weights: EvalWeights): number {
+/** The terminal bands' material signal: linear until it saturates at
+ *  ±`materialFull`, the pre-#8954 map, kept HERE on purpose. Inside a won or
+ *  lost band the margin is an outcome TIE-BREAK, and the clip is what keeps a
+ *  certain loss with surviving material from climbing toward the open band's
+ *  floor: a line that kills its own controller for a full sweep (Toxic Deluge
+ *  for every life point) scores exactly the floor of the loss band, a clear
+ *  `outcomeEps` below any line that merely dies most of the time — measured:
+ *  with a compressive tail here too, that cast sat 0.017 under its siblings,
+ *  inside the band, and the material tie-break took it. The open band is the
+ *  band that was blind; the terminal bands have `meanMargin` for their depth. */
+function clippedMaterialSignal(margin: number, weights: EvalWeights): number {
     const x = margin / weights.materialFull;
     return x < -1 ? -1 : x > 1 ? 1 : x;
+}
+
+/** Map a material margin to [-1, 1]: linear (constant slope) through the
+ *  core, then — when `materialLinearShare` < 1 — a compressive tail that
+ *  approaches ±1 but never reaches it (issue #8954, ADR 0176). At the base
+ *  vector the share is 1 and this IS the historical hard clip,
+ *  `clippedMaterialSignal`; the `reward-soft-tail` ladder variant sets 0.6.
+ *
+ *  The core is linear by design: the discriminating quantity is a fixed
+ *  material delta, which must move the reward by the same amount whether the
+ *  absolute margin is small or large. The linear core ends at
+ *  `materialLinearShare` of the half-band (`x = a`); the remaining `1 − a` is
+ *  filled by `t / (1 + t)` with `t = (|x| − a) / (1 − a)`, whose slope is 1 at
+ *  the knee (no kink) and decays as `1 / (1 + t)²`, so two leaves a creature
+ *  apart stay apart at any depth of the open band.
+ *
+ *  Why the tail is NOT the default yet (ADR 0176, measured on issue #8954's
+ *  reconstructed position and the `must` blade): the clip's blindness past
+ *  ±`materialFull` is real, but the reported misdirected cast is driven by
+ *  the rollout default policy's bias, not by the pinned leaves — with the
+ *  policy reading the clip and only the leaves reading the tail the
+ *  misdirected cast still leads; with the policy reading the tail too the
+ *  position is fixed, and 7 of 540 `must` entries flip, because the side far
+ *  ahead stops playing its rollouts at random. The knob and the variant are
+ *  the measuring instrument for that follow-up. Why not a logistic: the
+ *  calibrated curve (issue #1929) moves the slope AT ZERO, where most
+ *  decisions live; this tail leaves every margin within the core
+ *  byte-identical. */
+function materialSignal(margin: number, weights: EvalWeights): number {
+    const x = margin / weights.materialFull;
+    const a = weights.materialLinearShare;
+    if (a >= 1) return clippedMaterialSignal(margin, weights);
+    const ax = Math.abs(x);
+    if (ax <= a) return x;
+    const t = (ax - a) / (1 - a);
+    const tail = a + (1 - a) * (t / (1 + t));
+    return x < 0 ? -tail : tail;
 }
 
 /** Calibrated margin → win-probability slope (issue #1929, map #1892 step 3):
@@ -637,12 +680,12 @@ export function rewardFromValue(v: number, weights: EvalWeights): number {
     const terminal = terminalMagnitude(weights);
     if (v >= terminal) {
         const material =
-            0.5 + 0.5 * materialSignal(v - weights.winScore, weights);
+            0.5 + 0.5 * clippedMaterialSignal(v - weights.winScore, weights);
         return 1 - weights.terminalBand + weights.terminalBand * material;
     }
     if (v <= -terminal) {
         const material =
-            0.5 + 0.5 * materialSignal(v + weights.winScore, weights);
+            0.5 + 0.5 * clippedMaterialSignal(v + weights.winScore, weights);
         return weights.terminalBand * material;
     }
     // Open band: variant-selectable margin mapping (issue #1929) — production
