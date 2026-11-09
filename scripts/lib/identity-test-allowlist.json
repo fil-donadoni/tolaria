@@ -535,6 +535,16 @@
         "reason": "Bound invariant: registry stays non-empty and under a 25-row ceiling."
     },
     {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "row presentation — gloss, cluster, example (issue #8891) > every row carries a non-empty provides gloss, requires gloss, cluster and example",
+        "reason": "Census: every CAPABILITY_REGISTRY row carries both gloss halves, a listed cluster and an example."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "row presentation — gloss, cluster, example (issue #8891) > every cluster files at least one row",
+        "reason": "Partition check: every CAPABILITY_CLUSTERS entry files at least one registry row."
+    },
+    {
         "file": "convex/limited/__tests__/cube.test.ts",
         "test": "cube names data (derived from the canonical worklist) > is a clean, deduplicated, non-empty list of names",
         "reason": "Invariant check: CUBE_CARD_NAMES has no blanks and no case-insensitive duplicates."
