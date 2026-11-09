@@ -590,8 +590,12 @@ A **Player**'s current available **Mana**. Empties at end of each **Phase**.
 _Avoid_: Resources, energy
 
 **Auto-Tap**:
-The engine's automatic selection of which **Mana** sources to tap to pay a **Mana Cost** when the **Player** hasn't picked sources manually. Runs server-side in the **GRE**. _Smart_ auto-tap chooses, among all minimum-tap plans that cover the cost, the one that best preserves **Demands** still playable this turn (CR-neutral UX, mirrors MTG Arena).
+The engine's automatic selection of which **Mana** sources to tap to pay a **Mana Cost** when the **Player** hasn't picked sources manually. Runs server-side in the **GRE**. _Smart_ auto-tap chooses, among all minimum-tap plans that cover the cost, the one that best preserves **Demands** still playable this turn (CR-neutral UX, mirrors MTG Arena). One exception to minimum-tap plans: a source with an **Untap Price** is tapped only when the Demand it saves has a higher mana value than that price, or when no plan sparing it covers the cost (then the lowest total price) — otherwise a plan sparing it wins even if it taps more sources.
 _Avoid_: Auto-pay, mana solver
+
+**Untap Price**:
+What untapping a mana source that does not untap by itself (CR 502.3, `does-not-untap`) costs later, in mana: the cheapest mana cost of an ability that untaps it — an activated one (Grim Monolith 4) or a triggered may-pay (Mana Vault 4) — plus 1 per damage the tapped source deals its controller per turn (Mana Vault 5). Infinite when no mana untaps it. Read by **Auto-Tap**.
+_Avoid_: Untap cost, untap tax
 
 **Demand**:
 A thing the active **Player** might still want to pay mana for this turn — a **Spell** in **Hand** or an **Activated Ability** on the **Battlefield** — that smart **Auto-Tap** tries not to strand. Counted only when affordable before payment and legal at the current timing (sorcery-speed demands only at sorcery timing).
