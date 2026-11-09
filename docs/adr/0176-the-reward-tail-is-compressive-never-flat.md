@@ -122,3 +122,16 @@ misdirected 0.237 / 157 first, self 0.210 / 140 last; at 3 000 iterations
 - `REWARD_PER_MARGIN_POINT` stays the core slope; under the variant the
   decision telemetry's margin-point reading of a gap in the tail understates
   it.
+
+## Amendment I (2026-11-09, issue #9044)
+
+Issue #8954 closes on a third answer, outside (a) and (b): a deterministic
+safety net at the root. `selectRootMove` never hands a purely beneficial
+PLAYER slot (a draw, a life gain, a beneficial player counter) to the
+opponent's face while a sibling variant of the same announcement gives the
+opponent fewer, whatever the rollouts' mean reward
+(`misdirectedPlayerGiftCount`, `beneficialSlotGuardPick`). It runs at the
+function's single exit as part of `announcement-variant`, so
+`ROOT_RULE_ALLOWLIST` keeps its membership. A punisher slot (mixed signs)
+and a draw that decks its recipient step aside. The policy gap of (b) stands:
+the guard removes its reported symptom, not its cause.
