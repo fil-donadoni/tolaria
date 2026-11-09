@@ -5,6 +5,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { AttackManaTaxPayment } from "~/types/game";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
+import { usePromptCollapsed } from "~/hooks/usePromptCollapsed";
+import CollapsedPromptPill from "./collapsed-prompt-pill";
 import { Button } from "~/components/ui/button";
 import ManaSymbol from "~/components/cards/mana-symbol";
 
@@ -56,6 +58,7 @@ export default function AttackManaTaxBanner({
     const autoTap = useMutation(api.game.autoTapForAttackTax);
     const cancel = useMutation(api.game.cancelAttackTax);
     const [busy, setBusy] = useState(false);
+    const promptCollapse = usePromptCollapsed();
 
     async function run(mutation: () => Promise<unknown>) {
         if (busy) return;
@@ -71,6 +74,19 @@ export default function AttackManaTaxBanner({
     }
 
     const symbols = costSymbols(payment);
+
+    // Issue #7425 — `C` folds the banner to a pill (view-only flag).
+    if (promptCollapse?.collapsed) {
+        return (
+            <div className={outerClassName} style={outerStyle}>
+                <CollapsedPromptPill
+                    title="Attack Tax"
+                    onExpand={promptCollapse.expand}
+                    className={innerClassName}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className={outerClassName} style={outerStyle}>
