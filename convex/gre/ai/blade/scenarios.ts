@@ -9120,6 +9120,35 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
         note: "Issue #2980, half 2 — the discriminating twin. Same lethal-shaped board, one fewer card of fodder. Two independent gates suppress the cast — `hasPayableEscapeExileCost` (gre/rules.ts) and `planCastCostPicks` returning null — and either alone is sufficient, so the measured proof reds this entry only with BOTH removed; a cast offered past them is the announce-then-abort freeze shape.",
     },
+    // ── A battlefield grant under ability loss (CR 613.1f) — issue #7942 ──
+    // Six grants retrace to the nonland permanent cards in its controller's
+    // graveyard during their turn; Humility makes Six lose all abilities, so
+    // the grant is gone. With the land drop already spent, the Forest in hand
+    // is only good as retrace's discard, and a 2/2 for it is a free trade the
+    // search takes whenever the move is offered. The move must not be.
+    {
+        label: "retrace: no graveyard cast from a Six that Humility stripped",
+        spec: {
+            cards: [
+                { name: "Six", owner: "me", zone: "battlefield" },
+                { name: "Humility", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Forest", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landsPlayed: { me: 1 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Grizzly Bears" }] },
+        note: "Issue #7942. A battlefield-static grant read straight off its CardDefinition outlived the CR 613.1f ability loss that should end it: Six under Humility kept granting retrace, so the Bot retraced the Bears by discarding its Forest. Measured: reds when `liveStaticDefinition`'s suppression check is removed.",
+    },
 
     // -----------------------------------------------------------------------
     // The reflexive MADNESS cast window (CR 702.35a) — issue #2983.
