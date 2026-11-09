@@ -893,3 +893,58 @@ export function namesCardAbsentFromLibrary(
             tryGetDefinition(String(card.card.id ?? ""))?.name === move.cardName
     );
 }
+
+/** The forced-sacrifice board shared by the issue-#8382 pair: three untapped
+ *  creatures that can block (the 3/3 flash flier among them), two tapped
+ *  ones, two mana rocks, four basics and a nonbasic surveil dual, every mana
+ *  source tapped. The pair differs only in the attack it faces. */
+export const FORCED_SACRIFICE_BOARD = [
+    { name: "Delighted Halfling", tapped: false },
+    { name: "Scythecat Cub", tapped: true },
+    { name: "Hullbreacher", tapped: false },
+    { name: "Subtlety", tapped: false },
+    { name: "Nadu, Winged Wisdom", tapped: true, counters: { "+1/+1": 4 } },
+    { name: "Hedge Maze", tapped: true },
+    { name: "Island", tapped: true, count: 4 },
+    { name: "Sol Ring", tapped: true },
+    { name: "Talisman of Curiosity", tapped: true },
+].map((card) => ({
+    ...card,
+    owner: "me" as const,
+    zone: "battlefield" as const,
+    summoningSick: false,
+}));
+
+/** The card NAMES a `resolution-choice` move submits, one per instance. */
+function submittedNames(move: Move | null, state: GameState): string[] {
+    if (move === null || move.kind !== "resolution-choice") return [];
+    const byId = new Map(
+        state.players.flatMap((p) => p.battlefield).map((c) => [c.id, c])
+    );
+    return (move.cardInstanceIds ?? []).map((id) => {
+        const defId = (byId.get(id)?.card as { id?: string } | undefined)?.id;
+        return (defId && tryGetDefinition(defId)?.name) ?? "";
+    });
+}
+
+/** CR 701.21a — the submitted sacrifice gives up every name in `gives` and
+ *  none in `keeps`, and a nonbasic `dual` only once no basic `basic` is left
+ *  standing (`basicsInPool` of them on the board). */
+export function sacrificeKeepsOrder(
+    move: Move | null,
+    state: GameState,
+    order: {
+        gives: string[];
+        keeps: string[];
+        dual: string;
+        basic: string;
+        basicsInPool: number;
+    }
+): boolean {
+    const given = submittedNames(move, state);
+    if (given.length === 0) return false;
+    if (!order.gives.every((n) => given.includes(n))) return false;
+    if (order.keeps.some((n) => given.includes(n))) return false;
+    const basicsGiven = given.filter((n) => n === order.basic).length;
+    return !given.includes(order.dual) || basicsGiven === order.basicsInPool;
+}

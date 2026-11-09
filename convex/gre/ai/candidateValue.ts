@@ -24,7 +24,12 @@ import { opponentsAttackedThisCombat } from "../combat";
 import { findPermanent } from "../lookup";
 import { getEffectivePT } from "../layers";
 import { getInstanceManaCost, tryGetDefinition } from "../../cards";
-import { getProducibleColorsOnBoard } from "../constants";
+import {
+    getProducibleColorsOnBoard,
+    hasManaAbility,
+    isCreature,
+    isLand,
+} from "../constants";
 import { sourceQuality } from "./sourceQuality";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 import { coversCostColors, manaUnitsFor } from "../manaAvailability";
@@ -32,6 +37,7 @@ import {
     carriesSpellOrAbilityScript,
     dslLatentAbilityScriptOpValue,
     dslSpellScriptOpValue,
+    dslStandingAbilityScriptValue,
 } from "./cardScriptValue";
 import {
     contextAwareGrounding,
@@ -200,6 +206,103 @@ export function prospectiveCardWorth(
     return card.types.includes("Creature")
         ? permanentWorth(state, card)
         : noncreatureCardWorth(card, ctx);
+}
+
+// --- Battlefield sacrifice pricing (CR 701.21a) -----------------------------
+
+/** Board worth of a permanent that is ALREADY on the battlefield, the
+ *  currency a forced sacrifice ranks its victims in. A creature is
+ *  `permanentWorth` (live effective P/T). A noncreature is the no-script floor
+ *  plus its STANDING ability scripts (`dslStandingAbilityScriptValue`:
+ *  activated + triggered, minus mana abilities and minus ETB Abilities) — an
+ *  ETB Ability is spent the moment its permanent enters (CR 603.6a), so a dual
+ *  whose surveil already happened is worth what it still does, never what it
+ *  did. The zone-blind `prospectiveCardWorth` reads the spell and ETB scripts
+ *  a permanent in play no longer owns, which is how a surveil land priced
+ *  below a basic. Signed: a standing drawback (an upkeep tax) reads below the
+ *  floor, so it goes first. */
+export function battlefieldPermanentWorth(
+    state: GameState,
+    card: CardInstanceState
+): number {
+    if (isCreature(card)) return permanentWorth(state, card);
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const standing = def ? (dslStandingAbilityScriptValue(def) ?? 0) : 0;
+    return NONCREATURE_FLOOR + standing * NONCREATURE_SCRIPT_SCALE;
+}
+
+/** A mana rock: a noncreature, nonland permanent with a mana ability
+ *  (CR 605.1a) — Sol Ring, a Talisman. */
+function isManaRock(card: CardInstanceState): boolean {
+    return !isCreature(card) && !isLand(card) && hasManaAbility(card);
+}
+
+/** CR 205.4c — a land with the supertype "basic", read off the definition
+ *  (an instance carries no supertypes). */
+function isBasicLand(card: CardInstanceState): boolean {
+    if (!isLand(card)) return false;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return def?.supertypes?.includes("Basic") ?? false;
+}
+
+/** Whether `first` must be sacrificed before `then` may be — the orders a
+ *  forced sacrifice keeps whatever the board:
+ *
+ *  - a mana rock goes before any creature (the owner's ruling, issue #8382);
+ *  - a basic land (CR 205.4c) before any nonbasic land (the same ruling);
+ *  - a mana rock before any nonbasic land — an EXTENSION of the ruling, not
+ *    part of it: the evaluation prices a rock's card worth far above a dual's
+ *    (Talisman of Curiosity 44.6 against Hedge Maze 16.6 realised), so with
+ *    the first two orders alone the search kept a rock and gave the dual,
+ *    which the ruling's own outcome forbids. A rock against a basic is NOT
+ *    ordered — Sol Ring before a lone Island is no ruling anyone made.
+ *
+ *  Every other pair (lands against creatures, other noncreatures against
+ *  anything) is left to the worth and to the search. */
+export function sacrificeGoesFirst(
+    first: CardInstanceState,
+    then: CardInstanceState
+): boolean {
+    const nonbasicLand = isLand(then) && !isBasicLand(then);
+    if (isManaRock(first) && (isCreature(then) || nonbasicLand)) return true;
+    return isBasicLand(first) && nonbasicLand;
+}
+
+/** Each pool member's sacrifice RANK: its {@link battlefieldPermanentWorth},
+ *  lowered where needed so that sorting by rank is a linear extension of
+ *  {@link sacrificeGoesFirst} — every basic ranks below the pool's cheapest
+ *  nonbasic land, then every mana rock below its cheapest creature or
+ *  nonbasic land.
+ *  The one ranking both the search's answer set (`choiceCandidates.ts`) and
+ *  the Brain's worst-first fallback (`bot-view.ts`) read, so the two cannot
+ *  disagree on an order. */
+export function sacrificeRankWorths(
+    state: GameState,
+    pool: readonly CardInstanceState[]
+): Map<string, number> {
+    const worth = new Map(
+        pool.map((c) => [c.id, battlefieldPermanentWorth(state, c)])
+    );
+    const cheapest = (pred: (c: CardInstanceState) => boolean) =>
+        Math.min(...pool.filter(pred).map((c) => worth.get(c.id) ?? Infinity));
+    const lowerBelow = (
+        pred: (c: CardInstanceState) => boolean,
+        floor: number
+    ) => {
+        for (const c of pool) {
+            if (pred(c) && worth.get(c.id)! >= floor)
+                worth.set(c.id, floor - 1);
+        }
+    };
+    lowerBelow(
+        isBasicLand,
+        cheapest((c) => isLand(c) && !isBasicLand(c))
+    );
+    lowerBelow(
+        isManaRock,
+        cheapest((c) => isCreature(c) || (isLand(c) && !isBasicLand(c)))
+    );
+    return worth;
 }
 
 // --- Library-search target pricing (CR 701.23) ------------------------------
