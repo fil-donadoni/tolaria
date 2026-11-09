@@ -56,6 +56,7 @@
 import { buildChapterTrigger } from "../cards/abilities/sagas";
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { expandCascade } from "../cards/abilities/cascade";
+import { expandHideaway } from "../cards/abilities/hideaway";
 import { buildLevelBarAbility } from "../cards/abilities/classLevels";
 import { registerTokenDefinition } from "../cards/registry";
 import { resolveCompiledTrigger } from "../cards/compiledTriggers";
@@ -417,7 +418,8 @@ export interface GateResult {
  * Ops a keyword EXPANDER injects for a compiled keyword (ADR 0054). The gates
  * below judge only what the compiler authored, but the census (`opsUsed`, read
  * by `check:gaps`) asks which Ops the compiled card runs, and a bare
- * `cascade` keyword runs the `cascade` Op via `expandCascade`. Only expanders
+ * `cascade` keyword runs the `cascade` Op via `expandCascade` (a `hideaway N`
+ * one the `hideaway` Op via `expandHideaway`). Only expanders
  * whose body is a single registered Op are censused here, so no new gate input
  * reaches the smoke generator.
  */
@@ -430,7 +432,8 @@ export function expanderOps(definition: CompiledDefinition): string[] {
             buildLevelBarAbility
         ) as unknown as CompiledDefinition
     );
-    const expanded = expandCascade(bare);
+    // CR 702.75a — `hideaway N` runs the `hideaway` Op via `expandHideaway`.
+    const expanded = expandHideaway(expandCascade(bare));
     if (expanded === bare) return barOps;
     const injected = (expanded.triggeredAbilities ?? []).filter(
         (t) => !(bare.triggeredAbilities ?? []).includes(t)

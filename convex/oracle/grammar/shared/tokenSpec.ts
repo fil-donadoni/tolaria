@@ -29,6 +29,13 @@
  *    noun; lowering binds it (`lowerEffects.ts`) and refuses a noun that
  *    names no object acted on before it.
  *
+ *  - `The exiled card's owner creates an X/X <colour> <Subtype…> creature
+ *    token, where X is the mana value of the exiled card` — CR 607.2a +
+ *    CR 608.2h: both the creator and X are read off the card this object's
+ *    LINKED exile instruction exiled, as it last existed. A whole-sentence
+ *    form of its own ({@link linkedExileTokenRule}): the creator is not the
+ *    controller (CR 111.2), and the size is not a printed number.
+ *
  * Singular and plural must agree with the count ("a … token", "two …
  * tokens"): a disagreement is a line we have misread, not a typo to forgive.
  */
@@ -246,3 +253,38 @@ export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
         return ok({ count: { kind: "fixed" as const, value: count }, token });
     }
 );
+
+/**
+ * CR 607.2a + CR 608.2h + CR 111.2 — "The exiled card's owner creates an X/X
+ * <colour> <Subtype…> creature token, where X is the mana value of the exiled
+ * card": a single token whose creator and size both come from the card the
+ * linked exile instruction exiled. The token reads only colours and subtypes;
+ * an artifact token, a keyword, a count, or any other source of X is a
+ * neighbour no corpus card prints, refused.
+ */
+const LINKED_EXILE_TOKEN =
+    /^The exiled card(?:'|’)s owner creates an X\/X (.+) creature token, where X is the mana value of the exiled card$/;
+
+/** The characteristics of the linked exile's token, X/X aside. */
+export interface LinkedExileTokenIR {
+    readonly colors: readonly Color[];
+    readonly subtypes: readonly string[];
+}
+
+export const linkedExileTokenRule: Rule<LinkedExileTokenIR> =
+    rule<LinkedExileTokenIR>("linked exile token", (span) => {
+        const match = span.match(LINKED_EXILE_TOKEN);
+        if (match === null)
+            return fail("not the linked exile's owner creating a token", span);
+        const described = readDescriptor(match[1]!);
+        if (typeof described === "string") return fail(described, span);
+        if (described.artifact)
+            return fail(
+                '"artifact" is not read on the linked exile\'s token',
+                span
+            );
+        return ok({
+            colors: described.colors,
+            subtypes: described.subtypes,
+        });
+    });
