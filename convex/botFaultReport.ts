@@ -153,6 +153,13 @@ export type BotFaultIssueInput = {
     gameSection: string | null;
 };
 
+/** The command an agent runs to start from a row's frozen position
+ *  (`scripts/bug-report-pull.ts`, issue #9005). One builder, so the issue body
+ *  and its test cannot name two spellings. */
+export function bugReportPullCommand(reportId: string): string {
+    return `bun run bug-report:pull ${reportId} --prod --out bug-report-${reportId}.json`;
+}
+
 /**
  * The create-issue request body for a system report. Takes no state, no
  * diagnostics and reads no error message — a field that never reaches the
@@ -191,6 +198,12 @@ export function buildBotFaultIssueRequest(input: BotFaultIssueInput): {
         "",
         "```",
         `bunx convex run bugReports:getReport '{"reportId":"${reportId}"}' --prod`,
+        "```",
+        "",
+        "Start from the exact position — the frozen state lowered to a `ScenarioSpec`, with everything the lowering could not carry (`dropped[]`) and the client diagnostics summary (issue #9005):",
+        "",
+        "```",
+        bugReportPullCommand(reportId),
         "```",
         "",
         "## Target files",
