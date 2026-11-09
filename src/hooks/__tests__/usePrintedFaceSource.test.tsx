@@ -180,13 +180,17 @@ describe("usePrintedFaceSource — the 1x bitmap path (issue #8321)", () => {
             const img = () => container.querySelector("img")!;
             expect(img().getAttribute("src")).toBe(PENDING_FACE_SRC);
             // Not near yet: nothing acquired — the hundreds of faces of a
-            // search grid must not resample at mount.
+            // search grid must not resample at mount — and the marker says
+            // so, so check:ui's settle does not wait on it.
             expect(bitmaps.resolve).toBeNull();
+            expect(img().getAttribute("data-face-pending")).toBe("deferred");
             expect(observers.length).toBeGreaterThan(0);
             await act(async () => {
                 for (const fire of observers) fire(true);
             });
             expect(bitmaps.resolve).not.toBeNull();
+            // Near: the bitmap is being made — in flight, waited on.
+            expect(img().getAttribute("data-face-pending")).toBe("");
             await act(async () => {
                 bitmaps.resolve!("blob:test/5");
             });
