@@ -40,8 +40,7 @@ import type {
     TargetSelection,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
-import { tryGetDefinition } from "../cards";
-import { resolvePendingTargetKind } from "./constants";
+import { liveStaticDefinition, resolvePendingTargetKind } from "./constants";
 import { effectivePermanentView } from "./permanentView";
 import { requirementFromPendingTarget } from "./pendingTargetOrigin";
 import {
@@ -89,8 +88,7 @@ export function activeTargetChoiceRequirements(
     const byKey = new Map<string, ActiveTargetChoiceRequirement>();
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(source);
             const effects: readonly StaticEffect[] | undefined =
                 def?.staticEffects;
             if (!effects) continue;

@@ -17,6 +17,7 @@ import type {
 // re-exports), so this adds no import cycle.
 import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent, PermanentFilter } from "../cards/filters";
+import { liveDefinitionOf } from "../cards/liveStatics";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { chosenColorOf, LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { CardType } from "../cards/types";
@@ -732,9 +733,7 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
 export function liveStaticDefinition(
     perm: CardInstanceState
 ): CardDefinition | undefined {
-    if (abilitiesSuppressed(perm)) return undefined;
-    const cardId = (perm.card as { id?: string } | undefined)?.id;
-    return (cardId ? tryGetDefinition(cardId) : null) ?? undefined;
+    return liveDefinitionOf(perm);
 }
 
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null.

@@ -109,13 +109,14 @@ import type {
 import { blockRestrictionAllows } from "../../cards/abilities/static/blockRestriction";
 import { ATTACK_RESTRICTION_CTX } from "../../cards/attackRestrictions";
 import { matchesPermanentFilter } from "../../cards/filters";
-import { getInstanceManaCost, tryGetDefinition } from "../../cards";
+import { getInstanceManaCost } from "../../cards";
 import { declaresCombatRestrictionStaticEffect } from "../../cards/registry";
 import { collectAttackRestrictions, collectBlockRestrictions } from "../combat";
 import {
     finiteManaUsesRemaining,
     hasManaAbility,
     isCreature,
+    liveStaticDefinition,
     manaValue,
 } from "../constants";
 import { canPayCost } from "../manaAvailability";
@@ -280,7 +281,7 @@ function buildRestrictionPlan(
         if (id === undefined || !declaresCombatRestrictionStaticEffect(id)) {
             continue;
         }
-        const def = tryGetDefinition(id);
+        const def = liveStaticDefinition(perm);
         for (const effect of def?.staticEffects ?? []) {
             if (effect.kind !== "global-attack-restriction") continue;
             globalAttackSources.push({ source: perm, effect });

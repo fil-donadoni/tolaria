@@ -14,6 +14,7 @@
 // never mutates a permanent (`beginApplyingStaticEffects` ignores the kind), so
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
+import { liveDefinitionOf } from "./liveStatics";
 import { getInstanceManaCost, tryGetDefinition } from ".";
 import { playerHasRestriction } from "../gre/playerRestrictions";
 import type { PlayerRestriction } from "../gre/state/declarations";
@@ -141,9 +142,7 @@ export function isCastTimingSorcerySpeedLocked(
 ): boolean {
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "cast-timing-lock") continue;
@@ -412,9 +411,7 @@ export function castProhibitionReason(
     }
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "cast-restriction") continue;
