@@ -312,6 +312,15 @@ describe("ControllerPod render beats", () => {
         expect(pass?.args).toMatchObject({ gameId: "game-id", playerId: "me" });
     });
 
+    it("the shortcut hint never joins a button's accessible name (Pass Turn stays exactly 'Pass Turn')", () => {
+        // check:ui's game-board surface looks Pass Turn up by its EXACT name;
+        // a visible "[P]" hint inside the name made it unreachable on every
+        // pod-layout viewport once P became its shortcut (issue #7423).
+        renderPod();
+        // A string `name` is a full-string match in Testing Library.
+        expect(screen.getByRole("button", { name: "Pass Turn" })).toBeTruthy();
+    });
+
     it("declaring attackers: Confirm Attackers dispatches confirmAttackers", () => {
         renderPod({
             phase: "DECLARE_ATTACKERS",
