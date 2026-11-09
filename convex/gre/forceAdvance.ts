@@ -10,9 +10,13 @@
 //   2. the FORCED DISCARD (`forceAdvanceDiscard.ts`) when the legal rung
 //      throws, changes nothing, or leaves the Bot owed on the SAME container —
 //      an explicit CR deviation, reported as a P0;
-//   3. the Bot CONCEDES (CR 104.3a, reason `bot-fault`) when it is still owed
-//      on that container after `FORCE_ADVANCE_MAX_STEPS` attempts, a discard
-//      throws, or the post-state fails the `compactState` round-trip.
+//   3. the Bot CONCEDES (CR 104.3a, reason `bot-fault`) when a discard throws
+//      (nothing it may discard), or the post-state fails the `compactState`
+//      round-trip.
+//
+// One call closes ONE container: it stops as soon as the Bot owes a different
+// one (or nothing). The next window is the driver's again — a fresh call per
+// window, so this never plays the Bot's turn for it.
 //
 // It never throws: every rung runs on its own clone inside a guard, and a fault
 // outside the rungs (a corrupted state) is itself a concede.
@@ -28,8 +32,10 @@ import { LEGAL_STEPS, type LegalStep } from "./forceAdvanceLegal";
 import { compactState, expandState } from "./serialize";
 import { endGame, type ExpectedInput, type GameState } from "./state";
 
-/** How many rungs one call may take on the window it was handed before the Bot
- *  concedes. A legal rung or a discard normally closes the window in one. */
+/** A safety bound on the rung loop. `attempt` accepts a rung only when it
+ *  leaves the origin container, so the loop ends within two iterations; the
+ *  bound (then a concede) exists so a future rung that breaks that invariant
+ *  cannot spin. */
 export const FORCE_ADVANCE_MAX_STEPS = 8;
 
 /** One rung taken. `legal` — a CR-defined answer that worked; `discarded` — the
@@ -67,9 +73,26 @@ type OwedWindow = { input: ExpectedInput; key: string };
 function containerKey(state: GameState, input: ExpectedInput): string {
     switch (input.kind) {
         case "choice":
-            return `choice:${input.stackItemId}:${input.choiceId}`;
+            // The engine keys an answer by `step:choiceId` (one `choiceId` is
+            // reused across a resolution's Ops), and the queue length tells an
+            // answered head from the same head still waiting.
+            return [
+                "choice",
+                input.stackItemId,
+                state.pendingChoices?.[0]?.step ?? "",
+                input.choiceId,
+                state.pendingChoices?.length ?? 0,
+            ].join(":");
         case "target":
-            return `target:${state.pendingTarget?.kind ?? ""}:${input.cardInstanceId}`;
+            // A multi-group selection loads its next group onto the SAME
+            // object (CR 601.2c): the group counters tell them apart.
+            return [
+                "target",
+                state.pendingTarget?.kind ?? "",
+                input.cardInstanceId,
+                state.pendingTarget?.remainingRequirements?.length ?? 0,
+                state.pendingTarget?.priorSelected?.length ?? 0,
+            ].join(":");
         case "blockers":
         case "sacrifice":
         case "attack-mana-tax":
@@ -140,11 +163,10 @@ function errorMessage(e: unknown): string {
  *  state too corrupt to clone is ended on a shallow copy. */
 function concede(state: GameState, botPlayerId: string): GameState {
     const players: unknown = state?.players;
-    const winnerId =
-        (Array.isArray(players)
-            ? (players as { id?: unknown }[]).find((p) => p?.id !== botPlayerId)
-                  ?.id
-            : undefined) ?? "";
+    const winner = Array.isArray(players)
+        ? (players as { id?: unknown }[]).find((p) => p?.id !== botPlayerId)
+        : undefined;
+    const winnerId = typeof winner?.id === "string" ? winner.id : "";
     const outcome = {
         winnerId,
         loserId: botPlayerId,

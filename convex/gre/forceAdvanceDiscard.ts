@@ -14,18 +14,23 @@
 // discard — the caller concedes) or returns the name of what it removed.
 
 import { finalizeConfirmAttackers } from "./attackDeclaration";
-import { recordBlockedAttackers } from "./banding";
-import { resolvePendingTargetKind } from "./constants";
+import { applyMeleeUnblockedRider, recordBlockedAttackers } from "./banding";
+import { clearDeclinedExileRoute } from "./castCost";
+import { isSpellStackItem, resolvePendingTargetKind } from "./constants";
 import type { ExpectedInputKind } from "./expectedInput";
+import { getPlayer } from "./lookup";
 import {
     rollbackPendingActivation,
     rollbackPendingCast,
+    untapSourceFromPayment,
 } from "./paymentRollback";
 import {
     handPriorityOn,
     sweepUnlessResolutionSuspended,
 } from "./pendingChoiceResume";
+import { continueAfterRetargetOffer } from "./pendingTargetOrigin";
 import { drainAutoPasses, emitBlockersConfirmedEvents } from "./phases";
+import { raiseTriggerTargetSelection } from "./rules";
 import { sendStackItemToGraveyard, type GameState } from "./state";
 
 /** One discard rung: remove the owed container in place, return its name. */
@@ -41,7 +46,9 @@ function removeStackItemAsFizzled(state: GameState, itemId: string): void {
     if (idx === -1) return;
     const [item] = state.stack.splice(idx, 1);
     delete item.collectedChoices;
-    sendStackItemToGraveyard(state, item);
+    // CR 608.2b — only a SPELL card goes anywhere; an ability (and a copy,
+    // which the chokepoint itself skips) ceases to exist.
+    if (isSpellStackItem(item)) sendStackItemToGraveyard(state, item);
 }
 
 /** Drop a parked announcement: the legal rewind first (CR 601.2 — reverse
@@ -73,6 +80,16 @@ function restartPriority(state: GameState): void {
 function abandonAttackDeclaration(state: GameState): void {
     const combat = state.combat;
     if (!combat) throw new Error("No attack declaration to abandon");
+    // The mana already tapped toward an attack tax is refunded, as the legal
+    // decline does (`cancelAttackTaxOnState`).
+    const tax = combat.pendingAttackManaTax;
+    if (tax) {
+        const payer = getPlayer(state, tax.playerId);
+        for (const cardId of tax.tappedLandIds) {
+            const card = payer.battlefield.find((c) => c.id === cardId);
+            if (card) untapSourceFromPayment(state, payer, card);
+        }
+    }
     combat.pendingAttackSacrifice = undefined;
     combat.pendingAttackManaTax = undefined;
     combat.attackerIds = [];
@@ -85,10 +102,25 @@ function abandonAttackDeclaration(state: GameState): void {
 
 /** `choice` — drop every queued choice the head's stack item raised, take that
  *  item off the stack as fizzled, and hand priority on as a completed
- *  resolution would. */
+ *  resolution would. Only a choice raised by a REAL stack item is
+ *  discardable: a stackless head (the mulligan bottoming, a held trigger
+ *  batch, an entry staged on an as-enters choice) carries a shared sentinel
+ *  id and a companion container its own continuation must close, so
+ *  dropping it would strand that container — it throws, and the Bot
+ *  concedes instead. */
 function discardChoice(state: GameState): string {
     const head = state.pendingChoices?.[0];
     if (!head) throw new Error("No pending choice to discard");
+    if (!state.stack.some((s) => s.id === head.stackItemId)) {
+        throw new Error(
+            `Choice ${head.kind} is raised by no stack item — not discardable`
+        );
+    }
+    if ((state.stagedEntries?.length ?? 0) > 0 || state.pendingTriggerBatch) {
+        throw new Error(
+            "A staged entry or held trigger batch rides this choice — not discardable"
+        );
+    }
     const rest = (state.pendingChoices ?? []).filter(
         (c) => c.stackItemId !== head.stackItemId
     );
@@ -99,9 +131,12 @@ function discardChoice(state: GameState): string {
     return `discard-choice:${head.kind}`;
 }
 
-/** `target` — drop the selection. A raised trigger or copy leaves the stack as
- *  fizzled; a retargeted spell keeps the targets it has; an announcement whose
- *  selection it was is dropped with it. */
+/** `target` — drop the selection, then run the continuation the legal decline
+ *  runs. A raised trigger or copy leaves the stack as fizzled; a retargeted
+ *  spell keeps the targets it has; an announcement whose selection it was is
+ *  dropped with it. After a trigger, the next untargeted trigger of the same
+ *  batch is raised (CR 603.3d — as `cancelTriggerTargetSelection` does); after
+ *  a (copy-)retarget, the retarget offer continues (CR 707.10c). */
 function discardTarget(state: GameState, botPlayerId: string): string {
     const pt = state.pendingTarget;
     if (!pt) throw new Error("No pending target to discard");
@@ -109,25 +144,32 @@ function discardTarget(state: GameState, botPlayerId: string): string {
     const kind = resolvePendingTargetKind(pt.kind);
     switch (kind) {
         case "trigger":
+            removeStackItemAsFizzled(state, pt.cardInstanceId);
+            if (!raiseTriggerTargetSelection(state)) restartPriority(state);
+            break;
         case "copy-retarget":
             removeStackItemAsFizzled(state, pt.cardInstanceId);
+            continueAfterRetargetOffer(state);
             break;
         case "retarget":
+            continueAfterRetargetOffer(state);
             break;
         case "cast":
+            clearDeclinedExileRoute(state, pt.cardInstanceId);
             if (state.pendingCast?.playerId === botPlayerId) {
                 dropAnnouncement(state, "cast");
             }
+            restartPriority(state);
             break;
         case "ability":
             if (state.pendingActivation?.playerId === botPlayerId) {
                 dropAnnouncement(state, "activation");
             }
+            restartPriority(state);
             break;
         default:
             return assertNever(kind);
     }
-    restartPriority(state);
     return `discard-target:${kind}`;
 }
 
@@ -142,6 +184,7 @@ function discardBlockers(state: GameState): string {
     combat.pendingBlockerId = undefined;
     combat.blockersConfirmed = true;
     recordBlockedAttackers(state);
+    applyMeleeUnblockedRider(state);
     emitBlockersConfirmedEvents(state);
     restartPriority(state);
     return "discard-blockers";

@@ -38,10 +38,15 @@ driver leaves the game waiting forever.
        requirements (CR 508.1d / 509.1c), a mandatory choice's answer, and an
        unpaid cost to attack.
     3. **the Bot concedes** (CR 104.3a, `gameOver.reason: "bot-fault"`) when
-       nothing is left to discard, a discard throws, the Bot is still owed on
-       that container after `FORCE_ADVANCE_MAX_STEPS`, or the post-state fails
+       nothing is left to discard (a discard throws), or the post-state fails
        the `compactState` round-trip. The concede starts from the INPUT state,
        so a state that cannot be saved is never the one saved.
+    - **A discard never strands a companion container.** A choice raised by no
+      stack item (the mulligan bottoming, a held trigger batch, an entry staged
+      on an as-enters choice) shares a sentinel id and is closed only by its own
+      continuation: it is not discardable, and the Bot concedes. A discarded
+      target runs the continuation the legal decline runs (the next trigger of
+      the batch, the retarget offer).
 - **The deviation is acceptable only because it is reported.** The step log
   marks every rung `legal` / `discarded`. The PRD issue #8998 system report
   files each discard and each concede as a P0 bug. A discard is never a

@@ -168,6 +168,7 @@ function triggerTargetOwed(): Fixture {
         staticAbilities: [],
         isTapped: false,
         castById: "p1",
+        triggeredAbilityId: "trigger",
     } as unknown as StackItem);
     state.pendingTarget = {
         playerId: "p1",
@@ -415,11 +416,23 @@ describe("forceAdvanceOwedInput — a throwing legal rung falls to the forced di
         expect(state.priorityPlayerId).toBe(state.activePlayerId);
     });
 
-    it("target: the trigger is removed", () => {
+    it("target: the trigger is removed — an ability ceases to exist, no card reaches a graveyard (CR 608.2b)", () => {
         const f = triggerTargetOwed();
         const { state } = forcedThrow("target", f);
         expect(state.pendingTarget).toBeUndefined();
         expect(state.stack).toEqual([]);
+        expect(state.players.flatMap((p) => p.graveyard)).toEqual([]);
+    });
+
+    it("choice: a choice raised by no stack item is not discardable — the Bot concedes", () => {
+        const f = choiceOwed();
+        f.state.pendingChoices![0].stackItemId = "mulligan";
+        const result = forcedThrow("choice", f);
+        expect(result.outcome).toBe("conceded");
+        expect(result.steps[result.steps.length - 2]?.error).toMatch(
+            /raised by no stack item/
+        );
+        expect(result.state.gameOver?.reason).toBe("bot-fault");
     });
 
     it("blockers: the declaration closes with no blocker, requirements ignored", () => {
@@ -447,6 +460,42 @@ describe("forceAdvanceOwedInput — a throwing legal rung falls to the forced di
         const { state } = forcedThrow("priority", f);
         expect(state.pendingCast).toBeUndefined();
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["lions"]);
+    });
+
+    it("choice: an answer that moves the head to the next step is progress, not a stall", () => {
+        const f = choiceOwed();
+        const result = forceAdvanceOwedInput(f.state, f.bot, {
+            legalSteps: {
+                choice: (s) => {
+                    s.pendingChoices![0].step += 1;
+                    return "next-step";
+                },
+            },
+        });
+        expect(result.outcome).toBe("advanced");
+        expect(result.steps).toEqual([
+            {
+                kind: "choice",
+                action: "next-step",
+                legal: true,
+                discarded: false,
+            },
+        ]);
+    });
+
+    it("target: a selection that loads its next group is progress, not a stall", () => {
+        const f = triggerTargetOwed();
+        f.state.pendingTarget!.remainingRequirements = [{} as never];
+        const result = forceAdvanceOwedInput(f.state, f.bot, {
+            legalSteps: {
+                target: (s) => {
+                    s.pendingTarget!.remainingRequirements = [];
+                    return "next-group";
+                },
+            },
+        });
+        expect(result.outcome).toBe("advanced");
+        expect(result.steps[0]).toMatchObject({ legal: true });
     });
 
     it("a legal rung that returns without closing the container also falls to the discard", () => {
@@ -488,8 +537,10 @@ describe("forceAdvanceOwedInput — the Bot concedes when nothing else works (CR
             loserId: "p1",
             reason: "bot-fault",
         });
-        expect(result.steps.at(-1)).toMatchObject({ action: "concede" });
-        expect(result.steps.at(-2)).toMatchObject({
+        expect(result.steps[result.steps.length - 1]).toMatchObject({
+            action: "concede",
+        });
+        expect(result.steps[result.steps.length - 2]).toMatchObject({
             discarded: true,
             error: "Nothing the Bot parked in this priority window",
         });
