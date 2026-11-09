@@ -1,12 +1,12 @@
-// The LEGAL rungs of the Bot liveness ladder (issue #9002, PRD issue #8998):
+// The LEGAL rungs of the Bot liveness ladder (ADR 0176):
 // for every Expected Input kind, the one CR-defined answer or decline the
 // engine can apply with no Convex context. `forceAdvanceOwedInput`
 // (`forceAdvance.ts`) tries this first and falls back to the forced discard
 // (`forceAdvanceDiscard.ts`) only when it throws, changes nothing, or leaves
 // the Bot owed on the same container.
 //
-// Every step reuses the auth-free core the public mutation runs (issue #9001's
-// decline cores, the pending-choice resolvers, the sacrifice pick) — never a
+// Every step reuses the auth-free core the public mutation runs (the decline
+// cores, the pending-choice resolvers, the sacrifice pick) — never a
 // second copy of a rule. Each step mutates `state` IN PLACE and either throws
 // or returns the name of the action it took; the caller runs it on a clone.
 
