@@ -4,6 +4,8 @@ import {
     type DisplayAbilities,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
+import type { AbilityWordCounter } from "~/lib/ability-word-counters";
+import AbilityWordChip from "./ability-word-chip";
 
 const ABILITY_STATE_CLASS: Record<AbilityDisplayState, string> = {
     native: "text-text",
@@ -14,9 +16,11 @@ const ABILITY_STATE_CLASS: Record<AbilityDisplayState, string> = {
 function KeywordRow({
     name,
     state,
+    counter,
 }: {
     name: string;
     state: AbilityDisplayState;
+    counter?: AbilityWordCounter;
 }) {
     const prefix = state === "granted" ? "[+] " : "";
     return (
@@ -27,6 +31,7 @@ function KeywordRow({
                 formatter to render the mana symbol instead of a literal
                 "{1}". */}
             {formatOracleText(capitalizeKeyword(name))}
+            {counter && <AbilityWordChip counter={counter} />}
         </div>
     );
 }
@@ -100,8 +105,12 @@ function orderedAbilityRows(abilities: DisplayAbilities): Row[] {
  */
 export default function CardPreviewAbilities({
     abilities,
+    counters = null,
 }: {
     abilities: DisplayAbilities;
+    /** In-game live counts (see ability-word-counters.ts); a keyword row whose
+     *  capitalised name is a counted word (Storm) carries its chip. */
+    counters?: Map<string, AbilityWordCounter> | null;
 }) {
     return (
         <div className="border-t border-border-subtle pt-2 space-y-1.5">
@@ -112,6 +121,7 @@ export default function CardPreviewAbilities({
                             key={`kw-${i}-${k.name}`}
                             name={k.name}
                             state={k.state}
+                            counter={counters?.get(capitalizeKeyword(k.name))}
                         />
                     ))}
                 </div>

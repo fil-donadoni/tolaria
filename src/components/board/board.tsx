@@ -489,6 +489,7 @@ export default function Board({
                 pendingExtraCleanupStep,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,
+                spellsCastThisTurn: state.spellsCastThisTurn,
                 controlChangedThisTurn: state.controlChangedThisTurn,
                 playerProtectionFromEverything:
                     state.playerProtectionFromEverything,

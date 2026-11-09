@@ -207,7 +207,12 @@ export default function CardPreviewFace({
                         ))}
                     </div>
                 )}
-                {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
+                {hasBody && (
+                    <CardPreviewAbilities
+                        abilities={bodyAbilities}
+                        counters={abilityWordCounters}
+                    />
+                )}
                 {/* CR 715.2 / 722.2 — the other half of a two-part card frame
                     (`Adventure` / `Adventurer card`, off `INSET_SPELL_KINDS`);
                     CR 709 (issue #5490) — a split card's halves, each under its

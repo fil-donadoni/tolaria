@@ -2713,6 +2713,13 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  A Gravestorm trigger's value is only a hint until it resolves; see
      *  `castCopyCountReadOnResolution`. */
     castCopiesRemaining?: number;
+    /** CR 702.40a — `GameState.spellsCastThisTurn` as it stood when THIS spell
+     *  was cast (the prior-spell tally, read before the cast incremented it):
+     *  the number of copies its Storm trigger makes. Stamped by
+     *  `emitSpellCastEvent` on a cast spell only; a copy is not cast
+     *  (CR 707.10) and carries none. Public information, so it crosses the
+     *  wire unredacted; the card preview shows it next to the Storm keyword. */
+    spellsCastBefore?: number;
     /** Gravestorm (CR 702.69a): the count is game information no clause fixes
      *  at the cast, so it is read as the trigger resolves, once (CR 608.2h).
      *  Present until that read; a retarget suspension resumes without it, so

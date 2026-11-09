@@ -766,6 +766,9 @@ export interface StackItem extends CardInstance {
      *  left" hint; the engine-internal `castCopySnapshot` field is intentionally
      *  NOT sent over the wire (see `slimCard`, gameProjections.ts). */
     castCopiesRemaining?: number;
+    /** CR 702.40a — the spells-cast-this-turn tally at the moment this spell
+     *  was cast (absent on copies, abilities). Drives the Storm chip. */
+    spellsCastBefore?: number;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell/ability's resolution (e.g. Mishra's
      *  Bauble's "draw a card at the beginning of the next turn's upkeep").
