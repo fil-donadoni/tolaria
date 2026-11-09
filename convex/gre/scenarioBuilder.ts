@@ -3906,6 +3906,11 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
     "chosenX",
     "abilityId",
     "castOffSorceryTiming",
+    // CR 702.40a — the cast-time copy of `GameState.spellsCastThisTurn` the
+    // preview shows next to Storm. Display only: no engine reader, and the live
+    // tally it copies is what the spec carries (`stormCount`), so a rebuilt
+    // spell without it is the same position.
+    "spellsCastBefore",
 ]);
 
 /** CR 601.2a — the key only a SPELL item may carry and the `spell` entry

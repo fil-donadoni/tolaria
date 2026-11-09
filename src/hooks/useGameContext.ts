@@ -99,6 +99,10 @@ type GameContext = {
      *  this turn" predicate reads the SAME number the server's CR 603.4
      *  intervening-if does. */
     lifeGainedThisTurn?: Record<string, number>;
+    /** Spells cast by any player this turn (CR 702.40a Storm tally), forwarded
+     *  from the wire `GameState.spellsCastThisTurn` so the card preview can
+     *  show how many copies a storm spell would make. */
+    spellsCastThisTurn?: number;
     /** Control continuity (`@convex/gre/controlContinuity`) — instance ids
      *  whose controller changed during the current turn, forwarded from the
      *  wire `GameState.controlChangedThisTurn`. Combined with {@link engineTurn}

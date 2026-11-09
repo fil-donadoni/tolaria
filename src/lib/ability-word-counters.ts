@@ -41,6 +41,21 @@ type CounterInput = {
     /** The exact oracle text the row's pattern matched ("devotion to blue"),
      *  for a row whose count depends on a word inside its own phrase. */
     matched: string;
+    /** The spell tally for the previewed card (Storm); see {@link SpellTally}. */
+    spellTally: SpellTally;
+};
+
+/** The per-turn spell tally the previewed card sees (CR 702.40a). A card off
+ *  the stack reads the LIVE global tally; a spell on the stack reads the
+ *  tally fixed when it was cast (`castTime`), absent on a copy (CR 707.10,
+ *  which is not cast — so it has no count to show). */
+export type SpellTally = {
+    /** `GameState.spellsCastThisTurn` now. */
+    live: number;
+    /** The previewed card is a spell on the stack. */
+    onStack: boolean;
+    /** `StackItem.spellsCastBefore` of that spell, when it was cast. */
+    castTime?: number;
 };
 
 export type AbilityWordCounterRow = {
@@ -59,7 +74,7 @@ export type AbilityWordCounterRow = {
     /** The engine's count. ABSENT on a placeholder row: the word is declared
      *  with its goal but renders no chip until the mechanic gets an engine
      *  count — supplying this function is the whole activation. */
-    count?: (input: CounterInput) => number;
+    count?: (input: CounterInput) => number | null;
     /** The count reads the matched text (Devotion's colour), so each distinct
      *  match is its own chip; otherwise one chip per row per paragraph (a
      *  Domain paragraph naming both the word and its phrase chips once). */
@@ -137,6 +152,21 @@ export const ABILITY_WORD_COUNTERS: readonly AbilityWordCounterRow[] = [
         goal: { atLeast: THRESHOLD_CARDS },
         count: ({ state, controllerId }) =>
             graveyardOf(state, controllerId).length,
+    },
+    {
+        // Storm (CR 702.40a) — a plain count with no threshold: how many copies
+        // the spell makes. Only the keyword itself (bare, or followed by its
+        // reminder text / a comma), never "Storm Crow" or "Storm Slayer".
+        key: "storm",
+        pattern: "Storm(?=\\s*(?:\\(|,|$))",
+        oracleForms: [
+            "Storm (When you cast this spell, copy it for each spell cast before it this turn.)",
+            "Storm",
+        ],
+        count: ({ spellTally }) =>
+            spellTally.onStack
+                ? (spellTally.castTime ?? null)
+                : spellTally.live,
     },
     // Placeholder rows — declared, no engine count yet, so no chip.
     {
@@ -270,7 +300,8 @@ export function computeAbilityWordCounters(
     players: LayerPlayersInput,
     controllerId: string,
     emblems?: EmblemInstance[],
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    spellTally: SpellTally = { live: 0, onStack: false }
 ): Map<string, AbilityWordCounter> | null {
     if (!players.some((p) => p.id === controllerId)) return null;
     let state: StaticEffectStateView | null = null;
@@ -284,7 +315,13 @@ export function computeAbilityWordCounters(
             const row = rowForMatch(matched);
             if (!row?.count) continue;
             state ??= toLayerState(players, emblems, continuousEffects);
-            const have = row.count({ state, controllerId, matched });
+            const have = row.count({
+                state,
+                controllerId,
+                matched,
+                spellTally,
+            });
+            if (have === null) continue;
             counters.set(matched, {
                 key: row.key,
                 chipId: row.perMatch ? matched : row.key,

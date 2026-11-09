@@ -1024,6 +1024,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.castCopiesRemaining !== undefined) {
         base.castCopiesRemaining = item.castCopiesRemaining;
     }
+    if (item.spellsCastBefore !== undefined) {
+        base.spellsCastBefore = item.spellsCastBefore;
+    }
     if (item.castCopyCountReadOnResolution) {
         base.castCopyCountReadOnResolution = true;
     }
@@ -1253,6 +1256,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         compact.castCopiesRemaining ?? compact.stormCopiesRemaining;
     if (castCopiesRemaining !== undefined) {
         item.castCopiesRemaining = castCopiesRemaining as number;
+    }
+    if (compact.spellsCastBefore !== undefined) {
+        item.spellsCastBefore = compact.spellsCastBefore as number;
     }
     if (compact.castCopyCountReadOnResolution) {
         item.castCopyCountReadOnResolution = true;
