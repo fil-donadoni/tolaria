@@ -703,7 +703,11 @@ The outcome of a **Lowering** that stops with a NAMED cause instead of producing
 _Avoid_: Error, failure, skip, dropped
 
 **Verdict**:
-A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Test Position** registry, whose expected moves are verdicts already.
+A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Root Heuristic Share**:
+The fixed share (λ, `rootHeuristicShare`) that the one-ply **Evaluation** of each root candidate — the position right after the move, before any rollout — holds in the **Brain**'s root verdict: score = (1 − λ) · mean rollout reward + λ · one-ply reward. λ = 0 is a verdict read from the rollouts alone (the pre-2026-11 Brain, whose root heard the one-ply reading only at a starved root and let it fade); λ = 1 a Brain that never simulates. Bounded by the held-trick positions, where only the rollouts see the window a greedy cast gives up; chosen by measurement on the _must_ tier and **Held-out Agreement** (issue #8954).
+_Avoid_: prior share, heuristic blend, static weight
+
+**Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Test Position** registry, whose expected moves are verdicts already.
 _Avoid_: Label, rating, feedback, thumbs up
 
 **Verdict Store**:
