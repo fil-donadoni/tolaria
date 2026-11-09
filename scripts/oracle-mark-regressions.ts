@@ -5,7 +5,7 @@
  *
  * Guard C (`convex/cards/__tests__/compilerRoundTrip.test.ts`) reds a card
  * that does not round-trip and carries neither a marker nor a baseline row,
- * and the baseline only shrinks (issue #5942). For an `unparsed` verdict the
+ * and the baseline only shrinks. For an `unparsed` verdict the
  * marker is transcription: the fragment is the compiler's own `Gap`, the issue
  * is the Grammar Gap `gaps:sync` filed for that gap's key — its `grammar`
  * claim row in `data/grammar-gaps.json`, keyed by `gapOf` exactly as

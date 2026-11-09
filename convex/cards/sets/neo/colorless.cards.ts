@@ -23,7 +23,7 @@ const LEGENDARY_CREATURE_COUNT = {
 // an opponent controls. That player may search their library for a land
 // card with a basic land type, put it onto the battlefield, then shuffle.
 // This ability costs {1} less to activate for each legendary creature you
-// control." (Scryfall oracle, NEO, issue #2290.)
+// control." (Scryfall oracle, NEO.)
 //
 // Target (CR 601.2c/2b): "artifact, enchantment, or nonbasic land an
 // opponent controls" is `type: ["Artifact", "Enchantment", "Land"]` +
@@ -32,7 +32,7 @@ const LEGENDARY_CREATURE_COUNT = {
 // Land ever carries the Basic supertype, CR 205.4a) + `controller:
 // "opponent"`.
 //
-// The destroy's snapshot idiom (issue #2287) is what makes "that player"
+// The destroy's snapshot idiom is what makes "that player"
 // resolvable AFTER the permanent leaves: `bind: "$destroyed"` captures the
 // object's controller/owner BEFORE `ctx.destroy` runs, so the trailing
 // `{ ref: "$destroyed.controller" }` reads CR 608.2h last-known information

@@ -43,7 +43,7 @@
 // `scripts/check-marker-liveness.ts` reads Guard B's `tracked-by:` only). What
 // IS offline is the marker's FRAGMENT and CLAIM REF against the compiler and
 // the Grammar Gap allowlist — "no marker drifts from its claim" below, whose
-// fix is `bun run oracle:mark-regressions --refresh` (issue #7671).
+// fix is `bun run oracle:mark-regressions --refresh`.
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each of the assertions below was driven red by breaking the thing it

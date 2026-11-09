@@ -14,7 +14,7 @@ import {
 // an additional cost to cast this spell, you may pay {3} any number of times.
 // When this creature enters, create that many tokens that are copies of
 // it.)\nVigilance\nWhenever a creature token you control enters, put a +1/+1
-// counter on it." The first Squad card (CR 702.157, issue #3220).
+// counter on it." The first Squad card (CR 702.157).
 //
 // ── Squad's two linked abilities (CR 702.157a) ─────────────────────────────
 //

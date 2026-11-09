@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 
 // Tezzeret, Cruel Captain — {3} Legendary Planeswalker — Tezzeret, loyalty 4
-// (EOE, issue #3229).
+// (EOE).
 // "Whenever an artifact you control enters, put a loyalty counter on Tezzeret.
 //  0: Untap target artifact or creature. If it's an artifact creature, put a
 //     +1/+1 counter on it.

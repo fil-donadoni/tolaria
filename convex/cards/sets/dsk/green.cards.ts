@@ -7,7 +7,7 @@ import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 // Enduring Vitality — {1}{G}{G} Enchantment Creature — Elk Glimmer, 3/3
-// (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
+// (the DSK "Enduring" cycle; the shared dies-trigger and its
 // CR 205.1a / 613.1d derivation live in `abilities/enduringReturn.ts`).
 //
 // "Vigilance" — CR 702.20a, a `staticAbilities` keyword; the registry row is
