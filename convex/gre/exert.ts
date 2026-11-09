@@ -168,8 +168,9 @@ export function payExertActivationCost(
  *  matching event is the one this tap queued; an earlier exert of the same
  *  permanent still owns its own.
  *
- *  Shared by every reversal path: `untapSourceFromPayment`, `tapUntap`'s untap
- *  toggle, `rollbackPendingCast` and `untapForPayment` (`convex/game.ts`). */
+ *  Shared by every reversal path: `untapSourceFromPayment` and
+ *  `rollbackPendingCast` (`gre/paymentRollback.ts`), `tapUntap`'s untap toggle
+ *  and `untapForPayment` (`convex/game.ts`). */
 export function restoreExertOnUntap(
     state: GameState,
     card: CardInstanceState
