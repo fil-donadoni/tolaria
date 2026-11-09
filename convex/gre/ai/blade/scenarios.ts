@@ -20991,7 +20991,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 0,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        // At 400 the two root moves are a near-tie either way, so the entry
+        // passes with or without `libraryCount`; the dilution shows from
+        // 2000 iterations, where its absence loses every seed.
+        budget: { iterations: 2000 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
