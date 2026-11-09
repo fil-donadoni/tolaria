@@ -4271,13 +4271,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // cast undone: the prepared copy back in exile, the Island that paid
         // untapped, priority to the Bot). The Bot is ~21 points level on the
         // board but every leaf at the horizon sits 850–1 850 points behind,
-        // past `materialFull`: under the hard clip every one of them mapped to
-        // the band floor, and the misdirected cast led the root by mean reward
-        // (0.237 / 157 visits vs 0.210 / 140 at 600 iterations, 0.233 vs 0.217
-        // at 3 000 — the gap GREW with budget). With the compressive tail the
-        // self-cast leads (0.245 vs 0.199 at 600; 0.247 / 864 vs 0.218 / 566 at
-        // 3 000) and the misdirected variant is last at both budgets. The
-        // sideboards (`outsideGame`) and the libraries' order are not lowered.
+        // past `materialFull`, where the base vector's hard clip maps them all
+        // to the band floor; on the full reconstruction the misdirected cast
+        // led the root by mean reward (0.237 / 157 visits vs 0.210 / 140 at
+        // 600 iterations, 0.233 vs 0.217 at 3 000 — the gap GREW with budget).
+        // ADR 0176 records what moved it and what did not. The sideboards
+        // (`outsideGame`) and the libraries' order are not lowered.
         label: "far behind: the prepared Ancestral Recall copy is never cast at the opponent (issue #8954 position)",
         classification: {
             kind: "conditional",
@@ -4410,18 +4409,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Ancestral Recall", target: "opp" },
             ],
         },
-        note: "Issue #8954, the reported position: the Bot cast the prepared copy of Ancestral Recall (Emeritus of Ideation's inset frame, CR 722.3c) at the human. The matcher names the copy by the name it presents (CR 722.3c), which `instanceIdsForName` resolves beside the real card. Holding the spell is accepted: `last-window-deferral` is right to keep an instant for the opponent's turn, and the issue is the TARGET, not the timing. What this entry guards is the reward tail (ADR 0176): with the hard clip the root's mean reward ranked the misdirected cast FIRST, so the `material-tiebreak` that knows better (−848 vs −1616 mean margin) was only reachable while rollout residue kept the two inside `outcomeEps`; the deferral rule happened to save seed 1 at 600 iterations, and nothing saved the prod game. With the tail the misdirected cast is the LAST candidate by mean reward at 600 and 3 000 iterations on the reconstructed position, so no root rule has to rescue the pick. WHAT THIS LOWERING IS: the board, hands, graveyards and exiles are the report's; the libraries are `libraryCount` filler and the sideboards are not lowered, so the search's deck knowledge differs from the prod game's and on this spec the root prefers the Brazen Borrower bounce on Ouroboroid by `mean-reward` on every seed, before and after the tail. The entry is therefore a POSITION GUARD for the reported shape (the misdirected cast is never chosen), not the discriminating proof — that is `rewardTail.bot.test.ts` on the hand-cast entry below, and the full-reconstruction traces quoted above.",
+        note: "Issue #8954, the reported position: the Bot cast the prepared copy of Ancestral Recall (Emeritus of Ideation's inset frame, CR 722.3c) at the human. The matcher names the copy by the name it presents (CR 722.3c), which `instanceIdsForName` resolves beside the real card. Holding the spell is accepted: `last-window-deferral` is right to keep an instant for the opponent's turn, and the issue is the TARGET, not the timing. WHAT THIS LOWERING IS: the board, hands, graveyards and exiles are the report's; the libraries are `libraryCount` filler and the sideboards are not lowered, so the search's deck knowledge differs from the prod game's and on this spec the root prefers the Brazen Borrower bounce on Ouroboroid by `mean-reward` on every seed, under the base vector and under `reward-soft-tail` alike. A POSITION GUARD for the reported shape (the misdirected cast is never chosen), not the discriminating proof: the full-reconstruction traces live in ADR 0176, and `rewardTail.bot.test.ts` pins the flat-floor signature on the hand-cast entry below.",
     },
     {
         // Issue #8954 — the hand-cast shape of the same class, in a minimal
         // far-behind position (≈ −815 at the root, three Craw Wurms against
-        // nothing). The clip's signature is exact here: under
-        // `reward-hard-clip` every root candidate's mean reward is 0.2500 —
-        // the band floor — on every seed, and the pick is pure residue plus
-        // the material tie-break. With the tail the means are distinct and
-        // ordered self-draw > pass > opponent-draw, which
-        // `rewardTail.bot.test.ts` asserts on this entry's built state.
-        label: "far behind: Ancestral Recall from hand is cast at the BOT, the reward no longer flat (issue #8954)",
+        // nothing). The clip's signature is exact here: under the base vector
+        // every root candidate's mean reward is 0.2500 — the band floor — on
+        // every seed, and the pick is residue plus the material tie-break;
+        // under `reward-soft-tail` the means are distinct and ordered
+        // self-draw > pass > opponent-draw, which `rewardTail.bot.test.ts`
+        // asserts on this entry's built state.
+        label: "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)",
         classification: {
             kind: "conditional",
             discriminant: {
@@ -4456,7 +4455,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Ancestral Recall", target: "me" },
             ],
         },
-        note: "Issue #8954, the hand-cast half: at the opponent's end step with three Islands open and the Bot ~815 points behind, the draw goes to the Bot. HONEST ABOUT THE MECHANISM: the three candidates' mean rewards sit within `outcomeEps` with the tail as well (the whole open band past `materialFull` is compressed into a quarter of the half-band, so a three-card swing is worth ~0.01 reward at this depth), and the pick is settled by `material-tiebreak` before and after. What the tail changes — and what the companion test pins — is that the reward is no longer FLAT: before, every candidate scored exactly the band floor and the tie-break was the only thing standing between the Bot and a coin flip once residue pushed a candidate past the band; after, the search's own mean ranks the self-draw first and the misdirected draw last, so the tie-break confirms the search instead of overruling it.",
+        note: "Issue #8954, the hand-cast half: at the opponent's end step with three Islands open and the Bot ~815 points behind, the draw goes to the Bot. HONEST ABOUT THE MECHANISM: the three candidates' mean rewards sit within `outcomeEps` under the base vector (all exactly 0.2500) and under `reward-soft-tail` alike (a three-card swing is worth ~0.01 reward at this depth of the tail), so the pick is settled by `material-tiebreak` either way. What the companion test pins is the signature of the blindness — every candidate at the floor — and that the tail removes it: the search's own mean then ranks the self-draw first and the misdirected draw last, so the tie-break confirms the search instead of being its only defence.",
     },
     {
         // Issue #8954 — the class beyond draw: far behind, a one-mana removal
@@ -4503,7 +4502,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #8954, the general class in a losing position that is not a draw spell: ~700 points behind, Swords to Plowshares at the opponent's end step goes to the 6/4, not to a 3/3 or the 2/2. Half 1 of the discriminating pair — the twin declares it by `pairOf`. Both halves pass under `reward-hard-clip` too, through `material-tiebreak` (the removal variants differ by a few hundred points, inside the band at any slope); the pair is here because the issue's class is 'far behind, non-game-ending difference', and these two positions are the smallest statement of it that a human can judge without hedging.",
+        note: "Issue #8954, the general class in a losing position that is not a draw spell: ~700 points behind, Swords to Plowshares at the opponent's end step goes to the 6/4, not to a 3/3 or the 2/2. Half 1 of the discriminating pair — the twin declares it by `pairOf`. Both halves pass under the base vector and under `reward-soft-tail`, through `material-tiebreak` (the removal variants differ by a few hundred points, inside the band at any slope); the pair is here because the issue's class is 'far behind, non-game-ending difference', and these two positions are the smallest statement of it that a human can judge without hedging.",
     },
     {
         label: "far behind: the removal follows the best creature when the counters move it (issue #8954 pair, twin)",

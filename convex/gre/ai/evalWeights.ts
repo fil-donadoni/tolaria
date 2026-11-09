@@ -315,8 +315,9 @@ export type EvalWeights = {
      *  `materialLinearShare · materialFull`; beyond it the remaining
      *  `1 − materialLinearShare` of the half-band is filled by `t / (1 + t)`,
      *  which is strictly monotone for every finite margin, so no two leaves
-     *  in the open band ever share a reward. `1` is the historical hard clip
-     *  (flat past ±`materialFull`, the blindness this knob removes). */
+     *  in the open band ever share a reward. `1` — the base vector — is the
+     *  historical hard clip (flat past ±`materialFull`); the `reward-soft-tail`
+     *  ladder variant sets 0.6. Not the default yet: ADR 0176 records why. */
     materialLinearShare: number;
     /** Fitted logistic margin → win-probability constant, ladder corpus
      *  (`CALIBRATED_REWARD_K`; issue #1929). */
@@ -479,7 +480,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     rolloutGuardrailPenalty: 0.05,
     terminalBand: 0.25,
     materialFull: 500,
-    materialLinearShare: 0.5,
+    materialLinearShare: 1,
     calibratedRewardK: 9.983957e-4,
     choicePriorC: 0.75,
     visitTol: 0.15,

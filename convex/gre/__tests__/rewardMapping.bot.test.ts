@@ -1,5 +1,6 @@
-// Issue #8954 / ADR 0176 — the open-band reward is strictly monotone in the
-// leaf margin everywhere, never flat past ±`materialFull`.
+// Issue #8954 / ADR 0176 — under the `reward-soft-tail` vector the open-band
+// reward is strictly monotone in the leaf margin everywhere, never flat past
+// ±`materialFull`; the base vector keeps the hard clip (measured, ADR 0176).
 //
 // The hard clip this replaces mapped every margin beyond ±`materialFull` to
 // the same reward, so a position a few creatures behind (or ahead) made the
@@ -16,10 +17,17 @@ import {
     terminalMagnitude,
     type EvalWeights,
 } from "../ai/evalWeights";
+import { LADDER_VARIANTS } from "../ai/searchVariant";
 import { rewardFromValue } from "../search";
 
-const W = DEFAULT_EVAL_WEIGHTS;
-const HARD_CLIP: EvalWeights = { ...W, materialLinearShare: 1 };
+// The base vector is the hard clip (ADR 0176: the tail is measured, not the
+// default); the tail is asserted on the `reward-soft-tail` vector.
+const HARD_CLIP: EvalWeights = DEFAULT_EVAL_WEIGHTS;
+const W: EvalWeights = {
+    ...DEFAULT_EVAL_WEIGHTS,
+    ...LADDER_VARIANTS["reward-soft-tail"]!.evalWeights,
+    latent: DEFAULT_EVAL_WEIGHTS.latent,
+} as EvalWeights;
 const KNEE = W.materialLinearShare * W.materialFull;
 
 /** The pre-#8954 open-band map — linear at the core slope, clipped at
@@ -98,7 +106,8 @@ describe("rewardFromValue — compressive tail (issue #8954)", () => {
         expect(poorWin).toBeGreaterThan(bestOpen);
     });
 
-    it("materialLinearShare = 1 recovers the historical hard clip exactly", () => {
+    it("the base vector (materialLinearShare = 1) IS the historical hard clip", () => {
+        expect(HARD_CLIP.materialLinearShare).toBe(1);
         for (const m of [
             -5000, -1500, -600, -500, -250, 0, 250, 500, 600, 1500, 5000,
         ]) {

@@ -1,7 +1,8 @@
 // Issue #8954 / ADR 0176 — the reward tail seen through the REAL search, on
-// a registry position: under the pre-#8954 hard clip every root candidate's
-// mean reward in a far-behind position is the band floor (flat), under the
-// compressive tail the means are distinct and the self-draw leads.
+// a registry position: under the base vector's hard clip every root
+// candidate's mean reward in a far-behind position is the band floor (flat);
+// under the `reward-soft-tail` variant the means are distinct and the
+// self-draw leads.
 //
 // `rewardMapping.bot.test.ts` proves the function; this file proves the
 // search inherits the property — `scoreLeaf` → `rewardFromValue` → the
@@ -16,7 +17,7 @@ import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { LADDER_VARIANTS, setSearchVariant } from "../searchVariant";
 
 const LABEL =
-    "far behind: Ancestral Recall from hand is cast at the BOT, the reward no longer flat (issue #8954)";
+    "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)";
 const SEED = 1;
 
 function rootMeans(): {
@@ -49,8 +50,7 @@ const labelOf = (byLabel: Map<string, number>, re: RegExp): string => {
 describe("reward tail through the search (issue #8954)", () => {
     afterEach(() => setSearchVariant(null));
 
-    it("hard clip: every far-behind root candidate scores exactly the band floor", () => {
-        setSearchVariant(LADDER_VARIANTS["reward-hard-clip"]);
+    it("base vector (hard clip): every far-behind root candidate scores exactly the band floor", () => {
         const { byLabel } = rootMeans();
         expect(byLabel.size).toBeGreaterThanOrEqual(3);
         for (const mean of byLabel.values()) {
@@ -58,7 +58,8 @@ describe("reward tail through the search (issue #8954)", () => {
         }
     });
 
-    it("compressive tail: the means are distinct, the self-draw leads and the misdirected draw trails", () => {
+    it("reward-soft-tail: the means are distinct, the self-draw leads and the misdirected draw trails", () => {
+        setSearchVariant(LADDER_VARIANTS["reward-soft-tail"]);
         const { chosen, byLabel } = rootMeans();
         const means = [...byLabel.values()];
         expect(new Set(means).size).toBe(means.length);

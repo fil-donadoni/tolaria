@@ -285,11 +285,11 @@ from player [Verdicts](#player-verdict) by the Weight Fit (ADR 0124; the
 signed number the search actually compares.
 
 <a id="reward"></a>**Reward** — the margin squashed into 0…1 so the search can
-average it: ~0 = lost, ~1 = won, the open middle linear in margin through its
-core (±`materialLinearShare · materialFull`) and **compressive past it** —
-strictly monotone, never flat, so two leaves a creature apart stay apart
-however far behind or ahead the position is (ADR 0176, issue #8954; the hard
-clip it replaced made the search blind past ±`materialFull`). The **reward
+average it: ~0 = lost, ~1 = won, the open middle linear in margin and
+clipped at ±`materialFull` — past it every leaf scores the same, which is the
+blindness issue #8954 measured; the `reward-soft-tail` variant
+(`materialLinearShare` 0.6) replaces the clip with a compressive, strictly
+monotone tail, measured and not yet the default (ADR 0176). The **reward
 bands** reserve the top and bottom quarter for positions that are won or lost
 outright, so a win dominates any material count. Code: `rewardFromValue` in
 `convex/gre/search.ts`.
