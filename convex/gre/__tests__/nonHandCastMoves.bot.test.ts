@@ -25,7 +25,12 @@ import { applyMoveInSearch } from "../search";
 import { getLegalActions } from "../rules";
 import { graveyardCastMechanism } from "../castCost";
 import { cloneGameState } from "../clone";
-import { getPlayer, type CardInstanceState, type GameState } from "../state";
+import {
+    getPlayer,
+    resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
+} from "../state";
 import {
     makeInstance,
     makePlayer,
@@ -788,8 +793,16 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             ],
         });
         const move = castOf(state, "p1", "gyBolt")!;
-        const { tree } = applyBoth(state, "p1", move);
+        const { greedy, tree } = applyBoth(state, "p1", move);
         expect(stackItem(tree, "gyBolt")!.exileOnResolve).toBe(true);
+        // Resolved in either sandbox, the spell is exiled, as the mutation's
+        // (the greedy sandbox may have resolved it already).
+        for (const sandbox of [greedy, tree]) {
+            if (sandbox.stack.length > 0) resolveTopOfStack(sandbox);
+            const p1 = getPlayer(sandbox, "p1");
+            expect(p1.exile.map((c) => c.id)).toEqual(["gyBolt"]);
+            expect(p1.graveyard).toHaveLength(0);
+        }
     });
 
     it("CROSS-PLAYER EXILE GRANT (CR 400.7): the card leaves the OPPONENT's exile, not the caster's", () => {

@@ -15,10 +15,15 @@ import {
     makeState,
 } from "../../../__tests__/setup.helper";
 import {
+    buildSpellContext,
+    getPlayer,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
+import { locateCastSource } from "../../../../gre/activation";
+import { commitCast } from "../../../../gre/castCommit";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { assertLoyaltyActivationLegal, payLoyaltyCost } from "../../../../game";
 import { compactState, expandState } from "../../../../gre/serialize";
@@ -28,12 +33,13 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { advancePhase } from "../../../../gre/phases";
-import { getDefinition } from "../../../index";
+import { getCardByName, getDefinition } from "../../../index";
 import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../../emblems";
 
 const jaceVrynsProdigy = getDefinition("02d6d693-f1f3-4317-bcc0-c21fa8490d38");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const mountain = getCardByName("Mountain");
 
 const JACE = jaceVrynsProdigy.id;
 
@@ -327,5 +333,107 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
         expect(() => assertLoyaltyActivationLegal(state, jace, plus1)).toThrow(
             /already been activated/
         );
+    });
+
+    describe("−3 — the spell cast this way is exiled instead of put into the graveyard (CR 614.1a)", () => {
+        /** The real −3 on a graveyard Lightning Bolt, then a Mountain to pay
+         *  for the cast. Returns the granted card's id. */
+        function grantedBolt(state: GameState): string {
+            const target = state.players[0].graveyard.find(
+                (c) => (c.card as { id: string }).id === lightningBolt.id
+            )!;
+            activate(state, "jace-telepath-unbound-minus3", [
+                { type: "graveyard-card", id: target.id, playerId: "p1" },
+            ]);
+            state.players[0].battlefield.push(
+                makeInstance(mountain.id, {
+                    id: "mountain",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+            state.phase = "PRECOMBAT_MAIN";
+            state.activePlayerId = "p1";
+            state.priorityPlayerId = "p1";
+            return target.id;
+        }
+
+        /** The mutation's cast: the REAL cast-source resolution, then the
+         *  Cast Commit kernel, Bolt aimed at p2. */
+        function castFromGraveyard(state: GameState, id: string): StackItem {
+            const source = locateCastSource(state, getPlayer(state, "p1"), id);
+            expect(source.zone).toBe("graveyard");
+            const item = commitCast(state, {
+                casterId: "p1",
+                cardInstanceId: id,
+                cardDef: lightningBolt,
+                manaCost: {},
+                source: { zone: source.zone },
+                legs: {},
+                record: { targets: [{ type: "player", id: "p2" }] },
+                mode: {},
+                placement: { kind: "announce" },
+            });
+            expect(item).not.toBeNull();
+            return item!;
+        }
+
+        const zoneOf = (state: GameState, id: string) => {
+            const p1 = getPlayer(state, "p1");
+            if (p1.exile.some((c) => c.id === id)) return "exile";
+            if (p1.graveyard.some((c) => c.id === id)) return "graveyard";
+            if (p1.hand.some((c) => c.id === id)) return "hand";
+            if (p1.library.some((c) => c.id === id)) return "library";
+            return "elsewhere";
+        };
+
+        it("cast and resolved: the spell deals its damage and is exiled", () => {
+            const { state } = flippedBoard();
+            const id = grantedBolt(state);
+            castFromGraveyard(state, id);
+            resolveTopOfStack(state);
+            expect(getPlayer(state, "p2").life).toBe(17);
+            expect(zoneOf(state, id)).toBe("exile");
+        });
+
+        it("the rider survives the DB round-trip while the spell is on the stack", () => {
+            const { state } = flippedBoard();
+            const id = grantedBolt(state);
+            castFromGraveyard(state, id);
+            const rehydrated = expandState(compactState(state));
+            resolveTopOfStack(rehydrated);
+            expect(zoneOf(rehydrated, id)).toBe("exile");
+        });
+
+        it("countered onto the library: that zone, the rider names the graveyard only", () => {
+            const { state } = flippedBoard();
+            const id = grantedBolt(state);
+            castFromGraveyard(state, id);
+            const counterer = {
+                ...makeInstance(lightningBolt.id, {
+                    id: "counterer",
+                    zone: "stack",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                castById: "p2",
+            } as StackItem;
+            state.stack.push(counterer);
+            buildSpellContext(state, counterer).counter(
+                { type: "spell", id },
+                "library-top"
+            );
+            expect(zoneOf(state, id)).toBe("library");
+        });
+
+        it("a graveyard grant without the rider (Emry's shape) still ends in the graveyard", () => {
+            const { state } = flippedBoard();
+            const id = grantedBolt(state);
+            delete getPlayer(state, "p1").graveyard.find((c) => c.id === id)!
+                .castFromGraveyardExilesOnResolve;
+            castFromGraveyard(state, id);
+            resolveTopOfStack(state);
+            expect(zoneOf(state, id)).toBe("graveyard");
+        });
     });
 });
