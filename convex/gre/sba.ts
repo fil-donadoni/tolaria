@@ -22,7 +22,7 @@ import {
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
 import {
-    abilitiesSuppressed,
+    liveStaticDefinition,
     isAura,
     isCreature,
     isPlaneswalker,
@@ -493,11 +493,8 @@ export function checkCounterLimitSBA(state: GameState): boolean {
         for (const card of player.battlefield) {
             const counters = card.counters;
             if (!counters) continue;
-            const cardId = (card.card as { id?: string }).id;
-            const limits = cardId
-                ? tryGetDefinition(cardId)?.counterLimits
-                : undefined;
-            if (!limits || abilitiesSuppressed(card)) continue;
+            const limits = liveStaticDefinition(card)?.counterLimits;
+            if (!limits) continue;
             let next: Record<string, number> | null = null;
             for (const { counter, max } of limits) {
                 if ((counters[counter] ?? 0) <= max) continue;

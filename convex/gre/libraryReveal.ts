@@ -31,7 +31,7 @@
 // characteristics only).
 
 import type { GameState } from "./state";
-import { tryGetDefinition } from "../cards";
+import { liveStaticDefinition } from "./constants";
 import { looksAtLibraryTopOf } from "../cards/abilities/classLevels";
 
 /** CR 401.5 / 604.2 — ids of the players currently playing with the top card of
@@ -53,10 +53,8 @@ export function computeLibraryTopRevealedPlayers(
     const revealed = new Set<string>();
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            const scope = cardId
-                ? tryGetDefinition(cardId)?.revealsLibraryTop
-                : undefined;
+            // CR 613.1f — a source that lost its abilities reveals nothing.
+            const scope = liveStaticDefinition(card)?.revealsLibraryTop;
             if (!scope) continue;
             // Only scope shipped today (see `CardDefinition.revealsLibraryTop`);
             // widen here in lockstep with the union when a card needs it.
@@ -86,8 +84,7 @@ export function computeLibraryTopLookedAtPlayers(
     const looking = new Set<string>();
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(card);
             const scope = def ? looksAtLibraryTopOf(def, card) : undefined;
             if (!scope) continue;
             // Only scope shipped today (see `CardDefinition.looksAtLibraryTop`);

@@ -1,8 +1,8 @@
 import { getEffectiveColors } from "../cards/effectiveColors";
-import { tryGetDefinition } from "../cards/registry";
 import { liveSupertypesOf } from "../cards/snowReads";
 import type { PermanentView, TriggerStateView } from "../cards/types";
 import type { CardInstanceState } from "./state/declarations";
+import { liveStaticDefinition } from "./constants";
 
 type TriggerViewPlayer = TriggerStateView["players"][number];
 type TriggerViewPermanent = TriggerViewPlayer["battlefield"][number];
@@ -21,7 +21,6 @@ export function triggerViewPermanent(
     c: CardInstanceState,
     pt: { power?: number; toughness?: number }
 ) {
-    const cardId = (c.card as { id?: string }).id;
     return {
         id: c.id,
         controllerId: c.controllerId,
@@ -49,9 +48,8 @@ export function triggerViewPermanent(
         // (Shorikai's Pilot token) feeds the Crew N affordability hint; without
         // it a board that CAN crew only thanks to the bonus is never offered
         // the ability.
-        crewPowerBonus: cardId
-            ? tryGetDefinition(cardId)?.crewPowerBonus
-            : undefined,
+        // CR 613.1f — a creature that lost its abilities has no bonus.
+        crewPowerBonus: liveStaticDefinition(c)?.crewPowerBonus,
         // CR 205.4a — LIVE supertypes, for a `sacrificeFilter` activation cost
         // narrowed by supertype (Sunstone / Glacial Crevasses / Whiteout's
         // "sacrifice a snow land"). Printed supertypes alone miss a snow status

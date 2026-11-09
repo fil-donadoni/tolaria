@@ -334,6 +334,7 @@ import {
     replaceProducedManaColor,
     isCreature,
     sameOrder,
+    liveStaticDefinition,
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import {
@@ -4691,10 +4692,8 @@ function finalizeSpellResolution(
 export function landPlayLockActive(state: GameState): boolean {
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
-            if (def?.preventsLandPlayAndETB) return true;
+            // CR 613.1f — a source that lost its abilities locks nothing.
+            if (liveStaticDefinition(card)?.preventsLandPlayAndETB) return true;
         }
     }
     return false;

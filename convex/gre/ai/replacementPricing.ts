@@ -30,14 +30,13 @@
 // standing worth (`declaresStandingLock`'s same limit), so reading the
 // board face alone would open a hand/board gap.
 
-import { tryGetDefinition } from "../../cards";
 import type {
     CardDefinition,
     DamageReplacementEvent,
     ReplacementEffect,
     ReplacementEventKind,
 } from "../../cards/types";
-import { isCreature } from "../constants";
+import { isCreature, liveStaticDefinition } from "../constants";
 import { getEffectivePT, type Layer7Pass } from "../layers";
 import {
     buildPermanentView,
@@ -120,7 +119,8 @@ export function replacementStandingWorth(
     weights: ReplacementShareWeights,
     pass: Layer7Pass
 ): number {
-    const def = tryGetDefinition(String(source.card.id ?? ""));
+    // CR 613.1f — a source that lost its abilities shields nothing.
+    const def = liveStaticDefinition(source);
     if (!def || !declaresDamageShield(def)) return 0;
     let worth = 0;
     for (const effect of def.replacementEffects ?? []) {

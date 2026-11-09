@@ -41,6 +41,7 @@ import {
     restrictedXPipCount,
     takeGenericPoints,
     resolvePendingTargetKind,
+    liveStaticDefinition,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
@@ -234,9 +235,7 @@ export function getExtraLandDrops(
         if (grant.playerId === player.id) extra += grant.count;
     }
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
+        const def = liveStaticDefinition(card);
         if (def) extra += extraLandDropsOf(def, card);
     }
     return extra;
@@ -265,9 +264,8 @@ export function getGraveyardPlayPermissions(
 ): LiveGraveyardPlayPermission[] {
     const live: LiveGraveyardPlayPermission[] = [];
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const permission = tryGetDefinition(cardId)?.graveyardPlayPermission;
+        // CR 613.1f — a source that lost its abilities permits nothing.
+        const permission = liveStaticDefinition(card)?.graveyardPlayPermission;
         if (!permission) continue;
         // Issue #1239 — the "if you do, it gains '…'" rider,
         // resolved here against the source's definition so a commit site
@@ -279,7 +277,7 @@ export function getGraveyardPlayPermissions(
             ...(permission.grantsOnUse !== undefined
                 ? {
                       rider: {
-                          sourceCardId: cardId,
+                          sourceCardId: (card.card as { id: string }).id,
                           abilityId: permission.grantsOnUse,
                       },
                   }
@@ -405,10 +403,8 @@ export function canPlayLandsFromTopOfLibrary(
     player: PlayerState
 ): boolean {
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
-        if (def?.playsLandsFromTopOfLibrary) return true;
+        // CR 613.1f — a source that lost its abilities permits nothing.
+        if (liveStaticDefinition(card)?.playsLandsFromTopOfLibrary) return true;
     }
     return false;
 }
@@ -469,9 +465,7 @@ type LibraryTopCastGrant = NonNullable<
 function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
     const grants: LibraryTopCastGrant[] = [];
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const grant = tryGetDefinition(cardId)?.castsSpellsFromTopOfLibrary;
+        const grant = liveStaticDefinition(card)?.castsSpellsFromTopOfLibrary;
         if (grant) grants.push(grant);
     }
     return grants;
