@@ -79,6 +79,9 @@ describe("armedStepTargetGates (CR 603.3d)", () => {
 });
 
 describe("search: a move arming the opponent's Oath (issue #8734)", () => {
+    // Five seeds of a 400-iteration search, each enumeration probing every
+    // Oko activation for loyalty-tick dominance: past the 60 s default under
+    // runner load, so the budget is explicit (fixed iterations, never time).
     it("Oko takes its +2, keeping creatures level, on every seed", () => {
         const result = runBladeScenario(entry(ANCHOR));
         expect(result.ok, result.failureMessage).toBe(true);
@@ -88,5 +91,5 @@ describe("search: a move arming the opponent's Oath (issue #8734)", () => {
                 abilityId: "oko-thief-of-crowns-plus2",
             });
         }
-    });
+    }, 300_000);
 });
