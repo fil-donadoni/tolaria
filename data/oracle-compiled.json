@@ -8,10 +8,10 @@
         "poolHash": "sha256:18f4202dd457116e06919f8d0cf7b7c3b7523c264d88fd3c40909c5f83abfd0b",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
-            "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20261101220203.jsonl.gz",
-            "updatedAt": "2026-11-01T22:02:03.472+00:00",
+            "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20261108220201.jsonl.gz",
+            "updatedAt": "2026-11-08T22:02:01.983+00:00",
             "cardCount": 35353,
-            "sha256": "bd329eb9255e2e38e24b2cb13361b1496b56166d49b85fdf7edcca110a072d69"
+            "sha256": "5002345ca3b4741ee2e6c4a894fe8c61a946b28822b2ddaaf6d6d03c7d68012f"
         }
     },
     "fragments": [
@@ -26875,7 +26875,7 @@
         {"key":"6b7c3fe93876","text":"{3}{G}: This creature becomes a Werewolf. Put two +1/+1 counters on it and you draw a card. Activate only once.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature becomes a Werewolf"}},
         {"key":"64eebac288b4","text":"{3}{G}: This creature can't be blocked by creatures with power 2 or less this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature can't be blocked by creatures with power 2 or less this turn"}},
         {"key":"3728177048c2","text":"{3}{G}: This creature gets +X/+X until end of turn, where X is the number of snow permanents you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature gets +X/+X until end of turn"}},
-        {"key":"52f6a91c9dd4","text":"{3}{G}: Until end of turn, this creature has base power and toughness 5/3, gains trample, and isn't a Human.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Until end of turn, this creature has base power and toughness 5/3,"}},
+        {"key":"91aae703e311","text":"{3}{G}: Until end of turn, this creature has base power and toughness 5/3, gains trample, and is a Werewolf.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Until end of turn, this creature has base power and toughness 5/3,"}},
         {"key":"93f2ef8234de","text":"{3}{G}{G}, {T}, Sacrifice {self}: Sacrifice any number of lands you control, then search your library for up to that many land cards, put them onto the battlefield tapped, then shuffle. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","verb frame"],"span":"Sacrifice any number of lands you control"}},
         {"key":"dbf44b2b546a","text":"{3}{G}{G}: Conjure a card named {self} onto the battlefield. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Conjure a card named {self} onto the battlefield"}},
         {"key":"babb85a1473c","text":"{3}{G}{G}: Creatures you control get +X/+X until end of turn, where X is the greatest power among creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Creatures you control get +X/+X until end of turn, where X is the greatest power among creatures you control"}},
@@ -30251,7 +30251,7 @@
 
         {"oracleId":"01f8db27-1191-488e-b0d5-172821613c15","name":"Eye of the Storm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["28f3e6eee473"]},
 
-        {"oracleId":"01f9cfd9-47da-4dbe-a21e-53eccad3864a","name":"Autumn Willow, Harmony","state":"unparsed","gaps":["442660661a79","eae65cc898ed"]},
+        {"oracleId":"01f9cfd9-47da-4dbe-a21e-53eccad3864a","name":"Autumn Willow, Harmony","state":"unparsed","poolIn":["commander"],"gaps":["442660661a79","eae65cc898ed"]},
 
         {"oracleId":"01fc5bb3-ebd7-4ab4-8aef-2ece1e1d9b7c","name":"Lotus Vale","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["4820ca4794ec"]},
 
@@ -30633,7 +30633,7 @@
 
         {"oracleId":"0339bd11-ad71-4998-9b5d-a32790f0e5e3","name":"Barkform Harvester","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fd2beca93a44"]},
 
-        {"oracleId":"0339d25b-9591-49c0-bf31-4ba749ebd0b0","name":"Ashaya's Enduring Bond","state":"unparsed","gaps":["003fa05101d9","2e938fc3d121"]},
+        {"oracleId":"0339d25b-9591-49c0-bf31-4ba749ebd0b0","name":"Ashaya's Enduring Bond","state":"unparsed","poolIn":["commander"],"gaps":["003fa05101d9","2e938fc3d121"]},
 
         {"oracleId":"0340cfcb-fc96-40d2-8175-31a0093615bb","name":"Engulfing Slagwurm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5864762aec16"]},
 
@@ -32005,7 +32005,7 @@
 
         {"oracleId":"0868ebbb-2fe9-4f53-9697-acad8cda5ec1","name":"Greed's Gambit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["50dddd02d560","8560afeefa96","aaebfaf8fc40"]},
 
-        {"oracleId":"086a911f-9ed4-4260-ae46-58c9333b95f5","name":"Werewolf Pack Leader","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0965ce0541c4","52f6a91c9dd4"]},
+        {"oracleId":"086a911f-9ed4-4260-ae46-58c9333b95f5","name":"Werewolf Pack Leader","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0965ce0541c4","91aae703e311"]},
 
         {"oracleId":"086b2564-9114-4ba2-94fd-b490f98f38a7","name":"Chain Reaction","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","forEach"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"count set spans all players' zones — not faithfully sizable in a canned scenario"},{"kind":"smoke-scenario","detail":"object ref \"$each\" — recipient depends on a forEach iteration"}],"definition":{"name":"Chain Reaction","types":["Sorcery"],"manaCost":{"X":2,"R":2},"oracleText":"Chain Reaction deals X damage to each creature, where X is the number of creatures on the battlefield.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":{"count":{"zone":"battlefield","acrossAllPlayers":true,"filter":{"type":["Creature"]}}},"to":{"ref":"$each"}}]}]}},
 
@@ -34587,7 +34587,7 @@
 
         {"oracleId":"11cb509d-21af-48f1-b355-135ebd3e4bd1","name":"Doomed Dissenter","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Doomed Dissenter","types":["Creature"],"subtypes":["Human"],"manaCost":{"X":1,"B":1},"power":1,"toughness":1,"oracleText":"When this creature dies, create a 2/2 black Zombie creature token.","compiledTriggeredAbilities":[{"id":"doomed-dissenter-trigger","oracleText":"When this creature dies, create a 2/2 black Zombie creature token.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Zombie","types":["Creature"],"subtypes":["Zombie"],"power":2,"toughness":2,"colors":["B"]},"controller":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"11cc638c-b1c5-4b73-8eac-00cac6ae32b6","name":"Tresserhorn's Lord, Returned","state":"unparsed","gaps":["4664dc9dd9eb","a8fc2854cc33"]},
+        {"oracleId":"11cc638c-b1c5-4b73-8eac-00cac6ae32b6","name":"Tresserhorn's Lord, Returned","state":"unparsed","poolIn":["commander"],"gaps":["4664dc9dd9eb","a8fc2854cc33"]},
 
         {"oracleId":"11cd0c42-4148-4d82-9172-b1a1967fe319","name":"Browbeat","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["ebf8c440480b"]},
 
@@ -34603,7 +34603,7 @@
 
         {"oracleId":"11db299a-0918-46a3-b39b-16acc3f4e281","name":"Experimental Synthesizer","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["createToken","exileTopOfLibrary","grantCastFromExile"],"definition":{"name":"Experimental Synthesizer","types":["Artifact"],"manaCost":{"R":1},"oracleText":"When this artifact enters or leaves the battlefield, exile the top card of your library. Until end of turn, you may play that card.\n{2}{R}, Sacrifice this artifact: Create a 2/2 white Samurai creature token with vigilance. Activate only as a sorcery.","activatedAbilities":[{"id":"experimental-synthesizer-ability","oracleText":"{2}{R}, Sacrifice this artifact: Create a 2/2 white Samurai creature token with vigilance. Activate only as a sorcery.","cost":{"mana":{"X":2,"R":1},"sacrifice":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Samurai","types":["Creature"],"subtypes":["Samurai"],"power":2,"toughness":2,"colors":["W"],"staticAbilities":["vigilance"]},"controller":"controller"}],"sorcerySpeedOnly":true}],"compiledTriggeredAbilities":[{"id":"experimental-synthesizer-trigger","oracleText":"When this artifact enters or leaves the battlefield, exile the top card of your library. Until end of turn, you may play that card.","head":{"kind":"enters-or-leaves"},"effects":[{"op":"exileTopOfLibrary","player":"controller","count":1,"bindAll":"$exiled1"},{"op":"grantCastFromExile","card":{"ref":"$exiled1"},"player":"controller","window":"this-turn","includesLand":true}]}]},"botReach":"played"},
 
-        {"oracleId":"11db8545-eca6-43f5-b9e8-f302acef53a5","name":"Joven and Chandler","state":"unparsed","gaps":["3a0cfc27e00c","4b391d6e0037"]},
+        {"oracleId":"11db8545-eca6-43f5-b9e8-f302acef53a5","name":"Joven and Chandler","state":"unparsed","poolIn":["commander"],"gaps":["3a0cfc27e00c","4b391d6e0037"]},
 
         {"oracleId":"11dfe74c-bc8e-4d58-b526-41ea5b409135","name":"Meletis Charlatan","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["66daf050d2f2"]},
 
@@ -35519,7 +35519,7 @@
 
         {"oracleId":"15039c85-31e2-4a2b-82f8-2f8270ff9a00","name":"Majestic Genesis","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d711f1a729c5"]},
 
-        {"oracleId":"15084803-8470-469b-8cd9-154c2341b96d","name":"Worzel, the Protector","state":"unparsed","gaps":["24dce37f39d8","60e5f57570d7","6704a8c35b86","e912a7906f6c"]},
+        {"oracleId":"15084803-8470-469b-8cd9-154c2341b96d","name":"Worzel, the Protector","state":"unparsed","poolIn":["commander"],"gaps":["24dce37f39d8","60e5f57570d7","6704a8c35b86","e912a7906f6c"]},
 
         {"oracleId":"15093579-8258-41d2-9738-aaa7e3824c40","name":"Cephalid Snitch","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["759deef87365"]},
 
@@ -36745,7 +36745,7 @@
 
         {"oracleId":"195c6453-e5cc-4b3b-8518-eaccf29bc4a6","name":"Canopy Claws","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["45713645c297"]},
 
-        {"oracleId":"195d1f2a-0d71-475b-9dd1-0c8efe64ad8f","name":"Balefang the Unslayable","state":"unparsed","gaps":["ac1b724ce583","d741ec006e49"]},
+        {"oracleId":"195d1f2a-0d71-475b-9dd1-0c8efe64ad8f","name":"Balefang the Unslayable","state":"unparsed","poolIn":["commander"],"gaps":["ac1b724ce583","d741ec006e49"]},
 
         {"oracleId":"195f0d16-691c-4a0c-979b-7c23add615cc","name":"The Mystical Archive","state":"unparsed","gaps":["3ea19e9b7b9e","48f97020f02e","e3545dd12473"]},
 
@@ -38689,7 +38689,7 @@
 
         {"oracleId":"20b8911e-6701-485c-ac62-2b3cc79ec288","name":"Coral Net","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["a9d043b7693f"]},
 
-        {"oracleId":"20b90808-0279-46eb-ae51-6990ac679a83","name":"Greensleeves","state":"unparsed","gaps":["6704a8c35b86","7854ccbf82a6","c89952a965fe","fe8534114603"]},
+        {"oracleId":"20b90808-0279-46eb-ae51-6990ac679a83","name":"Greensleeves","state":"unparsed","poolIn":["commander"],"gaps":["6704a8c35b86","7854ccbf82a6","c89952a965fe","fe8534114603"]},
 
         {"oracleId":"20b90a18-ff62-4995-b0d6-fbef44dca357","name":"Karn, Gilded Guardian","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["168ab96d72ee"]},
 
@@ -38833,7 +38833,7 @@
 
         {"oracleId":"214cfbc8-369e-4035-9b65-80d0e0024889","name":"Cryptic Pursuit","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["05e61572ec16","6b3ba052158e"]},
 
-        {"oracleId":"214f4e0a-eba7-4a08-86b2-d490d6ae1048","name":"Maular, the Next Evolution","state":"unparsed","gaps":["26c6a9887422","3897ad3c280e"]},
+        {"oracleId":"214f4e0a-eba7-4a08-86b2-d490d6ae1048","name":"Maular, the Next Evolution","state":"unparsed","poolIn":["commander"],"gaps":["26c6a9887422","3897ad3c280e"]},
 
         {"oracleId":"215024ba-811e-4011-bbc8-8dd14a34f973","name":"Heidegger, Shinra Executive","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["85204ce6d689","d40ebe13064c"]},
 
@@ -41185,7 +41185,7 @@
 
         {"oracleId":"2a521811-7106-4531-b69c-631e207b8988","name":"Chancellor of the Tangle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cc2393f829eb"]},
 
-        {"oracleId":"2a5376aa-8996-476e-9ee8-1426b0944091","name":"Nivea, Beloved Battlemage","state":"unparsed","gaps":["17ef31a7a4e4","5d1bad49b7a0"]},
+        {"oracleId":"2a5376aa-8996-476e-9ee8-1426b0944091","name":"Nivea, Beloved Battlemage","state":"unparsed","poolIn":["commander"],"gaps":["17ef31a7a4e4","5d1bad49b7a0"]},
 
         {"oracleId":"2a5408ed-8b47-4896-97e4-aa102a4b85c9","name":"Domri, Chaos Bringer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b28d241d45ec","ecdeb73ccac0","f21f7c6a09be"]},
 
@@ -41903,7 +41903,7 @@
 
         {"oracleId":"2d297469-1f04-4de4-b6e8-cbaa7830fd5e","name":"Tricksy","state":"unparsed","gaps":["c674ab8328b9"]},
 
-        {"oracleId":"2d29c40a-4e13-4d99-bb5a-e991e385b8c2","name":"Grandmother Goby","state":"unparsed","gaps":["856a865b2a56"]},
+        {"oracleId":"2d29c40a-4e13-4d99-bb5a-e991e385b8c2","name":"Grandmother Goby","state":"unparsed","poolIn":["commander"],"gaps":["856a865b2a56"]},
 
         {"oracleId":"2d2fab27-8793-4212-a512-c4f0c8c55eeb","name":"Timmerian Fiends","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"bannedIn":["premodern","legacy","vintage","commander"],"gaps":["1dbbdc50ad94","6838b2e420c1"]},
 
@@ -42717,7 +42717,7 @@
 
         {"oracleId":"2ff37e61-52b2-4886-8dfe-db6b23d9b0be","name":"Phyrexian Harvester","state":"unparsed","gaps":["0ffa80e93d53"]},
 
-        {"oracleId":"2ff470ee-4532-4ded-a684-a2c0d1253fb3","name":"Sash and Waistcoat, Unmen","state":"unparsed","gaps":["61a54071d7c5","f286b3f06266"]},
+        {"oracleId":"2ff470ee-4532-4ded-a684-a2c0d1253fb3","name":"Sash and Waistcoat, Unmen","state":"unparsed","poolIn":["commander"],"gaps":["61a54071d7c5","f286b3f06266"]},
 
         {"oracleId":"2ff5a5ed-d6db-4dfa-b1fd-38ad872ad30a","name":"Hammerhead, Maggia Boss","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated"],"opsUsed":["counters"],"definition":{"name":"Hammerhead, Maggia Boss","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Rogue","Villain"],"manaCost":{"X":1,"B":1},"power":2,"toughness":1,"oracleText":"Sacrifice another creature or artifact: Put a +1/+1 counter on Hammerhead.","activatedAbilities":[{"id":"hammerhead-maggia-boss-ability","oracleText":"Sacrifice another creature or artifact: Put a +1/+1 counter on {self}.","cost":{"sacrificeFilter":{"types":["Creature","Artifact"],"excludeSource":true}},"useStack":true,"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
@@ -43149,7 +43149,7 @@
 
         {"oracleId":"31932df4-0be8-45c4-8b22-84119d9c20ba","name":"Georgiou, Terran Emperor","state":"unparsed","gaps":["bce31a7f2ad4","d819059df270"]},
 
-        {"oracleId":"3194c964-1693-40b6-b4f2-64fe056e7cd9","name":"Tsagan, Raider Warlord","state":"unparsed","gaps":["65cc9449d764","7aa2b28af794"]},
+        {"oracleId":"3194c964-1693-40b6-b4f2-64fe056e7cd9","name":"Tsagan, Raider Warlord","state":"unparsed","poolIn":["commander"],"gaps":["65cc9449d764","7aa2b28af794"]},
 
         {"oracleId":"3194fe3d-57d3-4dab-ab39-3778b75150fa","name":"Thopter Architect","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2aeebbf881e5"]},
 
@@ -47033,7 +47033,7 @@
 
         {"oracleId":"3f5bbfaa-cbd7-47af-9aa2-abb49d672734","name":"Yavimaya Ants","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Yavimaya Ants","types":["Creature"],"subtypes":["Insect"],"manaCost":{"X":2,"G":2},"power":5,"toughness":1,"oracleText":"Trample, haste\nCumulative upkeep {G}{G} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)","staticAbilities":["trample","haste"],"cumulativeUpkeep":{"G":2}},"botReach":"played"},
 
-        {"oracleId":"3f5db55a-8bae-4e97-86bd-f2a2dacf07a4","name":"Grizzlegom, Hurloon Hero","state":"unparsed","gaps":["a21c6fb6e833","bcf595ef12d3"]},
+        {"oracleId":"3f5db55a-8bae-4e97-86bd-f2a2dacf07a4","name":"Grizzlegom, Hurloon Hero","state":"unparsed","poolIn":["commander"],"gaps":["a21c6fb6e833","bcf595ef12d3"]},
 
         {"oracleId":"3f60a7ce-c714-4e87-a2d9-3710f2d610fa","name":"Balduvian Fallen","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c23a479be5a0"]},
 
@@ -48587,7 +48587,7 @@
 
         {"oracleId":"4527c622-cebe-41eb-9178-4895cccffe99","name":"Burning Cloak","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","pump"],"definition":{"name":"Burning Cloak","types":["Sorcery"],"manaCost":{"R":1},"oracleText":"Target creature gets +2/+0 until end of turn. Burning Cloak deals 2 damage to that creature.","effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":0,"duration":{"phase":"end-of-turn"}},{"op":"dealDamage","amount":2,"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"45284633-8aab-4078-ae5c-7b0d75efe2f5","name":"Rikala, Homarid King","state":"unparsed","gaps":["869ed7cf75cb","891df03e1ff4","e4d33ae7f3db"]},
+        {"oracleId":"45284633-8aab-4078-ae5c-7b0d75efe2f5","name":"Rikala, Homarid King","state":"unparsed","poolIn":["commander"],"gaps":["869ed7cf75cb","891df03e1ff4","e4d33ae7f3db"]},
 
         {"oracleId":"452d98ae-0fa2-4cff-9e18-eecd76ddb20b","name":"Anthropede","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["eb341ede441a"]},
 
@@ -53147,7 +53147,7 @@
 
         {"oracleId":"55b308b2-6e5b-438e-afee-d9b7d4960322","name":"Bitterblade Warrior","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["cfc70b11a584"]},
 
-        {"oracleId":"55b45ac9-9ce7-4d17-9efb-3c0c51482950","name":"Itazura, Lingering Wick","state":"unparsed","gaps":["92de1abb0373"]},
+        {"oracleId":"55b45ac9-9ce7-4d17-9efb-3c0c51482950","name":"Itazura, Lingering Wick","state":"unparsed","poolIn":["commander"],"gaps":["92de1abb0373"]},
 
         {"oracleId":"55b6434b-1542-40fd-b12a-697d40976582","name":"Ob Nixilis, Captive Kingpin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6d1eaf54ef50"]},
 
@@ -53287,7 +53287,7 @@
 
         {"oracleId":"562684ca-6e3c-47df-9e94-8ff772c25a96","name":"Renowned Weaver","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["89fed93aed98"]},
 
-        {"oracleId":"56277f60-67b0-41fa-a363-c64e2d794d01","name":"Grakk the Pacifist","state":"unparsed","gaps":["0a852dc4728e","2b0ebf2d3701"]},
+        {"oracleId":"56277f60-67b0-41fa-a363-c64e2d794d01","name":"Grakk the Pacifist","state":"unparsed","poolIn":["commander"],"gaps":["0a852dc4728e","2b0ebf2d3701"]},
 
         {"oracleId":"562a338f-867c-4dda-928d-248c905385b2","name":"Tarkir Omenpath","state":"unparsed","gaps":["adbb3a09c560"]},
 
@@ -53453,7 +53453,7 @@
 
         {"oracleId":"56c930c4-77e8-4547-8d55-663dc68ccf13","name":"Ixalli's Diviner","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["explore"],"definition":{"name":"Ixalli's Diviner","types":["Creature"],"subtypes":["Human","Druid"],"manaCost":{"X":1,"G":1},"power":0,"toughness":3,"oracleText":"When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)","compiledTriggeredAbilities":[{"id":"ixalli-s-diviner-trigger","oracleText":"When this creature enters, it explores.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"explore","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
-        {"oracleId":"56cacdcf-2f11-4969-9629-446068a15369","name":"The Muckslinger Gang","state":"unparsed","gaps":["96353d6e42ec","be79a1f013ae"]},
+        {"oracleId":"56cacdcf-2f11-4969-9629-446068a15369","name":"The Muckslinger Gang","state":"unparsed","poolIn":["commander"],"gaps":["96353d6e42ec","be79a1f013ae"]},
 
         {"oracleId":"56cb1a5d-4256-467c-a185-8f3d31030158","name":"Lukamina, Crocodile Form","state":"unparsed","gaps":["c5841d9b6a18","ddb9fa50b34c"]},
 
@@ -53461,7 +53461,7 @@
 
         {"oracleId":"56d13879-2dc5-4d84-918b-4bd1a5fc2a33","name":"Acorn Catapult","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["78d6c14688b4"]},
 
-        {"oracleId":"56d71eda-4037-45fb-9e98-1725147af6fc","name":"Tolabow, Loch Rascal","state":"unparsed","gaps":["d453bbe3434c"]},
+        {"oracleId":"56d71eda-4037-45fb-9e98-1725147af6fc","name":"Tolabow, Loch Rascal","state":"unparsed","poolIn":["commander"],"gaps":["d453bbe3434c"]},
 
         {"oracleId":"56de4cdc-4db0-48ec-8a16-f66086507233","name":"Mnemonic Deluge","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["18c8a0e40446"]},
 
@@ -53643,7 +53643,7 @@
 
         {"oracleId":"5797684a-a022-45d2-aa2e-4d375b33017e","name":"Gluttonous Slime","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6c3a664d7ee4"]},
 
-        {"oracleId":"57994ace-3dd6-407f-b465-c70b552bd466","name":"Meatsqueak, Hoard Lord","state":"unparsed","gaps":["19f871966690","ade8625b9da0"]},
+        {"oracleId":"57994ace-3dd6-407f-b465-c70b552bd466","name":"Meatsqueak, Hoard Lord","state":"unparsed","poolIn":["commander"],"gaps":["19f871966690","ade8625b9da0"]},
 
         {"oracleId":"5799baed-3457-4bf2-adf3-239a41dcc1c8","name":"Thwart the Enemy","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b9800006df2f"]},
 
@@ -55441,7 +55441,7 @@
 
         {"oracleId":"5e2736e6-b812-43a4-bd79-6f6095344fe1","name":"Saruli Caretaker","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":[],"definition":{"name":"Saruli Caretaker","types":["Creature"],"subtypes":["Dryad"],"manaCost":{"G":1},"power":0,"toughness":3,"oracleText":"Defender\n{T}, Tap an untapped creature you control: Add one mana of any color.","staticAbilities":["defender"],"activatedAbilities":[{"id":"saruli-caretaker-mana","oracleText":"{T}, Tap an untapped creature you control: Add one mana of any color.","cost":{"tap":true,"tapOtherFilter":{"filter":{"types":["Creature"],"controllerRelation":"you"},"count":1}},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}]},"botReach":"played"},
 
-        {"oracleId":"5e277de5-793a-4364-923a-a55b53c0fa85","name":"Istvan, Butcher of Eln","state":"unparsed","gaps":["84ccf449ead9","8e0a90ce9e7b"]},
+        {"oracleId":"5e277de5-793a-4364-923a-a55b53c0fa85","name":"Istvan, Butcher of Eln","state":"unparsed","poolIn":["commander"],"gaps":["84ccf449ead9","8e0a90ce9e7b"]},
 
         {"oracleId":"5e2958fd-ede6-4563-babc-4924d3e95754","name":"U.S.S. Enterprise-A, Free Spirit","state":"unparsed","gaps":["19641f40af8c","cbfb684f004f"]},
 
@@ -56223,7 +56223,7 @@
 
         {"oracleId":"60f20f32-b6db-4ee7-a0aa-535647e6fcd5","name":"Marshals' Pathcruiser","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c39e227a7a21"]},
 
-        {"oracleId":"60f3857d-2dcd-427e-aa0f-e2028bbc5acc","name":"The Madcap Jester","state":"unparsed","gaps":["ba558852dd4e","df1acb8876bc"]},
+        {"oracleId":"60f3857d-2dcd-427e-aa0f-e2028bbc5acc","name":"The Madcap Jester","state":"unparsed","poolIn":["commander"],"gaps":["ba558852dd4e","df1acb8876bc"]},
 
         {"oracleId":"60f412bb-27e9-4883-8862-96eae96dfee3","name":"Essence Infusion","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2c96fa3683af"]},
 
@@ -59139,7 +59139,7 @@
 
         {"oracleId":"6b446cbe-710e-463a-98c1-2cbe5f416b06","name":"Mark Ritual","state":"unparsed","gaps":["f079f240ddd6"]},
 
-        {"oracleId":"6b4544d8-0579-4621-8660-4adb3b2a90be","name":"Chief Magistrate of Mercadia","state":"unparsed","gaps":["bfa54615a969"]},
+        {"oracleId":"6b4544d8-0579-4621-8660-4adb3b2a90be","name":"Chief Magistrate of Mercadia","state":"unparsed","poolIn":["commander"],"gaps":["bfa54615a969"]},
 
         {"oracleId":"6b4a4de7-ec26-45ab-a460-e6c005000bf0","name":"Shade's Breath","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["98f8cf586bfe"]},
 
@@ -60051,7 +60051,7 @@
 
         {"oracleId":"6ec7a7fb-0bf9-47fa-af2b-5b13b3af3947","name":"Parallax Dementia","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["1f513d4448f9"]},
 
-        {"oracleId":"6ec8a9b8-233f-4de5-8f4c-3d677fbf2f30","name":"Olinda the Oblivious","state":"unparsed","gaps":["a551aba6fd91"]},
+        {"oracleId":"6ec8a9b8-233f-4de5-8f4c-3d677fbf2f30","name":"Olinda the Oblivious","state":"unparsed","poolIn":["commander"],"gaps":["a551aba6fd91"]},
 
         {"oracleId":"6ec8dc98-adc7-4fc3-94e5-31037235ceab","name":"Jhessian Infiltrator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8138921e417b"]},
 
@@ -60735,7 +60735,7 @@
 
         {"oracleId":"7126772a-d586-4859-81ec-46bbe9d1a678","name":"Rumbling Sentry","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["scryReorder"],"definition":{"name":"Rumbling Sentry","types":["Creature"],"subtypes":["Giant"],"manaCost":{"X":3,"W":2},"power":3,"toughness":6,"oracleText":"When this creature enters, scry 1.","compiledTriggeredAbilities":[{"id":"rumbling-sentry-trigger","oracleText":"When this creature enters, scry 1.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"scryReorder","player":"controller","count":1,"destination":"library-bottom"}]}]},"botReach":"played"},
 
-        {"oracleId":"7126be80-cebc-4868-b39d-8b215410f575","name":"Selenia, the Cursed Heart","state":"unparsed","gaps":["144e2e1147f1","251a49eb9051"]},
+        {"oracleId":"7126be80-cebc-4868-b39d-8b215410f575","name":"Selenia, the Cursed Heart","state":"unparsed","poolIn":["commander"],"gaps":["144e2e1147f1","251a49eb9051"]},
 
         {"oracleId":"7127fc35-600c-4397-8c01-5327d3c4944b","name":"Dingus Staff","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["030bde13371f"]},
 
@@ -61043,7 +61043,7 @@
 
         {"oracleId":"7237d607-2613-4786-96d6-55792c2e02b9","name":"Dragon's Fire","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["652b04ddcdb1","6a3bd253807a"]},
 
-        {"oracleId":"723959e1-8356-4fdb-99e2-818df317dc72","name":"Jabs, Mistress of Mockery","state":"unparsed","gaps":["fab041a40af6"]},
+        {"oracleId":"723959e1-8356-4fdb-99e2-818df317dc72","name":"Jabs, Mistress of Mockery","state":"unparsed","poolIn":["commander"],"gaps":["fab041a40af6"]},
 
         {"oracleId":"723a66c3-2c2c-411c-bba5-922e8601981b","name":"Indominus Rex, Alpha","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e1e46f90cb63","f864e6cfe112"]},
 
@@ -61071,7 +61071,7 @@
 
         {"oracleId":"724bc69c-cd09-4ff8-91e7-70500b9474e1","name":"Frilled Mystic","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counter","if","mayPay"],"definition":{"name":"Frilled Mystic","types":["Creature"],"subtypes":["Elf","Lizard","Wizard"],"manaCost":{"U":2,"G":2},"power":3,"toughness":2,"oracleText":"Flash\nWhen this creature enters, you may counter target spell.","staticAbilities":["flash"],"compiledTriggeredAbilities":[{"id":"frilled-mystic-trigger","oracleText":"When this creature enters, you may counter target spell.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"spell","count":1},"effects":[{"op":"mayPay","player":"controller","prompt":"Counter target spell?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"counter","target":{"target":0}}]}]}]},"botReach":"played"},
 
-        {"oracleId":"724bcd6b-4deb-49c0-aa0e-1245bb40dd56","name":"Feroz, Ulgrotha's Warden","state":"unparsed","gaps":["16615800164b","3f91f75fc815","6704a8c35b86"]},
+        {"oracleId":"724bcd6b-4deb-49c0-aa0e-1245bb40dd56","name":"Feroz, Ulgrotha's Warden","state":"unparsed","poolIn":["commander"],"gaps":["16615800164b","3f91f75fc815","6704a8c35b86"]},
 
         {"oracleId":"724c29a2-1783-401e-887c-2189afd5a944","name":"Meditation Puzzle","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["gainLife"],"definition":{"name":"Meditation Puzzle","types":["Instant"],"manaCost":{"X":3,"W":2},"oracleText":"Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nYou gain 8 life.","staticAbilities":["convoke"],"effects":[{"op":"gainLife","player":"controller","amount":8}]},"botReach":"played"},
 
@@ -61471,7 +61471,7 @@
 
         {"oracleId":"73b8cf90-3c71-4f8b-a29f-61894b7f27c9","name":"Volrath's Stronghold","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["69c19df9437c"]},
 
-        {"oracleId":"73ba7ed0-0f08-4ba4-9f51-42c48f1b62ea","name":"Whtz, the Bibliophile","state":"unparsed","gaps":["84d0ab3f2e29","dc477aff11eb"]},
+        {"oracleId":"73ba7ed0-0f08-4ba4-9f51-42c48f1b62ea","name":"Whtz, the Bibliophile","state":"unparsed","poolIn":["commander"],"gaps":["84d0ab3f2e29","dc477aff11eb"]},
 
         {"oracleId":"73bddfdb-d1fb-4038-b676-201f6b82beb0","name":"Wanderlust","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["dealDamage"],"definition":{"name":"Wanderlust","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":2,"G":1},"oracleText":"Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.","compiledTriggeredAbilities":[{"id":"wanderlust-trigger","oracleText":"At the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.","head":{"kind":"phase","phase":"UPKEEP","scope":"host-controller"},"effects":[{"op":"dealDamage","amount":1,"to":{"player":{"ref":"$event.activePlayerId"}}}]}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -62025,7 +62025,7 @@
 
         {"oracleId":"75d667ec-86f4-4850-a3b6-e7a9fc7053b0","name":"Army of the Damned","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c335bd79a54b"]},
 
-        {"oracleId":"75d7f864-1240-43f5-8dd5-a5f7577bfa5b","name":"Miss Highwater","state":"unparsed","gaps":["29b6b9a5ae7d"]},
+        {"oracleId":"75d7f864-1240-43f5-8dd5-a5f7577bfa5b","name":"Miss Highwater","state":"unparsed","poolIn":["commander"],"gaps":["29b6b9a5ae7d"]},
 
         {"oracleId":"75d8ef26-b745-448b-94b9-3c64668ce171","name":"Great Hall of Starnheim","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["409e82155399"]},
 
@@ -63795,7 +63795,7 @@
 
         {"oracleId":"7c3944fa-7c86-4979-85a9-86196aa94594","name":"Song of the Dryads","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b3803195ad63"]},
 
-        {"oracleId":"7c39639e-c611-46ee-beda-aef466170ba2","name":"Elda, Conjurer of Spectacle","state":"unparsed","gaps":["bf8f6063909e"]},
+        {"oracleId":"7c39639e-c611-46ee-beda-aef466170ba2","name":"Elda, Conjurer of Spectacle","state":"unparsed","poolIn":["commander"],"gaps":["bf8f6063909e"]},
 
         {"oracleId":"7c3982c5-6af3-4937-8d1f-e006f4e89342","name":"Kill-Zone Acrobat","state":"quarantine","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["choice","grantAbility","if","mayPay","sacrifice"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test"}],"definition":{"name":"Kill-Zone Acrobat","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":2,"B":1},"power":3,"toughness":2,"oracleText":"Whenever this creature attacks, you may sacrifice another creature or artifact. If you do, this creature gains flying until end of turn.","compiledTriggeredAbilities":[{"id":"kill-zone-acrobat-trigger","oracleText":"Whenever this creature attacks, you may sacrifice another creature or artifact. If you do, this creature gains flying until end of turn.","head":{"kind":"attacks"},"effects":[{"op":"mayPay","player":"controller","prompt":"Sacrifice another creature or artifact?","bind":"$may2"},{"op":"if","predicate":{"binding":"$may2"},"then":[{"op":"choice","kind":"sacrifice-permanents","player":"controller","zone":"battlefield","filter":{"type":["Creature","Artifact"],"excludeSource":true},"count":1,"prompt":"Sacrifice another creature or artifact.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"},"bind":"$did3"},{"op":"if","predicate":{"boundMatchesFilter":{"ref":"$did3"},"filter":{}},"then":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"flying","duration":{"phase":"end-of-turn"}}]}]}]}]}},
 
@@ -64891,7 +64891,7 @@
 
         {"oracleId":"801e55c7-f8a1-4a90-81cb-3ad7022290ba","name":"Knight of Dawn's Light","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b8880bceb167"]},
 
-        {"oracleId":"8023d419-8fd2-4b92-b6ea-f25fd67e6410","name":"Valko Indorian","state":"unparsed","gaps":["00fff84de326","f16494c13ab4"]},
+        {"oracleId":"8023d419-8fd2-4b92-b6ea-f25fd67e6410","name":"Valko Indorian","state":"unparsed","poolIn":["commander"],"gaps":["00fff84de326","f16494c13ab4"]},
 
         {"oracleId":"80240b6b-d20d-4dfb-a2c5-c272c3b43a70","name":"Argivian Blacksmith","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["d204580f5d1a"]},
 
@@ -65387,7 +65387,7 @@
 
         {"oracleId":"823006a8-098c-457a-8546-77ae2457c459","name":"Glider Staff","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static","triggered"],"opsUsed":["airbend","attach"],"definition":{"name":"Glider Staff","types":["Artifact"],"subtypes":["Equipment"],"manaCost":{"X":2,"W":1},"oracleText":"When this Equipment enters, airbend up to one target creature. (Exile it. While it's exiled, its owner may cast it for {2} rather than its mana cost.)\nEquipped creature gets +1/+1 and has flying.\nEquip {2}","activatedAbilities":[{"id":"glider-staff-equip","oracleText":"Equip {2}","cost":{"mana":{"generic":2}},"sorcerySpeedOnly":true,"targetRequirement":{"type":"Creature","count":1,"controller":"you"},"useStack":true,"effects":[{"op":"attach","target":{"target":0}}]}],"compiledTriggeredAbilities":[{"id":"glider-staff-trigger","oracleText":"When this Equipment enters, airbend up to one target creature.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":{"min":0,"max":1}},"effects":[{"op":"airbend","target":{"target":0}}]}],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":1,"toughness":1},{"kind":"keyword-grant","appliesTo":"host","keyword":"flying"}]},"botReach":"played"},
 
-        {"oracleId":"82321fa9-7a95-4c9d-988e-2140eaf1a083","name":"Lyna, Veil of Vengeance","state":"unparsed","gaps":["dad5960954fe"]},
+        {"oracleId":"82321fa9-7a95-4c9d-988e-2140eaf1a083","name":"Lyna, Veil of Vengeance","state":"unparsed","poolIn":["commander"],"gaps":["dad5960954fe"]},
 
         {"oracleId":"82333385-631f-4abf-b159-bb367f1c6fd9","name":"Abandon Attachments","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","if","mayPay"],"definition":{"name":"Abandon Attachments","types":["Instant"],"subtypes":["Lesson"],"manaCost":{"X":1,"hybrid":[["U","R"]]},"oracleText":"You may discard a card. If you do, draw two cards.","effects":[{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{},"count":1}]}},"prompt":"Discard a card?","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"draw","player":"controller","count":2}]}]},"botReach":"played"},
 
@@ -68227,7 +68227,7 @@
 
         {"oracleId":"8c0520fa-276b-4d21-b4a9-dce1fce59f6b","name":"Shark Typhoon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["230fbd9dc8a2","47da3da68b3a","4f8bf391d8ce"]},
 
-        {"oracleId":"8c05de43-6f9e-46c1-bc01-551a7fc570d0","name":"Jandor, Fortuned Traveler","state":"unparsed","gaps":["0f3a08a1be6b","219ab882ebf5"]},
+        {"oracleId":"8c05de43-6f9e-46c1-bc01-551a7fc570d0","name":"Jandor, Fortuned Traveler","state":"unparsed","poolIn":["commander"],"gaps":["0f3a08a1be6b","219ab882ebf5"]},
 
         {"oracleId":"8c05e716-b6eb-4f95-866b-7e43a898ebe2","name":"Dai Li Agents","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8b27c736dad1","aaedd452daae"]},
 
@@ -70157,7 +70157,7 @@
 
         {"oracleId":"92eed395-62ca-4293-882b-8565c40daab5","name":"Sylvan Library","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw","if","mayPay","rangedTopdeck"],"definition":{"name":"Sylvan Library","types":["Enchantment"],"manaCost":{"X":1,"G":1},"oracleText":"At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.","compiledTriggeredAbilities":[{"id":"sylvan-library-trigger","oracleText":"At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.","head":{"kind":"phase","phase":"DRAW","scope":"your"},"effects":[{"op":"mayPay","player":"controller","prompt":"Draw two additional cards?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"draw","player":"controller","count":2},{"op":"rangedTopdeck","player":"controller","pool":"drawn-this-turn","max":2,"costPerKept":4}]}]}]},"botReach":"played"},
 
-        {"oracleId":"92eeedc6-a331-445f-af56-c91dac69412b","name":"Boss Uramon, Shadow's Reach","state":"unparsed","gaps":["bbf8e898a137","ff524d571859"]},
+        {"oracleId":"92eeedc6-a331-445f-af56-c91dac69412b","name":"Boss Uramon, Shadow's Reach","state":"unparsed","poolIn":["commander"],"gaps":["bbf8e898a137","ff524d571859"]},
 
         {"oracleId":"92f0677f-64d8-4c83-abad-ffa2a37f88c1","name":"Celestial Convergence","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["5ce45c1d1b83"]},
 
@@ -70713,7 +70713,7 @@
 
         {"oracleId":"94d9878e-9786-438c-8b33-c1dff730b748","name":"Decoy Gambit","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["06d2cb293079"]},
 
-        {"oracleId":"94d9a596-96b3-4fd6-b3f9-62920929c668","name":"Glava, Five-Advents Mage","state":"unparsed","gaps":["5d335d2af7a7"]},
+        {"oracleId":"94d9a596-96b3-4fd6-b3f9-62920929c668","name":"Glava, Five-Advents Mage","state":"unparsed","poolIn":["commander"],"gaps":["5d335d2af7a7"]},
 
         {"oracleId":"94daa0c2-4790-4193-aaa8-ba492e8c8fe7","name":"Conductor of Cacophony","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5b1482b4304b"]},
 
@@ -72145,7 +72145,7 @@
 
         {"oracleId":"9a3b308f-5d92-45ca-9e91-cc79fcaf7a81","name":"Sunimret","state":"unparsed","gaps":["7211e079325c","bf4000667435"]},
 
-        {"oracleId":"9a3d148c-e1bb-4e7a-a588-00a24041ebf7","name":"Sifa Grent","state":"unparsed","gaps":["0a6f8d938514","6704a8c35b86","8f86042e606a"]},
+        {"oracleId":"9a3d148c-e1bb-4e7a-a588-00a24041ebf7","name":"Sifa Grent","state":"unparsed","poolIn":["commander"],"gaps":["0a6f8d938514","6704a8c35b86","8f86042e606a"]},
 
         {"oracleId":"9a3e3a8f-7c19-4b52-a1b4-08eb09f6127a","name":"Deftblade Elite","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["preventDamage"],"definition":{"name":"Deftblade Elite","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"W":1},"power":1,"toughness":1,"oracleText":"Provoke (Whenever this creature attacks, you may have target creature defending player controls untap and block it if able.)\n{1}{W}: Prevent all combat damage that would be dealt to and dealt by this creature this turn.","staticAbilities":["provoke"],"activatedAbilities":[{"id":"deftblade-elite-ability","oracleText":"{1}{W}: Prevent all combat damage that would be dealt to and dealt by this creature this turn.","cost":{"mana":{"X":1,"W":1}},"useStack":true,"effects":[{"op":"preventDamage","mode":"combat-to-and-by","target":{"ref":"$source"},"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -73903,7 +73903,7 @@
 
         {"oracleId":"a0a79e9e-38cb-45d8-a7ec-7cf10ef7e5fc","name":"Collected Conjuring","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ed63588c72ec"]},
 
-        {"oracleId":"a0a8c04e-3ce7-4945-a6af-7e40a990c82c","name":"Gustha Ebbasdotter","state":"unparsed","gaps":["e0d364c6e469"]},
+        {"oracleId":"a0a8c04e-3ce7-4945-a6af-7e40a990c82c","name":"Gustha Ebbasdotter","state":"unparsed","poolIn":["commander"],"gaps":["e0d364c6e469"]},
 
         {"oracleId":"a0aa1aa1-f011-4c65-9886-95521947beef","name":"Spiked Pit Trap","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["274844de812a","b512a38843b1","e6e9be750bd9"]},
 
@@ -74045,7 +74045,7 @@
 
         {"oracleId":"a139eb7f-3853-490c-a839-35d0e5aed7b5","name":"Enlightened Confidant","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b3a5cfad7675"]},
 
-        {"oracleId":"a13aa603-8709-43aa-b69a-ee74de79561f","name":"Homer, the Hermit","state":"unparsed","gaps":["2762e2732bc3"]},
+        {"oracleId":"a13aa603-8709-43aa-b69a-ee74de79561f","name":"Homer, the Hermit","state":"unparsed","poolIn":["commander"],"gaps":["2762e2732bc3"]},
 
         {"oracleId":"a13b02c2-7ec1-4032-99cc-c76fe512914e","name":"Hollowhenge Beast","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Hollowhenge Beast","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":3,"G":2},"power":5,"toughness":5},"botReach":"played"},
 
@@ -76195,7 +76195,7 @@
 
         {"oracleId":"a95aa9ba-fa61-4a3d-a493-1ea790bd20ad","name":"Hulking Ogre","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Hulking Ogre","types":["Creature"],"subtypes":["Ogre"],"manaCost":{"X":2,"R":1},"power":3,"toughness":3,"oracleText":"This creature can't block.","compiledStaticEffects":[{"kind":"block-restriction","id":"hulking-ogre-cant-block","oracleText":"This creature can't block."}]},"botReach":"played"},
 
-        {"oracleId":"a95d29b9-c30b-4e63-afcb-dec7ed522c5a","name":"Arzakon","state":"unparsed","gaps":["31709a1c6ac1","6704a8c35b86","6ebeb90bebc1","c0de15829916"]},
+        {"oracleId":"a95d29b9-c30b-4e63-afcb-dec7ed522c5a","name":"Arzakon","state":"unparsed","poolIn":["commander"],"gaps":["31709a1c6ac1","6704a8c35b86","6ebeb90bebc1","c0de15829916"]},
 
         {"oracleId":"a96387fb-ff10-4299-8f42-aa61da693d07","name":"Skullcage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2135f97d1d82"]},
 
@@ -76429,7 +76429,7 @@
 
         {"oracleId":"aa26fb50-1b53-488e-90d1-b0c7af273622","name":"War Oracle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1cecf02da197"]},
 
-        {"oracleId":"aa27c281-b909-4274-8216-6fd0be78b3c9","name":"Massimo, the Magician","state":"unparsed","gaps":["91dd4bce9cba"]},
+        {"oracleId":"aa27c281-b909-4274-8216-6fd0be78b3c9","name":"Massimo, the Magician","state":"unparsed","poolIn":["commander"],"gaps":["91dd4bce9cba"]},
 
         {"oracleId":"aa286dd5-aa19-446d-9003-684d81eb57ca","name":"Laboratory Maniac","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a385f57d8c2"]},
 
@@ -76653,7 +76653,7 @@
 
         {"oracleId":"ab1d04ef-5f39-4a95-969e-b0872e6db0d6","name":"Knight of the Keep","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Knight of the Keep","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":2,"W":1},"power":3,"toughness":2},"botReach":"played"},
 
-        {"oracleId":"ab23a9e4-2d62-4b01-9d52-593de40811b0","name":"Dyfed, the Guiding Hand","state":"unparsed","gaps":["1c9185abb36b","6704a8c35b86","9b2ba1684eab"]},
+        {"oracleId":"ab23a9e4-2d62-4b01-9d52-593de40811b0","name":"Dyfed, the Guiding Hand","state":"unparsed","poolIn":["commander"],"gaps":["1c9185abb36b","6704a8c35b86","9b2ba1684eab"]},
 
         {"oracleId":"ab23cca2-b59e-4d34-80de-98bd08985275","name":"Sterling Supplier","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Sterling Supplier","types":["Creature"],"subtypes":["Bird","Soldier"],"manaCost":{"X":4,"W":1},"power":3,"toughness":4,"oracleText":"Flying\nWhen this creature enters, put a +1/+1 counter on another target creature you control.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"sterling-supplier-trigger","oracleText":"When this creature enters, put a +1/+1 counter on another target creature you control.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"controller":"you","excludeSource":true},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"target":0},"count":1}]}]},"botReach":"played"},
 
@@ -80275,7 +80275,7 @@
 
         {"oracleId":"b8323d2b-3baf-4143-a821-01509349a689","name":"Gimme Five","state":"unparsed","gaps":["53617c534ad5"]},
 
-        {"oracleId":"b8354ac6-5285-43dd-9ba5-93064def2e96","name":"The Everforger","state":"unparsed","gaps":["d971a912b437","fd1d261bbf1a"]},
+        {"oracleId":"b8354ac6-5285-43dd-9ba5-93064def2e96","name":"The Everforger","state":"unparsed","poolIn":["commander"],"gaps":["d971a912b437","fd1d261bbf1a"]},
 
         {"oracleId":"b8376cca-ea96-478a-8e98-c4482031300a","name":"Sliver Queen","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["0b0465f0ee01"]},
 
@@ -81247,7 +81247,7 @@
 
         {"oracleId":"bbe740f8-6e7c-4cfd-9134-9bf8d5f48cf5","name":"Beamsaw Prospector","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["af2bb68f7fb5"]},
 
-        {"oracleId":"bbe79ca2-8f05-4f1b-b5d3-84724d3eff3a","name":"Matoc, Lavamancer","state":"unparsed","gaps":["536d881714a2","f2ca411eb3ed"]},
+        {"oracleId":"bbe79ca2-8f05-4f1b-b5d3-84724d3eff3a","name":"Matoc, Lavamancer","state":"unparsed","poolIn":["commander"],"gaps":["536d881714a2","f2ca411eb3ed"]},
 
         {"oracleId":"bbea79bc-71d4-4100-92f4-783c2c4b46da","name":"Qarsi Revenant","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["92d594c6c8dd"]},
 
@@ -82711,7 +82711,7 @@
 
         {"oracleId":"c1177f22-a1cf-4da3-a68d-ff954e878403","name":"Goblin Arsonist","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["dealDamage","if","mayPay"],"definition":{"name":"Goblin Arsonist","types":["Creature"],"subtypes":["Goblin","Shaman"],"manaCost":{"R":1},"power":1,"toughness":1,"oracleText":"When this creature dies, you may have it deal 1 damage to any target.","compiledTriggeredAbilities":[{"id":"goblin-arsonist-trigger","oracleText":"When this creature dies, you may have it deal 1 damage to any target.","head":{"kind":"died","scope":"self"},"targetRequirement":{"type":"any","count":1},"effects":[{"op":"mayPay","player":"controller","prompt":"Have it deal 1 damage to any target?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"dealDamage","amount":1,"to":{"target":0}}]}]}]},"botReach":"played"},
 
-        {"oracleId":"c1198033-47bc-4bee-a3a5-3917dae5cba3","name":"Nephilim Epochal","state":"unparsed","gaps":["f51c59e4f0de"]},
+        {"oracleId":"c1198033-47bc-4bee-a3a5-3917dae5cba3","name":"Nephilim Epochal","state":"unparsed","poolIn":["commander"],"gaps":["f51c59e4f0de"]},
 
         {"oracleId":"c11d2241-078f-4f1a-a7c5-d974316f1901","name":"Domesticated Watercourse","state":"unparsed","gaps":["cc2f50dd568d","f2a11d7378e2"]},
 
@@ -84571,7 +84571,7 @@
 
         {"oracleId":"c7e4bc5d-e1d9-4fbc-8d53-0cec73086828","name":"Dream Seizer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c0a8fe295a3d"]},
 
-        {"oracleId":"c7ea2ce7-f684-44a2-94b2-d4aa7353f6fc","name":"The Unluckiest Planeswalker","state":"unparsed","gaps":["2ed7d7577b62","4309249024e5","6704a8c35b86","8c875678bd50"]},
+        {"oracleId":"c7ea2ce7-f684-44a2-94b2-d4aa7353f6fc","name":"The Unluckiest Planeswalker","state":"unparsed","poolIn":["commander"],"gaps":["2ed7d7577b62","4309249024e5","6704a8c35b86","8c875678bd50"]},
 
         {"oracleId":"c7ec52b1-295a-4daa-86fd-dcbe6fb412d7","name":"Pippin's Bravery","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1ddce937f83a"]},
 
@@ -86395,7 +86395,7 @@
 
         {"oracleId":"ce703e1d-b7b2-4b8b-a12c-714fc152d0a5","name":"Tazri, Beacon of Unity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1929cba35f1e","d9d8710f7c3c"]},
 
-        {"oracleId":"ce70f16c-ea45-4f1d-aafb-34a5d05d31e7","name":"Kuroki, Thief of Talents","state":"unparsed","gaps":["9af0873189ff"]},
+        {"oracleId":"ce70f16c-ea45-4f1d-aafb-34a5d05d31e7","name":"Kuroki, Thief of Talents","state":"unparsed","poolIn":["commander"],"gaps":["9af0873189ff"]},
 
         {"oracleId":"ce723db6-2a80-42a5-a176-cd322b4e1e27","name":"Back in Town","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["991c3277a852"]},
 
@@ -87179,7 +87179,7 @@
 
         {"oracleId":"d113af33-d75d-44e4-a8dc-31f8984edc42","name":"The Balrog, Durin's Bane","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3b35e67d6a57","3d9d1a26ae11"]},
 
-        {"oracleId":"d117825e-fb7d-44dc-a17d-71bd610a6078","name":"Olag and Miau, New Friends","state":"unparsed","gaps":["33f0b0321858","4682ad9da7fd","54c698742a46"]},
+        {"oracleId":"d117825e-fb7d-44dc-a17d-71bd610a6078","name":"Olag and Miau, New Friends","state":"unparsed","poolIn":["commander"],"gaps":["33f0b0321858","4682ad9da7fd","54c698742a46"]},
 
         {"oracleId":"d119ca9a-ee82-42c2-81e6-684205ca5183","name":"Nature's Ruin","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy","forEach"],"definition":{"name":"Nature's Ruin","types":["Sorcery"],"manaCost":{"X":2,"B":1},"oracleText":"Destroy all green creatures.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature","color":"G"}},"effects":[{"op":"destroy","target":{"ref":"$each"}}]}]},"botReach":"played"},
 
@@ -90227,7 +90227,7 @@
 
         {"oracleId":"dbba75f5-2404-4bd5-982b-f6c4effa5316","name":"Ethereal Armor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8ac625b8b07e"]},
 
-        {"oracleId":"dbbf6379-01b4-400d-a277-5887e6be1d0f","name":"Seluma, Light of Aysen","state":"unparsed","gaps":["94a84e6dae69"]},
+        {"oracleId":"dbbf6379-01b4-400d-a277-5887e6be1d0f","name":"Seluma, Light of Aysen","state":"unparsed","poolIn":["commander"],"gaps":["94a84e6dae69"]},
 
         {"oracleId":"dbc2b0f9-73e8-41b7-9d64-07f86fbc5d6c","name":"Specter's Shroud","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd5eb5cda651"]},
 
@@ -91215,7 +91215,7 @@
 
         {"oracleId":"df9ab83c-850a-4be7-89cd-5122353081f6","name":"Silverquill Silencer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bbb01191e628"]},
 
-        {"oracleId":"df9bb1fc-135d-4efb-b143-81950fc95a27","name":"Uugguu, the Omniplasm","state":"unparsed","gaps":["a3f8ee33c4dd"]},
+        {"oracleId":"df9bb1fc-135d-4efb-b143-81950fc95a27","name":"Uugguu, the Omniplasm","state":"unparsed","poolIn":["commander"],"gaps":["a3f8ee33c4dd"]},
 
         {"oracleId":"df9cdc11-cb92-46ce-a83d-eb26e3cd004a","name":"Another Chance","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d24d1c13b78c"]},
 
@@ -91847,7 +91847,7 @@
 
         {"oracleId":"e1a89535-7126-48e0-b335-b732a677b157","name":"Ephemeral Shields","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["grantAbility"],"definition":{"name":"Ephemeral Shields","types":["Instant"],"manaCost":{"X":1,"W":1},"oracleText":"Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nTarget creature gains indestructible until end of turn. (Damage and effects that say \"destroy\" don't destroy it.)","staticAbilities":["convoke"],"effects":[{"op":"grantAbility","target":{"target":0},"ability":"indestructible","duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"e1a8f5cf-9b59-46c6-8e41-6e44225ec0f4","name":"Sahir, Visitor in Darkness","state":"unparsed","gaps":["41d7756b63e1","ab0f48114dcf"]},
+        {"oracleId":"e1a8f5cf-9b59-46c6-8e41-6e44225ec0f4","name":"Sahir, Visitor in Darkness","state":"unparsed","poolIn":["commander"],"gaps":["41d7756b63e1","ab0f48114dcf"]},
 
         {"oracleId":"e1a9c467-2d64-4e11-adf3-7333c923b187","name":"Part in Friendship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["86cfb2ab8034"]},
 
@@ -92113,7 +92113,7 @@
 
         {"oracleId":"e2975a88-5a5a-462a-90b9-d8c00150b6d3","name":"Quirion Elves","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Quirion Elves","types":["Creature"],"subtypes":["Elf","Druid"],"manaCost":{"X":1,"G":1},"power":1,"toughness":1,"oracleText":"As this creature enters, choose a color.\n{T}: Add {G}.\n{T}: Add one mana of the chosen color.","activatedAbilities":[{"id":"quirion-elves-mana","oracleText":"{T}: Add {G}.","cost":{"tap":true},"useStack":false,"manaProduced":{"G":1}},{"id":"quirion-elves-mana-2","oracleText":"{T}: Add one mana of the chosen color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}],"manaColorSource":{"colors":"chosen-color"}}],"entersWith":{"asEnters":[{"kind":"mode"}]},"modes":[{"id":"W","label":"white","oracleText":"White."},{"id":"U","label":"blue","oracleText":"Blue."},{"id":"B","label":"black","oracleText":"Black."},{"id":"R","label":"red","oracleText":"Red."},{"id":"G","label":"green","oracleText":"Green."}]},"botReach":"played"},
 
-        {"oracleId":"e298a2a4-0e04-4af9-8638-7c01668d97d0","name":"Ekthi, Contaminator Priest","state":"unparsed","gaps":["b33f420afa63","e26902305d82"]},
+        {"oracleId":"e298a2a4-0e04-4af9-8638-7c01668d97d0","name":"Ekthi, Contaminator Priest","state":"unparsed","poolIn":["commander"],"gaps":["b33f420afa63","e26902305d82"]},
 
         {"oracleId":"e2998b41-0822-4e9c-b8b1-f47c400176e9","name":"Walking Archive","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d0beff7fc6fe"]},
 
@@ -92517,7 +92517,7 @@
 
         {"oracleId":"e4424b0a-3174-495a-8d0a-da1285d21996","name":"Chicken à la King","state":"unparsed","gaps":["d1e7c76a403c","d73a2fbb7048"]},
 
-        {"oracleId":"e444c824-6b9c-4b72-8aa9-a86489c47cbe","name":"Zagorka, Mother of Sanctum","state":"unparsed","gaps":["e99062847766"]},
+        {"oracleId":"e444c824-6b9c-4b72-8aa9-a86489c47cbe","name":"Zagorka, Mother of Sanctum","state":"unparsed","poolIn":["commander"],"gaps":["e99062847766"]},
 
         {"oracleId":"e444f072-ce24-4fd1-99eb-d20d12bc119a","name":"Temur Devotee","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":[],"definition":{"name":"Temur Devotee","types":["Creature"],"subtypes":["Human","Druid"],"manaCost":{"X":1,"U":1},"power":3,"toughness":3,"oracleText":"Defender\n{1}: Add {G}, {U}, or {R}. Activate only once each turn.","staticAbilities":["defender"],"activatedAbilities":[{"id":"temur-devotee-mana","oracleText":"{1}: Add {G}, {U}, or {R}. Activate only once each turn.","cost":{"mana":{"X":1}},"useStack":false,"manaChoices":[{"G":1},{"U":1},{"R":1}],"oncePerTurn":true}]},"botReach":"played"},
 
@@ -92645,7 +92645,7 @@
 
         {"oracleId":"e4ac0c25-cdfa-49a4-9b2c-b848f50c604d","name":"Goblin Lookout","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["forEach","pump"],"definition":{"name":"Goblin Lookout","types":["Creature"],"subtypes":["Goblin"],"manaCost":{"X":1,"R":1},"power":1,"toughness":2,"oracleText":"{T}, Sacrifice a Goblin: Goblin creatures get +2/+0 until end of turn.","activatedAbilities":[{"id":"goblin-lookout-ability","oracleText":"{T}, Sacrifice a Goblin: Goblin creatures get +2/+0 until end of turn.","cost":{"tap":true,"sacrificeFilter":{"subtypes":["Goblin"]}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature","subtype":"Goblin"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":2,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]}]},"botReach":"played"},
 
-        {"oracleId":"e4aca279-b144-4517-acef-d925f4f552e2","name":"Davvol, Evincar of Rath","state":"unparsed","gaps":["57cad5b0763a"]},
+        {"oracleId":"e4aca279-b144-4517-acef-d925f4f552e2","name":"Davvol, Evincar of Rath","state":"unparsed","poolIn":["commander"],"gaps":["57cad5b0763a"]},
 
         {"oracleId":"e4acac65-112b-48fc-bea3-44747c1389a3","name":"Opal-Eye, Konda's Yojimbo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["19cf1df0a06e","1b0ab5660f1b","1c44e7ef7072"]},
 
@@ -93391,7 +93391,7 @@
 
         {"oracleId":"e7604cd9-d00d-4957-82c9-46a7cdb88209","name":"Shalai and Hallar","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a926ece8cb3d"]},
 
-        {"oracleId":"e7611ef9-e5fc-45eb-bc3f-4358a27107fd","name":"Dragon's Smile","state":"unparsed","gaps":["31babf3dc179","8d9c9b2bee9e"]},
+        {"oracleId":"e7611ef9-e5fc-45eb-bc3f-4358a27107fd","name":"Dragon's Smile","state":"unparsed","poolIn":["commander"],"gaps":["31babf3dc179","8d9c9b2bee9e"]},
 
         {"oracleId":"e7627740-ec16-4863-b004-3d3db1cd8720","name":"Roalesk, Prime Specimen","state":"unparsed","gaps":["b0ca9bbd6963","cc51a13e0dbb"]},
 
@@ -93789,7 +93789,7 @@
 
         {"oracleId":"e8a9350a-07c1-47ed-8c4f-88e4b3b17545","name":"Hop to It","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken"],"definition":{"name":"Hop to It","types":["Sorcery"],"manaCost":{"X":2,"W":1},"oracleText":"Create three 1/1 white Rabbit creature tokens.","effects":[{"op":"createToken","token":{"name":"Rabbit","types":["Creature"],"subtypes":["Rabbit"],"power":1,"toughness":1,"colors":["W"]},"controller":"controller","count":3}]},"botReach":"played"},
 
-        {"oracleId":"e8a9dddd-4527-46cd-8b7e-4f83c5b51e48","name":"Flitwing, Lyev Detective","state":"unparsed","gaps":["5c7a2f934466"]},
+        {"oracleId":"e8a9dddd-4527-46cd-8b7e-4f83c5b51e48","name":"Flitwing, Lyev Detective","state":"unparsed","poolIn":["commander"],"gaps":["5c7a2f934466"]},
 
         {"oracleId":"e8aa0d7d-e5f6-4d66-bdc1-315483e1b256","name":"Vannifar, Evolved Enigma","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ecb274ea6e1c"]},
 
@@ -95059,7 +95059,7 @@
 
         {"oracleId":"ed1a1c04-1b2b-4616-abb2-8bd19c47b589","name":"Rites of Reaping","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["pump"],"definition":{"name":"Rites of Reaping","types":["Sorcery"],"manaCost":{"X":4,"B":1,"G":1},"oracleText":"Target creature gets +3/+3 until end of turn. Another target creature gets -3/-3 until end of turn.","effects":[{"op":"pump","target":{"target":0},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"pump","target":{"target":1},"power":-3,"toughness":-3,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1},"additionalTargetRequirements":[{"type":"Creature","count":1,"excludePriorTargets":true}]},"botReach":"played"},
 
-        {"oracleId":"ed1a6d06-436b-45c0-979c-7802246eeb9e","name":"The Weaver King","state":"unparsed","gaps":["a102ae2ecb3a"]},
+        {"oracleId":"ed1a6d06-436b-45c0-979c-7802246eeb9e","name":"The Weaver King","state":"unparsed","poolIn":["commander"],"gaps":["a102ae2ecb3a"]},
 
         {"oracleId":"ed1d21ba-ddfe-4f82-9e37-93f9e2c7ba33","name":"Satoru Umezawa","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a628b75f56b5","edb2a6ad5293"]},
 
@@ -97185,7 +97185,7 @@
 
         {"oracleId":"f4a2d9eb-7f2b-4ee6-b38e-cf6e3a837b49","name":"Vineweft","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6aaa9458513f"]},
 
-        {"oracleId":"f4a64308-5f24-47c0-83f9-ee16a3b4f143","name":"Venser, Visionary Traveler","state":"unparsed","gaps":["1dbc1a1d3281","399d4777d25d","6704a8c35b86","95200c6bb384"]},
+        {"oracleId":"f4a64308-5f24-47c0-83f9-ee16a3b4f143","name":"Venser, Visionary Traveler","state":"unparsed","poolIn":["commander"],"gaps":["1dbc1a1d3281","399d4777d25d","6704a8c35b86","95200c6bb384"]},
 
         {"oracleId":"f4a73cde-58bf-4719-8eb0-e039fdde4f62","name":"Against All Odds","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0333b4644917"]},
 
@@ -97519,7 +97519,7 @@
 
         {"oracleId":"f5f2c98c-dd89-4b60-83e5-07f5fdc699ef","name":"Cyclopean Mummy","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["moveZone"],"definition":{"name":"Cyclopean Mummy","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":1,"B":1},"power":2,"toughness":1,"oracleText":"When this creature dies, exile it.","compiledTriggeredAbilities":[{"id":"cyclopean-mummy-trigger","oracleText":"When this creature dies, exile it.","head":{"kind":"died","scope":"self"},"effects":[{"op":"moveZone","target":{"ref":"$source"},"to":"exile"}]}]},"botReach":"played"},
 
-        {"oracleId":"f5f2fa96-8e87-44bc-8c82-e217706d3cab","name":"Blor the Impervious","state":"ready","slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Blor the Impervious","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Frog","Warrior"],"manaCost":{"X":3,"G":2},"power":3,"toughness":3,"oracleText":"Trample, hexproof, indestructible","staticAbilities":["trample","hexproof","indestructible"]},"botReach":"played"},
+        {"oracleId":"f5f2fa96-8e87-44bc-8c82-e217706d3cab","name":"Blor the Impervious","state":"ready","poolIn":["commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Blor the Impervious","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Frog","Warrior"],"manaCost":{"X":3,"G":2},"power":3,"toughness":3,"oracleText":"Trample, hexproof, indestructible","staticAbilities":["trample","hexproof","indestructible"]},"botReach":"played"},
 
         {"oracleId":"f5f330a5-14a0-4bfe-ba46-4616692b7bd3","name":"Blinding Souleater","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["tapUntap"],"definition":{"name":"Blinding Souleater","types":["Artifact","Creature"],"subtypes":["Phyrexian","Cleric"],"manaCost":{"X":3},"power":1,"toughness":3,"oracleText":"{W/P}, {T}: Tap target creature. ({W/P} can be paid with either {W} or 2 life.)","activatedAbilities":[{"id":"blinding-souleater-ability","oracleText":"{W/P}, {T}: Tap target creature.","cost":{"mana":{"phyrexian":{"W":1}},"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
@@ -97645,7 +97645,7 @@
 
         {"oracleId":"f652c593-e8fa-42ff-a8b4-206556b273de","name":"Attuned Hunter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c11002911bf3"]},
 
-        {"oracleId":"f6552921-f949-4f3c-b75d-718c106d712b","name":"Chira, All In","state":"unparsed","gaps":["7a7e9633fe72"]},
+        {"oracleId":"f6552921-f949-4f3c-b75d-718c106d712b","name":"Chira, All In","state":"unparsed","poolIn":["commander"],"gaps":["7a7e9633fe72"]},
 
         {"oracleId":"f65cba6a-3ef4-4841-b2c1-578b2a2c3300","name":"Scout's Warning","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["af1d1a1b365b"]},
 
@@ -97687,7 +97687,7 @@
 
         {"oracleId":"f6828a87-eebe-48dd-873e-251624107e38","name":"False Floor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6532373de1b5"]},
 
-        {"oracleId":"f6841a6f-7dd3-4976-9891-539189c0e148","name":"Yume, Chronicler of Valor","state":"unparsed","gaps":["9910b6279c18"]},
+        {"oracleId":"f6841a6f-7dd3-4976-9891-539189c0e148","name":"Yume, Chronicler of Valor","state":"unparsed","poolIn":["commander"],"gaps":["9910b6279c18"]},
 
         {"oracleId":"f686a021-8501-4cd4-a097-2262b7ab62c9","name":"Leonardo","state":"unparsed","gaps":["c674ab8328b9"]},
 
@@ -99671,7 +99671,7 @@
 
         {"oracleId":"fd755ec1-6727-4165-a7fd-5d9b59754ada","name":"Minions' Murmurs","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","loseLife"],"definition":{"name":"Minions' Murmurs","types":["Sorcery"],"manaCost":{"X":2,"B":2},"oracleText":"You draw X cards and you lose X life, where X is the number of creatures you control.","effects":[{"op":"draw","player":"controller","count":{"count":{"zone":"battlefield","controller":"controller","filter":{"type":["Creature"]}}}},{"op":"loseLife","player":"controller","amount":{"count":{"zone":"battlefield","controller":"controller","filter":{"type":["Creature"]}}}}]},"botReach":"played"},
 
-        {"oracleId":"fd769cfb-668c-4557-a907-c6c17539c96a","name":"Thomil, the Destroyer","state":"unparsed","gaps":["1fb139616727","6704a8c35b86","eb1700e32be5"]},
+        {"oracleId":"fd769cfb-668c-4557-a907-c6c17539c96a","name":"Thomil, the Destroyer","state":"unparsed","poolIn":["commander"],"gaps":["1fb139616727","6704a8c35b86","eb1700e32be5"]},
 
         {"oracleId":"fd775874-0182-46b1-8624-267bdc4e8075","name":"Liege of the Pit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7a6dfbacdb52"]},
 
