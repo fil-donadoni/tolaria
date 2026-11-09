@@ -134,6 +134,7 @@ import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
 import { sacrificeSourceSnapshot } from "../sacrificeChoice";
 import { isCreature, isLand, PERMANENT_TYPES } from "../constants";
+import { getEffectivePT, STATIC_EFFECT_CTX } from "../layers";
 // Issue #4444 — the search's ONE coarse mana payment, shared with both search
 // appliers. A leaf module, so it keeps this one off `moves.ts`' runtime import
 // graph. It pays every leg a mana tap carries (sacrifice, counters, exert), and
@@ -402,6 +403,140 @@ export function isSelfConfinedFutileMove(
     } finally {
         probing = false;
     }
+}
+
+/** CR 606.4 — the tick-up loyalty activations in `moves` that a SIBLING
+ *  loyalty ability of the same permanent dominates (issue #8729).
+ *
+ *  {@link isProbeEligibleMove} refuses every loyalty cost of zero or more,
+ *  because against `pass` the tick IS a payoff: a +1 whose target is already
+ *  what the ability makes it still buys a counter. Against a sibling it buys
+ *  nothing. CR 606.3 lets the permanent activate ONE loyalty ability a turn, so
+ *  the siblings are alternatives to each other, and a sibling whose cost puts
+ *  at least as many counters on and whose resolution changes something leaves
+ *  the mover with everything the tick-only activation would, and more.
+ *
+ *  So a move is returned when, for some permanent with two or more loyalty
+ *  activations in `moves`:
+ *
+ *    * it is a loyalty activation with cost >= 0 whose settled position is
+ *      OBSERVABLY the baseline (`isNoOpDelta`'s `"observable"` reading: the
+ *      probe never pays the loyalty cost, so "the baseline" here means "the
+ *      baseline but for its own tick"), on EVERY branch, and
+ *    * a move of a DIFFERENT ability of the same permanent, also in `moves`,
+ *      costs at least as much and changes the observable position on every
+ *      branch.
+ *
+ *  The compare is observable rather than exact for the reason the ledger is
+ *  ledger: re-applying "loses all abilities and becomes a 3/3 Elk" to an Elk
+ *  appends a new ability-loss hold, a new type-line hold, a new 7b entry and
+ *  fresh layer timestamps, and changes no characteristic. Those are stripped
+ *  and replaced by the characteristics they produce; an Elk that gained an
+ *  ability or a P/T-setting effect AFTER the first application loses it to
+ *  the second, which the reading sees.
+ *
+ *  A different ability, never the same one on another target: two targets of
+ *  one ability cost the same, and "changes something" is not "is good" (the
+ *  +1 on the mover's own creature changes plenty). That narrowing is accepted
+ *  for siblings too, and priced here: a higher-cost sibling whose change hurts
+ *  the mover would still dominate. Fail-closed everywhere else: an outcome the
+ *  probe cannot settle on every branch proves neither half. */
+export function tickOnlyLoyaltyMovesDominated(
+    state: GameState,
+    pid: string,
+    moves: readonly Move[]
+): Set<Move> {
+    const dominated = new Set<Move>();
+    if (probing || state.gameOver || probeWindowOpen(state)) return dominated;
+    if (!state.players.some((p) => p.id === pid)) return dominated;
+    type Loyalty = { move: Move & { kind: "activate-ability" }; cost: number };
+    const bySource = new Map<string, Loyalty[]>();
+    for (const move of moves) {
+        if (move.kind !== "activate-ability") continue;
+        const source = findPermanent(state, move.cardInstanceId);
+        const cost = source && abilityOf(source, move.abilityId)?.cost.loyalty;
+        if (cost === undefined) continue;
+        const group = bySource.get(move.cardInstanceId) ?? [];
+        group.push({ move, cost });
+        bySource.set(move.cardInstanceId, group);
+    }
+    for (const group of bySource.values()) {
+        if (group.length < 2) continue;
+        const outcomes = new Map<Move, LoyaltyOutcome>();
+        const outcomeOf = (move: Move): LoyaltyOutcome => {
+            let known = outcomes.get(move);
+            if (known === undefined) {
+                known = loyaltyActivationOutcome(state, pid, move);
+                outcomes.set(move, known);
+            }
+            return known;
+        };
+        for (const tick of group) {
+            if (tick.cost < 0) continue;
+            const siblings = group.filter(
+                (s) =>
+                    s.move.abilityId !== tick.move.abilityId &&
+                    s.cost >= tick.cost
+            );
+            if (siblings.length === 0) continue;
+            if (outcomeOf(tick.move) !== "tick-only") continue;
+            if (siblings.some((s) => outcomeOf(s.move) === "changes")) {
+                dominated.add(tick.move);
+            }
+        }
+    }
+    return dominated;
+}
+
+/** What a loyalty activation's resolution does to the observable position, on
+ *  every branch: nothing (`"tick-only"`), something (`"changes"`), or a mix
+ *  or a branch the probe cannot settle (`"unknown"`). */
+type LoyaltyOutcome = "tick-only" | "changes" | "unknown";
+
+function loyaltyActivationOutcome(
+    state: GameState,
+    pid: string,
+    move: Move
+): LoyaltyOutcome {
+    if (move.kind !== "activate-ability") return "unknown";
+    if (!probeEligible(state, pid, move, true)) return "unknown";
+    probing = true;
+    stats.probes++;
+    try {
+        const probe = cloneGameState(state);
+        const spent = spentCostOf(state, move);
+        if (!applyProbeActivation(probe, pid, move)) return "unknown";
+        branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
+        let sawSame = false;
+        let sawChange = false;
+        const settled = branchesAll(probe, state, pid, 0, (leaf) => {
+            if (isNoOpDelta(state, leaf, pid, spent, "observable")) {
+                sawSame = true;
+            } else {
+                sawChange = true;
+            }
+            return true;
+        });
+        if (!settled) return "unknown";
+        if (sawSame && !sawChange) return "tick-only";
+        if (sawChange && !sawSame) return "changes";
+        return "unknown";
+    } catch {
+        return "unknown";
+    } finally {
+        probing = false;
+    }
+}
+
+/** A continuation is live: nothing is probed in these windows. */
+function probeWindowOpen(state: GameState): boolean {
+    return Boolean(
+        state.pendingCast ||
+        state.pendingTarget ||
+        state.pendingActivation ||
+        state.pendingCompanionPay ||
+        (state.pendingChoices?.length ?? 0) > 0
+    );
 }
 
 /** The `branchesAllNoOp` walk with the other quantifier: every leaf must leave
@@ -1180,6 +1315,23 @@ function branchesAllNoOp(
     spent: SpentCost,
     depth: number
 ): boolean {
+    return branchesAll(probe, baseline, moverId, depth, (settled) =>
+        isNoOpDelta(baseline, settled, moverId, spent)
+    );
+}
+
+/** The settle + all-branches walk, with the LEAF question left to the caller:
+ *  every settled leaf must satisfy `leaf`, and every leaf that cannot be
+ *  settled (the step cap, a live continuation, a choice the mover does not own,
+ *  the depth cap, the work budget, a game over) answers `false`. So whatever
+ *  `leaf` asks, an unprovable branch never proves it. */
+function branchesAll(
+    probe: GameState,
+    baseline: GameState,
+    moverId: string,
+    depth: number,
+    leaf: (settled: GameState) => boolean
+): boolean {
     let steps = 0;
     while (probe.stack.length > baseline.stack.length) {
         if (steps++ >= MAX_SETTLE_STEPS) return false;
@@ -1213,7 +1365,7 @@ function branchesAllNoOp(
             const branch = cloneGameState(probe);
             if (!applyProbeChoice(branch, moverId, candidate.move))
                 return false;
-            if (!branchesAllNoOp(branch, baseline, moverId, spent, depth + 1)) {
+            if (!branchesAll(branch, baseline, moverId, depth + 1, leaf)) {
                 return false;
             }
         }
@@ -1222,7 +1374,7 @@ function branchesAllNoOp(
 
     if (probe.gameOver) return false;
     if (probe.stack.length !== baseline.stack.length) return false;
-    return isNoOpDelta(baseline, probe, moverId, spent);
+    return leaf(probe);
 }
 
 /** Answer a mid-resolution choice through the SAME pure resolvers the real
@@ -1399,10 +1551,16 @@ function isNoOpDelta(
     baseline: GameState,
     probe: GameState,
     moverId: string,
-    spent: SpentCost
+    spent: SpentCost,
+    reading: "exact" | "observable" = "exact"
 ): boolean {
-    const a = normalize(cloneGameState(baseline), moverId, spent, "base");
-    const b = normalize(cloneGameState(probe), moverId, spent, "probe");
+    const read = (state: GameState): GameState => {
+        const copy = cloneGameState(state);
+        if (reading === "observable") readObservableCharacteristics(copy);
+        return copy;
+    };
+    const a = normalize(read(baseline), moverId, spent, "base");
+    const b = normalize(read(probe), moverId, spent, "probe");
     if (!a || !b) return false;
     // Tapping is a COST, untapping is a DELTA: forgive only untapped → tapped
     // on the mover's own permanents, and only against the matching baseline
@@ -1416,6 +1574,60 @@ function isNoOpDelta(
         if (c.isTapped && baseTapped.get(c.id) === false) c.isTapped = false;
     }
     return deepEqual(a, b);
+}
+
+/** Per-permanent layer LEDGER: the holds, timestamps and seqs an effect writes
+ *  to say how a characteristic came to be, never the characteristic itself.
+ *  Re-applying an effect the permanent already wears appends to every one of
+ *  them and changes nothing a player can see (CR 613.7 orders effects; it is
+ *  the resulting characteristics that are the object's, CR 109.3). */
+const LAYER_LEDGER_INSTANCE_KEYS = [
+    "abilityLossHolds",
+    "typeLineHolds",
+    "colorOverrideSeq",
+] as const;
+
+/** The `"observable"` reading of {@link isNoOpDelta}, in place: each
+ *  battlefield permanent gains what its layers PRODUCE (effective P/T,
+ *  CR 613.4; colours, CR 613.1e; whether its abilities are suppressed,
+ *  CR 613.1f) and loses the ledger that produced it, and the registry loses the
+ *  layer-7 entries locked onto instances, whose whole effect is the P/T read
+ *  just taken (CR 611.2c — a resolved effect's affected set is fixed when it
+ *  begins). Types, subtypes, keywords and granted abilities are already
+ *  materialised on the instance by the layer sync and compared as they stand.
+ *  Everything else stays exact, so an effect of any other kind still reads as
+ *  a change. */
+function readObservableCharacteristics(state: GameState): void {
+    const readings = new Map<CardInstanceState, Record<string, unknown>>();
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            readings.set(card, {
+                observedColors: STATIC_EFFECT_CTX.getColors(card),
+                observedSuppressed:
+                    (card.abilitiesSuppressedBy?.length ?? 0) > 0,
+                ...(isCreature(card)
+                    ? { observedPT: getEffectivePT(state, card) }
+                    : {}),
+            });
+        }
+    }
+    for (const [card, reading] of readings) {
+        const bag = card as unknown as Record<string, unknown>;
+        for (const key of LAYER_LEDGER_INSTANCE_KEYS) delete bag[key];
+        delete bag.abilitiesSuppressedBy;
+        if (card.indefiniteSubtypeSet) {
+            const set = { ...card.indefiniteSubtypeSet };
+            delete set.seq;
+            bag.indefiniteSubtypeSet = set;
+        }
+        Object.assign(bag, reading);
+    }
+    if (state.continuousEffects) {
+        state.continuousEffects = state.continuousEffects.filter(
+            (entry) =>
+                !(entry.layer === 7 && entry.affected.kind === "instances")
+        );
+    }
 }
 
 /** Strip the ignore lists in place and remove whatever the announcement SPENT
@@ -1609,6 +1821,19 @@ export function isProbeEligibleMove(
     pid: string,
     move: Move
 ): boolean {
+    return probeEligible(state, pid, move, false);
+}
+
+/** {@link isProbeEligibleMove}'s body. `admitLoyaltyTick` lifts exactly ONE
+ *  refusal, the tick-up loyalty cost: {@link tickOnlyLoyaltyMovesDominated}
+ *  prices the tick itself, against a sibling, so for it the tick is not an
+ *  unaccounted payoff. Every other cost refusal stands. */
+function probeEligible(
+    state: GameState,
+    pid: string,
+    move: Move,
+    admitLoyaltyTick: boolean
+): boolean {
     if (move.kind === "cast-spell") {
         const player = state.players.find((p) => p.id === pid);
         const card = player?.hand.find((c) => c.id === move.cardInstanceId);
@@ -1739,7 +1964,9 @@ export function isProbeEligibleMove(
             // CR 606.4 — a tick up is a payoff of its own. Counters taken off buy
             // nothing but the resolution the probe reads, so a minus with no
             // effect is proved like any other no-op.
-            (cost.loyalty !== undefined && cost.loyalty >= 0)
+            (!admitLoyaltyTick &&
+                cost.loyalty !== undefined &&
+                cost.loyalty >= 0)
         );
     }
     // Issue #4441 — only a cast or a printed-ability activation is probed (a

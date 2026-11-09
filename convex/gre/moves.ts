@@ -272,7 +272,11 @@ import { substituteColorFilter } from "./textChanges";
 import { choiceCandidates } from "./ai/choiceCandidates";
 // Dominance pruning (issue #1887) — the generic "this move is provably
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
-import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
+import {
+    isDominatedNoOpMove,
+    isProbeEligibleMove,
+    tickOnlyLoyaltyMovesDominated,
+} from "./ai/dominance";
 import {
     isFutileThisTurnMove,
     isMisdirectedThisTurnMove,
@@ -6795,7 +6799,7 @@ export function enumerateMoves(
     // probe candidate, so the floor can never be emptied — the filter can only
     // ever remove strictly-dominated alternatives.
     if (!options?.pruneDominatedNoOps) return candidates;
-    return candidates.filter((m) => {
+    const kept = candidates.filter((m) => {
         // Issue #5493 — a shield no threat can reach before the bot next holds
         // priority: a static proof, so it runs ahead of the probe gate.
         if (
@@ -6807,6 +6811,17 @@ export function enumerateMoves(
         }
         if (!isProbeEligibleMove(state, playerId, m)) return true;
         if (!isDominatedNoOpMove(state, playerId, m)) return true;
+        options.onPruned?.(m);
+        return false;
+    });
+    // CR 606.3 / 606.4 (issue #8729) — a tick-up whose resolution changes
+    // nothing loses to a sibling loyalty ability of the same permanent, which
+    // only a pass over the SURVIVING set can see: the sibling has to still be
+    // on offer.
+    const dominatedTicks = tickOnlyLoyaltyMovesDominated(state, playerId, kept);
+    if (dominatedTicks.size === 0) return kept;
+    return kept.filter((m) => {
+        if (!dominatedTicks.has(m)) return true;
         options.onPruned?.(m);
         return false;
     });
