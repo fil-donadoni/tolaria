@@ -92,9 +92,8 @@ const UGIN_COLORED_PERMANENT: TargetRequirement = {
 const UGIN_EXILE_COLORED: EffectOp[] = [{ op: "exile", target: { target: 0 } }];
 
 // compiler-gap: "When you cast this spell, exile up to one target permanent that's one or more colors." (#2693)
-// compiler-gap: "Whenever you cast a colorless spell, exile up to one target permanent that's one or more colors." (#2693)
-// compiler-gap: "+2: You gain 3 life and draw a card." (#2693)
-// compiler-gap: "0: Add {C}{C}{C}." (#2693)
+// compiler-gap: "Whenever you cast a colorless spell, exile up to one target permanent that's one or more colors." (#8494)
+// compiler-gap: "+2: You gain 3 life and draw a card." (#8502)
 // compiler-gap: "-11: Search your library for any number of colorless nonland cards, exile them, then shuffle. Until end of turn, you may cast those cards without paying their mana costs." (#2693)
 export const uginEyeOfTheStorms = defineCard(() => ({
     id: "64a5d494-efa1-446b-bebe-2ad36e154376",

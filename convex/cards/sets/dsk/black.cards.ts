@@ -119,7 +119,6 @@ export const overlordOfTheBalemurk = defineCard(() => ({
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever you gain life, target opponent loses that much life. (#2693)
-// compiler-gap: When Enduring Tenacity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringTenacity = defineCard(() => ({
     id: "d5756d4b-3068-412c-8643-880d3459151e",
     name: "Enduring Tenacity",

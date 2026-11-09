@@ -92,10 +92,8 @@ export const sageOfTheSkies = defineCard(() => ({
 // value is the total amount of mana in the object's mana cost, colour
 // disregarded).
 
-// compiler-gap: "If one or more tokens would be created under your control, twice that many of those tokens are created instead." (#2693)
-// compiler-gap: "+1: Create a 1/1 white Soldier creature token." (#2693)
-// compiler-gap: "0: Put a +1/+1 counter on each creature you control. Those creatures gain flying until your next turn." (#2693)
-// compiler-gap: "-3: Destroy target creature an opponent controls with mana value 3 or greater." (#2693)
+// compiler-gap: "If one or more tokens would be created under your control, twice that many of those tokens are created instead." (#8493)
+// compiler-gap: "0: Put a +1/+1 counter on each creature you control. Those creatures gain flying until your next turn." (#8501)
 export const elspethStormSlayer = defineCard(() => ({
     id: "73a065e3-b530-4e62-ab3c-4f6f908184ec",
     name: "Elspeth, Storm Slayer",

@@ -572,7 +572,6 @@ export const enervate = defineCard(() => ({
 // 615.1 prevention.) The same shape as Power Leak (`sets/lea/blue.cards.ts`), one
 // point of damage further.
 //
-// compiler-gap: "Enchant creature" (#2693)
 // compiler-gap: "At the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way." (#2693)
 export const errantMinion = defineCard(() => ({
     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",

@@ -215,7 +215,7 @@ export const satyaAetherfluxGenius = defineCard(() => ({
 //     cascades exactly like one cast from hand: the trigger fires on the cast,
 //     not on the zone it was cast from.
 //
-// compiler-gap: "Escape—{3}{R}{G}, Exile three other cards from your graveyard." (#2693)
+// compiler-gap: "Escape—{3}{R}{G}, Exile three other cards from your graveyard." (#8497)
 export const bloodbraidChallenger = defineCard(() => ({
     id: "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
     name: "Bloodbraid Challenger",

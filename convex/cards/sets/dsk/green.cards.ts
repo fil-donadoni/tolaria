@@ -7,7 +7,7 @@ import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 // Enduring Vitality — {1}{G}{G} Enchantment Creature — Elk Glimmer, 3/3
-// (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
+// (the DSK "Enduring" cycle; the shared dies-trigger and its
 // CR 205.1a / 613.1d derivation live in `abilities/enduringReturn.ts`).
 //
 // "Vigilance" — CR 702.20a, a `staticAbilities` keyword; the registry row is
@@ -51,7 +51,6 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Creatures you control have "{T}: Add one mana of any color." (#2693)
-// compiler-gap: When Enduring Vitality dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringVitality = defineCard(() => ({
     id: "9d76a30c-0431-4334-892a-9822dda9671a",
     name: "Enduring Vitality",

@@ -82,7 +82,6 @@ export const snuffOut = defineCard(() => ({
 // dependency LOOP the rule's last sentence exists for and are applied in
 // timestamp order relative to each other. That order is now a decision the
 // dependency system reaches, not the only thing the engine could do.
-// compiler-gap: As this enchantment enters, choose a creature type. (#2693)
 // compiler-gap: Creatures you control are the chosen type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield. (#2693)
 export const conspiracy = defineCard(() => ({
     id: "411c9f22-2df0-4a63-b2be-fa02612a6ef8",
