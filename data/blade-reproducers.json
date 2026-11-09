@@ -797,6 +797,114 @@
         "turn": 4,
         "libraryCount": 20
     },
+    "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)": {
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Oko, Thief of Crowns",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 8
+                }
+            },
+            {
+                "name": "Tireless Tracker",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Chromatic Star",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Dismember",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Emrakul, the Aeons Torn",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Archon of Cruelty",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 18,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "Conditional win not latent: casts Thassa's Oracle on an empty board with a full library": {
         "cards": [
             {
