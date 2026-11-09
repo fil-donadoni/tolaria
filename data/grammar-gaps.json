@@ -521,6 +521,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › choice+discard+reveal",
+            "issue": 8977
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:player › choice+libraryLook+moveZone",
             "issue": 6308
         },
