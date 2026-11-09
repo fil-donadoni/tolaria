@@ -18,6 +18,8 @@ import {
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
 } from "~/lib/controller-bar-metrics";
+import { usePromptCollapsed } from "~/hooks/usePromptCollapsed";
+import CollapsedPromptPill from "./collapsed-prompt-pill";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 import ClearYieldsButton from "./clear-yields-button";
@@ -186,6 +188,7 @@ export default function GameStack({
     const highlight = useArrowHighlight();
     const setSeed = highlight?.setSeed;
     const [expanded, setExpanded] = useState(false);
+    const promptCollapse = usePromptCollapsed();
 
     // Display in LIFO order: last cast on top (first row).
     const reversed = [...stack].reverse();
@@ -222,6 +225,28 @@ export default function GameStack({
 
     const visible = expanded ? reversed : reversed.slice(0, COLLAPSED_ROWS);
     const hidden = reversed.length - visible.length;
+
+    // Issue #7425 — the `C` hotkey folds the whole panel to a one-line pill so
+    // the board is readable. A stack-target pick keeps the rows reachable.
+    if (promptCollapse?.collapsed && !canTargetSpell && !canChooseStackSource) {
+        return (
+            <div
+                data-testid="game-stack-collapsed"
+                className="pointer-events-none absolute z-stack"
+                style={{
+                    right: "0.5rem",
+                    ...(desktop
+                        ? { bottom: `calc${ABOVE_CONTROLLER_POD_EXPR}` }
+                        : { top: "50%" }),
+                }}
+            >
+                <CollapsedPromptPill
+                    title={`Stack (${stack.length})`}
+                    onExpand={promptCollapse.expand}
+                />
+            </div>
+        );
+    }
 
     return (
         <div
