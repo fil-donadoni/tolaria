@@ -2094,6 +2094,125 @@
             }
         ]
     },
+    "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)": {
+        "cards": [
+            {
+                "name": "Ancestral Recall",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
+    "far behind: the removal follows the best creature when the counters move it (issue #8954 pair, twin)": {
+        "cards": [
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "counters": {
+                    "+1/+1": 6
+                }
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
+    "far behind: the removal goes to the opponent's best creature (issue #8954 pair, anchor)": {
+        "cards": [
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
     "fast mana: casts Mana Crypt for the Serra Angel it enables": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,
