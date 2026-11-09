@@ -110,7 +110,13 @@ describe("freeze classification", () => {
                 .filter(([, freeze]) => freeze)
                 .map(([reason]) => reason)
                 .sort()
-        ).toEqual(["max-plies", "resolution-error", "search-error", "stall"]);
+        ).toEqual([
+            "bot-fault",
+            "max-plies",
+            "resolution-error",
+            "search-error",
+            "stall",
+        ]);
         expect(
             Object.entries(REASON_IS_FREEZE)
                 .filter(([, freeze]) => !freeze)
