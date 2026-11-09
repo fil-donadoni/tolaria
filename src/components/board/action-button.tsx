@@ -48,8 +48,14 @@ export default function ActionButton({
         >
             <span className="inline-flex items-center gap-2">
                 {label}
+                {/* aria-hidden: the hint is a visual cue, not part of the
+                    button's name — "Pass Turn [P]" broke every exact-name
+                    lookup of the pod's Pass Turn (check:ui game-board). */}
                 {shortcut && (
-                    <span className="hidden md:inline-flex items-center">
+                    <span
+                        aria-hidden
+                        className="hidden md:inline-flex items-center"
+                    >
                         <ShortcutHint shortcut={shortcut} />
                     </span>
                 )}
