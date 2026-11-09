@@ -1434,10 +1434,13 @@ describe("solveSmartAutoTap — untap-price gate (CR 502.3, issue #8381)", () =>
     it("Grim + Basalt Monolith, cost {3}: taps the lowest price (Basalt)", () => {
         expect(
             smartTap(
-                [grim(), makeInstance(BASALT_MONOLITH, { id: "basalt" })],
+                [
+                    makeInstance(GRIM_MONOLITH, { id: "a-grim" }),
+                    makeInstance(BASALT_MONOLITH, { id: "z-basalt" }),
+                ],
                 { X: 3 }
             )
-        ).toEqual(["basalt"]);
+        ).toEqual(["z-basalt"]);
     });
 
     it("a land granted does-not-untap with no way to untap is spared, even stranding a Demand", () => {
