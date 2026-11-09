@@ -245,25 +245,31 @@ function isBasicLand(card: CardInstanceState): boolean {
     return def?.supertypes?.includes("Basic") ?? false;
 }
 
-/** Whether `first` must be sacrificed before `then` may be — the two orders
- *  a forced sacrifice keeps whatever the board: a mana rock goes before any
- *  creature, and a basic land (CR 205.4c) before any nonbasic land. Every
- *  other pair (lands against creatures, rocks against lands) is left to the
- *  worth and to the search. */
+/** Whether `first` must be sacrificed before `then` may be — the orders a
+ *  forced sacrifice keeps whatever the board:
+ *
+ *  - a mana rock goes before any creature (the owner's ruling, issue #8382)
+ *    and before any land — the board's other mana, so with both rulings a
+ *    rock is the first mana given up and the evaluation's preference for a
+ *    rock's card worth over a land's cannot trade a land for it;
+ *  - a basic land (CR 205.4c) before any nonbasic land.
+ *
+ *  Every other pair (lands against creatures, other noncreatures against
+ *  anything) is left to the worth and to the search. */
 export function sacrificeGoesFirst(
     first: CardInstanceState,
     then: CardInstanceState
 ): boolean {
-    if (isManaRock(first) && isCreature(then)) return true;
+    if (isManaRock(first) && (isCreature(then) || isLand(then))) return true;
     return isBasicLand(first) && isLand(then) && !isBasicLand(then);
 }
 
 /** Each pool member's sacrifice RANK: its {@link battlefieldPermanentWorth},
  *  lowered where needed so that sorting by rank is a linear extension of
- *  {@link sacrificeGoesFirst} — every mana rock ranks below the pool's
- *  cheapest creature, every basic below its cheapest nonbasic land. The one
- *  ranking both the search's answer set (`choiceCandidates.ts`) and the
- *  Brain's worst-first fallback (`bot-view.ts`) read, so the two cannot
+ *  {@link sacrificeGoesFirst} — every basic ranks below the pool's cheapest
+ *  nonbasic land, then every mana rock below its cheapest creature or land.
+ *  The one ranking both the search's answer set (`choiceCandidates.ts`) and
+ *  the Brain's worst-first fallback (`bot-view.ts`) read, so the two cannot
  *  disagree on an order. */
 export function sacrificeRankWorths(
     state: GameState,
@@ -274,15 +280,23 @@ export function sacrificeRankWorths(
     );
     const cheapest = (pred: (c: CardInstanceState) => boolean) =>
         Math.min(...pool.filter(pred).map((c) => worth.get(c.id) ?? Infinity));
-    const creatureFloor = cheapest(isCreature);
-    const nonbasicLandFloor = cheapest((c) => isLand(c) && !isBasicLand(c));
-    for (const c of pool) {
-        const w = worth.get(c.id)!;
-        if (isManaRock(c) && w >= creatureFloor)
-            worth.set(c.id, creatureFloor - 1);
-        else if (isBasicLand(c) && w >= nonbasicLandFloor)
-            worth.set(c.id, nonbasicLandFloor - 1);
-    }
+    const lowerBelow = (
+        pred: (c: CardInstanceState) => boolean,
+        floor: number
+    ) => {
+        for (const c of pool) {
+            if (pred(c) && worth.get(c.id)! >= floor)
+                worth.set(c.id, floor - 1);
+        }
+    };
+    lowerBelow(
+        isBasicLand,
+        cheapest((c) => isLand(c) && !isBasicLand(c))
+    );
+    lowerBelow(
+        isManaRock,
+        cheapest((c) => isCreature(c) || isLand(c))
+    );
     return worth;
 }
 

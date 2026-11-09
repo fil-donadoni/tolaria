@@ -19,7 +19,9 @@
 //     `chooseResolution` is actually reached with populated candidate values.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "@convex/cards";
+import { getCardByName, tryGetDefinition } from "@convex/cards";
+import { buildBladeState } from "@convex/gre/ai/blade/build";
+import { findBladeScenario } from "@convex/gre/ai/blade/registry";
 import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
@@ -216,4 +218,38 @@ describe("bot answers Annihilator N's forced sacrifice (CR 702.86a, issue #2295)
             expect(bot.graveyard).toHaveLength(3);
             expect(bot.battlefield.map((c) => c.id)).toEqual(["bot-dragon"]);
         }));
+});
+
+// Issue #8382 — the worst-first fallback reads the SAME sacrifice rank as the
+// search's answer set, so it keeps the same two orders on both positions.
+describe("the fallback keeps the forced-sacrifice orders (CR 701.21a, issue #8382)", () => {
+    for (const label of [
+        "annihilator: sacrifices the mana rocks and keeps its untapped blockers",
+        "annihilator pair: rocks before creatures, basics before the dual, no lethal",
+    ]) {
+        it(label, () => {
+            const state = buildBladeState(findBladeScenario(label)!);
+            const botId = state.players[0].id;
+            const view = buildBotView(
+                projectPublicState(state, 1, botId),
+                botId
+            );
+            const action = chooseOwedChoiceAction(view.owedChoice!);
+            if (action.kind !== "resolution-choice")
+                throw new Error(action.kind);
+            const names = action.cardInstanceIds.map((id) => {
+                const card = state.players[0].battlefield.find(
+                    (c) => c.id === id
+                )!;
+                return tryGetDefinition((card.card as { id: string }).id)?.name;
+            });
+            expect(names).toHaveLength(6);
+            expect(names).toEqual(
+                expect.arrayContaining(["Sol Ring", "Talisman of Curiosity"])
+            );
+            if (names.includes("Hedge Maze")) {
+                expect(names.filter((n) => n === "Island")).toHaveLength(4);
+            }
+        });
+    }
 });
