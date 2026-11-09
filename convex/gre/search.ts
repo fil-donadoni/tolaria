@@ -483,6 +483,22 @@ export type Node = {
      *  resolves the trigger once per answer and reads only the public board.
      *  `undefined` off a trigger-target node. */
     dominatedTargetKeys?: ReadonlySet<string>;
+    /** OPTION-SET VIEWS of an opponent's decision node (issue #8939), keyed by
+     *  the sorted tree keys of the moves the opponent holds in the world that
+     *  reached it (`opponentOptionView`). Each view keeps its OWN edge
+     *  statistics, so the opponent picks among its options from the worlds
+     *  where it held exactly those options; every view's edges point at the
+     *  child nodes THIS node shares (`childNodes`, `sharedChild`), so the
+     *  tree below — the bot's later decisions included — stays one tree,
+     *  shared across worlds the bot cannot tell apart. `undefined` at the
+     *  bot's own nodes. */
+    optionViews?: Map<string, Node>;
+    /** The child nodes an opponent's option-set views opened, by tree key
+     *  (issue #8939, `sharedChild`). Kept OUT of `children`, which holds only
+     *  edges with statistics: a zero-visit registry edge there would read as
+     *  tried at a node another world hands to the other seat, and `ucb1`
+     *  would score it `0/0`. `undefined` until a view opens a child. */
+    childNodes?: Map<string, Node>;
 };
 
 function newNode(): Node {
@@ -3341,7 +3357,8 @@ function puctDescend(
     rng: () => number,
     weights: EvalWeights,
     config: ActionPriorConfig,
-    since: GameClock
+    since: GameClock,
+    shared: Node = node
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -3429,11 +3446,12 @@ function puctDescend(
         path.push(bestEdge);
         return false;
     }
+    const { child, existed } = sharedChild(shared, node, bestKeyed!);
     const opened: Edge = {
         move: bestKeyed!.move,
         key: bestKeyed!.key,
         mover: pid,
-        node: newNode(),
+        node: child,
         visits: 0,
         totalReward: 0,
         totalMargin: 0,
@@ -3441,8 +3459,69 @@ function puctDescend(
     };
     node.children.set(opened.key, opened);
     path.push(opened);
+    if (existed) return false;
     backpropagate(path, rollout(world, botId, rng, weights, since), botId);
     return true;
+}
+
+/** The child node a newly opened edge of `view` points at (issue #8939).
+ *
+ *  The node already reached under that key, when there is one — an edge of
+ *  `shared` itself, or a child another option-set view opened
+ *  (`shared.childNodes`) — so a move made in two option sets leads to ONE
+ *  subtree; a fresh node otherwise, registered in `childNodes` when `view`
+ *  is an opponent's view. `existed` tells the caller to descend into that
+ *  subtree rather than roll out from a node that is already expanded. A node
+ *  only ever decided by one seat has no `childNodes`, so the bot's own nodes
+ *  open fresh children exactly as before. */
+function sharedChild(
+    shared: Node,
+    view: Node,
+    k: KeyedMove
+): { child: Node; existed: boolean } {
+    const existing =
+        (view === shared ? undefined : shared.children.get(k.key)?.node) ??
+        shared.childNodes?.get(k.key);
+    if (existing) return { child: existing, existed: true };
+    const child = newNode();
+    if (view !== shared) (shared.childNodes ??= new Map()).set(k.key, child);
+    return { child, existed: false };
+}
+
+/** The statistics an opponent's decision at `node` is selected by, in a
+ *  world where it holds the options `keyed` (issue #8939).
+ *
+ *  One tree is shared by every determinization (SO-ISMCTS), so an
+ *  opponent's node is shared by worlds that differ in what the opponent
+ *  holds — and the opponent, unlike the bot, can tell those worlds apart.
+ *  Pooled edge statistics fuse its strategies across them (strategy fusion,
+ *  `docs/research/ismcts-choice-nodes.md` § 2.1): with a counterspell in
+ *  half the worlds, the `pass` edge also collects the worlds where passing
+ *  is the ONLY move, so its mean reads what passing is worth to an opponent
+ *  with no counter, and the opponent who holds one never learns to let a
+ *  spell resolve and counter the next. Measured on the Thassa's Oracle +
+ *  Demonic Consultation entry: the opponent countered the first spell in
+ *  82 of 82 counter worlds, and the Bot sequenced into it.
+ *
+ *  The option set is the part of the opponent's private information the
+ *  decision itself observes, read off the very move list the node selects
+ *  from — never a hand, a card or a deck: two worlds offering the same
+ *  options share statistics, two offering different ones do not. Sorted,
+ *  because the enumeration order follows the hand's order, which differs
+ *  between worlds holding the same cards. */
+function opponentOptionView(node: Node, keyed: KeyedMove[]): Node {
+    const sig = keyed
+        .map((k) => k.key)
+        .sort()
+        .join("\n");
+    node.policyValues ??= new Map();
+    node.optionViews ??= new Map();
+    let view = node.optionViews.get(sig);
+    if (!view) {
+        view = { children: new Map(), policyValues: node.policyValues };
+        node.optionViews.set(sig, view);
+    }
+    return view;
 }
 
 /** Grow the tree by one iteration on a freshly-determinized world.
@@ -3570,10 +3649,14 @@ function iterate(
         // `selectOpeningCandidate`, and its candidate set is already top-K'd.
         const headChoice = world.pendingChoices?.[0];
         const atChoiceNode = !!headChoice && headChoice.playerId === pid;
+        // An opponent's node selects by the statistics of its option set
+        // (issue #8939, `opponentOptionView`); the bot's own node is its view.
+        const shared = node;
+        const view = pid !== botId ? opponentOptionView(node, keyed) : node;
         if (actionPriors && !atChoiceNode) {
             if (
                 puctDescend(
-                    node,
+                    view,
                     world,
                     pid,
                     botId,
@@ -3582,7 +3665,8 @@ function iterate(
                     rng,
                     weights,
                     actionPriors,
-                    since
+                    since,
+                    shared
                 )
             ) {
                 return; // expanded + rolled out
@@ -3610,7 +3694,7 @@ function iterate(
             );
         }
 
-        const untried = keyed.filter((k) => !node.children.has(k.key));
+        const untried = keyed.filter((k) => !view.children.has(k.key));
 
         if (untried.length > 0) {
             // Open one unopened branch, then roll out from it. FIRST-PLAY
@@ -3628,18 +3712,23 @@ function iterate(
                 rng
             )!;
             applyMoveInSearch(world, pid, pick.move);
+            const { child, existed } = sharedChild(shared, view, pick);
             const edge: Edge = {
                 move: pick.move,
                 key: pick.key,
                 mover: pid,
-                node: newNode(),
+                node: child,
                 visits: 0,
                 totalReward: 0,
                 totalMargin: 0,
                 avail: 1,
             };
-            node.children.set(pick.key, edge);
+            view.children.set(pick.key, edge);
             path.push(edge);
+            if (existed) {
+                node = child;
+                continue;
+            }
             backpropagate(
                 path,
                 rollout(world, botId, rng, weights, since),
@@ -3655,7 +3744,7 @@ function iterate(
         // The node's castable-instant probe, once for every edge (issue #4461).
         const held = heldInstantProbe(world, pid);
         for (const k of keyed) {
-            const edge = node.children.get(k.key)!;
+            const edge = view.children.get(k.key)!;
             edge.avail += 1;
             const val =
                 ucb1(edge, weights) +
