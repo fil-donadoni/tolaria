@@ -84,7 +84,10 @@ describe("Storm count chip (CR 702.40a)", () => {
     });
 
     it("a storm-created copy on the stack renders no chip (CR 707.10)", () => {
-        const copy = stormInstance({ zone: "stack", isCopy: true });
+        const copy = stormInstance({
+            zone: "stack",
+            isCopy: true,
+        } as Partial<CardInstance>);
         expect(chipText(copy, ctx(5))).toBeNull();
     });
 
