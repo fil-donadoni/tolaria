@@ -5,7 +5,8 @@
 // seat's own view at each decision (the `AiTraceSource` shape the verdict quiz
 // already lowers from) and the mutations the player submitted until their next
 // decision. Nothing here consults the Brain, runs a search or enumerates a move
-// — the cost a player pays mid-game is one array push.
+// — the cost a player pays mid-game is one array push, plus a fire-and-forget
+// storage write of the rows that changed (issue #8889).
 //
 // Client-side by design, and never authoritative (ADR 0074): a proposal is a
 // QUESTION, not game state. Nothing reaches the server.
