@@ -7451,9 +7451,11 @@ export function rootDecisionSettled(
     if (remaining <= 0) return false;
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length < 2) return false;
-    // The same blended score the verdict is read from (issue #9045): a
-    // decision is settled when the score `selectRootMove` will read has a
-    // decisive lead, not when the raw rollout mean does. Byte-identical at
+    // The blended score (issue #9045), at λ alone: a decision is settled when
+    // the score `selectRootMove` will read has a decisive lead, not when the
+    // raw rollout mean does. The starved floor is not applied here — a root
+    // still starved can never be "settled" (its visit lead is catchable) —
+    // so the two agree wherever this rule can fire. Byte-identical at
     // `rootHeuristicShare` 0.
     const { mean } = makeRootScorer(root, weights);
 

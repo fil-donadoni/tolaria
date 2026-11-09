@@ -113,8 +113,12 @@ the PUCT prior `c`: every blade entry the one-ply reading breaks is one
 authored precisely because greedy one-ply gets it wrong, so the share must
 stay small.
 
-**Held-out pick agreement** (`bun run verdicts:pick-agreement`, n = 24):
-@@PA_TABLE@@
+**Held-out pick agreement** (`bun run verdicts:pick-agreement`, n = 24,
+seeds 76/120 in every run): 13/24 (54.2%) under λ = 0.1, 0.15, 0.2 and 0.3
+alike — the base under ADR 0176 was 13/24 too. The held-out verdicts are
+not positions where the one-ply reading and the rollouts disagree at the
+root, so the share moves none of them; no signal at this n, as ADR 0176
+found for the tail.
 
 **The Toxic Deluge entry** ("life X: Toxic Deluge never pays to lethal"),
 the case ADR 0176 raised for an outcome-aware material tie-break: green under
@@ -145,4 +149,16 @@ certain loss by surviving material. Recorded as a finding
   (today's picks) on the ladder, judged against `placebo`, and owes the
   `must` tier green plus its held-out delta (PRD #3980).
 - `PendingChoice` roots and opponent option views are unchanged: the share
-  reads the Bot's own root edges only.
+  reads the Bot's own root edges only. **Where λ has no effect:** a root
+  with no memoized policy values — a choice-node root (PUCT skips choice
+  nodes and the policy opening requires a non-choice root) and the
+  `no-action-priors` (`ucb1`) arm with budget to spare — scores every
+  candidate by its mean, whatever λ (`search.bot.test.ts`, "never
+  memoized").
+- **The one-ply value is a single-world sample.** `Node.policyValues` is
+  memoized from whichever determinized world first reached the root; the
+  PUCT priors always read it that way, and from this record so does every
+  non-starved verdict, weighted λ. On a hidden-information root the sample
+  is one deal of the opponent's hand; a share small enough to lose to the
+  rollouts on a horizon entry (0.15 breaks the poison-clock Terror) is also
+  what keeps one deal from deciding a verdict.

@@ -49,7 +49,10 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
-import type { SearchStats } from "../ai/decisionTelemetry";
+import type {
+    RootDecisionMechanism,
+    SearchStats,
+} from "../ai/decisionTelemetry";
 
 /** Stub `SearchStats` for a `buildTrace` call site that hand-builds a `Node`
  *  (no real search loop ran, so there is nothing genuine to report — issue
@@ -3398,16 +3401,25 @@ describe("selectRootMove — Root Heuristic Share λ (issue #9045, PRD #9043)", 
         });
     });
 
-    it("λ = 0.2: the one-ply reading moves the verdict off the misdirected cast", () => {
+    it("λ = 0.3: the one-ply reading moves the verdict off the misdirected cast by score alone (no tie-break)", () => {
+        // 0.7 · 0.47 + 0.3 · 0.75 = 0.554 against 0.7 · 0.54 + 0.3 · 0.25 =
+        // 0.453: a lead past `outcomeEps`, so the search's own argmax decides
+        // and the material tie-break never runs (review of the PR for issue
+        // #9045: at 0.2 the lead is 0.044, inside the band, and the margins
+        // decide).
+        const out = { mechanism: "mean-reward" as RootDecisionMechanism };
         const picked = selectRootMove(
             rootOf(MEANS, ONEPLY),
             MOVES,
             undefined,
             undefined,
             undefined,
-            W02
+            withShare(0.3),
+            undefined,
+            out
         );
         expect(picked).toEqual(CAST_SELF);
+        expect(out.mechanism).toBe("mean-reward");
     });
 
     it("a candidate with no memoized one-ply value blends with its own mean (no penalty)", () => {
