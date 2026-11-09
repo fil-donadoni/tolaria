@@ -676,6 +676,64 @@ export function stepTargetHolds(
     return legal.length >= min;
 }
 
+/** The player-target requirements a definition's standing each-step
+ *  triggers announce (`phaseScope: "each"`, CR 603.3d) — memoised per
+ *  definition, since the search asks `armedStepTargetGates` of every
+ *  permanent on every rollout ply that draws at random. */
+function eachStepPlayerTargets(
+    def: CardDefinition
+): readonly TargetRequirement[] {
+    let known = EACH_STEP_PLAYER_TARGETS.get(def);
+    if (!known) {
+        known = (def.triggeredAbilities ?? []).flatMap((t) =>
+            t.phaseScope === "each" && t.targetRequirement?.type === "player"
+                ? [t.targetRequirement]
+                : []
+        );
+        EACH_STEP_PLAYER_TARGETS.set(def, known);
+    }
+    return known;
+}
+
+const EACH_STEP_PLAYER_TARGETS = new WeakMap<
+    CardDefinition,
+    readonly TargetRequirement[]
+>();
+
+/** Which standing each-step triggers on the battlefield would find a legal
+ *  PLAYER target on whose step (`stepTargetHolds`, CR 603.3d), one
+ *  `<permanent id>:<player id>` entry per armed pair — a comparative target
+ *  ("target player who controls more creatures than they do") makes a
+ *  trigger that does nothing on one board fire on the next. Two states with
+ *  equal lists arm the same triggers for the same players. `undefined` when
+ *  no permanent carries such a trigger, so a caller can skip the comparison
+ *  outright. */
+export function armedStepTargetGates(state: GameState): string[] | undefined {
+    let armed: string[] | undefined;
+    for (const owner of state.players) {
+        for (const perm of owner.battlefield) {
+            const def = tryGetDefinition(String(perm.card.id ?? ""));
+            if (!def) continue;
+            for (const requirement of eachStepPlayerTargets(def)) {
+                armed ??= [];
+                for (const active of state.players) {
+                    if (
+                        stepTargetHolds(
+                            requirement,
+                            active.id,
+                            perm as unknown as PermanentView,
+                            state
+                        )
+                    ) {
+                        armed.push(`${perm.id}:${active.id}`);
+                    }
+                }
+            }
+        }
+    }
+    return armed;
+}
+
 /** Issue #5162 — `player`'s side of a Differential Reading, with the flag
  *  `eachPlayerDifferential` reads to know the side was answered. */
 function boardSide(

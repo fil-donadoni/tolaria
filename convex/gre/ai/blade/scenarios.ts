@@ -24014,6 +24014,198 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8729 — the turn-14 board: Oko elked the Talisman on turn 12, so its +1 there buys only the tick and the +2 buys the tick and a Food. The walk untaps the opponent's five lands (they were tapped in the game); with no hand they have nothing to spend them on.",
     },
     {
+        // COMPARATIVE EACH-STEP TRIGGER (issue #8734) — the opponent's Oath of
+        // Druids digs, on each player's upkeep, for the player an opponent
+        // out-creatures (CR 603.3d: no legal target, no dig). Creatures are
+        // level, one each, and the opponent's library holds Emrakul and
+        // Archon of Cruelty. Oko's +1 on the bot's own Chromatic Star makes
+        // it two creatures to one and arms the Oath for the opponent's next
+        // upkeep; Dismember on the bot's own creature then pays a card and 4
+        // life to undo it. Oko's +2 keeps creatures level for free.
+        label: "comparative each-step trigger: Oko does not out-creature the opponent under its Oath of Druids, nor Dismember its own creature (issue #8734)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Oath of Druids removed",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 8 },
+                },
+                {
+                    name: "Tireless Tracker",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Chromatic Star", owner: "me", zone: "battlefield" },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // Stands in for the opponent's Elk: a vanilla 3/3.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Oath of Druids",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Emrakul, the Aeons Torn",
+                    owner: "opp",
+                    zone: "library",
+                },
+                { name: "Archon of Cruelty", owner: "opp", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 18,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Chromatic Star",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Tireless Tracker",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Chromatic Star",
+                },
+            ],
+        },
+        note: "Issue #8734. Guards the tree's prune of a move arming a standing each-step trigger for an opponent (`withoutOpposingGateArms`, `armedStepTargetGates`, `ai/latentBoard.ts`) and the rollout's random draw refusing a gate flip (`flipsStepTargetGate`). Before: Dismember on the own Tracker or Oko +1 on the Star, the latter most visited on every seed — below +2 the bot still held Dismember, so each node explored Dismember on the Hill Giant (an arm, the opponent then digs Emrakul) and its mean backup sank the line, while the +1 line re-levelled with Dismember on its own permanent and had no blunder left to explore. After: Oko +2 on all five seeds. The opponent's Elk is a Hill Giant here; the libraries are basics plus the two creatures.",
+    },
+    {
+        // The pair's other half: the board above without the Oath. Nothing
+        // reads creature counts, so the +1 on the bot's own Star is a free
+        // 3/3 and stays an acceptable play.
+        label: "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
+        pairOf: {
+            anchor: "comparative each-step trigger: Oko does not out-creature the opponent under its Oath of Druids, nor Dismember its own creature (issue #8734)",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Oath of Druids removed",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 8 },
+                },
+                {
+                    name: "Tireless Tracker",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Chromatic Star", owner: "me", zone: "battlefield" },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // Stands in for the opponent's Elk: a vanilla 3/3.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Emrakul, the Aeons Torn",
+                    owner: "opp",
+                    zone: "library",
+                },
+                { name: "Archon of Cruelty", owner: "opp", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 18,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Chromatic Star",
+                },
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-minus5",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Hill Giant",
+                },
+            ],
+        },
+        note: "Issue #8734. The discriminating half: no permanent carries a comparative each-step trigger, so neither the tree prune nor the rollout's refusal reads anything and the search is the one before the fix. Measured at 400 iterations: Dismember on the Hill Giant on every seed; the +1 on the Star and the -5 are as acceptable.",
+    },
+    {
         label: "discard: Liliana of the Veil holds her +1 when it only costs her own card",
         classification: {
             kind: "absolute",
