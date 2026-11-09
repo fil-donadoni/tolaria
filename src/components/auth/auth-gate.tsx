@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { AuthForm } from "./auth-form";
+import EngineViewAccessProvider from "~/components/cards/engine-view-access-provider";
 import LobbyBackground from "~/components/lobby/lobby-background";
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -17,7 +18,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <Unauthenticated>
                 <AuthForm />
             </Unauthenticated>
-            <Authenticated>{children}</Authenticated>
+            <Authenticated>
+                <EngineViewAccessProvider>{children}</EngineViewAccessProvider>
+            </Authenticated>
         </>
     );
 }

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import { getCardByName } from "@convex/cards";
 import InspectOverlay from "../inspect-overlay";
+import { EngineViewAccessContext } from "~/hooks/engineViewAccessContext";
 import type { EditingSurfaceAction } from "../editing-surface-action";
 
 function stubViewport(mode: "portrait" | "landscape") {
@@ -32,11 +33,15 @@ const content = () =>
 const actionEls = () =>
     [...document.querySelectorAll("[data-editing-action]")] as HTMLElement[];
 
+// Admin by default: the Engine view slot is admin-only (issue #7430).
 function renderOverlay(
-    props: Partial<React.ComponentProps<typeof InspectOverlay>> = {}
+    props: Partial<React.ComponentProps<typeof InspectOverlay>> = {},
+    isAdmin = true
 ) {
     return render(
-        <InspectOverlay cardId="bolt" onClose={() => {}} {...props} />
+        <EngineViewAccessContext value={isAdmin}>
+            <InspectOverlay cardId="bolt" onClose={() => {}} {...props} />
+        </EngineViewAccessContext>
     );
 }
 
@@ -282,6 +287,12 @@ describe("InspectOverlay — Engine View slot (issue #2728)", () => {
         expect(
             content().querySelector("[data-engine-view-tree]")
         ).not.toBeNull();
+    });
+
+    it("renders no slot for a non-admin (issue #7430)", () => {
+        renderOverlay({ cardId: LIGHTNING_BOLT_ID }, false);
+        expect(content().textContent).not.toContain("Engine view");
+        expect(content().querySelector("[data-engine-view-slot]")).toBeNull();
     });
 
     it("renders nothing for an identity with no CardDefinition (the default fixture id, 'bolt')", () => {
