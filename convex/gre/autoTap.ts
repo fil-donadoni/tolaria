@@ -20,6 +20,7 @@ import {
     normalizeManaCost,
     type ManaSubstitution,
 } from "./state";
+import { sourceUntapPrice } from "./autoTapDemands";
 import { extraTapManaForOption } from "./tapManaBonus";
 import { isTreasureToken, treasureHasPositiveExtra } from "./treasureMana";
 
@@ -90,6 +91,12 @@ export type AutoTapSource = {
      *  when the Treasure carries a positive extra (`treasureHasPositiveExtra`),
      *  so a plainer Treasure is spent before it. */
     treasureHasExtra?: boolean;
+    /** CR 502.3 — the source will not untap during its controller's untap
+     *  step: what untapping it later costs, in mana (`sourceUntapPrice`;
+     *  `Infinity` = no mana route). Absent for a source that untaps normally.
+     *  `solveSmartAutoTap` taps a priced source only when the Demand it
+     *  saves is worth more than this, or when nothing else can pay. */
+    untapPrice?: number;
 };
 
 /** What a caller opts the planner INTO beyond pure mana abilities. Omitted =
@@ -347,8 +354,10 @@ export function buildAutoTapSources(
             );
         if (usable.length === 0) continue; // wholly restricted: leave manual
         const spendsTreasure = usable.some(({ opt }) => opt.sacrificesSource);
+        const untapPrice = sourceUntapPrice(card);
         sources.push({
             cardId: card.id,
+            ...(untapPrice !== undefined ? { untapPrice } : {}),
             ...(spendsTreasure
                 ? {
                       treasureHasExtra: treasureHasPositiveExtra(
@@ -419,7 +428,20 @@ export type Demand = {
     id: string;
     /** Normalized mana cost (output of `normalizeManaCost`). */
     cost: Record<string, number>;
+    /** The permanent this Demand's ability untaps (its own untap ability,
+     *  Grim Monolith's "{4}: Untap this artifact"). Never counts as the
+     *  benefit of tapping that permanent (`solveSmartAutoTap`). */
+    untapsSourceId?: string;
 };
+
+/** Mana value of a Demand: the total of its normalized cost (CR 202.3). */
+export function demandManaValue(demand: Demand): number {
+    let total = 0;
+    for (const value of Object.values(demand.cost)) {
+        if (value > 0) total += value;
+    }
+    return total;
+}
 
 function addContribution(
     pool: Record<string, number>,
@@ -1127,7 +1149,7 @@ export function solveSmartAutoTap(
 function withoutSacrifice(src: AutoTapSource): AutoTapSource[] {
     if (!src.options.some((opt) => opt.sacrificesSource)) return [src];
     const options = src.options.filter((opt) => !opt.sacrificesSource);
-    return options.length === 0 ? [] : [{ cardId: src.cardId, options }];
+    return options.length === 0 ? [] : [{ ...src, options }];
 }
 
 /** The sources with every sacrifice option removed: what a PARTIAL plan may
@@ -1158,7 +1180,7 @@ function solveSmartAutoTapPure(
     if (selfSourceId !== undefined) {
         const withoutSelf = sources.filter((s) => s.cardId !== selfSourceId);
         if (withoutSelf.length !== sources.length) {
-            const plan = solveSmartAutoTapCore(
+            const plan = solveWithUntapPrices(
                 pool,
                 cost,
                 substitutions,
@@ -1170,7 +1192,7 @@ function solveSmartAutoTapPure(
             // Self-source is strictly necessary: fall through, taps included.
         }
     }
-    return solveSmartAutoTapCore(
+    return solveWithUntapPrices(
         pool,
         cost,
         substitutions,
@@ -1180,32 +1202,229 @@ function solveSmartAutoTapPure(
     );
 }
 
-/** Core demand-aware minimal-tap selection (no self-source handling). */
+/** Above this many priced sources, rule 2 of {@link solveWithUntapPrices}
+ *  stages cheapest-first prefixes instead of every subset. */
+const UNTAP_PRICE_SUBSET_LIMIT = 8;
+
+/** Total untap price of the priced sources a plan taps (0 when none). */
+function planUntapPrice(sources: AutoTapSource[], plan: AutoTapPlan): number {
+    const byId = new Map(sources.map((src) => [src.cardId, src]));
+    let total = 0;
+    for (const step of plan) total += byId.get(step.cardId)?.untapPrice ?? 0;
+    return total;
+}
+
+/** The Demands still affordable after `plan` pays `cost` (per-Demand
+ *  isolation, as {@link scorePreservedDemands} counts them). */
+function preservedDemands(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    plan: AutoTapPlan,
+    demands: Demand[]
+): Demand[] {
+    if (demands.length === 0) return [];
+    const remainingSources = sourcesAfterPlan(sources, plan);
+    const leftover = floatingAfterPlan(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        plan
+    );
+    return demands.filter((demand) =>
+        isDemandAffordable(demand, leftover, substitutions, remainingSources)
+    );
+}
+
+/** The subsets of `priced` rule 2 tries, cheapest total price first (then
+ *  fewer sources, then by cardId). Prefixes only past
+ *  {@link UNTAP_PRICE_SUBSET_LIMIT}, so the staging stays linear. */
+function pricedSubsetsByPrice(priced: AutoTapSource[]): AutoTapSource[][] {
+    const byPrice = [...priced].sort(
+        (a, b) =>
+            (a.untapPrice ?? 0) - (b.untapPrice ?? 0) ||
+            (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0)
+    );
+    if (byPrice.length > UNTAP_PRICE_SUBSET_LIMIT) {
+        return byPrice.map((_, i) => byPrice.slice(0, i + 1));
+    }
+    const subsets: AutoTapSource[][] = [];
+    for (let mask = 1; mask < 1 << byPrice.length; mask++) {
+        subsets.push(byPrice.filter((_, i) => (mask & (1 << i)) !== 0));
+    }
+    const price = (set: AutoTapSource[]): number =>
+        set.reduce((sum, src) => sum + (src.untapPrice ?? 0), 0);
+    const key = (set: AutoTapSource[]): string =>
+        set.map((src) => src.cardId).join("\u0000");
+    return subsets.sort((a, b) => {
+        const pa = price(a);
+        const pb = price(b);
+        if (pa !== pb) return pa < pb ? -1 : 1;
+        return a.length - b.length || (key(a) < key(b) ? -1 : 1);
+    });
+}
+
+/**
+ * The **untap-price gate** (CR 502.3, CR-neutral per CR 601.2g): a source
+ * that will not untap by itself (`AutoTapSource.untapPrice`) costs mana again
+ * to untap, so tapping it to save a cheap play wastes more than it saves.
+ *  1. A plan tapping priced sources is ADMISSIBLE only when its benefit — the
+ *     highest mana value among Demands it keeps castable that the best plan
+ *     sparing every priced source strands — strictly exceeds their total
+ *     price. Demands are compared one at a time, never summed (per-Demand
+ *     isolation), and the source's own untap ability is never a benefit.
+ *  2. If no plan sparing priced sources covers the cost, priced sources are
+ *     tapped regardless (the player asked to pay): the cheapest set first.
+ *  3. Otherwise a sparing plan wins over an inadmissible one, even if it
+ *     taps more sources.
+ *  4. Among admissible plans the unified ranking (`solveSmartAutoTapCore`)
+ *     applies unchanged, the minimal tap count included.
+ * No priced source = the core ranking verbatim. Every plan is scored against
+ * the FULL source list, so a priced source a plan leaves untapped still
+ * counts toward the Demands it keeps castable.
+ */
+function solveWithUntapPrices(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    demands: Demand[],
+    scorePlan: PlanPositionScorer | undefined
+): AutoTapPlan | null {
+    const priced = sources.filter((src) => src.untapPrice !== undefined);
+    if (priced.length === 0) {
+        return solveSmartAutoTapCore(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            demands,
+            scorePlan
+        );
+    }
+    const pricedIds = new Set(priced.map((src) => src.cardId));
+    const tapsOnly =
+        (allowed: ReadonlySet<string>) =>
+        (plan: AutoTapPlan): boolean =>
+            plan.every(
+                (step) =>
+                    !pricedIds.has(step.cardId) || allowed.has(step.cardId)
+            );
+    const sparing = solveSmartAutoTapCore(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        demands,
+        scorePlan,
+        tapsOnly(new Set())
+    );
+    if (sparing === null) {
+        // Rule 2 — nothing else pays: the cheapest priced set that covers it.
+        for (const subset of pricedSubsetsByPrice(priced)) {
+            const plan = solveSmartAutoTapCore(
+                pool,
+                cost,
+                substitutions,
+                sources,
+                demands,
+                scorePlan,
+                tapsOnly(new Set(subset.map((src) => src.cardId)))
+            );
+            if (plan !== null) return plan;
+        }
+        return null;
+    }
+    if (sparing.length === 0) return sparing;
+    const liveDemands = demands.filter((d) =>
+        isDemandAffordable(d, pool, substitutions, sources)
+    );
+    const sparedIds = new Set(
+        preservedDemands(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            sparing,
+            liveDemands
+        ).map((d) => d.id)
+    );
+    const admissible = (plan: AutoTapPlan): boolean => {
+        const price = planUntapPrice(sources, plan);
+        if (price === 0) return true;
+        if (!Number.isFinite(price)) return false;
+        const tapped = new Set(plan.map((step) => step.cardId));
+        let benefit = 0;
+        for (const demand of preservedDemands(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            plan,
+            liveDemands
+        )) {
+            if (sparedIds.has(demand.id)) continue;
+            if (demand.untapsSourceId && tapped.has(demand.untapsSourceId))
+                continue;
+            benefit = Math.max(benefit, demandManaValue(demand));
+        }
+        return benefit > price;
+    };
+    return (
+        solveSmartAutoTapCore(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            demands,
+            scorePlan,
+            admissible
+        ) ?? sparing
+    );
+}
+
+/** Core demand-aware minimal-tap selection (no self-source handling). With
+ *  `admissible`, only plans it accepts compete, at the smallest tap count
+ *  holding one — the minimal-tap invariant restated over admissible plans. */
 function solveSmartAutoTapCore(
     pool: Record<string, number>,
     cost: Record<string, number>,
     substitutions: ManaSubstitution[],
     sources: AutoTapSource[],
     demands: Demand[] = [],
-    scorePlan?: PlanPositionScorer
+    scorePlan?: PlanPositionScorer,
+    admissible?: (plan: AutoTapPlan) => boolean
 ): AutoTapPlan | null {
-    const k = minimalTapCount(pool, cost, substitutions, sources);
-    if (k === null) return null;
-    if (k === 0) return [];
+    const minimal = minimalTapCount(pool, cost, substitutions, sources);
+    if (minimal === null) return null;
+    if (minimal === 0) return [];
 
-    const { plans } = enumerateKTapPlans(
-        pool,
-        cost,
-        substitutions,
-        sources,
-        k,
-        AUTO_TAP_PLAN_CAP
-    );
-    // Defensive: if the cap were hit before any covering plan was collected,
-    // fall back to the single minimal plan the base solver finds.
-    if (plans.length === 0) {
-        return solveAutoTap(pool, cost, substitutions, sources);
+    let plans: AutoTapPlan[] = [];
+    for (let k = minimal; k <= sources.length; k++) {
+        const enumerated = enumerateKTapPlans(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            k,
+            AUTO_TAP_PLAN_CAP
+        ).plans;
+        if (!admissible) {
+            // Defensive: if the cap were hit before any covering plan was
+            // collected, fall back to the single minimal plan the base
+            // solver finds.
+            if (enumerated.length === 0) {
+                return solveAutoTap(pool, cost, substitutions, sources);
+            }
+            plans = enumerated;
+            break;
+        }
+        plans = enumerated.filter(admissible);
+        if (plans.length > 0) break;
     }
+    if (plans.length === 0) return null;
 
     // Demands affordable *before* this payment — only those can be stranded
     // (ADR 0034 candidate filter (a)). Computed once, reused per plan.

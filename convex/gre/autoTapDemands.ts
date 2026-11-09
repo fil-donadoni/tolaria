@@ -1,4 +1,5 @@
-import { getInstanceManaCost } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import type { EffectOp } from "../cards/types";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { Demand } from "./autoTap";
@@ -213,8 +214,134 @@ export function buildBoardAbilityDemands(
             if (Object.keys(cost).length === 0) continue;
             // Counted once per (permanent, ability) — repeatable activations do
             // NOT multiply the Demand (PRD user story 12).
-            demands.push({ id: `${perm.id}#${ability.id}`, cost });
+            demands.push({
+                id: `${perm.id}#${ability.id}`,
+                cost,
+                // The untap-price gate never buys a source's tap with the
+                // ability that untaps that very source.
+                ...(scriptUntapsItsSource(ability.effects)
+                    ? { untapsSourceId: perm.id }
+                    : {}),
+            });
         }
     }
     return demands;
+}
+
+/** The ManaCost keys a static untap price is read from (CR 202.1): a cost
+ *  with any other key (life, sacrifice, a dynamic leg) has no mana price. */
+const UNTAP_PRICE_MANA_KEYS = new Set(["W", "U", "B", "R", "G", "C", "X"]);
+
+/** Total mana of a static mana cost, or `undefined` when the cost is not pure
+ *  mana (a life leg, a sacrifice, a dynamic amount). A `{ mana: … }` leg is
+ *  read through when it is the only leg. */
+function staticManaTotal(cost: unknown): number | undefined {
+    if (!cost || typeof cost !== "object") return undefined;
+    const entries = Object.entries(cost as Record<string, unknown>);
+    if (entries.length === 1 && entries[0][0] === "mana") {
+        return staticManaTotal(entries[0][1]);
+    }
+    let total = 0;
+    for (const [key, value] of entries) {
+        if (!UNTAP_PRICE_MANA_KEYS.has(key) || typeof value !== "number") {
+            return undefined;
+        }
+        total += value;
+    }
+    return total;
+}
+
+/** True when the script untaps its own source (`tapUntap` untap `$source`),
+ *  at top level or inside an `if` branch (CR 701.26b). */
+export function scriptUntapsItsSource(
+    effects: readonly EffectOp[] | undefined
+): boolean {
+    for (const op of effects ?? []) {
+        if (
+            op.op === "tapUntap" &&
+            op.action === "untap" &&
+            "ref" in op.target &&
+            op.target.ref === "$source"
+        ) {
+            return true;
+        }
+        if (
+            op.op === "if" &&
+            (scriptUntapsItsSource(op.then) || scriptUntapsItsSource(op.else))
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** The mana a triggered ability's `mayPay` asks before its script untaps its
+ *  own source ("you may pay {4}. If you do, untap this artifact"). */
+function mayPayUntapPrice(
+    effects: readonly EffectOp[] | undefined
+): number | undefined {
+    if (!scriptUntapsItsSource(effects)) return undefined;
+    for (const op of effects ?? []) {
+        if (op.op === "mayPay") return staticManaTotal(op.cost);
+    }
+    return undefined;
+}
+
+/** Fixed damage a triggered ability deals to its controller (Mana Vault's
+ *  "it deals 1 damage to you"). */
+function damageToController(effects: readonly EffectOp[] | undefined): number {
+    let total = 0;
+    for (const op of effects ?? []) {
+        if (
+            op.op === "dealDamage" &&
+            typeof op.amount === "number" &&
+            "player" in op.to &&
+            op.to.player === "controller"
+        ) {
+            total += op.amount;
+        }
+    }
+    return total;
+}
+
+/**
+ * **Untap price** of a mana source that will not untap by itself (CR 502.3:
+ * an effect keeps it from untapping during its controller's untap step), or
+ * `undefined` for a source that untaps normally.
+ *
+ * Read from the permanent's EFFECTIVE characteristics, never per card:
+ * `does-not-untap` from the post-layer `staticAbilities` (a granted keyword
+ * counts, a removed one does not), the untap routes from its effective
+ * activated abilities and, while it keeps its abilities, its triggered ones:
+ *  - an activated ability whose only cost is mana and whose script untaps its
+ *    own source (Basalt Monolith 3, Grim Monolith 4);
+ *  - a triggered `mayPay` whose script untaps its own source (Mana Vault 4).
+ * The cheapest route wins; each fixed damage a triggered ability of the
+ * source deals to its controller adds 1 (Mana Vault: 4 + 1 = 5). No mana
+ * route = `Infinity`: no benefit ever buys the tap.
+ *
+ * CR-neutral: a planning price for Auto-Tap (CR 601.2g gives the player the
+ * chance to activate mana abilities, never which), not a rule.
+ */
+export function sourceUntapPrice(card: CardInstanceState): number | undefined {
+    if (!card.staticAbilities.includes("does-not-untap")) return undefined;
+    let cheapest = Number.POSITIVE_INFINITY;
+    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        if (!scriptUntapsItsSource(ability.effects)) continue;
+        const price = staticManaTotal(ability.cost);
+        if (price !== undefined) cheapest = Math.min(cheapest, price);
+    }
+    let damage = 0;
+    if (!abilitiesSuppressed(card)) {
+        const cardId = (card.card as { id?: string }).id;
+        const triggers = cardId
+            ? (tryGetDefinition(cardId)?.triggeredAbilities ?? [])
+            : [];
+        for (const trigger of triggers) {
+            const price = mayPayUntapPrice(trigger.effects);
+            if (price !== undefined) cheapest = Math.min(cheapest, price);
+            damage += damageToController(trigger.effects);
+        }
+    }
+    return cheapest + damage;
 }

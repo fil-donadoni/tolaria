@@ -1298,3 +1298,206 @@ describe("auto-tap spends Treasure tokens only when needed (CR 111.10a, issue #8
         expect(sources.map((s) => s.cardId)).toEqual(["t1"]);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Untap price of a source that will not untap by itself (CR 502.3, issue #8381)
+// ---------------------------------------------------------------------------
+
+const GRIM_MONOLITH = "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280"; // {T}: CCC, {4}: untap
+const BASALT_MONOLITH = "66a74c89-6f86-4ec8-af17-391cd5026054"; // {T}: CCC, {3}: untap
+const MANA_VAULT = "19499cb7-eccb-4e69-af32-6002d447a160"; // {T}: CCC, upkeep may pay {4}, draw ping
+
+/** The cardIds a plan taps, sorted. */
+function tappedIds(plan: AutoTapPlan | null): string[] | null {
+    return plan === null ? null : plan.map((step) => step.cardId).sort();
+}
+
+/** Smart Auto-Tap over a real board, paying `cost` with `held` as Demands. */
+function smartTap(
+    battlefield: ReturnType<typeof makeInstance>[],
+    cost: Record<string, number>,
+    held: Record<string, number>[] = []
+): string[] | null {
+    const demands: Demand[] = held.map((c, i) => ({ id: `held${i}`, cost: c }));
+    return tappedIds(
+        solveSmartAutoTap(
+            EMPTY_POOL,
+            cost,
+            [],
+            buildAutoTapSources(battlefield),
+            demands
+        )
+    );
+}
+
+describe("buildAutoTapSources — untap price (CR 502.3, issue #8381)", () => {
+    const priceOf = (card: ReturnType<typeof makeInstance>) =>
+        buildAutoTapSources([card]).find((s) => s.cardId === card.id)
+            ?.untapPrice;
+
+    it("prices an activated self-untap at its mana cost", () => {
+        expect(priceOf(makeInstance(BASALT_MONOLITH, { id: "b" }))).toBe(3);
+        expect(priceOf(makeInstance(GRIM_MONOLITH, { id: "g" }))).toBe(4);
+    });
+
+    it("prices a triggered may-pay untap plus 1 per damage to its controller", () => {
+        expect(priceOf(makeInstance(MANA_VAULT, { id: "v" }))).toBe(5);
+    });
+
+    it("leaves a source that untaps normally unpriced", () => {
+        expect(priceOf(makeInstance(SOL_RING, { id: "s" }))).toBeUndefined();
+        expect(priceOf(makeInstance(FOREST, { id: "f" }))).toBeUndefined();
+    });
+
+    it("reads the effective keyword: granted counts, removed does not", () => {
+        expect(
+            priceOf(
+                makeInstance(FOREST, {
+                    id: "f",
+                    staticAbilities: ["does-not-untap"],
+                })
+            )
+        ).toBe(Number.POSITIVE_INFINITY);
+        expect(
+            priceOf(
+                makeInstance(GRIM_MONOLITH, { id: "g", staticAbilities: [] })
+            )
+        ).toBeUndefined();
+    });
+});
+
+describe("solveSmartAutoTap — untap-price gate (CR 502.3, issue #8381)", () => {
+    const forest = (id: string) => makeInstance(FOREST, { id });
+    const grim = () => makeInstance(GRIM_MONOLITH, { id: "grim" });
+
+    it("Forest + Grim Monolith, cost {1}, no Demand: taps the Forest", () => {
+        expect(smartTap([forest("f1"), grim()], { X: 1 })).toEqual(["f1"]);
+    });
+
+    it("held {1}{G}: taps the Forest (benefit 2 < price 4)", () => {
+        expect(
+            smartTap([forest("f1"), grim()], { X: 1 }, [{ X: 1, G: 1 }])
+        ).toEqual(["f1"]);
+    });
+
+    it("held {2}{G}: taps the Forest (benefit 3 < price 4)", () => {
+        expect(
+            smartTap([forest("f1"), grim()], { X: 1 }, [{ X: 2, G: 1 }])
+        ).toEqual(["f1"]);
+    });
+
+    it("three Forests, held {2}{G}{G}{G}: taps the Monolith (benefit 5 > price 4)", () => {
+        expect(
+            smartTap(
+                [forest("f1"), forest("f2"), forest("f3"), grim()],
+                { X: 1 },
+                [{ X: 2, G: 3 }]
+            )
+        ).toEqual(["grim"]);
+    });
+
+    it("Basalt Monolith, held {2}{G}: taps the Forest (3 = 3 does not exceed)", () => {
+        expect(
+            smartTap(
+                [forest("f1"), makeInstance(BASALT_MONOLITH, { id: "basalt" })],
+                { X: 1 },
+                [{ X: 2, G: 1 }]
+            )
+        ).toEqual(["f1"]);
+    });
+
+    it("Mana Vault priced 5, three Forests, held {2}{G}{G}{G}: taps a Forest (5 = 5)", () => {
+        const plan = smartTap(
+            [
+                forest("f1"),
+                forest("f2"),
+                forest("f3"),
+                makeInstance(MANA_VAULT, { id: "vault" }),
+            ],
+            { X: 1 },
+            [{ X: 2, G: 3 }]
+        );
+        expect(plan).toHaveLength(1);
+        expect(plan?.[0]).toMatch(/^f/);
+    });
+
+    it("two Forests + Grim Monolith, cost {2}: taps both Forests over one Monolith", () => {
+        expect(
+            smartTap([forest("f1"), forest("f2"), grim()], { X: 2 })
+        ).toEqual(["f1", "f2"]);
+    });
+
+    it("Forest + Grim Monolith, cost {3}: the Monolith alone, the land cannot pay", () => {
+        expect(smartTap([forest("f1"), grim()], { X: 3 })).toEqual(["grim"]);
+    });
+
+    it("Grim + Basalt Monolith, cost {3}: taps the lowest price (Basalt)", () => {
+        expect(
+            smartTap(
+                [grim(), makeInstance(BASALT_MONOLITH, { id: "basalt" })],
+                { X: 3 }
+            )
+        ).toEqual(["basalt"]);
+    });
+
+    it("a land granted does-not-untap with no way to untap is spared, even stranding a Demand", () => {
+        const locked = makeInstance(FOREST, {
+            id: "locked",
+            staticAbilities: ["does-not-untap"],
+        });
+        // Paying {1}: tapping the Island strands the held {U}; tapping the
+        // locked Forest would keep it, but nothing buys an infinite price.
+        expect(
+            smartTap([locked, makeInstance(ISLAND, { id: "i1" })], { X: 1 }, [
+                { U: 1 },
+            ])
+        ).toEqual(["i1"]);
+    });
+
+    it("Sol Ring regression: no Demand taps the Forest, a held {G} taps the Sol Ring", () => {
+        const board = () => [
+            forest("f1"),
+            makeInstance(SOL_RING, { id: "sol" }),
+        ];
+        expect(smartTap(board(), { X: 1 })).toEqual(["f1"]);
+        expect(smartTap(board(), { X: 1 }, [{ G: 1 }])).toEqual(["sol"]);
+    });
+
+    it("never counts the source's own untap ability as the benefit of tapping it", () => {
+        const sources: AutoTapSource[] = [
+            fixed("f1", "G"),
+            { cardId: "rock", untapPrice: 1, options: [{ mana: { C: 3 } }] },
+        ];
+        const ownUntap: Demand = {
+            id: "rock#untap",
+            cost: { X: 2, G: 1 },
+            untapsSourceId: "rock",
+        };
+        const otherPlay: Demand = { id: "held", cost: { X: 2, G: 1 } };
+        const solve = (demand: Demand) =>
+            tappedIds(
+                solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, [demand])
+            );
+        expect(solve(ownUntap)).toEqual(["f1"]);
+        expect(solve(otherPlay)).toEqual(["rock"]);
+    });
+
+    it("keeps the castability answer on boards with priced sources", () => {
+        const board = [
+            forest("f1"),
+            grim(),
+            makeInstance(BASALT_MONOLITH, { id: "basalt" }),
+            makeInstance(MANA_VAULT, { id: "vault" }),
+        ];
+        const sources = buildAutoTapSources(board);
+        for (let generic = 0; generic <= 12; generic++) {
+            for (const cost of [{ X: generic }, { X: generic, G: 1 }]) {
+                expect(
+                    solveSmartAutoTap(EMPTY_POOL, cost, [], sources, [
+                        { id: "held", cost: { X: 2, G: 1 } },
+                    ]) !== null
+                ).toBe(solveAutoTap(EMPTY_POOL, cost, [], sources) !== null);
+            }
+        }
+    });
+});
