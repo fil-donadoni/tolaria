@@ -14,7 +14,7 @@
 // `verdict-proposal-store.ts` for the panel (issue #3986); nothing reaches the
 // server.
 //
-// A RELOAD costs nothing (issue #8889): the capture and the list are kept in
+// A RELOAD costs nothing: the capture and the list are kept in
 // client storage, so a remount of the same game resumes the capture, and a
 // mount with the game already over offers the stored list — or builds it from
 // the stored decisions — without depending on the tab never reloading.

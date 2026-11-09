@@ -7,7 +7,7 @@
 // proposal is an unanswered QUESTION. Nothing here is written to the Verdict
 // Store, and no judgement is recorded for one left unanswered.
 //
-// RELOAD-SAFE (issue #8889). The list is also written to client storage
+// RELOAD-SAFE. The list is also written to client storage
 // (`verdict-proposal-persistence.ts`, best-effort, ONE row: the most recent
 // finished game's list), so reloading or reopening that game's game-over
 // dialog offers the same review again without consulting the Brain:
