@@ -539,7 +539,12 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
     {
         pattern: "data/card-profiles/*",
         kind: "human-input",
-        why: "per-card profiles a person reviews (`reviewed` flag)",
+        why: "per-card Capability profiles a person reviews (`reviewed` flag)",
+    },
+    {
+        pattern: "data/card-profiles/archetypes/*",
+        kind: "human-input",
+        why: "per-scope Archetype profiles a person reviews (`reviewed` flag)",
     },
     {
         pattern: "data/full-catalogue/*",

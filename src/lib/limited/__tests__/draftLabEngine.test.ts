@@ -21,7 +21,10 @@ import {
     maxCubeSeats,
     CUBE_PACK_SIZE,
 } from "@convex/limited/cube";
-import type { ScopedCardProfile } from "@convex/limited/cardProfilesCore";
+import {
+    EMPTY_PROFILE_LAYER_ROWS,
+    type ProfileLayerRows,
+} from "@convex/limited/cardProfilesCore";
 
 describe("Draft Lab synthetic mode engine (issue #1612, ADR 0074)", () => {
     it("same seed produces the same draft, every run", () => {
@@ -133,29 +136,34 @@ describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
      *  from a profile-free run so the fixture can never drift out of sync with
      *  the cube's contents. Two complementary halves of one archetype pair, so
      *  both Archetype Fit and Capability Fit have something to bite on. */
-    function censusFor(seed: number): ScopedCardProfile[] {
+    function censusFor(seed: number): ProfileLayerRows {
         const bare = runFullDraftLab(seed, packSlots);
         const cardIds = [
             ...new Set(
                 bare.pickLog.flatMap((r) => r.pack.map((c) => c.cardId))
             ),
         ].sort();
-        return cardIds
-            .filter((_, i) => i % 2 === 0)
-            .map((cardId, i) => ({
-                scope: CUBE_SOURCE_KEY,
+        const profiled = cardIds.filter((_, i) => i % 2 === 0);
+        return {
+            capabilities: profiled.map((cardId, i) => ({
                 cardId,
-                archetypes: ["lab-archetype"],
                 provides: i % 2 === 0 ? ["value-on-death"] : [],
                 requires: i % 2 === 0 ? [] : ["value-on-death"],
                 reviewed: true,
-            }));
+            })),
+            archetypes: profiled.map((cardId) => ({
+                scope: CUBE_SOURCE_KEY,
+                cardId,
+                archetypes: ["lab-archetype"],
+                reviewed: true,
+            })),
+        };
     }
 
     it("a snapshotted census actually moves picks — the reason it must not be read live", () => {
         const seed = 4242;
         const rows = censusFor(seed);
-        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.capabilities.length).toBeGreaterThan(0);
         const without = runFullDraftLab(seed, packSlots);
         const with_ = runFullDraftLab(
             seed,
@@ -200,7 +208,7 @@ describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
             seed,
             packSlots,
             DRAFT_LAB_SEAT_COUNT,
-            []
+            EMPTY_PROFILE_LAYER_ROWS
         );
         const omitted = runFullDraftLab(seed, packSlots);
         expect(explicitlyEmpty.pickLog.map((r) => r.chosenPickId)).toEqual(

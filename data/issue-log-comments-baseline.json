@@ -178,8 +178,6 @@
     "convex/limited/__tests__/draftTimer.test.ts#4e157eb269",
     "convex/limited/__tests__/pickInvariants.bot.test.ts#3696cc4fcc",
     "convex/limited/autoBuild.ts#902a01c29f",
-    "convex/limited/botDrafter.ts#1a8a043a9e",
-    "convex/limited/cardProfiles.ts#06b6904e9d",
     "convex/limited/completion.ts#117651d551",
     "convex/limited/draftEngine.ts#15d321f0f9",
     "convex/limited/draftEngine.ts#9eb9053f32",

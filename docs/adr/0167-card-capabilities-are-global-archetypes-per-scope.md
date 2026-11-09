@@ -8,6 +8,14 @@ Capability vocabulary and one baseline for both Bots). Joined by the Archetype
 Catalogue decision of the same session (archetype rows live in a seed-plus-DB
 catalogue, admin-edited, scope-free as names and emergent in use).
 
+Implemented by issue #8890: tables `cardCapabilities` (by `cardId`) and
+`cardArchetypes` (by `scope` + `cardId`), seed files
+`data/card-profiles/capabilities.json` and
+`data/card-profiles/archetypes/<scope>.json`, split from the legacy rows by the
+pure `splitCardProfiles` (`convex/limited/cardProfilesCore.ts`) and the
+`splitLegacyCardProfiles` migration. The recomposed lookup carries one review
+flag per layer; Combo Edges sit in the Capability layer.
+
 ## Context
 
 ADR 0072 stores a Card Profile — Archetypes, Capabilities provided, Capabilities

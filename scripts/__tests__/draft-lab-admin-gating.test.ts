@@ -44,6 +44,13 @@ function readExportBlock(file: string, name: string): string {
     return source.slice(start, end);
 }
 
+/** Index of the handler's first DB read — `ctx.db`, or `ctx` passed to any
+ *  function other than the gate — or -1. */
+function firstReadAt(block: string): number {
+    const read = /ctx\.db|\b(?!assertIsAdmin\b)\w+\(ctx\b/.exec(block);
+    return read ? read.index : -1;
+}
+
 describe("Draft Lab reads are admin-gated server-side (ADR 0074)", () => {
     for (const { file, name } of ADMIN_GATED_DRAFT_LAB_QUERIES) {
         it(`${name} awaits assertIsAdmin before touching ctx.db`, () => {
@@ -59,7 +66,10 @@ describe("Draft Lab reads are admin-gated server-side (ADR 0074)", () => {
             // (and mirrors the "assertIsAdmin runs FIRST" convention every
             // admin mutation in these files already documents).
             const gateAt = block.indexOf("await assertIsAdmin(ctx)");
-            const dbAt = block.indexOf("ctx.db");
+            // A read is `ctx.db` itself or `ctx` handed to a loader (the
+            // Card Profile read goes through `loadProfileLayerRows(ctx, …)`,
+            // shared with the event path) — whichever comes first.
+            const dbAt = firstReadAt(block);
             expect(
                 dbAt,
                 `${file}#${name} no longer reads ctx.db`

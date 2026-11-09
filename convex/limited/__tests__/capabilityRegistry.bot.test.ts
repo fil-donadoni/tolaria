@@ -13,9 +13,9 @@ import {
     isRegisteredCapability,
 } from "../capabilityRegistry";
 import {
-    getAllCheckedInCardProfileFiles,
-    validateCardProfileFile,
-    type CardProfileFile,
+    getCardCapabilityFile,
+    validateCardCapabilityFile,
+    type CardCapabilityFile,
 } from "../cardProfilesCore";
 
 describe("Capability Registry (ADR 0072, issue #1608)", () => {
@@ -96,75 +96,64 @@ const BLACK_LOTUS_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe";
 const ANIMATE_DEAD_ID = "8fd7861d-925f-4b4c-a4ab-60be6f43d50b";
 
 describe("Guard test — unregistered Capability name fails validation (issue #1608 acceptance)", () => {
-    it("validateCardProfileFile rejects a `provides` string not in the registry", () => {
-        const badFile: CardProfileFile = {
-            scope: "vintage-cube",
-            profiles: {
+    it("validateCardCapabilityFile rejects a `provides` string not in the registry", () => {
+        const badFile: CardCapabilityFile = {
+            capabilities: {
                 [BLACK_LOTUS_ID]: {
-                    // A registry row (issue #3597 closed the Archetype
-                    // vocabulary), so this fixture carries exactly ONE
-                    // defect — the unregistered Capability it is about.
-                    archetypes: ["artifacts"],
                     provides: ["not-a-real-capability"],
                     requires: [],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(badFile);
+        const result = validateCardCapabilityFile(badFile);
         expect(result.valid).toBe(false);
         expect(
             result.errors.some((e) => e.includes("not-a-real-capability"))
         ).toBe(true);
     });
 
-    it("validateCardProfileFile rejects a `requires` string not in the registry", () => {
-        const badFile: CardProfileFile = {
-            scope: "vintage-cube",
-            profiles: {
+    it("validateCardCapabilityFile rejects a `requires` string not in the registry", () => {
+        const badFile: CardCapabilityFile = {
+            capabilities: {
                 [ANIMATE_DEAD_ID]: {
-                    archetypes: ["reanimator"],
                     provides: [],
                     requires: ["dies-value"],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(badFile);
+        const result = validateCardCapabilityFile(badFile);
         expect(result.valid).toBe(false);
         expect(result.errors.some((e) => e.includes("dies-value"))).toBe(true);
     });
 
-    it("validateCardProfileFile accepts a fixture whose cardId resolves and whose Capabilities are registered", () => {
-        const goodFile: CardProfileFile = {
-            scope: "vintage-cube",
-            profiles: {
+    it("validateCardCapabilityFile accepts a fixture whose cardId resolves and whose Capabilities are registered", () => {
+        const goodFile: CardCapabilityFile = {
+            capabilities: {
                 [ANIMATE_DEAD_ID]: {
-                    archetypes: ["reanimator"],
                     provides: [],
                     requires: ["reanimatable"],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(goodFile);
+        const result = validateCardCapabilityFile(goodFile);
         expect(result.valid).toBe(true);
         expect(result.errors).toEqual([]);
     });
 
     it("flags an unresolvable cardId as well as an unregistered Capability", () => {
-        const badFile: CardProfileFile = {
-            scope: "vintage-cube",
-            profiles: {
+        const badFile: CardCapabilityFile = {
+            capabilities: {
                 "totally-not-a-card": {
-                    archetypes: [],
                     provides: ["reanimatable"],
                     requires: [],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(badFile);
+        const result = validateCardCapabilityFile(badFile);
         expect(result.valid).toBe(false);
         expect(
             result.errors.some((e) => e.includes("totally-not-a-card"))
@@ -172,24 +161,23 @@ describe("Guard test — unregistered Capability name fails validation (issue #1
     });
 });
 
-describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #1608)", () => {
-    it("every currently checked-in file (none yet, this slice ships zero) validates clean", () => {
-        const files = getAllCheckedInCardProfileFiles();
-        for (const file of files) {
-            const result = validateCardProfileFile(file);
-            expect(result.errors, `errors in scope "${file.scope}"`).toEqual(
-                []
-            );
-        }
+describe("Catalogue-wide sweep — the checked-in Capability seed file (issues #1608, #8890)", () => {
+    it("the catalogue-wide Capability file validates clean", () => {
+        expect(
+            validateCardCapabilityFile(getCardCapabilityFile()).errors
+        ).toEqual([]);
     });
 
-    it("the sweep above is NON-VACUOUS — at least one checked-in file exists for it to validate (issue #1614)", () => {
+    it("the sweep above is NON-VACUOUS — the checked-in file really declares Capabilities (issue #1614)", () => {
         // Issue #1608 shipped this guard with zero checked-in files, so the
         // sweep passed without checking anything; the Vintage Cube census
         // (issue #1614) is the first real content. Asserting the collection
         // is non-empty is what stops the guard silently reverting to a
         // vacuous pass if a future refactor drops a file from the registry.
-        expect(getAllCheckedInCardProfileFiles().length).toBeGreaterThan(0);
+        const declared = Object.values(
+            getCardCapabilityFile().capabilities
+        ).flatMap((row) => [...row.provides, ...row.requires]);
+        expect(declared.length).toBeGreaterThan(0);
     });
 });
 

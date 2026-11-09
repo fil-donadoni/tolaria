@@ -5,9 +5,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import DraftLabProfileBadge from "../draft-lab-profile-badge";
-import type {
-    CardProfile,
-    GetDbProfile,
+import {
+    buildDbProfileLayers,
+    EMPTY_PROFILE_LAYERS,
+    type CardProfile,
 } from "@convex/limited/cardProfilesCore";
 import { buildDraftLabCardProfile } from "@/lib/limited/draftLabEngine";
 
@@ -17,12 +18,14 @@ const unreviewedProfile: CardProfile = {
     archetypes: ["reanimator"],
     provides: ["reanimatable"],
     requires: [],
-    reviewed: false,
+    archetypesReviewed: false,
+    capabilitiesReviewed: false,
 };
 
 const reviewedProfile: CardProfile = {
     ...unreviewedProfile,
-    reviewed: true,
+    archetypesReviewed: true,
+    capabilitiesReviewed: true,
 };
 
 describe("DraftLabProfileBadge (issue #1612)", () => {
@@ -34,6 +37,28 @@ describe("DraftLabProfileBadge (issue #1612)", () => {
     it("renders nothing once the profile is reviewed", () => {
         const { container } = render(
             <DraftLabProfileBadge profile={reviewedProfile} />
+        );
+        expect(container.firstChild).toBeNull();
+    });
+
+    it("one unreviewed layer with data is enough for the badge (ADR 0167: one flag per layer)", () => {
+        render(
+            <DraftLabProfileBadge
+                profile={{ ...reviewedProfile, capabilitiesReviewed: false }}
+            />
+        );
+        expect(screen.getByText(/unreviewed/i)).not.toBeNull();
+    });
+
+    it("an unreviewed EMPTY layer is not evidence — no badge", () => {
+        const { container } = render(
+            <DraftLabProfileBadge
+                profile={{
+                    ...reviewedProfile,
+                    provides: [],
+                    capabilitiesReviewed: false,
+                }}
+            />
         );
         expect(container.firstChild).toBeNull();
     });
@@ -56,15 +81,17 @@ describe("DraftLabProfileBadge (issue #1612)", () => {
     // isolation.
     it("renders the unreviewed badge from a real DB-layer row via buildDraftLabCardProfile", () => {
         const packSlots = ["lea"];
-        const fakeDbRead: GetDbProfile = (scope, cardId) =>
-            scope === "lea" && cardId === "lightning-bolt"
-                ? {
-                      archetypes: ["burn"],
-                      provides: ["removal"],
-                      requires: [],
-                      reviewed: false,
-                  }
-                : null;
+        const fakeDbRead = buildDbProfileLayers({
+            capabilities: [],
+            archetypes: [
+                {
+                    scope: "lea",
+                    cardId: "lightning-bolt",
+                    archetypes: ["burn"],
+                    reviewed: false,
+                },
+            ],
+        });
         const getCardProfile = buildDraftLabCardProfile(packSlots, fakeDbRead);
 
         render(
@@ -75,7 +102,10 @@ describe("DraftLabProfileBadge (issue #1612)", () => {
 
     it("renders nothing when buildDraftLabCardProfile's DB layer has no row for the card", () => {
         const packSlots = ["lea"];
-        const getCardProfile = buildDraftLabCardProfile(packSlots, () => null);
+        const getCardProfile = buildDraftLabCardProfile(
+            packSlots,
+            EMPTY_PROFILE_LAYERS
+        );
 
         const { container } = render(
             <DraftLabProfileBadge profile={getCardProfile("counterspell")} />

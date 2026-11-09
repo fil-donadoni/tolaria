@@ -16,6 +16,7 @@
 // It is asserted on the pack that seat receives, never on its final Pool (issue
 // #8515). The whole-draft sum is chaotic: on one test, untouched, it read 177,
 // 65.5, 173, -1 and 141 as cards joined the catalogue, and -1 redded the base.
+import { EMPTY_PROFILE_LAYER_ROWS } from "@convex/limited/cardProfilesCore";
 import { describe, it, expect } from "vitest";
 import {
     buildDraftLabPickRating,
@@ -83,7 +84,13 @@ function secondPickPower(
     colour: SignalColour,
     options: DraftLabRunOptions
 ): number {
-    const state = runFullDraftLab(seed, PACK_SLOTS, 8, [], options);
+    const state = runFullDraftLab(
+        seed,
+        PACK_SLOTS,
+        8,
+        EMPTY_PROFILE_LAYER_ROWS,
+        options
+    );
     const pick = state.pickLog.find(
         (r) => r.seatIndex === OBSERVED_SEAT && r.seatPickNumber === 2
     );

@@ -92,11 +92,11 @@ import {
     type GetDbRating,
 } from "./limited/cardRatingsCore";
 import {
+    buildDbProfileLayers,
     resolveEventCardProfile,
-    type CardProfile,
     type GetCardProfile,
-    type GetDbProfile,
 } from "./limited/cardProfilesCore";
+import { loadProfileLayerRows } from "./limited/cardProfiles";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -765,41 +765,19 @@ export async function loadEventPickRating(
     return resolveEventPickRating(scopes, getDbRating);
 }
 
-/** Loads this event's Card Profile layer (ADR 0072, PRD #1607 slice 4, issue
- *  #1611) — the exact sibling of `loadEventPickRating` above, one table over:
- *  every `cardProfiles` row for each of the event's DISTINCT `packSlots`
- *  scopes, folded into the layered `GetCardProfile` via
- *  `resolveEventCardProfile` (database rows over the checked-in seed file).
- *  The only place this module touches the `cardProfiles` table directly, and
- *  the only thing that makes the scorer's three synergy terms non-zero in a
- *  real Limited Event. Uses the `by_scope` index, so it is bounded per scope
- *  and cheap even for a multi-round Draft on a single set. */
+/** Loads this event's Card Profile (ADR 0072, issue #1611; two layers since
+ *  ADR 0167, issue #8890) — the sibling of `loadEventPickRating` above: the
+ *  database rows of both layers for the event's DISTINCT `packSlots` scopes
+ *  (`loadProfileLayerRows`), folded over the checked-in seed by
+ *  `resolveEventCardProfile`. Capabilities reach every scope; Archetypes come
+ *  from the event's scopes only. What makes the scorer's three synergy terms
+ *  non-zero in a real Limited Event. */
 export async function loadEventCardProfile(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<GetCardProfile> {
-    const scopes = Array.from(
-        new Set(packSlots.map((scope) => scope.toLowerCase()))
-    );
-    const dbProfiles = new Map<string, CardProfile>();
-    for (const scope of scopes) {
-        const rows = await ctx.db
-            .query("cardProfiles")
-            .withIndex("by_scope", (q) => q.eq("scope", scope))
-            .collect();
-        for (const row of rows) {
-            dbProfiles.set(`${scope}::${row.cardId}`, {
-                archetypes: row.archetypes,
-                provides: row.provides,
-                requires: row.requires,
-                comboEdges: row.comboEdges,
-                reviewed: row.reviewed,
-            });
-        }
-    }
-    const getDbProfile: GetDbProfile = (scope, cardId) =>
-        dbProfiles.get(`${scope}::${cardId}`) ?? null;
-    return resolveEventCardProfile(scopes, getDbProfile);
+    const rows = await loadProfileLayerRows(ctx, packSlots);
+    return resolveEventCardProfile(packSlots, buildDbProfileLayers(rows));
 }
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics

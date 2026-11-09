@@ -235,12 +235,14 @@ tramite `nameRegistry` quando serve. Conseguenza: una carta implementata domani
 
 ### Limited
 
-| Tabella         | Contenuto                                                                   |
-| --------------- | --------------------------------------------------------------------------- |
-| `limitedEvents` | un evento: tipo, stato, seat (identità), round di Swiss, config booster     |
-| `limitedSeats`  | il **payload pesante** di un seat: pool, pack corrente, coda pack           |
-| `cardRatings`   | Pick Rating per `(scope, cardId)`, override Admin sui file seed (ADR 0066)  |
-| `cardProfiles`  | profili di sinergia per `(scope, cardId)`: archetipi, capability (ADR 0072) |
+| Tabella            | Contenuto                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `limitedEvents`    | un evento: tipo, stato, seat (identità), round di Swiss, config booster                                                             |
+| `limitedSeats`     | il **payload pesante** di un seat: pool, pack corrente, coda pack                                                                   |
+| `cardRatings`      | Pick Rating per `(scope, cardId)`, override Admin sui file seed (ADR 0066)                                                          |
+| `cardCapabilities` | Card Capabilities per `cardId` (provides/requires, Combo Edge), override Admin su `data/card-profiles/capabilities.json` (ADR 0167) |
+| `cardArchetypes`   | Card Archetypes per `(scope, cardId)`, override Admin su `data/card-profiles/archetypes/<scope>.json` (ADR 0167)                    |
+| `cardProfiles`     | legacy (ADR 0072): sorgente della sola migrazione `splitLegacyCardProfiles`, da rimuovere (PRD #8772)                               |
 
 Lo split `limitedEvents`/`limitedSeats` merita attenzione perché è **l'esempio
 canonico del vincolo di costo Convex**. I payload dei seat erano il 99% del

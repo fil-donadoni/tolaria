@@ -7,10 +7,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import {
-    buildCardProfileRow,
-    buildDbProfileLookup,
+    buildCardProfileRows,
+    buildDbProfileLayers,
     buildScopeCardProfiles,
-    type GetDbProfile,
+    EMPTY_PROFILE_LAYERS,
+    type ProfileLayers,
 } from "@convex/limited/cardProfilesCore";
 import { listScopeCards } from "@convex/limited/cardRatingsCore";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cube";
@@ -33,16 +34,28 @@ function cardId(name: string): string {
     return def.id;
 }
 
+/** The DB layers the given editor saves leave behind. */
+function dbAfterSaves(
+    ...saves: ReturnType<typeof buildCardProfileRows>[]
+): ProfileLayers {
+    return buildDbProfileLayers({
+        capabilities: saves.map((save) => save.capabilities),
+        archetypes: saves.map((save) => save.archetypes),
+    });
+}
+
 /** A handful of real cube cards, projected through the REAL editor-query
- *  core against the REAL census seed. `getDbProfile` layers whatever
- *  database overrides the test wants on top. */
-function cubeRows(getDbProfile: GetDbProfile = () => null): ScopeCardProfile[] {
+ *  core against the REAL census seed. `db` layers whatever database
+ *  overrides the test wants on top. */
+function cubeRows(
+    db: ProfileLayers = EMPTY_PROFILE_LAYERS
+): ScopeCardProfile[] {
     const wanted = new Set<string>(SAMPLE.map(cardId));
     const cards = listScopeCards(CUBE_SOURCE_KEY).filter((card) =>
         wanted.has(card.cardId)
     );
-    return buildScopeCardProfiles(CUBE_SOURCE_KEY, cards, getDbProfile).sort(
-        (a, b) => a.name.localeCompare(b.name)
+    return buildScopeCardProfiles(CUBE_SOURCE_KEY, cards, db).sort((a, b) =>
+        a.name.localeCompare(b.name)
     );
 }
 
@@ -85,7 +98,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     });
 
     it("'Only unreviewed' hides a row an Admin has already reviewed", () => {
-        const reviewedRow = buildCardProfileRow(
+        const reviewedRow = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             {
@@ -97,7 +110,7 @@ describe("CardProfileEditor (issue #1614)", () => {
         );
         render(
             <CardProfileEditor
-                cards={cubeRows(buildDbProfileLookup([reviewedRow]))}
+                cards={cubeRows(dbAfterSaves(reviewedRow))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
             />
@@ -175,7 +188,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     });
 
     it("Clear is disabled until there is a database override to clear", () => {
-        const override = buildCardProfileRow(
+        const override = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             {
@@ -201,7 +214,7 @@ describe("CardProfileEditor (issue #1614)", () => {
 
         rerender(
             <CardProfileEditor
-                cards={cubeRows(buildDbProfileLookup([override]))}
+                cards={cubeRows(dbAfterSaves(override))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
             />
@@ -239,7 +252,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     });
 
     it("shows progress against the scope, counting the WHOLE scope, not the filtered view", () => {
-        const reviewedRow = buildCardProfileRow(
+        const reviewedRow = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             {
@@ -251,7 +264,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         );
         render(
             <CardProfileEditor
-                cards={cubeRows(buildDbProfileLookup([reviewedRow]))}
+                cards={cubeRows(dbAfterSaves(reviewedRow))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
             />
@@ -466,7 +479,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         // field carries a name this registry lacks. Rendered nowhere, it
         // would still be submitted — and rejected server-side — naming a
         // string the reviewer could neither see nor untick.
-        const legacy = buildCardProfileRow(
+        const legacy = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             {
@@ -479,7 +492,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         const onSave = vi.fn().mockResolvedValue(null);
         render(
             <CardProfileEditor
-                cards={cubeRows(buildDbProfileLookup([legacy]))}
+                cards={cubeRows(dbAfterSaves(legacy))}
                 onSave={onSave}
                 onClear={vi.fn()}
             />
@@ -550,7 +563,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
 
         // The reactive query now lands the saved row as reviewed, and the
         // filter drops it — the successor must stay open through that.
-        const saved = buildCardProfileRow(
+        const saved = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
             {
@@ -562,7 +575,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         );
         rerender(
             <CardProfileEditor
-                cards={cubeRows(buildDbProfileLookup([saved]))}
+                cards={cubeRows(dbAfterSaves(saved))}
                 onSave={onSave}
                 onClear={vi.fn()}
             />

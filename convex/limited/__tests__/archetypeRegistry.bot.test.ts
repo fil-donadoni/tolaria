@@ -12,11 +12,11 @@ import {
     isRegisteredArchetype,
 } from "../archetypeRegistry";
 import {
-    getAllCheckedInCardProfileFiles,
+    getAllCheckedInCardArchetypeFiles,
     normalizeArchetypes,
     cardProfileWriteErrors,
-    validateCardProfileFile,
-    type CardProfileFile,
+    validateCardArchetypeFile,
+    type CardArchetypeFile,
 } from "../cardProfilesCore";
 
 describe("Archetype Registry (ADR 0072, issue #3597)", () => {
@@ -114,55 +114,49 @@ const BLACK_LOTUS_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe";
 const ANIMATE_DEAD_ID = "8fd7861d-925f-4b4c-a4ab-60be6f43d50b";
 
 describe("Guard test — unregistered Archetype name fails validation (issue #3597 acceptance)", () => {
-    it("validateCardProfileFile rejects an `archetypes` string not in the registry", () => {
-        const badFile: CardProfileFile = {
+    it("validateCardArchetypeFile rejects an `archetypes` string not in the registry", () => {
+        const badFile: CardArchetypeFile = {
             scope: "vintage-cube",
-            profiles: {
+            archetypes: {
                 [ANIMATE_DEAD_ID]: {
                     archetypes: ["graveyard-reanimator"],
-                    provides: [],
-                    requires: ["reanimatable"],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(badFile);
+        const result = validateCardArchetypeFile(badFile);
         expect(result.valid).toBe(false);
         expect(
             result.errors.some((e) => e.includes("graveyard-reanimator"))
         ).toBe(true);
     });
 
-    it("validateCardProfileFile rejects a seed string that is only a CASING away from a row", () => {
-        const badFile: CardProfileFile = {
+    it("validateCardArchetypeFile rejects a seed string that is only a CASING away from a row", () => {
+        const badFile: CardArchetypeFile = {
             scope: "vintage-cube",
-            profiles: {
+            archetypes: {
                 [BLACK_LOTUS_ID]: {
                     archetypes: ["Storm"],
-                    provides: ["cheap-artifact"],
-                    requires: [],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(badFile);
+        const result = validateCardArchetypeFile(badFile);
         expect(result.valid).toBe(false);
         expect(result.errors.some((e) => e.includes("Storm"))).toBe(true);
     });
 
-    it("validateCardProfileFile accepts a fixture whose Archetypes are all registry rows", () => {
-        const goodFile: CardProfileFile = {
+    it("validateCardArchetypeFile accepts a fixture whose Archetypes are all registry rows", () => {
+        const goodFile: CardArchetypeFile = {
             scope: "vintage-cube",
-            profiles: {
+            archetypes: {
                 [ANIMATE_DEAD_ID]: {
                     archetypes: ["reanimator", "graveyard"],
-                    provides: [],
-                    requires: ["reanimatable"],
                     reviewed: false,
                 },
             },
         };
-        const result = validateCardProfileFile(goodFile);
+        const result = validateCardArchetypeFile(goodFile);
         expect(result.valid).toBe(true);
         expect(result.errors).toEqual([]);
     });
@@ -181,7 +175,7 @@ describe("Write boundary — the database layer is held to the same vocabulary",
 
     it("cardProfileWriteErrors ACCEPTS a row whose casing normalization makes legal", () => {
         // The write boundary checks the normalized form — what
-        // `buildCardProfileRow` is about to store — so `Reanimator` is a
+        // `buildCardProfileRows` is about to store — so `Reanimator` is a
         // legal write that lands as `reanimator`, never as a third spelling.
         expect(
             cardProfileWriteErrors(ANIMATE_DEAD_ID, {
@@ -194,12 +188,12 @@ describe("Write boundary — the database layer is held to the same vocabulary",
     });
 });
 
-describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #3597)", () => {
+describe("Catalogue-wide sweep — every checked-in Archetype seed file (issues #3597, #8890)", () => {
     it("every checked-in seed file declares only registered Archetypes", () => {
-        const files = getAllCheckedInCardProfileFiles();
+        const files = getAllCheckedInCardArchetypeFiles();
         for (const file of files) {
             const unregistered = new Set<string>();
-            for (const profile of Object.values(file.profiles)) {
+            for (const profile of Object.values(file.archetypes)) {
                 for (const archetype of profile.archetypes) {
                     if (!isRegisteredArchetype(archetype)) {
                         unregistered.add(archetype);
@@ -216,8 +210,8 @@ describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #35
     it("the sweep above is NON-VACUOUS — the checked-in census really does declare Archetypes", () => {
         // Guards the same regression `capabilityRegistry.bot.test.ts`'s
         // non-vacuity test does: a sweep over zero strings passes forever.
-        const declared = getAllCheckedInCardProfileFiles().flatMap((file) =>
-            Object.values(file.profiles).flatMap((p) => p.archetypes)
+        const declared = getAllCheckedInCardArchetypeFiles().flatMap((file) =>
+            Object.values(file.archetypes).flatMap((p) => p.archetypes)
         );
         expect(declared.length).toBeGreaterThan(0);
         expect(new Set(declared).size).toBeGreaterThan(1);

@@ -1172,59 +1172,63 @@ export default defineSchema({
         // (`setCardRating`/`clearCardRating`) — `(scope, cardId)` is this
         // table's natural primary key.
         .index("by_scope_and_card", ["scope", "cardId"]),
-    // Bot Drafter Card Profiles (ADR 0072 "Card synergy as computed
-    // Capability matching, not enumerated card pairs", PRD #1607 slice 1,
-    // issue #1608). A STRUCTURAL CLONE of `cardRatings` above — same
-    // `(scope, cardId)` key, same Pack Source scope string space (a
-    // Draftable Set code or `CUBE_SOURCE_KEY`), same `by_scope`/index
-    // shape — carrying ADR 0072's synergy model instead of a 0-5 rating:
-    // which Archetype(s) a card steers toward (`reanimator`, `artifacts`,
-    // `jeskai-tempo`), which Capabilities it PROVIDES/REQUIRES from the
-    // closed `capabilityRegistry.ts` vocabulary, and optional signed Combo
-    // Edge weights to specific partner cards. Layered over an optional
-    // checked-in seed file by the pure read seam
-    // `convex/limited/cardProfiles.ts`'s `resolveEventCardProfile` —
-    // mirrors `cardRatings.ts`'s `resolveEventPickRating` exactly. THIS
-    // SLICE IS A DATA FOUNDATION ONLY: no call site reads this table yet
-    // (`convex/limited/botDrafter.ts` is unchanged) and no Admin write
-    // mutation exists here either — both are later PRD #1607 slices.
+    // LEGACY single-table Card Profiles (ADR 0072, issue #1608), keyed
+    // `(scope, cardId)` and carrying both halves. Superseded by
+    // `cardCapabilities` + `cardArchetypes` below (ADR 0167, issue #8890):
+    // nothing reads or writes it any more except the one-shot split
+    // migration (`limited/cardProfiles.ts`'s `splitLegacyCardProfiles`).
+    // Left in place, empty-able, for the PRD #8772 contract ticket that
+    // drops it.
     cardProfiles: defineTable({
         scope: v.string(),
         cardId: v.string(),
-        // Free-text named strategies (ADR 0072) — deliberately NOT gated by
-        // a closed registry the way `provides`/`requires` are; see
-        // `CardProfile`'s doc comment in `cardProfiles.ts`.
         archetypes: v.array(v.string()),
-        // Capability ids this card PROVIDES/REQUIRES — each string MUST be
-        // a row of `CAPABILITY_REGISTRY` (`capabilityRegistry.ts`), checked
-        // by `cardProfiles.ts`'s `validateCardProfileFile` for the seed
-        // layer (the database layer gets the same check once an Admin
-        // write mutation exists, mirroring `setCardRating`'s
-        // `isValidRating` gate).
         provides: v.array(v.string()),
         requires: v.array(v.string()),
-        // The Combo Edge escape hatch (ADR 0072): an explicit, signed,
-        // directed pair reserved for a closed two-card loop no Capability
-        // vocabulary can express (Painter's Servant + Grindstone).
-        // OPTIONAL — most cards carry none.
         comboEdges: v.optional(
             v.array(v.object({ cardId: v.string(), weight: v.number() }))
         ),
-        // LLM-seeded rows start `false`; a human reviewer flips it to
-        // `true`. Load-bearing for a LATER slice's scoring (ADR 0072: an
-        // unreviewed row's contribution is applied at HALF the contextual
-        // cap) — this slice only carries the field, it does not consume it.
         reviewed: v.boolean(),
     })
-        // Every profile for one scope — the shape the read path loads once
-        // per distinct event scope (`resolveEventCardProfile`'s caller),
-        // mirroring `cardRatings`'s `by_scope`.
         .index("by_scope", ["scope"])
-        // Point lookup target for the (future) Admin write mutations and
-        // for `resolveEventCardProfile`'s per-card DB read closure —
-        // `(scope, cardId)` is this table's natural primary key, mirroring
-        // `cardRatings`'s `by_scope_and_card`.
         .index("by_scope_card", ["scope", "cardId"]),
+    // Card Capabilities (ADR 0167 §1, issue #8890): the scope-free half of a
+    // Card Profile — a property of the CARD, held in every scope. DB
+    // overrides layered over `data/card-profiles/capabilities.json` by the
+    // pure `limited/cardProfilesCore.ts`'s `resolveEventCardProfile`.
+    // `provides`/`requires` are `CAPABILITY_REGISTRY` rows (checked at the
+    // Admin write boundary, `cardProfileWriteErrors`); `comboEdges` are the
+    // ADR 0072 escape hatch, weighed only when the partner is in the Pool
+    // (ADR 0167 §5). `reviewed` flips from the LLM census's `false` when a
+    // human confirms the row; unreviewed counts half (ADR 0072).
+    cardCapabilities: defineTable({
+        cardId: v.string(),
+        provides: v.array(v.string()),
+        requires: v.array(v.string()),
+        comboEdges: v.optional(
+            v.array(v.object({ cardId: v.string(), weight: v.number() }))
+        ),
+        reviewed: v.boolean(),
+        rationale: v.optional(v.string()),
+    })
+        // Point lookup / upsert target — `cardId` is the natural key.
+        .index("by_cardId", ["cardId"]),
+    // Card Archetypes (ADR 0167 §2, issue #8890): the per-environment half
+    // of a Card Profile, keyed `(scope, cardId)` in the Pack Source scope
+    // string space (a Draftable Set code or `CUBE_SOURCE_KEY`), layered over
+    // `data/card-profiles/archetypes/<scope>.json`. `archetypes` are
+    // `ARCHETYPE_REGISTRY` rows, normalized; own `reviewed` + `rationale`.
+    cardArchetypes: defineTable({
+        scope: v.string(),
+        cardId: v.string(),
+        archetypes: v.array(v.string()),
+        reviewed: v.boolean(),
+        rationale: v.optional(v.string()),
+    })
+        // Every row of one scope — what an event loads per distinct scope.
+        .index("by_scope", ["scope"])
+        // Point lookup / upsert target — the natural primary key.
+        .index("by_scope_and_cardId", ["scope", "cardId"]),
     // Bot Findings (ADR 0141, PRD #4174, issue #4176): every card the play
     // Bot is known to struggle with, seeded from `data/bot-reach-findings.json`
     // by `bun run seed:bot-findings` (`botFindings.seed`, the ONLY writer of a

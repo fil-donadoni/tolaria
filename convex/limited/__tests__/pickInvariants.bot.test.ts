@@ -957,7 +957,8 @@ function profileOf(over: Partial<CardProfile> = {}): CardProfile {
         archetypes: [],
         provides: [],
         requires: [],
-        reviewed: true,
+        archetypesReviewed: true,
+        capabilitiesReviewed: true,
         ...over,
     };
 }
@@ -1279,12 +1280,20 @@ describe("Pick Invariant — an unreviewed profile counts for less (ADR 0072, is
         archetypes: ["reanimator"],
         provides: ["value-on-death"],
     });
-    const unreviewedPayoff = { ...reviewedPayoff, reviewed: false };
+    const unreviewedPayoff = {
+        ...reviewedPayoff,
+        archetypesReviewed: false,
+        capabilitiesReviewed: false,
+    };
     const reviewedEnabler = profileOf({
         archetypes: ["reanimator"],
         requires: ["value-on-death"],
     });
-    const unreviewedEnabler = { ...reviewedEnabler, reviewed: false };
+    const unreviewedEnabler = {
+        ...reviewedEnabler,
+        archetypesReviewed: false,
+        capabilitiesReviewed: false,
+    };
 
     function synergy(
         candidateProfile: CardProfile,
@@ -1319,6 +1328,54 @@ describe("Pick Invariant — an unreviewed profile counts for less (ADR 0072, is
         expect(synergy(unreviewedPayoff, unreviewedEnabler)).toBeLessThan(
             synergy(reviewedPayoff, reviewedEnabler)
         );
+    });
+});
+
+describe("Pick Invariant — each synergy term reads its OWN layer's review flag (ADR 0167, issue #8890)", () => {
+    const payoff = profileOf({
+        archetypes: ["reanimator"],
+        provides: ["value-on-death"],
+        comboEdges: [{ cardId: flashMeta.cardId, weight: 0.4 }],
+    });
+    const enabler = profileOf({
+        archetypes: ["reanimator"],
+        requires: ["value-on-death"],
+    });
+
+    function terms(candidateProfile: CardProfile) {
+        const trace = scoreCandidate(wurmMeta, [flashMeta], 3, {
+            getCardProfile: profileLookup({
+                [wurmMeta.cardId]: candidateProfile,
+                [flashMeta.cardId]: enabler,
+            }),
+        });
+        return {
+            archetypeFit: termValue(trace, "archetypeFit"),
+            capabilityFit: termValue(trace, "capabilityFit"),
+            comboEdge: termValue(trace, "comboEdge"),
+        };
+    }
+
+    const reviewed = terms(payoff);
+
+    it("the fixture exercises all three terms", () => {
+        expect(reviewed.archetypeFit).toBeGreaterThan(0);
+        expect(reviewed.capabilityFit).toBeGreaterThan(0);
+        expect(reviewed.comboEdge).toBeGreaterThan(0);
+    });
+
+    it("unreviewed Archetypes discount Archetype Fit and nothing else", () => {
+        const t = terms({ ...payoff, archetypesReviewed: false });
+        expect(t.archetypeFit).toBeLessThan(reviewed.archetypeFit);
+        expect(t.capabilityFit).toBe(reviewed.capabilityFit);
+        expect(t.comboEdge).toBe(reviewed.comboEdge);
+    });
+
+    it("unreviewed Capabilities discount Capability Fit and Combo Edge, never Archetype Fit", () => {
+        const t = terms({ ...payoff, capabilitiesReviewed: false });
+        expect(t.capabilityFit).toBeLessThan(reviewed.capabilityFit);
+        expect(t.comboEdge).toBeLessThan(reviewed.comboEdge);
+        expect(t.archetypeFit).toBe(reviewed.archetypeFit);
     });
 });
 

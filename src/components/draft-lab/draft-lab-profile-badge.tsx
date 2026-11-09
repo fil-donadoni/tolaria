@@ -1,16 +1,21 @@
 // Unreviewed Card Profile badge (issue #1612: "surface unreviewed profiles
 // visibly"). A Card Profile is LLM-seeded and human-reviewed (ADR 0072); one
-// with `reviewed: false` (`convex/limited/cardProfiles.ts`) must be obvious
-// wherever the card it describes appears in a pick. Renders nothing for a
-// card with no profile at all, or an already-reviewed one.
-import type { CardProfile } from "@convex/limited/cardProfilesCore";
+// with an unreviewed layer (`convex/limited/cardProfilesCore.ts`'s
+// `isCardProfileReviewed`: a layer carrying data whose `reviewed` flag is
+// still `false`) must be obvious wherever the card it describes appears in a
+// pick. Renders nothing for a card with no profile at all, or one whose
+// every layer is reviewed.
+import {
+    isCardProfileReviewed,
+    type CardProfile,
+} from "@convex/limited/cardProfilesCore";
 
 export default function DraftLabProfileBadge({
     profile,
 }: {
     profile: CardProfile | null;
 }) {
-    if (!profile || profile.reviewed) return null;
+    if (!profile || isCardProfileReviewed(profile)) return null;
     return (
         <span
             title="Card Profile is LLM-seeded and has not been human-reviewed"

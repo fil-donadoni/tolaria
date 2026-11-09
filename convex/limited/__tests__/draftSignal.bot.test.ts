@@ -220,7 +220,8 @@ describe("Draft Signal read — fold invariants", () => {
                 archetypes: ["control"],
                 provides: [],
                 requires: [],
-                reviewed: true,
+                archetypesReviewed: true,
+                capabilitiesReviewed: true,
             }) satisfies CardProfile;
         const huge = fold(
             emptyDraftSignalRead(),
