@@ -334,7 +334,7 @@ describe("forceAdvanceOwedInput — the legal rung closes the window", () => {
         ).toBe(false);
     });
 
-    it("target: CR 603.3c — a declined mandatory trigger target removes the trigger", () => {
+    it("target: CR 603.3d — a declined mandatory trigger target removes the trigger", () => {
         const f = triggerTargetOwed();
         const { state } = forceAdvanceOwedInput(f.state, f.bot);
         expect(state.pendingTarget).toBeUndefined();

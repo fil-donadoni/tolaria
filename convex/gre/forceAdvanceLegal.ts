@@ -85,7 +85,7 @@ function attackManaTaxStep(state: GameState, botPlayerId: string): string {
     );
 }
 
-/** `target` — CR 603.3c / 601.2: decline the raised target, or rewind the
+/** `target` — CR 603.3d / 601.2: decline the raised target, or rewind the
  *  announcement whose selection it is. */
 function targetStep(state: GameState, botPlayerId: string): string {
     return requireProgress(
