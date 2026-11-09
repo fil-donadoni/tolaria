@@ -117,6 +117,10 @@ misdirected 0.237 / 157 first, self 0.210 / 140 last; at 3 000 iterations
   (b) the rollout default policy's one-ply myopia with a large hand (develop
   over attack), which is what rewards gifting cards. Both are design
   decisions for the owner; both are measurable with `reward-soft-tail` on.
+  **ADR 0177** (issue #9045) took the root path instead: the one-ply
+  Evaluation holds a fixed share of the root verdict (`rootHeuristicShare`
+  0.1), which ranks the self-cast first on the reconstructed position under
+  the clip; (a) and (b) are recorded as findings there.
 - A blade `moves` entry obliges a refit (`bun run bot:refit` on the base,
   ADR 0157 Amendment II); the PR carries none of its artefacts.
 - `REWARD_PER_MARGIN_POINT` stays the core slope; under the variant the
