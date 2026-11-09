@@ -13,6 +13,7 @@ import JsonTreeView from "@/components/ui/json-tree-view";
 import { copyText } from "@/lib/clipboard";
 import BugReportSnapshotHeader from "./bug-report-snapshot-header";
 import BugReportAttachment from "./bug-report-attachment";
+import BugReportFault from "./bug-report-fault";
 
 export type BugReportDetailData = NonNullable<
     FunctionReturnType<typeof api.bugReports.getBugReport>
@@ -68,12 +69,19 @@ export default function BugReportDetail({
                     <h3 className="text-base font-semibold text-text">
                         {report.name}
                     </h3>
-                    <a
-                        href={`mailto:${report.email}`}
-                        className="text-sm text-accent-strong underline underline-offset-2 hover:text-accent"
-                    >
-                        {report.email}
-                    </a>
+                    {/* issue #9000 — a system row has no reporter to contact. */}
+                    {report.source === "system" ? (
+                        <span className="text-sm text-text-muted">
+                            Filed automatically by the server
+                        </span>
+                    ) : (
+                        <a
+                            href={`mailto:${report.email}`}
+                            className="text-sm text-accent-strong underline underline-offset-2 hover:text-accent"
+                        >
+                            {report.email}
+                        </a>
+                    )}
                 </div>
 
                 <p className="text-sm whitespace-pre-wrap text-text">
@@ -112,6 +120,14 @@ export default function BugReportDetail({
                         </a>
                     )}
                 </div>
+
+                {report.fault && (
+                    <BugReportFault
+                        fault={report.fault}
+                        fingerprint={report.fingerprint}
+                        filingSkipped={report.filingSkipped}
+                    />
+                )}
 
                 {report.attachmentUrl && (
                     <BugReportAttachment

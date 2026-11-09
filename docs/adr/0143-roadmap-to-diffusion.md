@@ -44,6 +44,9 @@ the second script that may write `P0`.
 **Amended 2026-10-27** (issue #7095, Amendment VIII): a `closedTail` card owes
 no `grammar` claim — the list settles it as Hand Tail.
 
+**Amended 2026-11-09** (issue #9000, Amendment XI): a system-filed Bot fault
+(`bug` + `bot-fault`) is `P0` too, written by the same `issue:workflow-band`.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -522,6 +525,15 @@ there and a cluster's band-raise votes that band.
   still owes its claim (`gap-pending`); only the claim's band moves.
 - **`(op) › <Op>` keys** reach hand-written Op users by construction, so the
   Op-census grammar gaps fall to the fallback too — the same rule.
+
+### A Bot fault is P0 — Amendment XI (issue #9000, 2026-11-09)
+
+The owner's ruling (2026-11-09, PRD issue #8998): a Bot that freezes a vs-AI
+game is a blocking defect class. The server files each fault itself
+(`convex/botFaultReport.ts`) labelled `bug` + `area:game-bot` + `bot-fault` +
+`ready-for-agent`, and `issue:workflow-band` raises `bug` + `bot-fault` to `P0`
+exactly as it raises `bug` + `area:workflow` — same `labeled` trigger
+(`issue-band.yml`), same never-lowers semantics. No third script writes `P0`.
 
 ### Format Tiers
 

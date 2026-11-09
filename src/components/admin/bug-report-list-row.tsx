@@ -32,6 +32,12 @@ export default function BugReportListRow({
             <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
                 <span>{formatFiledAt(row.filedAt)}</span>
                 <div className="flex items-center gap-2">
+                    {/* issue #9000 — a Bot fault the server filed itself. */}
+                    {row.isSystem && (
+                        <span className="rounded-sm bg-accent-soft/30 px-1.5 py-0.5 text-[10px] tracking-wide text-accent-strong uppercase">
+                            system
+                        </span>
+                    )}
                     {row.hasSnapshot && (
                         <span className="rounded-sm bg-accent-soft/30 px-1.5 py-0.5 text-[10px] tracking-wide text-accent-strong uppercase">
                             snapshot

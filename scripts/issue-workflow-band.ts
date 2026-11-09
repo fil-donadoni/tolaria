@@ -1,12 +1,16 @@
 #!/usr/bin/env bun
 /**
- * `bun run issue:workflow-band <N>` — a workflow bug is `P0` (issue #6902).
+ * `bun run issue:workflow-band <N>` — a workflow bug is `P0` (issue #6902),
+ * and so is a system-filed Bot fault (issue #9000).
  *
  * A bug in the pipeline itself holds every issue behind it, so it must not
  * wait at an inherited or missing band. The owner's ruling (2026-10-25,
  * ADR 0143 Amendment VII has the history): every OPEN issue labelled
  * both `bug` and `area:workflow` carries board `Priority` `P0`, set the moment
- * it is filed or labelled (`.github/workflows/issue-band.yml`).
+ * it is filed or labelled (`.github/workflows/issue-band.yml`). The Bot
+ * liveness ruling (2026-11-09) adds `bug` + `bot-fault`:
+ * a Bot that froze a game is a blocking defect class, filed by the server
+ * (`convex/botFaultReport.ts`) with exactly those labels.
  *
  * The second script that may write `P0` (ADR 0143, Amendment VII; the first
  * is `issue:inherit-band`, which only copies one). It overwrites a lower band
@@ -29,6 +33,10 @@ const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
 
 /** The two labels that make an issue a workflow bug. */
 export const WORKFLOW_BUG_LABELS = ["bug", "area:workflow"] as const;
+/** The two labels that make an issue a system-filed Bot fault (issue #9000). */
+export const BOT_FAULT_LABELS = ["bug", "bot-fault"] as const;
+/** Each label set that ranks an open issue at `P0`; any one suffices. */
+export const P0_LABEL_SETS = [WORKFLOW_BUG_LABELS, BOT_FAULT_LABELS] as const;
 
 export type WorkflowBandPlan =
     | { kind: "write" }
@@ -41,13 +49,13 @@ export function planWorkflowBand(issue: {
     priority: BoardPriority | null;
 }): WorkflowBandPlan {
     if (issue.state !== "OPEN") return { kind: "none", reason: "closed" };
-    const missing = WORKFLOW_BUG_LABELS.filter(
-        (l) => !issue.labels.includes(l)
+    const matches = P0_LABEL_SETS.some((set) =>
+        set.every((l) => issue.labels.includes(l))
     );
-    if (missing.length > 0)
+    if (!matches)
         return {
             kind: "none",
-            reason: `not a workflow bug (no ${missing.map((l) => `\`${l}\``).join(", ")})`,
+            reason: `not a workflow bug or Bot fault (needs ${P0_LABEL_SETS.map((set) => set.map((l) => `\`${l}\``).join(" + ")).join(" or ")})`,
         };
     if (issue.priority === "P0") return { kind: "none", reason: "already P0" };
     return { kind: "write" };
@@ -113,7 +121,9 @@ function main(): void {
         );
         process.exit(1);
     }
-    console.log(`issue:workflow-band: issue #${n} ← P0 (workflow bug)`);
+    console.log(
+        `issue:workflow-band: issue #${n} ← P0 (workflow bug or Bot fault)`
+    );
 }
 
 if (import.meta.main) main();

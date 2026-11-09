@@ -174,6 +174,9 @@ export function isNonDomPath(path: string): boolean {
         /(?:^|\/)__tests__\//.test(path) ||
         /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path) ||
         /^scripts\//.test(path) ||
+        // CI workflows and actions: run by GitHub, bundled into no page
+        // (owner ruling, issue #9000).
+        path.startsWith(".github/") ||
         // The headless self-play harness: run by scripts and bot tests, imported
         // by no route (issue #6941).
         path.startsWith("src/lib/ai/selfplay/") ||

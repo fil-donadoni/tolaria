@@ -28,6 +28,7 @@ import { storedDifficultyValidator } from "./limited/botDifficulty";
 // mutation args.
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
+import { botFaultValidator } from "./botFaultReport";
 import {
     botReachTraceValidator,
     compileSourceValidator,
@@ -1288,8 +1289,18 @@ export default defineSchema({
     bugReports: defineTable({
         // Who filed it, resolved server-side from the caller's identity — the
         // client-supplied name/email are display values and are NOT trusted to
-        // identify the account.
-        userId: v.id("users"),
+        // identify the account. Absent on a `source: "system"` row: the server
+        // filed it, no user did (issue #9000).
+        userId: v.optional(v.id("users")),
+        // `"system"` — a Bot fault the server reported itself (issue #9000,
+        // `convex/botFaultReport.ts`); absent === `"user"`, the in-app button.
+        source: v.optional(v.union(v.literal("user"), v.literal("system"))),
+        // System rows only: the fault, its dedupe fingerprint, and why the
+        // GitHub call was skipped (over a cap, no token, an API error) — the
+        // row is written either way, only the issue is lost.
+        fault: v.optional(botFaultValidator),
+        fingerprint: v.optional(v.string()),
+        filingSkipped: v.optional(v.string()),
         name: v.string(),
         // Contact address. The single reason this table exists rather than the
         // report living wholly in the issue.
@@ -1331,7 +1342,12 @@ export default defineSchema({
     })
         .index("by_issueNumber", ["issueNumber"])
         // Rate limit (issue #4076): a user's reports in the last hour.
-        .index("by_userId", ["userId"]),
+        .index("by_userId", ["userId"])
+        // System channel (issue #9000): dedupe onto the fingerprint's issue,
+        // the per-game cap, and the global hourly cap.
+        .index("by_fingerprint", ["fingerprint"])
+        .index("by_gameId", ["gameId"])
+        .index("by_source", ["source"]),
 
     debugScenarios: defineTable({
         // Authorship provenance for interactively-saved rows only (set by

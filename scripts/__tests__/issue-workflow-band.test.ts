@@ -29,6 +29,25 @@ describe("issue:workflow-band (issue #6902)", () => {
         ).toMatchObject({ kind: "none" });
     });
 
+    // issue #9000: a system-filed Bot fault (`bug` + `bot-fault`) is P0 too.
+    it("an open Bot fault below P0 is raised to P0, and needs `bug`", () => {
+        const fault = ["bug", "area:game-bot", "bot-fault", "ready-for-agent"];
+        for (const priority of [null, "P1", "P2"] as const)
+            expect(
+                planWorkflowBand({ state: "OPEN", labels: fault, priority })
+            ).toEqual({ kind: "write" });
+        expect(
+            planWorkflowBand({
+                state: "OPEN",
+                labels: ["enhancement", "bot-fault"],
+                priority: null,
+            })
+        ).toMatchObject({ kind: "none" });
+        expect(
+            planWorkflowBand({ state: "OPEN", labels: fault, priority: "P0" })
+        ).toEqual({ kind: "none", reason: "already P0" });
+    });
+
     it("leaves a closed issue and an existing P0 alone", () => {
         expect(
             planWorkflowBand({ state: "CLOSED", labels: bug, priority: null })

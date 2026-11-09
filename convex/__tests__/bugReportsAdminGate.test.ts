@@ -114,6 +114,7 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
         expect(rows[0]).toEqual({
             _id: "report-1",
             filedAt: 1000,
+            isSystem: false,
             name: "Ada",
             descriptionPreview: "Board freezes on attack",
             issueNumber: undefined,
