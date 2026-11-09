@@ -68,7 +68,18 @@ export function instanceIdsForName(
     const def = getCardByName(name); // throws on an unknown name
     const ids = new Set<string>();
     for (const inst of allInstances(state)) {
-        if ((inst.card as { id?: string } | undefined)?.id === def.id) {
+        const id = (inst.card as { id?: string } | undefined)?.id;
+        // The definition id, or the NAME the object presents: a prepare
+        // spell's exiled copy is an instance of the twin definition
+        // (`${parentId}#prepare`, CR 722.3c) whose characteristics — the name
+        // first — are the copied card's (CR 722.3c), so "Ancestral Recall"
+        // must find Emeritus of Ideation's copy as it finds the real card
+        // (issue #8954). Name-equality is read off the registry, never off
+        // the instance, so a face-down sentinel still resolves to nothing.
+        if (
+            id === def.id ||
+            (id !== undefined && tryGetDefinition(id)?.name === def.name)
+        ) {
             ids.add(inst.id);
         }
     }

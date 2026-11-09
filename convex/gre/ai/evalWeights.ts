@@ -309,6 +309,15 @@ export type EvalWeights = {
     /** Material margin (in `evaluate` units) that fills a half-band
      *  (`MATERIAL_FULL`). */
     materialFull: number;
+    /** Share of the half-band `materialSignal` (`search.ts`) fills LINEARLY
+     *  before its compressive tail takes over (issue #8954). The open band is
+     *  linear at the full `1 / materialFull` slope for a margin up to
+     *  `materialLinearShare · materialFull`; beyond it the remaining
+     *  `1 − materialLinearShare` of the half-band is filled by `t / (1 + t)`,
+     *  which is strictly monotone for every finite margin, so no two leaves
+     *  in the open band ever share a reward. `1` is the historical hard clip
+     *  (flat past ±`materialFull`, the blindness this knob removes). */
+    materialLinearShare: number;
     /** Fitted logistic margin → win-probability constant, ladder corpus
      *  (`CALIBRATED_REWARD_K`; issue #1929). */
     calibratedRewardK: number;
@@ -470,6 +479,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     rolloutGuardrailPenalty: 0.05,
     terminalBand: 0.25,
     materialFull: 500,
+    materialLinearShare: 0.5,
     calibratedRewardK: 9.983957e-4,
     choicePriorC: 0.75,
     visitTol: 0.15,

@@ -285,10 +285,14 @@ from player [Verdicts](#player-verdict) by the Weight Fit (ADR 0124; the
 signed number the search actually compares.
 
 <a id="reward"></a>**Reward** — the margin squashed into 0…1 so the search can
-average it: ~0 = lost, ~1 = won, the open middle linear in margin. The
-**reward bands** reserve the top and bottom quarter for positions that are won
-or lost outright, so a win dominates any material count. Code:
-`rewardFromValue` in `convex/gre/search.ts`.
+average it: ~0 = lost, ~1 = won, the open middle linear in margin through its
+core (±`materialLinearShare · materialFull`) and **compressive past it** —
+strictly monotone, never flat, so two leaves a creature apart stay apart
+however far behind or ahead the position is (ADR 0176, issue #8954; the hard
+clip it replaced made the search blind past ±`materialFull`). The **reward
+bands** reserve the top and bottom quarter for positions that are won or lost
+outright, so a win dominates any material count. Code: `rewardFromValue` in
+`convex/gre/search.ts`.
 
 <a id="indifference-band"></a>**Indifference band** — the range of margin
 inside which two root candidates count as tied (`OUTCOME_EPS` on the reward

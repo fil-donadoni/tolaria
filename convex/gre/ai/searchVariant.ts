@@ -336,6 +336,16 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         rewardMapping: "calibrated",
     },
 
+    /** Issue #8954 / ADR 0176 — the open-band reward with the pre-#8954 HARD
+     *  CLIP past ±`materialFull` (`materialLinearShare` 1): flat tails, so
+     *  every leaf a few creatures behind or ahead scored the same reward. The
+     *  negative control the compressive tail's tests run against, and the A/B
+     *  arm that measures it (`BLADE_VARIANT=reward-hard-clip`). */
+    "reward-hard-clip": {
+        name: "reward-hard-clip",
+        evalWeights: { materialLinearShare: 1 },
+    },
+
     /** PUCT priors + FPU on the main action space (issue #2684, map #1892
      *  attack-order step 4).
      *
