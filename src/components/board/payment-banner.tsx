@@ -6,6 +6,8 @@ import type { PendingActivation, PendingCast, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
+import { usePromptCollapsed } from "~/hooks/usePromptCollapsed";
+import CollapsedPromptPill from "./collapsed-prompt-pill";
 import { Button } from "~/components/ui/button";
 import { displayCardId, isManaCostCovered } from "~/lib/card-utils";
 import {
@@ -74,6 +76,7 @@ export default function PaymentBanner(props: Props) {
     );
     const finishAssistMana = useMutation(api.game.finishAssistCasterMana);
     const [busy, setBusy] = useState(false);
+    const promptCollapse = usePromptCollapsed();
 
     // CR 702.132a — the player the caster named pays only once the caster has
     // finished activating mana abilities, which a fully covered cost cannot
@@ -250,6 +253,19 @@ export default function PaymentBanner(props: Props) {
         } finally {
             setBusy(false);
         }
+    }
+
+    // Issue #7425 — `C` folds the banner to a pill (view-only flag).
+    if (promptCollapse?.collapsed) {
+        return (
+            <div className={outerClassName} style={outerStyle}>
+                <CollapsedPromptPill
+                    title={cardName}
+                    onExpand={promptCollapse.expand}
+                    className={innerClassName}
+                />
+            </div>
+        );
     }
 
     return (

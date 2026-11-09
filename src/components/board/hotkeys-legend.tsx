@@ -25,6 +25,7 @@ const HOTKEYS: HotkeyRow[] = [
     { keys: ["P"], label: "Pass turn" },
     { keys: ["A"], label: "Auto-tap while paying a cost" },
     { keys: ["U"], label: "Undo / cancel cast" },
+    { keys: ["C"], label: "Collapse / expand the open prompt" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },
 ];

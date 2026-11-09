@@ -74,6 +74,9 @@ export default function MinimizedChoiceIndicator({
                     className="dot-pulse-ring size-2.5 shrink-0 rounded-full bg-signal-pending"
                 />
                 <span className="text-display">{label} — pending</span>
+                <kbd className="rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                    C to expand
+                </kbd>
                 <Maximize2 className="h-3.5 w-3.5 opacity-80" />
             </button>
         </div>
