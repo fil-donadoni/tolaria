@@ -40,7 +40,7 @@ import type { CardDefinition, CostLegs, RetraceGrant } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { canPayHandCost } from "./alternativeCost";
-import { isLand } from "./constants";
+import { isLand, liveStaticDefinition } from "./constants";
 import type {
     CardInstanceState,
     GameState,
@@ -116,7 +116,8 @@ function collectRetraceGrants(
     }
     const owner = state.players.find((p) => p.id === ownerId);
     for (const perm of owner?.battlefield ?? []) {
-        const grant = definitionOf(perm)?.grantsRetraceToOwnGraveyard;
+        // CR 613.1f — a granter that lost its abilities grants nothing.
+        const grant = liveStaticDefinition(perm)?.grantsRetraceToOwnGraveyard;
         if (grant) grants.push(grant);
     }
     return grants;

@@ -51,7 +51,7 @@ import type {
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { getCardColors } from "../cards/colors";
-import { isDamageablePermanent } from "./constants";
+import { isDamageablePermanent, liveStaticDefinition } from "./constants";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { STATIC_EFFECT_CTX } from "./layers";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
@@ -125,10 +125,9 @@ function collectReplacements(
     for (const player of ordered) {
         for (const card of player.battlefield) {
             battlefieldSourceIds.add(card.id);
-            const cardId = (card.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
-            const effects = def?.replacementEffects ?? [];
+            // CR 613.1f — a source that lost its abilities replaces nothing.
+            const effects =
+                liveStaticDefinition(card)?.replacementEffects ?? [];
             for (const r of effects) {
                 if (r.eventKind === kind) out.push({ source: card, effect: r });
             }
@@ -287,9 +286,7 @@ export function getApplicableDrawReplacements(
     }[] = [];
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            if (!cardId) continue;
-            const effect = tryGetDefinition(cardId)?.drawReplacement;
+            const effect = liveStaticDefinition(card)?.drawReplacement;
             if (!effect) continue;
             const permView = buildPermanentView(card);
             if (!effect.applies(event, permView, view)) continue;

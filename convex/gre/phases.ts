@@ -16,7 +16,11 @@ import type {
 } from "./state";
 import { phasingTurnBasedAction } from "./phasing";
 import type { ContinuousEffect } from "./continuousEffects";
-import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
+import {
+    MAX_HAND_SIZE,
+    isPlaneswalker,
+    liveStaticDefinition,
+} from "./constants";
 import { syncLayer6 } from "./layer6";
 import { syncLayers2to5 } from "./layers2to5";
 import {
@@ -1086,10 +1090,8 @@ export function finalizeDrawLookKeep(
 function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
     const player = getPlayer(state, playerId);
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
-        if (def?.drawStepReplacement) return true;
+        // CR 613.1f — a source that lost its abilities replaces nothing.
+        if (liveStaticDefinition(card)?.drawStepReplacement) return true;
     }
     return false;
 }

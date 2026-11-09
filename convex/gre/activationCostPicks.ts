@@ -29,7 +29,7 @@ import type { ActivatedAbility } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { ManaTap } from "./moves";
 import { getStaticAdditionalSacrifices } from "./state";
-import { permanentGiveUpCostLegs } from "./constants";
+import { liveStaticDefinition, permanentGiveUpCostLegs } from "./constants";
 import { ninjutsuReturnRequirement } from "./ninjutsu";
 import type {
     SacrificeRequirement,
@@ -155,8 +155,7 @@ export function tapOtherCandidates(
             id: c.id,
             power: crewPowerContribution(
                 getEffectivePower(state, c),
-                tryGetDefinition((c.card as { id?: string }).id ?? "")
-                    ?.crewPowerBonus ?? 0
+                liveStaticDefinition(c)?.crewPowerBonus ?? 0
             ),
         }));
 }

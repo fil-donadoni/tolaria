@@ -20,6 +20,7 @@ import { unleashForbidsBlock } from "../cards/abilities/unleash";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
+import { liveStaticDefinition } from "./constants";
 import {
     globalAttackProhibitionReason,
     combatDeclarationCap,
@@ -1722,9 +1723,8 @@ function collectBlockRequirements(
  *  card definition (static, e.g. Two-Headed Giant) and the instance
  *  (temporary, e.g. Blaze of Glory), taking the max of both. */
 export function getMaxBlockTargets(card: CardInstanceState): number {
-    const defVal =
-        tryGetDefinition((card.card as { id?: string })?.id ?? "")
-            ?.canBlockAdditional ?? 0;
+    // CR 613.1f — a blocker that lost its abilities blocks only one.
+    const defVal = liveStaticDefinition(card)?.canBlockAdditional ?? 0;
     const instanceVal = card.canBlockAdditional ?? 0;
     return 1 + Math.max(defVal, instanceVal);
 }

@@ -51,6 +51,7 @@ import {
     isPlaneswalker,
     isExpiringAnimatedBody,
     POISON_LOSS_COUNTERS,
+    liveStaticDefinition,
 } from "./constants";
 import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
 import type { ActivatedAbility } from "../cards/types";
@@ -1498,10 +1499,8 @@ function graveyardEngineTerm(
 ): number {
     let exileOtherCount: number | undefined;
     for (const perm of player.battlefield) {
-        const permId = (perm.card as { id?: string }).id;
-        const grant = permId
-            ? tryGetDefinition(permId)?.grantsEscapeToOwnGraveyard
-            : undefined;
+        // CR 613.1f — a suppressed granter is no engine to price.
+        const grant = liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard;
         if (grant) {
             exileOtherCount = grant.exileOtherCount;
             break;

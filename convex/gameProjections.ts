@@ -28,7 +28,7 @@ import {
     flashSurchargeRequired,
     castPermissionRequiredFor,
 } from "./gre/rules";
-import { PLACEHOLDER_CARD_ID } from "./gre/constants";
+import { PLACEHOLDER_CARD_ID, liveStaticDefinition } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
 import { outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
@@ -1513,10 +1513,8 @@ function computeHandRevealedPlayers(state: GameState): Set<string> {
     const revealed = new Set<string>();
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            const cardId = (card.card as { id?: string }).id;
-            const scope = cardId
-                ? tryGetDefinition(cardId)?.revealsHand
-                : undefined;
+            // CR 613.1f — a source that lost its abilities reveals nothing.
+            const scope = liveStaticDefinition(card)?.revealsHand;
             if (!scope) continue;
             if (scope === "all-players") {
                 // Maximal reveal — every hand is exposed; nothing more to add.

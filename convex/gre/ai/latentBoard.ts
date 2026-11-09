@@ -67,6 +67,7 @@ import {
     isLand,
     isManaAbilityDefinition,
     PLACEHOLDER_CARD_ID,
+    liveStaticDefinition,
 } from "../constants";
 import {
     effectiveMaxHandSize,
@@ -1016,13 +1017,10 @@ function spendableExtraMana(
  *  `graveyardEngineTerm`). */
 function creditsGraveyard(player: PlayerState): boolean {
     if (hasGraveyardRecursionAccess(player)) return true;
-    return player.battlefield.some((perm) => {
-        const id = (perm.card as { id?: string }).id;
-        return (
-            id !== undefined &&
-            !!tryGetDefinition(id)?.grantsEscapeToOwnGraveyard
-        );
-    });
+    // CR 613.1f — a granter that lost its abilities credits nothing.
+    return player.battlefield.some(
+        (perm) => !!liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard
+    );
 }
 
 /** Issue #5559 — `value` grounded on the board with `$each` bound to

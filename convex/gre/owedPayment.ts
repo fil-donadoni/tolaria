@@ -46,7 +46,7 @@
 // make the gate never clear.
 
 import { matchesPermanentFilter } from "../cards/filters";
-import { tryGetDefinition } from "../cards/index";
+import { liveStaticDefinition } from "./constants";
 import { getEffectivePower } from "./layers";
 import { effectivePermanentView } from "./permanentView";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
@@ -378,12 +378,11 @@ export function tapOtherContribution(
     state: GameState,
     card: CardInstanceState
 ): TapOtherCandidate {
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     return {
         id: card.id,
         power: crewPowerContribution(
             getEffectivePower(state, card),
-            def?.crewPowerBonus ?? 0
+            liveStaticDefinition(card)?.crewPowerBonus ?? 0
         ),
     };
 }
