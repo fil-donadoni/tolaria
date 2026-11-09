@@ -65,6 +65,7 @@ import {
 import { isSacrificeSelectionComplete } from "@convex/gre/sacrificeChoice";
 import type { GameState, ManaRestriction } from "@convex/gre/state";
 import { isLandDropOpen } from "@convex/gre/ai/asEntersDiscard";
+import { sacrificeRankWorths } from "@convex/gre/ai/candidateValue";
 import { projectedToGameState } from "./state-adapter";
 import { owedInputFor } from "./owed-input";
 import type {
@@ -792,6 +793,29 @@ function mayPayGraveyardPick(
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
  *  default policy reasons about. Skips `mulligan-bottom` (handled by the
  *  pre-game mulligan branch) and choices owed to another player. */
+/** CR 701.21a — a forced sacrifice's candidates take their `value` from
+ *  `sacrificeRankWorths`, the ranking the search's answer set reads, so the
+ *  worst-first fallback keeps the same two orders (a mana rock before any
+ *  creature, a basic before any nonbasic land) and prices a permanent by what
+ *  it still does on the battlefield rather than by its latent card worth. */
+function withSacrificeRank(
+    state: PublicGameState,
+    head: PendingChoice,
+    candidates: ChoiceCandidate[]
+): ChoiceCandidate[] {
+    if (head.kind !== "sacrifice-permanents") return candidates;
+    const full = projectedToGameState(state);
+    const ids = new Set(candidates.map((c) => c.id));
+    const pool = full.players
+        .flatMap((p) => p.battlefield)
+        .filter((c) => ids.has(c.id));
+    const rank = sacrificeRankWorths(full, pool);
+    return candidates.map((c) => ({
+        ...c,
+        value: rank.get(c.id) ?? c.value,
+    }));
+}
+
 function buildOwedChoice(
     state: PublicGameState,
     botId: string
@@ -800,7 +824,11 @@ function buildOwedChoice(
     if (!head || head.playerId !== botId || head.kind === "mulligan-bottom") {
         return undefined;
     }
-    const candidates = readChoiceZone(state, head, botId).map(toCandidate);
+    const candidates = withSacrificeRank(
+        state,
+        head,
+        readChoiceZone(state, head, botId).map(toCandidate)
+    );
     // A handful of kinds pick something that is in no zone — a PLAYER (CR
     // 115.4 Cuombajj Witches / CR 115.1a Endurance), an abstract OPTION or
     // trigger MODE (CR 614.12 / CR 603.3c), a PILE label (ADR 0053), a trigger
