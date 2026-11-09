@@ -1494,7 +1494,11 @@ describe("solveSmartAutoTap — untap-price gate (CR 502.3, issue #8381)", () =>
         ];
         const sources = buildAutoTapSources(board);
         for (let generic = 0; generic <= 12; generic++) {
-            for (const cost of [{ X: generic }, { X: generic, G: 1 }]) {
+            const costs: Record<string, number>[] = [
+                { X: generic },
+                { X: generic, G: 1 },
+            ];
+            for (const cost of costs) {
                 expect(
                     solveSmartAutoTap(EMPTY_POOL, cost, [], sources, [
                         { id: "held", cost: { X: 2, G: 1 } },
