@@ -26,7 +26,6 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // `attachment` (the stolen artifact) onto `$source`, guarded by the live
 // "is an Equipment" check; a Skydiver that has left the battlefield makes the
 // attach a no-op (CR 608.2b) while the control change still happens.
-// compiler-gap: "Kicker {X}. X can't be 0. (You may pay an additional {X} as you cast this spell.)" (#2693)
 // compiler-gap: "When this creature enters, if it was kicked, gain control of target artifact with mana value X or less. If that artifact is an Equipment, attach it to this creature." (#2693)
 export const thievingSkydiver = defineCard(() => ({
     id: "ff84ea71-e477-44f7-a3f8-77fef708efeb",

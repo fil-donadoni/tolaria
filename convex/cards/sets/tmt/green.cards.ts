@@ -37,7 +37,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Ooze creates X of the same token, so its characteristics live in one place
 // and both producers make the identical object.
 
-// compiler-gap: "When Michelangelo enters, create a Mutagen token." (#2693)
 // compiler-gap: "If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead." (#2693)
 export const michelangeloWeirdnessTo11 = defineCard(() => ({
     id: "18477047-218d-4b2a-a086-37431b6a3025",

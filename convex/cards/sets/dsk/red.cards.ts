@@ -164,7 +164,6 @@ export const fearOfMissingOut = defineCard(() => ({
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn. (#2693)
-// compiler-gap: When Enduring Courage dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringCourage = defineCard(() => ({
     id: "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
     name: "Enduring Courage",

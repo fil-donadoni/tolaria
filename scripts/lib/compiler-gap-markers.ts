@@ -543,3 +543,171 @@ export function insertCompilerGapMarkers(
         written: [...mark.keys()].filter((c) => wrote.has(c)),
     };
 }
+
+// ── Refreshing the markers already written (issue #7671) ───────────────────
+//
+// `planRegressionMarkers` only ever ADDS a marker. Nothing re-read one after:
+// a card with two refused lines whose first the grammar now reads kept a
+// marker naming a fragment that compiles (Guard C's `staleMarkers` fires only
+// when the WHOLE card round-trips), and a marker's `(#issue)` could differ from
+// the issue holding the fragment's claim. `planMarkerRefresh` re-derives each
+// existing exempting `compiler-gap:` marker from the compiler's gap list and
+// the allowlist — pure, offline, idempotent (applying its edits leaves a
+// second plan empty). `hand-tail:` is a decision, not a gap, and is not read.
+
+/** What the compiler says about one card, as far as a marker's liveness reads. */
+export type RefreshOutcome =
+    | { readonly state: "round-trips" }
+    | { readonly state: "unparsed"; readonly gaps: readonly RegressionGap[] }
+    /** The compiler read the card and disagreed (or has no text): a marker's
+     *  fragment cannot be judged — `misfiledMarkers` owns that red. */
+    | { readonly state: "other" };
+
+/** One line edit the refresh owes. */
+export interface MarkerRefreshEdit {
+    readonly file: string;
+    /** 1-based line of the marker. */
+    readonly line: number;
+    readonly card: string;
+    readonly fragment: string;
+    readonly action: "remove" | "rewrite";
+    /** `remove`: why. `rewrite`: the old ref → the claimed one. */
+    readonly detail: string;
+    /** `rewrite` only: the issue the marker must name. */
+    readonly issue?: number;
+}
+
+/** A marker the refresh cannot settle by itself — a person's queue. */
+export interface MarkerRefreshReport {
+    readonly file: string;
+    readonly line: number;
+    readonly card: string;
+    readonly problem: "unfiled" | "unwritable";
+    readonly detail: string;
+}
+
+export interface MarkerRefreshPlan {
+    readonly edits: readonly MarkerRefreshEdit[];
+    readonly report: readonly MarkerRefreshReport[];
+}
+
+/** A fragment as markers compare it: trimmed, one surrounding pair of double
+ *  quotes dropped — hand-written markers quote the Oracle line, the compiler's
+ *  `Gap` does not. */
+function markerFragmentForm(fragment: string): string {
+    const t = fragment.trim();
+    return t.length >= 2 && t.startsWith('"') && t.endsWith('"')
+        ? t.slice(1, -1).trim()
+        : t;
+}
+
+/**
+ * Re-derive every exempting `compiler-gap:` marker. `outcomeOf` is the
+ * compiler's word on the card (undefined → the card is unknown, untouched),
+ * `keyOf` the Grammar Gap key of a gap, `issueOf` the issue holding that key's
+ * claim (claim row, else Cluster Signature — the lookup the regressions mode
+ * uses). Fragments are compared trimmed, as `planRegressionMarkers` writes them.
+ */
+export function planMarkerRefresh(
+    markers: ReadonlyArray<CompilerGapMarker & { readonly file: string }>,
+    outcomeOf: (card: string) => RefreshOutcome | undefined,
+    keyOf: (gap: RegressionGap) => string,
+    issueOf: (key: string) => number | undefined
+): MarkerRefreshPlan {
+    const edits: MarkerRefreshEdit[] = [];
+    const report: MarkerRefreshReport[] = [];
+    const gapMarkers = markers.filter(
+        (m) => m.kind === "compiler-gap" && isExempting(m)
+    );
+    // A card's markers judged together: a hand-written fragment is often a
+    // paraphrase of the compiler's own `Gap`, so "matches no gap" proves
+    // staleness only beside a sibling that DOES match. A card none of whose
+    // markers match is left whole — dropping them all would un-exempt a card
+    // that still does not round-trip, which is Guard C's call, not ours.
+    const byCard = new Map<string, typeof gapMarkers>();
+    for (const m of gapMarkers) {
+        byCard.set(m.card, [...(byCard.get(m.card) ?? []), m]);
+    }
+    for (const [card, mine] of byCard) {
+        const outcome = outcomeOf(card);
+        if (outcome === undefined || outcome.state === "other") continue;
+        const gaps = outcome.state === "unparsed" ? outcome.gaps : [];
+        const matched = mine.map((m) =>
+            gaps.find(
+                (g) =>
+                    markerFragmentForm(g.fragment) ===
+                    markerFragmentForm(m.fragment!)
+            )
+        );
+        const anyMatch = matched.some((g) => g !== undefined);
+        if (outcome.state === "unparsed" && !anyMatch) continue;
+        mine.forEach((m, i) => {
+            const base = {
+                file: m.file,
+                line: m.line,
+                card,
+                fragment: m.fragment!,
+            };
+            const gap = matched[i];
+            if (gap === undefined) {
+                if (!m.text.startsWith("//")) {
+                    report.push({
+                        ...base,
+                        problem: "unwritable",
+                        detail: "stale marker is not a whole `//` line",
+                    });
+                    return;
+                }
+                edits.push({
+                    ...base,
+                    action: "remove",
+                    detail:
+                        outcome.state === "round-trips"
+                            ? "the card round-trips now"
+                            : "the compiler no longer refuses this fragment",
+                });
+                return;
+            }
+            const key = keyOf(gap);
+            const claimed = issueOf(key);
+            if (claimed === undefined) {
+                report.push({
+                    ...base,
+                    problem: "unfiled",
+                    detail: `no Grammar Gap issue (claim row or Cluster Signature) for ${JSON.stringify(key)}; marker names #${m.issue}`,
+                });
+            } else if (claimed !== m.issue) {
+                edits.push({
+                    ...base,
+                    action: "rewrite",
+                    issue: claimed,
+                    detail: `#${m.issue} → #${claimed}`,
+                });
+            }
+        });
+    }
+    return { edits, report };
+}
+
+/**
+ * Apply `edits` (all for ONE file) to `lines`: delete a stale marker's line,
+ * swap a wrong ref in place. Bottom-up, so a deletion never shifts a later
+ * edit's line number. Pure.
+ */
+export function applyMarkerRefresh(
+    lines: readonly string[],
+    edits: readonly MarkerRefreshEdit[]
+): string[] {
+    const out = [...lines];
+    for (const e of [...edits].sort((a, b) => b.line - a.line)) {
+        if (e.action === "remove") {
+            out.splice(e.line - 1, 1);
+        } else {
+            out[e.line - 1] = out[e.line - 1]!.replace(
+                /\(#\d+\)\s*$/,
+                `(#${e.issue})`
+            );
+        }
+    }
+    return out;
+}

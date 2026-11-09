@@ -29,7 +29,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 // spell side, generalized to a type filter instead of a single host
 // (Power Artifact's Aura `attachedTo` scope, atq/blue.cards.ts).
 //
-// compiler-gap: "Whenever you cast an artifact spell, investigate." (#2693)
+// compiler-gap: "Whenever you cast an artifact spell, investigate." (#8494)
 // compiler-gap: "Activated abilities of artifacts you control cost {1} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
 export const forensicGadgeteer = defineCard(() => ({
     id: "97d08a15-e61c-4421-a541-c68a4f87cb74",

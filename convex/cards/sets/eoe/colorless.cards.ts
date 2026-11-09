@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 
 // Tezzeret, Cruel Captain — {3} Legendary Planeswalker — Tezzeret, loyalty 4
-// (EOE, issue #3229).
+// (EOE).
 // "Whenever an artifact you control enters, put a loyalty counter on Tezzeret.
 //  0: Untap target artifact or creature. If it's an artifact creature, put a
 //     +1/+1 counter on it.
@@ -53,9 +53,7 @@ import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 //
 // −7 — the `emblem` Op naming the registered `EmblemDefinition`
 // (`cards/emblems.ts`), where the granted combat trigger and its art live.
-// compiler-gap: "Whenever an artifact you control enters, put a loyalty counter on Tezzeret." (#2693)
 // compiler-gap: "0: Untap target artifact or creature. If it's an artifact creature, put a +1/+1 counter on it." (#2693)
-// compiler-gap: "-3: Search your library for an artifact card with mana value 1 or less, reveal it, put it into your hand, then shuffle." (#2693)
 // compiler-gap: "-7: You get an emblem with "At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature."" (#2693)
 export const tezzeretCruelCaptain = defineCard(() => ({
     id: "02e8e540-8aa3-4e6a-9a11-c3949cab5f0f",
