@@ -34541,6 +34541,7 @@
         {"id":"613.7a","line":"// CR 613.7a — the effect keeps the stamp it has been ordering by, so a","sites":1,"status":"confirmed","ruleHash":"66c5d52ad4d25bec"},
         {"id":"602.2b","line":"describe(\"dynamic target requirements reach the Bot's enumerator (issue #7924, CR 602.2b / 601.2c)\", () => {","sites":1,"status":"confirmed","ruleHash":"d76ff3ff7e6bfa31"},
         {"id":"400.7","line":"// Colour-filtered mass bounce (Hibernation, issue #995, CR 202.2 / 400.7):","sites":1,"status":"baseline"},
+        {"id":"613.1f","line":"// The exert offer reads a permanent's live definition (CR 613.1f) through","sites":1,"status":"confirmed","ruleHash":"5989d9ab6130f2aa"},
         {"id":"109.5","line":"// ability's controller (CR 109.5); \"on the battlefield\" is every player's","sites":1,"status":"confirmed","ruleHash":"d6974824bdd2da4f"},
         {"id":"105.1","line":"// CR 105.1 — \"a green or white permanent\": the filter's `color` is an OR","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"115.1","line":"* TARGET slot (CR 115.1) that must still hold a `graveyard-card`","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
