@@ -7,9 +7,9 @@
 //
 // Every step reuses the auth-free core the public mutation runs (the decline
 // cores, the attack and damage confirmations, the pending-choice resolvers,
-// the sacrifice pick) — never a
-// second copy of a rule. Each step mutates `state` IN PLACE and either throws
-// or returns the name of the action it took; the caller runs it on a clone.
+// the sacrifice pick) — never a second copy of a rule. Each step mutates
+// `state` IN PLACE and either throws or returns the name of the action it took;
+// the caller runs it on a clone.
 
 import { declareNoAttackersOnState } from "./attackDeclaration";
 import { confirmDefaultDamageOnState } from "./damageConfirmation";
