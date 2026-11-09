@@ -1,10 +1,10 @@
 // `bug-report:pull` — lowering a `bugReports` row's frozen state to a
-// `ScenarioSpec` (issue #9005, PRD issue #8998).
+// `ScenarioSpec` (issue #9005).
 //
 // WHAT THESE PIN. Three things fail silently:
 //
 //  1. THE SEAT. `specFromState` mirrors the whole board when handed the wrong
-//     `mySeatId` (issue #3786). A vs-AI row's `players[]` order is not the
+//     `mySeatId`. A vs-AI row's `players[]` order is not the
 //     seat model; the `-p1` suffix is. The fixture puts `-p2` FIRST so a
 //     `players[0]` default reads as the Bot's side and reds the test.
 //  2. THE LOSS REPORT. `dropped[]` / `stackBlockers[]` are the lowering's
