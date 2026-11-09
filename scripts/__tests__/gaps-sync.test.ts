@@ -892,6 +892,28 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         expect(body).toContain("- format-premodern (format, priority 1): 1");
     });
 
+    it("declares the card's set file as Target files, so the planner does not schedule it solo (issue #8997)", () => {
+        const { filings } = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                handTailFiles: (name) =>
+                    name === "Tail Card"
+                        ? ["convex/cards/sets/lea/blue.cards.ts"]
+                        : null,
+            })
+        );
+        expect(parseTargetFiles(filings[0]!.body(1))).toEqual([
+            "convex/cards/sets/lea/blue.cards.ts",
+        ]);
+    });
+
+    it("a card with no known file declares nothing, never an empty list (issue #8997)", () => {
+        const { filings } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true, handTailFiles: () => null })
+        );
+        expect(filings[0]!.body(1)).not.toContain("## Target files");
+    });
+
     it("the marker line quotes the issue's OWN number — the create is followed by exactly one patch", () => {
         const { filings } = buildHandTailFilings(
             inputs(lock, { handTailFiling: true })

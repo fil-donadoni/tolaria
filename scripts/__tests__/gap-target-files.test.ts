@@ -9,12 +9,15 @@ import { describe, expect, it } from "vitest";
 import {
     BOT_CAUSE_FILES,
     botGapTargetFiles,
+    catalogueMatchOf,
+    handTailTargetFiles,
     keywordModule,
     migrationTargetFiles,
     MODULE_NOT_FOUND,
     QUARANTINE_REASON_FILES,
     quarantineTargetFiles,
     renderTargetFilesSection,
+    setFilePath,
 } from "../lib/gap-target-files";
 import { botGapKey } from "../lib/oracle-bot-reach";
 import { pathsOverlap, parseTargetFiles } from "../lib/queue-plan";
@@ -133,6 +136,56 @@ describe("a Migration cluster's Target files", () => {
             "convex/cards/sets/lea/black.cards.ts",
             "convex/cards/sets/lea/white.cards.ts",
         ]);
+    });
+});
+
+describe("a Hand Tail card's Target files (issue #8997)", () => {
+    it("is the module its hand-written definition already lives in", () => {
+        expect(
+            handTailTargetFiles("convex/cards/sets/lea/blue.cards.ts", {
+                set: "ice",
+                colour: "red",
+            })
+        ).toEqual(["convex/cards/sets/lea/blue.cards.ts"]);
+    });
+
+    it("else the set file its catalogue match names — an existing ADR 0043 path", () => {
+        const files = handTailTargetFiles(undefined, {
+            set: "LEA",
+            colour: "multicolor",
+        });
+        expect(files).toEqual(["convex/cards/sets/lea/multicolor.cards.ts"]);
+        // The spelling cannot drift from the tree's and silently name nothing.
+        expect(existsSync(files![0]!)).toBe(true);
+        expect(
+            handTailTargetFiles(MODULE_NOT_FOUND, {
+                set: "lea",
+                colour: "blue",
+            })
+        ).toEqual([setFilePath({ set: "lea", colour: "blue" })]);
+    });
+
+    it("finds a double-faced card under its front face, a split card whole", () => {
+        const matches = new Map([
+            ["Ral, Monsoon Mage", { set: "mh3", colour: "red" as const }],
+            ["Fire // Ice", { set: "apc", colour: "multicolor" as const }],
+            ["Fire", { set: "zzz", colour: "red" as const }],
+        ]);
+        expect(
+            catalogueMatchOf(
+                matches,
+                "Ral, Monsoon Mage // Ral, Leyline Prodigy"
+            )
+        ).toEqual({ set: "mh3", colour: "red" });
+        expect(catalogueMatchOf(matches, "Fire // Ice")).toEqual({
+            set: "apc",
+            colour: "multicolor",
+        });
+        expect(catalogueMatchOf(matches, "Nowhere")).toBeUndefined();
+    });
+
+    it("else nothing — unknown is scheduled solo, never guessed", () => {
+        expect(handTailTargetFiles(undefined, undefined)).toBeNull();
     });
 });
 
