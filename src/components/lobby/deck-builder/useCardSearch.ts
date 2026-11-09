@@ -139,10 +139,21 @@ function matchesColors(
     }
 }
 
-function tokenizeQuery(text: string): string[] {
-    const normalized = text.replace(/[""''""]/g, '"').replace(/['',"']/g, "'");
+/** Curly / typographic quotes folded to their straight forms, so a
+ *  smart-punctuation keyboard's `Urza’s` finds `Urza's`. */
+const CURLY_DOUBLE_QUOTES = /[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g;
+const CURLY_APOSTROPHES = /[\u2018\u2019\u201A\u201B\u2032]/g;
+
+/** Splits the text query into match tokens. A double-quoted phrase is one
+ *  literal token (comma and apostrophe included); a single-quoted phrase only
+ *  opens at a word boundary, so an inner apostrophe (`urza's`) stays inside its
+ *  word; outside quotes a comma separates tokens and is never part of one. */
+export function tokenizeQuery(text: string): string[] {
+    const normalized = text
+        .replace(CURLY_DOUBLE_QUOTES, '"')
+        .replace(CURLY_APOSTROPHES, "'");
     const tokens: string[] = [];
-    const re = /"([^"]+)"|'([^']+)'|(\S+)/g;
+    const re = /"([^"]+)"|(?<!\S)'([^']+)'(?!\S)|([^\s,]+)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(normalized)) !== null) {
         const t = (m[1] ?? m[2] ?? m[3] ?? "").trim();
