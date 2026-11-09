@@ -14,7 +14,7 @@ import {
 // an additional cost to cast this spell, you may pay {3} any number of times.
 // When this creature enters, create that many tokens that are copies of
 // it.)\nVigilance\nWhenever a creature token you control enters, put a +1/+1
-// counter on it." The first Squad card (CR 702.157, issue #3220).
+// counter on it." The first Squad card (CR 702.157).
 //
 // ── Squad's two linked abilities (CR 702.157a) ─────────────────────────────
 //
@@ -89,7 +89,6 @@ import {
 // Guard C (issue #2701) — the Oracle compiler's grammar reads neither an
 // additional-cost keyword nor an event-ref ETB trigger, so both fragments are
 // named for the corpus backlog PRD #2693 ranks the next grammar rule by.
-// compiler-gap: Squad {3} (As an additional cost to cast this spell, you may pay {3} any number of times. When this creature enters, create that many tokens that are copies of it.) (#2693)
 // compiler-gap: Whenever a creature token you control enters, put a +1/+1 counter on it. (#2693)
 export const securitronSquadron = defineCard(() => ({
     id: "b689a206-aec3-4a31-95cf-3d4b840db04c", // PIP 23

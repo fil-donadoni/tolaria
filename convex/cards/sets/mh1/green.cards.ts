@@ -64,8 +64,6 @@ export const forceOfVigor = defineCard(() => ({
 // separate authority.
 //
 // compiler-gap: "Level up {1}" (#2693)
-// compiler-gap: "LEVEL 3-7 4/4 Protection from instants" (#2693)
-// compiler-gap: "LEVEL 8+ 6/6 Protection from everything" (#2693)
 export const hexdrinker = defineCard(() => ({
     id: "89f5cc05-5d9d-4709-b3c5-a6249c294acc", // MH1 168
     rarity: "mythic",

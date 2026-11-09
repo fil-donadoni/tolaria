@@ -67,7 +67,7 @@ export const getLost = defineCard(() => ({
 // The Oracle compiler's grammar v0 has no rule for a two-event trigger head
 // nor for token creation, so Guard C is satisfied by declaring the fragment
 // rather than by a round trip (PRD #2693).
-// compiler-gap: "When this creature enters or dies, create a 1/1 black Bat creature token with flying." (#2693)
+// compiler-gap: "When this creature enters or dies, create a 1/1 black Bat creature token with flying." (#8495)
 export const sanguineEvangelist = defineCard(() => ({
     id: "269ddd84-fdc4-4c94-b183-32ecec56967c",
     name: "Sanguine Evangelist",

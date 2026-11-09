@@ -43,7 +43,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever a creature you control deals combat damage to a player, draw a card. (#2693)
-// compiler-gap: When Enduring Curiosity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringCuriosity = defineCard(() => ({
     id: "8616629e-08f9-41ad-bfec-f86c8096f1cb",
     name: "Enduring Curiosity",

@@ -404,8 +404,7 @@ export const oldManOfTheSea = defineCard(() => ({
 // creature attacks and isn't blocked, you gain 2 life." (CR 509.1h — the
 // ATTACKER_UNBLOCKED event fires once per unblocked attacker when blockers are
 // confirmed, Murk Dwellers' trigger.)
-// compiler-gap: "This creature can't attack unless defending player controls an Island." (#2693)
-// compiler-gap: "Whenever this creature attacks and isn't blocked, you gain 2 life." (#2693)
+// compiler-gap: "This creature can't attack unless defending player controls an Island." (#4580)
 // compiler-gap: "When you control no Islands, sacrifice this creature." (#2693)
 export const merchantShip = defineCard(() => ({
     id: "2b827094-fb2c-46db-b898-02e0c308601f",

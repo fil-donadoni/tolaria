@@ -30,7 +30,6 @@ import { modalLandBackFace } from "../../abilities";
 // zone if an effect ever tries to put it onto the battlefield, its front face
 // being an instant card.
 // compiler-gap: "Return target spell or nonland permanent an opponent controls to its owner's hand." (#2693)
-// compiler-gap: "As this land enters, you may pay 3 life. If you don't, it enters tapped." (#2693)
 // hand-tail: Return target spell or nonland permanent an opponent controls to its owner's hand. (#3311)
 export const sinkIntoStupor = defineCard(() => ({
     id: "5358b87a-1a29-426d-b165-40c97da2c14d",
