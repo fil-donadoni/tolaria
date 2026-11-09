@@ -21,6 +21,7 @@ import { isProtectedFromSource } from "./protection";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
 import { liveStaticDefinition } from "./constants";
+import { getOpponentId } from "./lookup";
 import {
     globalAttackProhibitionReason,
     combatDeclarationCap,
@@ -1837,4 +1838,14 @@ export function getRequiredBlockerAssignments(
     }
 
     return result;
+}
+
+/** Who declares this combat's blocks (CR 509.1). Normally the defending
+ *  player; under Melee (`blocksDeclaredByAttacker`, #669) the ATTACKING (active) player
+ *  drives the block declaration instead. The blocking creatures are always the
+ *  defender's — only the chooser changes. */
+export function getBlockDeclarerId(state: GameState): string {
+    return state.blocksDeclaredByAttacker
+        ? state.activePlayerId
+        : getOpponentId(state, state.activePlayerId);
 }
