@@ -3972,6 +3972,7 @@
         {"id":"120.3","line":"// `dealDamageToEach` — the Op's permanent test (CR 120.3 / 109.5).","sites":1,"status":"confirmed","ruleHash":"a0048ac1df37af37"},
         {"id":"707.10c","line":"// CR 707.10c / 115.7a — the copy has the SAME target groups as the spell,","sites":1,"status":"confirmed","ruleHash":"c3a057dc786440a2"},
         {"id":"122.1d","line":"// • −2 — Tap target creature, then two stun counters on it (CR 122.1d,","sites":1,"status":"confirmed","ruleHash":"816fe21b426b70d9"},
+        {"id":"614.1a","line":"describe(\"−3 — the spell cast this way is exiled instead of put into the graveyard (CR 614.1a)\", () => {","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
         {"id":"701.24a","line":"// CR 701.23a (search) + CR 701.23b (stated quality) + CR 701.24a (shuffle)","sites":1,"status":"confirmed","ruleHash":"7edec0284daa4304"},
         {"id":"603.7b","line":"describe(\"until-next-turn-creatures-attack-your-opponents (CR 508.3b / 603.7b, issue #8166)\", () => {","sites":1,"status":"confirmed","ruleHash":"3935e375677c97cf"},
         {"id":"613.1f","line":"/** One board pass of the CR 613.1f derivation, as a PURE result list: what","sites":1,"status":"baseline"},
