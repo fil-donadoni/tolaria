@@ -51,7 +51,11 @@ export interface SettleSample {
     /** Backend requests in flight, plus a connecting socket, loading fonts,
      *  or a printed face whose 1x bitmap is still being made (issue #8321:
      *  `img[data-face-pending]`, the face the app withholds until its
-     *  resample lands — measured before it lands, it is no picture at all). */
+     *  resample lands — measured before it lands, it is no picture at all).
+     *  A `data-face-pending="deferred"` face — lazy, not yet near the
+     *  viewport — is NOT in flight: nothing is being made until a scroll
+     *  brings it near, so waiting on it never settles (the printing picker's
+     *  off-screen tiles at DPR 1). */
     inflight: number;
     /** What `inflight` is made of, for the reason an unsettled screen prints. */
     why?: string;
@@ -302,7 +306,8 @@ export function sampleSource(targets: readonly string[]): string {
         const fonts = document.fonts && document.fonts.status === "loading" ? 1 : 0;
         let faces = 0;
         for (const img of document.querySelectorAll('img[data-card-face="printed"]')) {
-            if (img.hasAttribute("data-face-pending") || (img.src.startsWith("blob:") && !img.complete)) faces++;
+            const pending = img.getAttribute("data-face-pending");
+            if ((pending !== null && pending !== "deferred") || (img.src.startsWith("blob:") && !img.complete)) faces++;
         }
         const inflight = (net ? net.inflight() : 0) + fonts + faces;
         const why = (net ? net.detail() : "no instrument") + ", " + fonts + " font load, " + faces + " face bitmap(s) pending";
