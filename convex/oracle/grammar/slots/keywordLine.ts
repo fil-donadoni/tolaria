@@ -834,6 +834,37 @@ export const firebendingRule: Rule<SlotIR> = rule("firebending", (span) => {
     });
 });
 
+// ── Hideaway N (CR 702.75a) ────────────────────────────────────────────────
+
+const HIDEAWAY = /^Hideaway (\d+)$/;
+
+/**
+ * CR 702.75a — "Hideaway N" means "When this permanent enters, look at the
+ * top N cards of your library. Exile one of them face down and put the rest on
+ * the bottom of your library in a random order." The whole trigger is expanded
+ * from the one `staticAbilities` string "hideaway N" at the `getDefinition`
+ * seam (ADR 0054, `expandHideaway`), so the rule emits that string and nothing
+ * else — the `mobilizeRule` shape. The exile it performs is the one a later
+ * "the exiled card" ability is linked to (CR 607.2a, `linkExile.ts`).
+ *
+ * Refused: "Hideaway 0" (no printed card), and two instances on one line
+ * ("Hideaway 3, hideaway 3"): the expander injects ONE trigger per card, so a
+ * second instance would be read and silently dropped.
+ */
+export const hideawayRule: Rule<SlotIR> = rule("hideaway", (span) => {
+    const match = HIDEAWAY.exec(span);
+    if (match === null) return fail('a hideaway line is "Hideaway N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("hideaway counts from 1", span);
+    const row = KEYWORD_VOCABULARY.get("hideaway");
+    if (row === undefined)
+        return fail("the Mechanics Registry names no hideaway row", span);
+    return ok({
+        kind: "keywords" as const,
+        keywords: [{ ...row, ability: `hideaway ${count}` }],
+    });
+});
+
 // ── Impending N—[cost] (CR 702.176a) ──────────────────────────────────────
 
 const IMPENDING = /^Impending (\d+)—(.+)$/;
@@ -1043,7 +1074,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, ward life, impending, warp, equip,
+ * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, hideaway, ward life, impending, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, transmute, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -1071,6 +1102,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     fadingRule,
     mobilizeRule,
     firebendingRule,
+    hideawayRule,
     wardLifeRule,
     impendingRule,
     warpRule,

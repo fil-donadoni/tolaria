@@ -103,7 +103,6 @@ export const luminarchAspirant = defineCard(() => ({
 //
 // The exile is PERMANENT — no play-from-exile grant (contrast the
 // `grantCastFromExile` family): plain `exile`, and the owner can never play it.
-// hand-tail: When this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card. (#8505)
 export const skyclaveApparition = defineCard(() => ({
     id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
     name: "Skyclave Apparition",
