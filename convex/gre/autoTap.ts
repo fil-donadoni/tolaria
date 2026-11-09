@@ -1335,7 +1335,16 @@ function solveWithUntapPrices(
             );
             if (plan !== null) return plan;
         }
-        return null;
+        // Only a capped enumeration reaches here: the unfiltered ranking keeps
+        // the payable answer identical to the ungated solver's.
+        return solveSmartAutoTapCore(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            demands,
+            scorePlan
+        );
     }
     if (sparing.length === 0) return sparing;
     const liveDemands = demands.filter((d) =>
