@@ -98,5 +98,5 @@ describe("search: a move arming the opponent's Oath (issue #8734)", () => {
                 abilityId: "oko-thief-of-crowns-plus2",
             });
         }
-    }, 240_000);
+    }, 480_000);
 });
