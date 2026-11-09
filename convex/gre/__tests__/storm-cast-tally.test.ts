@@ -89,4 +89,18 @@ describe("Storm cast-time tally (CR 702.40a)", () => {
             state.stack.find((s) => s.id === stormId)!.spellsCastBefore
         ).toBe(2);
     });
+
+    it("a resolved permanent spell keeps no cast-time tally on the battlefield", () => {
+        const state = makeState();
+        state.spellsCastThisTurn = 3;
+        const bears = pushSpell(state, grizzlyBears().id, "p1", []);
+        emitSpellCastEvent(state, bears);
+        expect(bears.spellsCastBefore).toBe(3);
+        resolveTopOfStack(state);
+        const onBattlefield = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === bears.id)!;
+        expect(onBattlefield).toBeDefined();
+        expect(onBattlefield).not.toHaveProperty("spellsCastBefore");
+    });
 });

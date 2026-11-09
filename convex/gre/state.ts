@@ -4378,6 +4378,9 @@ function finalizeSpellResolution(
         }
         delete item.chosenModeIds;
         delete item.modeTargetCounts;
+        // CR 702.40a — the cast-time spell tally is a property of the SPELL; a
+        // permanent carries none (it would also differ across a save/load).
+        delete item.spellsCastBefore;
         controller.battlefield.push(item);
         // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — the mana-provenance
         // haste rider's HAND-OFF, the one step of that rider with no
