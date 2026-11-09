@@ -262,6 +262,10 @@ describe("AiDecisionTrace — the numbers (issue #3404)", () => {
         // beside the words.
         const inside = within(details as HTMLElement);
         expect(inside.getAllByText("v100")).toHaveLength(2);
+        // The blended root score (issue #9045) beside the rollout mean; the
+        // one-ply glyph only when the root memoized a value for the edge.
+        expect(inside.getAllByText("s0.50")).toHaveLength(2);
+        expect(inside.queryByText(/^h0\.\d\d$/)).toBeNull();
         expect(inside.getAllByText(/Cast Grizzly Bears|Pass/)).toHaveLength(2);
         expect(details!.textContent).toContain("400/400 iters (iterations)");
         expect(details!.textContent).toContain("123ms");
@@ -273,5 +277,23 @@ describe("AiDecisionTrace — the numbers (issue #3404)", () => {
         expect(container.querySelector("details")!.textContent).toContain(
             "123ms, puct"
         );
+    });
+});
+
+describe("AiDecisionTrace — the one-ply glyph (issue #9045)", () => {
+    it("renders `h` for a candidate whose root memoized a one-ply reward, with its blended score", () => {
+        const t = trace();
+        t.candidates[0] = {
+            ...t.candidates[0],
+            oneplyReward: 0.61,
+            score: 0.52,
+        };
+        pushAiTrace(t, "worker");
+        const { container } = render(<AiDecisionTrace />);
+        const inside = within(
+            container.querySelector("details") as HTMLElement
+        );
+        expect(inside.getByText("h0.61")).toBeTruthy();
+        expect(inside.getByText("s0.52")).toBeTruthy();
     });
 });
