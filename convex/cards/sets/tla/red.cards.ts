@@ -97,9 +97,7 @@ const ROKU_DRAGON_TOKEN: EffectTokenSpec = {
 // The Oracle compiler reads no chapter line at all today — Saga chapters are
 // declared as `chapterAbilities[]` data and the grammar has no slot for the
 // "I — …" template — so all three chapters are declared gaps (PRD #2693).
-// compiler-gap: "I — Exile the top three cards of your library. Until the end of your next turn, you may play those cards." (#2693)
 // compiler-gap: "II — Add one mana of any color." (#2693)
-// compiler-gap: "III — Exile this Saga, then return it to the battlefield transformed under your control." (#2693)
 export const theLegendOfRoku = defineCard(() => ({
     id: THE_LEGEND_OF_ROKU_ID,
     name: "The Legend of Roku",

@@ -177,7 +177,7 @@ export const aangAtTheCrossroads = defineCard(() => ({
 const AANG_SWIFT_SAVIOR_ID = "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4";
 //
 // compiler-gap: "When {self} enters, airbend up to one other target creature or spell." (#2693)
-// compiler-gap: "Waterbend {8}: Transform {self}." (#2693)
+// compiler-gap: "Waterbend {8}: Transform {self}." (#8182)
 // compiler-gap: "Whenever {self} attack, put a +1/+1 counter on each tapped creature you control." (#2693)
 export const aangSwiftSavior = defineCard(() => ({
     id: AANG_SWIFT_SAVIOR_ID,

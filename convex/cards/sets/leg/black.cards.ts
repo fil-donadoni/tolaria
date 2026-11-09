@@ -1022,7 +1022,7 @@ export const infernalMedusa = defineCard(() => ({
 // activation cap.) The cap reads the engine's per-ability
 // `activationsThisTurn` tally through `canActivate`, exactly as Phyrexian
 // Battleflies does (inv/black.cards.ts).
-// compiler-gap: "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn." (#1009)
+// compiler-gap: "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn." (#4585)
 export const vampireBats = defineCard(() => ({
     id: "6a6a6f50-7b86-461e-80a7-e35d0e7cf52f",
     rarity: "common",

@@ -39,6 +39,7 @@
  * Usage:
  *   bun run oracle:mark-regressions             # write the markers
  *   bun run oracle:mark-regressions --dry-run   # print the plan, write nothing
+ *   bun run oracle:mark-regressions --refresh [--dry-run]   # re-derive existing markers
  *   bun run oracle:mark-regressions --acknowledge "<card>" --reason "<why>" \
  *       (--tracked-by <issue number> | --intended)
  */
@@ -49,6 +50,7 @@ import { getAllCards } from "../convex/cards/catalogue";
 import { COMPILER_ROUND_TRIP_BASELINE } from "../convex/cards/__tests__/compilerRoundTrip.baseline";
 import { roundTripCard } from "../convex/oracle/gold";
 import {
+    applyMarkerRefresh,
     insertCompilerGapMarkers,
     isExempting,
     planRegressionMarkers,
@@ -65,9 +67,45 @@ import {
 import { SETS_DIR, collectSetFiles } from "./lib/divergence-markers";
 import { gapOf } from "./lib/grammar-gaps";
 import { matchingClusterIssues } from "./lib/gap-issues";
+import {
+    GRAMMAR_GAP_ALLOWLIST as ALLOWLIST,
+    planCatalogueRefresh,
+} from "./lib/compiler-gap-refresh";
 import { parseClaimRows, parseClusterRows } from "./lib/targets";
 
-const ALLOWLIST = "data/grammar-gaps.json";
+/**
+ * `--refresh` (issue #7671): re-derive every EXISTING `compiler-gap:` marker.
+ * A marker whose fragment the compiler no longer refuses is removed; one whose
+ * `(#issue)` differs from the fragment's claim is rewritten to the claimed
+ * issue; one with no claim is REPORTED `unfiled` (exit 1), never invented.
+ * Idempotent: the second run writes nothing. Guard C asserts the plan is empty.
+ */
+function refresh(argv: readonly string[]): number {
+    const dryRun = argv.includes("--dry-run");
+    const plan = planCatalogueRefresh(collectSetFiles(SETS_DIR), getAllCards());
+    const byFile = new Map<string, (typeof plan.edits)[number][]>();
+    for (const e of plan.edits) {
+        byFile.set(e.file, [...(byFile.get(e.file) ?? []), e]);
+        console.log(
+            `${dryRun ? "would " : ""}${e.action} ${e.card} (${path.relative(SETS_DIR, e.file)}:${e.line}): ${e.fragment} — ${e.detail}`
+        );
+    }
+    if (!dryRun) {
+        for (const [file, edits] of byFile) {
+            const lines = readFileSync(file, "utf8").split("\n");
+            writeFileSync(file, applyMarkerRefresh(lines, edits).join("\n"));
+        }
+    }
+    for (const r of plan.report) {
+        console.log(
+            `NOT REFRESHED ${r.card} (${path.relative(SETS_DIR, r.file)}:${r.line}): ${r.problem} — ${r.detail}`
+        );
+    }
+    console.log(
+        `oracle:mark-regressions --refresh: ${plan.edits.length} marker(s) ${dryRun ? "to change" : "changed"}, ${plan.report.length} owed a person`
+    );
+    return plan.report.length === 0 ? 0 : 1;
+}
 
 /** `--acknowledge`: add one disposition-bearing entry to the ledger. */
 function acknowledge(argv: readonly string[]): number {
@@ -94,6 +132,7 @@ function acknowledge(argv: readonly string[]): number {
 
 function main(argv: readonly string[]): number {
     if (argv.includes("--acknowledge")) return acknowledge(argv);
+    if (argv.includes("--refresh")) return refresh(argv);
     const dryRun = argv.includes("--dry-run");
     const files = collectSetFiles(SETS_DIR);
     const exempt = new Set([
