@@ -3900,6 +3900,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.emblemSourceId;
     delete item.castCopySnapshot;
     delete item.castCopiesRemaining;
+    delete item.spellsCastBefore;
     delete item.castCopyCountReadOnResolution;
     delete item.delayedTriggerId;
     delete item.delayedPayload;
@@ -4377,6 +4378,9 @@ function finalizeSpellResolution(
         }
         delete item.chosenModeIds;
         delete item.modeTargetCounts;
+        // CR 702.40a — the cast-time spell tally is a property of the SPELL; a
+        // permanent carries none (it would also differ across a save/load).
+        delete item.spellsCastBefore;
         controller.battlefield.push(item);
         // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — the mana-provenance
         // haste rider's HAND-OFF, the one step of that rider with no
@@ -8545,6 +8549,9 @@ export function emitSpellCastEvent(
     const colors = getEffectiveColors(item as unknown as PermanentView);
     const priorSpellCount = state.spellsCastThisTurn ?? 0;
     state.spellsCastThisTurn = priorSpellCount + 1;
+    // CR 702.40a — fix the tally on the spell itself, so the preview of a storm
+    // spell on the stack keeps showing its own count as later spells are cast.
+    item.spellsCastBefore = priorSpellCount;
     // Per-player spell-cast tally (issue #1343) — the caster's own prior
     // count before this cast, mirroring `priorSpellCount`'s "read before
     // increment" convention but scoped to `caster` instead of the whole
@@ -8823,6 +8830,8 @@ function pushCastCopyTrigger(
         // Replicate/Storm copy of an Arcane spell is a copy of the MAIN spell.
         castCopySnapshot: spliceStripped(structuredClone(castSpell)),
         castCopiesRemaining: copies,
+        // The trigger is an ability, not the cast spell: no cast-time tally.
+        spellsCastBefore: undefined,
         ...(readCountOnResolution
             ? { castCopyCountReadOnResolution: true as const }
             : {}),
@@ -13117,6 +13126,8 @@ function cloneSpellOntoStack(
     // flashback card is exiled, not the copy, which ceases to exist as a
     // one-shot effect per CR 707.10a).
     delete copy.castFromZone;
+    // CR 707.10 — a copy is not cast: it carries no cast-time spell tally.
+    delete copy.spellsCastBefore;
     delete copy.exileOnResolve;
     delete copy.exileAnyTimeLeavesStack;
     // `shuffleIntoLibraryOnResolve` is likewise a cast-site artifact (issue

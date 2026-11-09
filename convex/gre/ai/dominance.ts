@@ -1366,6 +1366,12 @@ export const IGNORED_INSTANCE_KEYS = [
     "baseSubtypes",
     "activationsThisTurn",
     "triggersThisTurn",
+    // CR 702.40a — the cast-time copy of `GameState.spellsCastThisTurn` a spell
+    // on the stack carries for the card preview. Display only: nothing in the
+    // engine reads it (storm reads the live global tally, which this comparison
+    // and the repetition fingerprint still see where it matters), and it moves
+    // on every cast exactly like the tallies in `IGNORED_MOVER_PLAYER_KEYS`.
+    "spellsCastBefore",
 ] as const;
 
 /** The mover's own cast bookkeeping. Deliberately NOT here: `manaPool` and

@@ -21,6 +21,7 @@ import {
     type CardImageFace,
 } from "~/lib/images";
 import {
+    capitalizeKeyword,
     formatTypeLine,
     getDisplayAbilities,
     shouldShowOracleText,
@@ -497,6 +498,9 @@ type PreviewGameCtx = {
     /** Structurally forwarded from `GameContext.combat` — lets the preview
      *  state a PENDING exert (chosen for the declaration in progress). */
     combat?: Combat;
+    /** Structurally forwarded from `GameContext.spellsCastThisTurn` — the live
+     *  Storm tally (CR 702.40a) the count chip reads for a card off the stack. */
+    spellsCastThisTurn?: number;
 };
 
 // Builds one preview face from a definition id.
@@ -651,9 +655,9 @@ export function buildPreviewBody(
     // from the perspective of whoever would resolve it. The ORIGINAL face of a
     // copy has no instance/context and thus no chips.
     const abilityWordCounters =
-        oracleParagraphs && cardInstance && gameCtx
+        cardInstance && gameCtx
             ? abilityWordCountersForController(
-                  oracleParagraphs,
+                  oracleParagraphs ?? [],
                   cardInstance,
                   gameCtx
               )
@@ -1017,11 +1021,22 @@ function abilityWordCountersForController(
 ): Map<string, AbilityWordCounter> | null {
     const perspectiveId =
         cardInstance.controllerId ?? cardInstance.ownerId ?? gameCtx.playerId;
+    // The keyword row (a runtime-granted Storm with no printed storm text) is a
+    // surface too: scan the instance's keywords beside the oracle paragraphs.
+    const keywordTexts = (cardInstance.staticAbilities ?? []).map(
+        capitalizeKeyword
+    );
     return computeAbilityWordCounters(
-        paragraphs,
+        [...paragraphs, ...keywordTexts],
         gameCtx.allPlayers,
         perspectiveId,
         gameCtx.emblems,
-        gameCtx.continuousEffects
+        gameCtx.continuousEffects,
+        {
+            live: gameCtx.spellsCastThisTurn ?? 0,
+            onStack: cardInstance.zone === "stack",
+            castTime: (cardInstance as { spellsCastBefore?: number })
+                .spellsCastBefore,
+        }
     );
 }

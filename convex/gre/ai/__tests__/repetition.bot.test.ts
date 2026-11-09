@@ -110,6 +110,19 @@ describe("positionFingerprint (issue #3590)", () => {
         expect(positionFingerprint(lapped)).toBe(positionFingerprint(state));
     });
 
+    it("ignores a stack spell's cast-time tally — a display copy of the spell count (CR 702.40a)", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const bolt = pushSpell(
+            state,
+            getCardByName("Lightning Bolt").id,
+            "p1",
+            [{ type: "player", id: "p2" }]
+        );
+        const lapped = cloneGameState(state);
+        lapped.stack.find((item) => item.id === bolt.id)!.spellsCastBefore = 4;
+        expect(positionFingerprint(lapped)).toBe(positionFingerprint(state));
+    });
+
     it("sees real progress: a counter, a life point, a card changing zone", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const base = positionFingerprint(state);
