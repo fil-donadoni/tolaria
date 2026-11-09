@@ -823,6 +823,11 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         expect(isNonDomPath("src/lib/ai/bot-view.ts")).toBe(false);
     });
 
+    it("treats CI workflows under .github/ as non-DOM (issue #9000)", () => {
+        expect(isNonDomPath(".github/workflows/issue-band.yml")).toBe(true);
+        expect(isNonDomPath("src/github/panel.tsx")).toBe(false);
+    });
+
     it("a module whose changed lines are only type imports owes nothing, overlay name or not (issue #7608)", () => {
         const typeOnly = [
             `import type { CardVisualState } from "../battlefield-card";`,

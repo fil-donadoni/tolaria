@@ -959,9 +959,14 @@ export const fileSystemReportIssue = internalAction({
             const issue = res.ok
                 ? ((await res.json()) as { state?: string })
                 : null;
+            // Only a definite answer reads as closed: a transient GitHub
+            // error must not open a duplicate — it tries the comment, which
+            // then fails into `filingSkipped` if GitHub is really down.
             existingIssue = {
                 number: filing.knownIssueNumber,
-                open: issue?.state === "open",
+                open: issue
+                    ? issue.state === "open"
+                    : res.status !== 404 && res.status !== 410,
             };
         }
 
