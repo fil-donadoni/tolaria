@@ -8,7 +8,7 @@
  * ADR 0143 Amendment VII has the history): every OPEN issue labelled
  * both `bug` and `area:workflow` carries board `Priority` `P0`, set the moment
  * it is filed or labelled (`.github/workflows/issue-band.yml`). The Bot
- * liveness PRD (issue #8998, owner ruling 2026-11-09) adds `bug` + `bot-fault`:
+ * liveness ruling (2026-11-09) adds `bug` + `bot-fault`:
  * a Bot that froze a game is a blocking defect class, filed by the server
  * (`convex/botFaultReport.ts`) with exactly those labels.
  *
