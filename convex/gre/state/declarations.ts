@@ -5079,14 +5079,18 @@ export type GameState = {
         /** "alternate-win" (issue #1066, CR 104.2a) — a spell/ability
          *  DESIGNATES the winner directly (Coalition Victory), rather than the
          *  loser meeting a CR 704.5 loss condition — the only reason with no
-         *  natural "why the loser lost" story, since there is none. */
+         *  natural "why the loser lost" story, since there is none.
+         *  "bot-fault" (issue #9002, PRD issue #8998) — the Bot conceded
+         *  because the liveness ladder (`forceAdvanceOwedInput`) could not
+         *  advance a window it owed: an engine fault, reported as a P0. */
         reason:
             | "life"
             | "decked"
             | "concede"
             | "draw"
             | "poison"
-            | "alternate-win";
+            | "alternate-win"
+            | "bot-fault";
         /** True when the game ended in a draw (CR 104.4a). No winner, no loser. */
         isDraw?: boolean;
     };

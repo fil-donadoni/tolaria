@@ -80,6 +80,9 @@ export const REASON_IS_FREEZE: Record<GameEndReason, boolean> = {
     poison: false,
     "alternate-win": false,
     // Harness guards — every one of them is a bug, not a result.
+    // `bot-fault` (issue #9002): the liveness ladder conceded a window the
+    // Bot could not answer — an engine fault, never a result.
+    "bot-fault": true,
     stall: true,
     "max-plies": true,
     "resolution-error": true,

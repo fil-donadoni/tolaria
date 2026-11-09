@@ -71,7 +71,7 @@ import {
     type OwedChoice,
 } from "../brain";
 
-/** Why a game ended. `stall` / `max-plies` / `resolution-error` /
+/** Why a game ended. `bot-fault` / `stall` / `max-plies` / `resolution-error` /
  *  `search-error` are harness guards, not real MTG outcomes — they surface a
  *  bug or an unsupported case rather than a legitimate win, and are reported
  *  separately so they never silently inflate a win-rate. */
@@ -82,6 +82,7 @@ export type GameEndReason =
     | "draw"
     | "poison"
     | "alternate-win"
+    | "bot-fault"
     | "stall"
     | "max-plies"
     | "resolution-error"
