@@ -26109,6 +26109,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "gives up both mana rocks before any creature, and the dual only after every basic",
         },
-        note: "Issue #8382, the no-lethal half. Six permanents from a board with two rocks: any answer that gives a creature or a land must give both rocks first (the owner's ruling), and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.",
+        note: "Issue #8382, the no-lethal half. Six permanents from a board with two rocks: any answer that gives a creature (the owner's ruling) or the dual (its extension, `sacrificeGoesFirst`) must give both rocks first, and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.",
     },
 ];

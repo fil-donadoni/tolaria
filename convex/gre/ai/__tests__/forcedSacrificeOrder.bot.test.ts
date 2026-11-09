@@ -94,13 +94,10 @@ describe("the forced-sacrifice answer set (CR 702.86a)", () => {
             const sets = answerSets(label);
             expect(sets.length).toBeGreaterThan(1);
             for (const set of sets) {
-                const takesCreatureOrLand = set.some(
-                    (n) =>
-                        CREATURES.includes(n) ||
-                        n === "Island" ||
-                        n === "Hedge Maze"
+                const takesCreatureOrDual = set.some(
+                    (n) => CREATURES.includes(n) || n === "Hedge Maze"
                 );
-                if (takesCreatureOrLand) {
+                if (takesCreatureOrDual) {
                     expect(ROCKS.every((r) => set.includes(r))).toBe(true);
                 }
                 if (set.includes("Hedge Maze")) {

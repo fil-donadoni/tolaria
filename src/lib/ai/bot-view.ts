@@ -790,13 +790,10 @@ function mayPayGraveyardPick(
     };
 }
 
-/** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
- *  default policy reasons about. Skips `mulligan-bottom` (handled by the
- *  pre-game mulligan branch) and choices owed to another player. */
 /** CR 701.21a — a forced sacrifice's candidates take their `value` from
  *  `sacrificeRankWorths`, the ranking the search's answer set reads, so the
- *  worst-first fallback keeps the same two orders (a mana rock before any
- *  creature, a basic before any nonbasic land) and prices a permanent by what
+ *  worst-first fallback keeps the same orders (a mana rock before any
+ *  creature or nonbasic land, a basic before any nonbasic land) and prices a permanent by what
  *  it still does on the battlefield rather than by its latent card worth. */
 function withSacrificeRank(
     state: PublicGameState,
@@ -816,6 +813,9 @@ function withSacrificeRank(
     }));
 }
 
+/** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
+ *  default policy reasons about. Skips `mulligan-bottom` (handled by the
+ *  pre-game mulligan branch) and choices owed to another player. */
 function buildOwedChoice(
     state: PublicGameState,
     botId: string

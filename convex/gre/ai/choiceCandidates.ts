@@ -2362,7 +2362,8 @@ function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
  *  prior leg would read; it is not consulted today.
  *
  *  The ranking is `sacrificeRankWorths` — battlefield worth, ordered so a mana
- *  rock goes before any creature or land and a basic before any nonbasic land
+ *  rock goes before any creature or nonbasic land and a basic before any
+ *  nonbasic land
  *  — and every set is closed under those orders. One extra set keeps the
  *  untapped creatures for as long as the rest can pay. */
 const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (

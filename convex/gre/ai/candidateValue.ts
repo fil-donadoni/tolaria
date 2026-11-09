@@ -248,11 +248,14 @@ function isBasicLand(card: CardInstanceState): boolean {
 /** Whether `first` must be sacrificed before `then` may be — the orders a
  *  forced sacrifice keeps whatever the board:
  *
- *  - a mana rock goes before any creature (the owner's ruling, issue #8382)
- *    and before any land — the board's other mana, so with both rulings a
- *    rock is the first mana given up and the evaluation's preference for a
- *    rock's card worth over a land's cannot trade a land for it;
- *  - a basic land (CR 205.4c) before any nonbasic land.
+ *  - a mana rock goes before any creature (the owner's ruling, issue #8382);
+ *  - a basic land (CR 205.4c) before any nonbasic land (the same ruling);
+ *  - a mana rock before any nonbasic land — an EXTENSION of the ruling, not
+ *    part of it: the evaluation prices a rock's card worth far above a dual's
+ *    (Talisman of Curiosity 44.6 against Hedge Maze 16.6 realised), so with
+ *    the first two orders alone the search kept a rock and gave the dual,
+ *    which the ruling's own outcome forbids. A rock against a basic is NOT
+ *    ordered — Sol Ring before a lone Island is no ruling anyone made.
  *
  *  Every other pair (lands against creatures, other noncreatures against
  *  anything) is left to the worth and to the search. */
@@ -260,14 +263,16 @@ export function sacrificeGoesFirst(
     first: CardInstanceState,
     then: CardInstanceState
 ): boolean {
-    if (isManaRock(first) && (isCreature(then) || isLand(then))) return true;
-    return isBasicLand(first) && isLand(then) && !isBasicLand(then);
+    const nonbasicLand = isLand(then) && !isBasicLand(then);
+    if (isManaRock(first) && (isCreature(then) || nonbasicLand)) return true;
+    return isBasicLand(first) && nonbasicLand;
 }
 
 /** Each pool member's sacrifice RANK: its {@link battlefieldPermanentWorth},
  *  lowered where needed so that sorting by rank is a linear extension of
  *  {@link sacrificeGoesFirst} — every basic ranks below the pool's cheapest
- *  nonbasic land, then every mana rock below its cheapest creature or land.
+ *  nonbasic land, then every mana rock below its cheapest creature or
+ *  nonbasic land.
  *  The one ranking both the search's answer set (`choiceCandidates.ts`) and
  *  the Brain's worst-first fallback (`bot-view.ts`) read, so the two cannot
  *  disagree on an order. */
@@ -295,7 +300,7 @@ export function sacrificeRankWorths(
     );
     lowerBelow(
         isManaRock,
-        cheapest((c) => isCreature(c) || isLand(c))
+        cheapest((c) => isCreature(c) || (isLand(c) && !isBasicLand(c)))
     );
     return worth;
 }
