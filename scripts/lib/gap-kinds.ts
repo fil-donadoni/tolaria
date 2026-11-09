@@ -243,6 +243,12 @@ export interface KindInputs {
     /** Oracle ids already carrying a well-formed `hand-tail:` marker. */
     readonly handTail: ReadonlySet<string>;
     /**
+     * Card name → the files a `hand-tail` issue declares as its `## Target
+     * files` (`handTailTargetFiles`, issue #8997), or null when none is known.
+     * Absent: no section, the planner reads an unknown blast radius.
+     */
+    readonly handTailFiles?: (name: string) => readonly string[] | null;
+    /**
      * The Bot Reach Findings report merged over the lockfile (issue #4406,
      * `mergeBotVerdicts`) — oracle id → the verdict for the card's SHIPPED
      * definition. Absent exactly when no report was read (`gaps:sync` always
@@ -635,6 +641,11 @@ export function buildHandTailFilings(inputs: KindInputs): {
                     "```",
                     "",
                     "`check:targets` reads that marker back (issue #3868); a `compiler-gap:` here instead would claim the grammar still owes the rule, which below the floor it does not.",
+                    // The set file the card is written in, so the planner
+                    // batches it instead of running it solo (issue #8997).
+                    ...renderTargetFilesSection(
+                        inputs.handTailFiles?.(row.name) ?? null
+                    ),
                 ].join("\n"),
         });
     }

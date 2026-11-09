@@ -9,6 +9,8 @@
  * set as wide as the engine would turn solo into overlap with everything.
  *
  * - **Migration** deletes definitions from known set modules: those modules.
+ * - **Hand Tail** writes one card (issue #8997): its existing module, else
+ *   the set file its catalogue match names.
  * - **Bot Gap** is routed by its cause, the seam of the reachability walk
  *   (`docs/guides/bot-reachability.md`). Sibling gaps of one cause share a
  *   file and serialise — they do move the same valuation and sweep.
@@ -28,6 +30,7 @@
 
 import type { BotReachCause } from "../../convex/gre/ai/botReach";
 import type { QuarantineReason } from "../../convex/oracle/types";
+import type { CardMatch } from "./targets";
 
 /** The separator `quarantineClass` and `botGapKey` join a key's parts with. */
 const KEY_SEPARATOR = " › ";
@@ -110,6 +113,43 @@ export function quarantineTargetFiles(key: string): readonly string[] | null {
 
 /** `Graduate.module`'s placeholder for a card no set module was found for. */
 export const MODULE_NOT_FOUND = "(module not found)";
+
+/**
+ * The set file a card with no hand-written definition is written in (ADR
+ * 0043's `convex/cards/sets/<set>/<colour>.cards.ts`), from the card's
+ * catalogue match. The set's directory may not exist yet; the path still
+ * serialises two cards one file will hold.
+ */
+export function setFilePath(match: CardMatch): string {
+    return `convex/cards/sets/${match.set.toLowerCase()}/${match.colour}.cards.ts`;
+}
+
+/**
+ * A card's catalogue match by its lockfile name. The Full Catalogue keys a
+ * double-faced card by its FRONT face (`Ral, Monsoon Mage`) where the lockfile
+ * names both (`Ral, Monsoon Mage // Ral, Leyline Prodigy`); a split card is
+ * keyed whole, so the whole name is tried first.
+ */
+export function catalogueMatchOf(
+    matches: ReadonlyMap<string, CardMatch>,
+    name: string
+): CardMatch | undefined {
+    return matches.get(name) ?? matches.get(name.split(" // ")[0]!);
+}
+
+/**
+ * The files a Hand Tail issue declares (issue #8997): the module the card's
+ * hand-written definition already lives in, else the set file it would be
+ * written in, else `null` (unknown, scheduled solo). One file, never a glob
+ * over `convex/cards/**` — that would overlap every card issue in flight.
+ */
+export function handTailTargetFiles(
+    module: string | undefined,
+    match: CardMatch | undefined
+): readonly string[] | null {
+    if (module !== undefined && module !== MODULE_NOT_FOUND) return [module];
+    return match === undefined ? null : [setFilePath(match)];
+}
 
 /** The set modules a Migration cluster retires definitions from, sorted. */
 export function migrationTargetFiles(

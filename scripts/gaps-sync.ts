@@ -91,6 +91,7 @@ import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, type Allowlist, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { commitOnScratchIndex } from "./lib/commit-tree";
+import { catalogueMatchOf, handTailTargetFiles } from "./lib/gap-target-files";
 import {
     gh,
     issueBlockedBy,
@@ -139,6 +140,7 @@ import {
 } from "./lib/gap-issues";
 import {
     buildGraduates,
+    cardModules,
     compilerGapCards,
     handTailMarkerIssues,
     handWrittenOracleIds,
@@ -981,6 +983,8 @@ export function buildAllFilings(
     // below-floor card, so it needs a filer even with no priority.
     const ranked = rankedCardIds(registry, ctx, slices);
     const markerIssues = handTailMarkerIssues(root, ctx.byName);
+    const setFiles = readSetFileMatches(root);
+    const modules = cardModules(root);
     const inputs: KindInputs = {
         lock,
         slices,
@@ -991,6 +995,11 @@ export function buildAllFilings(
         enforced: enforcedCardIds(registry, ctx),
         floorless: floorlessCardIds(registry, ctx),
         handTail: new Set(markerIssues.keys()),
+        handTailFiles: (name) =>
+            handTailTargetFiles(
+                modules.get(name),
+                catalogueMatchOf(setFiles, name)
+            ),
         botFindings,
         mustCovered,
         rankedTargets: rankedTargetIds(registry),
@@ -1042,7 +1051,6 @@ export function buildAllFilings(
         set.add(oracleId);
         reached.set(id, set);
     }
-    const setFiles = readSetFileMatches(root);
     const filings = withPartitionBands(
         [
             ...buildGrammarGapFilings(allowlist),
