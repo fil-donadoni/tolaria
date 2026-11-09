@@ -171,6 +171,24 @@ promotion stays; § 1 makes it moot (a 1:1 bitmap has nothing to re-raster).
   the five shell viewports also walk in the full Chromium, which is a
   separate measurement (`docs/findings/`).
 
+## Amendment (2026-11-09, issue #9009) — the Alias Index is judged under DPR 1.5 only
+
+§ 3 judged the Alias Index at every viewport, but its 0.15 was calibrated at
+DPR 1 in the full Chromium, and its "+0.08 at most" for the shell viewports
+was a synthetic page's. On the real surfaces the base redded at 2x: `grid`
+faces on deck-detail, pick-selectable-card and the dialogs read +0.30 to +0.39
+over the box filter in the headless shell (`blur` 0.00, `soft` 0), so every
+owed walk went red on cells its diff never touched; the same faces at 3x read
+0.00–0.02. That contradicts § 5 (the five viewports' verdicts stay as they
+were; their mip stepping lands in device pixels the eye does not resolve).
+
+The Alias Index is therefore judged only below `CARD_ALIAS_DPR_MAX` = 1.5
+(`scripts/ui-gate/raster.ts`), the same ratio that splits the bitmap path from
+the srcset path (`FACE_BITMAP_MAX_DPR`). At 2x and 3x it is still measured and
+printed on the cell line; the Blur Index, the blank check and the resource
+half of `cardsSoft` are judged at every ratio. Calibrating an Alias threshold
+for DPR 2 and 3 stays the separate measurement the Consequences name.
+
 ## Alternatives considered
 
 - **A rendition table per slot width.** Measured: no rendition is clean at

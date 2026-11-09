@@ -100,14 +100,12 @@ export interface RasterDump {
     viewport: string;
 }
 
-/** A reading that would count against the Floor as it stands. */
-function suspect(cmp: Comparison | null): boolean {
+/** A reading that would count against the Floor as it stands, at the
+ *  ratio the face was shot at. */
+function suspect(cmp: Comparison | null, dpr: number): boolean {
     if (!cmp) return true;
     if (cmp.blank) return true;
-    return isSoft({
-        blur: cmp.blur ?? 0,
-        alias: cmp.alias ?? 0,
-    } as BlurExample);
+    return isSoft({ blur: cmp.blur ?? 0, alias: cmp.alias ?? 0, dpr });
 }
 
 /** `a` is a better (closer to the reference, more complete) reading than
@@ -215,7 +213,7 @@ export async function measureRaster(
                     break;
                 }
                 if (betterThan(r.cmp, best)) best = r.cmp;
-                if (!suspect(best)) break;
+                if (!suspect(best, c.dpr)) break;
             }
             if (skip !== null && best === null) {
                 skipped.push({ t: c.t, w: c.w, why: skip });

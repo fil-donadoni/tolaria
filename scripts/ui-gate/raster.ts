@@ -53,6 +53,34 @@ export const CARD_BLUR_MAX = 0.5;
  *  sits in the gap between +0.08 and +0.21 with a margin on both sides. */
 export const CARD_ALIAS_MAX = 0.15;
 
+/** The device pixel ratio at and above which the Alias Index is REPORTED but
+ *  never judged (issue #9009): the same 1.5 that splits the app's bitmap path
+ *  from the srcset path (`FACE_BITMAP_MAX_DPR`, `src/lib/faceBitmaps.ts`).
+ *
+ *  {@link CARD_ALIAS_MAX} was calibrated at DPR 1 in the full Chromium; it
+ *  was never calibrated at DPR 2 or 3 (`docs/findings/8321-the-five-shell-
+ *  viewports-cannot-see-the-renderers-resampling.md`), and ADR 0168 § 5
+ *  keeps those viewports' verdicts as they were — their mip stepping lands in
+ *  device pixels the eye does not resolve. Measured on the base (2026-11-09,
+ *  headless shell): `grid` faces at 2x read +0.30 to +0.39 over the box
+ *  filter on deck-detail, pick-selectable-card and the dialogs, which redded
+ *  every owed walk on cells its diff never touched; the same faces at 3x read
+ *  0.00–0.02. Over-reading the box filter at 2x is the shell's resampler, not
+ *  the 1x grain the Alias side exists to catch. The Blur side (a soft or
+ *  evicted layer) is judged at every ratio. */
+export const CARD_ALIAS_DPR_MAX = 1.5;
+
+/** Whether the Alias Index counts against the Floor at `dpr`. */
+export function aliasJudgedAt(dpr: number): boolean {
+    return dpr < CARD_ALIAS_DPR_MAX;
+}
+
+/** Whether a sample is grainier than {@link CARD_ALIAS_MAX} at a ratio where
+ *  grain is judged ({@link aliasJudgedAt}). */
+function isAliased(s: Pick<BlurExample, "alias" | "dpr">): boolean {
+    return aliasJudgedAt(s.dpr) && s.alias > CARD_ALIAS_MAX;
+}
+
 /** One measured face, named so the run says WHICH card and by how much. `w`
  *  is the slot's CSS width, `dpr` the device pixel ratio it was shot at,
  *  `blur` the Blur Index, `alias` the Alias Index, `shot`/`ref`/`half` the
@@ -115,11 +143,12 @@ export interface RasterResult {
 }
 
 /** Whether one sample counts against the Floor: blank, softer than
- *  {@link CARD_BLUR_MAX} or grainier than {@link CARD_ALIAS_MAX}. */
-export function isSoft(s: BlurExample): boolean {
-    return (
-        s.blank === true || s.blur > CARD_BLUR_MAX || s.alias > CARD_ALIAS_MAX
-    );
+ *  {@link CARD_BLUR_MAX}, or grainier than {@link CARD_ALIAS_MAX} under
+ *  {@link CARD_ALIAS_DPR_MAX}. */
+export function isSoft(
+    s: Pick<BlurExample, "blank" | "blur" | "alias" | "dpr">
+): boolean {
+    return s.blank === true || s.blur > CARD_BLUR_MAX || isAliased(s);
 }
 
 /** The faces whose indexes exceed the thresholds: the reading the `cardsSoft`
@@ -133,7 +162,7 @@ export function softWhy(s: BlurExample): string {
     if (s.blank) return "BLANK";
     const parts: string[] = [];
     if (s.blur > CARD_BLUR_MAX) parts.push(`blur${s.blur.toFixed(2)}`);
-    if (s.alias > CARD_ALIAS_MAX) parts.push(`alias${s.alias.toFixed(2)}`);
+    if (isAliased(s)) parts.push(`alias${s.alias.toFixed(2)}`);
     return parts.join("+");
 }
 

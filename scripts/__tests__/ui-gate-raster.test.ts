@@ -4,6 +4,7 @@ import { createContext, runInContext } from "node:vm";
 import path from "node:path";
 import { Window } from "happy-dom";
 import {
+    CARD_ALIAS_DPR_MAX,
     CARD_ALIAS_MAX,
     CARD_BLUR_MAX,
     blurredOf,
@@ -163,18 +164,45 @@ const sample = (over: Partial<BlurExample>): BlurExample => ({
 describe("blurredOf — the samples the cardsSoft Floor counts", () => {
     it("counts the samples over CARD_ALIAS_MAX — energy above the reference is grain, not sharpness (issue #8321)", () => {
         const samples = [
-            sample({ alias: 0 }),
-            sample({ alias: CARD_ALIAS_MAX }),
-            sample({ alias: CARD_ALIAS_MAX + 0.01, t: "Island" }),
-            sample({ alias: 0.45, t: "Lightning Bolt" }),
+            sample({ dpr: 1, alias: 0 }),
+            sample({ dpr: 1, alias: CARD_ALIAS_MAX }),
+            sample({ dpr: 1, alias: CARD_ALIAS_MAX + 0.01, t: "Island" }),
+            sample({ dpr: 1, alias: 0.45, t: "Lightning Bolt" }),
         ];
         expect(blurredOf(samples).map((s) => s.t)).toEqual([
             "Island",
             "Lightning Bolt",
         ]);
-        expect(softWhy(sample({ alias: 0.45, blur: 0 }))).toBe("alias0.45");
+        expect(softWhy(sample({ dpr: 1, alias: 0.45, blur: 0 }))).toBe(
+            "alias0.45"
+        );
         expect(softWhy(sample({ alias: 0, blur: 0.8 }))).toBe("blur0.80");
         expect(softWhy(sample({ blank: true }))).toBe("BLANK");
+    });
+
+    it("judges the Alias Index only under CARD_ALIAS_DPR_MAX — a 2x or 3x face over-reading the box filter is reported, never red (issue #9009)", () => {
+        // The readings that redded the base at 2x (deck-detail Mountain,
+        // pick-selectable-card Lightning Bolt): alias, no blur.
+        const samples = [
+            sample({ dpr: 2, alias: 0.39, blur: 0, t: "Mountain" }),
+            sample({ dpr: 3, alias: 0.3, blur: 0, t: "Lightning Bolt" }),
+            sample({ dpr: CARD_ALIAS_DPR_MAX, alias: 0.3, t: "Plains" }),
+            sample({ dpr: 1.25, alias: 0.3, t: "Island" }),
+            sample({ dpr: 1, alias: 0.3, t: "Forest" }),
+            // The Blur side stands at every ratio: a soft or evicted layer.
+            sample({ dpr: 2, alias: 0.39, blur: 0.8, t: "Swamp" }),
+            sample({ dpr: 3, blank: true, t: "Brainstorm" }),
+        ];
+        expect(blurredOf(samples).map((s) => s.t)).toEqual([
+            "Island",
+            "Forest",
+            "Swamp",
+            "Brainstorm",
+        ]);
+        expect(softWhy(samples[5])).toBe("blur0.80");
+        expect(
+            describeRaster({ samples: [samples[0]], skipped: [] })
+        ).toContain(" blur0 rasterN1{208px@2x grid:0.00/0.39(");
     });
 
     it("counts exactly the samples over CARD_BLUR_MAX", () => {
@@ -265,13 +293,13 @@ describe("describeRaster — the cell line", () => {
         const line = describeRaster({
             samples: [
                 sample({ faded: true, promoted: true, w: 112 }),
-                sample({ kind: "rotated", w: 64, alias: 0.3 }),
+                sample({ kind: "rotated", w: 64, alias: 0.3, dpr: 1 }),
             ],
             skipped: [],
         });
         expect(line).toContain("112px@2x[fp] grid:0.10/0.00(");
-        expect(line).toContain("64px@2x[r] grid:0.10/0.30(");
-        expect(line).toContain("Brainstorm 64px@2x[r] dec208px grid alias0.30");
+        expect(line).toContain("64px@1x[r] grid:0.10/0.30(");
+        expect(line).toContain("Brainstorm 64px@1x[r] dec208px grid alias0.30");
     });
 
     it("prints blur0 and the per-sample indexes when nothing is blurred, and names a skip", () => {
