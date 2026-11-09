@@ -981,9 +981,10 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
-        // Shed the worst `min` (lands first): the submission is what gets
-        // sacrificed. A permanent in play is already deployed mana/board, so
-        // raw card worth is the right axis here.
+        // Shed the worst `min`: the submission is what gets sacrificed. The
+        // values are `sacrificeRankWorths` (`bot-view.ts`), the ranking the
+        // search's answer set reads, so a mana rock goes before any creature
+        // and a basic before any nonbasic land here too (CR 701.21a).
         case "sacrifice-permanents":
             return worstFirst(candidates)
                 .slice(0, min)

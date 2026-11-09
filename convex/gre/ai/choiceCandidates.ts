@@ -81,7 +81,7 @@ import {
 } from "../moves";
 import { exileCastPermitted } from "../castCost";
 import { getLegalActions } from "../rules";
-import { isLand } from "../constants";
+import { isCreature, isLand } from "../constants";
 import { asEntersDiscardPays, isLandDropOpen } from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { isFaceDownExile } from "../faceDown";
@@ -108,6 +108,8 @@ import {
     libraryTargetWorth,
     permanentWorth,
     prospectiveCardWorth,
+    sacrificeGoesFirst,
+    sacrificeRankWorths,
     scriptOpValueOf,
 } from "./candidateValue";
 import {
@@ -2357,7 +2359,13 @@ function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
  *  expensive victims are therefore pruned out of the answer set, not merely
  *  ranked below — "a candidate that was never emitted is one no amount of
  *  reward can choose". `materialGivenUp` is carried anyway, as the hook a
- *  prior leg would read; it is not consulted today. */
+ *  prior leg would read; it is not consulted today.
+ *
+ *  The ranking is `sacrificeRankWorths` — battlefield worth, ordered so a mana
+ *  rock goes before any creature or nonbasic land and a basic before any
+ *  nonbasic land
+ *  — and every set is closed under those orders. One extra set keeps the
+ *  untapped creatures for as long as the rest can pay. */
 const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     state,
     choice
@@ -2423,11 +2431,21 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
         });
     }
 
+    const rank = sacrificeRankWorths(state, pool);
     for (const given of cheapestPrefixSets(
         state,
         pool,
         pick,
-        CHOICE_TOP_K - out.length
+        CHOICE_TOP_K - out.length,
+        {
+            worth: (card) => rank.get(card.id)!,
+            goesFirst: sacrificeGoesFirst,
+            // CR 509.1a — only an untapped creature can block, and a forced
+            // sacrifice before blocks (annihilator, CR 702.86a) decides which
+            // ones are left. Without a set that keeps them, every branch gives
+            // up the same cheapest bodies and no reward can choose to block.
+            spare: (card) => isCreature(card) && !card.isTapped,
+        }
     )) {
         out.push({
             key: `sacrifice-permanents:${given.setKey}`,
@@ -2438,9 +2456,29 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** How {@link cheapestPrefixSets} ranks a pool. Omitted, every member is
+ *  priced by the zone-blind `prospectiveCardWorth` and no order is imposed.
+ *
+ *  - `worth`: the ranking currency (a forced sacrifice passes
+ *    `sacrificeRankWorths`, already a linear extension of `goesFirst`).
+ *  - `goesFirst(a, b)`: `a` must be in any emitted set that holds `b`. A lead
+ *    brings its own predecessors along, and the fill walks the ranking in
+ *    order, so every emitted set is closed under it.
+ *  - `spare`: members one extra set keeps for as long as the rest can pay —
+ *    the cheapest set drawn with them ranked last. */
+type PrefixRanking = {
+    worth?: (card: CardInstanceState) => number;
+    goesFirst?: (a: CardInstanceState, b: CardInstanceState) => boolean;
+    spare?: (card: CardInstanceState) => boolean;
+};
+
+type PrefixSet = { cards: CardInstanceState[]; setKey: string; worth: number };
+
 /** The `pick`-member sets a chooser gives up from `pool`, at most `limit` of
  *  them: one per distinct card IDENTITY leading a cheapest-first prefix
- *  (issue #3377), never the 2^n subset lattice.
+ *  (issue #3377), never the 2^n subset lattice — plus, under
+ *  `ranking.spare`, the cheapest set that keeps the spared members, second
+ *  so the limit never cuts it.
  *
  *  Distinct SETS, not distinct orders (review finding 2). The prefix walk
  *  reaches the same set from several leads — measured, three of five branches
@@ -2452,44 +2490,83 @@ function cheapestPrefixSets(
     state: GameState,
     pool: readonly CardInstanceState[],
     pick: number,
-    limit: number
-): { cards: CardInstanceState[]; setKey: string; worth: number }[] {
-    if (pick <= 0) return [];
-    const ranked = pool
+    limit: number,
+    ranking: PrefixRanking = {}
+): PrefixSet[] {
+    if (pick <= 0 || limit <= 0) return [];
+    const worthOf =
+        ranking.worth ?? ((card) => prospectiveCardWorth(state, card));
+    const goesFirst = ranking.goesFirst ?? (() => false);
+    type Ranked = {
+        card: CardInstanceState;
+        identity: string;
+        worth: number;
+    };
+    const ranked: Ranked[] = pool
         .map((card) => ({
             card,
             identity: stableCardIdentity(card),
-            worth: prospectiveCardWorth(state, card),
+            worth: worthOf(card),
         }))
         .sort(
             (a, b) =>
                 a.worth - b.worth ||
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
-    const out: { cards: CardInstanceState[]; setKey: string; worth: number }[] =
-        [];
+    const toSet = (picked: Ranked[]): PrefixSet => {
+        const cards = picked.map((p) => p.card);
+        return {
+            cards,
+            setKey: stableSetIdentity(cards),
+            worth: picked.reduce((sum, p) => sum + p.worth, 0),
+        };
+    };
+    /** `seed` plus the cheapest of `order` until `pick`, or `undefined` when
+     *  `seed` alone overflows it. `order` is a linear extension of
+     *  `goesFirst`, so the in-order fill keeps the set closed. */
+    const fill = (seed: Ranked[], order: Ranked[]): Ranked[] | undefined => {
+        if (seed.length > pick) return undefined;
+        const picked = [...seed];
+        for (const other of order) {
+            if (picked.length >= pick) break;
+            if (!picked.includes(other)) picked.push(other);
+        }
+        return picked.length < pick ? undefined : picked;
+    };
+
+    const out: PrefixSet[] = [];
     const seen = new Set<string>();
     const seenSets = new Set<string>();
     for (const lead of ranked) {
         if (out.length >= limit) break;
         if (seen.has(lead.identity)) continue;
         seen.add(lead.identity);
-        const picked = [lead];
-        for (const other of ranked) {
-            if (picked.length >= pick) break;
-            if (other === lead) continue;
-            picked.push(other);
+        const before = ranked.filter(
+            (r) => r !== lead && goesFirst(r.card, lead.card)
+        );
+        const picked = fill([lead, ...before], ranked);
+        if (!picked) continue;
+        const set = toSet(picked);
+        if (seenSets.has(set.setKey)) continue;
+        seenSets.add(set.setKey);
+        out.push(set);
+    }
+
+    const spare = ranking.spare;
+    if (spare) {
+        // A stable partition keeps the ranking's order inside each half, and
+        // moving the spared members later never breaks `goesFirst`: no spared
+        // member is required BEFORE an unspared one by either shipped order.
+        const spareLast = [
+            ...ranked.filter((r) => !spare(r.card)),
+            ...ranked.filter((r) => spare(r.card)),
+        ];
+        const picked = fill([], spareLast);
+        const set = picked && toSet(picked);
+        if (set && !seenSets.has(set.setKey)) {
+            out.splice(Math.min(1, out.length), 0, set);
+            if (out.length > limit) out.pop();
         }
-        if (picked.length < pick) continue;
-        const cards = picked.map((p) => p.card);
-        const setKey = stableSetIdentity(cards);
-        if (seenSets.has(setKey)) continue;
-        seenSets.add(setKey);
-        out.push({
-            cards,
-            setKey,
-            worth: picked.reduce((sum, p) => sum + p.worth, 0),
-        });
     }
     return out;
 }

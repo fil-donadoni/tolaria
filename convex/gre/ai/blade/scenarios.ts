@@ -52,6 +52,8 @@ import {
     kickedCastOffered,
     altCostCastOffered,
     namesCardAbsentFromLibrary,
+    FORCED_SACRIFICE_BOARD,
+    sacrificeKeepsOrder,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -25995,5 +25997,112 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Manamorphose" }] },
         note: "Issue #8177. A Test Position, not a fix: the Bot already makes this play. Three Mountains cannot cast the Bears, and Manamorphose can make the green. Alone in hand the Bot keeps it, because the sweep's position has nothing to spend the mana on and `wasted-mana-hold` reads a ritual with no spender.",
+    },
+    {
+        // CR 702.86a / 509.1a — annihilator 6 before blocks. The bot is at 19
+        // facing 30 power (Emrakul's 15 flying, three 4/5s, a 3/3) with every
+        // mana source tapped; its only untapped creatures, the only ones that
+        // can block, are a 1/1, a 3/3 and the 3/3 flash flier. Keeping them
+        // blocks Emrakul and two Elementals and takes 7; the cheapest-body
+        // answer the generator offered before (four creatures and the dual,
+        // priced below the mana rocks) takes 30. The two rocks and the basics
+        // pay instead.
+        label: "annihilator: sacrifices the mana rocks and keeps its untapped blockers",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FORCED_SACRIFICE_BOARD,
+                ...[
+                    "Emrakul, the Aeons Torn",
+                    "Earth Elemental",
+                    "Earth Elemental",
+                    "Earth Elemental",
+                    "Hill Giant",
+                ].map((name) => ({
+                    name,
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                })),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 9,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            life: { me: 19, opp: 20 },
+        },
+        setup: [
+            { kind: "declare-attackers", haltForDefenderResponse: true },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                sacrificeKeepsOrder(move, state, {
+                    gives: ["Sol Ring", "Talisman of Curiosity"],
+                    keeps: [
+                        "Delighted Halfling",
+                        "Hullbreacher",
+                        "Subtlety",
+                        "Hedge Maze",
+                    ],
+                    dual: "Hedge Maze",
+                    basic: "Island",
+                    basicsInPool: 4,
+                }),
+            describe:
+                "gives up both mana rocks, keeps the three untapped creatures and the dual",
+        },
+        note: "Issue #8382. Before the fix every branch of the answer set gave up the same five cheapest permanents (four creatures and the surveil dual, `prospectiveCardWorth` pricing a 3/3 flash flier below a mana rock and the dual below a basic), so no reward could keep the blockers and the bot died to the swing. Guards `sacrificeRankWorths` (rocks first) and the `spare` set of `cheapestPrefixSets`.",
+    },
+    {
+        // The Minimal Pair: the same board with only Emrakul attacking and the
+        // bot at 40, so nothing is lethal and blocking decides nothing. The two
+        // orders still hold: no creature goes while a mana rock remains, and
+        // the dual stays while a basic remains.
+        label: "annihilator pair: rocks before creatures, basics before the dual, no lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FORCED_SACRIFICE_BOARD,
+                {
+                    name: "Emrakul, the Aeons Torn",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 9,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            life: { me: 40, opp: 20 },
+        },
+        setup: [
+            { kind: "declare-attackers", haltForDefenderResponse: true },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                sacrificeKeepsOrder(move, state, {
+                    gives: ["Sol Ring", "Talisman of Curiosity"],
+                    keeps: [],
+                    dual: "Hedge Maze",
+                    basic: "Island",
+                    basicsInPool: 4,
+                }),
+            describe:
+                "gives up both mana rocks before any creature, and the dual only after every basic",
+        },
+        note: 'Issue #8382, the no-lethal half of "annihilator: sacrifices the mana rocks and keeps its untapped blockers" (no `pairOf`: both halves are predicate entries, which derive no verdict). Six permanents from a board with two rocks: any answer that gives a creature (the owner\'s ruling) or the dual (its extension, `sacrificeGoesFirst`) must give both rocks first, and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.',
     },
 ];
