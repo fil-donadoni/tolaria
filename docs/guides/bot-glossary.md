@@ -88,6 +88,20 @@ hidden information (a shuffled library, a plausible opponent hand) so the
 search can reason about a fully-known position. Re-drawn every iteration.
 Code: `convex/gre/determinize.ts`.
 
+<a id="option-set-view"></a>**Option-set view** — how the search keeps the
+simulated opponent from mixing up worlds that the opponent, unlike the Bot,
+can tell apart (issue #8939). All [determinizations](#determinization) share
+ONE tree, so one opponent decision point is reached from worlds where the
+opponent holds a counterspell and from worlds where it does not. If those
+worlds pooled their results, "pass" would also count every world where
+passing was the opponent's only move, and an opponent holding the counter
+would never learn to let a spell resolve and counter the next one (the
+textbook name is _strategy fusion_). So at each opponent decision point the
+search keeps separate statistics per set of moves the opponent has in that
+world, while the positions after its move stay shared — the Bot's own later
+decisions still cannot see the opponent's hand. Code: `opponentOptionView` in
+`convex/gre/search.ts`.
+
 <a id="deck-knowledge"></a><a id="opponent-model"></a>**Deck knowledge /
 opponent model** — what the search is allowed to know about a seat's hidden
 cards, named one seat at a time (`DeckKnowledgeBySeat`, issue #2789). The
