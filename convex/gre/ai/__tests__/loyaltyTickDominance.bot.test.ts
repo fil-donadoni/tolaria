@@ -72,7 +72,7 @@ function me(state: GameState): string {
 }
 
 function elkId(state: GameState): string {
-    const [id] = instanceIdsForName(state, "Talisman of Curiosity", "opp");
+    const [id] = instanceIdsForName(state, "Talisman of Curiosity");
     return id;
 }
 
@@ -114,7 +114,7 @@ describe("tick-only loyalty activation vs a sibling (CR 606.3, 606.4)", () => {
         ]);
         const pid = me(state);
         const elk = elkId(state);
-        const [wurm] = instanceIdsForName(state, "Craw Wurm", "opp");
+        const [wurm] = instanceIdsForName(state, "Craw Wurm");
 
         const offered = enumerateMoves(state, pid);
         expect(okoMoves(offered, PLUS1, elk)).toHaveLength(1);
