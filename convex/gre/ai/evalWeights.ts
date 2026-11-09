@@ -497,7 +497,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     terminalBand: 0.25,
     materialFull: 500,
     materialLinearShare: 1,
-    rootHeuristicShare: 0,
+    rootHeuristicShare: 0.1,
     calibratedRewardK: 9.983957e-4,
     choicePriorC: 0.75,
     visitTol: 0.15,

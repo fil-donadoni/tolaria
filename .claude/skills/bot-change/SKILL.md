@@ -27,7 +27,7 @@ search (ISMCTS)             (convex/gre/search.ts)     determinize → PUCT → 
    ├─ applyMove             (convex/gre/applyMove.ts)  applies a Move via the REAL GRE (resolveTopOfStack, advancePhase)
    ├─ evaluate              (convex/gre/evaluate.ts)   leaf heuristic, banded so a win dominates material
    ├─ choiceCandidates      (convex/gre/ai/)           a live PendingChoice becomes an in-tree decision node
-   └─ selectRootMove        (convex/gre/search.ts)     most-visited, with material tie-breaks
+   └─ selectRootMove        (convex/gre/search.ts)     one blended score per candidate (rollout mean + the Root Heuristic Share of the one-ply value, `makeRootScorer`), material tie-breaks
       ↓
 executor                    (src/lib/ai/executor.ts)   Move → the SAME mutation sequence a human's clicks make
       ↓
