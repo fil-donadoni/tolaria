@@ -173,8 +173,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 210.891392,
         },
         "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
-        "meanMargin": 181.10874737096768,
-        "meanReward": 0.5905543736854842,
+        "meanMargin": 182.66966577419348,
+        "meanReward": 0.5913348328870971,
         "move": {
           "alternativeCostId": "adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d",
           "cardInstanceId": "161",
@@ -235,8 +235,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 47.683610999999985,
         },
         "label": "pass",
-        "meanMargin": 82.95330420833334,
-        "meanReward": 0.5372058187708334,
+        "meanMargin": 83.61058337499999,
+        "meanReward": 0.5374997361319446,
         "move": {
           "kind": "pass",
         },
@@ -280,8 +280,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 38.596631,
         },
         "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P2",
-        "meanMargin": -2.676050799999996,
-        "meanReward": 0.4904536412666666,
+        "meanMargin": -5.106739324999998,
+        "meanReward": 0.48915496367083316,
         "move": {
           "alternativeCostId": "adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d",
           "cardInstanceId": "161",
@@ -342,8 +342,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 4.929964333333338,
         },
         "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P1",
-        "meanMargin": -29.92483768421052,
-        "meanReward": 0.4759915285263158,
+        "meanMargin": -29.8925339736842,
+        "meanReward": 0.4759528558201755,
         "move": {
           "alternativeCostId": "adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d",
           "cardInstanceId": "161",

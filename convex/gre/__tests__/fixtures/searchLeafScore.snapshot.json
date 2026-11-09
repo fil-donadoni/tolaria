@@ -81,26 +81,26 @@
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
                     "visits": 31,
-                    "meanReward": 0.5905543736854842,
-                    "meanMargin": 181.10874737096768
+                    "meanReward": 0.5913348328870971,
+                    "meanMargin": 182.66966577419348
                 },
                 {
                     "label": "pass",
                     "visits": 24,
-                    "meanReward": 0.5372058187708334,
-                    "meanMargin": 82.95330420833334
+                    "meanReward": 0.5374997361319446,
+                    "meanMargin": 83.61058337499999
                 },
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P2",
                     "visits": 20,
-                    "meanReward": 0.4904536412666666,
-                    "meanMargin": -2.676050799999996
+                    "meanReward": 0.48915496367083316,
+                    "meanMargin": -5.106739324999998
                 },
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P1",
                     "visits": 19,
-                    "meanReward": 0.4759915285263158,
-                    "meanMargin": -29.92483768421052
+                    "meanReward": 0.4759528558201755,
+                    "meanMargin": -29.8925339736842
                 }
             ]
         }
