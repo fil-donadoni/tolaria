@@ -125,15 +125,16 @@ export function setFilePath(match: CardMatch): string {
 }
 
 /**
- * A card's catalogue match by its lockfile name. The Full Catalogue keys a
+ * A card's entry by its lockfile name — its catalogue match, or its set
+ * module (an anchor may name the front face only). The Full Catalogue keys a
  * double-faced card by its FRONT face (`Ral, Monsoon Mage`) where the lockfile
  * names both (`Ral, Monsoon Mage // Ral, Leyline Prodigy`); a split card is
  * keyed whole, so the whole name is tried first.
  */
-export function catalogueMatchOf(
-    matches: ReadonlyMap<string, CardMatch>,
+export function catalogueMatchOf<T>(
+    matches: ReadonlyMap<string, T>,
     name: string
-): CardMatch | undefined {
+): T | undefined {
     return matches.get(name) ?? matches.get(name.split(" // ")[0]!);
 }
 

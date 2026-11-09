@@ -997,7 +997,7 @@ export function buildAllFilings(
         handTail: new Set(markerIssues.keys()),
         handTailFiles: (name) =>
             handTailTargetFiles(
-                modules.get(name),
+                catalogueMatchOf(modules, name),
                 catalogueMatchOf(setFiles, name)
             ),
         botFindings,
