@@ -9040,8 +9040,6 @@
         {"key":"2b0d3aa67683","text":"Hexproof from white","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Hexproof from white"}},
         {"key":"762175dada9d","text":"Hexproof from white and from black","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Hexproof from white and from black"}},
         {"key":"7cab77a55749","text":"Hideaway 3, hideaway 3","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Hideaway 3"}},
-        {"key":"042bbd37abe8","text":"Hideaway 4","reason":"no slot consumed the line","cards":8,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Hideaway 4"}},
-        {"key":"cd62d65be613","text":"Hideaway 5","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Hideaway 5"}},
         {"key":"591f5076c100","text":"Historic creatures you control have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Historic creatures you control have flying"}},
         {"key":"b82db6b3d9f1","text":"Historic spells you cast cost {1} less to cast.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause","object descriptor"],"span":"Historic cards"}},
         {"key":"5016df367c4a","text":"History Teacher — Sagas you control have read ahead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"History Teacher — Sagas you control have read ahead"}},
@@ -16526,7 +16524,7 @@
         {"key":"4cd5846ab0d1","text":"When this creature dies, you may put a -1/-1 counter on target creature for each -1/-1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"target creature for each -1/-1 counter on this creature"}},
         {"key":"faecb11be903","text":"When this creature dies, you may put it on your choice of the top or bottom of its owner's library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"your choice of the top or bottom of its owner's library"}},
         {"key":"d1aca16eae75","text":"When this creature dies, you may put target Zombie card from your graveyard on top of your library.","reason":"\"library\" is not a zone destination in grammar v0","cards":1},
-        {"key":"78460e674586","text":"When this creature dies, you may put the exiled card into its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"the exiled card"}},
+        {"key":"d29aa564ee9b","text":"When this creature dies, you may put the exiled card into its owner's hand.","reason":"\"the exiled card\" names no exile linked to this ability (CR 607.2a)","cards":1},
         {"key":"0d513db79c4c","text":"When this creature dies, you may put three +1/+1 counters on target land you control. If you do, that land becomes a 0/0 Elemental creature with haste that's still a land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"That land becomes a 0/0 Elemental creature with haste that's still a land"}},
         {"key":"f56afc116382","text":"When this creature dies, you may search your library for a Curse card, put it onto the battlefield attached to target player, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"Search your library for a Curse card"}},
         {"key":"cb9f54cf4d51","text":"When this creature dies, you may shuffle it into its owner's library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Shuffle it into its owner's library"}},
@@ -17943,7 +17941,6 @@
         {"key":"5903c17b47e0","text":"When this creature leaves the battlefield, put each card exiled with it into its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","mass subject","object descriptor"],"span":"card exiled with it"}},
         {"key":"ba6c9ba05675","text":"When this creature leaves the battlefield, put its +1/+1 counters on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"target creature you control"}},
         {"key":"5d5cf9d2c0e3","text":"When this creature leaves the battlefield, put its counters on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"target creature you control"}},
-        {"key":"c8c165cc5a01","text":"When this creature leaves the battlefield, put the exiled card into its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"the exiled card"}},
         {"key":"66d9e02f530a","text":"When this creature leaves the battlefield, put the exiled cards onto the battlefield under their owners' control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield under their owners' control"}},
         {"key":"969236bf332a","text":"When this creature leaves the battlefield, remove all mine counters from all lands.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Remove all mine counters from all lands"}},
         {"key":"a8f6e747b712","text":"When this creature leaves the battlefield, return all artifact and enchantment cards from all graveyards to their owners' hands.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"all artifact and enchantment cards from all graveyards"}},
@@ -17962,8 +17959,6 @@
         {"key":"f5e0a99a7c3e","text":"When this creature leaves the battlefield, target opponent creates an X/X blue Orb creature token with flying, where X is the number of +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Target opponent creates an X/X blue Orb creature token with flying"}},
         {"key":"ff0c3be03f45","text":"When this creature leaves the battlefield, that player gains 3 life.","reason":"\"that player\" names no player at this site","cards":1},
         {"key":"ab4001202aa0","text":"When this creature leaves the battlefield, that player gains 6 life.","reason":"\"that player\" names no player at this site","cards":1},
-        {"key":"f806cf166940","text":"When this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"The exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card"}},
-        {"key":"b76ab2c03240","text":"When this creature leaves the battlefield, the exiled card's owner creates an X/X white Spirit creature token, where X is the mana value of the exiled card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"The exiled card's owner creates an X/X white Spirit creature token, where X is the mana value of the exiled card"}},
         {"key":"20439e1bbf05","text":"When this creature leaves the battlefield, the exiled card's owner may cast that card without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"The exiled card's owner may cast that card without paying its mana cost"}},
         {"key":"98fc8c9898e4","text":"When this creature leaves the battlefield, you draw two cards and each opponent draws a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You draw two cards and each opponent draws a card"}},
         {"key":"3d24c652d2f6","text":"When this creature leaves the battlefield, you gain life equal to the life you lost when it entered.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You gain life equal to the life you lost when it entered"}},
@@ -34493,7 +34488,7 @@
 
         {"oracleId":"117a5fae-7fc4-4e24-b646-5727ea392fa7","name":"Skyshroud Forest","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Skyshroud Forest","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.","activatedAbilities":[{"id":"skyshroud-forest-mana","oracleText":"{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"G":1},{"U":1}],"dealsDamageToControllerOnColoredTap":1}],"entersTapped":true},"botReach":"played"},
 
-        {"oracleId":"117d89b2-b4c0-4421-a631-37810c0e0969","name":"Fight Rigging","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["990d5f1f7fa1","cd62d65be613"]},
+        {"oracleId":"117d89b2-b4c0-4421-a631-37810c0e0969","name":"Fight Rigging","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["990d5f1f7fa1"]},
 
         {"oracleId":"11809d9b-30f3-49d5-9119-e45b4de044c8","name":"Knight Luminary","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["createToken"],"definition":{"name":"Knight Luminary","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":3,"W":1},"power":3,"toughness":2,"oracleText":"When this creature enters, create a 1/1 white Human Soldier creature token.\nWarp {1}{W} (You may cast this card from your hand for its warp cost. Exile this creature at the beginning of the next end step, then you may cast it from exile on a later turn.)","staticAbilities":["warp"],"compiledTriggeredAbilities":[{"id":"knight-luminary-trigger","oracleText":"When this creature enters, create a 1/1 white Human Soldier creature token.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Human Soldier","types":["Creature"],"subtypes":["Human","Soldier"],"power":1,"toughness":1,"colors":["W"]},"controller":"controller"}]}],"warp":{"id":"warp","description":"Warp {1}{W}","mana":{"X":1,"W":1}}},"botReach":"played"},
 
@@ -40459,7 +40454,7 @@
 
         {"oracleId":"277757c6-4c4c-4a4c-84f6-4a64fe3b3bfe","name":"Hypnotic Cloud","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["742985a126d5"]},
 
-        {"oracleId":"277aafa6-4270-4d24-a888-cf9e8e635d4b","name":"Watcher for Tomorrow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","c8c165cc5a01"]},
+        {"oracleId":"277aafa6-4270-4d24-a888-cf9e8e635d4b","name":"Watcher for Tomorrow","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static","triggered"],"opsUsed":["hideaway","moveZone"],"definition":{"name":"Watcher for Tomorrow","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":1,"U":1},"power":2,"toughness":1,"oracleText":"Hideaway 4 (When this creature enters, look at the top four cards of your library, exile one face down, then put the rest on the bottom in a random order.)\nThis creature enters tapped.\nWhen this creature leaves the battlefield, put the exiled card into its owner's hand.","staticAbilities":["hideaway 4"],"compiledTriggeredAbilities":[{"id":"watcher-for-tomorrow-trigger","oracleText":"When this creature leaves the battlefield, put the exiled card into its owner's hand.","head":{"kind":"left","scope":"self"},"effects":[{"op":"moveZone","target":{"exiledWithSource":true},"to":"hand"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"277bd0c7-2400-4c94-ba82-4c9472badb60","name":"Wormwood Dryad","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5fb6daacab39","b073d65f912a"]},
 
@@ -40671,7 +40666,7 @@
 
         {"oracleId":"283e7a23-ae25-48d1-abb5-cd021f66cc29","name":"Lord of Tresserhorn","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c5c18a44384a"]},
 
-        {"oracleId":"283f743f-6e79-49de-b7ed-08e6ffb64cc6","name":"Clive's Hideaway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","741a904cf51a"]},
+        {"oracleId":"283f743f-6e79-49de-b7ed-08e6ffb64cc6","name":"Clive's Hideaway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["741a904cf51a"]},
 
         {"oracleId":"2842217a-173e-4879-8b25-fefe2fc1123f","name":"Thor, God of Thunder","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["90d7e0848b74","cc28b16fb5cd"]},
 
@@ -41667,7 +41662,7 @@
 
         {"oracleId":"2c275a85-5a15-46cd-a6e7-add63f9b853d","name":"Sterling Grove","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Sterling Grove","types":["Enchantment"],"manaCost":{"W":1,"G":1},"oracleText":"Other enchantments you control have shroud. (They can't be the targets of spells or abilities.)\n{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.","activatedAbilities":[{"id":"sterling-grove-ability","oracleText":"{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.","cost":{"mana":{"X":1},"sacrifice":true},"useStack":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Enchantment"},"count":{"min":0,"max":1},"prompt":"Search your library for an enchantment card.","bind":"$found1"},{"op":"reveal","player":"controller","cards":{"ref":"$found1"}},{"op":"libraryLook","action":"shuffle","player":"controller"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"library-top"}]}],"compiledStaticEffects":[{"kind":"keyword-grant","filter":{"types":["Enchantment"],"controllerRelation":"you","excludeSource":true},"keyword":"shroud"}]},"botReach":"played"},
 
-        {"oracleId":"2c2e4b19-ac88-426a-9f1b-ac305cd512e8","name":"Widespread Thieving","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6ccbd62f86a5","cd62d65be613"]},
+        {"oracleId":"2c2e4b19-ac88-426a-9f1b-ac305cd512e8","name":"Widespread Thieving","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6ccbd62f86a5"]},
 
         {"oracleId":"2c2ef1ed-2f93-48c5-bf86-e46318599aeb","name":"Mechan Assembler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ac7d8a650457"]},
 
@@ -42185,7 +42180,7 @@
 
         {"oracleId":"2e41ae94-db31-4060-881b-a2f6d834c1ee","name":"Arachnoform","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e29e0f2f56e0"]},
 
-        {"oracleId":"2e420001-2b3d-4eb7-b01c-3a49d5e241c2","name":"Rabble Rousing","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd62d65be613","fa288b340326"]},
+        {"oracleId":"2e420001-2b3d-4eb7-b01c-3a49d5e241c2","name":"Rabble Rousing","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fa288b340326"]},
 
         {"oracleId":"2e44a02f-af94-4696-b979-cdf68285c87a","name":"Daniels, Temporal Agent","state":"unparsed","gaps":["80528173e237"]},
 
@@ -44245,7 +44240,7 @@
 
         {"oracleId":"358789f9-7d87-411d-919e-d597da665cbd","name":"Stoneforge Mystic","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bee3ff026d0a"]},
 
-        {"oracleId":"3589bcfc-42b0-414a-adce-bc690dc631c8","name":"Windbrisk Heights","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","77c1afbd4419"]},
+        {"oracleId":"3589bcfc-42b0-414a-adce-bc690dc631c8","name":"Windbrisk Heights","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["77c1afbd4419"]},
 
         {"oracleId":"358cfcf3-8ad0-4877-a59a-76ee269169fb","name":"Plea for Guidance","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Plea for Guidance","types":["Sorcery"],"manaCost":{"X":5,"W":1},"oracleText":"Search your library for up to two enchantment cards, reveal them, put them into your hand, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Enchantment"},"count":{"min":0,"max":2},"prompt":"Search your library for up to two enchantment cards.","bind":"$found1"},{"op":"reveal","player":"controller","cards":{"ref":"$found1"}},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone+reveal"},
 
@@ -45553,7 +45548,7 @@
 
         {"oracleId":"3a35e772-2547-41a3-a2a2-125b48c23aa5","name":"Temporal Eddy","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Temporal Eddy","types":["Sorcery"],"manaCost":{"X":2,"U":2},"oracleText":"Put target creature or land on top of its owner's library.","effects":[{"op":"moveZone","target":{"target":0},"to":"library","position":1}],"targetRequirement":{"type":["Creature","Land"],"count":1}},"botReach":"played"},
 
-        {"oracleId":"3a38bf69-511f-4851-870f-8a65641d832e","name":"Severance Priest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b76ab2c03240","d4d3af26f53b"]},
+        {"oracleId":"3a38bf69-511f-4851-870f-8a65641d832e","name":"Severance Priest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d4d3af26f53b"]},
 
         {"oracleId":"3a38d2d1-c4ff-4088-b1df-5feb9602ee2e","name":"Blasting Station","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["dealDamage","if","mayPay","tapUntap"],"definition":{"name":"Blasting Station","types":["Artifact"],"manaCost":{"X":3},"oracleText":"{T}, Sacrifice a creature: This artifact deals 1 damage to any target.\nWhenever a creature enters, you may untap this artifact.","activatedAbilities":[{"id":"blasting-station-ability","oracleText":"{T}, Sacrifice a creature: This artifact deals 1 damage to any target.","cost":{"tap":true,"sacrificeFilter":{"types":["Creature"]}},"useStack":true,"effects":[{"op":"dealDamage","amount":1,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1}}],"compiledTriggeredAbilities":[{"id":"blasting-station-trigger","oracleText":"Whenever a creature enters, you may untap this artifact.","head":{"kind":"entered","scope":"any","filter":{"types":["Creature"]}},"effects":[{"op":"mayPay","player":"controller","prompt":"Untap this artifact?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]}]},"botReach":"played"},
 
@@ -48883,7 +48878,7 @@
 
         {"oracleId":"46399b09-1b5c-4c28-9134-cc2ed573b6aa","name":"Falcon, Joaquin Torres","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["29fb523a6a58"]},
 
-        {"oracleId":"463fc699-f4fc-4112-a6b3-6dcb642203e6","name":"Howltooth Hollow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","9bc952a0f498"]},
+        {"oracleId":"463fc699-f4fc-4112-a6b3-6dcb642203e6","name":"Howltooth Hollow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9bc952a0f498"]},
 
         {"oracleId":"463fc961-d34e-4f40-b383-5b78a0fcb5c8","name":"Slice and Dice","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","spell","triggered"],"opsUsed":["dealDamage","draw","forEach","if","mayPay"],"definition":{"name":"Slice and Dice","types":["Sorcery"],"manaCost":{"X":4,"R":2},"oracleText":"Slice and Dice deals 4 damage to each creature.\nCycling {2}{R} ({2}{R}, Discard this card: Draw a card.)\nWhen you cycle this card, you may have it deal 1 damage to each creature.","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2}{R} ({2}{R}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2,"R":1},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledTriggeredAbilities":[{"id":"slice-and-dice-trigger","oracleText":"When you cycle this card, you may have it deal 1 damage to each creature.","head":{"kind":"cycled"},"effects":[{"op":"mayPay","player":"controller","prompt":"Have it deal 1 damage to each creature?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":1,"to":{"ref":"$each"}}]}]}]}],"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":4,"to":{"ref":"$each"}}]}]},"botReach":"played"},
 
@@ -58509,7 +58504,7 @@
 
         {"oracleId":"690bd111-5b32-4156-b650-9afad3d6ef3d","name":"Clone Legion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d715d3ede7e2"]},
 
-        {"oracleId":"690c7f8e-fea2-4920-afa7-02ff120701a1","name":"Spinerock Knoll","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","3d580158d73b"]},
+        {"oracleId":"690c7f8e-fea2-4920-afa7-02ff120701a1","name":"Spinerock Knoll","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3d580158d73b"]},
 
         {"oracleId":"690d0d8f-48b9-40a6-b881-6f17ac19bf3b","name":"Pattern Buffer Preservation","state":"unparsed","gaps":["955aa5c21668","baa7a07af1ee"]},
 
@@ -63943,7 +63938,7 @@
 
         {"oracleId":"7cb47a7e-fe60-45a2-9c07-bd5c6ddca82d","name":"Arni Slays the Troll","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c14b91da5c3e"]},
 
-        {"oracleId":"7cb9e29f-835f-4155-a2a5-4b778866c773","name":"Mosswort Bridge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","82ac35094032"]},
+        {"oracleId":"7cb9e29f-835f-4155-a2a5-4b778866c773","name":"Mosswort Bridge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["82ac35094032"]},
 
         {"oracleId":"7cbdba72-ed33-40c6-a9c0-4d65c280a4d0","name":"Lifestream's Blessing","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["192287ddbd7d"]},
 
@@ -69129,7 +69124,7 @@
 
         {"oracleId":"8f5aed57-d0f3-4fa8-826c-0d94fa143f08","name":"First Responder","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["03d1dd2d566a"]},
 
-        {"oracleId":"8f5b71fd-469f-4370-a806-9bfefbae03a2","name":"Collector's Cage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["174b13899bc1","cd62d65be613"]},
+        {"oracleId":"8f5b71fd-469f-4370-a806-9bfefbae03a2","name":"Collector's Cage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["174b13899bc1"]},
 
         {"oracleId":"8f5c52d2-0583-4c94-a043-15b2118877fa","name":"Syndic of Tithes","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Syndic of Tithes","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2,"oracleText":"Extort (Whenever you cast a spell, you may pay {W/B}. If you do, each opponent loses 1 life and you gain that much life.)","staticAbilities":["extort"]},"botReach":"played"},
 
@@ -72553,7 +72548,7 @@
 
         {"oracleId":"9ba89c25-5302-414f-a2ec-436b8981999d","name":"Overwhelming Instinct","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["acff2b630430"]},
 
-        {"oracleId":"9babcd0a-531f-417d-905e-b916a87112bb","name":"Cemetery Tampering","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a003f45d9fe2","cd62d65be613"]},
+        {"oracleId":"9babcd0a-531f-417d-905e-b916a87112bb","name":"Cemetery Tampering","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a003f45d9fe2"]},
 
         {"oracleId":"9baff93e-4ef9-404d-884b-f651a11f3742","name":"Fortune's Favor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7ddeb0b8657b"]},
 
@@ -82127,7 +82122,7 @@
 
         {"oracleId":"befb211f-37ca-4083-98d4-9ff1f28be3f2","name":"Goreclaw, Terror of Qal Sisma","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c2188704ee1","9074212fd575"]},
 
-        {"oracleId":"befc5986-f06c-40a4-98ee-ffcace4ceaa8","name":"Wiretapping","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["028e9ed19da3","cd62d65be613"]},
+        {"oracleId":"befc5986-f06c-40a4-98ee-ffcace4ceaa8","name":"Wiretapping","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["028e9ed19da3"]},
 
         {"oracleId":"beffaea5-beeb-4d4e-aca3-82c698caf6f8","name":"Test of Conviction","state":"unparsed","gaps":["f4f1b75b5021"]},
 
@@ -87853,7 +87848,7 @@
 
         {"oracleId":"d36acdfe-2b1b-4c19-8b81-0b3127e480fe","name":"Necroduality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0968a9d13a68"]},
 
-        {"oracleId":"d36d3c93-ed24-4447-9d15-3071f5c0989b","name":"Hoarding Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["78460e674586"]},
+        {"oracleId":"d36d3c93-ed24-4447-9d15-3071f5c0989b","name":"Hoarding Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d29aa564ee9b"]},
 
         {"oracleId":"d36e0c9f-c025-4dfe-9644-9cad2461ce38","name":"Gruul Signet","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Gruul Signet","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{1}, {T}: Add {R}{G}.","activatedAbilities":[{"id":"gruul-signet-mana","oracleText":"{1}, {T}: Add {R}{G}.","cost":{"mana":{"X":1},"tap":true},"useStack":false,"manaProduced":{"R":1,"G":1}}]},"botReach":"played"},
 
@@ -89471,7 +89466,7 @@
 
         {"oracleId":"d90a5213-3363-4cd1-97d6-4fc057f78b2a","name":"Thunderbolts Conspiracy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["14067271a0c3"]},
 
-        {"oracleId":"d90af00a-d322-4265-9954-7b1e80702e18","name":"Skyclave Apparition","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f806cf166940"]},
+        {"oracleId":"d90af00a-d322-4265-9954-7b1e80702e18","name":"Skyclave Apparition","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["captureBinding","createToken","exile","recallCapturedBinding"],"definition":{"name":"Skyclave Apparition","types":["Creature"],"subtypes":["Kor","Spirit"],"manaCost":{"X":1,"W":2},"power":2,"toughness":2,"oracleText":"When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.\nWhen this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.","compiledTriggeredAbilities":[{"id":"skyclave-apparition-trigger","oracleText":"When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":{"min":0,"max":1},"excludeTypes":["Land"],"mvFilter":{"max":4},"isToken":false,"controller":"opponent"},"effects":[{"op":"exile","target":{"target":0},"bind":"$exiled"},{"op":"captureBinding","ref":"$exiled"}]},{"id":"skyclave-apparition-trigger-2","oracleText":"When this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.","head":{"kind":"left","scope":"self"},"effects":[{"op":"recallCapturedBinding","bind":"$exiled"},{"op":"createToken","token":{"name":"Illusion","types":["Creature"],"subtypes":["Illusion"],"power":{"ref":"$exiled.manaValue"},"toughness":{"ref":"$exiled.manaValue"},"colors":["U"]},"controller":{"ref":"$exiled.owner"}}]}]},"botReach":"played"},
 
         {"oracleId":"d911cf65-7273-4162-a766-7d4107699dc2","name":"Avengers: Under Siege","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2dc5088bb9bf","b8ae007a2e05"]},
 
@@ -91825,7 +91820,7 @@
 
         {"oracleId":"e19d5071-4ea1-4883-b067-a21e553f96e0","name":"Hidden Courtyard","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["91f8bdd6ddbc"]},
 
-        {"oracleId":"e19e1e83-75e5-4cfa-8d50-8ed0b027a202","name":"Smuggler's Buggy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["042bbd37abe8","692b459062a5"]},
+        {"oracleId":"e19e1e83-75e5-4cfa-8d50-8ed0b027a202","name":"Smuggler's Buggy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["692b459062a5"]},
 
         {"oracleId":"e1a06ac0-cb7f-41e6-b035-361b7a7ef560","name":"Sarevok the Usurper","state":"unparsed","gaps":["3a3e95fae746","db4df58b540b"]},
 
@@ -97911,7 +97906,7 @@
 
         {"oracleId":"f74888ee-5086-49a6-ae74-fd9894f46332","name":"Bright-Palm, Soul Awakener","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a507c0109cb2","e781c6151035"]},
 
-        {"oracleId":"f748b2fb-6c2a-400a-8e96-fa4e4a1dfe80","name":"Shelldock Isle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["042bbd37abe8","d0d2626f99d2"]},
+        {"oracleId":"f748b2fb-6c2a-400a-8e96-fa4e4a1dfe80","name":"Shelldock Isle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d0d2626f99d2"]},
 
         {"oracleId":"f7493bcf-5c17-4562-a759-37082ec49ff8","name":"Bumi, King of Three Trials","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bf4e0f728515"]},
 

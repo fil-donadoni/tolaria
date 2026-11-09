@@ -28,12 +28,34 @@
  * `exile` Op — with no CR 610.3 guard, so a source that already left still
  * exiles, and nothing ever returns that card (CR 607.2a).
  *
+ * A KEYWORD can be the exile half: "Hideaway N" (CR 702.75a) is a printed
+ * triggered ability whose exile instruction the engine expands from the
+ * keyword string, and its Op stamps the link itself. The hand return beside it
+ * (Watcher for Tomorrow) then names that one exile — and only when the card
+ * prints no other exile instruction for it to name.
+ *
+ * A linked ability can also READ the exiled card instead of moving it
+ * ("the exiled card's owner creates an X/X … token, where X is the mana value
+ * of the exiled card", Skyclave Apparition): the card is a new object in
+ * exile (CR 400.7) that only the linked ability can still name (CR 607.2a), so
+ * the engine reads it through the snapshot the exile took.
+ * `captureLinkedExile` binds the ONE battlefield `exile` instruction and hands
+ * that row to the source (`captureBinding`) for the reader's
+ * `recallCapturedBinding` to restore. DEVIATION: CR 608.2h reads an object
+ * still in the public zone it was expected to be in by its CURRENT
+ * information, i.e. the card as it is in exile; the snapshot is the permanent
+ * as it left the battlefield. The two differ only when that permanent's mana
+ * value or owner came from an effect that ends on the zone change (a copy
+ * effect, a face-down permanent) — the same reading the hand-written
+ * catalogue writes for this card.
+ *
  * Fail-closed throughout: a printed return, a card mixing it with an "until"
  * exile, and either half inside a GRANTED ability (whose `$source` is the
  * grantee, not this card) all refuse the card.
  */
 
-import type { EffectOp } from "../cards/types";
+import type { EffectOp, TargetRequirement } from "../cards/types";
+import { LINKED_EXILE_BINDING } from "./lowerEffects";
 
 /** Every Op object anywhere under `value`, nested scripts included. */
 function collectOps(value: unknown, into: Record<string, unknown>[]): void {
@@ -69,6 +91,12 @@ function isExileMove(op: Record<string, unknown>): boolean {
     return op.op === "moveZone" && op.to === "exile";
 }
 
+/**
+ * CR 702.75a — the keyword strings whose expanded trigger is an exile
+ * instruction linked to this object (the `hideaway` Op stamps the link).
+ */
+const LINKED_EXILE_KEYWORD = /^hideaway \d+$/;
+
 export type ExileLink =
     | { readonly ok: false; readonly reason: string }
     /** `untilLeaves` — the card owes the CR 610.3 return trigger. */
@@ -81,8 +109,12 @@ export type ExileLink =
  */
 export function linkExileAndReturn(
     printed: readonly (readonly EffectOp[])[],
-    granted: readonly (readonly EffectOp[])[]
+    granted: readonly (readonly EffectOp[])[],
+    keywords: readonly string[]
 ): ExileLink {
+    const keywordExiles = keywords.filter((k) =>
+        LINKED_EXILE_KEYWORD.test(k)
+    ).length;
     const grantedOps: Record<string, unknown>[] = [];
     for (const script of granted) collectOps(script, grantedOps);
     if (
@@ -110,7 +142,21 @@ export function linkExileAndReturn(
     // written here because no line can see the other. Exactly ONE exile
     // instruction, a plain `moveZone`, is linkable: with two, or an `exile`
     // Op beside it, which one the return names is unread — refused.
-    if (ops.some(isLinkedReturn)) {
+    //
+    // CR 607.2a + CR 702.75a — a hideaway keyword IS that one exile
+    // instruction, already linked by its own Op: nothing to stamp, and any
+    // printed exile beside it leaves which card the return names unread.
+    if (ops.some(isLinkedReturn) && keywordExiles > 0) {
+        if (
+            keywordExiles !== 1 ||
+            ops.some(isExileMove) ||
+            ops.some((op) => /exile/i.test(op.op as string))
+        )
+            return {
+                ok: false,
+                reason: '"the exiled card" names no single exile instruction this card prints (CR 607.2a)',
+            };
+    } else if (ops.some(isLinkedReturn)) {
         const exiles = ops.filter(isExileMove);
         if (exiles.length !== 1 || ops.some((op) => op.op === "exile"))
             return {
@@ -127,6 +173,7 @@ export function linkExileAndReturn(
     if (ops.some(isLinkedPileReturn)) {
         const exiles = ops.filter((op) => op.op === "exile");
         if (
+            keywordExiles > 0 ||
             exiles.length !== 1 ||
             ops.some(isExileMove) ||
             ops.some(isLinkedReturn) ||
@@ -144,4 +191,81 @@ export function linkExileAndReturn(
         ok: true,
         untilLeaves: ops.some((op) => op.op === "exileWithAttachments"),
     };
+}
+
+/** A printed ability's script with the target slots its Ops point at. */
+export interface LinkableAbility {
+    readonly effects: readonly EffectOp[];
+    readonly targetRequirement?: TargetRequirement;
+}
+
+/** CR 601.2c — the requirement announces at most one object for its target. */
+function singleTarget(requirement: TargetRequirement | undefined): boolean {
+    if (requirement === undefined) return false;
+    const { count } = requirement;
+    if (count === 1) return true;
+    return typeof count === "object" && count.max === 1;
+}
+
+/**
+ * CR 607.2a + CR 608.2h — the snapshot channel between the card's exile
+ * instruction and the ability reading "the exiled card" back. A no-op on a
+ * card no ability of which recalls the linked exile. Otherwise the card must
+ * print exactly ONE exile instruction — a top-level battlefield `exile` of one
+ * announced target, unbound — and nothing else that exiles, links or recalls:
+ * which card a second one names is unread, and a granted ability's source is
+ * the grantee. That `exile` is bound and followed by `captureBinding` IN
+ * PLACE (the scripts are the definition's own).
+ */
+export function captureLinkedExile(
+    printed: readonly LinkableAbility[],
+    granted: readonly (readonly EffectOp[])[],
+    keywords: readonly string[]
+): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
+    const isChannel = (op: Record<string, unknown>) =>
+        op.op === "recallCapturedBinding" || op.op === "captureBinding";
+    const grantedOps: Record<string, unknown>[] = [];
+    for (const script of granted) collectOps(script, grantedOps);
+    const ops: Record<string, unknown>[] = [];
+    for (const ability of printed) collectOps(ability.effects, ops);
+    const recalls = ops.filter((op) => op.op === "recallCapturedBinding");
+    if (recalls.length === 0 && !grantedOps.some(isChannel))
+        return { ok: true };
+    const refused = {
+        ok: false as const,
+        reason: '"the exiled card" names no single exile instruction this card prints (CR 607.2a)',
+    };
+    if (grantedOps.some(isChannel) || recalls.length !== 1) return refused;
+    if (keywords.some((k) => LINKED_EXILE_KEYWORD.test(k))) return refused;
+    if (ops.some((op) => op.op === "captureBinding")) return refused;
+    const exiles = ops.filter((op) => /exile/i.test(op.op as string));
+    if (
+        exiles.length !== 1 ||
+        exiles[0]!.op !== "exile" ||
+        ops.some(isExileMove) ||
+        ops.some(isLinkedReturn) ||
+        ops.some(isLinkedPileReturn)
+    )
+        return refused;
+    const exile = exiles[0]!;
+    const owner = printed.find((ability) =>
+        ability.effects.includes(exile as EffectOp)
+    );
+    const target = exile.target as Record<string, unknown> | undefined;
+    if (
+        owner === undefined ||
+        owner.effects.some((op) => op.op === "recallCapturedBinding") ||
+        exile.bind !== undefined ||
+        target?.target !== 0 ||
+        Object.keys(target).length !== 1 ||
+        !singleTarget(owner.targetRequirement)
+    )
+        return refused;
+    exile.bind = LINKED_EXILE_BINDING;
+    const script = owner.effects as EffectOp[];
+    script.splice(script.indexOf(exile as EffectOp) + 1, 0, {
+        op: "captureBinding",
+        ref: LINKED_EXILE_BINDING,
+    });
+    return { ok: true };
 }

@@ -91596,6 +91596,16 @@
         "firstPrintSet": "dft"
     },
     {
+        "name": "Watcher for Tomorrow",
+        "scryfallId": "15f01a3c-0a66-48da-a7d2-46260e3b721f",
+        "oracleId": "277aafa6-4270-4d24-a888-cf9e8e635d4b",
+        "firstSet": "mh1",
+        "firstPrintId": "15f01a3c-0a66-48da-a7d2-46260e3b721f",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Watcher of the Wayside",
         "scryfallId": "2dcafdac-a293-4adc-a540-3b3f469cf6f3",
         "oracleId": "b30eafed-2755-4423-9592-c8b83c68804b",

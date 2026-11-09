@@ -7386,6 +7386,91 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 607.2a + CR 608.2h — the PRINTED linked pair, read instead of moved:
+    // the card pass (`linkExile.ts`, `captureLinkedExile`) binds the enters
+    // trigger's one `exile` and hands that snapshot to the source
+    // (`captureBinding`); the leaves trigger restores it
+    // (`recallCapturedBinding`) and the exiled card's OWNER creates an X/X
+    // token sized by its mana value. The canned smoke scenario cannot stage two
+    // resolutions of one source nor a ref-player creator, so this fixture is
+    // the evidence that the pair the grammar emits is the one the hand-written
+    // catalogue writes.
+    {
+        rule: "linked exile token",
+        card: {
+            oracleId: "d90af00a-d322-4265-9954-7b1e80702e18",
+            name: "Skyclave Apparition",
+            manaCost: "{1}{W}{W}",
+            typeLine: "Creature — Kor Spirit",
+            oracleText:
+                "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.\nWhen this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Skyclave Apparition",
+            types: ["Creature"],
+            subtypes: ["Kor", "Spirit"],
+            manaCost: { X: 1, W: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.\nWhen this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "skyclave-apparition-trigger",
+                    oracleText:
+                        "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        count: { min: 0, max: 1 },
+                        excludeTypes: ["Land"],
+                        mvFilter: { max: 4 },
+                        isToken: false,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "exile",
+                            target: { target: 0 },
+                            bind: "$exiled",
+                        },
+                        { op: "captureBinding", ref: "$exiled" },
+                    ],
+                },
+                {
+                    id: "skyclave-apparition-trigger-2",
+                    oracleText:
+                        "When this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+                    head: { kind: "left", scope: "self" },
+                    effects: [
+                        { op: "recallCapturedBinding", bind: "$exiled" },
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Illusion",
+                                types: ["Creature"],
+                                subtypes: ["Illusion"],
+                                power: { ref: "$exiled.manaValue" },
+                                toughness: { ref: "$exiled.manaValue" },
+                                colors: ["U"],
+                            },
+                            controller: { ref: "$exiled.owner" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 607.2a + CR 110.2a — the PRINTED linked pair, the whole pile back to
     // the battlefield: the activated `exile` is stamped `linkToSource` by the
     // card pass (`linkExile.ts`) and the leaves trigger returns every card
