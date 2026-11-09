@@ -111,7 +111,7 @@ describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
  *  fire after the loaded position's turn; `resetPerTurnFields` never
  *  touches it), `queuedEndTurn` (a standing pass-turn intent that is
  *  deliberately turn-boundary-crossing, so `resetPerTurnFields` never
- *  clears it either), and `islandSanctuaryProtection` set on the
+ *  clears it either), and `playerAttackRequirements` set on the
  *  NON-active player (`resetPerTurnFields` only clears it when it equals
  *  `activePlayerId`, which here is p2 — so a protection flag left on p1
  *  survives). `resolveBladeLoadState` must normalize every one of them
@@ -154,7 +154,7 @@ function arbitraryCurrentGameBaseState(): GameState {
         queuedEndTurn: ["user_abc123-p2"],
         // Review round 3, finding 3 — protection on the NON-active player
         // (activePlayerId above is p2, so this is deliberately p1).
-        islandSanctuaryProtection: "user_abc123-p1",
+        playerAttackRequirements: "user_abc123-p1",
     });
 }
 
@@ -175,7 +175,7 @@ function arbitraryCurrentGameBaseState(): GameState {
  * present or added later — not just a hand-picked subset. This is the
  * class of gap round 2's per-field DENYLIST (`resetPerTurnFields` +
  * `emptyManaPool`) left open: `extraTurns`, `queuedEndTurn` and
- * `islandSanctuaryProtection` on the non-active player all leaked through
+ * `playerAttackRequirements` on the non-active player all leaked through
  * that list silently, and the round-2 `positionSnapshot` this replaces
  * didn't even check them, so the leak passed CI.
  *
@@ -318,11 +318,11 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
         // issue #1432 review round 3 — these leaked through round 2's
         // per-field-authority DENYLIST (`resetPerTurnFields` never touches
         // `extraTurns`/`queuedEndTurn`, and only clears
-        // `islandSanctuaryProtection` when it equals `activePlayerId`, which
+        // `playerAttackRequirements` when it equals `activePlayerId`, which
         // `arbitraryCurrentGameBaseState` deliberately sets it to NOT).
         expect(loaderState.extraTurns).toBeUndefined();
         expect(loaderState.queuedEndTurn).toBeUndefined();
-        expect(loaderState.islandSanctuaryProtection).toBeUndefined();
+        expect(loaderState.playerAttackRequirements).toBeUndefined();
     });
 });
 

@@ -279,7 +279,7 @@ export function unblockedAttackerIds(
  *  paths in `advancePhase` (camouflage + the no-legal-block fall-through,
  *  `phases.ts`), the ISMCTS search sim (`search.ts`), the 1-ply greedy sim
  *  (`applyMove.ts`), and the two `SpellContext` block writers (`swapBlockers`,
- *  `applyCamouflagePileBlocks`, `state.ts`). Before it existed, all seven
+ *  `predetermineBlocks`, `state.ts`). Before it existed, all seven
  *  hand-wrote the flags: three forgot `hasBlockedThisTurn` and SIX had no
  *  refresh at all. Like {@link markAttacking}, the routing is CONVENTIONAL —
  *  nothing enforces it mechanically, so a new site can still hand-write
@@ -571,11 +571,11 @@ export function validateAttackerEligibility(
         }
     }
     // Island Sanctuary: defender can only be attacked by flying/islandwalk
-    if (state?.islandSanctuaryProtection) {
+    if (state?.playerAttackRequirements) {
         const defenderId = state.players.find(
             (p) => p.id !== card.controllerId
         )?.id;
-        if (defenderId === state.islandSanctuaryProtection) {
+        if (defenderId === state.playerAttackRequirements) {
             const hasFlying = card.staticAbilities.includes("flying");
             const hasIslandwalk = card.staticAbilities.includes("islandwalk");
             if (!hasFlying && !hasIslandwalk) {

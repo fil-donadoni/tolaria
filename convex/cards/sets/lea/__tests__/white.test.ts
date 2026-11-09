@@ -3055,15 +3055,15 @@ describe("Serialization: keyword removals + damageCapShields", () => {
         ]);
     });
 
-    it("islandSanctuaryProtection survives compact/expand round-trip", () => {
+    it("playerAttackRequirements survives compact/expand round-trip", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        state.islandSanctuaryProtection = "p1";
+        state.playerAttackRequirements = "p1";
 
         const compacted = compactState(state);
         const restored = expandState(compacted);
-        expect(restored.islandSanctuaryProtection).toBe("p1");
+        expect(restored.playerAttackRequirements).toBe("p1");
     });
 
     it("allCreaturesMustAttack survives compact/expand round-trip", () => {
@@ -3125,7 +3125,7 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
         expect(p1.hand.length).toBe(handBefore);
     });
 
-    it("on skip, sets islandSanctuaryProtection", () => {
+    it("on skip, sets playerAttackRequirements", () => {
         const sanctuary = makeInstance(islandSanctuary.id, {
             id: "sanc",
             controllerId: "p1",
@@ -3159,7 +3159,7 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
         commitHead(state, ["yes"]);
         resolveTopOfStack(state);
 
-        expect(state.islandSanctuaryProtection).toBe("p1");
+        expect(state.playerAttackRequirements).toBe("p1");
         // Card NOT drawn
         expect(p1.hand).toHaveLength(0);
     });
@@ -3195,7 +3195,7 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
         resolveTopOfStack(state);
 
         expect(p1.hand).toHaveLength(1);
-        expect(state.islandSanctuaryProtection).toBeUndefined();
+        expect(state.playerAttackRequirements).toBeUndefined();
     });
 
     it("protection restricts non-flying non-islandwalk attackers", () => {
@@ -3215,7 +3215,7 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
             players: [p1, p2],
             activePlayerId: "p2",
         });
-        state.islandSanctuaryProtection = "p1";
+        state.playerAttackRequirements = "p1";
 
         // Non-flying: can't attack
         const lionResult = validateAttackerEligibility(

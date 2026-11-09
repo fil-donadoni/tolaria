@@ -3909,7 +3909,7 @@ describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", (
         submitHead(state, ["b1"]); // put b1 in the only pile
 
         expect(state.pendingChoices).toBeUndefined();
-        expect(state.camouflageCombat).toBe(true);
+        expect(state.blocksPredeterminedThisCombat).toBe(true);
         // b1 is forced to block its assigned attacker atkA.
         expect(state.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
         expect(
@@ -3945,7 +3945,7 @@ describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", (
         resolveTopOfStack(state);
         submitHead(state, ["b1"]); // assigned to the flyer, can't block it
 
-        expect(state.camouflageCombat).toBe(true);
+        expect(state.blocksPredeterminedThisCombat).toBe(true);
         expect(state.combat!.blockerAssignments).toEqual({});
         expect(
             state.players[1].battlefield.find((c) => c.id === "b1")!.isBlocking
@@ -4055,20 +4055,20 @@ describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", (
         expect(slimBlocker.isBlocking).toBe(true);
     });
 
-    it("clears the camouflageCombat flag at end of combat (CR 511)", () => {
+    it("clears the blocksPredeterminedThisCombat flag at end of combat (CR 511)", () => {
         const blocker = ground("b1");
         const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
         pushSpell(state, camouflage.id, "p1");
         resolveTopOfStack(state);
         submitHead(state, ["b1"]);
-        expect(state.camouflageCombat).toBe(true);
+        expect(state.blocksPredeterminedThisCombat).toBe(true);
 
         state.phase = "COMBAT_DAMAGE";
         state.combat!.blockersConfirmed = true;
         advancePhase(state); // → END_OF_COMBAT
         expect(state.phase).toBe("END_OF_COMBAT");
         advancePhase(state); // leaving END_OF_COMBAT tears down combat
-        expect(state.camouflageCombat).toBeUndefined();
+        expect(state.blocksPredeterminedThisCombat).toBeUndefined();
     });
 
     it("survives a serialize round-trip mid-combat", () => {
@@ -4079,7 +4079,7 @@ describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", (
         submitHead(state, ["b1"]);
 
         const restored = expandState(compactState(state));
-        expect(restored.camouflageCombat).toBe(true);
+        expect(restored.blocksPredeterminedThisCombat).toBe(true);
         expect(restored.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
     });
 });

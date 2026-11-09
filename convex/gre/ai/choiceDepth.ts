@@ -217,7 +217,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     setBasePT: false,
     setCardTypes: false,
     setColor: false,
-    setIslandSanctuaryProtection: false,
+    restrictAttackers: false,
     setProtectionFromEverything: false,
     setSubtype: false,
     shuffleSelfIntoLibrary: false,

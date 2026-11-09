@@ -1266,7 +1266,7 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
         // validators, so the cap has to hold at this writer or not at all.
         const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
-        ctx.applyCamouflagePileBlocks("p2", [["b0"], ["b1"], ["b2"]]);
+        ctx.predetermineBlocks("p2", [["b0"], ["b1"], ["b2"]]);
         return state;
     }
 

@@ -3028,7 +3028,7 @@ export const getPublicState = query({
                           state.priorityPlayerId ?? state.activePlayerId,
                       phase: state.phase,
                       combat: state.combat,
-                      meleeCombat: state.meleeCombat,
+                      blocksDeclaredByAttacker: state.blocksDeclaredByAttacker,
                       pendingCast: state.pendingCast,
                       pendingActivation: state.pendingActivation,
                       pendingTarget: state.pendingTarget,
@@ -12874,11 +12874,11 @@ export const cancelAttackTax = mutation({
 });
 
 /** Who declares this combat's blocks (CR 509.1). Normally the defending
- *  player; under Melee (`meleeCombat`, #669) the ATTACKING (active) player
+ *  player; under Melee (`blocksDeclaredByAttacker`, #669) the ATTACKING (active) player
  *  drives the block declaration instead. The blocking creatures are always the
  *  defender's — only the chooser changes. */
 function getBlockDeclarerId(state: GameState): string {
-    return state.meleeCombat
+    return state.blocksDeclaredByAttacker
         ? state.activePlayerId
         : getOpponentId(state, state.activePlayerId);
 }
@@ -12957,7 +12957,7 @@ function assertBlockerDeclarationOpen(
     if (!state.combat || state.combat.blockersConfirmed) {
         throw new Error("Blocker selection is not open");
     }
-    // Melee (CR 509.1 variant, #669) — under `meleeCombat` the ATTACKING
+    // Melee (CR 509.1 variant, #669) — under `blocksDeclaredByAttacker` the ATTACKING
     // (active) player declares blocks; otherwise the defending player does.
     if (playerId !== getBlockDeclarerId(state)) {
         throw new Error(
@@ -13178,7 +13178,7 @@ export const confirmBlockers = mutation({
         if (!state.combat || state.combat.blockersConfirmed) {
             throw new Error("Blocker selection is not open");
         }
-        // Melee (#669) — the attacker confirms blocks under `meleeCombat`.
+        // Melee (#669) — the attacker confirms blocks under `blocksDeclaredByAttacker`.
         if (args.playerId !== getBlockDeclarerId(state)) {
             throw new Error("You can't confirm blockers right now");
         }
@@ -13236,7 +13236,7 @@ export const confirmBlockers = mutation({
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
         // Melee (#669) — untap and remove from combat every attacker that ended
-        // up unblocked this combat. No-op unless `meleeCombat` is set.
+        // up unblocked this combat. No-op unless `blocksDeclaredByAttacker` is set.
         applyMeleeUnblockedRider(state);
         emitBlockersConfirmedEvents(state);
 

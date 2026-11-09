@@ -3657,49 +3657,49 @@ describe("Effect Script Op: skipDrawStepThisTurn (CR 504.1, issue #1097)", () =>
 // New Op (issue #1283) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (controller / announced player
 // slot), plus a wire-format assertion through projectPublicState.
-describe("Effect Script Op: setIslandSanctuaryProtection (CR 508.1c, issue #1283)", () => {
-    it("sets state.islandSanctuaryProtection to the resolving controller", () => {
+describe("Effect Script Op: restrictAttackers (CR 508.1c, issue #1283)", () => {
+    it("sets state.playerAttackRequirements to the resolving controller", () => {
         const id = registerScript("test-op-island-sanctuary-controller", [
-            { op: "setIslandSanctuaryProtection", player: "controller" },
+            { op: "restrictAttackers", player: "controller" },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(state.islandSanctuaryProtection).toBe("p1");
+        expect(state.playerAttackRequirements).toBe("p1");
     });
 
     it("sets it on the announced player target", () => {
         const id = registerScript(
             "test-op-island-sanctuary-target",
-            [{ op: "setIslandSanctuaryProtection", player: { target: 0 } }],
+            [{ op: "restrictAttackers", player: { target: 0 } }],
             { targetRequirement: { type: "player", count: 1 } }
         );
         const state = makeState();
         pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
-        expect(state.islandSanctuaryProtection).toBe("p2");
+        expect(state.playerAttackRequirements).toBe("p2");
     });
 
     it("a later resolution overwrites the earlier protected player", () => {
         const id = registerScript("test-op-island-sanctuary-overwrite", [
-            { op: "setIslandSanctuaryProtection", player: "opponent" },
+            { op: "restrictAttackers", player: "opponent" },
         ]);
         const state = makeState();
-        state.islandSanctuaryProtection = "p1";
+        state.playerAttackRequirements = "p1";
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(state.islandSanctuaryProtection).toBe("p2");
+        expect(state.playerAttackRequirements).toBe("p2");
     });
 
     it("the protection survives projection (wire format) and gates combat.ts attack legality", () => {
         const id = registerScript("test-op-island-sanctuary-wire", [
-            { op: "setIslandSanctuaryProtection", player: "controller" },
+            { op: "restrictAttackers", player: "controller" },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
-        expect(projected.islandSanctuaryProtection).toBe("p1");
+        expect(projected.playerAttackRequirements).toBe("p1");
     });
 });
 

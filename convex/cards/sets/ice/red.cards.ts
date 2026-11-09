@@ -1580,7 +1580,7 @@ export const mRtonStromgald = defineCard(() => ({
 // The cast window is the controller's BEGINNING_OF_COMBAT or DECLARE_ATTACKERS
 // step (CR 601.3 — "your turn, before blockers are declared"; Panic's
 // window). On resolution `ctx.enableAttackerChoosesBlocks()` sets the
-// combat-scoped `meleeCombat` flag: the DECLARE_BLOCKERS step routes the block
+// combat-scoped `blocksDeclaredByAttacker` flag: the DECLARE_BLOCKERS step routes the block
 // declaration to the ATTACKING player, with every assignment still gated by
 // `validateBlockerEligibility` (only LEGAL blocks can be forced). The
 // untap-unblocked rider is applied by `applyMeleeUnblockedRider` at blocker

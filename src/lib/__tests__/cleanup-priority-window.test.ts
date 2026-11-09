@@ -76,7 +76,7 @@ function ctxFromWire(
         pendingActivation: projected.pendingActivation,
         pendingTarget: projected.pendingTarget,
         combat: projected.combat,
-        meleeCombat: projected.meleeCombat,
+        blocksDeclaredByAttacker: projected.blocksDeclaredByAttacker,
         pendingExtraCleanupStep: projected.pendingExtraCleanupStep,
     };
 }
