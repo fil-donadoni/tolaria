@@ -488,10 +488,17 @@ export type Node = {
      *  reached it (`opponentOptionView`). Each view keeps its OWN edge
      *  statistics, so the opponent picks among its options from the worlds
      *  where it held exactly those options; every view's edges point at the
-     *  child nodes registered in THIS node's `children`, so the tree below —
-     *  the bot's later decisions included — stays one tree, shared across
-     *  worlds the bot cannot tell apart. `undefined` at the bot's own nodes. */
+     *  child nodes THIS node shares (`childNodes`, `sharedChild`), so the
+     *  tree below — the bot's later decisions included — stays one tree,
+     *  shared across worlds the bot cannot tell apart. `undefined` at the
+     *  bot's own nodes. */
     optionViews?: Map<string, Node>;
+    /** The child nodes an opponent's option-set views opened, by tree key
+     *  (issue #8939, `sharedChild`). Kept OUT of `children`, which holds only
+     *  edges with statistics: a zero-visit registry edge there would read as
+     *  tried at a node another world hands to the other seat, and `ucb1`
+     *  would score it `0/0`. `undefined` until a view opens a child. */
+    childNodes?: Map<string, Node>;
 };
 
 function newNode(): Node {
@@ -3439,7 +3446,7 @@ function puctDescend(
         path.push(bestEdge);
         return false;
     }
-    const { child, existed } = sharedChild(shared, node, bestKeyed!, pid);
+    const { child, existed } = sharedChild(shared, node, bestKeyed!);
     const opened: Edge = {
         move: bestKeyed!.move,
         key: bestKeyed!.key,
@@ -3459,34 +3466,25 @@ function puctDescend(
 
 /** The child node a newly opened edge of `view` points at (issue #8939).
  *
- *  At the bot's own node the view IS the node and every opened edge gets a
- *  fresh child, as before. At an opponent's option-set view the child is the
- *  one `shared` already registers under that key, when another view opened
- *  it first — so a move the opponent makes in two option sets leads to ONE
- *  subtree — and is registered there otherwise. `existed` tells the caller
- *  to descend into that subtree rather than roll out from a node that is
- *  already expanded. The registry edge carries no statistics: only views'
- *  edges are ever on a backpropagated path. */
+ *  The node already reached under that key, when there is one — an edge of
+ *  `shared` itself, or a child another option-set view opened
+ *  (`shared.childNodes`) — so a move made in two option sets leads to ONE
+ *  subtree; a fresh node otherwise, registered in `childNodes` when `view`
+ *  is an opponent's view. `existed` tells the caller to descend into that
+ *  subtree rather than roll out from a node that is already expanded. A node
+ *  only ever decided by one seat has no `childNodes`, so the bot's own nodes
+ *  open fresh children exactly as before. */
 function sharedChild(
     shared: Node,
     view: Node,
-    k: KeyedMove,
-    pid: string
+    k: KeyedMove
 ): { child: Node; existed: boolean } {
-    if (shared === view) return { child: newNode(), existed: false };
-    const reg = shared.children.get(k.key);
-    if (reg) return { child: reg.node, existed: true };
+    const existing =
+        (view === shared ? undefined : shared.children.get(k.key)?.node) ??
+        shared.childNodes?.get(k.key);
+    if (existing) return { child: existing, existed: true };
     const child = newNode();
-    shared.children.set(k.key, {
-        move: k.move,
-        key: k.key,
-        mover: pid,
-        node: child,
-        visits: 0,
-        totalReward: 0,
-        totalMargin: 0,
-        avail: 0,
-    });
+    if (view !== shared) (shared.childNodes ??= new Map()).set(k.key, child);
     return { child, existed: false };
 }
 
@@ -3714,7 +3712,7 @@ function iterate(
                 rng
             )!;
             applyMoveInSearch(world, pid, pick.move);
-            const { child, existed } = sharedChild(shared, view, pick, pid);
+            const { child, existed } = sharedChild(shared, view, pick);
             const edge: Edge = {
                 move: pick.move,
                 key: pick.key,
