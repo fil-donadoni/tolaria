@@ -614,25 +614,62 @@ export function misdirectedPlayerGiftCount(
 ): number {
     const scriptOf = slotScriptsFor(state, move);
     if (!scriptOf) return 0;
-    const targets = signedTargetsOf(move);
-    const chosenX =
-        move.kind === "cast-spell" || move.kind === "activate-ability"
-            ? move.chosenX
-            : undefined;
-
+    const chosenX = announcedX(move);
     let count = 0;
-    for (const [slot, target] of targets.entries()) {
+    for (const [slot, target] of signedTargetsOf(move).entries()) {
         if (target.type !== "player" || target.id === botId) continue;
         const s = scriptOf(slot);
         if (!s || slotScriptSign(s) !== "beneficial") continue;
-        const draws = slotDrawCount(s.effects, s.slot, chosenX);
-        if (draws === undefined) continue;
-        const library = state.players.find((p) => p.id === target.id)?.library;
-        if (!library) continue;
-        if (draws > 0 && library.length <= draws) continue;
+        if (mayDeckRecipient(state, s, target.id, chosenX)) continue;
         count++;
     }
     return count;
+}
+
+/** Whether `move` may deck `playerId` — one of its player slots aimed at
+ *  that player draws them out of their library, or draws a count the
+ *  derivation cannot read (`mayDeckRecipient`). The beneficial-slot guard
+ *  never redirects a gift ONTO a sibling that may deck the Bot itself
+ *  (issue #9044 review): the rollouts that ranked the self-aimed variant
+ *  below its twin may be reading exactly that loss (CR 704.5b). */
+export function mayDeckPlayer(
+    state: GameState,
+    move: Move,
+    playerId: string
+): boolean {
+    const scriptOf = slotScriptsFor(state, move);
+    if (!scriptOf) return false;
+    const chosenX = announcedX(move);
+    for (const [slot, target] of signedTargetsOf(move).entries()) {
+        if (target.type !== "player" || target.id !== playerId) continue;
+        const s = scriptOf(slot);
+        if (s && mayDeckRecipient(state, s, playerId, chosenX)) return true;
+    }
+    return false;
+}
+
+/** The X a cast or an activation announces, if any (CR 107.3). */
+function announcedX(move: Move): number | undefined {
+    return move.kind === "cast-spell" || move.kind === "activate-ability"
+        ? move.chosenX
+        : undefined;
+}
+
+/** Whether resolved slot `s` may deck `playerId`, the player filling it: it
+ *  draws at least one card and no fewer than their library holds, or it
+ *  draws a count `slotDrawCount` cannot read — or their library cannot be
+ *  found. Each unknown answers "may", so a guard reading it steps aside. */
+function mayDeckRecipient(
+    state: GameState,
+    s: SlotScript,
+    playerId: string,
+    chosenX: number | undefined
+): boolean {
+    const draws = slotDrawCount(s.effects, s.slot, chosenX);
+    if (draws === undefined) return true;
+    if (draws === 0) return false;
+    const library = state.players.find((p) => p.id === playerId)?.library;
+    return !library || library.length <= draws;
 }
 
 /** Is EVERY target `move` announces a slot its script signs `beneficial` — a

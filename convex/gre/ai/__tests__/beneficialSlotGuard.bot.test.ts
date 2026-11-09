@@ -146,6 +146,13 @@ describe("beneficial-slot guard — selectRootMove (issue #9044)", () => {
         expect(mechanism).not.toBe("announcement-variant");
     });
 
+    it("never redirects the draw onto the Bot when it would deck the Bot itself", () => {
+        const state = giftBoard("Ancestral Recall", 1);
+        state.players[0].library = state.players[0].library.slice(0, 2);
+        const { move, opp } = pickWithOppLeading(state);
+        expect(move).toEqual(opp);
+    });
+
     it("a punisher slot (draw + lose life at the same player) is untouched", () => {
         const base = getDefinition(ANCESTRAL_RECALL_ID);
         const punisher: CardDefinition = {

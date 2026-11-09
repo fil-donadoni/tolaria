@@ -200,6 +200,7 @@ import {
 } from "./ai/choiceDepth";
 import {
     boonsEveryTarget,
+    mayDeckPlayer,
     misdirectedPlayerGiftCount,
     misdirectedTargetCount,
 } from "./ai/beneficence";
@@ -5504,7 +5505,8 @@ function castVariantScore(
  *  gift's subtree reads safer. What the gift is worth is not in doubt, so no
  *  rollout gap is evidence against it. The exceptions are read off the state
  *  by `misdirectedPlayerGiftCount` (a punisher slot, a draw that decks its
- *  recipient), never off a card list. Among the cleaner siblings the fewest
+ *  recipient) and `mayDeckPlayer` (a sibling whose draw decks the Bot),
+ *  never off a card list. Among the cleaner siblings the fewest
  *  gifts win, then `castVariantScore`, then mean reward. */
 function beneficialSlotGuardPick(
     rootState: GameState,
@@ -5536,6 +5538,9 @@ function beneficialSlotGuardPick(
     for (const e of siblings) {
         const g = gifts(e);
         if (g >= own) continue;
+        // Never redirect a gift onto a sibling that may deck the Bot itself
+        // (CR 704.5b): there the rollouts' preference is the loss it reads.
+        if (mayDeckPlayer(rootState, e.move, botId)) continue;
         const score = castVariantScore(rootState, e.move, botId, weights);
         if (
             !pick ||
