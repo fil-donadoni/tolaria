@@ -2359,7 +2359,12 @@ function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
  *  expensive victims are therefore pruned out of the answer set, not merely
  *  ranked below — "a candidate that was never emitted is one no amount of
  *  reward can choose". `materialGivenUp` is carried anyway, as the hook a
- *  prior leg would read; it is not consulted today. */
+ *  prior leg would read; it is not consulted today.
+ *
+ *  The ranking is `sacrificeRankWorths` — battlefield worth, ordered so a mana
+ *  rock goes before any creature or land and a basic before any nonbasic land
+ *  — and every set is closed under those orders. One extra set keeps the
+ *  untapped creatures for as long as the rest can pay. */
 const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     state,
     choice
