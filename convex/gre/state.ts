@@ -3960,7 +3960,10 @@ function shuffleAfterGraveyardBoundLibraryRedirect(
  *  the target-legality fizzle path, the land-can't-enter / illegal-aura-host
  *  paths, the plain spell-resolves path, and `SpellContext.counter`'s
  *  default destination. */
-function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
+export function sendStackItemToGraveyard(
+    state: GameState,
+    item: StackItem
+): void {
     // CR 707.10a / 704.5e — a copy of a spell is not a card: off the stack it
     // ceases to exist, whichever zone the card would have gone to.
     if (item.isCopy) return;
