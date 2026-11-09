@@ -2372,7 +2372,7 @@ export function selectRolloutMove(
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, pid, move);
         // `policyValue` is from the bot's view; flip for the opponent so each
-        // mover greedily maximizes ITS own value (a competent opponent).
+        // mover greedily maximizes ITS own reward (a competent opponent).
         const r = rewardFromValue(
             policyValue(
                 probe,
