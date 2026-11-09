@@ -187,10 +187,11 @@ describe("ability loss ends a battlefield-static grant (CR 613.1f, issue #7942)"
             []
         );
 
-        // CR 611.3b — "If this enchantment leaves the battlefield, this
-        // effect continues until end of turn": the Song's departure does NOT
-        // restore the permission this turn (the other families pin the
-        // return, under Humility, which has no such clause).
+        // The Song's own text overrides CR 611.3b's on-the-battlefield window
+        // — "If this enchantment leaves the battlefield, this effect continues
+        // until end of turn" — so its departure does NOT restore the
+        // permission this turn (the other families pin the return, under
+        // Humility, which has no such clause).
         release(state);
         expect(granterSuppressed(state, "granter")).toBe(true);
         expect(canPlayLandsFromGraveyard(state, getPlayer(state, "p1"))).toBe(
