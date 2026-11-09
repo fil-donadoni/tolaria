@@ -1562,20 +1562,20 @@ describe("gameStates serialize round-trip", () => {
         );
     });
 
-    it("preserves the camouflageCombat flag across the round trip (#563)", () => {
+    it("preserves the blocksPredeterminedThisCombat flag across the round trip (#563)", () => {
         const state = freshState();
-        state.camouflageCombat = true;
+        state.blocksPredeterminedThisCombat = true;
         const expanded = expandState(compactState(state));
-        expect(expanded.camouflageCombat).toBe(true);
+        expect(expanded.blocksPredeterminedThisCombat).toBe(true);
     });
 
-    it("preserves the meleeCombat flag across the round trip (#669)", () => {
+    it("preserves the blocksDeclaredByAttacker flag across the round trip (#669)", () => {
         // Melee's attacker-chooses-blocks routing must survive a mid-combat
         // stable-point save so the block declaration stays with the attacker.
         const state = freshState();
-        state.meleeCombat = true;
+        state.blocksDeclaredByAttacker = true;
         const expanded = expandState(compactState(state));
-        expect(expanded.meleeCombat).toBe(true);
+        expect(expanded.blocksDeclaredByAttacker).toBe(true);
     });
 
     it("preserves a stack item's massRiderTargets across the round trip (#669)", () => {
@@ -1810,7 +1810,7 @@ describe("schema drift guard", () => {
                 duration: { phase: "end-of-turn" },
             },
         ];
-        state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        state.playerPreferences = { p1: { discardRouting: "graveyard" } };
         state.landPlayLocked = true;
         state.preventAllCombatDamageThisTurn = true;
         state.combatBlockRestrictions = [
@@ -2758,7 +2758,7 @@ describe("optional field round-trip smoke tests", () => {
 
     it("playerPreferences", () => {
         const state = freshState();
-        state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        state.playerPreferences = { p1: { discardRouting: "graveyard" } };
         expect(roundTrip(state).playerPreferences).toEqual(
             state.playerPreferences
         );
@@ -2855,10 +2855,29 @@ describe("optional field round-trip smoke tests", () => {
         ]);
     });
 
-    it("gazeOfPainActiveThisTurn (Gaze of Pain, CR 603.7a)", () => {
+    it("turnScopedTriggerGrants (Gaze of Pain, CR 603.7a)", () => {
         const state = freshState();
-        state.gazeOfPainActiveThisTurn = ["p1"];
-        expect(roundTrip(state).gazeOfPainActiveThisTurn).toEqual(["p1"]);
+        state.turnScopedTriggerGrants = ["p1"];
+        expect(roundTrip(state).turnScopedTriggerGrants).toEqual(["p1"]);
+    });
+
+    // Issue #1917 — a snapshot persisted before the card-name → mechanic-name
+    // rename still carries the old spellings; expanding it must land them on
+    // the new keys, or an in-flight game silently loses the state.
+    it("reads pre-rename persisted spellings under the mechanic names", () => {
+        const doc = compactState(freshState()) as Record<string, unknown>;
+        doc.gazeOfPainActiveThisTurn = ["p1"];
+        doc.islandSanctuaryProtection = "p2";
+        doc.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        const state = expandState(doc);
+        expect(state.turnScopedTriggerGrants).toEqual(["p1"]);
+        expect(state.playerAttackRequirements).toBe("p2");
+        expect(state.playerPreferences).toEqual({
+            p1: { discardRouting: "graveyard" },
+        });
+        expect(compactState(state)).not.toHaveProperty(
+            "gazeOfPainActiveThisTurn"
+        );
     });
 
     it("landManaReplacedToBlueThisTurn (Deep Water)", () => {

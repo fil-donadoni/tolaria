@@ -7342,7 +7342,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
     // attacked except by flying/islandwalk" protection. `player` is the
     // protected player; no other fields.
-    setIslandSanctuaryProtection: {
+    restrictAttackers: {
         required: { player: isPlayerRef },
     },
     // CR 702.16b/e/i (issue #674) — "you gain protection from everything until

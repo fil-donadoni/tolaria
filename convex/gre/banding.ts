@@ -207,10 +207,10 @@ export function recordBlockedAttackers(state: GameState): void {
  * blocked set is untapped and removed from combat (cleared `isAttacking`,
  * dropped from `attackerIds`). Pure over game state and idempotent — a
  * re-invocation after the attackers are already removed is a no-op. Only runs
- * while `state.meleeCombat` is set; a normal combat leaves attackers untouched.
+ * while `state.blocksDeclaredByAttacker` is set; a normal combat leaves attackers untouched.
  */
 export function applyMeleeUnblockedRider(state: GameState): void {
-    if (!state.meleeCombat || !state.combat) return;
+    if (!state.blocksDeclaredByAttacker || !state.combat) return;
     const activePlayer = getPlayer(state, state.activePlayerId);
     const blocked = new Set(state.combat.blockedAttackerIds ?? []);
     const unblocked = state.combat.attackerIds.filter((id) => !blocked.has(id));

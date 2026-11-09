@@ -87,7 +87,7 @@ describe("Optional draw skip — golden fixture (CR 614.1a)", () => {
                                         label: "Skip the draw",
                                         effects: [
                                             {
-                                                op: "setIslandSanctuaryProtection",
+                                                op: "restrictAttackers",
                                                 player: "controller",
                                             },
                                         ],
@@ -242,7 +242,7 @@ describe("Optional draw skip — the compiled definition at the real draw step (
         withSanctuary(() => {
             const { state, p1 } = drawStep();
             answer(state, "yes");
-            expect(state.islandSanctuaryProtection).toBe("p1");
+            expect(state.playerAttackRequirements).toBe("p1");
             expect(p1.hand).toHaveLength(0);
         });
     });
@@ -251,7 +251,7 @@ describe("Optional draw skip — the compiled definition at the real draw step (
         withSanctuary(() => {
             const { state, p1 } = drawStep();
             answer(state, "no");
-            expect(state.islandSanctuaryProtection).toBeUndefined();
+            expect(state.playerAttackRequirements).toBeUndefined();
             expect(p1.hand).toHaveLength(1);
         });
     });

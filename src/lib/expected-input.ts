@@ -19,7 +19,7 @@ export type ExpectedInputView = {
     priorityPlayerId: string;
     phase: string;
     combat?: Combat;
-    meleeCombat?: boolean;
+    blocksDeclaredByAttacker?: boolean;
     pendingTarget?: PendingTarget;
     pendingChoices?: PendingChoice[];
     gameOver?: GameOver;
@@ -38,7 +38,7 @@ function asEngineState(view: ExpectedInputView): GameState {
         pendingTarget: view.pendingTarget,
         phase: view.phase,
         combat: view.combat,
-        meleeCombat: view.meleeCombat,
+        blocksDeclaredByAttacker: view.blocksDeclaredByAttacker,
         activePlayerId: view.activePlayerId,
         priorityPlayerId: view.priorityPlayerId,
         players: view.allPlayers,

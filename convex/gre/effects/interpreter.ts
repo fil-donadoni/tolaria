@@ -8111,12 +8111,12 @@ export const OP_EXECUTORS: {
     // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
     // attacked except by flying/islandwalk creatures" protection. A thin
     // declarative skin over the single SpellContext primitive
-    // `setIslandSanctuaryProtection`, one execution path (ADR 0045). Skipped
+    // `restrictAttackers`, one execution path (ADR 0045). Skipped
     // when the player cannot be resolved (CR 608.2b).
-    setIslandSanctuaryProtection(ctx, op) {
+    restrictAttackers(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        ctx.setIslandSanctuaryProtection(playerId);
+        ctx.restrictAttackers(playerId);
     },
     // CR 702.16b/e/i (issue #674) — "you gain protection from everything until
     // your next turn" (The One Ring). A thin declarative skin over the single

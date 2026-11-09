@@ -390,7 +390,7 @@ describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 5
         // CR 510.4 decision — the step's priority round (CR 117.3a, issue
         // #3086) sits between them but runs no SBAs of its own.
         state.phase = "DECLARE_ATTACKERS";
-        state.camouflageCombat = true;
+        state.blocksPredeterminedThisCombat = true;
         state.priorityPlayerId = "p1";
 
         // `advancePhase` enters DECLARE_BLOCKERS and auto-confirms the piles,

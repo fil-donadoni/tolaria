@@ -2346,7 +2346,7 @@ describe("Library of Leng (CR 614 discard → library top)", () => {
                 makePlayer("p2"),
             ],
             playerPreferences: {
-                p1: { libraryOfLengRouting: "graveyard" },
+                p1: { discardRouting: "graveyard" },
             },
         });
         pushSpell(state, mindTwist.id, "p1", [{ type: "player", id: "p1" }]);
