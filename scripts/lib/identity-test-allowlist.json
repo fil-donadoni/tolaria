@@ -475,34 +475,14 @@
         "reason": "JSON-purity round-trip invariant (ADR 0046) proving no lossy/non-serializable fields."
     },
     {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > every row carries a non-trivial description (the review-repeatability requirement)",
-        "reason": "Structural invariant: every row's description exceeds a minimum length."
+        "file": "convex/limited/__tests__/archetypeCatalogue.bot.test.ts",
+        "test": "Archetype Catalogue seed (issue #8892) > every seed row has a unique id",
+        "reason": "Uniqueness invariant: every Archetype Catalogue seed row has a distinct id."
     },
     {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > every row has a unique id",
-        "reason": "Uniqueness invariant: every ARCHETYPE_REGISTRY row has a distinct id."
-    },
-    {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > every row states BOTH sides of its own boundary — a TAG WHEN: and a NOT: clause",
-        "reason": "Structural invariant: every row's description contains both a TAG WHEN: and a NOT: clause."
-    },
-    {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > every row's id is a non-empty lowercase kebab-case string",
-        "reason": "Format invariant: every row id matches lowercase kebab-case via regex."
-    },
-    {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > seeds the exact eight names the Vintage Cube census already uses (issue #3597 scope)",
-        "reason": "Backward-compat check: registry still contains the eight names real seed data uses."
-    },
-    {
-        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
-        "test": "Archetype Registry (ADR 0072, issue #3597) > stays small and coarse — growth past ~25 rows is the signal to check Capability/Combo Edge instead",
-        "reason": "Bound invariant: registry stays non-empty and under a 25-row ceiling."
+        "file": "convex/limited/__tests__/archetypeCatalogue.bot.test.ts",
+        "test": "Archetype Catalogue seed (issue #8892) > stays small and coarse — growth past ~25 rows is the signal to check Capability/Combo Edge instead",
+        "reason": "Bound invariant: the catalogue seed stays non-empty and under a 25-row ceiling."
     },
     {
         "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",

@@ -25,6 +25,8 @@ import {
 } from "../_generated/server";
 import { assertIsAdmin } from "../auth";
 import { listScopeCards } from "./cardRatingsCore";
+import { loadArchetypeCatalogue } from "./archetypeCatalogue";
+import { catalogueIds } from "./archetypeCatalogueCore";
 import {
     archetypesOf,
     buildCardProfileRows,
@@ -217,9 +219,8 @@ async function upsertArchetypes(
  *  Capability row and its `(scope, cardId)` Archetype row, both upserted
  *  (identity/`_id` preserved on a patch). `assertIsAdmin` runs FIRST. Every
  *  `provides`/`requires` string must be a `CAPABILITY_REGISTRY` row, every
- *  archetype an `ARCHETYPE_REGISTRY` row, every cardId a real card
- *  (`cardProfileWriteErrors`) — the database layer held to EXACTLY the
- *  vocabulary bound the seed guard enforces. `reviewed` is an explicit
+ *  archetype a row of the effective Archetype Catalogue (seed ∪ DB, ADR
+ *  0167), every cardId a real card (`cardProfileWriteErrors`). `reviewed` is an explicit
  *  argument: flipping an LLM-seeded row to reviewed IS the human review act
  *  (ADR 0072), and one act reviews both layers. */
 export const setCardProfile = mutation({
@@ -235,7 +236,11 @@ export const setCardProfile = mutation({
     returns: v.null(),
     handler: async (ctx, { scope, cardId, ...profile }) => {
         await assertIsAdmin(ctx);
-        const errors = cardProfileWriteErrors(cardId, profile);
+        const errors = cardProfileWriteErrors(
+            cardId,
+            profile,
+            catalogueIds(await loadArchetypeCatalogue(ctx))
+        );
         if (errors.length > 0) {
             throw new Error(`Invalid Card Profile: ${errors.join("; ")}`);
         }

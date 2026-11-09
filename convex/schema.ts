@@ -1218,7 +1218,7 @@ export default defineSchema({
     // of a Card Profile, keyed `(scope, cardId)` in the Pack Source scope
     // string space (a Draftable Set code or `CUBE_SOURCE_KEY`), layered over
     // `data/card-profiles/archetypes/<scope>.json`. `archetypes` are
-    // `ARCHETYPE_REGISTRY` rows, normalized; own `reviewed` + `rationale`.
+    // Archetype Catalogue row ids, normalized; own `reviewed` + `rationale`.
     cardArchetypes: defineTable({
         scope: v.string(),
         cardId: v.string(),
@@ -1230,6 +1230,20 @@ export default defineSchema({
         .index("by_scope", ["scope"])
         // Point lookup / upsert target — the natural primary key.
         .index("by_scope_and_cardId", ["scope", "cardId"]),
+    // Archetype Catalogue (ADR 0167, issue #8892): Admin-created and
+    // Admin-edited rows layered over `data/archetype-catalogue.json` by the
+    // pure `limited/archetypeCatalogueCore.ts` (`mergeArchetypeCatalogue`) —
+    // a row whose `id` is a seed row's overrides it. No scope: a row's use in
+    // a scope is emergent from that scope's `cardArchetypes`. Shape checked
+    // at the write boundary (`archetypeCatalogueWriteErrors`).
+    archetypeCatalogue: defineTable({
+        id: v.string(),
+        description: v.string(),
+        gloss: v.object({ when: v.string(), not: v.string() }),
+        example: v.string(),
+    })
+        // Point lookup / upsert target — `id` is the natural key.
+        .index("by_archetype_id", ["id"]),
     // Bot Findings (ADR 0141, PRD #4174, issue #4176): every card the play
     // Bot is known to struggle with, seeded from `data/bot-reach-findings.json`
     // by `bun run seed:bot-findings` (`botFindings.seed`, the ONLY writer of a

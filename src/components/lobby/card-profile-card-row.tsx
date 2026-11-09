@@ -5,6 +5,7 @@ import type {
     EditableCardProfile,
     ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
+import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
 import CardProfileEditPanel from "./card-profile-edit-panel";
 
 interface CardProfileCardRowProps {
@@ -24,6 +25,9 @@ interface CardProfileCardRowProps {
     onClear: () => Promise<unknown>;
     /** Hand the queue to the next row, after a save resolves. */
     onAdvance: () => void;
+    /** The effective Archetype Catalogue (seed ∪ DB) the Archetype picker
+     *  offers. */
+    archetypeCatalogue: readonly ArchetypeCatalogueRow[];
 }
 
 function summarize(list: string[]): string {
@@ -55,6 +59,7 @@ export default function CardProfileCardRow({
     onSave,
     onClear,
     onAdvance,
+    archetypeCatalogue,
 }: CardProfileCardRowProps) {
     const effective = card.dbProfile ?? card.seedProfile;
     const wasOpen = useRef(false);
@@ -135,6 +140,7 @@ export default function CardProfileCardRow({
                     onSave={onSave}
                     onClear={onClear}
                     onAdvance={onAdvance}
+                    archetypeCatalogue={archetypeCatalogue}
                 />
             )}
         </div>

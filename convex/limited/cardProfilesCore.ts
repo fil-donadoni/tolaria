@@ -11,8 +11,8 @@
 //     keyed by `cardId` alone, one catalogue-wide seed file
 //     (`data/card-profiles/capabilities.json`) under one DB table
 //     (`cardCapabilities`). They hold in every scope.
-//   * **Card Archetypes** — `archetypes` (the closed `archetypeRegistry.ts`
-//     vocabulary), their own `reviewed` flag and `rationale`. A property of
+//   * **Card Archetypes** — `archetypes` (rows of the Archetype Catalogue,
+//     `archetypeCatalogueCore.ts`), their own `reviewed` flag and `rationale`. A property of
 //     the card IN an environment: keyed `(scope, cardId)` — the Pack Source
 //     scope string space, including `CUBE_SOURCE_KEY` — one seed file per
 //     scope (`data/card-profiles/archetypes/<scope>.json`) under one DB table
@@ -38,7 +38,7 @@
 // `chooseBotPick`, where the Archetype Fit / Capability Fit / Combo Edge
 // terms spend it — an UNREVIEWED layer at half weight (ADR 0072).
 import { isRegisteredCapability } from "./capabilityRegistry";
-import { isRegisteredArchetype } from "./archetypeRegistry";
+import { ARCHETYPE_CATALOGUE_SEED_IDS } from "./archetypeCatalogueCore";
 import { resolveCardName } from "../cards";
 import { CUBE_SOURCE_KEY } from "./cubeSource";
 import type { ScopeCard } from "./cardRatingsCore";
@@ -70,8 +70,8 @@ export interface CardCapabilities {
 }
 
 /** One card's Archetype layer IN ONE SCOPE (ADR 0167 §2). `archetypes`
- *  entries MUST be rows of `ARCHETYPE_REGISTRY` (`archetypeRegistry.ts`),
- *  normalized (trimmed + lowercased) — closed since issue #3597:
+ *  entries MUST be Archetype Catalogue row ids (`archetypeCatalogueCore.ts`),
+ *  normalized (trimmed + lowercased) — a closed vocabulary because
  *  `archetypeFitTerm` groups picks by EXACT STRING EQUALITY, so
  *  `reanimator`/`reanimate`/`graveyard-reanimator` would be three plans to
  *  the scorer and one to a human. */
@@ -300,8 +300,9 @@ export function validateCardCapabilityFile(
 }
 
 /** Validates one scope's Archetype seed file: every cardId resolves to a
- *  real card and every archetype is an `ARCHETYPE_REGISTRY` row — checked
- *  EXACTLY as written, never normalized first (issue #3597): a seed file is
+ *  real card and every archetype is a row of the catalogue SEED — never the
+ *  DB layer, so CI stays offline (ADR 0167) — checked EXACTLY as written,
+ *  never normalized first (issue #3597): a seed file is
  *  hand/LLM-authored data whose strings `archetypeFitTerm` groups on
  *  verbatim, so ` Control ` must fail rather than pass as `control`. */
 export function validateCardArchetypeFile(
@@ -315,9 +316,9 @@ export function validateCardArchetypeFile(
             );
         }
         for (const archetype of row.archetypes) {
-            if (!isRegisteredArchetype(archetype)) {
+            if (!ARCHETYPE_CATALOGUE_SEED_IDS.has(archetype)) {
                 errors.push(
-                    `${file.scope}: "${cardId}" declares unregistered Archetype "${archetype}"`
+                    `${file.scope}: "${cardId}" declares Archetype "${archetype}", not a catalogue seed row`
                 );
             }
         }
@@ -562,8 +563,8 @@ export function splitCardProfiles(
  *  duplicates removed, input order preserved. Archetypes ARE grouped by exact
  *  string equality in `botDrafter.ts`'s Archetype Fit term, so `Reanimator`
  *  and `reanimator` would silently be two different plans. This function is
- *  the NORMALIZER; `archetypeRegistry.ts` is the VOCABULARY (issue #3597),
- *  and the write boundary runs this first so the registry check reads
+ *  the NORMALIZER; the Archetype Catalogue is the VOCABULARY, and the write
+ *  boundary runs this first so the catalogue check reads
  *  exactly what will be stored. Pure. */
 export function normalizeArchetypes(archetypes: readonly string[]): string[] {
     const seen = new Set<string>();
@@ -581,15 +582,17 @@ export function normalizeArchetypes(archetypes: readonly string[]): string[] {
  *  the Capability half through the SAME `capabilityErrors` the seed guard
  *  uses, the Archetype half on the NORMALIZED form (what is about to be
  *  stored: a direct mutation call typing `Control` lands as `control` or is
- *  rejected, never stored as a third spelling, issue #3597). Pure. */
+ *  rejected, never stored as a third spelling) against `catalogue`, the
+ *  effective Archetype Catalogue's ids (seed ∪ DB, ADR 0167). Pure. */
 export function cardProfileWriteErrors(
     cardId: string,
-    profile: EditorCardProfile
+    profile: EditorCardProfile,
+    catalogue: ReadonlySet<string>
 ): string[] {
     const errors = capabilityErrors(cardId, profile);
     for (const archetype of normalizeArchetypes(profile.archetypes)) {
-        if (!isRegisteredArchetype(archetype)) {
-            errors.push(`unregistered Archetype: "${archetype}"`);
+        if (!catalogue.has(archetype)) {
+            errors.push(`Archetype "${archetype}" is not a catalogue row`);
         }
     }
     return errors;
