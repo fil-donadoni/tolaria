@@ -104,11 +104,9 @@ import {
     buildSacrificeRequirements,
     autoResolveFungible,
     isSacrificeSelectionComplete,
-    applySacrificeSelection,
     tapPaymentSpokenForIds,
     costPickSpokenForIds,
     sacrificeSourceSnapshot,
-    sacrificeCandidates,
     nextUnmetRequirement,
     requirementCandidates,
 } from "./gre/sacrificeChoice";
@@ -318,7 +316,6 @@ import {
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import {
     attackTargetExcessSink,
-    combatDamageAssignmentCompleteness,
     damageAssignmentLethalViolation,
 } from "./gre/damageAssignment";
 import {
@@ -410,7 +407,6 @@ import { computeSoloViewerId } from "./soloViewer";
 import { assertExpectedInput } from "./gre/expectedInput";
 import {
     drainAutoPasses,
-    applyAllCombatDamage,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
     wasCastOffSorceryTiming,
@@ -461,15 +457,23 @@ import { isInlineManaAbilityPark } from "./gre/activation";
 import { getBlockDeclarerId } from "./gre/combat";
 
 export { cancelTriggerTargetSelection } from "./gre/owedInputDeclines";
-// issue #9002 — the sacrifice pick and the attack-declaration finalize moved to
-// GRE level (the Bot liveness ladder runs them without a ctx); imported for the
-// mutations below and re-exported for the tests that import them from here.
-import { finalizeConfirmAttackers } from "./gre/attackDeclaration";
+// issues #9002, #9028 — the sacrifice pick, the attack confirmation and its
+// taxes, and the damage confirmation moved to GRE level (the Bot liveness
+// ladder runs them without a ctx); imported for the mutations below and
+// re-exported for the tests that import them from here.
+import {
+    applyAttackSacrificeTaxAndFinalize,
+    beginAttackManaTax,
+    confirmAttackersOnState,
+    finalizeConfirmAttackers,
+} from "./gre/attackDeclaration";
+import { confirmDamageOnState } from "./gre/damageConfirmation";
 import {
     findActiveSacrificeSelection,
     selectSacrificeOnState,
 } from "./gre/sacrificePick";
 export {
+    beginAttackManaTax,
     finalizeConfirmAttackers,
     findActiveSacrificeSelection,
     selectSacrificeOnState,
@@ -525,17 +529,12 @@ import type { ManaTapPlanContext } from "./gre/constants";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
-    getRequiredAttackerIds,
     isRequiredAttacker,
     pinnedAttackDefenderOf,
     pinnedAttackReason,
     getMaxBlockTargets,
     getAttackerCapEffect,
     getBlockerCapEffect,
-    foldAttackRequirements,
-    validateDeclaredAttackers,
-    collectAttackSacrificeTax,
-    collectAttackManaTax,
 } from "./gre/combat";
 import {
     exertableAttackerIds,
@@ -547,11 +546,7 @@ import {
     applyManaAbilityEffects,
     reverseManaAbilityEffectsOnUntap,
 } from "./gre/manaAbilityEffects";
-import {
-    getEffectiveBlockGraph,
-    outstandingDamageAssigner,
-    isLegalBandComposition,
-} from "./gre/banding";
+import { getEffectiveBlockGraph, isLegalBandComposition } from "./gre/banding";
 import {
     checkStateBasedActions,
     checkStateBasedActionsAfterSpecialAction,
@@ -11874,109 +11869,6 @@ export const removeBand = mutation({
     },
 });
 
-/** Aggregate a list of mana costs into a single ManaCost (CR 508.1c/1g — one
- *  charge per taxed attacker per taxing source). Each cost is normalized (a
- *  numeric `{X}` folded into generic), then summed per colour; the total generic
- *  lands in `generic`. Colourless-generic-only in practice (attack taxes are all
- *  `{N}`), but colour-safe. Returns `{}` when every charge is zero (Domain-0
- *  Collective Restraint), which the caller reads as "no tax". */
-function aggregateManaCosts(costs: ManaCost[]): ManaCost {
-    const total: Record<string, number> = {};
-    for (const c of costs) {
-        for (const [k, v] of Object.entries(normalizeManaCost(c))) {
-            if (typeof v === "number" && v > 0) total[k] = (total[k] ?? 0) + v;
-        }
-    }
-    const result: ManaCost = {};
-    for (const [k, v] of Object.entries(total)) {
-        if (v <= 0) continue;
-        // normalizeManaCost stores the whole generic total under key "X".
-        if (k === "X") result.generic = (result.generic ?? 0) + v;
-        else (result as Record<string, number>)[k] = v;
-    }
-    return result;
-}
-
-/** CR 508.1c/1g — park the per-attacker MANA attack tax (Propaganda / Ghostly
- *  Prison / Collective Restraint) so the attacking player PAYS it via a prompt
- *  (auto-tap or manual land taps) instead of the engine silently auto-tapping.
- *  Aggregates every taxed-attacker charge into one payment on
- *  `combat.pendingAttackManaTax`. Returns true when a payment was parked (the
- *  caller saves and returns, suspending the declaration); false when there is no
- *  tax (or it aggregates to zero — Domain 0), in which case the declaration
- *  continues to the sacrifice tax + finalize. */
-export function beginAttackManaTax(state: GameState): boolean {
-    const combat = state.combat;
-    if (!combat) return false;
-    const charges = collectAttackManaTax(state);
-    if (charges.length === 0) return false;
-    // The directed "creatures can't attack YOU" tax is always paid by the
-    // attacking (active) player, so all charges share one payer. A future
-    // multi-payer tax would need per-payer prompts — flag rather than mis-charge.
-    if (new Set(charges.map((c) => c.controllerId)).size > 1) {
-        throw new Error("Multi-payer attack mana tax is not supported");
-    }
-    const cost = aggregateManaCosts(charges.map((c) => c.cost));
-    // Domain-0 Collective Restraint (every {X} = 0) — the attack is free.
-    if (Object.keys(normalizeManaCost(cost)).length === 0) return false;
-    combat.pendingAttackManaTax = {
-        playerId: charges[0].controllerId,
-        cost,
-        reason: charges[0].reason,
-        tappedLandIds: [],
-    };
-    return true;
-}
-
-/** CR 508.1c/1g / 701.21a — the per-attacker land-SACRIFICE attack tax (Flooded
- *  Woodlands, Reclamation) plus the finalize. Factored out of confirmAttackers so
- *  both the inline path and the mana-tax resume path (`tryCommitAttackManaTax`)
- *  run the identical continuation. Returns true when the declaration parked on a
- *  real sacrifice choice (`combat.pendingAttackSacrifice` — the caller saves and
- *  waits); false once the attack was finalized. Throws when the payer has too few
- *  lands to pay (the declaration is illegal — pre-existing Flooded Woodlands
- *  behavior, unchanged). */
-function applyAttackSacrificeTaxAndFinalize(state: GameState): boolean {
-    const combat = state.combat;
-    if (!combat) return false;
-    const charges = collectAttackSacrificeTax(state);
-    if (charges.length > 0) {
-        // The attack-tax cards tax the attacking (active) player, so all
-        // charges share one controller. A future multi-payer tax would need a
-        // per-payer selection — flag it rather than silently paying one.
-        if (new Set(charges.map((c) => c.controllerId)).size > 1) {
-            throw new Error(
-                "Multi-payer attack sacrifice tax is not supported"
-            );
-        }
-        const payerId = charges[0].controllerId;
-        const landFilter: PermanentFilter = { types: ["Land"] };
-        const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
-        if (
-            sacrificeCandidates(state, payerId, landFilter).length < totalNeeded
-        ) {
-            throw new Error(charges[0].reason);
-        }
-        const sel: SacrificeSelection = {
-            playerId: payerId,
-            reason: charges[0].reason,
-            requirements: buildSacrificeRequirements(
-                charges.map((ch) => ({ filter: landFilter, count: ch.count }))
-            ),
-            picked: [],
-        };
-        autoResolveFungible(state, sel);
-        if (!isSacrificeSelectionComplete(sel)) {
-            // Park the choice; selectSacrifice resumes finalizeConfirmAttackers.
-            combat.pendingAttackSacrifice = sel;
-            return true;
-        }
-        applySacrificeSelection(state, sel);
-    }
-    finalizeConfirmAttackers(state);
-    return false;
-}
-
 /** If the payer's mana pool now covers the parked attack mana tax, pay it (CR
  *  601.2g), commit the lands tapped for it, clear the parking, and RESUME the
  *  declaration through the sacrifice-tax + finalize continuation. Returns true
@@ -12017,154 +11909,11 @@ export const confirmAttackers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-
-        if (state.phase !== "DECLARE_ATTACKERS") {
-            throw new Error("Not in DECLARE_ATTACKERS phase");
-        }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error("Only the active player can confirm attackers");
-        }
-        if (!state.combat) {
-            throw new Error("Attacker selection is not open");
-        }
-        // Idempotent re-fire guard: a fast double-press (Space×2) queues two
-        // confirmAttackers mutations. The first locks in the selection
-        // (`combat.confirmed`) and passes priority; the second used to throw an
-        // uncaught 500 ("Attacker selection is not open") that froze the client
-        // until refresh. Confirming is idempotent — once the selection is
-        // confirmed the desired end-state already holds, so the redundant call
-        // is a benign no-op instead of a fatal error.
-        if (state.combat.confirmed) {
-            return;
-        }
-
-        const player = getPlayer(state, args.playerId);
-
-        // CR 508.1c/508.1d: normalize the player's selection into the legal
-        // declaration — fold in every eligible creature required to attack,
-        // capped by the battlefield-wide declared-attacker cap (CR 508.1a),
-        // which as a RESTRICTION outranks the requirements. `foldAttackRequirements`
-        // (`gre/combat.ts`) is the one authority the bot's move enumeration
-        // shares, so the mutation can never accept a declaration the enumerator
-        // considers illegal. A voluntary attacker that would crowd a must-attack
-        // creature out of the last slot is dropped here — it was never part of a
-        // legal declaration.
-        const defenderBattlefield = getPlayer(
-            state,
-            getOpponentId(state, args.playerId)
-        ).battlefield;
-        const foldedAttackers = foldAttackRequirements(
-            state.combat.attackerIds,
-            getRequiredAttackerIds(
-                player.battlefield,
-                state,
-                defenderBattlefield,
-                state.allCreaturesMustAttack
-            ),
-            getAttackerCapEffect(state)?.max
-        );
-        const droppedAttackers = state.combat.attackerIds.filter(
-            (id) => !foldedAttackers.includes(id)
-        );
-        state.combat.attackerIds = foldedAttackers;
-        // CR 702.154a — the fold can drop an attacker, or fold in a creature that
-        // had been chosen as a partner.
-        pruneEnlistChoices(state.combat);
-        if (droppedAttackers.length > 0) {
-            // A dropped attacker takes its planeswalker attack target (CR
-            // 508.1a) and its band membership (CR 702.22f) with it — the same
-            // cleanup the deselect branch of `toggleAttacker` performs.
-            if (state.combat.attackTargets) {
-                for (const id of droppedAttackers) {
-                    delete state.combat.attackTargets[id];
-                }
-                if (Object.keys(state.combat.attackTargets).length === 0) {
-                    state.combat.attackTargets = undefined;
-                }
-            }
-            // CR 508.1g / 701.43d — and its optional exert cost. Payment
-            // filters to declared attackers anyway, but the declaration can
-            // PARK here (`pendingAttackManaTax` / `pendingAttackSacrifice`) and
-            // be saved, so a stale choice would be visible to the client and
-            // the bot in between — the same inconsistency the deselect branch
-            // of `toggleAttacker` exists to avoid.
-            if (state.combat.exertedIds) {
-                const kept = state.combat.exertedIds.filter(
-                    (id) => !droppedAttackers.includes(id)
-                );
-                state.combat.exertedIds = kept.length > 0 ? kept : undefined;
-            }
-            if (state.combat.bands) {
-                state.combat.bands = state.combat.bands
-                    .map((b) => ({
-                        ...b,
-                        memberIds: b.memberIds.filter(
-                            (id) => !droppedAttackers.includes(id)
-                        ),
-                    }))
-                    .filter((b) => {
-                        if (b.memberIds.length < 2) return false;
-                        const members = b.memberIds
-                            .map((id) =>
-                                player.battlefield.find((c) => c.id === id)
-                            )
-                            .filter((c): c is NonNullable<typeof c> => !!c);
-                        return isLegalBandComposition(members);
-                    });
-                if (state.combat.bands.length === 0) {
-                    state.combat.bands = undefined;
-                }
-            }
-        }
-
-        // CR 508.1c-d — count-aware attack restrictions (Errantry "can only
-        // attack alone", Orcish Conscripts "can't attack unless at least two
-        // other creatures attack"). These read the COMPLETE declared-attacker
-        // set, so they are enforced here at confirm rather than per-attacker at
-        // selection (the mirror of validateMinimumBlockers).
-        const declaredAttackCheck = validateDeclaredAttackers(state);
-        if (!declaredAttackCheck.ok) {
-            throw new Error(declaredAttackCheck.reason);
-        }
-
-        // CR 508.1c/1g — per-attacker MANA attack tax directed at the taxing
-        // player (Propaganda / Ghostly Prison / Windborn Muse / Collective
-        // Restraint, #1053/#1066). Each attacker declared against a taxing player
-        // forces its controller to pay {X}. Rather than silently auto-tapping the
-        // payer's lands (or throwing when unpayable — the reported bug), the
-        // declaration PARKS on `combat.pendingAttackManaTax` and the player pays
-        // via a prompt (Auto-tap or manual land taps), mirroring a cast payment.
-        // Charged BEFORE the land-sacrifice tax; the two never park at once (the
-        // mana tax resumes into the sacrifice tax once paid).
-        if (beginAttackManaTax(state)) {
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
-
-        // CR 508.1c/1g / 701.21a — per-attacker sacrifice-a-land attack tax
-        // (Flooded Woodlands, Reclamation, #733) then finalize. Parks on a real
-        // sacrifice choice (`combat.pendingAttackSacrifice`) or finalizes inline.
-        if (applyAttackSacrificeTaxAndFinalize(state)) {
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
+        // Issue #9028 — the rules are the auth-free core's
+        // (`gre/attackDeclaration.ts`), shared with the Bot liveness ladder.
+        const outcome = confirmAttackersOnState(state, args.playerId);
+        // An already-confirmed selection (a double-press) is a benign no-op.
+        if (!outcome.changed) return;
 
         await saveGameState(
             ctx,
@@ -12870,91 +12619,13 @@ export const confirmDamage = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-            anyPlayer: true,
-        });
-
-        if (
-            state.phase !== "FIRST_STRIKE_DAMAGE" &&
-            state.phase !== "COMBAT_DAMAGE"
-        ) {
-            throw new Error("Not in a combat damage step");
-        }
-        if (!state.combat || state.combat.damageConfirmed !== false) {
-            throw new Error("Damage assignment is not open");
-        }
-
-        const assignerIds = state.combat.damageAssignerIds ?? {};
-        const distinctAssigners = new Set(Object.values(assignerIds));
-        if (!distinctAssigners.has(args.playerId)) {
-            throw new Error("You have no combat damage to assign");
-        }
-
-        // CR 510.1a/e — reject an incomplete assignment rather than silently
-        // applying the shortfall (#2906). Every source THIS player assigns
-        // must total its effective power, counted only against currently-
-        // legal targets (a stale entry aimed at a target that left combat
-        // since the assignment was entered doesn't count, and a source whose
-        // legal targets have all left combat owes zero — see
-        // `combatDamageAssignmentCompleteness`). Checked before any state is
-        // touched, so a rejection leaves the confirmation set and the map
-        // untouched.
-        for (const [sourceId, assignerId] of Object.entries(assignerIds)) {
-            if (assignerId !== args.playerId) continue;
-            const { complete, assigned, required } =
-                combatDamageAssignmentCompleteness(
-                    state,
-                    sourceId,
-                    state.combat.damageAssignments?.[sourceId] ?? {}
-                );
-            if (!complete) {
-                throw new Error(
-                    `${sourceId}'s combat damage assignment must total exactly ` +
-                        `${required} (currently ${assigned})`
-                );
-            }
-        }
-
-        const confirmedBy = new Set(
-            state.combat.damageAssignmentConfirmedBy ?? []
-        );
-        confirmedBy.add(args.playerId);
-        state.combat.damageAssignmentConfirmedBy = [...confirmedBy];
-
-        // Wait for every distinct assigner before applying damage.
-        const remaining = outstandingDamageAssigner(state.combat);
-        if (remaining) {
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
-
-        const kind =
-            state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
-        applyAllCombatDamage(state, state.combat.damageAssignments ?? {}, kind);
-        state.combat.damageConfirmed = true;
-        state.combat.damageAssignerIds = undefined;
-        state.combat.damageAssignmentConfirmedBy = undefined;
-
-        // Check SBA after combat damage (CR 704.5)
-        checkStateBasedActions(state);
-
-        if (!state.gameOver) {
-            state.priorityPlayerId = state.activePlayerId;
-            state.passCount = 0;
-            drainAutoPasses(state);
-        }
+        // Issue #9028 — the rules are the auth-free core's
+        // (`gre/damageConfirmation.ts`), shared with the Bot liveness ladder.
+        confirmDamageOnState(state, args.playerId);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        // A no-op until the last assigner confirms and the damage ends the game.
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });

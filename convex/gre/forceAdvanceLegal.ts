@@ -6,10 +6,13 @@
 // the Bot owed on the same container.
 //
 // Every step reuses the auth-free core the public mutation runs (the decline
-// cores, the pending-choice resolvers, the sacrifice pick) — never a
+// cores, the attack and damage confirmations, the pending-choice resolvers,
+// the sacrifice pick) — never a
 // second copy of a rule. Each step mutates `state` IN PLACE and either throws
 // or returns the name of the action it took; the caller runs it on a clone.
 
+import { declareNoAttackersOnState } from "./attackDeclaration";
+import { confirmDefaultDamageOnState } from "./damageConfirmation";
 import type { ExpectedInputKind } from "./expectedInput";
 import { legalActions, type ChoiceAction } from "./legalActions";
 import { declineMadness } from "./madness";
@@ -49,9 +52,31 @@ function requireProgress(outcome: DeclineOutcome, action: string): string {
     return action;
 }
 
-/** `priority` — CR 117.3d: pass. The pre-game declaration (CR 103.5) rides the
- *  same priority window and has no pass; its minimal answer is to keep. A
- *  parked payment is abandoned by the pass itself (`passPriorityOnState`). */
+/** True when `botPlayerId` assigns a combat damage source it has not yet
+ *  confirmed (CR 510.1c-d; CR 702.22j-k banding can make that the defending
+ *  player, who does not hold priority in the window). */
+function owesDamageAssignment(state: GameState, botPlayerId: string): boolean {
+    const combat = state.combat;
+    if (
+        (state.phase !== "FIRST_STRIKE_DAMAGE" &&
+            state.phase !== "COMBAT_DAMAGE") ||
+        !combat ||
+        combat.damageConfirmed !== false
+    ) {
+        return false;
+    }
+    const confirmed = new Set(combat.damageAssignmentConfirmedBy ?? []);
+    return Object.values(combat.damageAssignerIds ?? {}).some(
+        (id) => id === botPlayerId && !confirmed.has(id)
+    );
+}
+
+/** `priority` — CR 117.3d: pass. Three turn-based declarations ride the same
+ *  priority window and have no pass; each gets its minimal LEGAL answer: the
+ *  pre-game declaration (CR 103.5) keeps, an open attack declaration declares
+ *  no voluntary attacker (CR 508.1a, CR 508.1d's requirements folded in), an
+ *  outstanding damage assignment confirms the default (CR 510.1c-d). A parked
+ *  payment is abandoned by the pass itself (`passPriorityOnState`). */
 function priorityStep(state: GameState, botPlayerId: string): string {
     const mulligan = state.mulligan;
     if (
@@ -62,6 +87,23 @@ function priorityStep(state: GameState, botPlayerId: string): string {
     ) {
         recordDeclaration(state, botPlayerId, "keep");
         return "keep-hand";
+    }
+    if (
+        state.phase === "DECLARE_ATTACKERS" &&
+        state.combat &&
+        !state.combat.confirmed &&
+        state.activePlayerId === botPlayerId
+    ) {
+        return requireProgress(
+            declareNoAttackersOnState(state, botPlayerId),
+            "declare-no-attackers"
+        );
+    }
+    if (owesDamageAssignment(state, botPlayerId)) {
+        return requireProgress(
+            confirmDefaultDamageOnState(state, botPlayerId),
+            "confirm-damage"
+        );
     }
     return requireProgress(passPriorityOnState(state, botPlayerId), "pass");
 }
