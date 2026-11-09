@@ -1,5 +1,7 @@
-# issue-band — a workflow bug is P0 (issue #6902, ADR 0143 Amendment VII).
-# When an issue is labelled and carries both `bug` and `area:workflow` (an
+# issue-band — a workflow bug is P0 (issue #6902, ADR 0143 Amendment VII), and
+# so is a system-filed Bot fault (issue #9000, PRD issue #8998).
+# When an issue is labelled and carries `bug` with `area:workflow` or with
+# `bot-fault` (an
 # issue filed with its labels fires `labeled` too), `bun run issue:workflow-band` sets its board `Priority` to
 # `P0` (idempotent; never lowers a band). The board write needs the machine's
 # own gh login (a user project; the job token cannot write it), so it runs on
@@ -19,10 +21,11 @@ permissions:
 
 jobs:
     band:
-        name: workflow bug → P0
+        name: workflow bug / Bot fault → P0
         if: >-
             ${{ contains(github.event.issue.labels.*.name, 'bug') &&
-            contains(github.event.issue.labels.*.name, 'area:workflow') }}
+            (contains(github.event.issue.labels.*.name, 'area:workflow') ||
+            contains(github.event.issue.labels.*.name, 'bot-fault')) }}
         runs-on: [self-hosted, seed]
         timeout-minutes: 15
         steps:

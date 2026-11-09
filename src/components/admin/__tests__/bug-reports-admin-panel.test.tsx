@@ -20,6 +20,7 @@ const LIST = [
     {
         _id: "report-1",
         filedAt: 1700000000000,
+        isSystem: false,
         name: "Ada",
         descriptionPreview: "Board freezes on attack",
         issueNumber: 42,
@@ -30,6 +31,7 @@ const LIST = [
     {
         _id: "report-2",
         filedAt: 1700000100000,
+        isSystem: false,
         name: "Grace",
         descriptionPreview: "Lobby is blank",
         issueNumber: undefined,
@@ -37,9 +39,41 @@ const LIST = [
         hasAttachment: false,
         hasDiagnostics: false,
     },
+    {
+        _id: "report-3",
+        filedAt: 1700000200000,
+        isSystem: true,
+        name: "System",
+        descriptionPreview: "choice — Crabomination — driver-error",
+        issueNumber: 77,
+        hasSnapshot: false,
+        hasAttachment: false,
+        hasDiagnostics: false,
+    },
 ];
 
 const DETAIL: Record<string, unknown> = {
+    // issue #9000 — a system row: no reporter, a fault block.
+    "report-3": {
+        source: "system",
+        name: "System",
+        email: "",
+        description: "choice — Crabomination — driver-error",
+        attachmentUrl: null,
+        fault: {
+            origin: "server-deadline",
+            expectedKind: "choice",
+            sourceCardName: "Crabomination",
+            faultClass: "driver-error",
+            errorMessage: "decide threw",
+            steps: [
+                { step: "legalDecline", ok: false },
+                { step: "discardPendingChoice", ok: true, discarded: true },
+            ],
+        },
+        fingerprint: "bf-0123456789abcdef",
+        filedAt: 1700000200000,
+    },
     "report-1": {
         name: "Ada",
         email: "ada@example.com",
@@ -144,6 +178,29 @@ describe("BugReportsAdminPanel", () => {
 
         expect(screen.getByText("grace@example.com")).toBeTruthy();
         expect(screen.queryByText("Client diagnostics")).toBeNull();
+    });
+
+    // issue #9000 — a Bot fault the server filed: badged in the list, sender
+    // "System" with no mailto, and the fault block with its recovery.
+    it("renders a system row: badge, no contact link, the fault and its recovery", () => {
+        render(<BugReportsAdminPanel />);
+        expect(screen.getAllByText("system").length).toBe(1);
+        fireEvent.click(
+            screen.getByText("choice — Crabomination — driver-error")
+        );
+
+        expect(
+            screen.getByText("Filed automatically by the server")
+        ).toBeTruthy();
+        expect(document.querySelector('a[href^="mailto:"]')).toBeNull();
+        expect(screen.getByText("Bot fault")).toBeTruthy();
+        expect(
+            screen.getByText(
+                "server-deadline → discardPendingChoice (forced discard)"
+            )
+        ).toBeTruthy();
+        expect(screen.getByText("bf-0123456789abcdef")).toBeTruthy();
+        expect(screen.getByText("decide threw")).toBeTruthy();
     });
 
     it("shows nothing selected by default", () => {
