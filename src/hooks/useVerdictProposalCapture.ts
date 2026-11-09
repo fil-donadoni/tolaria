@@ -11,8 +11,13 @@
 // AT GAME END the game-end module is loaded (a lazy chunk — the identification
 // and the sample never weigh on the board's bundle) and the Brain is consulted
 // once per sampled decision at a fixed budget and seed. The list lands in
-// `verdict-proposal-store.ts` for the panel (issue #3986); nothing is written
-// anywhere else, and a game swap drops it unanswered.
+// `verdict-proposal-store.ts` for the panel (issue #3986); nothing reaches the
+// server.
+//
+// A RELOAD costs nothing (issue #8889): the capture and the list are kept in
+// client storage, so a remount of the same game resumes the capture, and a
+// mount with the game already over offers the stored list — or builds it from
+// the stored decisions — without depending on the tab never reloading.
 
 import { useEffect, useMemo } from "react";
 import { useConvex } from "convex/react";
@@ -23,6 +28,7 @@ import { tapClientMutations } from "~/lib/ai/mutation-tap";
 import {
     capturingGame,
     clearHumanCapture,
+    humanCaptureReady,
     recordHumanCall,
     startHumanCapture,
     takeHumanDecisions,
@@ -30,6 +36,7 @@ import {
 import { observeHumanWindow } from "~/lib/ai/human-decision-start";
 import {
     clearVerdictProposals,
+    loadVerdictProposals,
     setVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
@@ -109,48 +116,52 @@ export function useVerdictProposalCapture(
 
     useEffect(() => {
         if (!active || !gameOver) return;
-        const decisions = takeHumanDecisions(gameId);
-        if (decisions.length === 0) {
-            reportNoDecisionCaptured(gameId);
-            return;
-        }
-        const judged: JudgeOutcomeTally = {};
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
-        void import("~/lib/ai/verdict-proposals")
-            .then(({ proposeVerdicts }) =>
-                proposeVerdicts(
-                    decisions,
-                    VERDICT_PROPOSAL_CONFIG,
-                    (source, budget, seed) =>
-                        consultBrain(
-                            source.state,
-                            source.botId,
-                            budget,
-                            source.knowledge,
-                            undefined,
-                            seed
-                        ).then((r) => {
-                            judged[r.outcome] = (judged[r.outcome] ?? 0) + 1;
-                            return r.outcome === "move" ? r.move : null;
-                        })
-                )
-            )
-            .then((list) => {
-                // Why a game offers no review, or a shorter one than expected
-                // — to Sentry as well as the console (issue #8732).
-                reportProposalCounts(
-                    proposalCountsReport(gameId, list, judged)
-                );
-                if (capturingGame() === gameId) {
-                    setVerdictProposals(gameId, list);
-                }
-            })
-            .catch((cause: unknown) => {
-                // A failed sample costs only questions, but it takes the
-                // post-game review with it: loud, or nobody can tell why.
-                reportSampleFailed(gameId, cause);
-            });
+        void buildProposalsAtGameEnd(gameId);
     }, [active, gameId, gameOver]);
+}
+
+/** The game is over: offer the stored list if this game already has one (a
+ *  reload after it was built — the Brain is not consulted again), else build
+ *  it from the captured decisions, rehydrated first (issue #8889). */
+async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
+    if (await loadVerdictProposals(gameId)) return;
+    await humanCaptureReady(gameId);
+    const decisions = takeHumanDecisions(gameId);
+    if (decisions.length === 0) {
+        reportNoDecisionCaptured(gameId);
+        return;
+    }
+    const judged: JudgeOutcomeTally = {};
+    try {
+        const { proposeVerdicts } = await import("~/lib/ai/verdict-proposals");
+        const list = await proposeVerdicts(
+            decisions,
+            VERDICT_PROPOSAL_CONFIG,
+            (source, budget, seed) =>
+                consultBrain(
+                    source.state,
+                    source.botId,
+                    budget,
+                    source.knowledge,
+                    undefined,
+                    seed
+                ).then((r) => {
+                    judged[r.outcome] = (judged[r.outcome] ?? 0) + 1;
+                    return r.outcome === "move" ? r.move : null;
+                })
+        );
+        // Why a game offers no review, or a shorter one than expected — to
+        // Sentry as well as the console (issue #8732).
+        reportProposalCounts(proposalCountsReport(gameId, list, judged));
+        if (capturingGame() === gameId) {
+            setVerdictProposals(gameId, list);
+        }
+    } catch (cause: unknown) {
+        // A failed sample costs only questions, but it takes the post-game
+        // review with it: loud, or nobody can tell why.
+        reportSampleFailed(gameId, cause);
+    }
 }
