@@ -449,6 +449,22 @@ describe("forceAdvanceOwedInput — a throwing legal rung falls to the forced di
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["lions"]);
     });
 
+    it("a legal rung that returns without closing the container also falls to the discard", () => {
+        const f = priorityWithParkedCast();
+        const result = forceAdvanceOwedInput(f.state, f.bot, {
+            legalSteps: { priority: () => "did-nothing" },
+        });
+        expect(result.outcome).toBe("discarded");
+        expect(result.steps[0]).toEqual({
+            kind: "priority",
+            action: "did-nothing",
+            legal: false,
+            discarded: false,
+            error: "still owed on the same container",
+        });
+        expect(result.state.pendingCast).toBeUndefined();
+    });
+
     it("priority: a pass the rules refuse (attack declaration open) needs no injected throw", () => {
         const f = attackDeclarationOpen();
         const result = forceAdvanceOwedInput(f.state, f.bot);
