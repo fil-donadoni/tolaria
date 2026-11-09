@@ -26065,13 +26065,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // orders still hold: no creature goes while a mana rock remains, and
         // the dual stays while a basic remains.
         label: "annihilator pair: rocks before creatures, basics before the dual, no lethal",
-        pairOf: {
-            anchor: "annihilator: sacrifices the mana rocks and keeps its untapped blockers",
-            discriminant: {
-                kind: "life",
-                detail: "Emrakul attacks alone into a 40-life defender: the sacrifice is not about blockers",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 ...FORCED_SACRIFICE_BOARD,
@@ -26109,6 +26103,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "gives up both mana rocks before any creature, and the dual only after every basic",
         },
-        note: "Issue #8382, the no-lethal half. Six permanents from a board with two rocks: any answer that gives a creature (the owner's ruling) or the dual (its extension, `sacrificeGoesFirst`) must give both rocks first, and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.",
+        note: 'Issue #8382, the no-lethal half of "annihilator: sacrifices the mana rocks and keeps its untapped blockers" (no `pairOf`: both halves are predicate entries, which derive no verdict). Six permanents from a board with two rocks: any answer that gives a creature (the owner\'s ruling) or the dual (its extension, `sacrificeGoesFirst`) must give both rocks first, and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.',
     },
 ];
