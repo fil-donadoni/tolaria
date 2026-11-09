@@ -111,6 +111,7 @@ import {
     isLand,
     isManaAbilityDefinition,
     isSpellStackItem,
+    liveStaticDefinition,
     PERMANENT_TYPES,
 } from "../constants";
 import { LAND_SUBTYPE_MANA } from "../manaColors";
@@ -470,8 +471,10 @@ function landTypeChangeIsFutile(
 function hasOnlyPlainManaAbilities(land: CardInstanceState): boolean {
     if (land.staticAbilities.length > 0) return false;
     if (effectiveTriggeredAbilities(land).length > 0) return false;
-    const def = tryGetDefinition(land.card.id as string);
-    if (!def || (def.staticEffects?.length ?? 0) > 0) return false;
+    if (!tryGetDefinition(land.card.id as string)) return false;
+    if ((liveStaticDefinition(land)?.staticEffects?.length ?? 0) > 0) {
+        return false;
+    }
     return getEffectiveActivatedAbilities(land).every(
         ({ ability }) =>
             isManaAbilityDefinition(ability) &&

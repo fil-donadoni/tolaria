@@ -29,10 +29,10 @@
 // this combat damage going to land? — and keeping them in one file is what
 // makes it obvious that the source-side answer OVERRIDES the target-side one.
 
+import { liveStaticDefinition } from "./constants";
 import type { CardInstanceState, GameState } from "./state/declarations";
 import type { CombatPreventionStateView } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { tryGetDefinition } from "../cards";
 
 /** A minimal read-only board view — every game-state shape the engine passes
  *  to the SOURCE-side scan below (fat `GameState`, projected public state)
@@ -68,8 +68,7 @@ export function isCombatDamagePreventedFromSource(
     target: CardInstanceState,
     damageSource: CardInstanceState
 ): boolean {
-    const cardId = (target.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : null;
+    const def = liveStaticDefinition(target);
     const effects = def?.staticEffects;
     if (!effects) return false;
     // The block graph is present only during combat (where a "creatures it's
@@ -124,8 +123,7 @@ export function isCombatDamageUnpreventable(
     if (!anyCombatDamageUnpreventableStatic(state)) return false;
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
             for (const effect of effects) {
@@ -160,8 +158,7 @@ export function anyCombatDamageUnpreventableStatic(
 ): boolean {
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
             for (const effect of effects) {
