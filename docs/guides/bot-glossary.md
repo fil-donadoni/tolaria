@@ -230,7 +230,10 @@ firing at 400–1200 iterations (`#1259`); not used.
 
 <a id="dominance-pruning"></a>**Dominance pruning** — removing a Move from the
 root's candidates because it is _provably_ no better than passing: casting a
-board wipe on an empty board, an edict with nothing to sacrifice. "Provably"
+board wipe on an empty board, an edict with nothing to sacrifice. One case is
+dominated by a sibling instead of by passing: a planeswalker's tick-up whose
+resolution changes nothing (re-elking an Elk) loses to another of its loyalty
+abilities that costs at least as much and does something (`#8729`). "Provably"
 is the contract — a proof from the effect's own semantics, never a heuristic
 guess. Code: `enumerateMoves(…, { pruneDominatedNoOps })` in
 `convex/gre/moves.ts`; applied at the root only (per-node cost measured at
