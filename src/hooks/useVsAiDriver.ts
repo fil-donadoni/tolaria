@@ -46,6 +46,14 @@
 // cleared, the state re-read, the submission retried within
 // `BOT_SUBMIT_RETRY_LIMIT`, and then the ladder takes over.
 //
+// A THROW in the decision path itself (issue #8999) — building the view,
+// deciding, realising, a runner that throws before it returns its promise —
+// never escapes an effect. Uncaught, it reached the router's catch boundary
+// and unmounted `<Board>` with the driver inside it: no ladder, no record.
+// Every entry runs through ONE guard (`guard`, below) that records a
+// `driver-error` breadcrumb and treats the window like an `unanswered` one:
+// immediate escalation down the same ladder.
+//
 // ── Tick-gated subscription (PRD #1776 T3) ─────────────────────
 //
 // Holding a second full `getPublicState` subscription (3-9 KB) alongside the
@@ -86,7 +94,10 @@ import { useMutation } from "convex/react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { ExpectedInputKind } from "@convex/gre/expectedInput";
+import {
+    EXPECTED_INPUT_KINDS,
+    type ExpectedInputKind,
+} from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor, knowsOpponent } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
 import {
@@ -154,6 +165,42 @@ export const BOT_WATCHDOG_MS = 6000;
  *  because a rejected mutation changes no state and therefore produces no new
  *  tick. */
 export const BOT_SUBMIT_RETRY_LIMIT = 2;
+
+/** What a guarded decision-path step returns instead of its value when it
+ *  threw (issue #8999). A sentinel, not `null`/`undefined`: both are
+ *  legitimate step results (`realiseBotAction` returns `null` for "nothing to
+ *  submit", which is the `unrealisable` exit, not a fault). */
+const DRIVER_FAULT: unique symbol = Symbol("driver-fault");
+type DriverFault = typeof DRIVER_FAULT;
+
+/** How many stack frames a `driver-error` breadcrumb keeps — enough to name
+ *  the throwing function and its caller; the ring clamps the rest anyway. */
+const DRIVER_ERROR_STACK_FRAMES = 4;
+
+/** The text a `driver-error` breadcrumb carries: which decision-path entry
+ *  threw, the message, and the head of the stack (issue #8999). */
+export function describeDriverError(entry: string, error: unknown): string {
+    if (!(error instanceof Error)) return `${entry}: ${String(error)}`;
+    const frames = (error.stack ?? "")
+        .split("\n")
+        .filter((line) => line.trim().startsWith("at "))
+        .slice(0, DRIVER_ERROR_STACK_FRAMES)
+        .map((line) => line.trim());
+    return [`${entry}: ${error.message}`, ...frames].join("\n");
+}
+
+/** The window kind the tick names, when the bot's own view cannot be built to
+ *  say it. The tick stores a plain string, so it is checked against the
+ *  engine's union rather than cast — a typo renders as absent, never as a
+ *  plausible-looking window. */
+function tickExpectedKind(
+    tick: { expectedInputKind?: string } | null | undefined
+): ExpectedInputKind | undefined {
+    const kind = tick?.expectedInputKind;
+    return (EXPECTED_INPUT_KINDS as readonly string[]).includes(kind ?? "")
+        ? (kind as ExpectedInputKind)
+        : undefined;
+}
 
 /** What the driver hook reports back to the UI. */
 export type VsAiDriverStatus = {
@@ -597,10 +644,20 @@ export function useVsAiDriver(
     // change, which re-runs the effect, which re-arms the watchdog), and the
     // "never a silent no-op" guarantee turns into a render loop.
     const stuckSignature = useRef<string | null>(null);
+    // The state version a decision-path step THREW on (issue #8999). Read by
+    // the normal path (stop re-driving a version that throws — the ladder owns
+    // it now) and by the watchdog (escalate immediately, as for `unanswered`).
+    const faultSignature = useRef<string | null>(null);
     // The armed watchdog, keyed to the STATE VERSION it is watching (issue
     // #2284, review finding 1). Held in a ref rather than torn down by the
     // effect's cleanup on purpose — see the watchdog effect below.
-    const watchdog = useRef<{ signature: string; timer: number } | null>(null);
+    // `immediate` says the clock was armed at zero: a fault marked on this
+    // version AFTER a full-interval arm re-arms it at zero (issue #8999).
+    const watchdog = useRef<{
+        signature: string;
+        timer: number;
+        immediate: boolean;
+    } | null>(null);
     const disarmWatchdog = useCallback(() => {
         if (watchdog.current) {
             window.clearTimeout(watchdog.current.timer);
@@ -712,6 +769,63 @@ export function useVsAiDriver(
         []
     );
 
+    // ── The decision-path guard (issue #8999) ───────────────────────────────
+    //
+    // ONE helper for every entry that can throw: view building, deciding,
+    // realising, the ladder. A throw comes back as `DRIVER_FAULT`, never out of
+    // the effect — an effect that throws reaches the router's catch boundary
+    // and unmounts `<Board>` with this driver inside it, which is a freeze with
+    // no ladder and no record. The fault is recorded as a `driver-error`
+    // breadcrumb (which entry, the message, the stack head) before the caller
+    // decides what the missing answer means.
+    //
+    // The version comes from the REF, like `dispatch`'s: every caller is
+    // synchronous with its decision, and `escalate` is frozen at the first
+    // render, where the closure's `botState` does not exist yet.
+    const guard = useCallback(
+        <T>(
+            entry: string,
+            expectedKind: ExpectedInputKind | undefined,
+            step: () => T
+        ): T | DriverFault => {
+            try {
+                return step();
+            } catch (error) {
+                const state = botStateRef.current;
+                try {
+                    recordAiDecision({
+                        outcome: "driver-error",
+                        message: describeDriverError(entry, error),
+                        ...(expectedKind ? { expectedKind } : {}),
+                        ...(state
+                            ? { phase: state.phase, seq: state.seq }
+                            : {}),
+                    });
+                } catch {
+                    // A lost diagnostic, never a lost guard — see `note`.
+                }
+                return DRIVER_FAULT;
+            }
+        },
+        []
+    );
+
+    // A step threw on this state version: hand it to the watchdog NOW, as an
+    // `unanswered` window is (issue #8999). Two callers, two needs:
+    //
+    //   * from the decision EFFECT's own body, marking the version is enough —
+    //     the watchdog effect runs after it in the same commit, reads the mark
+    //     and arms at zero (a setState there would be a cascading render);
+    //   * from a TIMER or a runner (`escalateFault`), the watchdog may already
+    //     have armed its full interval for this version: re-run the effects,
+    //     and the watchdog — seeing a fault newer than its arm — re-arms at
+    //     zero. It never disarms from here: the clock it would kill is the
+    //     only thing left running if that re-render never came.
+    const escalateFault = useCallback((signature: string) => {
+        faultSignature.current = signature;
+        setSettleNonce((n) => n + 1);
+    }, []);
+
     const dispatch = useCallback(
         (
             signature: string,
@@ -756,7 +870,24 @@ export function useVsAiDriver(
                     at
                 );
             }
-            void run()
+            // A runner that throws BEFORE returning its promise (issue #8999)
+            // skipped the `.finally` below and left `inFlight` latched for
+            // good — every later effect run and every watchdog rung bailed on
+            // it. It is a driver fault, not a server rejection: release the
+            // guard NOW, and escalate from a microtask — the same turn the
+            // `.finally` below would have settled in, and never a setState
+            // inside the calling effect's body.
+            const pending = guard("realise", meta?.expectedKind, run);
+            if (pending === DRIVER_FAULT) {
+                inFlight.current = false;
+                faultSignature.current = signature;
+                void Promise.resolve().then(() => {
+                    setThinking(false);
+                    escalateFault(signature);
+                });
+                return;
+            }
+            void pending
                 .catch((e: unknown) => {
                     // Stale/illegal submissions are rejected server-side; allow
                     // the next state change to re-drive this state. A rejection is
@@ -795,14 +926,17 @@ export function useVsAiDriver(
         // `dispatch` rebuilt every render would leave that ladder calling a
         // first-render copy forever. Everything else it touches is a ref or a
         // setState, both of which React guarantees stable.
-        [note]
+        [note, guard, escalateFault]
     );
 
     // ── Rung 1..5: the escalation ladder ────────────────────────────────────
     const escalate = useCallback(
         (
             signature: string,
-            view: BotView,
+            // `null` when the bot's own view could not be built (issue #8999):
+            // every rung below is computed FROM the view, so none can run, and
+            // the walk goes straight to the terminal rung.
+            view: BotView | null,
             kind: ExpectedInputKind,
             ctx: RealisationContext
         ) => {
@@ -818,12 +952,25 @@ export function useVsAiDriver(
             // ring: only escalations PAST the first rung are, per the issue. It
             // still carries dispatch meta, so a rung-1 submission the server
             // REJECTS leaves a `submit-error` breadcrumb rather than falling
-            // through both rings (issue #2470 review, finding 3).
-            if (escalationAttempt.current === 0) {
+            // through both rings (issue #2470 review, finding 3). A step that
+            // THROWS (issue #8999) is recorded by the guard and falls through
+            // exactly like one that produced nothing.
+            if (view && escalationAttempt.current === 0) {
                 escalationAttempt.current = 1;
-                const action = decideBotAction(view);
-                const runner = realiseBotAction(action, ctx);
-                if (runner) {
+                const action = guard("rung 1 decide", kind, () =>
+                    decideBotAction(view)
+                );
+                const runner =
+                    action === DRIVER_FAULT
+                        ? DRIVER_FAULT
+                        : guard("rung 1 realise", kind, () =>
+                              realiseBotAction(action, ctx)
+                          );
+                if (
+                    action !== DRIVER_FAULT &&
+                    runner &&
+                    runner !== DRIVER_FAULT
+                ) {
                     dispatch(signature, runner, {
                         expectedKind: kind,
                         actionKind: action.kind,
@@ -835,16 +982,21 @@ export function useVsAiDriver(
             }
 
             // Rungs 2-4 — the minimal-legal answer, the CR decline, the pass.
-            const ladder = escalationLadder(kind, view);
+            const built = view
+                ? guard("ladder", kind, () => escalationLadder(kind, view))
+                : DRIVER_FAULT;
+            const ladder = built === DRIVER_FAULT ? [] : built;
             for (
-                let i = escalationAttempt.current - 1;
+                let i = Math.max(escalationAttempt.current - 1, 0);
                 i < ladder.length;
                 i++
             ) {
                 escalationAttempt.current = i + 2;
                 const step = ladder[i];
-                const runner = realiseBotAction(step.action, ctx);
-                if (!runner) continue;
+                const runner = guard(`rung ${step.rung} realise`, kind, () =>
+                    realiseBotAction(step.action, ctx)
+                );
+                if (!runner || runner === DRIVER_FAULT) continue;
                 recordAiEscalation({
                     rung: step.rung,
                     expectedKind: kind,
@@ -875,7 +1027,7 @@ export function useVsAiDriver(
         // yet (the bug this dependency now makes structurally impossible rather
         // than merely commented). The ladder itself is a pure function of what
         // it is handed. Stable on purpose — the watchdog effect depends on it.
-        [dispatch]
+        [dispatch, guard]
     );
 
     // ── The normal decision path ────────────────────────────────────────────
@@ -913,14 +1065,33 @@ export function useVsAiDriver(
             escalationSignature.current = null;
             retrySignature.current = null;
             stuckSignature.current = null;
+            faultSignature.current = null;
             revealWait.current = null;
         }
 
+        // A step already THREW on this state version (issue #8999): the
+        // ladder owns the window now. Re-running the same throwing step on
+        // every settle would only re-record the same fault.
+        if (faultSignature.current === currentSignature) return;
+
         // Cheap main-thread gate: only consult the Worker when the bot actually
         // owes an action in this window. Owed-ness is the ENGINE's answer
-        // (`view.owedInput`, ADR 0047) — see the module header.
-        const view = buildBotView(botState, botId);
-        const action = decideBotAction(view);
+        // (`view.owedInput`, ADR 0047) — see the module header. Both steps are
+        // guarded: a throw here used to unmount the board (issue #8999).
+        const view = guard("view", tickExpectedKind(tick), () =>
+            buildBotView(botState, botId)
+        );
+        if (view === DRIVER_FAULT) {
+            faultSignature.current = currentSignature;
+            return;
+        }
+        const action = guard("decide", view.owedInput?.kind, () =>
+            decideBotAction(view)
+        );
+        if (action === DRIVER_FAULT) {
+            faultSignature.current = currentSignature;
+            return;
+        }
         if (action.kind === "none") return;
 
         // De-dupe by TICK version, not the projected state's own `seq` (issue
@@ -983,9 +1154,22 @@ export function useVsAiDriver(
         // hand-maintained list): a new mechanic that adds a BotAction kind is a
         // build error until classified, so it can never silently fall through to
         // the Worker and freeze the bot (the recurring class this closes).
-        const realisation = botActionRealisation(action.kind);
+        const owedKind = view.owedInput!.kind;
+        const realisation = guard("classify", owedKind, () =>
+            botActionRealisation(action.kind)
+        );
+        if (realisation === DRIVER_FAULT) {
+            faultSignature.current = signature;
+            return;
+        }
         if (realisation !== "worker") {
-            const runner = realiseBotAction(action, realisationContext);
+            const runner = guard("realise", owedKind, () =>
+                realiseBotAction(action, realisationContext)
+            );
+            if (runner === DRIVER_FAULT) {
+                faultSignature.current = signature;
+                return;
+            }
             if (runner) {
                 dispatch(signature, runner, {
                     expectedKind: view.owedInput!.kind,
@@ -1015,10 +1199,17 @@ export function useVsAiDriver(
         // passes immediately through the existing pass-priority path so routine
         // passes never stall the game. Only the `pass` window is eligible;
         // mulligan / combat declarations are always real decisions and search.
-        if (
-            action.kind === "pass" &&
-            !shouldThink(projectedToGameState(botState), botId)
-        ) {
+        const think =
+            action.kind === "pass"
+                ? guard("think gate", owedKind, () =>
+                      shouldThink(projectedToGameState(botState), botId)
+                  )
+                : true;
+        if (think === DRIVER_FAULT) {
+            faultSignature.current = signature;
+            return;
+        }
+        if (!think) {
             // Recorded too (issue #2470): this pass never consulted the Brain,
             // so it is NOT evidence about the Brain's health — a ring that did
             // not say so would read as "the search kept choosing to pass".
@@ -1052,11 +1243,24 @@ export function useVsAiDriver(
             // and the opponent-knowledge mode. Reading it here rather than
             // during render is what keeps the two in step — see the
             // `deckKnowledge` memo above.
-            const difficulty = matchDifficulty ?? getStoredDifficulty();
-            const budget = budgetFor(difficulty);
-            const knowledge = knowsOpponent(difficulty)
-                ? deckKnowledge?.informed
-                : deckKnowledge?.blind;
+            // Guarded: a throw here fired from a timer, past
+            // `setThinking(true)` and before any dispatch — the indicator
+            // stuck on and the window left to the full watchdog interval.
+            const knobs = guard("search budget", owedKind, () => {
+                const difficulty = matchDifficulty ?? getStoredDifficulty();
+                return {
+                    budget: budgetFor(difficulty),
+                    knowledge: knowsOpponent(difficulty)
+                        ? deckKnowledge?.informed
+                        : deckKnowledge?.blind,
+                };
+            });
+            if (knobs === DRIVER_FAULT) {
+                setThinking(false);
+                escalateFault(signature);
+                return;
+            }
+            const { budget, knowledge } = knobs;
             // The version the SEARCH is about to run on. Captured before the
             // consult, not read when it resolves: a search takes up to a full
             // difficulty budget plus Worker startup, and its verdict —
@@ -1229,14 +1433,6 @@ export function useVsAiDriver(
         }
 
         const signature = currentSignature!;
-        const view = buildBotView(botState, botId);
-        const owed = view.owedInput;
-        // Not our window — nothing to arm. Any leftover rung-5 banner clears
-        // on its own: it is keyed to the state version that produced it.
-        if (!owed) {
-            disarmWatchdog();
-            return;
-        }
         // Already the terminal rung for this state version: the player's control
         // is the exit, and burning more timers changes nothing.
         if (stuckSignature.current === signature) {
@@ -1245,21 +1441,60 @@ export function useVsAiDriver(
         }
         // Already watching THIS state version. Leave the running clock alone —
         // re-arming here is what let an inert submission reset (or, via the
-        // cleanup, cancel) the watchdog forever.
-        if (watchdog.current?.signature === signature) return;
+        // cleanup, cancel) the watchdog forever. Both checks come BEFORE the
+        // view is built: the signature is the state version, so the owed-ness
+        // below cannot differ from the run that armed it — and a view that
+        // throws (issue #8999) is not rebuilt, and re-recorded, on every settle.
+        // The one exception: a full-interval clock armed BEFORE this version
+        // faulted is re-armed at zero below, as a fresh `unanswered` would be.
+        if (
+            watchdog.current?.signature === signature &&
+            (watchdog.current.immediate || faultSignature.current !== signature)
+        ) {
+            return;
+        }
+
+        // Guarded (issue #8999). A view that cannot be built still has a window
+        // the tick names; every rung is computed from the view, so `escalate`
+        // walks straight to the terminal rung. With no tick kind either there
+        // is nothing to name — the fault is recorded and the window is left to
+        // the server.
+        const built = guard("watchdog view", tickExpectedKind(tick), () =>
+            buildBotView(botState, botId)
+        );
+        const view = built === DRIVER_FAULT ? null : built;
+        const owedKind =
+            built === DRIVER_FAULT
+                ? tickExpectedKind(tick)
+                : built.owedInput?.kind;
+        // Not our window — nothing to arm. Any leftover rung-5 banner clears
+        // on its own: it is keyed to the state version that produced it.
+        if (!owedKind) {
+            disarmWatchdog();
+            return;
+        }
         disarmWatchdog();
 
-        const action = decideBotAction(view);
         // "Nothing owed" while the Expected Input names the bot is a DEFECT, not
         // a slow think: it asserts in development, is recorded, and skips the
-        // interval entirely (issue #2284).
+        // interval entirely (issue #2284). So is a decision-path THROW (issue
+        // #8999) — this version's, recorded by the normal path, or this
+        // decision's own; neither is re-decided here.
+        const action =
+            !view || faultSignature.current === signature
+                ? DRIVER_FAULT
+                : guard("watchdog decide", owedKind, () =>
+                      decideBotAction(view)
+                  );
         const escalateImmediately =
-            action.kind === "none" || action.kind === "unanswered";
+            action === DRIVER_FAULT ||
+            action.kind === "none" ||
+            action.kind === "unanswered";
         if (escalateImmediately && import.meta.env?.DEV) {
             console.error(
-                `[vs-AI] bot decided "${action.kind}" while the engine's Expected Input ` +
-                    `names it for a "${owed.kind}" window (ADR 0047 / issue #2284). ` +
-                    `Escalating.`
+                `[vs-AI] bot decided "${action === DRIVER_FAULT ? "driver-error" : action.kind}" ` +
+                    `while the engine's Expected Input names it for a "${owedKind}" ` +
+                    `window (ADR 0047 / issue #2284). Escalating.`
             );
         }
 
@@ -1275,15 +1510,28 @@ export function useVsAiDriver(
                     arm(BOT_WATCHDOG_MS);
                     return;
                 }
-                escalate(signature, view, owed.kind, realisationContext);
+                // `escalate` guards its own steps; this guard is the last line
+                // for anything else in it (a throwing ring subscriber), so a
+                // fault there still re-arms below instead of killing the clock.
+                guard("escalate", owedKind, () =>
+                    escalate(signature, view, owedKind, realisationContext)
+                );
                 // Keep watching the SAME state version. If the rung just
                 // dispatched also resolves without advancing the game, the next
                 // interval walks the ladder further instead of going quiet;
                 // if it does advance, this timer is disarmed by the new
-                // signature before it ever fires. Rung 5 is terminal.
-                if (stuckSignature.current !== signature) arm(BOT_WATCHDOG_MS);
+                // signature before it ever fires. Rung 5 is terminal. A version
+                // that has thrown is a known defect, not a slow think: its next
+                // rung does not wait out the interval either (issue #8999).
+                if (stuckSignature.current !== signature) {
+                    arm(
+                        faultSignature.current === signature
+                            ? 0
+                            : BOT_WATCHDOG_MS
+                    );
+                }
             }, delay);
-            watchdog.current = { signature, timer };
+            watchdog.current = { signature, timer, immediate: delay === 0 };
         };
         arm(escalateImmediately ? 0 : BOT_WATCHDOG_MS);
         // NO cleanup: see the comment above. The timer is owned by the ref, not
