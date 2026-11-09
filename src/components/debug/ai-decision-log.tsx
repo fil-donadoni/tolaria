@@ -31,6 +31,7 @@ const OUTCOME: Record<AiDecisionOutcome, { label: string; bad: boolean }> = {
     "submit-error": { label: "SUBMISSION REJECTED", bad: true },
     unrealisable: { label: "NOTHING SUBMITTED", bad: true },
     unanswered: { label: "NO ANSWER FOR THIS WINDOW", bad: true },
+    "driver-error": { label: "DRIVER THREW", bad: true },
 };
 
 /** The window a record was taken in, for the row prefix.

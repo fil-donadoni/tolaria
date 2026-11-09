@@ -228,18 +228,58 @@ let stubDecideNone = true;
  *  escalates immediately, and a decision exit that must not be described by
  *  silence. */
 let stubDecideUnanswered = false;
+/** Issue #8999 — the decision function THROWS (an engine bug reached through
+ *  the bot's own view), the shape that used to unmount the board. */
+let stubDecideThrows = false;
 vi.mock("~/lib/ai/brain", async (importOriginal) => {
     const actual = await importOriginal<typeof import("~/lib/ai/brain")>();
     return {
         ...actual,
         decideBotAction: (
             view: Parameters<typeof actual.decideBotAction>[0]
-        ) =>
-            stubDecideUnanswered
+        ) => {
+            if (stubDecideThrows) throw new Error("decide exploded");
+            return stubDecideUnanswered
                 ? ({ kind: "unanswered" } as const)
                 : stubDecideNone
                   ? ({ kind: "none" } as const)
-                  : actual.decideBotAction(view),
+                  : actual.decideBotAction(view);
+        },
+    };
+});
+
+/** Issue #8999 — the bot's own view cannot be built at all. */
+let stubViewThrows = false;
+vi.mock("~/lib/ai/bot-view", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("~/lib/ai/bot-view")>();
+    return {
+        ...actual,
+        buildBotView: (...args: Parameters<typeof actual.buildBotView>) => {
+            if (stubViewThrows) throw new Error("view exploded");
+            return actual.buildBotView(...args);
+        },
+    };
+});
+
+/** Issue #8999 — the NEXT realised runner throws synchronously, before it
+ *  returns its promise: the shape that skipped `dispatch`'s `.finally` and left
+ *  the in-flight guard latched. One-shot, so the ladder's own (real) runner
+ *  can prove the guard was released. */
+let throwRunnerOnce = false;
+vi.mock("~/lib/ai/realise", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("~/lib/ai/realise")>();
+    return {
+        ...actual,
+        realiseBotAction: (
+            ...args: Parameters<typeof actual.realiseBotAction>
+        ) => {
+            const runner = actual.realiseBotAction(...args);
+            if (!runner || !throwRunnerOnce) return runner;
+            throwRunnerOnce = false;
+            return () => {
+                throw new Error("runner threw before its promise");
+            };
+        },
     };
 });
 
@@ -506,6 +546,9 @@ beforeEach(() => {
     onMutation = undefined;
     stubDecideNone = true;
     stubDecideUnanswered = false;
+    stubDecideThrows = false;
+    stubViewThrows = false;
+    throwRunnerOnce = false;
     deferConsult = false;
     releaseConsult = undefined;
     clearAiDecisions();
@@ -897,5 +940,75 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(calls[0].args).toMatchObject({ gameId: GAME, playerId: BOT });
         // And the banner clears once the game has actually moved.
         expect(screen.queryByRole("alert")).toBeNull();
+    });
+});
+
+// Issue #8999 — a THROW anywhere in the driver's decision path. Uncaught, it
+// left the effect, reached the router's catch boundary and unmounted `<Board>`
+// with the driver inside it: no ladder, no record — one plausible shape of the
+// reported Crabomination / Cabal Ritual freezes. Each test mounts the REAL
+// `VsAiDriver`, so a throw that escapes an effect fails the render itself.
+describe("a throw in the driver's decision path (issue #8999)", () => {
+    it("escalates a THROWING decision immediately instead of unmounting, and records it", async () => {
+        stubDecideThrows = true;
+        publish(priorityBoard(), 5);
+
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        // Well inside the watchdog interval: a throw is a known defect, like
+        // `unanswered`, never a slow think.
+        await advance(50);
+
+        // The ladder ran past the throwing decision to the CR 117 pass.
+        expect(calls.map((c) => c.ref)).toContain("passPriority");
+        const fault = getAiDecisions().find(
+            (d) => d.outcome === "driver-error"
+        );
+        expect(fault).toBeDefined();
+        expect(fault!.message).toContain("decide exploded");
+        expect(fault!.expectedKind).toBe("priority");
+        expect(fault!.seq).toBe(5);
+    });
+
+    it("releases the in-flight guard when a runner throws BEFORE its promise", async () => {
+        // The real decision path: the bot declines the unaffordable CR 508.1c
+        // attack tax, a DIRECT realisation, and that runner throws
+        // synchronously. Before the guard the
+        // throw skipped `dispatch`'s `.finally`, so `inFlight` stayed latched
+        // and every rung after it bailed — the ladder's own submission below is
+        // only reachable once the guard has been released.
+        stubDecideNone = false;
+        throwRunnerOnce = true;
+        publish(attackManaTaxBoard(), 3);
+
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        await advance(50);
+
+        expect(calls.map((c) => c.ref)).toContain("cancelAttackTax");
+        const fault = getAiDecisions().find(
+            (d) => d.outcome === "driver-error"
+        );
+        expect(fault).toBeDefined();
+        expect(fault!.message).toContain("runner threw before its promise");
+        expect(fault!.expectedKind).toBe("attack-mana-tax");
+    });
+
+    it("surfaces the terminal rung when the bot's own view cannot be built", async () => {
+        // Every rung is computed FROM the view, so none can run: the window
+        // the TICK names goes straight to rung 5 rather than to silence.
+        stubViewThrows = true;
+        publish(priorityBoard(), 9);
+
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        await advance(50);
+
+        expect(screen.getByRole("alert").textContent).toContain(
+            "The Bot could not act"
+        );
+        const fault = getAiDecisions().find(
+            (d) => d.outcome === "driver-error"
+        );
+        expect(fault).toBeDefined();
+        expect(fault!.message).toContain("view exploded");
+        expect(fault!.expectedKind).toBe("priority");
     });
 });

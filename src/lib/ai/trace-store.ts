@@ -285,7 +285,13 @@ export type AiDecisionOutcome =
      *  that window (ADR 0047's `unanswered`). Escalated immediately. */
     | "unanswered"
     /** The chosen answer was submitted and the mutation rejected it. */
-    | "submit-error";
+    | "submit-error"
+    /** A step of the driver's own decision path THREW (issue #8999) — view
+     *  building, deciding, realising, a runner that threw before returning
+     *  its promise. Caught, never left to unmount the board, and escalated
+     *  immediately like `unanswered`. `message` names the entry that threw,
+     *  the error text and the head of its stack. */
+    | "driver-error";
 
 /** One decision, as the Debug panel and a bug report show it. */
 export type AiDecisionRecord = {
