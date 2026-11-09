@@ -9128,6 +9128,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // search takes whenever the move is offered. The move must not be.
     {
         label: "retrace: no graveyard cast from a Six that Humility stripped",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Humility off the battlefield (Six's grant live again)",
+            },
+        },
         spec: {
             cards: [
                 { name: "Six", owner: "me", zone: "battlefield" },
