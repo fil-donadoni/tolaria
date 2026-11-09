@@ -60,7 +60,6 @@ import {
     reverseRestrictedManaFromPool,
     payRemoveCounterCost,
     addCounterToCard,
-    applyKeywordCounterGrant,
     payDiscardAtRandomCost,
     payDiscardLastDrawn,
     canPayExileTopOfLibrary,
@@ -249,7 +248,6 @@ import {
     protectionSourceFromTargeting,
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
-    raiseTriggerTargetSelection,
     solveHybridGenericLegs,
     solvePhyrexianSplit,
     siblingControllerIdFor,
@@ -287,7 +285,6 @@ import { castProhibitionReason } from "./cards/castRestrictions";
 import {
     announcedTargetCount,
     applyRaisedTargetFinalization,
-    continueAfterRetargetOffer,
     divideAmountsForCommit,
     keepableTargets,
     pendingTargetCountMaxReached,
@@ -310,7 +307,6 @@ import {
     phyrexianPipCount,
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
-import { recomposeLayer6ForInstance } from "./gre/layer6";
 import {
     attackTargetExcessSink,
     combatDamageAssignmentCompleteness,
@@ -404,10 +400,8 @@ import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { assertExpectedInput } from "./gre/expectedInput";
 import {
-    advancePhase,
     drainAutoPasses,
     applyAllCombatDamage,
-    emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
@@ -433,6 +427,39 @@ import type { Phase } from "./gre/types";
 import { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
 
 export { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
+// Issue #9001 — the decline mutations' rules are auth-free engine cores a
+// server-side caller with no `ctx.auth` runs too; the payment reversal they
+// share with the other payment mutations moved to GRE level with them.
+// Re-exported for every existing `from "./game"` import site.
+import {
+    cancelActivationOnState,
+    cancelAttackTaxOnState,
+    cancelCastOnState,
+    cancelTargetOnState,
+    confirmBlockersOnState,
+    passPriorityOnState,
+} from "./gre/owedInputDeclines";
+import {
+    abandonPendingPayment,
+    refundChosenManaOutput,
+    refundFixedManaOutput,
+    refundTapBonusMana,
+    restoreLifePaidOnUntap,
+    restoreManaCounterRemovalOnUntap,
+    restoreManaPaidOnUntap,
+    untapSourceFromPayment,
+} from "./gre/paymentRollback";
+import { isInlineManaAbilityPark } from "./gre/activation";
+import { getBlockDeclarerId } from "./gre/combat";
+
+export { cancelTriggerTargetSelection } from "./gre/owedInputDeclines";
+export {
+    abandonPendingPayment,
+    refundTapBonusMana,
+    restoreLifePaidOnUntap,
+    restoreManaCounterRemovalOnUntap,
+    restoreManaPaidOnUntap,
+} from "./gre/paymentRollback";
 // CR 602.2a / 602.5 — the shared shape of an activated ability's stack item and
 // the shared activation tally, so the three commit sites below and the ISMCTS
 // search's move sandbox (`gre/search.ts`, issue #1920) cannot drift apart.
@@ -485,15 +512,10 @@ import {
     getAttackerCapEffect,
     getBlockerCapEffect,
     foldAttackRequirements,
-    foldBlockRequirements,
-    validateMinimumBlockers,
     validateDeclaredAttackers,
-    validateDeclaredBlockers,
-    collectBlockBypassCharges,
     collectAttackSacrificeTax,
     collectAttackManaTax,
     markAttacking,
-    markDeclaredBlockers,
     recordAttackerDeclared,
 } from "./gre/combat";
 import {
@@ -510,8 +532,6 @@ import {
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
     isLegalBandComposition,
-    recordBlockedAttackers,
-    applyMeleeUnblockedRider,
 } from "./gre/banding";
 import {
     checkStateBasedActions,
@@ -1115,44 +1135,6 @@ export function applyManaAbilityDiscardCost(
     payDiscardAtRandomCost(state, activatorId, count);
 }
 
-/** CR 106.4 / 118.3 — reverses the counters a for-mana tap removed from its own
- *  source, when that tap is undone to refund unspent mana in the same priority
- *  window. Covers BOTH counter-cost shapes, which share the
- *  `manaCounterRemoval` snapshot: the SCALING cost of a Mana Battery
- *  (`manaChoiceRemovesCounters`) and the FIXED `cost.removeCounter` leg of a
- *  depletion land.
- *
- *  The single authority for the restore, over all FIVE reversal sites — three
- *  on the activation side (`untapSourceFromPayment`, `tapUntap`'s choice
- *  branch, `tapUntap`'s fixed branch) and two on the cast side
- *  (`untapForPayment`, `rollbackPendingCast`). Before this helper existed
- *  there were two hand-rolled copies and three holes, and each hole burns the
- *  counter permanently: the land yields its mana once instead of twice, for a
- *  cast that never happened. The cast-side pair is the same
- *  reversal-symmetry class #3214 and #3354 already fixed for the exert and
- *  life/mana legs.
- *
- *  CR 122.1b (issue #1194) — a KEYWORD counter coming back re-grants its
- *  keyword, and the layer-6 recompose makes it visible before the next SBA
- *  pass, mirroring exactly what `payRemoveCounterCost` splices out when the
- *  cost is paid. That is why this takes `state`: a restore that put the
- *  counter back without the grant would leave a permanent holding an
- *  indestructible counter and not indestructible. No-op when the tap removed
- *  no counters. */
-export function restoreManaCounterRemovalOnUntap(
-    state: GameState,
-    card: CardInstanceState
-): void {
-    if (!card.manaCounterRemoval) return;
-    const { type, count } = card.manaCounterRemoval;
-    const next = { ...(card.counters ?? {}) };
-    next[type] = (next[type] ?? 0) + count;
-    card.counters = next;
-    card.manaCounterRemoval = undefined;
-    applyKeywordCounterGrant(state, card, type);
-    recomposeLayer6ForInstance(state, card);
-}
-
 /** CR 605.1a / 118.3 — tap mana ability FIXED counter-removal cost (the
  *  Mercadian Masques depletion lands: "{T}, Remove a depletion counter from
  *  this land: Add {G}{G}."). Pays `ability.cost.removeCounter` through the
@@ -1410,27 +1392,6 @@ export function autoTapForManaAbilityCost(
     }
 }
 
-/** CR 106.4 / 605.1a — refund the mana recorded by
- *  {@link applyManaAbilityManaCost} when a tap-for-mana is reversed before its
- *  produced mana is spent (the `tapUntap` untap toggle, `untapForPayment`).
- *  Symmetric with `restoreLifePaidOnUntap` and the `chosenMana` /
- *  charge-counter refunds: an undone activation must undo its COST too, or the
- *  toggle is a mana burner. No-op when the ability had no mana cost. */
-export function restoreManaPaidOnUntap(
-    player: PlayerState,
-    card: CardInstanceState
-): void {
-    const paid = card.manaPaidThisTap;
-    if (!paid) return;
-    for (const [color, amount] of Object.entries(paid)) {
-        if (color === "X" || typeof amount !== "number" || amount <= 0)
-            continue;
-        const key = color as keyof typeof player.manaPool;
-        player.manaPool[key] = (player.manaPool[key] ?? 0) + amount;
-    }
-    card.manaPaidThisTap = undefined;
-}
-
 /** CR 605.1a / 122.1 — depletion-dual tap-for-mana rider. When a tap mana
  *  ability declares `putDepletionCounterOnTap`, the source puts one depletion
  *  counter on itself as part of resolving the mana ability (Land Cap, Lava
@@ -1542,22 +1503,6 @@ export function recordLifePaidOnTap(
 ): void {
     const paid = lifeBeforeTap - lifeAfterTap;
     card.lifePaidThisTap = paid > 0 ? paid : undefined;
-}
-
-/** CR 106.4 / 605.1a — restore the life recorded by `recordLifePaidOnTap` when
- *  a tap-for-mana is reversed before its mana is spent (the `tapUntap` untap
- *  toggle or `untapForPayment`). Symmetric with the mana / charge-counter
- *  refund. Unlike City of Brass, whose becomes-tapped TRIGGER goes on the stack
- *  and blocks the reversal (`tapTriggerCommitted`), painland-style inline riders
- *  resolve with no stack, so the tap — life ping included — stays reversible.
- *  No-op when the source paid no life. Shared by both untap paths. */
-export function restoreLifePaidOnUntap(
-    player: PlayerState,
-    card: CardInstanceState
-): void {
-    if (!card.lifePaidThisTap) return;
-    player.life += card.lifePaidThisTap;
-    card.lifePaidThisTap = undefined;
 }
 
 type ResolvedManaTapChoice = {
@@ -1775,128 +1720,6 @@ function realizeAndStampTapBonus(
         player.battlefield.some((c) => c.id === card.id)
     ) {
         card.tapBonusMana = bonus as ManaCost;
-    }
-}
-
-/** CR 106.6 (issue #1559 review) — resolves the activated mana ability that
- *  ACTUALLY produced `refund` (a `card.chosenMana` snapshot) by matching its
- *  exact shape against every one of the card's non-useStack mana abilities'
- *  declared output. `getActivatedManaAbility` returns only the FIRST such
- *  ability on the card, which is wrong when the chosen output came from a
- *  SECOND, distinct ability (Delighted Halfling: "{T}: Add {C}." is found
- *  first, but the actual restricted deposit can come from the separate
- *  legendary-spell ability) — reversing against the wrong ability corrupts
- *  state (decrementing a pool that was never credited while the real deposit
- *  sits untouched in `restrictedMana`). Correct as long as no two mana
- *  abilities on the same card share an output shape while differing in
- *  restriction or rider — enforced catalogue-wide by
- *  `manaAbilityOutputAmbiguity.test.ts` (agreeing pairs, Quirion Elves, are
- *  fine: either resolves to the same reversal). Falls back to `fallback` (the card's single/first
- *  ability) when nothing matches — the previously-only-supported single-mana-
- *  ability shape. Shared by every untap/refund site that reverses a
- *  `chosenMana` snapshot: `tapUntap`'s untap toggle, `untapSourceFromPayment`,
- *  `untapForPayment`'s toggle, and `rollbackPendingCast`'s bulk undo. */
-function resolveManaAbilityByOutput(
-    card: CardInstanceState,
-    refund: ManaCost,
-    fallback: ActivatedAbility | null
-): ActivatedAbility | null {
-    const manaShapesEqual = (a: ManaCost, b: ManaCost): boolean =>
-        MANA_COLORS.every((c) => (a[c] ?? 0) === (b[c] ?? 0));
-    const cardDef = getDefinition(card.card.id as string);
-    return (
-        cardDef.activatedAbilities?.find(
-            (a) =>
-                !a.useStack &&
-                (a.manaChoices?.some((m) => manaShapesEqual(m, refund)) ??
-                    (a.manaProduced
-                        ? manaShapesEqual(a.manaProduced, refund)
-                        : false))
-        ) ?? fallback
-    );
-}
-
-/** CR 106.4/106.6 (issue #1559 review) — refunds mana a payment tap produced,
- *  restriction-aware: reverses the parallel `restrictedMana` deposit (with its
- *  rider) when the producing ability was restricted, instead of always
- *  assuming the fungible `manaPool` like every one of these sites used to. The
- *  `card.chosenMana` half of the split below — refunds a manaChoices-based
- *  ability's snapshotted output, resolving which ability actually produced it
- *  via `resolveManaAbilityByOutput` (more than one ability can be in play on
- *  the same card — Delighted Halfling). No-op if `chosenMana` is unset (the
- *  caller is expected to check first, matching each call site's own "which
- *  branch applies" logic — a bulk rollback vs. a single-tap undo differ on
- *  what to do in the OTHER (fixed-ability) branch, so that half is kept
- *  separate below as `refundFixedManaOutput` rather than folded in here). */
-function refundChosenManaOutput(
-    player: PlayerState,
-    card: CardInstanceState
-): void {
-    const refund = card.chosenMana;
-    if (!refund) return;
-    const producingAbility = resolveManaAbilityByOutput(
-        card,
-        refund,
-        getActivatedManaAbility(card)
-    );
-    const restriction = producingAbility?.manaRestriction;
-    const riders = manaRidersForAbility(producingAbility);
-    // CR 106.6 (issue #3354) — symmetric with `depositTappedMana`: a rider
-    // banked the mana in the parallel pool even without a restriction, so the
-    // reversal must look for it there or the refund silently untaps for free.
-    const tagged = restriction !== undefined || hasAnyManaRider(riders);
-    for (const [color, amount] of Object.entries(refund)) {
-        if (color !== "X" && typeof amount === "number" && amount > 0) {
-            if (tagged) {
-                reverseRestrictedManaFromPool(
-                    player,
-                    color,
-                    amount,
-                    restriction,
-                    riders
-                );
-            } else {
-                player.manaPool[color] = Math.max(
-                    0,
-                    (player.manaPool[color] ?? 0) - amount
-                );
-            }
-        }
-    }
-    card.chosenMana = undefined;
-}
-
-/** The FIXED-ability sibling of {@link refundChosenManaOutput} — refunds a
- *  single-mana-ability card (a land / Mishra's Workshop) whose output was
- *  never snapshotted onto `chosenMana` (the non-dynamic, non-substituted
- *  case). `manaColor` is the caller's already-resolved
- *  `getBasicLandMana ?? getActivatedManaColor` result — callers differ on
- *  what to do when that's absent (throw vs. silently skip), so this assumes
- *  a valid color was already found. */
-function refundFixedManaOutput(
-    player: PlayerState,
-    card: CardInstanceState,
-    manaColor: Color
-): void {
-    const amount = getFixedManaAmount(card, manaColor);
-    const restriction = getActivatedManaRestriction(card);
-    // CR 106.6 (issue #3354) — the fixed-output twin of the split in
-    // `refundChosenManaOutput`: an ability whose mana carries a rider banked
-    // into the parallel pool whether or not it also carried a restriction.
-    const riders = manaRidersForAbility(getActivatedManaAbility(card));
-    if (restriction || hasAnyManaRider(riders)) {
-        reverseRestrictedManaFromPool(
-            player,
-            manaColor,
-            amount,
-            restriction ?? undefined,
-            riders
-        );
-    } else {
-        player.manaPool[manaColor] = Math.max(
-            0,
-            (player.manaPool[manaColor] ?? 0) - amount
-        );
     }
 }
 
@@ -2369,65 +2192,6 @@ export function tapSourceIntoPayment(
     }
 }
 
-/** CR 605.4 / 106.4 — reversing a for-mana tap undoes the whole mana ability,
- *  so refund the extra mana a Wild-Growth-style triggered mana ability added on
- *  this tap (`tapBonusMana`) and clear the record. Without this the bonus stays
- *  floating after the source untaps — the tap → +2 / untap → −1 infinite-mana
- *  leak. Symmetric with the `chosenMana` / `lifePaidThisTap` refunds. No-op when
- *  the tap added no bonus. */
-export function refundTapBonusMana(
-    player: PlayerState,
-    card: CardInstanceState
-): void {
-    if (!card.tapBonusMana) return;
-    for (const [color, amount] of Object.entries(card.tapBonusMana)) {
-        if (color !== "X" && typeof amount === "number" && amount > 0) {
-            player.manaPool[color] = Math.max(
-                0,
-                (player.manaPool[color] ?? 0) - amount
-            );
-        }
-    }
-    card.tapBonusMana = undefined;
-}
-
-/** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
- *  untaps the source. Shared by untapForPayment and untapForActivationPayment. */
-function untapSourceFromPayment(
-    state: GameState,
-    player: PlayerState,
-    card: CardInstanceState
-): void {
-    discardPermanentTappedEvent(state, card.id);
-    refundTapBonusMana(player, card);
-    // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses the
-    // parallel `restrictedMana` deposit (with its rider) instead of always
-    // assuming the fungible pool.
-    if (card.chosenMana) {
-        refundChosenManaOutput(player, card);
-    } else {
-        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-        if (!manaColor) throw new Error("Card does not produce mana");
-        refundFixedManaOutput(player, card, manaColor);
-    }
-    // CR 106.4 / 118.3 — restore the counters removed to pay a Mana Battery's scaling
-    // cost or a depletion land's fixed `cost.removeCounter` leg, when the
-    // payment tap is reversed.
-    restoreManaCounterRemovalOnUntap(state, card);
-    // CR 106.4 / 605.1a — reversing this payment tap undoes the whole mana
-    // ability, so restore the life its inline riders took (painland ping,
-    // Ancient Tomb, Mana Confluence). Symmetric with the mana / counter refund
-    // above.
-    restoreLifePaidOnUntap(player, card);
-    // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
-    restoreExertOnUntap(state, card);
-    reverseManaAbilityEffectsOnUntap(card);
-    // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
-    // Star's {1}). Same reversal, cost side.
-    restoreManaPaidOnUntap(player, card);
-    card.isTapped = false;
-}
-
 /** True iff the graveyard card matches a FLASHBACK exile cost's colour filter
  *  (CR 105.2 / 202.2 — Flash of Insight "blue cards"). Colours are the card's
  *  actual printed COLOUR (`cardHasColor` → colours of its mana cost), NOT its
@@ -2570,7 +2334,6 @@ import {
     buildCastExileCostChoice,
     castAlternativeCostForZone,
     castRawManaCost,
-    clearDeclinedExileRoute,
     exileCastRoutes,
     flashbackHandCostLeg,
     flashbackLifeCost,
@@ -2875,117 +2638,6 @@ export function beginNonStackFilterCostActivation(
  *  spell to the stack, clear pendingCast, and swap priority — mirroring the
  *  tail of tapForPayment. Returns the card name on commit (for SPELL_CAST
  *  event logging), or null if nothing was committed. */
-/** Roll back the in-progress spell payment: untap every land tapped so far,
- *  return their mana to nothing, and clear `pendingCast`. Sacrificed sources
- *  (Black Lotus) cannot be un-sacrificed, so their mana contribution is left in
- *  the pool — the empty-pool step at phase end drains it. Mirrors the rollback
- *  the player triggers explicitly via `cancelCast`. */
-function rollbackPendingCast(state: GameState): void {
-    if (!state.pendingCast) return;
-    const player = getPlayer(state, state.pendingCast.playerId);
-    reversePaymentTaps(state, player, state.pendingCast.tappedLandIds);
-    // CR 702.132a — the assistant's mana window was opened by this cast, so
-    // cancelling it reverses their taps too. Their payment needs no refund: it is
-    // spent only when the cast commits.
-    const assist = state.pendingCast.assistChoice;
-    if (assist?.assistantId) {
-        reversePaymentTaps(
-            state,
-            getPlayer(state, assist.assistantId),
-            assist.assistantTappedIds ?? []
-        );
-    }
-    // CR 702.126 — Improvise: undo every artifact tapped toward this cast's
-    // generic cost. Unlike land taps, these never touched the mana pool, so
-    // there's nothing to refund — just untap and drop the queued tap event.
-    // `manaCost` itself is discarded below with the whole pendingCast, so the
-    // generic reduction it carried needs no separate restoration.
-    for (const cardId of state.pendingCast.improviseTappedArtifactIds ?? []) {
-        discardPermanentTappedEvent(state, cardId);
-        const card = player.battlefield.find((c) => c.id === cardId);
-        if (!card) continue;
-        card.isTapped = false;
-    }
-    clearDeclinedExileRoute(state, state.pendingCast.cardInstanceId);
-    state.pendingCast = undefined;
-}
-
-/** Reverses the mana-ability taps a cast's payment made on `player`'s sources:
- *  untap, undo the tap's side effects, take the produced mana back. */
-function reversePaymentTaps(
-    state: GameState,
-    player: PlayerState,
-    cardIds: readonly string[]
-): void {
-    for (const cardId of cardIds) {
-        discardPermanentTappedEvent(state, cardId);
-        const card = player.battlefield.find((c) => c.id === cardId);
-        if (!card) continue;
-        card.isTapped = false;
-        // CR 106.4 / 701.43b (issue #3214) — reversing this payment tap undoes
-        // the mana ability it paid for, so un-exert the source when THIS tap is
-        // what exerted it (Arena of Glory). The activation-side rollback gets
-        // this through `untapSourceFromPayment`; this cast-side loop carries its
-        // own inline copy of the untap and must restate it, or a cancelled cast
-        // leaves the land not untapping for a spell that was never cast.
-        restoreExertOnUntap(state, card);
-        reverseManaAbilityEffectsOnUntap(card);
-        // CR 106.4 / 118.3 / 122.1 — and the counters the tap's own
-        // `removeCounter` leg took (a depletion land, a Mana Battery's scaling
-        // cost). Same reversal-symmetry class as the exert leg above: this
-        // cast-side loop carries its own inline copy of the untap, so every
-        // reversal `untapSourceFromPayment` runs has to be restated here or a
-        // cancelled cast burns the counter permanently — the land then yields
-        // its mana once instead of twice, for a spell that was never cast.
-        restoreManaCounterRemovalOnUntap(state, card);
-        // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
-        refundTapBonusMana(player, card);
-        // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses
-        // the parallel `restrictedMana` deposit (with its rider) instead of
-        // always assuming the fungible pool.
-        if (card.chosenMana) {
-            refundChosenManaOutput(player, card);
-        } else {
-            const manaColor =
-                getBasicLandMana(card) ?? getActivatedManaColor(card);
-            if (manaColor) refundFixedManaOutput(player, card, manaColor);
-        }
-    }
-}
-
-/** Roll back the in-progress activated-ability payment and clear
- *  `pendingActivation`. Mirrors `cancelActivation`. */
-function rollbackPendingActivation(state: GameState): void {
-    const pa = state.pendingActivation;
-    if (!pa) return;
-    const player = getPlayer(state, pa.playerId);
-    for (const cardId of pa.tappedLandIds) {
-        const card = player.battlefield.find((c) => c.id === cardId);
-        if (!card) continue;
-        untapSourceFromPayment(state, player, card);
-    }
-    state.pendingActivation = undefined;
-}
-
-/** A player who surrenders priority (passes / ends the turn) while a mana
- *  payment is still in progress abandons that payment: the spell/ability was
- *  never put on the stack, so the tapped lands must be returned. Without this,
- *  a stale pendingCast/pendingActivation lingers across the priority change —
- *  the PaymentBanner stays up and a later auto-tap could try to commit at an
- *  illegal time (the commit guards then reject it, but the lands would be
- *  stuck tapped). CR 601.2 / 602.2. */
-export function abandonPendingPayment(
-    state: GameState,
-    playerId: string
-): void {
-    if (state.pendingCast?.playerId === playerId) {
-        rollbackPendingCast(state);
-    }
-    if (state.pendingActivation?.playerId === playerId) {
-        rollbackPendingActivation(state);
-    }
-}
-
 /** Public view: hides opponent's hand and all library contents. Computes legalActions only for own hand. */
 export const getPublicState = query({
     args: {
@@ -8993,16 +8645,6 @@ export const untapArtifactForImprovise = mutation({
     },
 });
 
-/** CR 605.3a / 605.3b (issue #3455) — is the park this player owes a pick on a
- *  MANA ability's (`resolveWithoutStack`)? The pick mutations gate on it to
- *  admit the submission inside a may-pay window, where the Expected Input is
- *  the `choice` and not `priority`: a mana ability is legal there (CR 608.2g),
- *  so the window it opens must be closable there too. */
-function isInlineManaAbilityPark(state: GameState, playerId: string): boolean {
-    const pa = state.pendingActivation;
-    return !!pa?.resolveWithoutStack && pa.playerId === playerId;
-}
-
 /** The single sacrifice selection currently awaiting `playerId`'s choice, and
  *  which in-flight container holds it (CR 701.21a). At most one is active. */
 export function findActiveSacrificeSelection(
@@ -9325,18 +8967,9 @@ export const cancelCast = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-
-        if (!state.pendingCast) throw new Error("No spell being cast");
-        if (state.pendingCast.playerId !== args.playerId) {
-            throw new Error("Not your pending cast");
-        }
-
-        rollbackPendingCast(state);
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        cancelCastOnState(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -9829,22 +9462,9 @@ export const cancelActivation = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-            // CR 608.2g / 605.3a (issue #3455) — a mana ability's park is
-            // cancellable wherever it is openable, the may-pay window included.
-            allowManaForMayPay: isInlineManaAbilityPark(state, args.playerId),
-        });
-
-        const pa = state.pendingActivation;
-        if (!pa) throw new Error("No ability being activated");
-        if (pa.playerId !== args.playerId) {
-            throw new Error("Not your pending activation");
-        }
-
-        rollbackPendingActivation(state);
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        cancelActivationOnState(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -11434,43 +11054,6 @@ export const confirmTargets = mutation({
     },
 });
 
-/** CR 603.3c/603.3d — resolve a cancel of a `kind:"trigger"` pending target.
- *  A triggered ability chooses its target(s) as it goes on the stack; it is
- *  NOT part of a cast to abort. Cancelling must never leave the trigger on the
- *  stack with `targets: undefined` to resolve doing nothing — an emblem's
- *  "deal 5 damage to any target" would silently deal 0. A MANDATORY target
- *  (min > 0) that the player declines removes the trigger from the stack
- *  entirely (CR 603.3c — no legal target chosen); an "up to" target (min 0)
- *  declines that group: it locks nothing, and the walk moves on (CR 601.2c,
- *  issue #8475) keeping earlier groups' picks. Then chain to any other
- *  still-untargeted trigger of the same batch; otherwise a fresh priority
- *  round begins with the active player. Pure over `GameState` for testability. */
-export function cancelTriggerTargetSelection(state: GameState): void {
-    const pt = state.pendingTarget;
-    if (!pt || pt.kind !== "trigger") return;
-    const min = typeof pt.count === "number" ? pt.count : pt.count.min;
-    if (min === 0 && (pt.remainingRequirements || pt.priorSelected)) {
-        pt.selected = [];
-        advanceTargetGroupOrFinalize(state, pt, pt.playerId);
-        return;
-    }
-    if (min > 0) {
-        const idx = state.stack.findIndex((s) => s.id === pt.cardInstanceId);
-        if (idx !== -1) state.stack.splice(idx, 1);
-    } else {
-        const trig = state.stack.find((s) => s.id === pt.cardInstanceId);
-        if (trig) trig.targets = [];
-    }
-    state.pendingTarget = undefined;
-    // Despite its name this also runs the CR 603.3c MODE announcement for any
-    // still-un-announced modal trigger left on the stack (issue #2461).
-    if (!raiseTriggerTargetSelection(state)) {
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
-    }
-}
-
 /** Cancel target selection and abort the cast. */
 export const cancelTarget = mutation({
     args: {
@@ -11485,44 +11068,9 @@ export const cancelTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "target",
-        });
-
-        if (!state.pendingTarget)
-            throw new Error("No target selection in progress");
-        if (state.pendingTarget.playerId !== args.playerId) {
-            throw new Error("Not your pending target selection");
-        }
-
-        const cancelKind = state.pendingTarget.kind;
-
-        // CR 603.3c/603.3d — a triggered ability chooses its target(s) as it
-        // goes on the stack; a triggered target is NOT part of a cast to abort.
-        if (cancelKind === "trigger") {
-            cancelTriggerTargetSelection(state);
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
-
-        // CR 707.10c / 115.7 — declining a copy-retarget OR an original-spell
-        // retarget (Reflecting Mirror) is not aborting a cast: the targeted
-        // spell stays on the stack with its current targets and a fresh
-        // priority round begins (the copying / retargeting effect has already
-        // resolved).
-        const wasRetarget =
-            cancelKind === "copy-retarget" || cancelKind === "retarget";
-        clearDeclinedExileRoute(state, state.pendingTarget.cardInstanceId);
-        state.pendingTarget = undefined;
-        if (wasRetarget) continueAfterRetargetOffer(state);
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        cancelTargetOnState(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -12224,68 +11772,6 @@ export const removeBand = mutation({
  *  "when creatures attack" triggers, and hand priority to the active player.
  *  Shared by the inline path (fungible/no tax) and the selectSacrifice resume
  *  path (attack sacrifice tax chosen). */
-/** Charges `rawCost` to `controllerId` by auto-tapping their mana sources
- *  (generic/fungible; CR 605.1a taps produce mana into the pool, CR 601.2g pays
- *  from it) and committing lands used for the cost. Throws `reason` when the
- *  cost cannot be covered — the caller's mutation clone is discarded, so no
- *  partial state persists. Used by the pay-to-block bypass (Hipparion
- *  `bypassCost`, `collectBlockBypassCharges`). The per-attacker mana attack tax
- *  no longer auto-taps here — it parks on `combat.pendingAttackManaTax` and the
- *  attacking player pays it via a prompt (`beginAttackManaTax` /
- *  `autoTapForAttackTax`, #1053/#1066). Pure apart from mutating `state`. */
-function chargeManaCostOrThrow(
-    state: GameState,
-    controllerId: string,
-    rawCost: ManaCost,
-    reason: string
-): void {
-    const payer = getPlayer(state, controllerId);
-    const subs = getManaSubstitutions(state, controllerId);
-    const sources = buildAutoTapSources(
-        payer.battlefield,
-        manaGateBattlefields(state),
-        undefined,
-        state
-    );
-    const cost = normalizeManaCost(rawCost);
-    // CR 106.6 (issue #3354) — "This doesn't affect the mana's type": a
-    // bare-rider unit (Arena of Glory's {R}{R}) imposes NO spend restriction
-    // and must pay this exactly like pool mana. It lives outside `manaPool`
-    // only because a per-colour count has nowhere to record the tag, so every
-    // payment site that used to read the raw pool now reads
-    // `spendablePoolWithRiders` / pays through `payManaCostWithRiders`, which
-    // draws the fungible pool FIRST and touches a tagged unit only for what
-    // the pool cannot cover.
-    const plan = solveSmartAutoTap(
-        spendablePoolWithRiders(payer),
-        cost,
-        subs,
-        sources
-    );
-    if (plan === null) {
-        throw new Error(reason);
-    }
-    // Execute the plan: tap the chosen sources and add their mana to the pool
-    // (CR 605.1a), then pay the cost from the pool (CR 601.2g).
-    const tappedIds = new Set(plan.map((step) => step.cardId));
-    for (const src of payer.battlefield) {
-        if (tappedIds.has(src.id)) src.isTapped = true;
-    }
-    const produced = replaceProducedManaColor(
-        state,
-        payer.id,
-        manaFromPlan(sources, plan)
-    );
-    for (const color of Object.keys(produced)) {
-        const v = produced[color as keyof typeof produced];
-        if (typeof v === "number" && v > 0) {
-            payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
-        }
-    }
-    payManaCostWithRiders(payer, cost, subs);
-    commitLandsForCost(payer, cost);
-}
-
 export function finalizeConfirmAttackers(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
     const combat = state.combat;
@@ -12836,32 +12322,9 @@ export const cancelAttackTax = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "attack-mana-tax",
-        });
-
-        const combat = state.combat;
-        const pending = combat?.pendingAttackManaTax;
-        if (!combat || !pending || pending.playerId !== args.playerId) {
-            throw new Error("No attack tax to cancel");
-        }
-
-        const player = getPlayer(state, args.playerId);
-        for (const cardId of pending.tappedLandIds) {
-            const card = player.battlefield.find((c) => c.id === cardId);
-            if (card) untapSourceFromPayment(state, player, card);
-        }
-        combat.pendingAttackManaTax = undefined;
-        // Return to attacker selection: drop the declared attackers/bands. The
-        // active player still holds priority at DECLARE_ATTACKERS, so they can
-        // re-declare (or decline to attack).
-        combat.attackerIds = [];
-        combat.bands = undefined;
-        // CR 508.1g — and the enlist costs chosen for them, or re-selecting the
-        // same attacker would pay a cost the new declaration never chose.
-        combat.enlists = undefined;
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        cancelAttackTaxOnState(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -12872,16 +12335,6 @@ export const cancelAttackTax = mutation({
         );
     },
 });
-
-/** Who declares this combat's blocks (CR 509.1). Normally the defending
- *  player; under Melee (`blocksDeclaredByAttacker`, #669) the ATTACKING (active) player
- *  drives the block declaration instead. The blocking creatures are always the
- *  defender's — only the chooser changes. */
-function getBlockDeclarerId(state: GameState): string {
-    return state.blocksDeclaredByAttacker
-        ? state.activePlayerId
-        : getOpponentId(state, state.activePlayerId);
-}
 
 /** Select a blocker (or deselect/unassign if already selected/assigned). */
 export const selectBlocker = mutation({
@@ -13166,88 +12619,9 @@ export const confirmBlockers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "blockers",
-        });
-
-        if (state.phase !== "DECLARE_BLOCKERS") {
-            throw new Error("Not in DECLARE_BLOCKERS phase");
-        }
-        if (!state.combat || state.combat.blockersConfirmed) {
-            throw new Error("Blocker selection is not open");
-        }
-        // Melee (#669) — the attacker confirms blocks under `blocksDeclaredByAttacker`.
-        if (args.playerId !== getBlockDeclarerId(state)) {
-            throw new Error("You can't confirm blockers right now");
-        }
-
-        // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
-        // CR 509.1a/509.1c — `foldBlockRequirements` (`gre/combat.ts`) is the
-        // one authority: it adds every must-block assignment the declared-
-        // blocker cap leaves room for, gives an already-blocking creature a
-        // further attacker for free (the cap counts creatures, not
-        // assignments), and — when the cap is full — drops a VOLUNTARY blocker
-        // to make room rather than silently skipping the requirement.
-        foldBlockRequirements(state);
-
-        // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). A
-        // declaration where a menace attacker is blocked by exactly one creature
-        // is illegal; this can only be judged once the full block set is known
-        // (after must-block auto-assignment above), so it is enforced here at
-        // confirm time rather than per-blocker at assignment time.
-        const minBlockerCheck = validateMinimumBlockers(state);
-        if (!minBlockerCheck.ok) {
-            throw new Error(minBlockerCheck.reason);
-        }
-
-        // CR 509.1b — count-aware block restrictions (Orcish Conscripts "can't
-        // block unless at least two other creatures block"). Judged over the
-        // COMPLETE declared-blocker set, so enforced here at confirm.
-        const declaredBlockCheck = validateDeclaredBlockers(state);
-        if (!declaredBlockCheck.ok) {
-            throw new Error(declaredBlockCheck.reason);
-        }
-
-        // CR 509.1b — pay-to-block bypass costs (Hipparion "can't block
-        // creatures with power 3 or greater unless you pay {1}"). The cost is
-        // charged once per qualifying block; the engine auto-taps the blocking
-        // player's mana sources (generic-only). If a charge can't be paid, the
-        // block declaration is rejected and the player must reassign.
-        for (const charge of collectBlockBypassCharges(state)) {
-            chargeManaCostOrThrow(
-                state,
-                charge.controllerId,
-                charge.cost,
-                charge.reason
-            );
-        }
-
-        // CR 509.1a — mark each assigned blocker (and re-materialize the
-        // condition-bearing statics that read `isBlocking`, e.g. Snow Devil's
-        // conditional first strike) BEFORE anything downstream reads
-        // `staticAbilities`: `drainAutoPasses` below can run all the way into
-        // `advancePhase`'s CR 510.4 first-strike-step skip decision without an
-        // intervening SBA pass (issue #1826).
-        markDeclaredBlockers(state);
-
-        state.combat.pendingBlockerId = undefined;
-        state.combat.blockersConfirmed = true;
-        recordBlockedAttackers(state);
-        // Melee (#669) — untap and remove from combat every attacker that ended
-        // up unblocked this combat. No-op unless `blocksDeclaredByAttacker` is set.
-        applyMeleeUnblockedRider(state);
-        emitBlockersConfirmedEvents(state);
-
-        // CR 509.2 — active player gets priority immediately after blockers
-        // are declared. The historic damage-assignment-order turn-based
-        // action was removed: per CR 510.1c/d the attacking player divides
-        // combat damage freely among multiple blockers during the combat
-        // damage step.
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        confirmBlockersOnState(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -13530,101 +12904,14 @@ export const passPriority = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        if (state.priorityPlayerId !== args.playerId) {
-            // A pass issued while this player does not hold priority is a
-            // harmless misclick — the player mashed Space/Pass while the
-            // opponent was acting (ADR 0047 "waiting for another player").
-            // Silent no-op instead of a server error surfaced to the console.
-            // Must run BEFORE assertExpectedInput, whose wrong-player throw
-            // would otherwise shadow this benign case and log a server error.
-            return;
-        }
-
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-        assertNoPendingChoices(state);
-
-        // CR 103.5: no priority is given during the pre-game mulligan phase.
-        if (state.phase === "MULLIGAN") {
-            throw new Error("Cannot pass priority during mulligan phase");
-        }
-
-        // Passing priority while a mana payment is still open abandons it
-        // (CR 601.2 / 602.2): roll back the tapped lands and clear the banner
-        // before the priority change so no stale pendingCast lingers.
-        abandonPendingPayment(state, args.playerId);
-
-        // Cannot pass priority before confirming attackers
-        if (
-            state.phase === "DECLARE_ATTACKERS" &&
-            state.combat &&
-            !state.combat.confirmed
-        ) {
-            throw new Error("Must declare attackers before passing priority");
-        }
-
-        // Cannot pass priority before confirming blockers
-        if (
-            state.phase === "DECLARE_BLOCKERS" &&
-            state.combat &&
-            !state.combat.blockersConfirmed
-        ) {
-            throw new Error("Must declare blockers before passing priority");
-        }
-
-        // Cannot pass priority before confirming damage assignments
-        if (
-            (state.phase === "FIRST_STRIKE_DAMAGE" ||
-                state.phase === "COMBAT_DAMAGE") &&
-            state.combat &&
-            state.combat.damageConfirmed === false
-        ) {
-            throw new Error(
-                "Must assign combat damage before passing priority"
-            );
-        }
-
-        state.passCount += 1;
-
-        if (state.passCount >= 2 && state.stack.length > 0) {
-            // Both players passed consecutively — resolve top of stack (CR 117.3d)
-            resolveTopOfStack(state);
-            if ((state.pendingChoices?.length ?? 0) > 0) {
-                // Resolution suspended awaiting player choices (CR 608.2) — this
-                // also covers the reflexive Madness cast-choice (CR 702.35a),
-                // which resolveTopOfStack pushes as a blocking pending choice.
-                // Hand priority to the chooser; the gate on passPriority and
-                // other priority-driven mutations prevents any action other
-                // than submitResolutionChoice.
-                state.priorityPlayerId = state.pendingChoices![0].playerId;
-            } else if (state.pendingTarget) {
-                // Resolution requested a copy-retarget (CR 707.10c, Fork).
-                // Hand priority to the chooser; only target-selection
-                // mutations are legal until they choose or decline.
-                state.priorityPlayerId = state.pendingTarget.playerId;
-            } else {
-                state.priorityPlayerId = state.activePlayerId;
-                state.passCount = 0;
-            }
-        } else if (state.passCount >= 2 && state.stack.length === 0) {
-            // Both passed with empty stack → advance phase/step
-            advancePhase(state);
-        } else {
-            // Pass priority to opponent
-            state.priorityPlayerId = getOpponentId(state, args.playerId);
-        }
-
-        // If the new priority holder has autoPass, keep draining
-        drainAutoPasses(state);
-
-        // Check SBA for game-ending conditions (CR 704.5)
-        // CR 704.3 — a resolution suspended on a choice is not a priority
-        // window; the sweep waits for the answer.
-        sweepUnlessResolutionSuspended(state);
+        // Issue #9001 — the rules are the auth-free core's
+        // (`gre/owedInputDeclines.ts`), shared with server-side callers.
+        const outcome = passPriorityOnState(state, args.playerId);
+        // A pass issued while this player does not hold priority is a
+        // harmless misclick — the player mashed Space/Pass while the
+        // opponent was acting (ADR 0047 "waiting for another player").
+        // Silent no-op instead of a server error surfaced to the console.
+        if (!outcome.changed) return;
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

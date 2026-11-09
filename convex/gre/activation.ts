@@ -3093,3 +3093,16 @@ export function activateAbilityOnState(
     processPendingActionTriggers(state);
     drainAutoPasses(state);
 }
+
+/** CR 605.3a / 605.3b (issue #3455) — is the park this player owes a pick on a
+ *  MANA ability's (`resolveWithoutStack`)? The pick mutations gate on it to
+ *  admit the submission inside a may-pay window, where the Expected Input is
+ *  the `choice` and not `priority`: a mana ability is legal there (CR 608.2g),
+ *  so the window it opens must be closable there too. */
+export function isInlineManaAbilityPark(
+    state: GameState,
+    playerId: string
+): boolean {
+    const pa = state.pendingActivation;
+    return !!pa?.resolveWithoutStack && pa.playerId === playerId;
+}
