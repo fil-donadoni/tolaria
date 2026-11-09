@@ -51,6 +51,7 @@ function candidate(
         move: PASS_MOVE,
         visits: 100,
         meanReward: 0.5,
+        score: 0.5,
         meanMargin: 0,
         avail: 100,
         eval: {
