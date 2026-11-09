@@ -33,13 +33,12 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { advancePhase } from "../../../../gre/phases";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../../emblems";
 
 const jaceVrynsProdigy = getDefinition("02d6d693-f1f3-4317-bcc0-c21fa8490d38");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const mountain = getCardByName("Mountain");
 
 const JACE = jaceVrynsProdigy.id;
 
@@ -336,8 +335,8 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
     });
 
     describe("−3 — the spell cast this way is exiled instead of put into the graveyard (CR 614.1a)", () => {
-        /** The real −3 on a graveyard Lightning Bolt, then a Mountain to pay
-         *  for the cast. Returns the granted card's id. */
+        /** The real −3 on a graveyard Lightning Bolt, then p1's main phase
+         *  with priority. Returns the granted card's id. */
         function grantedBolt(state: GameState): string {
             const target = state.players[0].graveyard.find(
                 (c) => (c.card as { id: string }).id === lightningBolt.id
@@ -345,13 +344,6 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
             activate(state, "jace-telepath-unbound-minus3", [
                 { type: "graveyard-card", id: target.id, playerId: "p1" },
             ]);
-            state.players[0].battlefield.push(
-                makeInstance(mountain.id, {
-                    id: "mountain",
-                    controllerId: "p1",
-                    ownerId: "p1",
-                })
-            );
             state.phase = "PRECOMBAT_MAIN";
             state.activePlayerId = "p1";
             state.priorityPlayerId = "p1";
