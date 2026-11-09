@@ -15381,17 +15381,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 cards: ["Counterspell", "Island", "Island", "Island"],
             },
         ],
-        budget: { iterations: 400 },
+        // The `expert` preset's range (1320, `difficulty.ts`): one opponent
+        // reply per option set is the statistic this entry pins, and each set
+        // sees about half the opponent's visits.
+        budget: { iterations: 1200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 1600 },
-            note: "Issue #8709 — Oracle first wins when the hand holds no counter and loses nothing when it does; Consultation first (naming a card absent from the library) loses to a counter on Oracle. Measured: Consultation 0.62 / Oracle 0.52 mean reward at 400, 0.68 / 0.54 at 1600 — the gap WIDENS with budget. Suspected opponent strategy fusion: the opponent's node is shared across worlds with and without the counter, so it does not hold the counter for Oracle. Against a list of ONLY counterspells neither order wins and the Bot names a card still in its library, so the orders tie (0.52 / 0.49, flat to 4000): no rules-forced pair exists there.",
-        },
+        tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Thassa's Oracle" }],
         },
+        note: "Issue #8939 (split off issue #8709) — Oracle first wins when the hand holds no counter and loses nothing when it does; Consultation first, naming a card absent from the library, loses to a counter held for Oracle. Before the change the opponent's node pooled its statistics across the worlds with and without Counterspell: `pass` also collected every no-counter world, where it is the only move and the Bot wins, so the opponent holding the counter read passing as losing, countered Consultation in 82 of 82 counter worlds and never let it resolve — Consultation first scored 0.62 against 0.52 at 400 and the gap widened with budget. Opponent nodes now select by the statistics of their option set (`opponentOptionView`). Measured: before, 0/5 on the declared seeds at 400, 1200 and 1600; after, 15/15 seeds at 1200 and 12/15 at 400, the three misses on `material-tiebreak`.",
     },
     {
         label: "Oracle combo: either order when the decklist holds no counterspell",
