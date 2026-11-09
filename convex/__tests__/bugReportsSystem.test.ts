@@ -113,6 +113,10 @@ describe("system bug report — issue payload (issue #9000)", () => {
         expect(request.body).toContain(
             `bugReports:getReport '{"reportId":"report-42"}'`
         );
+        // issue #9005 — the agent picking the issue starts from the position.
+        expect(request.body).toContain(
+            "bun run bug-report:pull report-42 --prod --out bug-report-report-42.json"
+        );
         expect(request.body).toContain("forced discard");
         const section = request.body.split("## Target files")[1]!;
         for (const path of BOT_FAULT_TARGET_FILES)
