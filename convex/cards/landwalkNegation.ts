@@ -14,6 +14,7 @@
 // the source; in practice the defending player, whose battlefield the landwalk
 // evasion rule already scans, so scanning that same battlefield is enough.
 
+import { liveDefinitionOf } from "./liveStatics";
 import { tryGetDefinition } from ".";
 import { copiableSupertypesOf } from "./snowReads";
 
@@ -36,9 +37,7 @@ export function negatedLandwalkSubtypes(
 ): ReadonlySet<string> {
     const negated = new Set<string>();
     for (const perm of battlefield) {
-        const cardId = perm.card?.id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
+        const def = liveDefinitionOf(perm);
         if (!def?.staticEffects) continue;
         for (const effect of def.staticEffects) {
             if (effect.kind !== "landwalk-negation") continue;

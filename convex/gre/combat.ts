@@ -456,9 +456,8 @@ export function collectAttackRestrictions(
     state?: GameState
 ): StaticAttackRestriction[] {
     const restrictions: StaticAttackRestriction[] = [];
-    const collect = (cardId: string | undefined) => {
-        if (!cardId) return;
-        const def = tryGetDefinition(cardId);
+    const collect = (source: CardInstanceState) => {
+        const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "attack-restriction") {
@@ -466,12 +465,12 @@ export function collectAttackRestrictions(
             }
         }
     };
-    collect((card.card as { id?: string }).id);
+    collect(card);
     if (state) {
         for (const player of state.players) {
             for (const perm of player.battlefield) {
                 if (perm.attachedTo !== card.id) continue;
-                collect((perm.card as { id?: string }).id);
+                collect(perm);
             }
         }
     }
@@ -599,9 +598,8 @@ function collectDeclaredAttackRestrictions(
     state: GameState
 ): StaticDeclaredAttackRestriction[] {
     const restrictions: StaticDeclaredAttackRestriction[] = [];
-    const collect = (cardId: string | undefined) => {
-        if (!cardId) return;
-        const def = tryGetDefinition(cardId);
+    const collect = (source: CardInstanceState) => {
+        const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "declared-attack-restriction") {
@@ -609,11 +607,11 @@ function collectDeclaredAttackRestrictions(
             }
         }
     };
-    collect((card.card as { id?: string }).id);
+    collect(card);
     for (const player of state.players) {
         for (const perm of player.battlefield) {
             if (perm.attachedTo !== card.id) continue;
-            collect((perm.card as { id?: string }).id);
+            collect(perm);
         }
     }
     return restrictions;
@@ -825,9 +823,8 @@ export function collectBlockRestrictions(
     state?: GameState
 ): StaticBlockRestriction[] {
     const restrictions: StaticBlockRestriction[] = [];
-    const collect = (cardId: string | undefined) => {
-        if (!cardId) return;
-        const def = tryGetDefinition(cardId);
+    const collect = (source: CardInstanceState) => {
+        const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "block-restriction" && effect.side === side) {
@@ -835,12 +832,12 @@ export function collectBlockRestrictions(
             }
         }
     };
-    collect((card.card as { id?: string }).id);
+    collect(card);
     if (state) {
         for (const player of state.players) {
             for (const perm of player.battlefield) {
                 if (perm.attachedTo !== card.id) continue;
-                collect((perm.card as { id?: string }).id);
+                collect(perm);
             }
         }
     }
@@ -1041,9 +1038,8 @@ function collectDeclaredBlockRestrictions(
     state: GameState
 ): StaticDeclaredBlockRestriction[] {
     const restrictions: StaticDeclaredBlockRestriction[] = [];
-    const collect = (cardId: string | undefined) => {
-        if (!cardId) return;
-        const def = tryGetDefinition(cardId);
+    const collect = (source: CardInstanceState) => {
+        const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "declared-block-restriction") {
@@ -1051,11 +1047,11 @@ function collectDeclaredBlockRestrictions(
             }
         }
     };
-    collect((card.card as { id?: string }).id);
+    collect(card);
     for (const player of state.players) {
         for (const perm of player.battlefield) {
             if (perm.attachedTo !== card.id) continue;
-            collect((perm.card as { id?: string }).id);
+            collect(perm);
         }
     }
     return restrictions;
@@ -1381,9 +1377,7 @@ export function collectAttackSacrificeTax(
     const perController = new Map<string, { count: number; reason: string }>();
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "attack-sacrifice-tax") continue;
@@ -1460,9 +1454,7 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
             // 2-player combat) taxes the attack. A source the attacking player
             // controls taxes nobody.
             if (source.controllerId === state.activePlayerId) continue;
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "attack-mana-tax") continue;
@@ -1584,9 +1576,7 @@ function hasAttackRequirement(
         card.types.includes("Creature")
     )
         return true;
-    const cardId = (card.card as { id?: string }).id;
-    if (!cardId) return false;
-    const def = tryGetDefinition(cardId);
+    const def = liveStaticDefinition(card);
     if (!def?.staticEffects) return false;
     return def.staticEffects.some(
         (e) =>
@@ -1697,9 +1687,8 @@ function collectBlockRequirements(
     state?: GameState
 ): StaticBlockRequirement[] {
     const requirements: StaticBlockRequirement[] = [];
-    const collect = (cardId: string | undefined) => {
-        if (!cardId) return;
-        const def = tryGetDefinition(cardId);
+    const collect = (source: CardInstanceState) => {
+        const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "block-requirement") {
@@ -1707,12 +1696,12 @@ function collectBlockRequirements(
             }
         }
     };
-    collect((card.card as { id?: string }).id);
+    collect(card);
     if (state) {
         for (const player of state.players) {
             for (const perm of player.battlefield) {
                 if (perm.attachedTo !== card.id) continue;
-                collect((perm.card as { id?: string }).id);
+                collect(perm);
             }
         }
     }

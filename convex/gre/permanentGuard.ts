@@ -32,6 +32,7 @@
 // a candidate permanent. Same live-query model, same callers
 // (`getLegalTargets`, `selectTarget`), issue #1128.
 
+import { liveStaticDefinition } from "./constants";
 import type { CardInstanceState } from "./state/declarations";
 import type {
     PlayerGuardAction,
@@ -39,7 +40,6 @@ import type {
     StaticPlayerGuard,
 } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { tryGetDefinition } from "../cards";
 
 /** A minimal read-only battlefield view — every game-state shape the engine
  *  passes here (fat `GameState`, projected public state) satisfies it. */
@@ -184,8 +184,7 @@ export function isGuardedAgainst(
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
             for (const effect of effects) {
@@ -271,8 +270,7 @@ function playerGuardsOf(
     const guards: StaticPlayerGuard[] = [];
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
+            const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
             for (const effect of effects) {

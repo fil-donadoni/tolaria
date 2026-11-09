@@ -47,7 +47,8 @@
 // for free (CR 118.9a — only one alternative cost per spell), and the ordinary
 // paid cast stays available beside it inside the caster's own sorcery window.
 
-import { declaresCastPermission, tryGetDefinition } from "../cards";
+import { liveStaticDefinition } from "./constants";
+import { declaresCastPermission } from "../cards";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -129,7 +130,7 @@ export function collectCastPermissions(
             // at every node it expands. A `Set.has` answers for the whole board
             // without one `expandDefinition`.
             if (!declaresCastPermission(sourceId)) continue;
-            const def = tryGetDefinition(sourceId);
+            const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "cast-permission") continue;

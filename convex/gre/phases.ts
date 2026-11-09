@@ -235,9 +235,7 @@ export function collectUntapRestrictions(state: GameState): {
     const opponent = getPlayer(state, opponentId);
     order.push(...activePlayer.battlefield, ...opponent.battlefield);
     for (const card of order) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
+        const def = liveStaticDefinition(card);
         const effects = def?.staticEffects ?? [];
         for (const effect of effects) {
             if (effect.kind === "untap-restriction") {
@@ -2658,9 +2656,7 @@ export function effectiveMaxHandSize(
     // Default-scoped overrides on the player's own permanents (Library of Leng,
     // Reliquary Tower) apply to their controller.
     for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
+        const def = liveStaticDefinition(card);
         for (const effect of def?.staticEffects ?? []) {
             if (effect.kind !== "hand-size-override") continue;
             // `chosen-player` overrides are read from every battlefield below;
@@ -2678,9 +2674,7 @@ export function effectiveMaxHandSize(
         for (const owner of state.players) {
             for (const card of owner.battlefield) {
                 if (card.chosenPlayerId !== player.id) continue;
-                const cardId = (card.card as { id?: string }).id;
-                if (!cardId) continue;
-                const def = tryGetDefinition(cardId);
+                const def = liveStaticDefinition(card);
                 for (const effect of def?.staticEffects ?? []) {
                     if (effect.kind !== "hand-size-override") continue;
                     if (effect.appliesTo !== "chosen-player") continue;

@@ -1,5 +1,5 @@
-import { tryGetDefinition } from "../cards";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { liveStaticDefinition } from "./constants";
 import { effectiveTriggeredAbilities } from "./copy";
 import type { CardInstanceState } from "./state/declarations";
 
@@ -52,6 +52,5 @@ export function treasureHasPositiveExtra(
     if (getEffectiveActivatedAbilities(card).length > 1) return true;
     if (effectiveTriggeredAbilities(card).length > 0) return true;
     if (card.staticAbilities.length > 0) return true;
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return (def?.staticEffects?.length ?? 0) > 0;
+    return (liveStaticDefinition(card)?.staticEffects?.length ?? 0) > 0;
 }

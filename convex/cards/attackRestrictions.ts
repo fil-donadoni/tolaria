@@ -10,6 +10,7 @@
 // can forbid attacks by OTHER creatures — the symmetric analogue of how
 // Crusade-style anthems (`pt-buff`) scan all permanents and buff a filtered set.
 
+import { liveDefinitionOf } from "./liveStatics";
 import { getInstanceManaCost, tryGetDefinition } from ".";
 import { objectHasChosenName } from "./cardNames";
 import { getEffectiveColors } from "./effectiveColors";
@@ -100,9 +101,7 @@ export function globalAttackProhibitionReason(
 ): string | undefined {
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "global-attack-restriction") continue;
@@ -153,9 +152,7 @@ export function combatDeclarationCap(
     let binding: CombatDeclarationCap | undefined;
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId) continue;
-            const def = tryGetDefinition(cardId);
+            const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "combat-declaration-cap") continue;
