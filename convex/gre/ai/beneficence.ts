@@ -264,6 +264,39 @@ function scriptSlotSign(
     return signs.get(slot) ?? "neutral";
 }
 
+/** Where one announced target slot of a move is READ: the Effect Script that
+ *  names it, the slot's index LOCAL to that script, and — for a cast only —
+ *  the card whose Aura attachment payoff stands in when the script names no
+ *  slot at all (CR 303.4). One resolution feeds every per-slot question this
+ *  module answers (the sign, and since issue #9044 the cards a slot draws), so
+ *  a mode span or a raised trigger's offset is mapped exactly once. */
+interface SlotScript {
+    readonly effects: readonly EffectOp[] | undefined;
+    readonly slot: number;
+    readonly auraHost?: CardDefinition;
+}
+
+/** The script a cast of `def` resolves under chosen mode `modeId`
+ *  (CR 700.2c): the mode's own body, or the card's when no mode is named. */
+function castScriptOf(
+    def: CardDefinition,
+    modeId: string | undefined
+): readonly EffectOp[] | undefined {
+    const mode = modeId ? def.modes?.find((m) => m.id === modeId) : undefined;
+    return mode ? mode.effects : def.effects;
+}
+
+/** The sign a resolved slot carries for whoever fills it. */
+function slotScriptSign(s: SlotScript): Beneficence {
+    const scripted = scriptSlotSign(s.effects, s.slot);
+    if (scripted !== "neutral") return scripted;
+    // CR 303.4 — an Aura's single target slot IS its "enchant" slot.
+    if (s.auraHost && s.slot === 0 && s.auraHost.subtypes?.includes("Aura")) {
+        return auraAttachmentSign(s.auraHost);
+    }
+    return "neutral";
+}
+
 /** The sign of `def`'s effect on the controller of whatever fills announced
  *  target slot `slot`, under chosen mode `modeId` (CR 700.2c). */
 export function targetSlotBeneficence(
@@ -271,14 +304,11 @@ export function targetSlotBeneficence(
     modeId: string | undefined,
     slot: number
 ): Beneficence {
-    const mode = modeId ? def.modes?.find((m) => m.id === modeId) : undefined;
-    const scripted = scriptSlotSign(mode ? mode.effects : def.effects, slot);
-    if (scripted !== "neutral") return scripted;
-    // CR 303.4 — an Aura's single target slot IS its "enchant" slot.
-    if (slot === 0 && def.subtypes?.includes("Aura")) {
-        return auraAttachmentSign(def);
-    }
-    return "neutral";
+    return slotScriptSign({
+        effects: castScriptOf(def, modeId),
+        slot,
+        auraHost: def,
+    });
 }
 
 /** The sign of an ACTIVATED ability's effect on the controller of whatever
@@ -342,17 +372,19 @@ function definitionOfInstance(
     return undefined;
 }
 
-/** Per-slot sign function for `move`'s announcement, or `undefined` when the
+/** Per-slot script resolver for `move`'s announcement, or `undefined` when the
  *  move announces no targets or its source script can't be read. ONE seam for
- *  both announcement sites — a cast (CR 601.2c) and an activation (CR 602.2b) —
- *  so a caller never has to know which kind it holds. Takes no `botId`: since
- *  issue #2971 BOTH branches resolve the card through `definitionOfInstance`,
- *  which scans every player's zones — a cross-player exile grant means the
- *  card the bot is casting may not sit in any zone of its own. */
-function slotSignerFor(
+ *  every site a target is chosen at — a cast (CR 601.2c), an activation
+ *  (CR 602.2b), a raised trigger selection (CR 603.3d) — so a caller never has
+ *  to know which kind it holds. A slot no span covers resolves to `undefined`
+ *  (no opinion). Takes no `botId`: since issue #2971 BOTH announcement
+ *  branches resolve the card through `definitionOfInstance`, which scans every
+ *  player's zones — a cross-player exile grant means the card the bot is
+ *  casting may not sit in any zone of its own. */
+function slotScriptsFor(
     state: GameState,
     move: Move
-): ((slot: number) => Beneficence) | undefined {
+): ((slot: number) => SlotScript | undefined) | undefined {
     if (move.kind === "cast-spell") {
         if (move.targets.length === 0) return undefined;
         // Issue #2971 review finding 3 — was `player.hand.find(...)`, which
@@ -377,19 +409,19 @@ function slotSignerFor(
                 let offset = 0;
                 for (const [i, span] of spans.entries()) {
                     if (slot < offset + span) {
-                        return targetSlotBeneficence(
-                            def,
-                            chosen[i],
-                            slot - offset
-                        );
+                        return {
+                            effects: castScriptOf(def, chosen[i]),
+                            slot: slot - offset,
+                            auraHost: def,
+                        };
                     }
                     offset += span;
                 }
-                return "neutral";
+                return undefined;
             };
         }
-        const modeId = soleChosenModeId(move.chosenModeIds);
-        return (slot) => targetSlotBeneficence(def, modeId, slot);
+        const effects = castScriptOf(def, soleChosenModeId(move.chosenModeIds));
+        return (slot) => ({ effects, slot, auraHost: def });
     }
     if (move.kind === "activate-ability") {
         if (move.targets.length === 0) return undefined;
@@ -416,20 +448,34 @@ function slotSignerFor(
                         const mode = abilityModes.find(
                             (m) => m.id === chosenIds[i]
                         );
-                        return scriptSlotSign(mode?.effects, slot - offset);
+                        return { effects: mode?.effects, slot: slot - offset };
                     }
                     offset += span;
                 }
-                return "neutral";
+                return undefined;
             };
         }
-        return (slot) => abilityTargetSlotBeneficence(ability, slot);
+        return (slot) => ({ effects: ability.effects, slot });
     }
-    if (move.kind === "submit-target") return raisedTriggerSlotSigner(state);
+    if (move.kind === "submit-target") return raisedTriggerSlotScripts(state);
     return undefined;
 }
 
-/** Per-slot sign function for a `submit-target` answering a RAISED trigger
+/** Per-slot sign function for `move`'s announcement — `slotScriptsFor`'s
+ *  resolution read through the sign derivation. */
+function slotSignerFor(
+    state: GameState,
+    move: Move
+): ((slot: number) => Beneficence) | undefined {
+    const scriptOf = slotScriptsFor(state, move);
+    if (!scriptOf) return undefined;
+    return (slot) => {
+        const s = scriptOf(slot);
+        return s ? slotScriptSign(s) : "neutral";
+    };
+}
+
+/** Per-slot script resolver for a `submit-target` answering a RAISED trigger
  *  target selection (CR 603.3d, issue #5496), or `undefined` for any other
  *  selection. Nobody announced the trigger, but its controller still chooses
  *  its targets, and the choice is the same question a cast's tuple answers:
@@ -440,9 +486,9 @@ function slotSignerFor(
  *  `targets` are those three concatenated (`applyRaisedTargetFinalization`).
  *  A retarget / copy-retarget is a different question (whose script the new
  *  targets serve is the SPELL's, not a trigger's) and stays unranked. */
-function raisedTriggerSlotSigner(
+function raisedTriggerSlotScripts(
     state: GameState
-): ((slot: number) => Beneficence) | undefined {
+): ((slot: number) => SlotScript) | undefined {
     const pt = state.pendingTarget;
     if (!pt || pt.kind !== "trigger") return undefined;
     const item = state.stack.find((s) => s.id === pt.cardInstanceId);
@@ -461,7 +507,7 @@ function raisedTriggerSlotSigner(
             offset = (pt.modeTargetCounts[instance] ?? 0) + pt.selected.length;
         }
     }
-    return (slot) => scriptSlotSign(effects, offset + slot);
+    return (slot) => ({ effects, slot: offset + slot });
 }
 
 /** The targets `move` names, for the move kinds whose targets carry a slot
@@ -505,6 +551,86 @@ export function misdirectedTargetCount(
         if (recipient === undefined) continue;
         const mine = recipient === botId;
         if (sign === "beneficial" ? !mine : mine) count++;
+    }
+    return count;
+}
+
+/** Cards the script draws for whoever fills announced slot `slot`: the sum of
+ *  every `draw` whose player is that slot, `chosenX` standing in for an X
+ *  count. `undefined` when one of those counts is not a literal or an X this
+ *  move announces — the derivation cannot tell how many cards move. A draw in
+ *  a delayed / reflexive trigger body names the trigger's OWN slots (CR
+ *  603.3d), never this script's, and is skipped as `collectScriptSigns` skips
+ *  it. */
+function slotDrawCount(
+    effects: readonly EffectOp[] | undefined,
+    slot: number,
+    chosenX: number | undefined
+): number | undefined {
+    let total = 0;
+    for (const op of effects ?? []) {
+        if (isTriggerBodyHost(op)) continue;
+        const children = childOpArrays(op);
+        if (children.length > 0) {
+            for (const child of children) {
+                const n = slotDrawCount(child, slot, chosenX);
+                if (n === undefined) return undefined;
+                total += n;
+            }
+            continue;
+        }
+        if (op.op !== "draw") continue;
+        const player = op.player;
+        if (typeof player !== "object" || !("target" in player)) continue;
+        if (player.target !== slot) continue;
+        const count = op.count;
+        if (typeof count === "number") total += count;
+        else if ("X" in count && chosenX !== undefined) total += chosenX;
+        else return undefined;
+    }
+    return total;
+}
+
+/** How many of `move`'s announced PLAYER slots hand a pure gift to a player
+ *  other than `botId` — a slot its script signs `beneficial` (a draw, a life
+ *  gain, a player counter of a beneficial kind; `OP_BENEFICENCE`) pointed at
+ *  the opponent's face (issue #9044). Stricter than `misdirectedTargetCount`
+ *  on purpose: `selectRootMove` reads it as a GUARD, not a preference, so
+ *  every ambiguity steps aside and the move counts 0:
+ *
+ *  - a permanent slot never counts — what a gift to a permanent is worth
+ *    depends on the board, which the resolved margin reads;
+ *  - a punisher slot ("target player draws two and loses two life") never
+ *    counts — its signs disagree and `mergeSign` reads it `neutral`;
+ *  - **decking**: a slot whose draws empty the recipient's library — at least
+ *    one card drawn and no more cards left than it draws (CR 121.4: the next
+ *    draw from the empty library loses the game, CR 704.5b) — is the winning
+ *    play, not a gift, and never counts; nor does a slot whose draw count the
+ *    derivation cannot read, since it cannot rule decking out. */
+export function misdirectedPlayerGiftCount(
+    state: GameState,
+    move: Move,
+    botId: string
+): number {
+    const scriptOf = slotScriptsFor(state, move);
+    if (!scriptOf) return 0;
+    const targets = signedTargetsOf(move);
+    const chosenX =
+        move.kind === "cast-spell" || move.kind === "activate-ability"
+            ? move.chosenX
+            : undefined;
+
+    let count = 0;
+    for (const [slot, target] of targets.entries()) {
+        if (target.type !== "player" || target.id === botId) continue;
+        const s = scriptOf(slot);
+        if (!s || slotScriptSign(s) !== "beneficial") continue;
+        const draws = slotDrawCount(s.effects, s.slot, chosenX);
+        if (draws === undefined) continue;
+        const library = state.players.find((p) => p.id === target.id)?.library;
+        if (!library) continue;
+        if (draws > 0 && library.length <= draws) continue;
+        count++;
     }
     return count;
 }
