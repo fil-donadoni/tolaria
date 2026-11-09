@@ -226,6 +226,7 @@ import {
     pureGenericManaSubCost,
     getManaTapOptionRestriction,
     type ManaTapPlanContext,
+    liveStaticDefinition,
 } from "./constants";
 import {
     getRequiredAttackerIds,
@@ -5422,8 +5423,7 @@ function enumerateAbilityMoves(
                     // the creature's own `crewPowerBonus`).
                     power: crewPowerContribution(
                         getEffectivePower(state, c),
-                        tryGetDefinition((c.card as { id?: string }).id ?? "")
-                            ?.crewPowerBonus ?? 0
+                        liveStaticDefinition(c)?.crewPowerBonus ?? 0
                     ),
                 }));
             if (!canPayTapOtherCost(ability.cost.tapOtherFilter, available))

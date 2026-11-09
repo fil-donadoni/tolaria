@@ -717,6 +717,26 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
     return (card.abilitiesSuppressedBy?.length ?? 0) > 0;
 }
 
+/** CR 604.1 / 611.3a — the definition whose battlefield STATIC-ability fields
+ *  are in force for `perm` right now, or `undefined` when its abilities are
+ *  suppressed (CR 613.1f layer 6: Humility, Titania's Song, Oko's Elk). The
+ *  single authority for every reader that scans a battlefield for a
+ *  definition-declared static ability (a graveyard/library-top permission, a
+ *  reveal, a replacement, a granted escape/retrace): a static ability's
+ *  effect applies only while the ability exists, so a permanent that lost it
+ *  grants nothing.
+ *
+ *  Read characteristics (types, mana cost, P/T) through `tryGetDefinition`,
+ *  never through this: they are not abilities, and a suppressed permanent
+ *  still has them (CR 305.6 intrinsic basic-land mana is the same case). */
+export function liveStaticDefinition(
+    perm: CardInstanceState
+): CardDefinition | undefined {
+    if (abilitiesSuppressed(perm)) return undefined;
+    const cardId = (perm.card as { id?: string } | undefined)?.id;
+    return (cardId ? tryGetDefinition(cardId) : null) ?? undefined;
+}
+
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null.
  *
  *  CR 113.1 / 611.2a (issue #1880) — reads the POST-LAYER effective set, so a
@@ -2956,13 +2976,11 @@ export function scanManaBoard(
             players: battlefields,
         }),
         landManaSubstituted: battlefields.some((player) =>
-            player.battlefield.some((source) => {
-                const cardId = (source.card as { id?: string } | undefined)?.id;
-                return (
-                    !!cardId &&
-                    tryGetDefinition(cardId)?.landManaSubstitution !== undefined
-                );
-            })
+            player.battlefield.some(
+                (source) =>
+                    liveStaticDefinition(source)?.landManaSubstitution !==
+                    undefined
+            )
         ),
     };
 }
@@ -2983,9 +3001,7 @@ function getContinuousLandManaOverride(
     if (!isLand(card)) return null;
     for (const player of battlefields) {
         for (const source of player.battlefield) {
-            const sub = tryGetDefinition(
-                source.card.id as string
-            )?.landManaSubstitution;
+            const sub = liveStaticDefinition(source)?.landManaSubstitution;
             if (!sub) continue;
             if ("color" in sub) return sub.color;
             // A chosen-colour shape fixes no colour: it is read by
@@ -3020,9 +3036,7 @@ export function landManaColorIsChosen(
     for (const player of battlefields) {
         for (const source of player.battlefield) {
             if (source.controllerId !== card.controllerId) continue;
-            const sub = tryGetDefinition(
-                source.card.id as string
-            )?.landManaSubstitution;
+            const sub = liveStaticDefinition(source)?.landManaSubstitution;
             if (sub && "chosenColor" in sub) return true;
         }
     }

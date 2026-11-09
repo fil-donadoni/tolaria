@@ -24,7 +24,7 @@
 // resolves: it moves graveyard → stack → its normal destination.
 import type { EscapeCost, ManaCost } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import { isLand } from "./constants";
+import { isLand, liveStaticDefinition } from "./constants";
 import type {
     CardInstanceState,
     GameState,
@@ -54,10 +54,8 @@ export function getGrantedEscape(
     const owner = state.players.find((p) => p.id === card.ownerId);
     if (!owner) return undefined;
     for (const perm of owner.battlefield) {
-        const permId = (perm.card as { id?: string }).id;
-        const grant = permId
-            ? tryGetDefinition(permId)?.grantsEscapeToOwnGraveyard
-            : undefined;
+        // CR 613.1f — a granter that lost its abilities grants nothing.
+        const grant = liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard;
         if (grant) {
             const mana = getInstanceManaCost(card) ?? {};
             return { mana, exile: { count: grant.exileOtherCount } };
