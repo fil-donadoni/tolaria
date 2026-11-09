@@ -38,10 +38,12 @@
 //
 // ── What this guard deliberately does NOT do ───────────────────────────────
 //
-// It does not check that the marker's issue is OPEN. That is the same split
-// Guard B makes: presence is offline and cheap and belongs in the gate; a
-// liveness sweep needs the network and lives outside it
-// (`scripts/check-marker-liveness.ts`).
+// It does not check that the marker's issue is OPEN: that needs the network,
+// and no sweep covers `compiler-gap:` refs (`markers:lint` /
+// `scripts/check-marker-liveness.ts` reads Guard B's `tracked-by:` only). What
+// IS offline is the marker's FRAGMENT and CLAIM REF against the compiler and
+// the Grammar Gap allowlist — "no marker drifts from its claim" below, whose
+// fix is `bun run oracle:mark-regressions --refresh` (issue #7671).
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each of the assertions below was driven red by breaking the thing it
@@ -56,8 +58,10 @@ import { roundTripCard } from "../../oracle/gold";
 import {
     COMPILER_GAP,
     HAND_TAIL,
+    applyMarkerRefresh,
     isExempting,
     misfiledMarkers,
+    planMarkerRefresh,
     scanCardAnchors,
     scanCompilerGapMarkers,
     scanFilesForCompilerGaps,
@@ -66,6 +70,7 @@ import {
     type CompilerGapMarker,
     type MarkerVerdict,
 } from "../../../scripts/lib/compiler-gap-markers";
+import { planCatalogueRefresh } from "../../../scripts/lib/compiler-gap-refresh";
 import {
     SETS_DIR,
     collectSetFiles,
@@ -166,6 +171,22 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
                 "grammar caught up: delete the marker (and close its issue if that was the last " +
                 "card holding it open). A hand-tail card that round-trips is migrated " +
                 "(`oracle:retire`, ADR 0114), not kept."
+        ).toEqual([]);
+    });
+
+    it("no compiler-gap marker drifts from the compiler or its claim row (issue #7671)", () => {
+        // Cost: one `roundTripCard` per marked card (already computed for the
+        // sibling tests' catalogue walk) — a few seconds at most, lane tier.
+        const { edits } = planCatalogueRefresh(SET_FILES, CARDS);
+        expect(
+            edits.map(
+                (e) =>
+                    `${where(e)}: ${e.card} — ${e.action}: ${e.detail} — ${e.fragment}`
+            ),
+            "compiler-gap markers that a refresh would change: a fragment the compiler no " +
+                "longer refuses, or an `(#issue)` that is not the issue holding the " +
+                "fragment's claim in data/grammar-gaps.json. Run " +
+                "`bun run oracle:mark-regressions --refresh` and commit the diff."
         ).toEqual([]);
     });
 
@@ -546,5 +567,111 @@ describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)
             ["Zeta", "compiler-gap"],
             ["Eta", "hand-tail"],
         ]);
+    });
+});
+
+describe("refreshing compiler-gap markers (issue #7671)", () => {
+    const gap = (fragment: string) => ({ fragment, reason: "unsupported" });
+    const marker = (
+        line: number,
+        fragment: string,
+        issue: number,
+        card = "Two Lines"
+    ) => ({
+        kind: "compiler-gap" as const,
+        card,
+        line,
+        text: `// compiler-gap: ${fragment} (#${issue})`,
+        fragment,
+        issue,
+        file: "x.cards.ts",
+    });
+    const keyOf = (g: { fragment: string }) => `key:${g.fragment}`;
+    const claims = new Map([
+        ["key:second", 20],
+        ["key:third", 30],
+    ]);
+    const issueOf = (key: string) => claims.get(key);
+    const unparsed = (...fragments: string[]) => ({
+        state: "unparsed" as const,
+        gaps: fragments.map(gap),
+    });
+
+    it("removes the marker of a fragment the grammar now reads, beside a sibling that still matches", () => {
+        const plan = planMarkerRefresh(
+            [marker(1, "first", 10), marker(2, "second", 20)],
+            () => unparsed("second"),
+            keyOf,
+            issueOf
+        );
+        expect(plan.edits.map((e) => [e.line, e.action])).toEqual([
+            [1, "remove"],
+        ]);
+    });
+
+    it("rewrites a ref that is not the claim row's, quote-insensitively", () => {
+        const plan = planMarkerRefresh(
+            [marker(1, '"second"', 99)],
+            () => unparsed("second"),
+            keyOf,
+            issueOf
+        );
+        expect(plan.edits).toMatchObject([{ action: "rewrite", issue: 20 }]);
+    });
+
+    it("reports a fragment with no claim as unfiled and edits nothing", () => {
+        const plan = planMarkerRefresh(
+            [marker(1, "orphan", 10)],
+            () => unparsed("orphan"),
+            keyOf,
+            issueOf
+        );
+        expect(plan.edits).toEqual([]);
+        expect(plan.report).toMatchObject([{ problem: "unfiled" }]);
+    });
+
+    it("leaves a card none of whose markers match whole, and a card the compiler disagreed with", () => {
+        const ms = [marker(1, "paraphrase", 10)];
+        expect(
+            planMarkerRefresh(ms, () => unparsed("other"), keyOf, issueOf).edits
+        ).toEqual([]);
+        expect(
+            planMarkerRefresh(ms, () => ({ state: "other" }), keyOf, issueOf)
+                .edits
+        ).toEqual([]);
+    });
+
+    it("removes every marker of a card that round-trips now", () => {
+        const plan = planMarkerRefresh(
+            [marker(1, "first", 10), marker(2, "second", 20)],
+            () => ({ state: "round-trips" }),
+            keyOf,
+            issueOf
+        );
+        expect(plan.edits.map((e) => e.action)).toEqual(["remove", "remove"]);
+    });
+
+    it("is idempotent: applying the edits leaves a second plan empty", () => {
+        const lines = [
+            "// compiler-gap: first (#10)",
+            "// compiler-gap: second (#99)",
+            "// compiler-gap: third (#30)",
+        ];
+        const scan = (ls: string[]) =>
+            ls.map((text, i) => ({
+                ...marker(i + 1, text.slice(16, text.indexOf(" (")), 0),
+                text,
+                issue: Number(/#(\d+)/.exec(text)![1]),
+            }));
+        const outcome = () => unparsed("second", "third");
+        const first = planMarkerRefresh(scan(lines), outcome, keyOf, issueOf);
+        const next = applyMarkerRefresh(lines, first.edits);
+        expect(next).toEqual([
+            "// compiler-gap: second (#20)",
+            "// compiler-gap: third (#30)",
+        ]);
+        expect(
+            planMarkerRefresh(scan(next), outcome, keyOf, issueOf).edits
+        ).toEqual([]);
     });
 });
