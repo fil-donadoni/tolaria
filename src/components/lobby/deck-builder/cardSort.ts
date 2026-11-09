@@ -170,3 +170,26 @@ export function compareEntries(
         dirSign *
         (primary(a, b) || secondary(a, b) || byType(a, b) || byName(a, b));
 }
+
+/** Relevance rank of an entry for an active text query: 0 = every token
+ *  matches the name, 1 = some token matches the name, 2 = none does (the
+ *  match is in oracle text or the type line). Lower sorts first. */
+export function nameMatchRank(
+    entry: CardIndexEntry,
+    tokens: readonly string[]
+): number {
+    let hits = 0;
+    for (const t of tokens) if (entry.nameFold.includes(t)) hits++;
+    if (hits === 0) return 2;
+    return hits === tokens.length ? 0 : 1;
+}
+
+/** `nameMatchRank` for a whole result list, computed once per entry. */
+export function nameMatchRanks(
+    entries: readonly CardIndexEntry[],
+    tokens: readonly string[]
+): ReadonlyMap<CardIndexEntry, number> {
+    const ranks = new Map<CardIndexEntry, number>();
+    for (const e of entries) ranks.set(e, nameMatchRank(e, tokens));
+    return ranks;
+}
