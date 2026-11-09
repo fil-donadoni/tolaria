@@ -153,11 +153,6 @@ export type BotFaultIssueInput = {
     gameSection: string | null;
 };
 
-/**
- * The create-issue request body for a system report. Takes no state, no
- * diagnostics and reads no error message — a field that never reaches the
- * builder cannot be leaked by a later edit to the template.
- */
 /** The command an agent runs to start from a row's frozen position
  *  (`scripts/bug-report-pull.ts`, issue #9005). One builder, so the issue body
  *  and its test cannot name two spellings. */
@@ -165,6 +160,11 @@ export function bugReportPullCommand(reportId: string): string {
     return `bun run bug-report:pull ${reportId} --prod --out bug-report-${reportId}.json`;
 }
 
+/**
+ * The create-issue request body for a system report. Takes no state, no
+ * diagnostics and reads no error message — a field that never reaches the
+ * builder cannot be leaked by a later edit to the template.
+ */
 export function buildBotFaultIssueRequest(input: BotFaultIssueInput): {
     title: string;
     body: string;
