@@ -5080,7 +5080,7 @@ export type GameState = {
          *  DESIGNATES the winner directly (Coalition Victory), rather than the
          *  loser meeting a CR 704.5 loss condition — the only reason with no
          *  natural "why the loser lost" story, since there is none.
-         *  "bot-fault" (ADR 0176) — the Bot conceded
+         *  "bot-fault" (ADR 0177) — the Bot conceded
          *  because the liveness ladder (`forceAdvanceOwedInput`) could not
          *  advance a window it owed: an engine fault, reported as a P0. */
         reason:

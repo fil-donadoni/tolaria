@@ -797,6 +797,114 @@
         "turn": 4,
         "libraryCount": 20
     },
+    "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)": {
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Oko, Thief of Crowns",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 8
+                }
+            },
+            {
+                "name": "Tireless Tracker",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Chromatic Star",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Dismember",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Emrakul, the Aeons Torn",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Archon of Cruelty",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 18,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "Conditional win not latent: casts Thassa's Oracle on an empty board with a full library": {
         "cards": [
             {
@@ -2093,6 +2201,125 @@
                 "summoningSick": false
             }
         ]
+    },
+    "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)": {
+        "cards": [
+            {
+                "name": "Ancestral Recall",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
+    "far behind: the removal follows the best creature when the counters move it (issue #8954 pair, twin)": {
+        "cards": [
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "counters": {
+                    "+1/+1": 6
+                }
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
+    "far behind: the removal goes to the opponent's best creature (issue #8954 pair, anchor)": {
+        "cards": [
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 8,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me"
     },
     "fast mana: casts Mana Crypt for the Serra Angel it enables": {
         "phase": "PRECOMBAT_MAIN",

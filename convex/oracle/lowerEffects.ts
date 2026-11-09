@@ -84,6 +84,7 @@ import type {
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
+import type { LinkedExileTokenIR } from "./grammar/shared/tokenSpec";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
 
@@ -3476,7 +3477,9 @@ function lowerSentenceBody(
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);
         case "create-token":
-            return lowerCreateToken(sentence, walk, site);
+            return "linkedExileToken" in sentence
+                ? lowerLinkedExileToken(sentence.linkedExileToken, site)
+                : lowerCreateToken(sentence, walk, site);
         case "optional": {
             // CR 603.2 — an optional triggered ability's controller chooses on
             // resolution, and declining does NOTHING. That is a cost-free
@@ -7282,7 +7285,10 @@ function lowerEachPlayerPuts(
  * not the announced object's type names an object we cannot point at.
  */
 function lowerCreateToken(
-    sentence: Extract<EffectSentenceIR, { kind: "create-token" }>,
+    sentence: Exclude<
+        Extract<EffectSentenceIR, { kind: "create-token" }>,
+        { readonly linkedExileToken: LinkedExileTokenIR }
+    >,
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
@@ -7350,6 +7356,53 @@ function lowerCreateToken(
     actedOn.op.bind = bind;
     op.count = { ref: `${bind}.manaValue` };
     return lowered([op]);
+}
+
+/**
+ * The binding the linked exile's snapshot travels under: written by the card
+ * pass onto the exile instruction (`linkExile.ts`, `captureBinding`) and read
+ * back here (`recallCapturedBinding`). One name per card, since a card links
+ * at most one such exile.
+ */
+export const LINKED_EXILE_BINDING = "$exiled";
+
+/**
+ * CR 607.2a + CR 111.2 — "The exiled card's owner creates an X/X … creature
+ * token, where X is the mana value of the exiled card". The exiled card is a
+ * new object in exile (CR 400.7), and the leaves trigger resolves arbitrarily
+ * long after the exile, so both reads come from the snapshot the exile
+ * instruction took as the card left the battlefield (the deviation from
+ * CR 608.2h's current-information read is stated in `linkExile.ts`), handed to
+ * this source: `recallCapturedBinding` restores it, and the token is created by the
+ * card's OWNER (CR 108.3), X/X from its mana value (CR 202.3). Nothing
+ * captured — the exile found no target — declares nothing, so the token's
+ * size and creator are unresolved and no token is created. Only a head that
+ * names the linked exile may say "the exiled card".
+ */
+function lowerLinkedExileToken(
+    token: LinkedExileTokenIR,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    if (site.antecedents?.exiledCard !== true)
+        return unlowerable(
+            '"the exiled card" names no exile linked to this ability (CR 607.2a)'
+        );
+    const size = { ref: `${LINKED_EXILE_BINDING}.manaValue` };
+    return lowered([
+        { op: "recallCapturedBinding", bind: LINKED_EXILE_BINDING },
+        {
+            op: "createToken",
+            token: {
+                name: token.subtypes.join(" "),
+                types: ["Creature"],
+                subtypes: [...token.subtypes],
+                power: size,
+                toughness: size,
+                colors: [...token.colors],
+            },
+            controller: { ref: `${LINKED_EXILE_BINDING}.owner` },
+        },
+    ]);
 }
 
 /**

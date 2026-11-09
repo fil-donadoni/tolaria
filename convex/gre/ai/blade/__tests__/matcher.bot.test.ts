@@ -20,6 +20,8 @@ import {
     pushSpell,
 } from "../../../../cards/__tests__/setup.helper";
 import type { TargetSelection } from "../../../../cards/types";
+import { getCardByName } from "../../../../cards";
+import { insetSpellDefinitionId } from "../../../../cards/insetSpell";
 import { counterspell } from "../../../../cards/sets/lea/blue.cards";
 import { lightningBolt } from "../../../../cards/sets/lea/red.cards";
 import { grizzlyBears } from "../../../../cards/sets/lea/green.cards";
@@ -288,6 +290,42 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
         ]);
         expect(describeChosenMove(state, move)).toContain("targets=[opp]");
         expect(describeChosenMove(state, null)).toBe("<no move>");
+    });
+});
+
+describe("instanceIdsForName — a prepare spell's exiled copy resolves by the copied card's name (CR 722.3c, issue #8954)", () => {
+    it("finds the twin instance under the name it presents, beside the real card", () => {
+        // Emeritus of Ideation's inset frame is Ancestral Recall: its exiled
+        // copy is an instance of the TWIN definition (`${id}#prepare`), whose
+        // name is the copied card's. A matcher saying "Ancestral Recall" must
+        // reach it — the registry id alone never did.
+        const emeritus = getCardByName("Emeritus of Ideation");
+        const twinId = insetSpellDefinitionId(emeritus.id, "prepare");
+        const copy = makeInstance(twinId, {
+            id: "prepare-copy-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        const real = makeInstance(getCardByName("Ancestral Recall").id, {
+            id: "recall-1",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [real], exile: [copy] }),
+                makePlayer("p2", {}),
+            ],
+        });
+        expect(
+            [...instanceIdsForName(state, "Ancestral Recall")].sort()
+        ).toEqual(["prepare-copy-1", "recall-1"]);
+        // The parent's own name still resolves to nothing here: the copy
+        // presents the inset spell, not Emeritus (CR 722.3c).
+        expect(() => instanceIdsForName(state, emeritus.name)).toThrow(
+            /no instance of it exists/
+        );
     });
 });
 

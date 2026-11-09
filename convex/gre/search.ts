@@ -93,6 +93,7 @@ import {
     PHASE_ORDER,
 } from "./phases";
 import { cloneGameState } from "./clone";
+import { armedStepTargetGates } from "./ai/latentBoard";
 import { predictCombatOutcome } from "./dangerClock";
 import { getEffectiveBlockGraph, recordBlockedAttackers } from "./banding";
 import {
@@ -380,13 +381,56 @@ const MAX_TREE_DEPTH = 40;
 export const REWARD_PER_MARGIN_POINT =
     rewardPerMarginPoint(DEFAULT_EVAL_WEIGHTS);
 
-/** Map a material margin to [-1, 1], linear (constant slope) until it saturates
- *  at ±`weights.materialFull`. Linear is deliberate: the discriminating
- *  quantity is a fixed material delta, which must move the reward by the same
- *  amount whether the absolute margin is small or large. */
-function materialSignal(margin: number, weights: EvalWeights): number {
+/** The terminal bands' material signal: linear until it saturates at
+ *  ±`materialFull`, the pre-#8954 map, kept HERE on purpose. Inside a won or
+ *  lost band the margin is an outcome TIE-BREAK, and the clip is what keeps a
+ *  certain loss with surviving material from climbing toward the open band's
+ *  floor: a line that kills its own controller for a full sweep (Toxic Deluge
+ *  for every life point) scores exactly the floor of the loss band, a clear
+ *  `outcomeEps` below any line that merely dies most of the time — measured:
+ *  with a compressive tail here too, that cast sat 0.017 under its siblings,
+ *  inside the band, and the material tie-break took it. The open band is the
+ *  band that was blind; the terminal bands have `meanMargin` for their depth. */
+function clippedMaterialSignal(margin: number, weights: EvalWeights): number {
     const x = margin / weights.materialFull;
     return x < -1 ? -1 : x > 1 ? 1 : x;
+}
+
+/** Map a material margin to [-1, 1]: linear (constant slope) through the
+ *  core, then — when `materialLinearShare` < 1 — a compressive tail that
+ *  approaches ±1 but never reaches it (issue #8954, ADR 0176). At the base
+ *  vector the share is 1 and this IS the historical hard clip,
+ *  `clippedMaterialSignal`; the `reward-soft-tail` ladder variant sets 0.6.
+ *
+ *  The core is linear by design: the discriminating quantity is a fixed
+ *  material delta, which must move the reward by the same amount whether the
+ *  absolute margin is small or large. The linear core ends at
+ *  `materialLinearShare` of the half-band (`x = a`); the remaining `1 − a` is
+ *  filled by `t / (1 + t)` with `t = (|x| − a) / (1 − a)`, whose slope is 1 at
+ *  the knee (no kink) and decays as `1 / (1 + t)²`, so two leaves a creature
+ *  apart stay apart at any depth of the open band.
+ *
+ *  Why the tail is NOT the default yet (ADR 0176, measured on issue #8954's
+ *  reconstructed position and the `must` blade): the clip's blindness past
+ *  ±`materialFull` is real, but the reported misdirected cast is driven by
+ *  the rollout default policy's bias, not by the pinned leaves — with the
+ *  policy reading the clip and only the leaves reading the tail the
+ *  misdirected cast still leads; with the policy reading the tail too the
+ *  position is fixed, and 7 of 540 `must` entries flip, because the side far
+ *  ahead stops playing its rollouts at random. The knob and the variant are
+ *  the measuring instrument for that follow-up. Why not a logistic: the
+ *  calibrated curve (issue #1929) moves the slope AT ZERO, where most
+ *  decisions live; this tail leaves every margin within the core
+ *  byte-identical. */
+function materialSignal(margin: number, weights: EvalWeights): number {
+    const x = margin / weights.materialFull;
+    const a = weights.materialLinearShare;
+    if (a >= 1) return clippedMaterialSignal(margin, weights);
+    const ax = Math.abs(x);
+    if (ax <= a) return x;
+    const t = (ax - a) / (1 - a);
+    const tail = a + (1 - a) * (t / (1 + t));
+    return x < 0 ? -tail : tail;
 }
 
 /** Calibrated margin → win-probability slope (issue #1929, map #1892 step 3):
@@ -499,6 +543,11 @@ export type Node = {
      *  tried at a node another world hands to the other seat, and `ucb1`
      *  would score it `0/0`. `undefined` until a view opens a child. */
     childNodes?: Map<string, Node>;
+    /** Tree keys of the mover's moves that arm a standing each-step trigger
+     *  for an opponent and read worse than `pass` (`withoutOpposingGateArms`).
+     *  Decided ONCE, on the node's first visit, like `dominatedTargetKeys`.
+     *  `undefined` until then. */
+    opposingGateArmKeys?: ReadonlySet<string>;
 };
 
 function newNode(): Node {
@@ -631,12 +680,12 @@ export function rewardFromValue(v: number, weights: EvalWeights): number {
     const terminal = terminalMagnitude(weights);
     if (v >= terminal) {
         const material =
-            0.5 + 0.5 * materialSignal(v - weights.winScore, weights);
+            0.5 + 0.5 * clippedMaterialSignal(v - weights.winScore, weights);
         return 1 - weights.terminalBand + weights.terminalBand * material;
     }
     if (v <= -terminal) {
         const material =
-            0.5 + 0.5 * materialSignal(v + weights.winScore, weights);
+            0.5 + 0.5 * clippedMaterialSignal(v + weights.winScore, weights);
         return weights.terminalBand * material;
     }
     // Open band: variant-selectable margin mapping (issue #1929) — production
@@ -1656,6 +1705,7 @@ export function rollout(
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
             const bodyCosts: BodyCostMemo = new Map();
+            const gates = armedStepTargetGates(state);
             const drawn = moves.filter(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
@@ -1671,6 +1721,10 @@ export function rollout(
                         botId,
                         m,
                         bodyCosts
+                    ) &&
+                    !(
+                        gates &&
+                        flipsStepTargetGate(state, pid, m, gates, weights)
                     )
             );
             const pool = drawn.length > 0 ? drawn : moves;
@@ -1705,6 +1759,46 @@ export function rollout(
         applyMoveInSearch(state, pid, chosen, true);
     }
     return scoreLeaf(state, botId, weights, since);
+}
+
+/** `state` after `move`, settled as the rollout policy reads it
+ *  (`policyProbeState`: a cast or an activation resolved). A fresh clone;
+ *  `state` is untouched. */
+function settledPolicyProbe(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights
+): GameState {
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, pid, move);
+    return policyProbeState(probe, move, weights, pid);
+}
+
+/** Whether `move`, settled (`settledPolicyProbe`), changes which standing
+ *  each-step triggers find a legal player target on whose step
+ *  (`armedStepTargetGates`, CR 603.3d). `gates` is `state`'s list.
+ *
+ *  Never drawn at random: crossing a comparative threshold ("target player
+ *  who controls more creatures than they do") hands a player a recurring
+ *  trigger — an Oath's dig for the best creature in a library — whose
+ *  realised worth dwarfs the move that crossed it. Drawn at the exploration
+ *  rate, it lands in every line that still holds a crossing move, so a line
+ *  that spent its own options (a removal cast on its own creature) reads as
+ *  insurance against the rollout's blunder rather than the loss it is. The
+ *  greedy policy still plays it when the evaluation, which reads the trigger
+ *  (`eachStepDifferentialValue`), says it gains; the root still weighs it. */
+function flipsStepTargetGate(
+    state: GameState,
+    pid: string,
+    move: Move,
+    gates: readonly string[],
+    weights: EvalWeights
+): boolean {
+    const after = armedStepTargetGates(
+        settledPolicyProbe(state, pid, move, weights)
+    );
+    return (after ?? []).join(",") !== gates.join(",");
 }
 
 /** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
@@ -2711,6 +2805,77 @@ function withoutDominatedTriggerTargets(
     return kept.length > 0 ? kept : keyed;
 }
 
+/** Below the root, the mover's moves that ARM a standing each-step trigger
+ *  on an opponent's step (`armedStepTargetGates`, CR 603.3d: a pair absent
+ *  before the move, present after it settles) and that the 1-ply policy
+ *  reads as worse for the mover than `pass` — an animation or a removal that
+ *  out-creatures the opponent under its Oath for a marginal body. The
+ *  mover's node stops exploring them: like a dominated trigger answer
+ *  (`withoutDominatedTriggerTargets`), its mean backup otherwise debits the
+ *  line that led there with the mover's own blunder, so a line that has
+ *  spent the move that could blunder (its removal, on its own creature)
+ *  out-scores the line that kept it. A crossing the policy reads as a gain
+ *  (lethal, a trigger the mover's side wins) stays explored, and the root
+ *  weighs every move. Memoized on `node`, decided on its first world; never
+ *  emptying. */
+function withoutOpposingGateArms(
+    node: Node,
+    world: GameState,
+    pid: string,
+    keyed: KeyedMove[],
+    weights: EvalWeights
+): KeyedMove[] {
+    if (!node.opposingGateArmKeys) {
+        node.opposingGateArmKeys = opposingGateArmKeys(
+            world,
+            pid,
+            keyed,
+            weights
+        );
+    }
+    const denied = node.opposingGateArmKeys;
+    if (denied.size === 0) return keyed;
+    const kept = keyed.filter((k) => !denied.has(k.key));
+    return kept.length > 0 ? kept : keyed;
+}
+
+function opposingGateArmKeys(
+    world: GameState,
+    pid: string,
+    keyed: KeyedMove[],
+    weights: EvalWeights
+): ReadonlySet<string> {
+    const gates = armedStepTargetGates(world);
+    const pass = keyed.find((k) => k.move.kind === "pass");
+    if (!gates || !pass) return NO_KEYS;
+    const before = new Set(gates);
+    const opposing = (entry: string) => !entry.endsWith(`:${pid}`);
+    const reward = (settled: GameState) =>
+        rewardFromValue(policyValueOfSettled(settled, pid, weights), weights);
+    let passReward: number | undefined;
+    const denied = new Set<string>();
+    for (const k of keyed) {
+        if (k.move.kind === "pass") continue;
+        let settled: GameState;
+        try {
+            settled = settledPolicyProbe(world, pid, k.move, weights);
+        } catch {
+            continue;
+        }
+        const arms = (armedStepTargetGates(settled) ?? []).some(
+            (entry) => !before.has(entry) && opposing(entry)
+        );
+        if (!arms) continue;
+        passReward ??= reward(
+            settledPolicyProbe(world, pid, pass.move, weights)
+        );
+        if (reward(settled) < passReward) denied.add(k.key);
+    }
+    return denied;
+}
+
+const NO_KEYS: ReadonlySet<string> = new Set();
+
 /** The mover's reward for one trigger-target answer as the 1-ply policy reads
  *  it (`policyProbeState`: the trigger resolved to the end once its targets
  *  are announced), or `undefined` when the probe left anything owed — a
@@ -3574,6 +3739,9 @@ function iterate(
             weights,
             depth > 0
         );
+        if (depth > 0) {
+            keyed = withoutOpposingGateArms(node, world, pid, keyed, weights);
+        }
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
         // never a dominance candidate so the floor always holds.

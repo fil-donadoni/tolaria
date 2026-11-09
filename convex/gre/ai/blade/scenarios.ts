@@ -4266,6 +4266,294 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #1888 sign check for the BENEFICIAL direction: `{ op: "draw", player: { target: 0 } }` is a gift, so the opponent slot is the misdirected one. This entry is a POSITION GUARD rather than a discriminating blade — three cards in the opponent\'s hand is a material swing the evaluator already sees, so the pre-fix bot mostly got it right too. It is here because it is the one shape that fails LOUDLY if the beneficence sign is ever inverted. The genuinely discriminating negative control — a misdirected variant that strictly out-rewards its siblings must still be chosen, i.e. the rule is never a filter — is a deterministic unit test (`selectRootMove` in `search.bot.test.ts`), since a blade cannot construct a reward gap on purpose.',
     },
     {
+        // Issue #8954 — the prod position, lowered by `specFromState` from the
+        // bug report (game `jh76x5x3991a6amscmeq1vx83h8hv3ra`, seq 191, the
+        // cast undone: the prepared copy back in exile, the Island that paid
+        // untapped, priority to the Bot). The Bot is ~21 points level on the
+        // board but every leaf at the horizon sits 850–1 850 points behind,
+        // past `materialFull`, where the base vector's hard clip maps them all
+        // to the band floor; on the full reconstruction the misdirected cast
+        // led the root by mean reward (0.237 / 157 visits vs 0.210 / 140 at
+        // 600 iterations, 0.233 vs 0.217 at 3 000 — the gap GREW with budget).
+        // ADR 0176 records what moved it and what did not. The sideboards
+        // (`outsideGame`) and the libraries' order are not lowered.
+        label: "far behind: the prepared Ancestral Recall copy is never cast at the opponent (issue #8954 position)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent's library down to two cards, so the draw decks them",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Plains",
+                    owner: "me",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                { name: "Plains", owner: "me" },
+                { name: "Island", owner: "me" },
+                { name: "Island", owner: "me" },
+                {
+                    name: "Emeritus of Ideation",
+                    owner: "me",
+                    startedTurnUntapped: true,
+                },
+                { name: "Ocelot Pride", owner: "me", summoningSick: true },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Mox Jet",
+                    owner: "opp",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    tapped: true,
+                    counters: { "+1/+1": 4 },
+                    manaCommitted: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Elvish Mystic",
+                    owner: "opp",
+                    tapped: true,
+                    counters: { "+1/+1": 3 },
+                    manaCommitted: true,
+                },
+                {
+                    name: "Blooming Marsh",
+                    owner: "opp",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Ouroboroid",
+                    owner: "opp",
+                    counters: { "+1/+1": 3 },
+                    startedTurnUntapped: true,
+                },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    tapped: true,
+                    summoningSick: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: "Woodfall Primus",
+                    owner: "opp",
+                    counters: { "+1/+1": 2 },
+                    summoningSick: true,
+                },
+                { name: "Subtlety", owner: "me", zone: "graveyard" },
+                {
+                    name: "Spara's Headquarters",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                { name: "Tundra", owner: "me", zone: "graveyard" },
+                { name: "Once Upon a Time", owner: "opp", zone: "graveyard" },
+                { name: "Night's Whisper", owner: "opp", zone: "graveyard" },
+                { name: "Prismatic Vista", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Brazen Borrower",
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                },
+                { name: "Hullbreacher", owner: "me", zone: "exile" },
+                { name: "Guardian Scalelord", owner: "me", zone: "hand" },
+                { name: "Kappa Cannoneer", owner: "me", zone: "hand" },
+                { name: "Marwyn, the Preserver", owner: "opp", zone: "hand" },
+                { name: "Wight of the Reliquary", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 11,
+            libraryCount: 25,
+            life: { me: 20, opp: 17 },
+            activePlayer: "me",
+            priority: "me",
+            spellsCastThisTurn: { me: 1, opp: 0 },
+            spellsCastThisGame: { me: 4, opp: 9 },
+            stormCount: 1,
+            turnsTaken: { me: 6, opp: 5 },
+            qualifyingActionThisTurn: { me: true },
+            qualifyingActionLastTurn: { me: true, opp: true },
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Ancestral Recall", target: "opp" },
+            ],
+        },
+        note: "Issue #8954, the reported position: the Bot cast the prepared copy of Ancestral Recall (Emeritus of Ideation's inset frame, CR 722.3c) at the human. The matcher names the copy by the name it presents (CR 722.3c), which `instanceIdsForName` resolves beside the real card. Holding the spell is accepted: `last-window-deferral` is right to keep an instant for the opponent's turn, and the issue is the TARGET, not the timing. WHAT THIS LOWERING IS: the board, hands, graveyards and exiles are the report's; the libraries are `libraryCount` filler and the sideboards are not lowered, so the search's deck knowledge differs from the prod game's and on this spec the root prefers the Brazen Borrower bounce on Ouroboroid by `mean-reward` on every seed, under the base vector and under `reward-soft-tail` alike. A POSITION GUARD for the reported shape (the misdirected cast is never chosen), not the discriminating proof: the full-reconstruction traces live in ADR 0176, and `rewardTail.bot.test.ts` pins the flat-floor signature on the hand-cast entry below.",
+    },
+    {
+        // Issue #8954 — the hand-cast shape of the same class, in a minimal
+        // far-behind position (≈ −815 at the root, three Craw Wurms against
+        // nothing). The clip's signature is exact here: under the base vector
+        // every root candidate's mean reward is 0.2500 — the band floor — on
+        // every seed, and the pick is residue plus the material tie-break;
+        // under `reward-soft-tail` the means are distinct and ordered
+        // self-draw > pass > opponent-draw, which `rewardTail.bot.test.ts`
+        // asserts on this entry's built state.
+        label: "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the Bot's own library down to two cards, so the draw decks it",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Ancestral Recall", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 6 },
+            ],
+            phase: "END_STEP",
+            turn: 8,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Ancestral Recall", target: "me" },
+            ],
+        },
+        note: "Issue #8954, the hand-cast half: at the opponent's end step with three Islands open and the Bot ~815 points behind, the draw goes to the Bot. HONEST ABOUT THE MECHANISM: the three candidates' mean rewards sit within `outcomeEps` under the base vector (all exactly 0.2500) and under `reward-soft-tail` alike (a three-card swing is worth ~0.01 reward at this depth of the tail), so the pick is settled by `material-tiebreak` either way. What the companion test pins is the signature of the blindness — every candidate at the floor — and that the tail removes it: the search's own mean then ranks the self-draw first and the misdirected draw last, so the tie-break confirms the search instead of being its only defence.",
+    },
+    {
+        // Issue #8954 — the class beyond draw: far behind, a one-mana removal
+        // and two targets of different worth. Anchor of a Minimal Pair whose
+        // twin moves the best creature with six +1/+1 counters.
+        label: "far behind: the removal goes to the opponent's best creature (issue #8954 pair, anchor)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "six +1/+1 counters on the Grizzly Bears make it, not the Craw Wurm, the best creature",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Swords to Plowshares", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 6 },
+            ],
+            phase: "END_STEP",
+            turn: 8,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Swords to Plowshares",
+                    target: "Craw Wurm",
+                },
+            ],
+        },
+        note: "Issue #8954, the general class in a losing position that is not a draw spell: ~700 points behind, Swords to Plowshares at the opponent's end step goes to the 6/4, not to a 3/3 or the 2/2. Half 1 of the discriminating pair — the twin declares it by `pairOf`. Both halves pass under the base vector and under `reward-soft-tail`, through `material-tiebreak` (the removal variants differ by a few hundred points, inside the band at any slope); the pair is here because the issue's class is 'far behind, non-game-ending difference', and these two positions are the smallest statement of it that a human can judge without hedging.",
+    },
+    {
+        label: "far behind: the removal follows the best creature when the counters move it (issue #8954 pair, twin)",
+        pairOf: {
+            anchor: "far behind: the removal goes to the opponent's best creature (issue #8954 pair, anchor)",
+            discriminant: {
+                kind: "other",
+                detail: "six +1/+1 counters on the Grizzly Bears make it, not the Craw Wurm, the best creature",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Swords to Plowshares", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { "+1/+1": 6 },
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 6 },
+            ],
+            phase: "END_STEP",
+            turn: 8,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Swords to Plowshares",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Half 2 of the discriminating pair (issue #8954): the same board, the Bears now an 8/8, so the removal follows it. Neither half is meaningful alone.",
+    },
+    {
         label: "stretch: Chrome Mox imprints a card rather than nothing",
         classification: {
             kind: "conditional",
@@ -24012,6 +24300,198 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #8729 — the turn-14 board: Oko elked the Talisman on turn 12, so its +1 there buys only the tick and the +2 buys the tick and a Food. The walk untaps the opponent's five lands (they were tapped in the game); with no hand they have nothing to spend them on.",
+    },
+    {
+        // COMPARATIVE EACH-STEP TRIGGER (issue #8734) — the opponent's Oath of
+        // Druids digs, on each player's upkeep, for the player an opponent
+        // out-creatures (CR 603.3d: no legal target, no dig). Creatures are
+        // level, one each, and the opponent's library holds Emrakul and
+        // Archon of Cruelty. Oko's +1 on the bot's own Chromatic Star makes
+        // it two creatures to one and arms the Oath for the opponent's next
+        // upkeep; Dismember on the bot's own creature then pays a card and 4
+        // life to undo it. Oko's +2 keeps creatures level for free.
+        label: "comparative each-step trigger: Oko does not out-creature the opponent under its Oath of Druids, nor Dismember its own creature (issue #8734)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Oath of Druids removed",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 8 },
+                },
+                {
+                    name: "Tireless Tracker",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Chromatic Star", owner: "me", zone: "battlefield" },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // Stands in for the opponent's Elk: a vanilla 3/3.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Oath of Druids",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Emrakul, the Aeons Torn",
+                    owner: "opp",
+                    zone: "library",
+                },
+                { name: "Archon of Cruelty", owner: "opp", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 18,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Chromatic Star",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Tireless Tracker",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Chromatic Star",
+                },
+            ],
+        },
+        note: "Issue #8734. Guards the tree's prune of a move arming a standing each-step trigger for an opponent (`withoutOpposingGateArms`, `armedStepTargetGates`, `ai/latentBoard.ts`) and the rollout's random draw refusing a gate flip (`flipsStepTargetGate`). Before: Dismember on the own Tracker or Oko +1 on the Star, the latter most visited on every seed — below +2 the bot still held Dismember, so each node explored Dismember on the Hill Giant (an arm, the opponent then digs Emrakul) and its mean backup sank the line, while the +1 line re-levelled with Dismember on its own permanent and had no blunder left to explore. After: Oko +2 on all five seeds. Proof of failure — both removed: Dismember on the own Tracker (seed 0xb1ade), Oko +1 on the Star (seed 2). Either one alone keeps this entry green; `stepTargetGates.bot.test.ts` pins the +2 that needs both. The opponent's Elk is a Hill Giant here; the libraries are basics plus the two creatures.",
+    },
+    {
+        // The pair's other half: the board above without the Oath. Nothing
+        // reads creature counts, so the +1 on the bot's own Star is a free
+        // 3/3 and stays an acceptable play.
+        label: "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
+        pairOf: {
+            anchor: "comparative each-step trigger: Oko does not out-creature the opponent under its Oath of Druids, nor Dismember its own creature (issue #8734)",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Oath of Druids removed",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 8 },
+                },
+                {
+                    name: "Tireless Tracker",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Chromatic Star", owner: "me", zone: "battlefield" },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // Stands in for the opponent's Elk: a vanilla 3/3.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Emrakul, the Aeons Torn",
+                    owner: "opp",
+                    zone: "library",
+                },
+                { name: "Archon of Cruelty", owner: "opp", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 18,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Chromatic Star",
+                },
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-minus5",
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Hill Giant",
+                },
+            ],
+        },
+        note: "Issue #8734. The discriminating half: no permanent carries a comparative each-step trigger, so neither the tree prune nor the rollout's refusal reads anything and the search is the one before the fix. Measured at 400 iterations: Dismember on the Hill Giant on every seed; the +1 on the Star and the -5 are as acceptable.",
     },
     {
         label: "discard: Liliana of the Veil holds her +1 when it only costs her own card",

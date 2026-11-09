@@ -1,5 +1,5 @@
 // The FORCED DISCARD — the terminal rung of the Bot liveness ladder (issue
-// #9002, PRD issue #8998, ADR 0176). When every legal rung for the window the
+// #9002, PRD issue #8998, ADR 0177). When every legal rung for the window the
 // Bot owes has thrown, changed nothing, or left it owed on the same container,
 // the owed container is removed as if it had never been opened, and the stack
 // item whose resolution raised it leaves the stack as if it had fizzled.

@@ -25,6 +25,13 @@
             "needsSetup": false
         }
     ],
+    "Ancestral Recall": [
+        {
+            "label": "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Animate Dead": [
         {
             "label": "reanimation: Animate Dead takes the opponent's Griselbrand over its own Bears",
@@ -266,6 +273,13 @@
         },
         {
             "label": "symmetric lock: Disenchant takes the Winter Orb that locks more of the bot's lands, not the 2-MV artifact (issue #5163)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Dismember": [
+        {
+            "label": "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
             "tier": "must",
             "needsSetup": false
         }
@@ -761,6 +775,11 @@
     ],
     "Oko, Thief of Crowns": [
         {
+            "label": "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "loyalty: Oko elks the opposing Craw Wurm",
             "tier": "must",
             "needsSetup": false
@@ -1125,6 +1144,16 @@
         }
     ],
     "Swords to Plowshares": [
+        {
+            "label": "far behind: the removal follows the best creature when the counters move it (issue #8954 pair, twin)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "far behind: the removal goes to the opponent's best creature (issue #8954 pair, anchor)",
+            "tier": "must",
+            "needsSetup": false
+        },
         {
             "label": "removal: Swords to Plowshares takes the greater threat",
             "tier": "must",

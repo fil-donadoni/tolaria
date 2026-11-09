@@ -336,6 +336,18 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         rewardMapping: "calibrated",
     },
 
+    /** Issue #8954 / ADR 0176 — the open-band reward with a COMPRESSIVE TAIL
+     *  past 0.6 of the half-band (`materialLinearShare` 0.6) instead of the
+     *  base vector's hard clip: strictly monotone in the leaf margin, so a
+     *  position a few creatures behind or ahead is no longer blind to what
+     *  does not end the game inside the horizon. The A/B arm
+     *  (`BLADE_VARIANT=reward-soft-tail`) and what `rewardTail.bot.test.ts`
+     *  runs the far-behind entry under; measured, not the default (ADR 0176). */
+    "reward-soft-tail": {
+        name: "reward-soft-tail",
+        evalWeights: { materialLinearShare: 0.6 },
+    },
+
     /** PUCT priors + FPU on the main action space (issue #2684, map #1892
      *  attack-order step 4).
      *

@@ -111,7 +111,12 @@ import {
     readCoinFlipSentence,
     type CoinFlipMarker,
 } from "./coinFlipSeries";
-import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
+import {
+    createTokenRule,
+    linkedExileTokenRule,
+    type CreateTokenIR,
+    type LinkedExileTokenIR,
+} from "./tokenSpec";
 import {
     printsAmongPick,
     printsTypePick,
@@ -1547,6 +1552,18 @@ export type EffectSentenceIR =
            */
           readonly kind: "create-token";
       } & CreateTokenIR)
+    | {
+          /**
+           * CR 607.2a + CR 608.2h + CR 111.2 — "The exiled card's owner
+           * creates an X/X <colour> <Subtype…> creature token, where X is the
+           * mana value of the exiled card": the card this object's LINKED
+           * exile instruction exiled, as it last existed, names both the
+           * token's creator and its size. Read by `tokenSpec.ts`; the card
+           * pass (`linkExile.ts`) hands the exile's snapshot to the source.
+           */
+          readonly kind: "create-token";
+          readonly linkedExileToken: LinkedExileTokenIR;
+      }
     | {
           /**
            * CR 701.17a — "<player> mills N cards" / "Mill N cards": the top N
@@ -5987,6 +6004,8 @@ const RETURN_EXILED =
     "Return the exiled card to the battlefield under its owner's control";
 /** CR 607.2a + CR 400.7 — the hand-disruption family's linked return. */
 const RETURN_EXILED_TO_HAND = "Return the exiled card to its owner's hand";
+/** CR 607.2a — the same linked move spelled with "put" (Watcher for Tomorrow). */
+const PUT_EXILED_INTO_HAND = "Put the exiled card into its owner's hand";
 /** CR 607.2a + CR 110.2a — the Parallax family's linked return of the pile. */
 const RETURN_ALL_EXILED_WITH =
     "Each player returns to the battlefield all cards they own exiled with it";
@@ -9710,7 +9729,11 @@ function effectSentence(
     }
 
     // ── the linked exile's card comes back (CR 607.2a) ─────────────────────
-    if (span === RETURN_EXILED || span === RETURN_EXILED_TO_HAND)
+    if (
+        span === RETURN_EXILED ||
+        span === RETURN_EXILED_TO_HAND ||
+        span === PUT_EXILED_INTO_HAND
+    )
         return ok({
             kind: "return-exiled" as const,
             to: span === RETURN_EXILED ? "battlefield" : "hand",
@@ -9954,6 +9977,16 @@ function effectSentence(
         const count = readAmount(scry[1]!);
         if (count === null) return fail(`"${scry[1]}" is not a count`, span);
         return ok({ kind: "scry" as const, count } satisfies EffectSentenceIR);
+    }
+
+    // ── the linked exile's owner creates its token (CR 607.2a) ─────────────
+    if (span.startsWith("The exiled card")) {
+        const created = linkedExileTokenRule.run(span, ctx);
+        if (!created.ok) return created;
+        return ok({
+            kind: "create-token" as const,
+            linkedExileToken: created.value,
+        } satisfies EffectSentenceIR);
     }
 
     // ── create tokens (CR 111.1) ───────────────────────────────────────────

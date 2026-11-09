@@ -56,7 +56,7 @@ import type { HostNoun } from "./grammar/shared/staticClause";
 import { destroysEveryLand } from "./lowerEffects";
 import { lowerChapterAbility } from "./lowerChapter";
 import { lowerTriggeredAbility } from "./lowerTriggered";
-import { linkExileAndReturn } from "./linkExile";
+import { captureLinkedExile, linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
 import { manaValue } from "../gre/constants";
@@ -1373,10 +1373,30 @@ export function lowerCard(
         [
             ...acc.grantTemplates.map((a) => a.effects ?? []),
             ...acc.triggeredGrantTemplates.map((a) => a.effects),
-        ]
+        ],
+        acc.staticAbilities
     );
     if (!link.ok)
         return { ok: false, reason: link.reason, fragment: card.oracleText };
+    // CR 607.2a + CR 608.2h — a linked READ of the exiled card ("the exiled
+    // card's owner creates …") takes the exile's snapshot across abilities.
+    const capture = captureLinkedExile(
+        [
+            ...acc.compiledTriggeredAbilities,
+            ...acc.chapterAbilities,
+            ...acc.activatedAbilities.map((a) => ({
+                effects: a.effects ?? [],
+                targetRequirement: a.targetRequirement,
+            })),
+        ],
+        [
+            ...acc.grantTemplates.map((a) => a.effects ?? []),
+            ...acc.triggeredGrantTemplates.map((a) => a.effects),
+        ],
+        acc.staticAbilities
+    );
+    if (!capture.ok)
+        return { ok: false, reason: capture.reason, fragment: card.oracleText };
     // CR 610.3 + 610.3c — the second one-shot effect: when this permanent
     // leaves, what it exiled returns under its owner's control. Gated on a
     // bundle being held, because the effect exists only if the exile did.
