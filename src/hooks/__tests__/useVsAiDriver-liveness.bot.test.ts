@@ -970,9 +970,9 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
     });
 
     it("releases the in-flight guard when a runner throws BEFORE its promise", async () => {
-        // The real decision path: the bot declines the unaffordable CR 508.1c
-        // attack tax, a DIRECT realisation, and that runner throws
-        // synchronously. Before the guard the
+        // The real decision path: the bot declines the unaffordable
+        // per-attacker mana tax, a cost to attack (CR 508.1h), through a
+        // DIRECT realisation, and that runner throws synchronously. Before the guard the
         // throw skipped `dispatch`'s `.finally`, so `inFlight` stayed latched
         // and every rung after it bailed — the ladder's own submission below is
         // only reachable once the guard has been released.

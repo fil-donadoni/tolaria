@@ -1243,7 +1243,7 @@ export function useVsAiDriver(
             // and the opponent-knowledge mode. Reading it here rather than
             // during render is what keeps the two in step — see the
             // `deckKnowledge` memo above.
-            // Guarded (issue #8999): a throw here fired from a timer, past
+            // Guarded: a throw here fired from a timer, past
             // `setThinking(true)` and before any dispatch — the indicator
             // stuck on and the window left to the full watchdog interval.
             const knobs = guard("search budget", owedKind, () => {
