@@ -120,6 +120,11 @@ import {
 } from "./escape";
 import { canPayRetraceDiscard, hasRetrace } from "./retrace";
 import { canPayJumpStartDiscard, hasJumpStart } from "./jumpStart";
+import {
+    getHarmonizeCost,
+    hasHarmonize,
+    largestHarmonizeReduction,
+} from "./harmonize";
 import { substituteColorFilter } from "./textChanges";
 import type { TextChangeCarrier } from "./textChanges";
 import {
@@ -1244,7 +1249,7 @@ function anyCastAnnouncementLegal(
             subject: CardInstanceState,
             alternativeCostId: string | undefined
         ) => boolean;
-        costOpts?: { extraMana?: ManaCost };
+        costOpts?: { extraMana?: ManaCost; extraReductionGeneric?: number };
         /** The announcements to walk. Omitted = {@link nonHandCastAnnouncements}
          *  for `timingZone`, its back face as far as `modalBackCastLicensed`
          *  lets the licence reach it (CR 712.11c) — none in the madness window,
@@ -1552,6 +1557,36 @@ export function getLegalActions(
                 // characteristics are "those of its two halves combined". It is
                 // the same cost whichever half is announced.
                 cost: () => flashbackMana,
+            })
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.180a — a card in the player's OWN graveyard with a harmonize cost
+    // is castable from there for that cost, reduced by the power of the
+    // creature it may tap: the gate prices the LARGEST reduction any untapped
+    // creature the caster controls buys, applied after the cost modifiers, the
+    // commit's position (CR 601.2f). Same timing gates as a hand cast.
+    // Flashback and escape answer first (`graveyardCastMechanism`'s order).
+    const isHarmonizeCast =
+        !types.includes("Land") &&
+        player.graveyard.some((c) => c.id === card.id) &&
+        hasHarmonize(card) &&
+        !hasEscape(state, card);
+    if (isHarmonizeCast) {
+        if (
+            passesCastPhaseRestriction(state, card) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                cost: () => getHarmonizeCost(card) ?? {},
+                costOpts: {
+                    extraReductionGeneric: largestHarmonizeReduction(
+                        state,
+                        caster
+                    ),
+                },
             })
         ) {
             actions.push("cast");

@@ -2576,7 +2576,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Harmonize",
         kind: "keyword-ability",
         cr: "702.180",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/harmonize.ts",
+        note: 'Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op). CR 702.180a is three static abilities, one seam each: (1) the graveyard cast for `CardDefinition.harmonize` — `castRawManaCost` / `graveyardCastMechanism` ("harmonize", after escape and flashback) / `locateCastSource` / `getLegalActions`; (2) the reduction — the creature is an ANNOUNCEMENT choice (CR 702.180b), `announceCast`\'s `harmonizeCreatureId`, carried on `PendingTarget`/`PendingCast.harmonizeTapCreatureId`; `applyHarmonizeReduction` takes its power (negative = 0) off the generic part of the already-modified total at both commit sites (CR 601.2f), and `commitCast` taps it as the cost is paid (a creature tapped meanwhile makes the commit stale). Not a {T} cost, so a summoning-sick creature may tap (CR 302.6). The gate prices the largest reduction any untapped creature buys (`largestHarmonizeReduction`); (3) the exile — `graveyardCastStackFlags` stamps the exile-any-time-it-leaves-the-stack flags. Bot: the enumerator names the largest-power creature on the cast Move (`harmonizeCreatureId`, emerge\'s victim rule), prices and keeps the tap plan off it; both search sandboxes tap it. UI: the graveyard button reads "Harmonize" and asks for the creature first (`harmonize-creature-dialog.tsx`). Emitted by the Oracle grammar from the "Harmonize [cost]" line (`harmonizeRule`). Used by Channeled Dragonfire, Mammoth Bellow, Roamer\'s Routine, Unending Whisper, Ureni\'s Rebuff, Winternight Stories.',
     },
     // 702.181 Mobilize
     {

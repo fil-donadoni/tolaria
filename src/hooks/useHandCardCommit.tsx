@@ -199,6 +199,14 @@ function discardXCeilingFor(
     ).length;
 }
 
+/** CR 702.180b — the `announceCast` field for a harmonize creature: present
+ *  only when one was chosen, so every other cast sends the args it always did. */
+function harmonizeArg(creatureId: string | undefined): {
+    harmonizeCreatureId?: string;
+} {
+    return creatureId === undefined ? {} : { harmonizeCreatureId: creatureId };
+}
+
 /** The shared hand-card commit pipeline (PRD #249, slice #254).
  *
  * Both clicking a hand card (classic board / `selectable-card`) and dragging it
@@ -228,7 +236,14 @@ function discardXCeilingFor(
  * (and its overlays) mounted through the whole choice sequence. */
 export function useHandCardCommit(
     cardInstance: CardInstance,
-    opts?: { onCommitted?: () => void }
+    opts?: {
+        onCommitted?: () => void;
+        /** CR 702.180b — the creature a harmonize cast taps, chosen before
+         *  the cast pipeline starts (`GraveyardFlashbackButton`'s picker) and
+         *  read at the dispatch point onto `announceCast`'s
+         *  `harmonizeCreatureId`. */
+        harmonizeCreatureId?: () => string | undefined;
+    }
 ) {
     const game = useGameContext();
     const { gameId, playerId, debugAllActions, allPlayers, activePlayerId } =
@@ -362,6 +377,7 @@ export function useHandCardCommit(
                     phyrexianLifePips: args.phyrexianLifePips,
                     additionalCostLegId: args.additionalCostLegId,
                     chosenXColors: args.chosenXColors,
+                    ...harmonizeArg(opts?.harmonizeCreatureId?.()),
                 })
             )
         ).catch(reportError);

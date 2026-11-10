@@ -265,6 +265,7 @@ import { foretellableHandCards } from "./foretell";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
 import { hasEscape } from "./escape";
+import { harmonizeReductionFor, largestHarmonizeCreature } from "./harmonize";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
@@ -658,6 +659,10 @@ export type Move =
            *  single deterministic plan, never a variant axis. Absent for a cast
            *  with no such park. */
           castCostPicks?: CastCostPicks;
+          /** CR 702.180a/b — the creature a harmonize cast taps for its
+           *  reduction, forwarded to `announceCast`'s `harmonizeCreatureId`.
+           *  Absent = tap none. */
+          harmonizeCreatureId?: string;
       }
     | {
           kind: "activate-ability";
@@ -4226,6 +4231,20 @@ function enumerateCastMovesFromZone(
         isEmergeAlternativeCost(def ?? undefined, chosenAltCost)
             ? largestEmergeReduction(player, chosenAltCost)
             : 0;
+    // CR 702.180a/b / 601.2f — a harmonize cast taps up to one creature and is
+    // reduced by its power. The Move names the creature buying the LARGEST
+    // reduction — emerge's victim rule above — and the tap plan is priced with
+    // it and kept off it (the creature is tapped for harmonize, so it cannot
+    // also tap for mana). A board whose only big creature is also its needed
+    // mana source therefore offers no harmonize Move.
+    const harmonizeCreature =
+        castFromZone === "graveyard" &&
+        graveyardCastMechanism(state, player, card, player.id) === "harmonize"
+            ? largestHarmonizeCreature(state, player)
+            : undefined;
+    const harmonizeReduction = harmonizeCreature
+        ? harmonizeReductionFor(state, harmonizeCreature)
+        : 0;
 
     // CR 601.3c / 601.2f (issue #2146) — the conditional-flash SURCHARGE the
     // Invasion cycle prices its off-window cast at ("You may cast this spell as
@@ -4426,6 +4445,7 @@ function enumerateCastMovesFromZone(
             }
             // CR 702.119a — after the modifiers, as the commit applies it.
             reduceGenericCost(normCost, emergeReduction);
+            reduceGenericCost(normCost, harmonizeReduction);
             // CR 118.9-analog / 119.4 (issue #2398) — a cast whose mana cost
             // the permission replaced starts its life leg at the substituted
             // amount; a Phyrexian split (below) can only add to it, and no
@@ -4554,7 +4574,11 @@ function enumerateCastMovesFromZone(
                 chosenX: x,
             }).filter(
                 (plan) =>
-                    !plan.some((tap) => tapLegPicks?.has(tap.cardInstanceId))
+                    !plan.some(
+                        (tap) =>
+                            tapLegPicks?.has(tap.cardInstanceId) ||
+                            tap.cardInstanceId === harmonizeCreature?.id
+                    )
             );
             if (tapPlans.length === 0) continue;
             // The plan loop is OUTSIDE the target loop (PR #3566 review
@@ -4615,6 +4639,9 @@ function enumerateCastMovesFromZone(
                         tapPlan,
                         ...(payLife > 0 ? { payLife } : {}),
                         ...(castCostPicks ? { castCostPicks } : {}),
+                        ...(harmonizeCreature
+                            ? { harmonizeCreatureId: harmonizeCreature.id }
+                            : {}),
                     });
                     if (!perModeCombination && moves.length >= MAX_COMBINATIONS)
                         return moves;

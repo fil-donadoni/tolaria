@@ -119,6 +119,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     // `sacrificeSelection` pick discharges, not a pick of its own. The victim
     // IS the park, and it is already census-ed there.
     emergeReductionOwed: "non-park",
+    // CR 702.180b — the harmonize creature, named at announcement (CR 601.2b)
+    // with its reduction already priced: the commit taps it, nobody picks.
+    harmonizeTapCreatureId: "non-park",
     // CR 702.103a — a bestow cast-mode marker, like `evoked`/`dashed`: a
     // snapshot of a choice already made, never a payment the caster still owes.
     bestowed: "non-park",
