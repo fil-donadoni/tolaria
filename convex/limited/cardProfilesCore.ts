@@ -696,3 +696,204 @@ export function buildScopeCardProfiles(
         };
     });
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Profile Census contract — the rationale vocabulary and the residue schema
+// (`.claude/skills/profile-census/`, PRD #8772). PURE, so the Admin panel
+// (which shows the rationale and the residue) and the offline seed validator
+// (`scripts/lib/profile-census.ts`) read ONE definition of each.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The kinds of source a census rationale may name, in the order the skill
+ *  lists them. A rationale is `<kind>[+<kind>…]: <one line>` — the kind
+ *  prefix tells a reviewer in one glance how far to trust the line (an
+ *  `oracle` read is checkable on the card; a `popular-pick` is hearsay). */
+export const CENSUS_SOURCE_KINDS = [
+    "oracle",
+    "set-review",
+    "cube-writeup",
+    "declared-interaction",
+    "popular-pick",
+    "rubric",
+] as const;
+
+export type CensusSourceKind = (typeof CENSUS_SOURCE_KINDS)[number];
+
+const CENSUS_SOURCE_KIND_SET: ReadonlySet<string> = new Set(
+    CENSUS_SOURCE_KINDS
+);
+
+/** Every reason `rationale` is not a census rationale, or `[]`. One line, a
+ *  `+`-joined list of `CENSUS_SOURCE_KINDS` before the first `: `, a
+ *  non-empty reason after it. Pure. */
+export function censusRationaleErrors(rationale: string | undefined): string[] {
+    if (rationale === undefined || rationale.trim() === "") {
+        return ["rationale is missing"];
+    }
+    if (/[\r\n]/.test(rationale)) return ["rationale spans more than one line"];
+    const colon = rationale.indexOf(": ");
+    if (colon <= 0) {
+        return [
+            `rationale "${rationale}" does not open with "<source-kind>: "`,
+        ];
+    }
+    const errors: string[] = [];
+    for (const kind of rationale.slice(0, colon).split("+")) {
+        if (!CENSUS_SOURCE_KIND_SET.has(kind)) {
+            errors.push(
+                `rationale names source kind "${kind}", not one of ${CENSUS_SOURCE_KINDS.join(", ")}`
+            );
+        }
+    }
+    if (rationale.slice(colon + 2).trim() === "") {
+        errors.push("rationale has no reason after its source kind");
+    }
+    return errors;
+}
+
+/** The three census passes. `capability` runs over the card catalogue once
+ *  per card; `archetype` over one scope; `delta` applies `rows` (new
+ *  catalogue or registry ids) across one scope and leaves every other tag. */
+export const CENSUS_PASSES = ["capability", "archetype", "delta"] as const;
+export type CensusPass = (typeof CENSUS_PASSES)[number];
+
+/** The `scope` a capability pass's residue names: Capabilities are keyed by
+ *  card alone (ADR 0167 §1), so that pass has no Pack Source scope. */
+export const CATALOGUE_CENSUS_SCOPE = "catalogue";
+
+/** One Capability the census needed and the registry lacks: the cards that
+ *  would PROVIDE it, the cards that would REQUIRE it, one line of why. A
+ *  candidate, never a row — promotion is a registry ticket (the skill's
+ *  promotion template), never an edit to this file. */
+export interface CensusResidueCandidate {
+    name: string;
+    providers: string[];
+    requirers: string[];
+    why: string;
+}
+
+/** One pass's residue file, `data/card-profiles/residue/<pass>-<scope>.json`.
+ *  Read-only data to the engine: no scorer reads it. */
+export interface CensusResidueFile {
+    pass: CensusPass;
+    scope: string;
+    /** The ids a `delta` pass applied; absent on the other two passes. */
+    rows?: string[];
+    candidates: CensusResidueCandidate[];
+}
+
+const KEBAB_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function cardListErrors(
+    candidate: string,
+    side: "providers" | "requirers",
+    cardIds: unknown
+): string[] {
+    if (!Array.isArray(cardIds) || cardIds.length === 0) {
+        return [`candidate "${candidate}" lists no ${side}`];
+    }
+    const errors: string[] = [];
+    const seen = new Set<string>();
+    for (const cardId of cardIds) {
+        if (typeof cardId !== "string" || resolveCardName(cardId) === null) {
+            errors.push(
+                `candidate "${candidate}" ${side}: "${String(cardId)}" does not resolve to a card`
+            );
+        } else if (seen.has(cardId)) {
+            errors.push(`candidate "${candidate}" ${side}: "${cardId}" twice`);
+        }
+        if (typeof cardId === "string") seen.add(cardId);
+    }
+    return errors;
+}
+
+/** Validates a residue file read as untyped JSON: the pass/scope/rows
+ *  header, and per candidate a kebab-case name that is NOT already a
+ *  registered Capability (then it is a tag, not a candidate) nor an
+ *  Archetype Catalogue seed id (then it is an Archetype), at least one
+ *  resolving provider and one resolving requirer (a one-sided Capability
+ *  can never match, ADR 0072), and a one-line why. Pure. */
+export function validateCensusResidue(
+    file: unknown
+): CardProfileValidationResult {
+    const errors: string[] = [];
+    if (typeof file !== "object" || file === null || Array.isArray(file)) {
+        return { valid: false, errors: ["residue is not a JSON object"] };
+    }
+    const residue = file as Record<string, unknown>;
+    const allowed = new Set(["pass", "scope", "rows", "candidates"]);
+    for (const key of Object.keys(residue)) {
+        if (!allowed.has(key)) errors.push(`unknown residue key "${key}"`);
+    }
+    const pass = residue.pass;
+    if (!(CENSUS_PASSES as readonly unknown[]).includes(pass)) {
+        errors.push(
+            `pass "${String(pass)}" is not one of ${CENSUS_PASSES.join(", ")}`
+        );
+    }
+    const scope = residue.scope;
+    if (
+        typeof scope !== "string" ||
+        scope === "" ||
+        scope !== scope.toLowerCase()
+    ) {
+        errors.push(`scope "${String(scope)}" is not a lowercase scope`);
+    } else if ((pass === "capability") !== (scope === CATALOGUE_CENSUS_SCOPE)) {
+        errors.push(
+            `scope "${scope}": a capability pass and only it names scope "${CATALOGUE_CENSUS_SCOPE}"`
+        );
+    }
+    const rows = residue.rows;
+    if (pass === "delta") {
+        if (
+            !Array.isArray(rows) ||
+            rows.length === 0 ||
+            rows.some((row) => typeof row !== "string" || !KEBAB_ID.test(row))
+        ) {
+            errors.push("a delta residue names its rows as kebab-case ids");
+        }
+    } else if (rows !== undefined) {
+        errors.push(`a ${String(pass)} residue carries no rows`);
+    }
+    const candidates = residue.candidates;
+    if (!Array.isArray(candidates)) {
+        errors.push("candidates is not an array");
+        return { valid: false, errors };
+    }
+    const names = new Set<string>();
+    for (const raw of candidates) {
+        if (typeof raw !== "object" || raw === null) {
+            errors.push("a candidate is not an object");
+            continue;
+        }
+        const candidate = raw as Record<string, unknown>;
+        const name = String(candidate.name);
+        for (const key of Object.keys(candidate)) {
+            if (!["name", "providers", "requirers", "why"].includes(key)) {
+                errors.push(`candidate "${name}": unknown key "${key}"`);
+            }
+        }
+        if (typeof candidate.name !== "string" || !KEBAB_ID.test(name)) {
+            errors.push(`candidate name "${name}" is not kebab-case`);
+        } else if (isRegisteredCapability(name)) {
+            errors.push(
+                `candidate "${name}" is already a registered Capability — tag it, do not propose it`
+            );
+        } else if (ARCHETYPE_CATALOGUE_SEED_IDS.has(name)) {
+            errors.push(
+                `candidate "${name}" is an Archetype Catalogue row, not a Capability`
+            );
+        }
+        if (names.has(name)) errors.push(`candidate "${name}" listed twice`);
+        names.add(name);
+        errors.push(...cardListErrors(name, "providers", candidate.providers));
+        errors.push(...cardListErrors(name, "requirers", candidate.requirers));
+        const why = candidate.why;
+        if (typeof why !== "string" || why.trim() === "") {
+            errors.push(`candidate "${name}" has no why`);
+        } else if (/[\r\n]/.test(why)) {
+            errors.push(`candidate "${name}": why spans more than one line`);
+        }
+    }
+    return { valid: errors.length === 0, errors };
+}

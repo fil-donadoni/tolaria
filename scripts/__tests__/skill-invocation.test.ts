@@ -31,6 +31,7 @@ const USER_INVOKED_ONLY = [
     "health-fix",
     "new-set",
     "next-ticket",
+    "profile-census",
     "retro",
     "triage",
 ];
