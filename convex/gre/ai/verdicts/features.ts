@@ -115,6 +115,8 @@ const EVAL_TERM_PRESENCE: Record<keyof EvalTerms, true> = {
     manaDevelopment: true,
     colorCoverage: true,
     flexibility: true,
+    combatReserve: true,
+    landTempo: true,
     library: true,
     poison: true,
     graveyard: true,
@@ -180,6 +182,9 @@ const FITTABLE_TERM_WEIGHTS = [
     "manaDevWeight",
     "colorCoverageWeight",
     "flexWeight",
+    // Issue #8701 — the two tactical units the 1-ply policy reads.
+    "combatReserveWeight",
+    "landTempoWeight",
     "deckingWeight",
     "poisonWeight",
     "graveyardEngineWeight",

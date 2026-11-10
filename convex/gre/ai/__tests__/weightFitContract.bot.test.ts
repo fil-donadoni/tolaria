@@ -28,6 +28,8 @@ const ZERO_TERMS: Record<keyof EvalTerms, number> = {
     manaDevelopment: 0,
     colorCoverage: 0,
     flexibility: 0,
+    combatReserve: 0,
+    landTempo: 0,
     library: 0,
     poison: 0,
     graveyard: 0,
