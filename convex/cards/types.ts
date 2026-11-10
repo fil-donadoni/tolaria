@@ -22120,7 +22120,19 @@ export type EffectOp =
      *  emptied. A `moveZone`-to-battlefield body is deliberately NOT admitted
      *  (Exhume, Show and Tell): deferring the moves fixes the choice half but
      *  still fires N separate entry events, and no batch-entry primitive
-     *  exists for a per-player pick out of hand.
+     *  exists for a per-player pick out of hand. Also admitted over players:
+     *  a lone `chooseCategorized` with a `sweep`, split into its choose and
+     *  apply halves; and the "unless they pay" tree — `mayPay` Ops offered to
+     *  `{ ref: "$each" }`, then `dealDamage` Ops to `{ player: { ref: "$each"
+     *  } }`, under `if`s whose predicates read only a binding ("deals 1 damage
+     *  to that player unless they pay {B} or {3}", Lim-Dûl's Hex). The
+     *  interpreter runs that tree once per phase — may-pays only, then damage
+     *  only (`gre/effects/simultaneousPlayers.ts`). Safe where the
+     *  battlefield-entry body is not: damage never suspends, never waits on a
+     *  batch primitive, and each player is dealt damage only on their own
+     *  account, so applying it back to back after every decision IS "the
+     *  actions happen simultaneously" (two players dealt lethal damage lose
+     *  together, CR 104.4a).
      *
      *  Omitted/false keeps the sequential per-member walk (the only behavior
      *  every OTHER `forEach` selector has). */

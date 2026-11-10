@@ -1793,12 +1793,13 @@ export const limDLsCohort = defineCard(() => ({
 }));
 // Lim-Dûl's Hex — "At the beginning of your upkeep, for each player, this
 // enchantment deals 1 damage to that player unless they pay {B} or {3}."
-// (CR 603.6a upkeep trigger + CR 117.3a may-pay, once per player.) The "{B} or
+// (CR 503.1a upkeep trigger + CR 118.12a "unless" may-pay, once per player.) The "{B} or
 // {3}" alternative cost has no single `MayPayCost` shape (the union covers
-// mana+life+sacrifice, not "either-or"), so we compose it from two sequential
-// may-pays per player: offer {B} first; if declined, offer {3}; only if BOTH
-// are declined does the player take 1 damage. Each player's two prompts are
-// keyed by distinct choiceIds so stepped resolution (CR 608.2) keeps them apart.
+// mana+life+sacrifice, not "either-or"), so each player is offered {B} first
+// and, only if they decline, {3}; a player who declines both is dealt 1.
+// CR 101.4 — `simultaneous` re-sequences the body: every player's pay
+// decisions in APNAP order, THEN all the damage at once, so two players dealt
+// lethal damage by the same resolution lose together (CR 104.4a).
 export const limDLsHex = defineCard(() => ({
     id: "af976f42-3d56-4e32-8294-970a276a4bf3",
     name: "Lim-Dûl's Hex",
@@ -1814,38 +1815,46 @@ export const limDLsHex = defineCard(() => ({
                 "At the beginning of your upkeep, for each player, this enchantment deals 1 damage to that player unless they pay {B} or {3}.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                // CR 101.4 — resolve "for each player" in APNAP order. Collect
-                // every player's pay decision FIRST (the may-pays are idempotent
-                // on re-resolution), then apply damage in a single final pass.
-                // This keeps the side effect (`dealDamage`) from re-firing each
-                // time a later player's may-pay suspends and the resolve re-runs
-                // (CR 608.2 — the Balance "collect then apply" pattern).
-                const players = ctx.apNapOrder();
-                const takesDamage: string[] = [];
-                for (const playerId of players) {
-                    const paidB = ctx.requestMayPay({
-                        playerId,
-                        choiceId: `lim-duls-hex-b-${playerId}`,
-                        cost: { B: 1 },
-                        prompt: "Pay {B} to avoid 1 damage from Lim-Dûl's Hex? (Declining offers {3} next.)",
-                    });
-                    if (paidB === undefined) return; // suspended
-                    if (paidB) continue;
-                    const paid3 = ctx.requestMayPay({
-                        playerId,
-                        choiceId: `lim-duls-hex-3-${playerId}`,
-                        cost: { X: 3 },
-                        prompt: "Pay {3} to avoid 1 damage from Lim-Dûl's Hex?",
-                    });
-                    if (paid3 === undefined) return; // suspended
-                    if (!paid3) takesDamage.push(playerId);
-                }
-                // All decisions in — apply damage exactly once.
-                for (const playerId of takesDamage) {
-                    ctx.dealDamage({ type: "player", id: playerId }, 1);
-                }
-            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: { ref: "$each" },
+                            cost: { B: 1 },
+                            prompt: "Pay {B} to avoid 1 damage from Lim-Dûl's Hex? (Declining offers {3} next.)",
+                            bind: "$paidB",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$paidB" } },
+                            then: [
+                                {
+                                    op: "mayPay",
+                                    player: { ref: "$each" },
+                                    cost: { X: 3 },
+                                    prompt: "Pay {3} to avoid 1 damage from Lim-Dûl's Hex?",
+                                    bind: "$paid3",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: { not: { binding: "$paid3" } },
+                                    then: [
+                                        {
+                                            op: "dealDamage",
+                                            amount: 1,
+                                            to: { player: { ref: "$each" } },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 }));
