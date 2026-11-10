@@ -195,6 +195,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.6057068569999999,
+        "score": 0.5929786052943546,
         "visits": 31,
       },
       {
@@ -240,6 +242,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "move": {
           "kind": "pass",
         },
+        "oneplyReward": 0.524175343,
+        "score": 0.536350660390625,
         "visits": 24,
       },
       {
@@ -302,6 +306,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5195528789999999,
+        "score": 0.492352766139375,
         "visits": 20,
       },
       {
@@ -364,6 +370,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5027195456666667,
+        "score": 0.47879636403969295,
         "visits": 19,
       },
     ],
@@ -679,6 +687,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.9289977403749945,
+        "score": 0.9289977403749943,
         "visits": 17,
       },
       {
@@ -724,6 +734,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "move": {
           "kind": "pass",
         },
+        "oneplyReward": 0.61064945875,
+        "score": 0.7797552121656229,
         "visits": 12,
       },
       {
@@ -786,6 +798,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.60464945875,
+        "score": 0.5926116277749999,
         "visits": 8,
       },
       {
@@ -851,6 +865,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.60399548075,
+        "score": 0.591957649775,
         "visits": 8,
       },
       {
@@ -910,6 +926,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.60099548075,
+        "score": 0.589224878646875,
         "visits": 8,
       },
       {
@@ -969,6 +987,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.59699548075,
+        "score": 0.5863921075187499,
         "visits": 8,
       },
       {
@@ -1031,6 +1051,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.59664945875,
+        "score": 0.584611627775,
         "visits": 7,
       },
       {
@@ -1090,6 +1112,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.59699548075,
+        "score": 0.584057649775,
         "visits": 7,
       },
       {
@@ -1149,6 +1173,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.59299548075,
+        "score": 0.5800576497750001,
         "visits": 7,
       },
       {
@@ -1214,6 +1240,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5879954807500001,
+        "score": 0.575957649775,
         "visits": 7,
       },
       {
@@ -1279,6 +1307,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5839954807500001,
+        "score": 0.571957649775,
         "visits": 7,
       },
     ],
@@ -1454,6 +1484,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           ],
           "targets": [],
         },
+        "oneplyReward": 0.6047764419999999,
+        "score": 0.5991515639384614,
         "visits": 52,
       },
       {
@@ -1499,6 +1531,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "move": {
           "kind": "pass",
         },
+        "oneplyReward": 0.583327378,
+        "score": 0.5956937092187498,
         "visits": 48,
       },
     ],
@@ -2256,6 +2290,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.43729107030000003,
         "visits": 3,
       },
       {
@@ -2325,6 +2361,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.4283910703,
         "visits": 3,
       },
       {
@@ -2397,6 +2435,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.4235410703,
         "visits": 3,
       },
       {
@@ -2469,6 +2509,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.42114107030000003,
         "visits": 3,
       },
       {
@@ -2541,6 +2583,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.42114107030000003,
         "visits": 3,
       },
       {
@@ -2613,6 +2657,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.42114107030000003,
         "visits": 3,
       },
       {
@@ -2688,6 +2734,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.42109107030000004,
         "visits": 3,
       },
       {
@@ -2733,6 +2781,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "move": {
           "kind": "pass",
         },
+        "oneplyReward": 0.5446550135000001,
+        "score": 0.4173265874,
         "visits": 3,
       },
       {
@@ -2802,6 +2852,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.4139910703,
         "visits": 3,
       },
       {
@@ -2871,6 +2923,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.4139910703,
         "visits": 3,
       },
       {
@@ -2943,6 +2997,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.4139410703,
         "visits": 3,
       },
       {
@@ -3015,6 +3071,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.4139410703,
         "visits": 3,
       },
       {
@@ -3087,6 +3145,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.4139410703,
         "visits": 3,
       },
       {
@@ -3159,6 +3219,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.4139410703,
         "visits": 3,
       },
       {
@@ -3228,6 +3290,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.39684487690000003,
         "visits": 3,
       },
       {
@@ -3300,6 +3364,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.39559487690000006,
         "visits": 3,
       },
       {
@@ -3369,6 +3435,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3884448769,
         "visits": 3,
       },
       {
@@ -3438,6 +3506,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3884448769,
         "visits": 3,
       },
       {
@@ -3507,6 +3577,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3884448769,
         "visits": 3,
       },
       {
@@ -3576,6 +3648,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3884448769,
         "visits": 3,
       },
       {
@@ -3648,6 +3722,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.3883948769,
         "visits": 3,
       },
       {
@@ -3723,6 +3799,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.3883448769,
         "visits": 3,
       },
       {
@@ -3792,6 +3870,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3783520197571429,
         "visits": 3,
       },
       {
@@ -3861,6 +3941,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3783520197571429,
         "visits": 3,
       },
       {
@@ -3930,6 +4012,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.3628986835,
         "visits": 3,
       },
       {
@@ -3999,6 +4083,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5112998424999999,
+        "score": 0.34602945273076924,
         "visits": 3,
       },
       {
@@ -4074,6 +4160,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.42469107030000003,
         "visits": 2,
       },
       {
@@ -4149,6 +4237,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.4174910703,
         "visits": 2,
       },
       {
@@ -4224,6 +4314,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.4138910703,
         "visits": 2,
       },
       {
@@ -4299,6 +4391,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.4138910703,
         "visits": 2,
       },
       {
@@ -4374,6 +4468,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.4138910703,
         "visits": 2,
       },
       {
@@ -4449,6 +4545,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.4138910703,
         "visits": 2,
       },
       {
@@ -4521,6 +4619,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.3756217802,
         "visits": 2,
       },
       {
@@ -4596,6 +4696,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.3755717802,
         "visits": 2,
       },
       {
@@ -4668,6 +4770,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5107998425,
+        "score": 0.3604824944857143,
         "visits": 2,
       },
       {
@@ -4743,6 +4847,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.3604324944857143,
         "visits": 2,
       },
       {
@@ -4818,6 +4924,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
             },
           ],
         },
+        "oneplyReward": 0.5102998425,
+        "score": 0.3604324944857143,
         "visits": 2,
       },
     ],
