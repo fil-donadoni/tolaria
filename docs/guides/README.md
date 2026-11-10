@@ -29,18 +29,19 @@ an agent's context automatically — these are read on demand.
 
 Not every document is a guide. Where to look for the other kinds:
 
-| You want                                            | Look in                                                                                                                   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| The norms an agent must follow                      | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                            |
-| Why a decision was made                             | `docs/adr/` — index at `docs/adr/README.md`                                                                               |
-| Domain vocabulary                                   | `GLOSSARY.md`                                                                                                             |
-| What the quality gates are and why                  | `docs/agents/quality-gates.md`                                                                                            |
-| Which docs a change owes, and why prose enforces it | `docs/agents/docs-follow-the-change.md`                                                                                   |
-| How the issue queue and its labels work             | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                            |
-| What the loop costs, measured                       | `docs/agents/workflow-token-economics.md`                                                                                 |
-| How to watch or stop the AFK passes                 | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md)) |
-| What a subagent noticed but was not asked to fix    | `docs/findings/` — read with `bun run findings`                                                                           |
-| The workflow skills themselves                      | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                   |
+| You want                                            | Look in                                                                                                                      |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| The norms an agent must follow                      | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                               |
+| Why a decision was made                             | `docs/adr/` — index at `docs/adr/README.md`                                                                                  |
+| Domain vocabulary                                   | `GLOSSARY.md`                                                                                                                |
+| What the quality gates are and why                  | `docs/agents/quality-gates.md`                                                                                               |
+| Which docs a change owes, and why prose enforces it | `docs/agents/docs-follow-the-change.md`                                                                                      |
+| How the issue queue and its labels work             | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                               |
+| What the loop costs, measured                       | `docs/agents/workflow-token-economics.md`                                                                                    |
+| How to watch or stop the AFK passes                 | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md))    |
+| What a subagent noticed but was not asked to fix    | `docs/findings/` — read with `bun run findings`                                                                              |
+| What decks the draft Bot builds, measured           | `bun run draft:audit -- --scope <scope> [--seeds <n>]`; baseline and Floors in `docs/research/draft-table-audit-baseline.md` |
+| The workflow skills themselves                      | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                      |
 
 ## Every guide carries a glossary
 
