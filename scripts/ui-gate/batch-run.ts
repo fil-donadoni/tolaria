@@ -256,6 +256,10 @@ function walk(
         };
         child.stdout.on("data", take);
         child.stderr.on("data", take);
+        child.on("error", (err) => {
+            log(`batch: the walk in ${dir} could not start — ${err.message}`);
+            resolve({ code: 2, output });
+        });
         child.on("close", (code) => {
             log(`batch: walk in ${dir} exited ${code}`);
             resolve({ code: code ?? 2, output });
@@ -316,15 +320,15 @@ async function soloRewalks(
         const dir = newTreeDir(`solo-${pr}`);
         try {
             const merged = buildTree(dir, baseSha, [m], root, log);
-            if (merged.length === 0) {
-                solo.set(pr, surfaces); // cannot be walked alone: stays unproven
-                continue;
-            }
+            // A head that merged in the batch merges alone on the same base;
+            // if it somehow does not, it owns nothing and the surface stays
+            // an orphan — unproven, never blamed.
+            if (merged.length === 0) continue;
             initTree(dir, log);
             log(
                 `batch: re-walking ${surfaces.join(", ")} on #${pr} alone (DIAGNOSTIC — attribution only)`
             );
-            const { output } = await walk(
+            const { code, output } = await walk(
                 dir,
                 [
                     `--surface=${surfaces.join(",")}`,
@@ -333,7 +337,13 @@ async function soloRewalks(
                 ],
                 log
             );
-            solo.set(pr, redSurfacesOf(output));
+            // A solo walk the machine cut short (exit 3/4/77…) judged nothing:
+            // the candidate owns nothing, the surface stays an orphan.
+            if (code === 0 || code === 1) solo.set(pr, redSurfacesOf(output));
+            else
+                log(
+                    `batch: solo walk of #${pr} exited ${code} — no attribution from it`
+                );
         } finally {
             removeTree(dir, root);
         }
@@ -387,35 +397,52 @@ export async function runBatch(
         else dropped.push(pr);
     }
 
-    // Build, scope, and rebuild without any PR the batch cannot carry.
+    // Build, scope, and rebuild without any PR the batch cannot carry. The
+    // tree is removed however the run ends — a throw, or Ctrl-C / SIGTERM.
     let dir = "";
-    let merged: Merged[] = [];
-    let scopes = new Map<number, readonly string[]>();
-    for (;;) {
-        dir = newTreeDir("walk");
-        merged = buildTree(dir, baseSha, candidates, root, log);
-        for (const c of candidates) {
-            if (!merged.includes(c)) dropped.push(c.head.pr);
-        }
-        scopes = new Map();
-        const unscoped: Merged[] = [];
-        for (const m of merged) {
-            const scope = landingDiffScope(m.changed, dir);
-            if (scope.kind === "scoped") scopes.set(m.head.pr, scope.surfaces);
-            else {
-                unscoped.push(m);
-                log(
-                    `batch: dropped #${m.head.pr} — its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`
-                );
-            }
-        }
-        if (unscoped.length === 0) break;
-        removeTree(dir, root);
-        dropped.push(...unscoped.map((m) => m.head.pr));
-        candidates = merged.filter((m) => !unscoped.includes(m));
+    const onSignal = (signal: NodeJS.Signals) => {
+        if (dir) removeTree(dir, root);
+        process.exit(signal === "SIGINT" ? 130 : 143);
+    };
+    process.once("SIGINT", onSignal);
+    process.once("SIGTERM", onSignal);
+    try {
+        return await walkBatch();
+    } finally {
+        process.off("SIGINT", onSignal);
+        process.off("SIGTERM", onSignal);
+        if (dir) removeTree(dir, root);
     }
 
-    try {
+    async function walkBatch(): Promise<number> {
+        let merged: Merged[] = [];
+        let scopes = new Map<number, readonly string[]>();
+        for (;;) {
+            dir = newTreeDir("walk");
+            merged = buildTree(dir, baseSha, candidates, root, log);
+            for (const c of candidates) {
+                if (!merged.includes(c)) dropped.push(c.head.pr);
+            }
+            scopes = new Map();
+            const unscoped: Merged[] = [];
+            for (const m of merged) {
+                const scope = landingDiffScope(m.changed, dir);
+                if (scope.kind === "scoped")
+                    scopes.set(m.head.pr, scope.surfaces);
+                else {
+                    unscoped.push(m);
+                    log(
+                        `batch: dropped #${m.head.pr} — its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`
+                    );
+                }
+            }
+            if (unscoped.length === 0) break;
+            removeTree(dir, root);
+            dir = "";
+            dropped.push(...unscoped.map((m) => m.head.pr));
+            candidates = merged.filter((m) => !unscoped.includes(m));
+        }
+
         if (merged.length === 0) {
             log("batch: no PR left to walk");
             return 1;
@@ -484,6 +511,13 @@ export async function runBatch(
             (pr) => !attribution.red.has(pr)
         );
         for (const pr of clean) {
+            if (attribution.passSurfaces.length === 0) {
+                // A PR with an empty scope owes no walk: no receipt to write.
+                log(
+                    `#${pr}: CLEAN — its scope is empty: \`check:ui: no walk owed\``
+                );
+                continue;
+            }
             log(`#${pr}: CLEAN — receipt:`);
             for (const l of lines) log(`    ${l}`);
             if (writeReceipts) writeReceipt(pr, lines, log);
@@ -507,7 +541,5 @@ export async function runBatch(
             );
         }
         return clean.length === prs.length ? 0 : 1;
-    } finally {
-        removeTree(dir, root);
     }
 }

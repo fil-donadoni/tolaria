@@ -971,7 +971,10 @@ async function main(): Promise<number> {
         scope: landingDiffScope(changed, root),
         // A BATCH receipt is matched by content (issue #9106): the digest of
         // THIS checkout's DOM-reachable files — run it from the PR's worktree.
-        dom: landingDomDigest(changed, root),
+        // Computed only for a BATCH paste, as `pr-refusals.ts` does.
+        ...(/^\s*BATCH —/m.test(body)
+            ? { dom: landingDomDigest(changed, root) }
+            : {}),
     };
     const result = verifyReceiptText(body, expected);
     if (result.ok) {
