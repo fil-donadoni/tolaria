@@ -17,14 +17,6 @@ import {
 } from "../ui-gate/verify-receipt.ts";
 import { ORIGIN_BASE } from "./branches";
 import {
-    auditSeeds,
-    DEFAULT_AUDIT_SEEDS,
-    DRAFT_AUDIT_FLOORS,
-    checkFloors,
-    formatReceiptLine,
-    runDraftAudit,
-} from "./draft-audit";
-import {
     draftAuditRefusal,
     owesDraftAuditReceipt,
 } from "./draft-audit-receipt";
@@ -263,14 +255,19 @@ export function safeRetirementRefusal(
     return retirementRefusal(changedRetiredRows(diff), prBody);
 }
 
-/** The receipt line the audit prints for `scope` on this tree. */
-export function deriveDraftAuditLine(scope: string): string {
-    const run = runDraftAudit(scope, auditSeeds(DEFAULT_AUDIT_SEEDS));
-    const floors = DRAFT_AUDIT_FLOORS[scope];
-    return formatReceiptLine(
-        run,
-        floors ? checkFloors(run.aggregate, floors) : null
+/** The receipt line the audit prints for `scope` on this tree. A child
+ *  process, never an import: the audit's module closure must stay out of this
+ *  file's (`fileReadsCorpus`, issue #8895 review). */
+export function deriveDraftAuditLine(scope: string, cwd = "."): string {
+    const r = spawnSync(
+        "bun",
+        ["scripts/draft-audit.ts", "--scope", scope, "--quiet"],
+        { cwd, encoding: "utf8", maxBuffer: 1 << 24 }
     );
+    const line = r.stdout
+        .split(/\r?\n/)
+        .find((l) => l.startsWith("draft:audit: "));
+    return line ?? "";
 }
 
 /**
@@ -281,7 +278,8 @@ export function deriveDraftAuditLine(scope: string): string {
 export function safeDraftAuditRefusal(
     cwd: string,
     prBody: string,
-    derive: (scope: string) => string = deriveDraftAuditLine
+    derive: (scope: string) => string = (scope) =>
+        deriveDraftAuditLine(scope, cwd)
 ): string | null {
     let owes = false;
     try {

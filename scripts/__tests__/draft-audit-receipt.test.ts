@@ -7,6 +7,8 @@ import {
     owesDraftAuditReceipt,
     parseReceiptLines,
 } from "../lib/draft-audit-receipt";
+import { DEFAULT_AUDIT_SEEDS, DRAFT_AUDIT_FLOORS } from "../lib/draft-audit";
+import { DRAFT_AUDIT_RECEIPT_SEEDS } from "../lib/draft-audit-receipt";
 import { runPrCheck } from "../pr-checks";
 import { PR_CHECK_JOB_NAMES } from "../lib/pr-check-twin";
 
@@ -125,6 +127,13 @@ describe("draftAuditRefusal — proof of each refusal", () => {
 });
 
 describe("wiring", () => {
+    it("the receipt's scopes and seeds are the audit's own", () => {
+        expect([...DRAFT_AUDIT_RECEIPT_SCOPES]).toEqual(
+            Object.keys(DRAFT_AUDIT_FLOORS)
+        );
+        expect(DRAFT_AUDIT_RECEIPT_SEEDS).toBe(DEFAULT_AUDIT_SEEDS);
+    });
+
     it("pr:checks runs draft-audit and the check job is a required name", () => {
         expect(PR_CHECK_JOB_NAMES).toContain("draft-audit");
         // A throwaway cwd with no origin/<base> degrades to "owes nothing".

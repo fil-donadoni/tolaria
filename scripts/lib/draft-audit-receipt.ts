@@ -7,7 +7,6 @@
  * their inputs as arguments. `deriveReceiptLine` is the one impure reader (it
  * runs the audit); `pr-refusals.ts` injects it.
  */
-import { DEFAULT_AUDIT_SEEDS, DRAFT_AUDIT_FLOORS } from "./draft-audit";
 
 /** The audit's own sources and everything it measures: the Bot Drafter,
  *  Auto-Build, the Card Profile layers and seeds, the Archetype Catalogue,
@@ -30,9 +29,16 @@ export function owesDraftAuditReceipt(paths: readonly string[]): boolean {
     );
 }
 
-/** The scopes a receipt must cover: every one that declares Floors. */
-export const DRAFT_AUDIT_RECEIPT_SCOPES: readonly string[] =
-    Object.keys(DRAFT_AUDIT_FLOORS);
+/** The scopes a receipt must cover: every one that declares Floors, and the
+ *  default seed count. Declared here, NOT imported from `./draft-audit`: that
+ *  module's import closure reaches the fitted-weights path, which would make
+ *  every `pr-refusals` importer read as resting on the corpus (`fileReadsCorpus`).
+ *  The test pins both against `DRAFT_AUDIT_FLOORS` / `DRAFT_AUDIT_RECEIPT_SEEDS`. */
+export const DRAFT_AUDIT_RECEIPT_SCOPES: readonly string[] = [
+    "vintage-cube",
+    "lea",
+];
+export const DRAFT_AUDIT_RECEIPT_SEEDS = 8;
 
 export interface ReceiptLine {
     scope: string;
@@ -100,8 +106,8 @@ export function draftAuditRefusal(
         if (mine.length > 1)
             return `the PR body carries ${mine.length} \`draft:audit: ${scope}\` receipt lines — exactly one`;
         const line = mine[0];
-        if (line.from !== 1 || line.to !== DEFAULT_AUDIT_SEEDS)
-            return `\`draft:audit: ${scope}\` receipt covers seeds ${line.from}..${line.to}; the receipt is the default run, seeds 1..${DEFAULT_AUDIT_SEEDS}`;
+        if (line.from !== 1 || line.to !== DRAFT_AUDIT_RECEIPT_SEEDS)
+            return `\`draft:audit: ${scope}\` receipt covers seeds ${line.from}..${line.to}; the receipt is the default run, seeds 1..${DRAFT_AUDIT_RECEIPT_SEEDS}`;
         if (line.floors !== "PASS")
             return `\`draft:audit: ${scope}\` receipt says floors: ${line.floors} — a broken Floor refuses; fix the build, or say why a Floor moves in the same PR`;
         const derived = parseReceiptLines(derive(scope)).lines[0];
