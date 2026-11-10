@@ -601,11 +601,12 @@ export interface AutoBuildSeatContext {
  *  issue #1111), an event whose Pool isn't final yet (`isEventPoolFinal`),
  *  or a bot seat with no Pool at all (shouldn't happen once the Pool is
  *  final; defensive, never thrown). Deterministic given
- *  `(seat.pool, getMeta, resolveBasicLand)` — no RNG — so "every bot Seat
- *  HAS a deck" (PRD #1107 story 24) holds by always being COMPUTABLE on
- *  demand rather than needing a persisted row: the same Seat always
- *  Auto-Builds the identical deck, so a lazily-computed read is exactly as
- *  reliable as a stored one, with no migration/staleness surface. */
+ *  `(seat.pool, getMeta, resolveBasicLand, options)` — no RNG — but those
+ *  inputs include Admin-editable Card Profiles, so the SAME Pool can build a
+ *  different deck after an edit. Hence the deck is built ONCE, at Pool-final,
+ *  and stored (`convex/limitedAutoBuiltDeckStore.ts`, issue #8896: a review
+ *  never changes a choice already made); readers call this only as the
+ *  fallback for an event older than the store. */
 export function computeBotAutoBuiltDeck(
     seat: AutoBuildSeatContext,
     event: AutoBuildEventContext,
