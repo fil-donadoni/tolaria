@@ -16,6 +16,18 @@ import {
     type ExpectedScope,
 } from "../ui-gate/verify-receipt.ts";
 import { ORIGIN_BASE } from "./branches";
+import {
+    auditSeeds,
+    DEFAULT_AUDIT_SEEDS,
+    DRAFT_AUDIT_FLOORS,
+    checkFloors,
+    formatReceiptLine,
+    runDraftAudit,
+} from "./draft-audit";
+import {
+    draftAuditRefusal,
+    owesDraftAuditReceipt,
+} from "./draft-audit-receipt";
 import { changedRetiredRows, retirementRefusal } from "./retirement-ack";
 import {
     classifyScenarioSection,
@@ -249,4 +261,35 @@ export function safeRetirementRefusal(
         return null;
     }
     return retirementRefusal(changedRetiredRows(diff), prBody);
+}
+
+/** The receipt line the audit prints for `scope` on this tree. */
+export function deriveDraftAuditLine(scope: string): string {
+    const run = runDraftAudit(scope, auditSeeds(DEFAULT_AUDIT_SEEDS));
+    const floors = DRAFT_AUDIT_FLOORS[scope];
+    return formatReceiptLine(
+        run,
+        floors ? checkFloors(run.aggregate, floors) : null
+    );
+}
+
+/**
+ * The `draft:audit:` receipt refusal (issue #8895), tolerant like the others:
+ * a diff that cannot be classified degrades to "owes nothing" and says so; the
+ * audit itself (about 20 s, `PR_RECEIPT_GUARDS`) runs only for an owing diff.
+ */
+export function safeDraftAuditRefusal(
+    cwd: string,
+    prBody: string,
+    derive: (scope: string) => string = deriveDraftAuditLine
+): string | null {
+    let owes = false;
+    try {
+        owes = owesDraftAuditReceipt(changedPaths(ORIGIN_BASE, cwd, true));
+    } catch (err) {
+        console.warn(
+            `pr-refusals: could not classify the landing diff to check the draft:audit receipt (${(err as Error).message}) — proceeding as if it owes none`
+        );
+    }
+    return draftAuditRefusal(owes, prBody, derive);
 }

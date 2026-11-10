@@ -212,6 +212,10 @@ nor wait.
   pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
   `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
+- Diff touching the Bot Drafter, Auto-Build, Card Profiles, the Archetype
+  Catalogue or the Capability registry: paste the `draft:audit: <scope> …`
+  line `bun run draft:audit -- --scope <scope> --quiet` prints, one per scope
+  (`land:ready` re-derives them, issue #8895).
 - `Docs: <files>` / `Docs: none (<why>)` (CLAUDE.md step 10).
 - **`## Preset scenario`** heading over a `json` fence holding
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`

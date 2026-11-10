@@ -36,6 +36,7 @@ export const PR_CHECK_JOB_NAMES: readonly string[] = [
     "retired-rows",
     "robustness-baseline",
     "repair-proof",
+    "draft-audit",
 ];
 
 /** One check run of a head, as `twinChecksArgs` reads it. */

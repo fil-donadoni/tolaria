@@ -869,7 +869,14 @@ listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured
 cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
 `--all` walk: 14m39s green, 45m37s red), which issue #6143 moved to a fourth
 place, `PR_RECEIPT_GUARDS`: a PR runs it by hand and pastes the receipt `land`
-re-derives, and no health or `release` run composes it. ADR 0154 §3 adds the bot fast lane
+re-derives, and no health or `release` run composes it. Issue #8895 adds `draft:audit`
+(the Draft Table Audit, 8.9 s + 10.1 s for its two scopes, 19 s: LEA alone is over the 10 s
+ceiling) to the same place: a diff touching the Bot Drafter, Auto-Build, the Card Profile
+layers or seeds, the Archetype Catalogue or the Capability registry
+(`owesDraftAuditReceipt`, `scripts/lib/draft-audit-receipt.ts`) pastes one
+`draft:audit: <scope> seeds 1..8 floors: PASS sha256:<hex>` line per scope; `pr:checks
+draft-audit` re-derives it and refuses a missing, mismatched or Floor-broken one.
+Any other diff owes nothing. ADR 0154 §3 adds the bot fast lane
 (`test:bot`) and `check:bundle` with their costs (issue #5464; ADR 0154 named
 `check:convex-bundle` too, but at 2–4 s it rides the lane), and
 moves `check:convex-heap` (9–17 min per health run) out of `HEALTH_SCRIPTS`

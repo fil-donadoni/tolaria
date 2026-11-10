@@ -25,6 +25,7 @@ import {
     floorsExitCode,
     formatAggregate,
     formatDeckLine,
+    formatReceiptLine,
     formatVerdict,
     runDraftAudit,
 } from "./lib/draft-audit";
@@ -92,5 +93,7 @@ if (args.includes("--json")) {
     console.log(`draft:audit at ${headSha()} · ${seconds.toFixed(1)} s`);
     for (const line of formatAggregate(run)) console.log(line);
     for (const line of formatVerdict(scope, verdicts)) console.log(line);
+    // The receipt a PR touching the drafter pastes (issue #8895).
+    console.log(formatReceiptLine(run, verdicts));
 }
 process.exit(floorsExitCode(verdicts));
