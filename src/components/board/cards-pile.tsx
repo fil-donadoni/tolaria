@@ -11,6 +11,7 @@ import {
     PILE_GRID_COMPACT_BREAKPOINT_PX,
     PILE_GRID_TILE_PX,
     PILE_GRID_TILE_W,
+    CARD_TILE_BUTTON_CLASS,
 } from "~/lib/card-layout";
 import GameDialog from "~/components/ui/game-dialog";
 import SegmentedControl from "~/components/ui/segmented-control";
@@ -429,7 +430,7 @@ function FanLayout({
                                         onCardClick(cardInstance);
                                         onClose();
                                     }}
-                                    className="w-full h-full bg-transparent border-0 p-0 cursor-pointer"
+                                    className={CARD_TILE_BUTTON_CLASS}
                                 >
                                     {inner}
                                 </button>
@@ -560,7 +561,7 @@ function GridCard({
                             onCardClick(cardInstance);
                             onClose();
                         }}
-                        className="w-full h-full bg-transparent border-0 p-0 cursor-pointer"
+                        className={CARD_TILE_BUTTON_CLASS}
                     >
                         {inner}
                     </button>

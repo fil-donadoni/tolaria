@@ -79,7 +79,20 @@ function decodedWidth(img: HTMLImageElement, width: number) {
     });
 }
 
-/** A measured slot: every element reports a 112×157 layout box and rect. */
+/** What the `<img>` reports as its decoded height at `load`. */
+function decodedHeight(img: HTMLImageElement, height: number) {
+    Object.defineProperty(img, "naturalHeight", {
+        configurable: true,
+        get: () => height,
+    });
+}
+
+/** The layout box every element reports; a test moves it to stage a slot
+ *  caught mid-layout or a slot its own image resizes. */
+const layout = { w: 112, h: 157 };
+
+/** A measured slot: every element reports the `layout` box and rect
+ *  (112×157 unless a test moves it). */
 function stubLayout() {
     const defs = {
         offsetWidth: Object.getOwnPropertyDescriptor(
@@ -94,14 +107,14 @@ function stubLayout() {
     };
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
         configurable: true,
-        get: () => 112,
+        get: () => layout.w,
     });
     Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
         configurable: true,
-        get: () => 157,
+        get: () => layout.h,
     });
     Element.prototype.getBoundingClientRect = () =>
-        ({ width: 112, height: 157, left: 0, top: 0 }) as DOMRect;
+        ({ width: layout.w, height: layout.h, left: 0, top: 0 }) as DOMRect;
     return () => {
         for (const k of ["offsetWidth", "offsetHeight"] as const) {
             const d = defs[k];
@@ -122,6 +135,8 @@ describe("usePrintedFaceSource — the 1x bitmap path (issue #8321)", () => {
         bitmaps.wanted = true;
         bitmaps.resolve = null;
         bitmaps.released = 0;
+        layout.w = 112;
+        layout.h = 157;
         restore = stubLayout();
     });
     afterEach(() => {
@@ -237,6 +252,64 @@ describe("usePrintedFaceSource — the 1x bitmap path (issue #8321)", () => {
         expect(loads.real).toBe(0);
         expect(img().getAttribute("src")).toBe(GRID);
         expect(img().getAttribute("srcset")).toContain("/grid/");
+        expect(img().getAttribute("data-art-src")).toBeNull();
+    });
+
+    // Issue #9101 — the bitmap must never set its own slot's size.
+    it("refuses a bitmap whose width fits the slot but whose height does not", async () => {
+        loads.real = 0;
+        const { container } = render(<Face />);
+        const img = () => container.querySelector("img")!;
+        await act(async () => {
+            bitmaps.resolve!("blob:test/h");
+        });
+        decodedWidth(img(), 112);
+        decodedHeight(img(), 25);
+        await act(async () => {
+            img().dispatchEvent(new Event("load"));
+        });
+        expect(loads.real).toBe(0);
+        expect(img().getAttribute("src")).toBe(GRID);
+        expect(img().getAttribute("data-art-src")).toBeNull();
+    });
+
+    it("makes no bitmap for a slot that is not card-shaped, and draws the srcset there", () => {
+        // A printed panel read mid-layout: full width, an alt-text line tall.
+        layout.w = 330;
+        layout.h = 25;
+        const { container } = render(<Face />);
+        const img = container.querySelector("img")!;
+        expect(bitmaps.resolve).toBeNull();
+        expect(img.getAttribute("data-face-pending")).toBeNull();
+        expect(img.getAttribute("src")).toBe(GRID);
+        expect(img.getAttribute("srcset")).toContain("/grid/");
+    });
+
+    it("stops resampling an art whose bitmap moved its own slot, and draws the srcset", async () => {
+        loads.real = 0;
+        const { container } = render(<Face />);
+        const img = () => container.querySelector("img")!;
+        await act(async () => {
+            bitmaps.resolve!("blob:test/loop");
+        });
+        decodedWidth(img(), 112);
+        decodedHeight(img(), 157);
+        // The slot, laid out with the bitmap, is 5px taller than the box it
+        // was made for: an inline-block wrapper's strut gap under an
+        // aspect-ratio tile, measured in production.
+        layout.h = 162;
+        bitmaps.resolve = null;
+        await act(async () => {
+            img().dispatchEvent(new Event("load"));
+        });
+        // The re-measure (any resize signal) must not key a new bitmap.
+        await act(async () => {
+            window.dispatchEvent(new Event("resize"));
+        });
+        expect(loads.real).toBe(0);
+        expect(bitmaps.resolve).toBeNull();
+        expect(img().getAttribute("data-face-pending")).toBeNull();
+        expect(img().getAttribute("src")).toBe(GRID);
         expect(img().getAttribute("data-art-src")).toBeNull();
     });
 

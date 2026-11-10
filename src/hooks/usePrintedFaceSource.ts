@@ -49,6 +49,27 @@ export type PrintedFaceAttrs =
 export const PENDING_FACE_SRC =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='488' height='680'/%3E";
 
+/** The card's own aspect, width over height: every Scryfall front rendition
+ *  is 488:680 (the placeholder above draws the same box). */
+export const CARD_FACE_ASPECT = 488 / 680;
+
+/** How far a slot's box may stray from {@link CARD_FACE_ASPECT}, relative,
+ *  and still get a bitmap. Every card slot is 5:7 to within rounding (a 46px
+ *  tile at 64px reads 0.719 against 0.718); a box past this is a slot caught
+ *  mid-layout — an alt-text line before the source lands, a collapsing panel —
+ *  and a bitmap made for it is a strip that a content-sized slot then keeps as
+ *  its own height (issue #9101: the hover preview's ~25px printed panel). */
+export const CARD_FACE_ASPECT_TOLERANCE = 0.04;
+
+/** Whether `box` is card-shaped enough to resample a face to. */
+export function isCardShapedBox(box: { w: number; h: number }): boolean {
+    if (box.w <= 0 || box.h <= 0) return false;
+    return (
+        Math.abs(box.w / box.h / CARD_FACE_ASPECT - 1) <=
+        CARD_FACE_ASPECT_TOLERANCE
+    );
+}
+
 export interface PrintedFaceSourceOptions {
     /** The Scryfall print to draw; `null` draws nothing (a token with no
      *  printed art, a face-down back). */
@@ -134,9 +155,22 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
 }: PrintedFaceSourceOptions): PrintedFaceSource<T> {
     const { slotRef, floor, measured, box } = useCardSlotFloor<T>();
     const artUrl = imageId ? getImageUrl(imageId, face) : null;
-    const near = useNearViewport(slotRef, lazy && bitmap && box !== null);
+    // The art whose bitmap moved its own slot (see `onLoad`): this mount
+    // draws that art from the srcset from then on. Keyed by the art, so a
+    // memo-retained face that switches card tries the bitmap again.
+    const [selfSizingArt, setSelfSizingArt] = useState<string | null>(null);
+    const bitmapAllowed = bitmap && artUrl !== null && selfSizingArt !== artUrl;
+    const near = useNearViewport(
+        slotRef,
+        lazy && bitmapAllowed && box !== null
+    );
     const bitmapKey = bitmapKeyOf(
-        bitmap && measured && (!lazy || near) && supportsFaceBitmaps()
+        bitmapAllowed &&
+            measured &&
+            (!lazy || near) &&
+            box !== null &&
+            isCardShapedBox(box) &&
+            supportsFaceBitmaps()
             ? box
             : null,
         artUrl
@@ -182,7 +216,12 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
         // the viewport, then for its bitmap: never the srcset in between,
         // which would fetch (and paint) the frame this path exists to avoid.
         const lazyWaiting =
-            lazy && bitmap && box !== null && !near && supportsFaceBitmaps();
+            lazy &&
+            bitmapAllowed &&
+            box !== null &&
+            isCardShapedBox(box) &&
+            !near &&
+            supportsFaceBitmaps();
         if (lazyWaiting) {
             // Not near yet: no bitmap is being made, none is in flight.
             attrs = { src: PENDING_FACE_SRC, "data-face-pending": "deferred" };
@@ -213,16 +252,22 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
         // for 64px, 51px for 158px) must never show stretched: this key falls
         // to the srcset, today's path.
         const img = e?.currentTarget;
-        if (
-            img &&
-            attrs &&
-            "data-art-src" in attrs &&
-            box &&
-            img.naturalWidth > 0 &&
-            Math.abs(img.naturalWidth - box.w) > 1
-        ) {
-            setBitmapState({ key: bitmapKey ?? "", url: null });
-            return;
+        if (img && attrs && "data-art-src" in attrs && box) {
+            if (bitmapMismatchesBox(img, box)) {
+                setBitmapState({ key: bitmapKey ?? "", url: null });
+                return;
+            }
+            // The slot laid out WITH this bitmap (reading it forces that
+            // layout) must still be the box the bitmap was made for. If it is
+            // not, the slot takes its size from its own image — an
+            // `inline-block` wrapper's strut gap under an `aspect-ratio`
+            // tile, measured +5px a round (issue #9101) — and every bitmap
+            // would key the next one, forever. Whatever the wrapper, this
+            // mount stops resampling this art and draws the srcset.
+            if (artUrl && slotMovedByBitmap(slotRef.current, box)) {
+                setSelfSizingArt(artUrl);
+                return;
+            }
         }
         onFaceLoad?.();
     };
@@ -238,6 +283,34 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
     };
 
     return { slotRef, attrs, onError, onLoad };
+}
+
+/** A loaded bitmap that is not its slot's box, in either dimension — a slot
+ *  measured before its layout settled (measured on this lane: 7px for a 60px
+ *  tile, 28px for 64px, 51px for 158px). It must never show stretched. A
+ *  dimension the engine does not report (0) is not evidence. */
+function bitmapMismatchesBox(img: HTMLImageElement, box: CardSlotBox): boolean {
+    return (
+        (img.naturalWidth > 0 && Math.abs(img.naturalWidth - box.w) > 1) ||
+        (img.naturalHeight > 0 && Math.abs(img.naturalHeight - box.h) > 1)
+    );
+}
+
+/** The slot's layout box, read now, is no longer the box its bitmap was made
+ *  for (more than a device pixel off on either axis). A slot with no layout
+ *  box at all (a test environment, a detached node) is not evidence. */
+function slotMovedByBitmap(
+    slot: HTMLElement | null,
+    box: CardSlotBox
+): boolean {
+    if (!slot) return false;
+    const w = slot.offsetWidth;
+    const h = slot.offsetHeight;
+    if (w <= 0 || h <= 0) return false;
+    return (
+        Math.abs(Math.round(w * box.dpr) - box.w) > 1 ||
+        Math.abs(Math.round(h * box.dpr) - box.h) > 1
+    );
 }
 
 function bitmapKeyOf(

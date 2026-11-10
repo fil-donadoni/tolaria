@@ -83,6 +83,21 @@ export const fanCardOpponentClassName =
  *  Both renderings now spell their box exactly once, here. */
 export const PILE_TILE_BOX = "w-(--card-w-sm) aspect-5/7";
 
+/** The click wrapper around a card tile's face (pile fan, pile grid, attached
+ *  cluster): a `<button>` that fills the tile.
+ *
+ *  `block` is the point (issue #9101). A `<button>` is `inline-block` by
+ *  default, so it sits on its parent's line box and leaves the descender
+ *  strut below its baseline (~5px at a 20px line-height). Inside an
+ *  `aspect-5/7` tile — whose `min-height: auto` grows to its content — that
+ *  gap made the tile 5px taller than the button, the button's `h-full`
+ *  followed, and on a 1x display every new slot height keyed a new face
+ *  bitmap (`~/lib/faceBitmaps`): +5px a round, endlessly, the selectable
+ *  faces of a library search stretching vertically while the ineligible ones
+ *  (a block `<div>` wrapper) stayed 5:7. Measured in production, DPR 1. */
+export const CARD_TILE_BUTTON_CLASS =
+    "block w-full h-full bg-transparent border-0 p-0 cursor-pointer";
+
 /** Pixel breakpoint below which a pile/picker card grid switches to its
  *  mobile-compact tile (issue #1817, opus review round 2). Below this width:
  *  the tile drops to `PILE_GRID_TILE_PX`, `GameDialog`'s opt-in
