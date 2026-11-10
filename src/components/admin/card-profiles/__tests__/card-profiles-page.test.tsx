@@ -4,8 +4,15 @@
 // census) rather than a hand-built `ScopeCardProfile` stub — the same
 // discipline `pick-rating-editor.test.tsx` states: a synthetic view can't
 // catch a field the projection drops.
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import type { ReactElement } from "react";
+import {
+    render,
+    screen,
+    fireEvent,
+    waitFor,
+    within,
+} from "@testing-library/react";
 import {
     buildCardProfileRows,
     buildDbProfileLayers,
@@ -18,8 +25,107 @@ import { CUBE_SOURCE_KEY } from "@convex/limited/cube";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
 import { ARCHETYPE_CATALOGUE_SEED } from "@convex/limited/archetypeCatalogueCore";
 import { tryGetCardByName } from "@convex/cards";
-import CardProfileEditor from "../card-profile-editor";
+import CardProfilesPage from "../card-profiles-page";
 import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
+
+// The page reads its data through three hooks; they are the seam, so the
+// rows each test passes are the REAL `listScopeCardProfilesForEditor`
+// projection and the page is driven exactly as the route drives it.
+const page = vi.hoisted(() => ({
+    cards: undefined as unknown,
+    onSave: undefined as unknown as (
+        cardId: string,
+        profile: unknown
+    ) => Promise<unknown>,
+    onClear: undefined as unknown as (cardId: string) => Promise<unknown>,
+    catalogue: null as unknown,
+    scopesAsked: [] as (string | undefined)[],
+}));
+
+vi.mock("~/hooks/useLimitedEvent", () => ({
+    useDraftableSets: () => [
+        {
+            setCode: "vintage-cube",
+            draftable: true,
+            missingCardCount: 0,
+            sheets: [],
+            isCube: true,
+            availableCardCount: 283,
+        },
+    ],
+}));
+
+vi.mock("~/hooks/useCardProfiles", async () => {
+    const { ARCHETYPE_CATALOGUE_SEED: seed } =
+        await import("@convex/limited/archetypeCatalogueCore");
+    return {
+        useScopeCardProfiles: (scope: string | undefined) => {
+            page.scopesAsked.push(scope);
+            return page.cards;
+        },
+        useArchetypeCatalogue: () => page.catalogue ?? seed,
+        useCardProfileMutations: () => ({
+            setProfile: (args: { cardId: string; scope: string }) => {
+                const { cardId, scope, ...profile } = args;
+                void scope;
+                return page.onSave(cardId, profile);
+            },
+            clearProfile: ({ cardId }: { cardId: string }) =>
+                page.onClear(cardId),
+        }),
+    };
+});
+
+function setPage(
+    cards: ScopeCardProfile[] | undefined,
+    onSave: unknown,
+    onClear: unknown
+) {
+    page.cards = cards;
+    page.onSave = onSave as typeof page.onSave;
+    page.onClear = onClear as typeof page.onClear;
+}
+
+function renderPage(
+    cards: ScopeCardProfile[] | undefined,
+    onSave: unknown,
+    onClear: unknown
+) {
+    setPage(cards, onSave, onClear);
+    return render(<CardProfilesPage />);
+}
+
+function rerenderPage(
+    rerender: (ui: ReactElement) => void,
+    cards: ScopeCardProfile[] | undefined,
+    onSave: unknown,
+    onClear: unknown
+) {
+    setPage(cards, onSave, onClear);
+    rerender(<CardProfilesPage />);
+}
+
+function renderPageOnCapabilities() {
+    renderPage(cubeRows(), vi.fn(), vi.fn());
+    fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+}
+
+/** Tick one option of a MultiCombobox filter (Status, Archetype, …). */
+function pickFilter(filter: string, option: string) {
+    // The filter's trigger, not the column header of the same name.
+    const trigger = screen
+        .getAllByRole("button", { name: new RegExp(`^${filter}`) })
+        .find((button) => button.hasAttribute("aria-expanded"));
+    if (!trigger) throw new Error(`no ${filter} filter`);
+    if (!screen.queryByRole("option", { name: option }))
+        fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("option", { name: option }));
+}
+
+afterEach(() => {
+    page.catalogue = null;
+    page.scopesAsked = [];
+});
 
 const SAMPLE = [
     "Worldspine Wurm",
@@ -59,48 +165,27 @@ function cubeRows(
     );
 }
 
-describe("CardProfileEditor (issue #1614)", () => {
+describe("CardProfilesPage (issue #1614)", () => {
     it("renders a loading state while the query is in flight", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={undefined}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(undefined, vi.fn(), vi.fn());
         expect(screen.getByText("Loading…")).toBeTruthy();
     });
 
     it("shows the census seed as the effective profile, flagged Unreviewed", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         expect(screen.getByText("Worldspine Wurm")).toBeTruthy();
         // Every census row lands unreviewed — the reviewer's whole queue.
         expect(screen.getAllByText("Unreviewed").length).toBe(SAMPLE.length);
-        expect(screen.getAllByText(/Census seed/).length).toBe(SAMPLE.length);
     });
 
     it("surfaces the census verdict per card — Worldspine Wurm's value-on-death, and no reanimatable", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
-        const summary = screen.getByText(/provides: value-on-death/);
-        expect(summary.textContent).not.toContain("reanimatable");
+        renderPageOnCapabilities();
+        const row = screen.getByText("Worldspine Wurm").closest("tr");
+        expect(row?.textContent).toContain("value-on-death");
+        expect(row?.textContent).not.toContain("reanimatable");
     });
 
-    it("'Only unreviewed' hides a row an Admin has already reviewed", () => {
+    it("'the Unreviewed status filter' hides a row an Admin has already reviewed", () => {
         const reviewedRow = buildCardProfileRows(
             CUBE_SOURCE_KEY,
             cardId("Griselbrand"),
@@ -111,29 +196,15 @@ describe("CardProfileEditor (issue #1614)", () => {
                 reviewed: true,
             }
         );
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows(dbAfterSaves(reviewedRow))}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(dbAfterSaves(reviewedRow)), vi.fn(), vi.fn());
         expect(screen.getByText("Griselbrand")).toBeTruthy();
-        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        pickFilter("Status", "Unreviewed");
         expect(screen.queryByText("Griselbrand")).toBeNull();
         expect(screen.getByText("Worldspine Wurm")).toBeTruthy();
     });
 
     it("filters by card name", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         fireEvent.change(screen.getByLabelText("Search cards"), {
             target: { value: "grisel" },
         });
@@ -142,14 +213,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     });
 
     it("only offers Capability names from the closed registry", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         for (const row of CAPABILITY_REGISTRY) {
             expect(
@@ -165,14 +229,7 @@ describe("CardProfileEditor (issue #1614)", () => {
 
     it("saves an Admin's correction — archetypes, Capabilities and the review flag", async () => {
         const onSave = vi.fn().mockResolvedValue(null);
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), onSave, vi.fn());
         // Rows are name-sorted; Griselbrand is the first of the four.
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         fireEvent.click(
@@ -205,14 +262,7 @@ describe("CardProfileEditor (issue #1614)", () => {
                 reviewed: true,
             }
         );
-        const { rerender } = render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        const { rerender } = renderPage(cubeRows(), vi.fn(), vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         expect(
             screen
@@ -220,13 +270,11 @@ describe("CardProfileEditor (issue #1614)", () => {
                 .hasAttribute("disabled")
         ).toBe(true);
 
-        rerender(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows(dbAfterSaves(override))}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
+        rerenderPage(
+            rerender,
+            cubeRows(dbAfterSaves(override)),
+            vi.fn(),
+            vi.fn()
         );
         expect(
             screen
@@ -236,16 +284,9 @@ describe("CardProfileEditor (issue #1614)", () => {
     });
 });
 
-describe("CardProfileEditor — shaped for the review pass (issue #3597)", () => {
+describe("CardProfilesPage — shaped for the review pass (issue #3597)", () => {
     it("only offers Archetype names from the catalogue — no free-text field", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         for (const row of ARCHETYPE_CATALOGUE_SEED) {
             expect(
@@ -272,41 +313,27 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
                 reviewed: true,
             }
         );
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows(dbAfterSaves(reviewedRow))}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(dbAfterSaves(reviewedRow)), vi.fn(), vi.fn());
         const bar = screen.getByRole("progressbar", {
-            name: "Card Profiles reviewed",
+            name: "Human review pass",
         });
         expect(bar.getAttribute("aria-valuenow")).toBe("1");
         expect(bar.getAttribute("aria-valuemax")).toBe(String(SAMPLE.length));
-        expect(screen.getByText(/1 of 4 reviewed/)).toBeTruthy();
+        expect(screen.getByText(/1 of 4 \(25%\)/)).toBeTruthy();
 
         // Hiding the done rows must not move the denominator — that is the
         // whole point of measuring the scope rather than the list.
-        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        pickFilter("Status", "Unreviewed");
         expect(
             screen
-                .getByRole("progressbar", { name: "Card Profiles reviewed" })
+                .getByRole("progressbar", { name: "Human review pass" })
                 .getAttribute("aria-valuemax")
         ).toBe(String(SAMPLE.length));
-        expect(screen.getByText(/1 of 4 reviewed/)).toBeTruthy();
+        expect(screen.getByText(/1 of 4 \(25%\)/)).toBeTruthy();
     });
 
     it("shows each card's art, and its rules text once the row is open", () => {
-        const { container } = render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        const { container } = renderPage(cubeRows(), vi.fn(), vi.fn());
         // One art slot per row, addressed by cardId — happy-dom has no layout
         // so the `<img>` inside is not asserted here; `bun run check:ui` is
         // what measures whether it actually paints.
@@ -326,31 +353,15 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     });
 
     it("states the provides/requires distinction, and that an empty Requires is normal", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
-        expect(
-            screen.getByText(/what this card OFFERS a partner/)
-        ).toBeTruthy();
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        expect(screen.getByText(/what a card OFFERS a partner/)).toBeTruthy();
         expect(screen.getByText(/what it NEEDS from one/)).toBeTruthy();
         expect(screen.getByText(/An empty Requires is the norm/)).toBeTruthy();
     });
 
     it("'Mark reviewed & next' saves the row reviewed and opens the following card", async () => {
         const onSave = vi.fn().mockResolvedValue(null);
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), onSave, vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         expect(
             screen.getByRole("group", { name: "Profile for Griselbrand" })
@@ -379,14 +390,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
 
     it("⌘/Ctrl+Enter inside an open row does the same thing from the keyboard", async () => {
         const onSave = vi.fn().mockResolvedValue(null);
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), onSave, vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         fireEvent.keyDown(
             screen.getByRole("group", { name: "Profile for Griselbrand" }),
@@ -405,14 +409,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
 
     it("a REJECTED save leaves the reviewer on the card, with the error", async () => {
         const onSave = vi.fn().mockRejectedValue(new Error("nope"));
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), onSave, vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         fireEvent.click(
             screen.getByRole("button", { name: "Mark reviewed & next" })
@@ -427,14 +424,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     });
 
     it("is a single-open accordion — opening one row closes the other", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         const editButtons = screen.getAllByRole("button", { name: "Edit" });
         fireEvent.click(editButtons[0]);
         expect(
@@ -450,45 +440,34 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     });
 });
 
-describe("CardProfileEditor — review findings (issue #3597)", () => {
+describe("CardProfilesPage — review findings (issue #3597)", () => {
     it("re-seeds a reopened row from the stored profile, never from abandoned edits", () => {
         // The row no longer unmounts when it closes (the editor owns `open`),
         // so without an explicit re-seed the local picker state survived
         // being navigated away from — and "Mark reviewed & next" then wrote
         // those abandoned values and flagged the row reviewed.
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         const control = screen.getByLabelText(
             "Archetype control for Griselbrand"
-        ) as HTMLInputElement;
-        expect(control.checked).toBe(false);
+        );
+        expect(control.getAttribute("aria-checked")).toBe("false");
         fireEvent.click(control);
         expect(
-            (
-                screen.getByLabelText(
-                    "Archetype control for Griselbrand"
-                ) as HTMLInputElement
-            ).checked
-        ).toBe(true);
+            screen
+                .getByLabelText("Archetype control for Griselbrand")
+                .getAttribute("aria-checked")
+        ).toBe("true");
 
         // Navigate away (opening another row closes this one), then back.
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         // Griselbrand is name-first, so it is still the FIRST collapsed row.
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         expect(
-            (
-                screen.getByLabelText(
-                    "Archetype control for Griselbrand"
-                ) as HTMLInputElement
-            ).checked
-        ).toBe(false);
+            screen
+                .getByLabelText("Archetype control for Griselbrand")
+                .getAttribute("aria-checked")
+        ).toBe("false");
     });
 
     it("shows a STORED archetype the catalogue does not have, and lets it be removed", async () => {
@@ -508,19 +487,12 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
             }
         );
         const onSave = vi.fn().mockResolvedValue(null);
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows(dbAfterSaves(legacy))}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(dbAfterSaves(legacy)), onSave, vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         const stray = screen.getByLabelText(
             "Unregistered archetype cheat-into-play for Griselbrand"
         ) as HTMLInputElement;
-        expect(stray.checked).toBe(true);
+        expect(stray.getAttribute("aria-checked")).toBe("true");
 
         fireEvent.click(stray);
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -546,19 +518,11 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
                 reviewed: false,
             }
         );
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={[...ARCHETYPE_CATALOGUE_SEED, kicker]}
-                cards={cubeRows(dbAfterSaves(tagged))}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        page.catalogue = [...ARCHETYPE_CATALOGUE_SEED, kicker];
+        renderPage(cubeRows(dbAfterSaves(tagged)), vi.fn(), vi.fn());
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
-        const row = screen.getByLabelText(
-            "Archetype kicker for Griselbrand"
-        ) as HTMLInputElement;
-        expect(row.checked).toBe(true);
+        const row = screen.getByLabelText("Archetype kicker for Griselbrand");
+        expect(row.getAttribute("aria-checked")).toBe("true");
         expect(
             screen.queryByLabelText(
                 "Unregistered archetype kicker for Griselbrand"
@@ -567,14 +531,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
     });
 
     it("hands focus back to the toggle when a row closes, and wires aria-controls", () => {
-        render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={vi.fn()}
-                onClear={vi.fn()}
-            />
-        );
+        renderPage(cubeRows(), vi.fn(), vi.fn());
         const toggle = screen.getAllByRole("button", { name: "Edit" })[0];
         const toggleId = toggle.id;
         expect(toggleId).not.toBe("");
@@ -596,17 +553,10 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         );
     });
 
-    it("advances correctly with 'Only unreviewed' on, including after the saved row leaves the list", async () => {
+    it("advances correctly with 'the Unreviewed status filter' on, including after the saved row leaves the list", async () => {
         const onSave = vi.fn().mockResolvedValue(null);
-        const { rerender } = render(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows()}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
-        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        const { rerender } = renderPage(cubeRows(), onSave, vi.fn());
+        pickFilter("Status", "Unreviewed");
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         fireEvent.click(
             screen.getByRole("button", { name: "Mark reviewed & next" })
@@ -632,16 +582,134 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
                 reviewed: true,
             }
         );
-        rerender(
-            <CardProfileEditor
-                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
-                cards={cubeRows(dbAfterSaves(saved))}
-                onSave={onSave}
-                onClear={vi.fn()}
-            />
-        );
+        rerenderPage(rerender, cubeRows(dbAfterSaves(saved)), onSave, vi.fn());
         expect(
             screen.getByRole("group", { name: "Profile for Lightning Bolt" })
         ).toBeTruthy();
+    });
+});
+
+describe("CardProfilesPage — the desktop tool (issue #8903)", () => {
+    function cardOrder(): string[] {
+        return screen
+            .getAllByRole("row")
+            .slice(1)
+            .map((row) => row.querySelector("span.text-sm")?.textContent ?? "")
+            .filter(Boolean);
+    }
+
+    it("sorts on every column of the tab, and a second click reverses", () => {
+        renderPageOnCapabilities();
+        for (const label of ["Status", "Provides", "Requires"]) {
+            const head = screen.getByRole("columnheader", { name: label });
+            expect(head.getAttribute("aria-sort"), label).toBe("none");
+        }
+        const card = () => screen.getByRole("columnheader", { name: "Card" });
+        expect(card().getAttribute("aria-sort")).toBe("ascending");
+        fireEvent.click(within(card()).getByRole("button"));
+        expect(card().getAttribute("aria-sort")).toBe("descending");
+        expect(cardOrder()).toEqual(
+            [...cardOrder()].sort((a, b) => b.localeCompare(a))
+        );
+
+        const provides = screen.getByRole("columnheader", {
+            name: "Provides",
+        });
+        fireEvent.click(within(provides).getByRole("button"));
+        expect(provides.getAttribute("aria-sort")).toBe("ascending");
+        expect(card().getAttribute("aria-sort")).toBe("none");
+    });
+
+    it("the Archetypes tab shows the Archetypes column only, the Capabilities tab Provides and Requires", () => {
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        expect(
+            screen.getByRole("columnheader", { name: "Archetypes" })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole("columnheader", { name: "Provides" })
+        ).toBeNull();
+        fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+        expect(
+            screen.getByRole("columnheader", { name: "Provides" })
+        ).toBeTruthy();
+        expect(
+            screen.getByRole("columnheader", { name: "Requires" })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole("columnheader", { name: "Archetypes" })
+        ).toBeNull();
+    });
+
+    it("the Capabilities tab has no scope — no rail, the catalogue-wide cube; Archetypes asks for its rail's scope", () => {
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        expect(
+            screen.getByRole("radiogroup", { name: "Profile Scope" })
+        ).toBeTruthy();
+        fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+        expect(
+            screen.queryByRole("radiogroup", { name: "Profile Scope" })
+        ).toBeNull();
+        expect(screen.queryByLabelText("Scope rail")).toBeNull();
+        expect(page.scopesAsked.at(-1)).toBe("vintage-cube");
+    });
+
+    it("the rail collapses to its toggle and expands again", () => {
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        expect(
+            screen.getByRole("progressbar", { name: "Human review pass" })
+        ).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Collapse rail" }));
+        expect(screen.queryByRole("progressbar")).toBeNull();
+        expect(
+            screen.queryByRole("radiogroup", { name: "Profile Scope" })
+        ).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Expand rail" }));
+        expect(
+            screen.getByRole("radiogroup", { name: "Profile Scope" })
+        ).toBeTruthy();
+    });
+
+    it("filters OR within one filter and AND across filters", () => {
+        // Griselbrand: reviewed, reanimator. Everything else: seeded, unreviewed.
+        const reviewed = buildCardProfileRows(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["reanimator"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        renderPage(cubeRows(dbAfterSaves(reviewed)), vi.fn(), vi.fn());
+
+        pickFilter("Archetype", "reanimator");
+        const reanimator = cardOrder();
+        expect(reanimator).toContain("Griselbrand");
+        expect(reanimator).not.toContain("Lightning Bolt");
+
+        // OR within: adding a second archetype only widens the list.
+        const second = ARCHETYPE_CATALOGUE_SEED.map((row) => row.id).find(
+            (id) => id !== "reanimator"
+        ) as string;
+        pickFilter("Archetype", second);
+        expect(cardOrder().length).toBeGreaterThanOrEqual(reanimator.length);
+        expect(cardOrder()).toEqual(expect.arrayContaining(reanimator));
+
+        // AND across: Status = Unreviewed removes the reviewed Griselbrand.
+        pickFilter("Status", "Unreviewed");
+        expect(cardOrder()).not.toContain("Griselbrand");
+        expect(cardOrder()).toEqual(
+            expect.arrayContaining(
+                reanimator.filter((n) => n !== "Griselbrand")
+            )
+        );
+    });
+
+    it("a catalogue row of the rail filters the table to it", () => {
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        fireEvent.click(screen.getByRole("button", { name: /^reanimator\d/ }));
+        expect(cardOrder()).toContain("Griselbrand");
+        expect(cardOrder()).not.toContain("Lightning Bolt");
     });
 });

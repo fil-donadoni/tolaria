@@ -22,7 +22,7 @@ export default function CardProfileOracleText({ cardId }: { cardId: string }) {
 
     if (printed) {
         return (
-            <div className="flex flex-col gap-1 text-[11px] leading-snug text-text">
+            <div className="flex flex-col gap-1 text-xs leading-snug text-text">
                 {printed
                     .split("\n")
                     .filter((line) => line.trim() !== "")
@@ -42,14 +42,14 @@ export default function CardProfileOracleText({ cardId }: { cardId: string }) {
         abilities.triggered.length > 0;
     if (hasStructured) {
         return (
-            <div className="text-[11px] leading-snug">
+            <div className="text-xs leading-snug">
                 <CardPreviewAbilities abilities={abilities} />
             </div>
         );
     }
 
     return (
-        <p className="text-[11px] text-text-muted">
+        <p className="text-xs text-text-muted">
             No rules text on record for this card.
         </p>
     );

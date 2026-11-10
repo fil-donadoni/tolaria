@@ -1,3 +1,4 @@
+import { Checkbox } from "~/components/ui/checkbox";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
 
 interface CardProfileCapabilityPickerProps {
@@ -36,22 +37,19 @@ export default function CardProfileCapabilityPicker({
 
     return (
         <fieldset className="flex flex-col gap-1">
-            <legend className="text-[11px] font-medium text-text-muted">
-                {legend}
-            </legend>
+            <legend className="text-label">{legend}</legend>
             <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {CAPABILITY_REGISTRY.map((row) => (
                     <label
                         key={row.id}
                         title={row.description}
-                        className="flex items-center gap-1 text-[11px] text-text"
+                        className="flex items-center gap-1 text-xs text-text"
                     >
-                        <input
-                            type="checkbox"
+                        <Checkbox
                             checked={value.includes(row.id)}
                             disabled={disabled}
                             aria-label={`${legend} ${row.id}`}
-                            onChange={() => toggle(row.id)}
+                            onCheckedChange={() => toggle(row.id)}
                         />
                         {row.id}
                     </label>
