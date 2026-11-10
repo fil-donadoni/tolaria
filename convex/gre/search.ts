@@ -198,12 +198,7 @@ import {
     MAX_CHOICE_DEPTH,
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
-import {
-    boonsEveryTarget,
-    mayDeckPlayer,
-    misdirectedPlayerGiftCount,
-    misdirectedTargetCount,
-} from "./ai/beneficence";
+import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
 import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
@@ -5507,72 +5502,6 @@ function castVariantScore(
     );
 }
 
-/** Issue #9044 — the beneficial-slot GUARD: the sibling variant `selectRootMove`
- *  must take instead of `edge` because `edge` hands a pure gift (a draw, a
- *  life gain, a beneficial player counter) to the opponent's face while a
- *  sibling of the same announcement gives the opponent fewer — `undefined`
- *  when `edge` is clean or has no such sibling.
- *
- *  Unlike `castVariantScore`'s preference, this reads NO reward: the siblings
- *  come from the FULL pool, whatever their mean, plus every legal variant the
- *  root never opened (stand-ins carrying `edge`'s statistics, as issue #6985's
- *  starved root uses them). The misdirection penalty used to rank siblings
- *  only inside `outcomeEps` of the best mean, and the reported cast (ADR 0176)
- *  led its self-aimed twin by a gap the one-ply rollout policy itself carries:
- *  a greedy opponent handed three cards develops instead of attacking, so the
- *  gift's subtree reads safer. What the gift is worth is not in doubt, so no
- *  rollout gap is evidence against it. The exceptions are read off the state
- *  by `misdirectedPlayerGiftCount` (a punisher slot, a draw that decks its
- *  recipient) and `mayDeckPlayer` (a sibling whose draw decks the Bot),
- *  never off a card list. Among the cleaner siblings the fewest
- *  gifts win, then `castVariantScore`, then mean reward. */
-function beneficialSlotGuardPick(
-    rootState: GameState,
-    botId: string,
-    edge: Edge,
-    pool: readonly Edge[],
-    root: Node,
-    moves: Move[],
-    weights: EvalWeights,
-    mean: (e: Edge) => number
-): Edge | undefined {
-    const gifts = (e: Edge) =>
-        misdirectedPlayerGiftCount(rootState, e.move, botId);
-    const own = gifts(edge);
-    if (own === 0) return undefined;
-    const siblings = pool.filter(
-        (e) => e !== edge && isCastVariantOf(e.move, edge.move)
-    );
-    // A trigger's `submit-target` keeps the visited pool only, as the
-    // announcement-variant ranking does: the root prunes dominated trigger
-    // targets on purpose (`withoutDominatedTriggerTargets`).
-    if (
-        edge.move.kind === "cast-spell" ||
-        edge.move.kind === "activate-ability"
-    ) {
-        siblings.push(...unopenedVariantEdges(root, moves, edge));
-    }
-    let pick: { e: Edge; gifts: number; score: number } | undefined;
-    for (const e of siblings) {
-        const g = gifts(e);
-        if (g >= own) continue;
-        // Never redirect a gift onto a sibling that may deck the Bot itself
-        // (CR 704.5b): there the rollouts' preference is the loss it reads.
-        if (mayDeckPlayer(rootState, e.move, botId)) continue;
-        const score = castVariantScore(rootState, e.move, botId, weights);
-        if (
-            !pick ||
-            g < pick.gifts ||
-            (g === pick.gifts &&
-                (score > pick.score ||
-                    (score === pick.score && mean(e) > mean(pick.e))))
-        ) {
-            pick = { e, gifts: g, score };
-        }
-    }
-    return pick?.e;
-}
-
 /** Stand-in edges for `ref`'s sibling variants the root never opened (issue
  *  #6985): one per legal root move that `isCastVariantOf(…, ref.move)` and has
  *  no child under its tree key. Each carries `ref`'s rollout statistics and
@@ -5929,37 +5858,12 @@ export function selectRootMove(
     // the hold does not return, so a later rule may take it back.
     let heldFrom: Edge | undefined;
     const finish = (
-        picked: Edge,
-        pickedBy: RootDecisionMechanism,
+        edge: Edge,
+        mech: RootDecisionMechanism,
         flippedByRule: boolean
     ): Move => {
-        // Issue #9044 — the beneficial-slot guard runs at the ONE exit, so no
-        // rule upstream (the reward argmax, the material tie-break, a hold
-        // that returns early) can hand a gift to the opponent's face while a
-        // cleaner sibling is legal. It is `announcement-variant`'s, not a new
-        // root rule: it answers the same question (which variant of this
-        // announcement), and `no-rule:announcement-variant` turns it off with
-        // the rest.
-        const guarded =
-            rootState && botId && ruleOn("announcement-variant")
-                ? beneficialSlotGuardPick(
-                      rootState,
-                      botId,
-                      picked,
-                      pool,
-                      root,
-                      moves,
-                      weights,
-                      mean
-                  )
-                : undefined;
-        const edge = guarded ?? picked;
-        const mech = guarded ? "announcement-variant" : pickedBy;
         const didFlip =
-            guarded !== undefined ||
-            (heldFrom !== undefined && edge === heldFrom
-                ? false
-                : flippedByRule);
+            heldFrom !== undefined && edge === heldFrom ? false : flippedByRule;
         if (out) out.mechanism = mech;
         if (sink) {
             const meansDesc = explored
