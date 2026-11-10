@@ -11,6 +11,7 @@ import { requestBugReport } from "~/lib/bug-report-requests";
 import ClearYieldsButton from "./clear-yields-button";
 import ManageYieldsButton from "./manage-yields-button";
 import DecklistView from "./decklist-view";
+import BattlefieldGroupingOptions from "./battlefield-grouping-options";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 
 type Step = "menu" | "decklist" | "confirm-concede" | "confirm-forfeit";
@@ -216,6 +217,9 @@ export default function PauseMenuDialog({
                         Decklist
                     </Button>
                 )}
+                {/* Issue #7429 — the board's Stacked / Separate layout,
+                    also under Settings → Board. */}
+                <BattlefieldGroupingOptions />
                 {/* Issue #3419 — the bug report's in-game home on the portrait
                     bar, whose four tabs are already at their touch-target
                     budget. The menu closes first: the dialog belongs to the

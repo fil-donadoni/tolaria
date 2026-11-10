@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupBattlefield } from "../battlefield-stacks";
+import { groupBattlefield, isStackingDisabled } from "../battlefield-stacks";
 import type { CardInstance } from "~/types/game";
 
 // ---------------------------------------------------------------------------
@@ -448,5 +448,45 @@ describe("groupBattlefield — disableStacking (divide-as-you-choose, CR 601.2d)
         expect(groups).toHaveLength(3);
         expect(groups.every((g) => !g.isStack)).toBe(true);
         expect(keys(groups.flatMap((g) => g.members))).toEqual(["a", "b", "c"]);
+    });
+});
+
+describe("isStackingDisabled — battlefield grouping preference (issue #7429)", () => {
+    const bears = () => [
+        makeCard({ id: "a" }),
+        makeCard({ id: "b" }),
+        makeCard({ id: "c" }),
+    ];
+
+    it("separate: groupBattlefield output is all singletons, even with no forced un-stack", () => {
+        const groups = groupBattlefield(
+            bears(),
+            noHosts,
+            isStackingDisabled("separate", false)
+        );
+        expect(groups).toHaveLength(3);
+        expect(groups.every((g) => !g.isStack)).toBe(true);
+    });
+
+    it("stacked: identical permanents still fan into one permanent stack", () => {
+        const groups = groupBattlefield(
+            bears(),
+            noHosts,
+            isStackingDisabled("stacked", false)
+        );
+        expect(groups).toHaveLength(1);
+        expect(groups[0]!.isStack).toBe(true);
+    });
+
+    it("a forced un-stack (divide / per-instance selection) behaves the same in both modes", () => {
+        for (const grouping of ["stacked", "separate"] as const) {
+            const groups = groupBattlefield(
+                bears(),
+                noHosts,
+                isStackingDisabled(grouping, true)
+            );
+            expect(groups.map((g) => g.key)).toEqual(["a", "b", "c"]);
+            expect(groups.every((g) => !g.isStack)).toBe(true);
+        }
     });
 });
