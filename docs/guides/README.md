@@ -41,6 +41,7 @@ Not every document is a guide. Where to look for the other kinds:
 | How to watch or stop the AFK passes                 | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md))    |
 | What a subagent noticed but was not asked to fix    | `docs/findings/` — read with `bun run findings`                                                                              |
 | What decks the draft Bot builds, measured           | `bun run draft:audit -- --scope <scope> [--seeds <n>]`; baseline and Floors in `docs/research/draft-table-audit-baseline.md` |
+| How to tag a scope's Card Profiles (Profile Census) | `/profile-census` (`.claude/skills/profile-census/SKILL.md`); its gate `bun run census:check`                                |
 | The workflow skills themselves                      | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                      |
 
 ## Every guide carries a glossary
