@@ -1607,13 +1607,6 @@
     },
     {
         "class": "ability",
-        "cardId": "af976f42-3d56-4e32-8294-970a276a4bf3",
-        "name": "Lim-Dûl's Hex",
-        "abilityId": "lim-duls-hex-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "3c31a957-ad1e-40cc-b3c4-2f4caa492b77",
         "name": "Living Armor",
         "abilityId": "living-armor-counters",

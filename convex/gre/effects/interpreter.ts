@@ -8823,7 +8823,8 @@ function scopedContext(
         // CR 107.3f / CR 117.3a — the numeric nomination and the may-pay
         // boolean are scoped for the same reason `requestChoice` is: each
         // stored answer is keyed by `choiceId`, and inside a `forEach` body
-        // every iteration asks the SAME author binding name. Unscoped, the
+        // (or a mode chosen more than once, CR 700.2d) every iteration asks
+        // the SAME author binding name. Unscoped, the
         // enqueue still prompts once per iteration (the key folds
         // `resolutionStep`, the Op's per-iteration position), but the READ
         // falls back to the unscoped name and `recallChoice` returns the FIRST
