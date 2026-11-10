@@ -1,6 +1,10 @@
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
+import {
+    ARCHETYPE_CATALOGUE_SEED,
+    type ArchetypeCatalogueRow,
+} from "@convex/limited/archetypeCatalogueCore";
 
 // Card Profile Admin editor (PRD #1607, ADR 0072, issue #1614). Thin wrapper
 // hooks over `convex/limited/cardProfiles.ts`'s editor query/mutations —
@@ -28,6 +32,17 @@ export function useScopeCardProfiles(
     return useQuery(
         api.limited.cardProfiles.listScopeCardProfilesForEditor,
         scope ? { scope } : "skip"
+    );
+}
+
+/** The effective Archetype Catalogue (seed ∪ DB) the editor's Archetype
+ *  picker offers — the checked-in seed while the query loads, so the picker
+ *  is never empty; a row an Admin adds arrives with the query. Admin-gated
+ *  server-side, like every editor read. */
+export function useArchetypeCatalogue(): readonly ArchetypeCatalogueRow[] {
+    return (
+        useQuery(api.limited.archetypeCatalogue.listArchetypeCatalogue, {}) ??
+        ARCHETYPE_CATALOGUE_SEED
     );
 }
 

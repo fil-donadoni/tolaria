@@ -10,6 +10,7 @@
 // for a non-admin — is exercised without a live backend.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ARCHETYPE_CATALOGUE_SEED } from "@convex/limited/archetypeCatalogueCore";
 import CardProfileAdminPanel from "../card-profile-admin-panel";
 
 let currentUser: { isAdmin?: boolean } | null | undefined;
@@ -62,10 +63,24 @@ const SCOPE_CARDS: Record<string, unknown[]> = {
     ],
 };
 
+/** The effective catalogue `listArchetypeCatalogue` returns: the seed plus
+ *  one Admin-created DB row. */
+const CATALOGUE = [
+    ...ARCHETYPE_CATALOGUE_SEED,
+    {
+        id: "kicker",
+        description:
+            "TAG WHEN: the card has kicker. NOT: a card that merely costs a lot (`ramp`).",
+        gloss: { when: "Kicker cards.", not: "Expensive cards (ramp)." },
+        example: "Lightning Bolt",
+    },
+];
+
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }, args: unknown) => {
         useQueryCalls.push({ name: query._name, args });
         if (query._name === "listLimitedDraftableSets") return DRAFTABLE_SETS;
+        if (query._name === "listArchetypeCatalogue") return CATALOGUE;
         if (query._name === "listScopeCardProfilesForEditor") {
             if (args === "skip" || args === undefined) return undefined;
             return SCOPE_CARDS[(args as { scope: string }).scope] ?? [];
@@ -85,6 +100,9 @@ vi.mock("@convex/_generated/api", () => ({
             listLimitedDraftableSets: { _name: "listLimitedDraftableSets" },
         },
         limited: {
+            archetypeCatalogue: {
+                listArchetypeCatalogue: { _name: "listArchetypeCatalogue" },
+            },
             cardProfiles: {
                 listScopeCardProfilesForEditor: {
                     _name: "listScopeCardProfilesForEditor",
@@ -174,6 +192,15 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
                 reviewed: true,
             })
         );
+    });
+
+    it("offers an Archetype row that exists only in the DB catalogue — no code change", () => {
+        render(<CardProfileAdminPanel />);
+        fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(
+            screen.getByLabelText("Archetype kicker for Griselbrand")
+        ).toBeTruthy();
     });
 
     it("submits clearCardProfile with the CURRENT scope + cardId for an overridden card", async () => {

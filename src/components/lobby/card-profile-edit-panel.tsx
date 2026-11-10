@@ -4,6 +4,7 @@ import type {
     EditableCardProfile,
     ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
+import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
 import CardProfileArchetypePicker from "./card-profile-archetype-picker";
 import CardProfileCapabilityPicker from "./card-profile-capability-picker";
 import CardProfileOracleText from "./card-profile-oracle-text";
@@ -18,6 +19,9 @@ interface CardProfileEditPanelProps {
      *  a rejected write leaves the reviewer on the card they were judging
      *  with the error visible, never silently advanced past it. */
     onAdvance: () => void;
+    /** The effective Archetype Catalogue (seed ∪ DB) the Archetype picker
+     *  offers. */
+    archetypeCatalogue: readonly ArchetypeCatalogueRow[];
 }
 
 /** The expanded half of one Card Profile row: the card's rules text, the two
@@ -43,6 +47,7 @@ export default function CardProfileEditPanel({
     onSave,
     onClear,
     onAdvance,
+    archetypeCatalogue,
 }: CardProfileEditPanelProps) {
     const effective = card.dbProfile ?? card.seedProfile;
     const [archetypes, setArchetypes] = useState<string[]>(
@@ -139,6 +144,7 @@ export default function CardProfileEditPanel({
                 onChange={setArchetypes}
                 disabled={pending}
                 cardName={card.name}
+                catalogue={archetypeCatalogue}
             />
             <CardProfileCapabilityPicker
                 legend="Provides"

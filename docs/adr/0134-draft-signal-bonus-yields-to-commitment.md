@@ -19,7 +19,7 @@ of its own mutation.
 
 In the Vintage Cube, colours alone are a weak read: a control drafter and an
 aggro drafter of the same colours are cutting different cards. The closed
-Archetype vocabulary (`ARCHETYPE_REGISTRY`, ADR 0072) is the axis that
+Archetype vocabulary (the Archetype Catalogue, ADR 0072) is the axis that
 captures it, though its census is still incomplete.
 
 ## Decision

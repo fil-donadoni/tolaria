@@ -14,7 +14,10 @@ Implemented by issue #8890: tables `cardCapabilities` (by `cardId`) and
 `data/card-profiles/archetypes/<scope>.json`, split from the legacy rows by the
 pure `splitCardProfiles` (`convex/limited/cardProfilesCore.ts`) and the
 `splitLegacyCardProfiles` migration. The recomposed lookup carries one review
-flag per layer; Combo Edges sit in the Capability layer.
+flag per layer; Combo Edges sit in the Capability layer. The Archetype
+Catalogue is implemented by issue #8892: seed `data/archetype-catalogue.json`,
+table `archetypeCatalogue`, pure core `convex/limited/archetypeCatalogueCore.ts`
+(row validation, seed ∪ DB merge, `activeRows`, `colourSignature`).
 
 ## Context
 

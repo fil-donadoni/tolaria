@@ -4,6 +4,7 @@ import type {
     EditableCardProfile,
     ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
+import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
 import CardProfileCardRow from "./card-profile-card-row";
 import CardProfileReviewProgress from "./card-profile-review-progress";
 
@@ -20,6 +21,9 @@ interface CardProfileEditorProps {
     onSave: (cardId: string, profile: EditableCardProfile) => Promise<unknown>;
     /** Fires `clearCardProfile(scope, cardId)` for one card. */
     onClear: (cardId: string) => Promise<unknown>;
+    /** The effective Archetype Catalogue (seed ∪ DB) the Archetype picker
+     *  offers. */
+    archetypeCatalogue: readonly ArchetypeCatalogueRow[];
 }
 
 /** The human review pass over one scope's Card Profiles (PRD #1607, ADR 0072,
@@ -39,6 +43,7 @@ export default function CardProfileEditor({
     cards,
     onSave,
     onClear,
+    archetypeCatalogue,
 }: CardProfileEditorProps) {
     const [search, setSearch] = useState("");
     const [unreviewedOnly, setUnreviewedOnly] = useState(false);
@@ -156,6 +161,7 @@ export default function CardProfileEditor({
                             onSave={(profile) => onSave(card.cardId, profile)}
                             onClear={() => onClear(card.cardId)}
                             onAdvance={() => advanceFrom(card.cardId)}
+                            archetypeCatalogue={archetypeCatalogue}
                         />
                     ))}
                 </div>

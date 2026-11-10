@@ -547,6 +547,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "per-scope Archetype profiles a person reviews (`reviewed` flag)",
     },
     {
+        pattern: "data/archetype-catalogue.json",
+        kind: "human-input",
+        why: "the Archetype Catalogue seed: rows a person writes, each with its TAG WHEN / NOT rubric",
+    },
+    {
         pattern: "data/full-catalogue/*",
         kind: "blob",
         why: "gzip, content-addressed by name (issue #3500); `catalogue:build` needs Scryfall",

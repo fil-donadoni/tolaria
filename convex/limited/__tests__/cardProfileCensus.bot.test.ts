@@ -44,6 +44,7 @@ import {
     type GetDbRating,
 } from "../cardRatingsCore";
 import { isRegisteredCapability } from "../capabilityRegistry";
+import { ARCHETYPE_CATALOGUE_SEED_IDS } from "../archetypeCatalogueCore";
 import { CUBE_SOURCE_KEY } from "../cube";
 import {
     chooseBotPick,
@@ -104,7 +105,7 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
     });
 
     it("the Archetype guard sweep COVERS the cube file — it is not vacuous", () => {
-        // `archetypeRegistry.bot.test.ts` validates every file
+        // `archetypeCatalogue.bot.test.ts` validates every file
         // `getAllCheckedInCardArchetypeFiles` returns; a sweep over an empty
         // collection passes without checking anything.
         const scopes = getAllCheckedInCardArchetypeFiles().map((f) => f.scope);
@@ -208,37 +209,53 @@ const EMPTY: EditorCardProfile = {
 describe("Admin write boundary (issue #1614): the database layer is held to the SAME vocabulary bound as the seed layer", () => {
     it("rejects a Capability name outside the closed registry, in either direction", () => {
         expect(
-            cardProfileWriteErrors(cardId("Reanimate"), {
-                ...EMPTY,
-                provides: ["dies-value"],
-            })
+            cardProfileWriteErrors(
+                cardId("Reanimate"),
+                {
+                    ...EMPTY,
+                    provides: ["dies-value"],
+                },
+                ARCHETYPE_CATALOGUE_SEED_IDS
+            )
         ).toEqual([
             `"${cardId("Reanimate")}" provides unregistered Capability "dies-value"`,
         ]);
         expect(
-            cardProfileWriteErrors(cardId("Reanimate"), {
-                ...EMPTY,
-                requires: ["graveyard-scaling"],
-            })
+            cardProfileWriteErrors(
+                cardId("Reanimate"),
+                {
+                    ...EMPTY,
+                    requires: ["graveyard-scaling"],
+                },
+                ARCHETYPE_CATALOGUE_SEED_IDS
+            )
         ).toEqual([
             `"${cardId("Reanimate")}" requires unregistered Capability "graveyard-scaling"`,
         ]);
     });
 
     it("rejects a cardId that does not resolve to a real card", () => {
-        expect(cardProfileWriteErrors("not-a-card", EMPTY)).toEqual([
-            'cardId "not-a-card" does not resolve to a card',
-        ]);
+        expect(
+            cardProfileWriteErrors(
+                "not-a-card",
+                EMPTY,
+                ARCHETYPE_CATALOGUE_SEED_IDS
+            )
+        ).toEqual(['cardId "not-a-card" does not resolve to a card']);
     });
 
     it("rejects a combo edge to an unknown partner or with a non-finite weight", () => {
-        const errors = cardProfileWriteErrors(cardId("Reanimate"), {
-            ...EMPTY,
-            comboEdges: [
-                { cardId: "nope", weight: 0.4 },
-                { cardId: cardId("Griselbrand"), weight: Number.NaN },
-            ],
-        });
+        const errors = cardProfileWriteErrors(
+            cardId("Reanimate"),
+            {
+                ...EMPTY,
+                comboEdges: [
+                    { cardId: "nope", weight: 0.4 },
+                    { cardId: cardId("Griselbrand"), weight: Number.NaN },
+                ],
+            },
+            ARCHETYPE_CATALOGUE_SEED_IDS
+        );
         expect(errors).toHaveLength(2);
         expect(errors[0]).toContain("nope");
         expect(errors[1]).toContain("non-finite weight");
@@ -246,12 +263,16 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
 
     it("accepts a legal profile", () => {
         expect(
-            cardProfileWriteErrors(cardId("Griselbrand"), {
-                archetypes: ["reanimator"],
-                provides: ["reanimatable"],
-                requires: [],
-                reviewed: true,
-            })
+            cardProfileWriteErrors(
+                cardId("Griselbrand"),
+                {
+                    archetypes: ["reanimator"],
+                    provides: ["reanimatable"],
+                    requires: [],
+                    reviewed: true,
+                },
+                ARCHETYPE_CATALOGUE_SEED_IDS
+            )
         ).toEqual([]);
     });
 

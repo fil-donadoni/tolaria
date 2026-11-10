@@ -405,7 +405,7 @@
         "convex/gre/ai/blade/__tests__/registry.bot.test.ts": 53,
         "convex/gre/ai/blade/__tests__/robustness.bot.test.ts": 3151,
         "convex/gre/ai/blade/__tests__/setup.bot.test.ts": 185,
-        "convex/limited/__tests__/archetypeRegistry.bot.test.ts": 23,
+        "convex/limited/__tests__/archetypeCatalogue.bot.test.ts": 23,
         "convex/limited/__tests__/autoBuild.bot.test.ts": 593,
         "convex/limited/__tests__/botDrafter.bot.test.ts": 164,
         "convex/limited/__tests__/capabilityRegistry.bot.test.ts": 51,
