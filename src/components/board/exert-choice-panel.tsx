@@ -4,7 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Combat } from "~/types/game";
 import { getDefinition } from "@convex/cards";
-import { mayExertAsAttacksById } from "@convex/gre/exert";
+import { mayExertAsAttacks } from "@convex/gre/exert";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { displayCardId } from "~/lib/card-utils";
 import { Panel } from "~/components/ui/panel";
@@ -35,12 +35,10 @@ export default function ExertChoicePanel({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Read from the SAME definition authority the server's
-    // `exertableAttackerIds` uses, so the button set and the mutation's
-    // accepted set cannot drift.
-    const offers = attackers.filter(
-        (c) => mayExertAsAttacksById(displayCardId(c)) !== undefined
-    );
+    // Read from the SAME authority the server's `exertableAttackerIds` uses,
+    // on the projected permanent (its `abilitiesSuppressedBy` included), so
+    // the button set and the mutation's accepted set cannot drift.
+    const offers = attackers.filter((c) => mayExertAsAttacks(c) !== undefined);
     if (offers.length === 0) return null;
 
     const exerted = new Set(combat.exertedIds ?? []);
