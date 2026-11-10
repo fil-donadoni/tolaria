@@ -198,7 +198,7 @@ import { plotInSearch } from "./plot";
 import { foretellInSearch, foretoldCastStackFlags } from "./foretell";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
-import { COMPANION_SUMMON_COST } from "./companion";
+import { COMPANION_SUMMON_COST, moveCompanionToHand } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
 import { genericManaShortfall, spendGraveyardPlayPermission } from "./rules";
 import {
@@ -1938,8 +1938,7 @@ export function summonCompanionInSearch(
             if (src) src.isTapped = true;
         }
     }
-    player.hand.push({ ...companion.instance, zone: "hand" });
-    companion.used = true;
+    moveCompanionToHand(state, player);
 }
 
 /** CR 116.2b / 702.37e / 701.40b — the turn-face-up special action. Same coarse mana
