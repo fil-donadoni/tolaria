@@ -3,9 +3,9 @@
 //  1. GOLDEN fixtures — real corpus cards compiled whole must produce exactly
 //     this Compiled Definition: the printed cost lands on
 //     `CardDefinition.harmonize`, beside the card's own spell text.
-//  2. QUARANTINE — while the Mechanics Registry row is `planned`, every card
-//     carrying the keyword is held back as `planned-mechanic`, never shipped
-//     inert (the Guard A shape).
+//  2. READY — the Mechanics Registry row is `implemented` (`gre/harmonize.ts`),
+//     so a card carrying the keyword compiles `ready` instead of being held
+//     back as `planned-mechanic`.
 //  3. REFUSALS — the neighbours the rule must NOT read: a variable {X} cost,
 //     a hybrid cost, a non-mana cost, a second declaration. Fail-closed is
 //     pinned, not assumed (ADR 0105 § 2).
@@ -76,26 +76,18 @@ describe("Harmonize [cost] (CR 702.180a)", () => {
         });
     });
 
-    it.runIf(harmonizeStatus !== "implemented")(
-        "QUARANTINES the card as planned-mechanic while the registry row is not implemented",
-        () => {
-            const outcome = outcomeOf(
-                oracleCard({
-                    name: "Unending Whisper",
-                    manaCost: "{U}",
-                    typeLine: "Sorcery",
-                    oracleText: `Draw a card.\nHarmonize {5}{U} ${REMINDER}`,
-                })
-            );
-            expect(outcome.state).toBe("quarantine");
-            expect(
-                outcome.state === "quarantine" ? outcome.reasons : []
-            ).toContainEqual({
-                kind: "planned-mechanic",
-                detail: 'keyword "harmonize" is not implemented in the Mechanics Registry',
-            });
-        }
-    );
+    it("compiles the card READY: the registry row is implemented", () => {
+        expect(harmonizeStatus).toBe("implemented");
+        const outcome = outcomeOf(
+            oracleCard({
+                name: "Unending Whisper",
+                manaCost: "{U}",
+                typeLine: "Sorcery",
+                oracleText: `Draw a card.\nHarmonize {5}{U} ${REMINDER}`,
+            })
+        );
+        expect(outcome.state).toBe("ready");
+    });
 
     it.each([
         ["a variable {X} cost (Nature's Rhythm)", "Harmonize {X}{G}{G}{G}{G}"],

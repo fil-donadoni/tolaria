@@ -3302,6 +3302,11 @@ export type PendingCast = {
      *  `selectRestrictedXSplit`. Raised only when the caster has a real decision
      *  (`buildRestrictedXSplitChoice`). */
     restrictedXSplitChoice?: RestrictedXSplitChoice;
+    /** CR 702.180a/b — the creature a HARMONIZE cast taps, named at
+     *  announcement (`announceCast`'s `harmonizeCreatureId`). Its power is
+     *  already off `manaCost`; the cast commit taps it (CR 601.2h). Not a park:
+     *  the choice is made before the cast is announced. */
+    harmonizeTapCreatureId?: string;
     /** CR 702.51 / 601.2g (`payWith`, ADR 0063 — issue #1338) — Convoke: the
      *  in-progress creature-tap picker for a cast being paid by tapping
      *  creatures. Convoke is a COLOURED `payWith`: each tapped creature pays for
@@ -4538,6 +4543,10 @@ export type PendingTarget = {
      *  caster named (`resolveAdditionalCosts`, `gre/additionalCost.ts`).
      *  Absent for a card with no disjunction. */
     additionalCostLegId?: string;
+    /** CR 702.180b — the creature a harmonize cast taps, named at announcement
+     *  and propagated to the commit, which reduces the total by its power and
+     *  taps it (`PendingCast.harmonizeTapCreatureId`). */
+    harmonizeTapCreatureId?: string;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the announcement-time
      *  "a sorcery couldn't have been cast right now" snapshot, taken in
      *  `announceCast` and propagated through `finalizeTargetSelection` → the

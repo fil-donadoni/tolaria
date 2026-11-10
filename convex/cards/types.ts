@@ -23849,10 +23849,8 @@ export interface CardDefinition {
      *  its owner's graveyard "rather than paying this spell's mana cost" (an
      *  alternative cost, CR 118.9), reduced by the power of up to one untapped
      *  creature its caster taps (CR 702.180b); the spell is exiled instead of
-     *  leaving the stack anywhere else. DATA only for now: the Mechanics
-     *  Registry row is `planned` and no engine module reads this field yet, so
-     *  the Oracle compiler quarantines every card carrying it
-     *  (`planned-mechanic`) rather than shipping it inert (issue #2764). */
+     *  leaving the stack anywhere else. Read by `convex/gre/harmonize.ts`
+     *  (`getHarmonizeCost`). */
     harmonize?: ManaCost;
     /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
      *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the

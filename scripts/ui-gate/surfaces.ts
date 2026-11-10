@@ -1827,6 +1827,25 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
         },
     },
     {
+        slug: "harmonize",
+        cards: true,
+        module: "board/harmonize-creature-dialog.tsx",
+        label: "Harmonize creature picker",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Harmonize",
+            locator: { role: "dialog", name: "Harmonize" },
+            check: "visible",
+        },
+        // The creature tiles are named after the fixture's cards; the
+        // decline button is the one control the dialog itself names.
+        entry: {
+            label: "decline: Don't tap a creature",
+            locator: { role: "button", name: "Don't tap a creature" },
+            check: "reachable",
+        },
+    },
+    {
         slug: "hand-card-actions",
         module: "board/hand-card-action-menu.tsx",
         label: "Hand card actions (ActionSheet)",

@@ -46,6 +46,7 @@ import ExileCostDialog from "~/components/board/exile-cost-dialog";
 import GameOverDialog from "~/components/board/game-over-dialog";
 import GraveyardTargetDialog from "~/components/board/graveyard-target-dialog";
 import HandCardActionMenu from "~/components/board/hand-card-action-menu";
+import HarmonizeCreatureDialog from "~/components/board/harmonize-creature-dialog";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaSpendChoiceDialog from "~/components/board/mana-spend-choice-dialog";
 import RestrictedXSplitDialog from "~/components/board/restricted-x-split-dialog";
@@ -296,6 +297,23 @@ const SPECIMENS: OverlaySpecimen[] = [
                 gameId={GAME_ID}
                 playerId={ME}
                 activePlayerId={ME}
+            />
+        ),
+    },
+    {
+        slug: "harmonize",
+        label: "Harmonize",
+        file: "board/harmonize-creature-dialog.tsx",
+        // The caster's untapped creatures with their live power — the
+        // fixture battlefield's two creatures, the shape the board hands it.
+        render: (close) => (
+            <HarmonizeCreatureDialog
+                creatures={PLAYERS[0].battlefield.map((c) => ({
+                    card: c,
+                    power: c.power ?? 0,
+                }))}
+                onPick={close}
+                onCancel={close}
             />
         ),
     },

@@ -1,10 +1,14 @@
+import { useRef, useState } from "react";
 import {
     cardHasLegalAction,
     graveyardActionSources,
 } from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
+import { useGameContext } from "~/hooks/useGameContext";
 import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
+import { harmonizeCreatureOptions } from "~/lib/harmonize-creatures";
+import HarmonizeCreatureDialog from "./harmonize-creature-dialog";
 
 /** Flashback cast affordance (CR 702.34 — "You may cast this card from your
  *  graveyard by paying its flashback cost. Then exile it."). Rendered over a
@@ -25,6 +29,13 @@ export default function GraveyardFlashbackButton({
     card: CardInstance;
     onCommitted?: () => void;
 }) {
+    // CR 702.180b — the harmonize creature is chosen before the cast pipeline
+    // starts and read back at its dispatch point.
+    const harmonizeCreatureRef = useRef<string | undefined>(undefined);
+    const [harmonizeClick, setHarmonizeClick] = useState<
+        React.MouseEvent | undefined
+    >(undefined);
+    const game = useGameContext();
     const {
         onCastClick,
         modePickerOverlay,
@@ -32,7 +43,10 @@ export default function GraveyardFlashbackButton({
         phyrexianPickerOverlay,
         additionalCostPickerOverlay,
         costDialogOverlay,
-    } = useHandCardCommit(card, { onCommitted });
+    } = useHandCardCommit(card, {
+        onCommitted,
+        harmonizeCreatureId: () => harmonizeCreatureRef.current,
+    });
 
     // CR 702.34a flashback — the projection attaches `legalActions` to the viewer's own
     // flashback cards; "cast" is present only when the flashback cast is legal
@@ -66,24 +80,34 @@ export default function GraveyardFlashbackButton({
     // dispatch.
     const isRetrace = card.castKind === "retrace";
     const isJumpStart = card.castKind === "jump-start";
+    // CR 702.180a — harmonize pays its own cost, reduced by the power of up to
+    // one creature tapped for it, asked before the cast is announced.
+    const isHarmonize = card.castKind === "harmonize";
+    const harmonizeCreatures = isHarmonize
+        ? harmonizeCreatureOptions(game)
+        : [];
     const label = isEscape
         ? "Escape"
         : isRetrace
           ? "Retrace"
           : isJumpStart
             ? "Jump-start"
-            : isPermissionCast
-              ? "Cast"
-              : "Flashback";
+            : isHarmonize
+              ? "Harmonize"
+              : isPermissionCast
+                ? "Cast"
+                : "Flashback";
     const disabledTitle = isEscape
         ? "Can't escape yet — not your main phase, or you can't pay the escape cost (mana, or exile enough other cards from your graveyard)."
         : isRetrace
           ? "Can't retrace yet — not your main phase, or you can't pay this card's mana cost plus discarding a land card from your hand."
           : isJumpStart
             ? "Can't jump-start yet — not your main phase, or you can't pay this card's mana cost plus discarding a card from your hand."
-            : isPermissionCast
-              ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
-              : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
+            : isHarmonize
+              ? "Can't harmonize yet — not your main phase, or you can't pay the harmonize cost, even reduced by tapping your strongest untapped creature."
+              : isPermissionCast
+                ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
+                : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
 
     return (
         <>
@@ -98,12 +122,29 @@ export default function GraveyardFlashbackButton({
                     // and the dialog overlays live in this component. The hook
                     // fires `onCommitted` at the real dispatch point instead, so
                     // the dialog survives the choice sequence.
+                    if (isHarmonize && harmonizeCreatures.length > 0) {
+                        setHarmonizeClick(e);
+                        return;
+                    }
+                    harmonizeCreatureRef.current = undefined;
                     onCastClick(e);
                 }}
                 className={V4_ZONE_CTA}
             >
                 {label}
             </button>
+            {harmonizeClick && (
+                <HarmonizeCreatureDialog
+                    creatures={harmonizeCreatures}
+                    onPick={(creatureId) => {
+                        harmonizeCreatureRef.current = creatureId;
+                        const click = harmonizeClick;
+                        setHarmonizeClick(undefined);
+                        onCastClick(click);
+                    }}
+                    onCancel={() => setHarmonizeClick(undefined)}
+                />
+            )}
             {modePickerOverlay}
             {altCostPickerOverlay}
             {phyrexianPickerOverlay}

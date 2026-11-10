@@ -124,6 +124,9 @@ export type CastCommitLegs = {
     >;
     /** CR 702.51a — the creatures a convoke cast taps, already picked. */
     convokeCreatureChoice?: NonNullable<PendingCast["convokeCreatureChoice"]>;
+    /** CR 702.180a/b — the creature a harmonize cast taps, chosen at
+     *  announcement; its power already came off `plan.manaCost`. */
+    harmonizeTapCreatureId?: string;
     /** CR 118.9 — the alternative-cost HAND leg (Force of Will's blue card,
      *  Foil's Island + card), already picked. */
     alternativeCostHandChoice?: NonNullable<
@@ -388,6 +391,17 @@ export function commitCast(
             const creature = caster.battlefield.find((c) => c.id === id);
             if (creature) creature.isTapped = true;
         }
+    }
+    // CR 702.180b — pay Harmonize: TAP the creature chosen at announcement as
+    // the total cost is paid. Its reduction is already priced in, so a creature
+    // no longer untapped (tapped for mana while the cast was parked) makes the
+    // commit stale (CR 601.2h).
+    if (legs.harmonizeTapCreatureId !== undefined) {
+        const creature = caster.battlefield.find(
+            (c) => c.id === legs.harmonizeTapCreatureId && !c.isTapped
+        );
+        if (!creature) return null;
+        creature.isTapped = true;
     }
     // CR 118.8 / 701.21a — execute the player-chosen filtered sacrifice(s) or
     // returns through the unified layer. The own-cost requirement is

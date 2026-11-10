@@ -91,6 +91,9 @@ export type MoveMutations = {
             /** CR 702.27 Buyback (issue #2081) — whether the bot paid this
              *  cost (the extra mana already rides on `tapPlan`). */
             buyback?: boolean;
+            /** CR 702.180a/b — the creature a harmonize cast taps; its power
+             *  already came off `tapPlan`. */
+            harmonizeCreatureId?: string;
         }
     ) => Promise<unknown>;
     selectTarget: (
@@ -615,6 +618,11 @@ export async function executeMove(
                 kickerPayments: move.kickerPayments,
                 // CR 702.27 (issue #2081) — same forwarding for Buyback.
                 buyback: move.buybackPaid,
+                // CR 702.180b — the creature the enumerator priced the
+                // harmonize reduction with, named at announcement.
+                ...(move.harmonizeCreatureId
+                    ? { harmonizeCreatureId: move.harmonizeCreatureId }
+                    : {}),
             });
             // issue #1101 — `TargetSelection.type` grew a "hand-card" member
             // for `lookDistribute`'s internal `bind` resolution, but it is never a
