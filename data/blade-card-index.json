@@ -463,11 +463,6 @@
             "needsSetup": true
         },
         {
-            "label": "combat reserve pair: casts the creature after combat",
-            "tier": "must",
-            "needsSetup": false
-        },
-        {
             "label": "combo: activates Splinter Twin on granted Grizzly Bears (#2469)",
             "tier": "must",
             "needsSetup": false
