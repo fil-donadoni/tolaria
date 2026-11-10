@@ -188,13 +188,14 @@ export type ManaProductionIR =
     /**
      * CR 106.7 — "one mana of any type that a land you control could
      * produce": the offered set is read off the board when the ability
-     * resolves (`ActivatedAbility.manaColorSource`, Reflecting Pool). Only the
-     * TYPE read ({C} included, CR 106.1b) is accepted; "any color that …" is
-     * a neighbour this node does not carry.
+     * resolves (`ActivatedAbility.manaColorSource`, Reflecting Pool). `read`
+     * is the printed word: "type" ({C} included, CR 106.1b) or "color" (the
+     * five colours only, CR 106.1a — "any color that a land an opponent
+     * controls could produce", Fellwar Stone).
      */
     | {
           readonly kind: "board-choice";
-          readonly read: "type";
+          readonly read: "type" | "color";
           readonly filter: PermanentFilter;
           readonly riders?: readonly ManaRiderIR[];
       }

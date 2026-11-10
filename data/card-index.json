@@ -16978,6 +16978,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crumbling Vestige",
+        "scryfallId": "d491c13c-43e3-4ca3-b888-4edd34dfe14a",
+        "oracleId": "3c1fe86a-3696-4634-bc26-cd45846529ec",
+        "firstSet": "ogw",
+        "firstPrintId": "d491c13c-43e3-4ca3-b888-4edd34dfe14a",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crusade",
         "scryfallId": "057986c7-20c0-4157-b4df-beae4ef5c66d",
         "oracleId": "4692740f-be90-459f-8d90-c4ae71771595",
@@ -26166,6 +26176,16 @@
         "firstSet": "pls",
         "firstPrintId": "4e9624e5-79a2-41de-997b-12d871d4be66",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Exotic Orchard",
+        "scryfallId": "6aae6480-4e71-4d94-a648-f80d3849d792",
+        "oracleId": "27b047e3-0d41-45e2-98e9-9391d7923a1e",
+        "firstSet": "con",
+        "firstPrintId": "6aae6480-4e71-4d94-a648-f80d3849d792",
+        "firstPrintSet": "con",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Expedite",
@@ -65866,6 +65886,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rosethorn Acolyte // Seasonal Ritual",
+        "scryfallId": "2a0d430f-da84-4752-940c-8457c525aac9",
+        "oracleId": "639a8804-8513-4ba4-8683-ea1e2e5a9530",
+        "firstSet": "eld",
+        "firstPrintId": "2a0d430f-da84-4752-940c-8457c525aac9",
+        "firstPrintSet": "eld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rosethorn Halberd",
         "scryfallId": "d4a66e33-af5c-42b5-bef6-0ff0197ecc14",
         "oracleId": "94848b02-757c-456c-a12c-b0be193221d0",
@@ -80337,6 +80367,16 @@
         "firstPrintId": "71c1a1d0-5616-42f8-a59c-42c1ccd48d26",
         "firstPrintSet": "one",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sylvok Explorer",
+        "scryfallId": "3ed328af-bc0d-4a9d-a9ee-bc0196a2afaf",
+        "oracleId": "cf7371c8-2fd8-4e70-abde-27495af85011",
+        "firstSet": "5dn",
+        "firstPrintId": "3ed328af-bc0d-4a9d-a9ee-bc0196a2afaf",
+        "firstPrintSet": "5dn",
+        "rarity": "common",
         "source": "compiled"
     },
     {

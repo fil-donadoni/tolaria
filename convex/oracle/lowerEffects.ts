@@ -5285,19 +5285,30 @@ function lowerSentenceBody(
             if (sentence.anyOneColor !== undefined) {
                 // CR 106.1a + CR 107.3 — the colour is picked as the effect
                 // resolves: one `optionChoice` mode per colour, each adding
-                // the whole amount in that colour. Only a counted amount has
-                // a fixture; an unbound X or any other magnitude is refused.
+                // the whole amount in that colour. Only a counted amount and
+                // the printed "one mana of any color" have fixtures; an
+                // unbound X or any other magnitude is refused.
                 const amount = sentence.anyOneColor;
-                if (amount.kind !== "counted" || amount.times !== 1)
-                    return unlowerable(
-                        '"X mana of any one color" reads only "where X is the number of …"'
-                    );
                 if (
                     sentence.thatPlayer === true ||
                     sentence.itsController === true
                 )
                     return unlowerable(
                         '"X mana of any one color" goes to the controller only'
+                    );
+                if (amount.kind === "fixed" && amount.value === 1)
+                    return lowered([
+                        {
+                            op: "optionChoice",
+                            prompt: `${site.selfName}: add mana of which color?`,
+                            modes: colorChoiceModes((color) => [
+                                { op: "addMana", mana: { [color]: 1 } },
+                            ]),
+                        },
+                    ]);
+                if (amount.kind !== "counted" || amount.times !== 1)
+                    return unlowerable(
+                        '"X mana of any one color" reads only "where X is the number of …"'
                     );
                 const spec = lowerCountedSet(amount.set, slots, site, true);
                 if (!spec.ok) return spec;
