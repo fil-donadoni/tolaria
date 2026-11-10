@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:817d44568bcafab4c75b97e1daaf1a8bfb583de829bf16a41939604b9ee7f7a0",
         "registryHash": "sha256:6fdc64c3aea247087092960a85c82e1eb339f963a60ed3a244f8178d9c46880d",
-        "botHash": "sha256:1d839b602f979d3bf28585a61595a733561a987076997bc43650a6410b535805",
+        "botHash": "sha256:1e781e9e8eef5778631bcf72796614adcfb56fa3b4d5b332d7d80384eb7918dd",
         "poolHash": "sha256:18f4202dd457116e06919f8d0cf7b7c3b7523c264d88fd3c40909c5f83abfd0b",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29581,10 +29581,10 @@
         {"key":"ea32bfd681b9","text":"☐, ☐, ☐, ☐, ☐","reason":"no slot consumed the line","cards":1}
     ],
     "botGaps": [
-        {"key":"never-chosen › Sorcery › choice+libraryLook+moveZone","outcome":"ignored","cards":8},
-        {"key":"never-chosen › Sorcery › choice+libraryLook+moveZone+reveal","outcome":"ignored","cards":8},
+        {"key":"never-chosen › Sorcery › choice+libraryLook+moveZone+reveal","outcome":"ignored","cards":7},
         {"key":"position-unmodelled › Instant target:spell","outcome":"ignored","cards":5},
         {"key":"never-chosen › Creature › addMana","outcome":"ignored","cards":4},
+        {"key":"never-chosen › Sorcery › choice+libraryLook+moveZone","outcome":"ignored","cards":4},
         {"key":"never-chosen › Instant › addMana","outcome":"ignored","cards":3},
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":3},
         {"key":"never-chosen › Creature › grantAbility","outcome":"ignored","cards":2},
@@ -29632,6 +29632,7 @@
         {"key":"never-chosen › Sorcery target:Artifact|Creature › destroy+fight","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › choice+discard+moveZone","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery target:Creature › gainLife+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › destroy+if","outcome":"ignored","cards":1},
@@ -29640,7 +29641,6 @@
         {"key":"never-chosen › Sorcery target:player › choice+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw+gainLife","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery target:player › mill","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+dealDamage+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+libraryLook+loseLife+moveZone","outcome":"ignored","cards":1},
@@ -29649,7 +29649,6 @@
         {"key":"position-unmodelled › Creature [defender,flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [haste]","outcome":"ignored","cards":1},
-        {"key":"position-unmodelled › Creature [intimidate]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:Creature","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:card","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Sorcery target:any","outcome":"ignored","cards":1}
@@ -37331,7 +37330,7 @@
 
         {"oracleId":"1b841e8f-9484-4737-bd37-dfa11bd06883","name":"Aragorn, Company Leader","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8a5e415148b5","c7535dc8cae0"]},
 
-        {"oracleId":"1b882a0e-0ede-4d1a-bd1a-9b7cffbcde8e","name":"Three Visits","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Three Visits","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Search your library for a Forest card, put it onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":1},"prompt":"Search your library for a Forest card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone"},
+        {"oracleId":"1b882a0e-0ede-4d1a-bd1a-9b7cffbcde8e","name":"Three Visits","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Three Visits","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Search your library for a Forest card, put it onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":1},"prompt":"Search your library for a Forest card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"played"},
 
         {"oracleId":"1b885600-def1-4b2c-a6cb-02df34d58a1b","name":"Shivan Emissary","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy","if"],"definition":{"name":"Shivan Emissary","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":2,"R":1},"power":1,"toughness":1,"oracleText":"Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.","compiledTriggeredAbilities":[{"id":"shivan-emissary-trigger","oracleText":"When this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"kicker"},"targetRequirement":{"type":"Creature","count":1,"excludeColors":["B"]},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"kicker"},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":0},"cantBeRegenerated":true}]}]}],"kickers":[{"id":"kicker","description":"Kicker {1}{B}","mana":{"X":1,"B":1}}]},"botReach":"played"},
 
@@ -39989,7 +39988,7 @@
 
         {"oracleId":"2598294c-a9a7-4bef-a562-23f297a80536","name":"Songbirds' Blessing","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c5e3133716cc"]},
 
-        {"oracleId":"259a023a-de55-4bab-9e24-01aebcf716eb","name":"Ranger's Path","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Ranger's Path","types":["Sorcery"],"manaCost":{"X":3,"G":1},"oracleText":"Search your library for up to two Forest cards, put them onto the battlefield tapped, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":2},"prompt":"Search your library for up to two Forest cards.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield","tapped":true},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone"},
+        {"oracleId":"259a023a-de55-4bab-9e24-01aebcf716eb","name":"Ranger's Path","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Ranger's Path","types":["Sorcery"],"manaCost":{"X":3,"G":1},"oracleText":"Search your library for up to two Forest cards, put them onto the battlefield tapped, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":2},"prompt":"Search your library for up to two Forest cards.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield","tapped":true},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"played"},
 
         {"oracleId":"259ac30c-cc05-4c04-9b23-71283f84b808","name":"Wedding Announcement // Wedding Festivity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2c89b31e525f"]},
 
@@ -40899,7 +40898,7 @@
 
         {"oracleId":"2934233a-b90c-45df-b604-ce462480bbb7","name":"Goldenhide Ox","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5978739c9933"]},
 
-        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"ignored","botGap":"position-unmodelled › Creature [intimidate]"},
+        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"played"},
 
         {"oracleId":"29356966-652d-4456-84c8-7aeab5fc8d05","name":"Flubs, the Fool","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ddfe9cb0d75e"]},
 
@@ -44743,7 +44742,7 @@
 
         {"oracleId":"376c6257-4a1a-42d4-8931-72068f38727f","name":"Puppet Master, String Puller","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4f195d77d148","a7de96bd5adb"]},
 
-        {"oracleId":"376c9d3f-21d3-4251-bb6a-026fa9e1b0e1","name":"Skyshroud Claim","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Skyshroud Claim","types":["Sorcery"],"manaCost":{"X":3,"G":1},"oracleText":"Search your library for up to two Forest cards, put them onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":2},"prompt":"Search your library for up to two Forest cards.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone"},
+        {"oracleId":"376c9d3f-21d3-4251-bb6a-026fa9e1b0e1","name":"Skyshroud Claim","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Skyshroud Claim","types":["Sorcery"],"manaCost":{"X":3,"G":1},"oracleText":"Search your library for up to two Forest cards, put them onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":2},"prompt":"Search your library for up to two Forest cards.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"played"},
 
         {"oracleId":"376cbc85-2941-4d97-b031-bffff86550e7","name":"Congregation Gryff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["509a559ab155"]},
 
@@ -48385,7 +48384,7 @@
 
         {"oracleId":"446a4d60-fb4e-4f43-a34c-3c4fa34608a8","name":"Mirrored Lotus","state":"unparsed","gaps":["378b48430012"]},
 
-        {"oracleId":"446a9d7e-9c1a-4e83-8342-2ed5acae2eed","name":"Tome Scour","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["mill"],"definition":{"name":"Tome Scour","types":["Sorcery"],"manaCost":{"U":1},"oracleText":"Target player mills five cards.","effects":[{"op":"mill","player":{"target":0},"count":5}],"targetRequirement":{"type":"player","count":1}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:player › mill"},
+        {"oracleId":"446a9d7e-9c1a-4e83-8342-2ed5acae2eed","name":"Tome Scour","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["mill"],"definition":{"name":"Tome Scour","types":["Sorcery"],"manaCost":{"U":1},"oracleText":"Target player mills five cards.","effects":[{"op":"mill","player":{"target":0},"count":5}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
         {"oracleId":"446b9626-2e64-4933-afc8-891135b8e3d6","name":"Dreadwing","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fb044a5ab390"]},
 
@@ -62791,7 +62790,7 @@
 
         {"oracleId":"7880576b-8ad9-4382-97c5-7a631106a35e","name":"Ravos, Soultender","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["45e48b3f2a0d"]},
 
-        {"oracleId":"78826359-fe63-44ad-adc4-a17ffcd710e4","name":"Nature's Lore","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Nature's Lore","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Search your library for a Forest card, put that card onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":1},"prompt":"Search your library for a Forest card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone"},
+        {"oracleId":"78826359-fe63-44ad-adc4-a17ffcd710e4","name":"Nature's Lore","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Nature's Lore","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Search your library for a Forest card, put that card onto the battlefield, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Forest"},"count":{"min":0,"max":1},"prompt":"Search your library for a Forest card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"played"},
 
         {"oracleId":"78826624-8784-4003-8813-230f299a588f","name":"Outlaws' Merriment","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61af3918045a"]},
 
@@ -69577,7 +69576,7 @@
 
         {"oracleId":"910f4339-9125-45b7-929f-57e1adb6ac3c","name":"Lay Bare the Heart","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c3667545562b"]},
 
-        {"oracleId":"910ff092-7c9d-49d3-a6df-497683e45bbd","name":"Cateran Summons","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Cateran Summons","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"Search your library for a Mercenary card, reveal that card, put it into your hand, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Mercenary"},"count":{"min":0,"max":1},"prompt":"Search your library for a Mercenary card.","bind":"$found1"},{"op":"reveal","player":"controller","cards":{"ref":"$found1"}},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone+reveal"},
+        {"oracleId":"910ff092-7c9d-49d3-a6df-497683e45bbd","name":"Cateran Summons","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Cateran Summons","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"Search your library for a Mercenary card, reveal that card, put it into your hand, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":"Mercenary"},"count":{"min":0,"max":1},"prompt":"Search your library for a Mercenary card.","bind":"$found1"},{"op":"reveal","player":"controller","cards":{"ref":"$found1"}},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"played"},
 
         {"oracleId":"9110339d-72ba-4132-801f-cd2fd738b71d","name":"Augmenter Pugilist // Echoing Equation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4f21f4dcffee","cfa101be68a8"]},
 
@@ -83825,7 +83824,7 @@
 
         {"oracleId":"c5355c5e-d07d-48ca-90c5-98edcab1a3c7","name":"Axegrinder Giant","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Axegrinder Giant","types":["Creature"],"subtypes":["Giant","Warrior"],"manaCost":{"X":4,"R":2},"power":6,"toughness":4},"botReach":"played"},
 
-        {"oracleId":"c5373026-8b43-42a7-aa69-a1b0f1619795","name":"Pull from the Grave","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife","moveZone"],"definition":{"name":"Pull from the Grave","types":["Sorcery"],"manaCost":{"X":2,"B":1},"oracleText":"Return up to two target creature cards from your graveyard to your hand. You gain 2 life.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"gainLife","player":"controller","amount":2}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":2},"zone":"graveyard","controller":"you"}},"botReach":"played"},
+        {"oracleId":"c5373026-8b43-42a7-aa69-a1b0f1619795","name":"Pull from the Grave","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife","moveZone"],"definition":{"name":"Pull from the Grave","types":["Sorcery"],"manaCost":{"X":2,"B":1},"oracleText":"Return up to two target creature cards from your graveyard to your hand. You gain 2 life.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"gainLife","player":"controller","amount":2}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":2},"zone":"graveyard","controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Creature › gainLife+moveZone"},
 
         {"oracleId":"c5374ea8-169f-427c-b94d-94d0e98431c6","name":"The Rhystic Storyteller","state":"unparsed","gaps":["5dd0d7c7113d","89bed49dd61d"]},
 

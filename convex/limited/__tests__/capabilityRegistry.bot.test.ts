@@ -8,10 +8,13 @@
 // stay meaningful").
 import { describe, it, expect } from "vitest";
 import {
+    CAPABILITY_CLUSTERS,
     CAPABILITY_REGISTRY,
     capabilitySatisfiedBy,
+    isDerivedCapability,
     isRegisteredCapability,
 } from "../capabilityRegistry";
+import { catalogueIdByName } from "../../cards";
 import {
     getCardCapabilityFile,
     validateCardCapabilityFile,
@@ -218,5 +221,53 @@ describe("mana-value-bounded rows (issue #1677)", () => {
             true
         );
         expect(capabilitySatisfiedBy("self-mills", [], 0)).toBe(false);
+    });
+});
+
+describe("row presentation — gloss, cluster, example (issue #8891)", () => {
+    // The one source the Admin editor's compact lines and tooltips, the
+    // Profile Census prompt and the Draft Lab read: a row missing a half
+    // renders an empty line on every one of them.
+    it("every row carries a non-empty provides gloss, requires gloss, cluster and example", () => {
+        for (const row of CAPABILITY_REGISTRY) {
+            expect(row.gloss?.provides?.trim() ?? "", row.id).not.toBe("");
+            expect(row.gloss?.requires?.trim() ?? "", row.id).not.toBe("");
+            expect(CAPABILITY_CLUSTERS, row.id).toContain(row.cluster);
+            expect(row.example?.requirer?.trim() ?? "", row.id).not.toBe("");
+            if (row.example?.provider !== null) {
+                expect(row.example?.provider?.trim() ?? "", row.id).not.toBe(
+                    ""
+                );
+            }
+        }
+    });
+
+    it("every cluster files at least one row", () => {
+        for (const cluster of CAPABILITY_CLUSTERS) {
+            expect(
+                CAPABILITY_REGISTRY.some((row) => row.cluster === cluster),
+                cluster
+            ).toBe(true);
+        }
+    });
+
+    it("every example card resolves to a real card", () => {
+        const names = CAPABILITY_REGISTRY.flatMap((row) => [
+            row.example.provider,
+            row.example.requirer,
+        ]).filter((name): name is string => name !== null);
+        expect(names.length).toBeGreaterThan(0);
+        for (const name of names) {
+            expect(catalogueIdByName(name), name).not.toBeNull();
+        }
+    });
+
+    it("a row is derived exactly when it is bounded, and only a derived row names no example provider", () => {
+        for (const row of CAPABILITY_REGISTRY) {
+            const bounded = row.bound !== undefined;
+            expect(isDerivedCapability(row.id), row.id).toBe(bounded);
+            expect(row.example.provider === null, row.id).toBe(bounded);
+        }
+        expect(isDerivedCapability("not-a-real-capability")).toBe(false);
     });
 });

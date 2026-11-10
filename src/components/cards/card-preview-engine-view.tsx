@@ -1,3 +1,4 @@
+import { useCanViewEngineView } from "~/hooks/engineViewAccessContext";
 import EngineViewBadgeChip from "./card-preview-engine-view-badge";
 import CardPreviewEngineTree from "./card-preview-engine-tree";
 import type { EngineViewBadge } from "~/lib/preview-body";
@@ -38,7 +39,10 @@ export default function CardPreviewEngineView({
     reportContext?: EngineViewReportContext;
     compact?: boolean;
 }) {
-    if (!badge) return null;
+    const canView = useCanViewEngineView();
+    // Admins only (issue #7430): a developer instrument, not player UI. Covers
+    // the compact dock hint and the `Alt` affordance too.
+    if (!badge || !canView) return null;
 
     if (compact) {
         return (

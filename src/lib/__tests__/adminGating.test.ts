@@ -7,6 +7,7 @@ import {
     canSubmitVerdicts,
     canUseDebugSheet,
     canViewAdminSection,
+    canViewEngineView,
 } from "../adminGating";
 
 describe("canEditPresets (ADR 0033)", () => {
@@ -97,5 +98,22 @@ describe("canUseDebugSheet (issue #3403)", () => {
     it("fails closed while the current-user query is in flight, and when signed out", () => {
         expect(canUseDebugSheet(undefined)).toBe(false);
         expect(canUseDebugSheet(null)).toBe(false);
+    });
+});
+
+describe("canViewEngineView (issue #7430, admin-only Engine view)", () => {
+    it("allows an admin", () => {
+        expect(canViewEngineView({ isAdmin: true })).toBe(true);
+    });
+
+    it("hides for a non-admin, including a tester", () => {
+        expect(canViewEngineView({ isAdmin: false })).toBe(false);
+        expect(canViewEngineView({ isTester: true })).toBe(false);
+        expect(canViewEngineView({})).toBe(false);
+    });
+
+    it("fails closed while loading (undefined) and signed out (null)", () => {
+        expect(canViewEngineView(undefined)).toBe(false);
+        expect(canViewEngineView(null)).toBe(false);
     });
 });

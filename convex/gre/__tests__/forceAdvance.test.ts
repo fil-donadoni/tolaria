@@ -1,4 +1,4 @@
-// Issue #9002 (PRD issue #8998, ADR 0177) — `forceAdvanceOwedInput`, the last
+// Issue #9002 (PRD issue #8998, ADR 0178) — `forceAdvanceOwedInput`, the last
 // line of defence of the Bot liveness guarantee. Per Expected Input kind: the
 // LEGAL rung closes the window; a legal rung made to throw falls to the FORCED
 // DISCARD; nothing left to discard → the Bot CONCEDES (CR 104.3a). Whatever the

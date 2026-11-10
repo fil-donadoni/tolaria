@@ -11,6 +11,7 @@ import {
 } from "@convex/formats";
 import {
     compareEntries,
+    nameMatchRanks,
     tiebreakForSets,
     type SortKey,
     type SortDirection,
@@ -174,6 +175,23 @@ export function isTextActive(text: string): boolean {
     return text.trim().length >= MIN_TEXT_QUERY_LENGTH;
 }
 
+/** The folded type line of an entry (supertypes, types, subtypes), cached per
+ *  entry: the pool is ~35,000 cards and the search runs while typing. */
+const TYPE_LINE_FOLD = new WeakMap<CardIndexEntry, string>();
+
+function entryTypeFold(entry: CardIndexEntry): string {
+    let fold = TYPE_LINE_FOLD.get(entry);
+    if (fold === undefined) {
+        fold = foldAccents(
+            [...entry.supertypes, ...entry.types, ...entry.subtypes]
+                .join(" ")
+                .toLowerCase()
+        );
+        TYPE_LINE_FOLD.set(entry, fold);
+    }
+    return fold;
+}
+
 function matchesText(entry: CardIndexEntry, text: string): boolean {
     // Below the 3-char gate the text query is inert — other filters still
     // apply, but the text never constrains results.
@@ -183,7 +201,10 @@ function matchesText(entry: CardIndexEntry, text: string): boolean {
     const tokens = tokenizeQuery(foldAccents(text.toLowerCase()));
     if (tokens.length === 0) return true;
     return tokens.every(
-        (t) => entry.nameFold.includes(t) || entry.oracleFold.includes(t)
+        (t) =>
+            entry.nameFold.includes(t) ||
+            entry.oracleFold.includes(t) ||
+            entryTypeFold(entry).includes(t)
     );
 }
 
@@ -322,10 +343,14 @@ function rowPassesCheapFilters(
     if (filters.sets.length > 0 && !filters.sets.includes(row.set))
         return false;
     if (textTokens.length > 0) {
-        // A catalogue row carries no oracle text, so the name is the only
-        // field `matchesText` can match on — mirror exactly that branch.
+        // A catalogue row carries no oracle text, so the name and the type
+        // line are the only fields `matchesText` can match on — mirror
+        // exactly that branch (the entry's type fold is built from the same
+        // type line, see `makeCatalogueEntry`).
+        const typeFold = foldAccents(row.typeLine.toLowerCase());
         for (const token of textTokens) {
-            if (!row.nameFold.includes(token)) return false;
+            if (!row.nameFold.includes(token) && !typeFold.includes(token))
+                return false;
         }
     }
     const colors = row.colourIdentity.split("").filter((c) => c !== "");
@@ -543,12 +568,18 @@ export function useCardSearch(
             }
         }
 
+        const withinRank = compareEntries(
+            filters.sort,
+            tiebreakForSets(filters.sets),
+            filters.sortDirection
+        );
+        if (textTokens.length === 0) return filtered.sort(withinRank);
+        // Relevance is the primary key (computed once per entry, not per
+        // comparison); direction applies only within a rank.
+        const ranks = nameMatchRanks(filtered, textTokens);
         return filtered.sort(
-            compareEntries(
-                filters.sort,
-                tiebreakForSets(filters.sets),
-                filters.sortDirection
-            )
+            (a, b) =>
+                (ranks.get(a) ?? 0) - (ranks.get(b) ?? 0) || withinRank(a, b)
         );
     }, [
         all,

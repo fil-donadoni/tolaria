@@ -198,7 +198,12 @@ import {
     MAX_CHOICE_DEPTH,
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
-import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
+import {
+    boonsEveryTarget,
+    mayDeckPlayer,
+    misdirectedPlayerGiftCount,
+    misdirectedTargetCount,
+} from "./ai/beneficence";
 import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
@@ -3976,6 +3981,17 @@ export type CandidateTrace = {
      *  `meanReward` is the signature of a move that throws material away for no
      *  change in outcome — e.g. a suicidal chump attack. */
     meanMargin: number;
+    /** The one-ply reward of this candidate (issue #9045): `policyValue` of
+     *  the position right after the move, through `rewardFromValue` — the
+     *  reading the Root Heuristic Share blends into the verdict. Absent when
+     *  the root kept no memoized policy value for the edge. */
+    oneplyReward?: number;
+    /** The blended root score every root rule read for this candidate
+     *  (issue #9045): `(1 − λ) · meanReward + λ · oneplyReward`, λ the
+     *  `rootHeuristicShare` or the starved floor when higher; equals
+     *  `meanReward` when `oneplyReward` is absent. The verdict is read from
+     *  THIS number — `meanReward` alone no longer ranks the candidates. */
+    score: number;
     /** ISMCTS availability count. */
     avail: number;
     /** Breakdown of the position this move leads to once its spell/ability has
@@ -4359,7 +4375,11 @@ export function buildTrace(
     stats: SearchStats,
     chosen: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    mechanism: RootDecisionMechanism = "mean-reward"
+    mechanism: RootDecisionMechanism = "mean-reward",
+    // The scorer the verdict was read with (issue #9045) — `runSearchWithTrace`
+    // hands over the one `selectRootMove` built (starvedness included); a
+    // trace built outside a search reads the unstarved blend.
+    scorer: RootScorer = makeRootScorer(root, weights)
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
     for (const edge of root.children.values()) {
@@ -4388,12 +4408,15 @@ export function buildTrace(
             probe = rootState;
             unavailable = true;
         }
+        const oneplyReward = scorer.oneply(edge);
         candidates.push({
             label: describeMove(move, rootState),
             move,
             visits: edge.visits,
             meanReward: edge.visits > 0 ? edge.totalReward / edge.visits : 0,
             meanMargin: edge.visits > 0 ? edge.totalMargin / edge.visits : 0,
+            ...(oneplyReward === undefined ? {} : { oneplyReward }),
+            score: edge.visits > 0 ? scorer.mean(edge) : (oneplyReward ?? 0),
             avail: edge.avail,
             eval: evaluateBreakdown(probe, botId, weights),
             ...(unavailable ? { unavailable: true } : {}),
@@ -5484,6 +5507,72 @@ function castVariantScore(
     );
 }
 
+/** Issue #9044 — the beneficial-slot GUARD: the sibling variant `selectRootMove`
+ *  must take instead of `edge` because `edge` hands a pure gift (a draw, a
+ *  life gain, a beneficial player counter) to the opponent's face while a
+ *  sibling of the same announcement gives the opponent fewer — `undefined`
+ *  when `edge` is clean or has no such sibling.
+ *
+ *  Unlike `castVariantScore`'s preference, this reads NO reward: the siblings
+ *  come from the FULL pool, whatever their mean, plus every legal variant the
+ *  root never opened (stand-ins carrying `edge`'s statistics, as issue #6985's
+ *  starved root uses them). The misdirection penalty used to rank siblings
+ *  only inside `outcomeEps` of the best mean, and the reported cast (ADR 0176)
+ *  led its self-aimed twin by a gap the one-ply rollout policy itself carries:
+ *  a greedy opponent handed three cards develops instead of attacking, so the
+ *  gift's subtree reads safer. What the gift is worth is not in doubt, so no
+ *  rollout gap is evidence against it. The exceptions are read off the state
+ *  by `misdirectedPlayerGiftCount` (a punisher slot, a draw that decks its
+ *  recipient) and `mayDeckPlayer` (a sibling whose draw decks the Bot),
+ *  never off a card list. Among the cleaner siblings the fewest
+ *  gifts win, then `castVariantScore`, then mean reward. */
+function beneficialSlotGuardPick(
+    rootState: GameState,
+    botId: string,
+    edge: Edge,
+    pool: readonly Edge[],
+    root: Node,
+    moves: Move[],
+    weights: EvalWeights,
+    mean: (e: Edge) => number
+): Edge | undefined {
+    const gifts = (e: Edge) =>
+        misdirectedPlayerGiftCount(rootState, e.move, botId);
+    const own = gifts(edge);
+    if (own === 0) return undefined;
+    const siblings = pool.filter(
+        (e) => e !== edge && isCastVariantOf(e.move, edge.move)
+    );
+    // A trigger's `submit-target` keeps the visited pool only, as the
+    // announcement-variant ranking does: the root prunes dominated trigger
+    // targets on purpose (`withoutDominatedTriggerTargets`).
+    if (
+        edge.move.kind === "cast-spell" ||
+        edge.move.kind === "activate-ability"
+    ) {
+        siblings.push(...unopenedVariantEdges(root, moves, edge));
+    }
+    let pick: { e: Edge; gifts: number; score: number } | undefined;
+    for (const e of siblings) {
+        const g = gifts(e);
+        if (g >= own) continue;
+        // Never redirect a gift onto a sibling that may deck the Bot itself
+        // (CR 704.5b): there the rollouts' preference is the loss it reads.
+        if (mayDeckPlayer(rootState, e.move, botId)) continue;
+        const score = castVariantScore(rootState, e.move, botId, weights);
+        if (
+            !pick ||
+            g < pick.gifts ||
+            (g === pick.gifts &&
+                (score > pick.score ||
+                    (score === pick.score && mean(e) > mean(pick.e))))
+        ) {
+            pick = { e, gifts: g, score };
+        }
+    }
+    return pick?.e;
+}
+
 /** Stand-in edges for `ref`'s sibling variants the root never opened (issue
  *  #6985): one per legal root move that `isCastVariantOf(…, ref.move)` and has
  *  no child under its tree key. Each carries `ref`'s rollout statistics and
@@ -5665,25 +5754,84 @@ function colorModeTiebreak(
 }
 
 /** Iterations per root candidate below which a root counts as starved. */
-const STARVED_ROOT_VISITS_PER_CHILD = 2;
+export const STARVED_ROOT_VISITS_PER_CHILD = 2;
 
 /** Virtual rollouts the 1-ply policy value counts for at a starved root. */
-const STARVED_ROOT_PRIOR_VISITS = 8;
+export const STARVED_ROOT_PRIOR_VISITS = 8;
 
-/** Reward-scale policy value per root child, from the root's memoized
- *  `policyValues` (populated while the starved root was opened by policy
- *  order). A child with no memoized value is simply absent. */
-function starvedRootPriorRewards(
+/** The ONE score every root rule reads (issue #9045, PRD #9043 — the Root
+ *  Heuristic Share). `mean(e)` is `(1 − s) · mean rollout reward + s · one-ply
+ *  reward`: the one-ply reward is the root's memoized `policyValue` for the
+ *  edge's key (`Node.policyValues`, the same reading the PUCT priors use —
+ *  bot perspective, as every root edge is the bot's own move) through
+ *  `rewardFromValue`; `s` is `weights.rootHeuristicShare` (λ), or at a
+ *  starved root the LARGER of λ and the share `STARVED_ROOT_PRIOR_VISITS`
+ *  virtual rollouts hold against the edge's real ones — the pre-#9045
+ *  starved-root prior, kept byte-identical as λ's floor. A candidate with no
+ *  memoized value blends with its own mean (no penalty). `oneply(e)` and
+ *  `share(e)` expose the two ingredients for the DecisionTrace. */
+export type RootScorer = {
+    /** The blended root score of an edge — what the verdict is read from. */
+    mean: (e: Edge) => number;
+    /** The edge's one-ply reward, `undefined` when the root holds no
+     *  memoized policy value for its key. */
+    oneply: (e: Edge) => number | undefined;
+    /** The share the one-ply reward holds in `mean(e)`: λ, or the starved
+     *  floor when it is higher. */
+    share: (e: Edge) => number;
+};
+
+export function makeRootScorer(
     root: Node,
-    weights: EvalWeights
-): Map<string, number> | null {
+    weights: EvalWeights,
+    starved = false
+): RootScorer {
+    const lambda = weights.rootHeuristicShare;
     const raw = root.policyValues;
-    if (!raw) return null;
-    const out = new Map<string, number>();
-    for (const [key, value] of raw) {
-        out.set(key, rewardFromValue(value, weights));
-    }
-    return out;
+    const rewards = new Map<string, number>();
+    const oneply = (e: Edge): number | undefined => {
+        const value = raw?.get(e.key);
+        if (value === undefined) return undefined;
+        let r = rewards.get(e.key);
+        if (r === undefined) {
+            r = rewardFromValue(value, weights);
+            rewards.set(e.key, r);
+        }
+        return r;
+    };
+    const floor = (e: Edge) =>
+        starved
+            ? STARVED_ROOT_PRIOR_VISITS / (e.visits + STARVED_ROOT_PRIOR_VISITS)
+            : 0;
+    const share = (e: Edge) => Math.max(lambda, floor(e));
+    const mean = (e: Edge) => {
+        const h = oneply(e);
+        if (h === undefined) return e.totalReward / e.visits;
+        // The starved floor in its historical arithmetic — the virtual
+        // rollouts added to the real ones — so λ = 0 is byte-identical.
+        if (lambda <= floor(e)) {
+            return starved
+                ? (e.totalReward + STARVED_ROOT_PRIOR_VISITS * h) /
+                      (e.visits + STARVED_ROOT_PRIOR_VISITS)
+                : e.totalReward / e.visits;
+        }
+        return (1 - lambda) * (e.totalReward / e.visits) + lambda * h;
+    };
+    return { mean, oneply, share };
+}
+
+/** Whether `searchStats` says the root was starved — under
+ *  `STARVED_ROOT_VISITS_PER_CHILD` iterations per root candidate, so one or
+ *  two noisy rollouts per child are the whole evidence. */
+export function rootIsStarved(
+    candidateCount: number,
+    searchStats: SearchStats | undefined
+): boolean {
+    return (
+        searchStats !== undefined &&
+        searchStats.iterationsCompleted <
+            STARVED_ROOT_VISITS_PER_CHILD * candidateCount
+    );
 }
 
 export function selectRootMove(
@@ -5727,30 +5875,24 @@ export function selectRootMove(
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
 
-    // A starved root (under `STARVED_ROOT_VISITS_PER_CHILD` iterations per
-    // root candidate): one or two noisy rollouts per child are the whole
-    // evidence. The visit band then ranks noise (a child that drew one more
-    // iteration is not a better child), so every opened child competes, and
-    // the 1-ply policy value of each joins its mean as
-    // `STARVED_ROOT_PRIOR_VISITS` virtual rollouts. Fades as visits accumulate.
-    const starvedPriors =
-        searchStats !== undefined &&
-        searchStats.iterationsCompleted <
-            STARVED_ROOT_VISITS_PER_CHILD * moves.length
-            ? starvedRootPriorRewards(root, weights)
-            : null;
+    // A starved root (`rootIsStarved`): one or two noisy rollouts per child
+    // are the whole evidence. The visit band then ranks noise (a child that
+    // drew one more iteration is not a better child), so every opened child
+    // competes, and the 1-ply policy value of each joins its mean as at least
+    // `STARVED_ROOT_PRIOR_VISITS` virtual rollouts — the floor of the Root
+    // Heuristic Share (`makeRootScorer`, issue #9045), which otherwise blends
+    // the one-ply reading in at the fixed `weights.rootHeuristicShare`.
+    const starved =
+        rootIsStarved(moves.length, searchStats) &&
+        root.policyValues !== undefined;
     const maxVisits = pool.reduce((m, e) => Math.max(m, e.visits), 0);
-    const explored = starvedPriors
+    const explored = starved
         ? pool
         : pool.filter((e) => e.visits >= maxVisits * (1 - weights.visitTol));
 
-    const mean = (e: Edge) => {
-        const prior = starvedPriors?.get(e.key);
-        return prior === undefined
-            ? e.totalReward / e.visits
-            : (e.totalReward + STARVED_ROOT_PRIOR_VISITS * prior) /
-                  (e.visits + STARVED_ROOT_PRIOR_VISITS);
-    };
+    // ONE score, read by every rule below — contenders, the material
+    // tie-break, the hold rules (issue #9045).
+    const { mean } = makeRootScorer(root, weights, starved);
     const meanMargin = (e: Edge) => e.totalMargin / e.visits;
     const bestMean = explored.reduce((m, e) => Math.max(m, mean(e)), -Infinity);
     const contenders = explored.filter(
@@ -5787,12 +5929,37 @@ export function selectRootMove(
     // the hold does not return, so a later rule may take it back.
     let heldFrom: Edge | undefined;
     const finish = (
-        edge: Edge,
-        mech: RootDecisionMechanism,
+        picked: Edge,
+        pickedBy: RootDecisionMechanism,
         flippedByRule: boolean
     ): Move => {
+        // Issue #9044 — the beneficial-slot guard runs at the ONE exit, so no
+        // rule upstream (the reward argmax, the material tie-break, a hold
+        // that returns early) can hand a gift to the opponent's face while a
+        // cleaner sibling is legal. It is `announcement-variant`'s, not a new
+        // root rule: it answers the same question (which variant of this
+        // announcement), and `no-rule:announcement-variant` turns it off with
+        // the rest.
+        const guarded =
+            rootState && botId && ruleOn("announcement-variant")
+                ? beneficialSlotGuardPick(
+                      rootState,
+                      botId,
+                      picked,
+                      pool,
+                      root,
+                      moves,
+                      weights,
+                      mean
+                  )
+                : undefined;
+        const edge = guarded ?? picked;
+        const mech = guarded ? "announcement-variant" : pickedBy;
         const didFlip =
-            heldFrom !== undefined && edge === heldFrom ? false : flippedByRule;
+            guarded !== undefined ||
+            (heldFrom !== undefined && edge === heldFrom
+                ? false
+                : flippedByRule);
         if (out) out.mechanism = mech;
         if (sink) {
             const meansDesc = explored
@@ -6097,7 +6264,7 @@ export function selectRootMove(
             // (`withoutDominatedTriggerTargets`), and an unopened one there may
             // be one of them.
             if (
-                starvedPriors &&
+                starved &&
                 (best.move.kind === "cast-spell" ||
                     best.move.kind === "activate-ability")
             ) {
@@ -7380,7 +7547,13 @@ export function rootDecisionSettled(
     if (remaining <= 0) return false;
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length < 2) return false;
-    const mean = (e: Edge) => e.totalReward / e.visits;
+    // The blended score (issue #9045), at λ alone: a decision is settled when
+    // the score `selectRootMove` will read has a decisive lead, not when the
+    // raw rollout mean does. The starved floor is not applied here — a root
+    // still starved can never be "settled" (its visit lead is catchable) —
+    // so the two agree wherever this rule can fire. Byte-identical at
+    // `rootHeuristicShare` 0.
+    const { mean } = makeRootScorer(root, weights);
 
     // The most-visited root child (exists: pool.length >= 2 above).
     const top = pool.reduce((m, e) => (e.visits > m.visits ? e : m));
@@ -7722,7 +7895,13 @@ function runSearchWithTrace(
                 stats,
                 move,
                 weights,
-                picked.mechanism
+                picked.mechanism,
+                makeRootScorer(
+                    root,
+                    weights,
+                    rootIsStarved(moves.length, stats) &&
+                        root.policyValues !== undefined
+                )
             ),
             selectionRule: actionPriors ? "puct" : "ucb1",
             ...(truncations.length > 0 ? { truncations } : {}),

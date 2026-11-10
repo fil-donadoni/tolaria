@@ -11,6 +11,13 @@ import {
     payExertActivationCost,
 } from "../exert";
 import { advancePhase } from "../phases";
+import {
+    beginApplyingStaticEffects,
+    getPlayer,
+    recomputeContinuousEffects,
+    removePermanentTo,
+} from "../state";
+import { getCardByName } from "../../cards";
 import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 
 const GLORYBRINGER = "3277ad99-5682-4baa-b106-de15721876a6";
@@ -138,5 +145,38 @@ describe("exert (CR 701.43)", () => {
         // flag, so the reversible payment path must not claim it.
         expect(payExertActivationCost(state, land)).toBe(false);
         expect(state.pendingEvents).toHaveLength(2);
+    });
+});
+
+describe("exert offer under ability loss (CR 613.1f / 701.43d)", () => {
+    const HUMILITY = getCardByName("Humility").id;
+
+    it("CR 613.1f — an exert creature that lost its abilities is not offered the choice, and is again once the loss ends", () => {
+        const dragon = makeInstance(GLORYBRINGER, { id: "dragon" });
+        const state = makeState({ phase: "DECLARE_ATTACKERS" });
+        state.players[0].battlefield = [dragon];
+        state.combat = {
+            attackerIds: [dragon.id],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        expect(exertableAttackerIds(state)).toEqual([dragon.id]);
+
+        // Humility strips every creature's abilities in layer 6 — driven
+        // through the layer system, never a hand-set suppression marker.
+        const humility = makeInstance(HUMILITY, {
+            id: "suppressor",
+            zone: "battlefield",
+        });
+        getPlayer(state, "p1").battlefield.push(humility);
+        beginApplyingStaticEffects(state, humility);
+        recomputeContinuousEffects(state);
+        expect(mayExertAsAttacks(dragon)).toBeUndefined();
+        expect(exertableAttackerIds(state)).toEqual([]);
+
+        removePermanentTo(state, "suppressor", "graveyard");
+        recomputeContinuousEffects(state);
+        expect(exertableAttackerIds(state)).toEqual([dragon.id]);
     });
 });

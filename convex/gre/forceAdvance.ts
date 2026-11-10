@@ -1,5 +1,5 @@
 // `forceAdvanceOwedInput` — the last line of defence of the Bot liveness
-// guarantee (issue #9002, PRD issue #8998, ADR 0177). Whatever window the Bot
+// guarantee (issue #9002, PRD issue #8998, ADR 0178). Whatever window the Bot
 // owes, it returns a state where the game has moved past that window. Pure and
 // auth-free: a server-side caller with no `ctx.auth` (the deadline sentinel, the
 // client's stall hand-off) runs it, then saves the result.

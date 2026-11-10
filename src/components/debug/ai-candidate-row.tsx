@@ -58,6 +58,16 @@ export default function AiCandidateRow({
                     <span title="Mean reward — win-rate estimate, 0–1">
                         r{cand.meanReward.toFixed(2)}
                     </span>{" "}
+                    {cand.oneplyReward !== undefined && (
+                        <>
+                            <span title="One-ply reward — the Evaluation of the position right after this move, 0–1">
+                                h{cand.oneplyReward.toFixed(2)}
+                            </span>{" "}
+                        </>
+                    )}
+                    <span title="Score — the blended root verdict: (1 − λ) · mean reward + λ · one-ply reward">
+                        s{cand.score.toFixed(2)}
+                    </span>{" "}
                     <span title="Availability — times this move was a legal option">
                         a{cand.avail}
                     </span>

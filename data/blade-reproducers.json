@@ -4629,37 +4629,20 @@
             {
                 "name": "Hill Giant",
                 "owner": "me",
-                "zone": "library"
+                "zone": "library",
+                "count": 6
             },
             {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "library"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "library"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "library"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "library"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "library"
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 6
             }
         ],
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,
-        "landCount": 0
+        "landCount": 0,
+        "libraryCount": 0
     },
     "scry: bottoms two dead cards to draw off a deck of bombs": null,
     "scry: keeps two bombs on top of a deck of blanks": null,

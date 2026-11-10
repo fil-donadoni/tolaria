@@ -111,6 +111,7 @@ function candidateTrace(label: string, move: Move): CandidateTrace {
         move,
         visits: 10,
         meanReward: 0.5,
+        score: 0.5,
         meanMargin: 0,
         avail: 10,
         eval: {

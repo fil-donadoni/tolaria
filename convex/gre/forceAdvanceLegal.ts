@@ -1,4 +1,4 @@
-// The LEGAL rungs of the Bot liveness ladder (ADR 0177):
+// The LEGAL rungs of the Bot liveness ladder (ADR 0178):
 // for every Expected Input kind, the one CR-defined answer or decline the
 // engine can apply with no Convex context. `forceAdvanceOwedInput`
 // (`forceAdvance.ts`) tries this first and falls back to the forced discard
