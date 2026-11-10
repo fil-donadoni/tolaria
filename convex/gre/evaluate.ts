@@ -30,7 +30,9 @@ import {
     isDamageUnpreventableThisTurn,
     sourcePreventionShieldApplies,
     revertAnimation,
+    shouldEnterTapped,
 } from "./state";
+import { validateAttackerEligibility } from "./combat";
 import {
     anyCombatDamageUnpreventableStatic,
     isCombatDamageUnpreventable,
@@ -554,6 +556,14 @@ export type EvalTerms = {
      *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
      *  activated option. One shared cap across both halves. */
     flexibility: number;
+    /** Issue #8701 — the held instant-speed cards this player tapped below
+     *  before its own combat, priced negative. Zero outside the active
+     *  player's pre-combat steps. See `combatReserveTerm`. */
+    combatReserve: number;
+    /** Issue #8701 — this turn's land drop made untapped on an idle turn while
+     *  an enters-tapped land waits in hand, priced negative. Zero on every
+     *  other position. See `landTempoTerm`. */
+    landTempo: number;
     /** CR 104.3c / 704.5b — how close this player is to LOSING to an empty
      *  library. Zero (exactly) above `deckingHorizon`, so it cannot move a
      *  position that is not near decking; steeply negative as the library
@@ -1192,6 +1202,177 @@ function flexibilityTerm(
         castable += 1;
     }
     return castable * weights.flexWeight;
+}
+
+/** Whether `player` is the active player with its own combat still ahead
+ *  this turn (CR 500.1: beginning, precombat main, combat, …) and controls a
+ *  creature that could be declared as an attacker in it (CR 508.1a). */
+function combatAheadWithAttacker(
+    state: GameState,
+    player: PlayerState
+): boolean {
+    if (state.activePlayerId !== player.id) return false;
+    if (
+        state.phase !== "UPKEEP" &&
+        state.phase !== "DRAW" &&
+        state.phase !== "PRECOMBAT_MAIN"
+    ) {
+        return false;
+    }
+    const defenders = state.players
+        .filter((p) => p.id !== player.id)
+        .flatMap((p) => p.battlefield);
+    return player.battlefield.some(
+        (c) =>
+            isCreature(c) &&
+            validateAttackerEligibility(c, defenders, state).eligible
+    );
+}
+
+/** The combat-reserve term (issue #8701): what the player gave up by spending,
+ *  before its own combat, the mana a held instant-speed card needed.
+ *
+ *  Counts the holdable instants / flash cards in hand the player's mana BASE
+ *  pays for but its open mana NOW does not — the trick it tapped below —
+ *  while its own combat is still ahead and it has a creature to attack with
+ *  (`combatAheadWithAttacker`). Negative: `-count × combatReserveWeight`,
+ *  capped at `flexCardCap` like `flexibility`.
+ *
+ *  What it separates. A sorcery-speed spell cast in the precombat main phase
+ *  and the same spell cast in the postcombat one tap the same lands and lose
+ *  the same `flexibility` (the mana stays spent through the opponent's turn,
+ *  CR 502.3). The one window only the precombat cast closes is the player's
+ *  own combat — the attack the held trick would have backed — and this term
+ *  is that window's price. Zero once combat has begun (a trick spent IN combat
+ *  is spent in its window, not forfeited), zero after it (nothing is ahead),
+ *  zero on the opponent's turn, zero with nothing to attack with, and zero for
+ *  a trick the base could never have paid for. Read off the census both
+ *  halves of which `evaluate` already holds — no per-card knowledge.
+ *
+ *  What it does NOT see: whether the spell cast instead changes the combat (a
+ *  haste creature, removal of the blocker). The 1-ply probe cannot see the
+ *  attack either way; the deeper tree does, and the weight keeps the term an
+ *  option-value nudge the size of `flexWeight`, far under a card. */
+function combatReserveTerm(
+    state: GameState,
+    player: PlayerState,
+    census: ManaCensus,
+    weights: EvalWeights
+): number {
+    let forfeited = 0;
+    let gated: boolean | undefined;
+    for (const card of player.hand) {
+        if (forfeited >= weights.flexCardCap) break;
+        if (!hasInstantSpeed(card)) continue;
+        const cost = getInstanceManaCost(card);
+        const opts = {
+            life: player.life,
+            cast: castProbeFor(state, player, card),
+        };
+        if (canPayCost(census.now, cost, opts)) continue;
+        if (!canPayCost(census.base, cost, opts)) continue;
+        gated ??= combatAheadWithAttacker(state, player);
+        if (!gated) return 0;
+        forfeited += 1;
+    }
+    return -forfeited * weights.combatReserveWeight;
+}
+
+/** Whether `card`, a land in `player`'s hand, would enter the battlefield
+ *  tapped if played (CR 603.6d) by its OWN declaration — `entersTapped`, or an
+ *  `entersTappedUnless(Controls)` condition that does not hold. An opponent's
+ *  "enters tapped" replacement (Kismet) taps every land alike, so it can never
+ *  separate two drops and is not read here; a pay-to-enter-untapped land
+ *  (`entersTappedUnlessPay`) is the player's to keep untapped. */
+function landEntersTappedFromHand(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (
+        !def ||
+        (def.entersTapped !== true &&
+            !def.entersTappedUnless &&
+            !def.entersTappedUnlessControls)
+    ) {
+        return false;
+    }
+    return shouldEnterTapped(state, { ...card, controllerId: player.id });
+}
+
+/** Whether some non-land card in `player`'s hand is payable with the open mana
+ *  `units` and would NOT be with any one of those units gone — the hand has a
+ *  use for every open mana this turn. Timing-blind on purpose: the answer must
+ *  not flip between the main phase and combat of one turn, or the land-tempo
+ *  term below would read as a phase change. */
+function handNeedsEveryOpenMana(
+    state: GameState,
+    player: PlayerState,
+    units: ManaUnits
+): boolean {
+    if (units.length === 0) return false;
+    for (const card of player.hand) {
+        if (isLand(card)) continue;
+        const cost = getInstanceManaCost(card);
+        const opts = {
+            life: player.life,
+            cast: castProbeFor(state, player, card),
+        };
+        if (!canPayCost(units, cost, opts)) continue;
+        for (let i = 0; i < units.length; i++) {
+            const fewer = units.filter((_, j) => j !== i);
+            if (!canPayCost(fewer, cost, opts)) return true;
+        }
+    }
+    return false;
+}
+
+/** The land-tempo term (issue #8701): the price of having made this turn's
+ *  land drop with an untapped land the turn had no use for, while an
+ *  enters-tapped land waits in hand.
+ *
+ *  An enters-tapped land (CR 603.6d) costs a mana on the turn it is played; a
+ *  turn whose open mana the hand cannot spend pays nothing for it. So on an
+ *  idle turn the tapped land is the right drop, and the untapped one keeps
+ *  its mana for a turn that needs it (CR 305.2: one drop a turn). The `mana`
+ *  term cannot say so — it prices the drop it sees, an untapped source above
+ *  a tapped one, and has no view of the tapped land's turn to come.
+ *
+ *  Live when ALL of: a land that entered this turn (`enteredOnTurn`) is still
+ *  untapped, `player` holds a land that would enter tapped
+ *  (`landEntersTappedFromHand`), and no card in hand needs every open mana
+ *  (`handNeedsEveryOpenMana`) — the turn is idle. Its value is the tapped
+ *  premium the held land will pay on entry (`manaWeight − tappedManaWeight`,
+ *  the `mana` term's own) plus `landTempoWeight`, ONCE — the drop is one per
+ *  turn. So on an idle turn the tapped drop beats the untapped one by exactly
+ *  `landTempoWeight`, a gap whose sign holds for any positive weight. Zero
+ *  the moment the new land's mana is spent, and at the cleanup step that
+ *  clears `enteredOnTurn`'s turn — never a standing offset. */
+function landTempoTerm(
+    state: GameState,
+    player: PlayerState,
+    census: ManaCensus,
+    weights: EvalWeights
+): number {
+    const idleDrop = player.battlefield.some(
+        (c) => isLand(c) && !c.isTapped && c.enteredOnTurn === state.turn
+    );
+    if (!idleDrop) return 0;
+    if (
+        !player.hand.some(
+            (c) => isLand(c) && landEntersTappedFromHand(state, player, c)
+        )
+    ) {
+        return 0;
+    }
+    if (handNeedsEveryOpenMana(state, player, census.now)) return 0;
+    return -(
+        weights.manaWeight -
+        weights.tappedManaWeight +
+        weights.landTempoWeight
+    );
 }
 
 /** The defensive keyword occurrences that reached `card` through a
@@ -2024,6 +2205,8 @@ function playerTerms(
         manaDevelopment: 0,
         colorCoverage: 0,
         flexibility: 0,
+        combatReserve: 0,
+        landTempo: 0,
         library: libraryTerm(state, player, weights),
         poison: poisonTerm(player.poisonCounters ?? 0, weights),
         graveyard: graveyardEngineTerm(player, weights),
@@ -2142,6 +2325,8 @@ function playerTerms(
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).
     terms.flexibility = flexibilityTerm(state, player, manaCensus.now, weights);
+    terms.combatReserve = combatReserveTerm(state, player, manaCensus, weights);
+    terms.landTempo = landTempoTerm(state, player, manaCensus, weights);
     return terms;
 }
 
@@ -2156,6 +2341,8 @@ function sumTerms(t: EvalTerms): number {
         t.manaDevelopment +
         t.colorCoverage +
         t.flexibility +
+        t.combatReserve +
+        t.landTempo +
         t.library +
         t.poison +
         t.graveyard +
@@ -3248,6 +3435,8 @@ export function evaluateBreakdown(
         manaDevelopment: 0,
         colorCoverage: 0,
         flexibility: 0,
+        combatReserve: 0,
+        landTempo: 0,
         library: 0,
         poison: 0,
         graveyard: 0,
