@@ -83,6 +83,11 @@
  *                                                        # a receipt
  *   bun run check:ui -- --raster-dump=<dir>              # 3× crops of every
  *                                                        # sampled face
+ *   bun run check:ui -- --batch=9071,9096                # ONE walk for several
+ *                                                        # PRs merged together,
+ *                                                        # red attributed per PR
+ *                                                        # (`batch-run.ts`,
+ *                                                        # issue #9106)
  *
  * SPEED IS SIZED TO THE MACHINE (`parallel.ts`). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
@@ -161,6 +166,7 @@ import {
     type SurfaceWalk,
 } from "./receipt.ts";
 import { landingDiffScope, landingWalkOwed } from "./verify-receipt.ts";
+import { parseBatchHeadsFlag, type BatchHead } from "./batch-receipt.ts";
 import {
     assertLabelsBySurface,
     evaluateAssertions,
@@ -862,6 +868,15 @@ interface Options {
     /** `--viewport=<id,…>`: walk a subset of the Viewport Matrix — to
      *  reproduce one cell, never a receipt (issue #8321). */
     viewports: string[] | null;
+    /** `--batch=<PR#,…>`: build base + every PR merged and walk it once
+     *  (`batch-run.ts`, issue #9106). */
+    batch: number[] | null;
+    /** `--batch-heads=`: set by `batch-run.ts` on the walk it starts inside
+     *  the merged tree — the heads the BATCH banner names. Never by hand. */
+    batchHeads: BatchHead[] | null;
+    /** `--write-receipts` (with `--batch=`): write each clean PR's receipt
+     *  into its body. */
+    writeReceipts: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -877,6 +892,9 @@ function parseArgs(argv: string[]): Options {
         publish: true,
         rasterDump: null,
         viewports: null,
+        batch: null,
+        batchHeads: null,
+        writeReceipts: false,
     };
     for (const arg of argv) {
         // `--record` and `--accept=` died with the budget file (ADR 0132): a
@@ -886,8 +904,32 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--scope-only") opts.scopeOnly = true;
         else if (arg === "--all") opts.all = true;
         else if (arg === "--no-publish") opts.publish = false;
+        // Read by `batch-run.ts` off the raw argv; only valid with --batch=.
+        else if (arg === "--write-receipts") opts.writeReceipts = true;
         else if (arg.startsWith("--base=")) {
             opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--batch=")) {
+            const prs = arg
+                .slice("--batch=".length)
+                .split(",")
+                .map((s) => Number(s.trim().replace(/^#/, "")));
+            if (
+                prs.length < 1 ||
+                prs.some((n) => !Number.isInteger(n) || n <= 0)
+            ) {
+                throw new FatalError(
+                    `--batch= takes PR numbers, comma-separated; got ${arg.slice("--batch=".length) || "nothing"}`
+                );
+            }
+            opts.batch = [...new Set(prs)];
+        } else if (arg.startsWith("--batch-heads=")) {
+            try {
+                opts.batchHeads = parseBatchHeadsFlag(
+                    arg.slice("--batch-heads=".length)
+                );
+            } catch (err) {
+                throw new FatalError((err as Error).message);
+            }
         } else if (arg.startsWith("--raster-dump=")) {
             opts.rasterDump = path.resolve(arg.slice("--raster-dump=".length));
         } else if (arg.startsWith("--viewport=")) {
@@ -1004,6 +1046,22 @@ function computeWalkOwed(opts: Options): WalkOwed {
 
 async function main(): Promise<number> {
     const opts = parseArgs(process.argv.slice(2));
+    if (opts.batch) {
+        // The batch is an orchestration over this same walk (issue #9106):
+        // it builds the merged tree and runs THIS script inside it.
+        const { runBatch } = await import("./batch-run.ts");
+        return runBatch(opts.batch, process.argv.slice(2), REPO_ROOT, log);
+    }
+    if (opts.writeReceipts) {
+        throw new FatalError(
+            "--write-receipts writes a batch's receipts: it needs --batch="
+        );
+    }
+    if (opts.batchHeads && (opts.all || opts.surfaces || opts.viewports)) {
+        throw new FatalError(
+            "--batch-heads= is a SCOPED walk of the merged tree: --all, --surface= and --viewport= contradict it"
+        );
+    }
     if (opts.all && opts.surfaces) {
         throw new FatalError(
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
@@ -1041,7 +1099,11 @@ async function main(): Promise<number> {
     // DIAGNOSTIC even when it names the same surfaces (issue #3628).
     const diffScope: DiffScope | null =
         !opts.surfaces && scope.kind === "scoped"
-            ? { base: opts.base, surfaces: scope.surfaces }
+            ? {
+                  base: opts.base,
+                  surfaces: scope.surfaces,
+                  ...(opts.batchHeads ? { batch: opts.batchHeads } : {}),
+              }
             : null;
     const selected = opts.surfaces
         ? SURFACES.filter((s) => opts.surfaces!.includes(s.id))

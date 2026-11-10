@@ -38,6 +38,7 @@ import {
 } from "./floors.ts";
 import { infraDetail, type InfraSignature } from "./infra-verdict.ts";
 import type { AssertResult } from "./assertions.ts";
+import { batchHeadsText, type BatchHead } from "./batch-receipt.ts";
 
 /** One surface × viewport measurement handed back by the browser half. */
 export interface Measurement {
@@ -97,6 +98,10 @@ export type ReceiptKind = "RECEIPT" | "SCOPED" | "DIAGNOSTIC";
 export interface DiffScope {
     base: string;
     surfaces: readonly string[];
+    /** Set for a BATCH walk (issue #9106, `batch-receipt.ts`): the PRs merged
+     *  onto `base` to build the walked tree. The banner then reads `BATCH`
+     *  and names every head; the rows are the SCOPED rows of the union. */
+    batch?: readonly BatchHead[];
 }
 
 export interface ReceiptKindResult {
@@ -467,12 +472,21 @@ export function coverageLine(ev: Evaluation): string {
  * claim, never a measurement claim — the counts beside it come off the same
  * `Evaluation` fields `coverageLine` reads, so the two lines cannot disagree.
  * `SCOPED` names the diff base and every surface in scope, so `land` can
- * re-render it from the scope it re-derives.
+ * re-render it from the scope it re-derives. `BATCH` (issue #9106) is a
+ * SCOPED walk of several PRs merged together, and names their heads too.
  */
 export function receiptKindLine(ev: Evaluation): string {
     const counts = `(${ev.measuredSurfaces} measured, ${ev.declaredUnwalked.length} declared unwalked)`;
     if (ev.receiptKind === "RECEIPT") {
         return `RECEIPT — full lane run, ${ev.knownSurfaces} surface(s) in scope ${counts}`;
+    }
+    if (ev.receiptKind === "SCOPED" && ev.diffScope?.batch?.length) {
+        // Inside the digested block's plain-text banner, which `verify-receipt`
+        // re-renders and compares: the heads cannot be edited after the run.
+        return (
+            `BATCH — base ${ev.diffScope.base}, heads ${batchHeadsText(ev.diffScope.batch)}, ` +
+            `${ev.knownSurfaces} surface(s) in scope: ${ev.diffScope.surfaces.join(", ")} ${counts}`
+        );
     }
     if (ev.receiptKind === "SCOPED") {
         const base = ev.diffScope?.base ?? "?";
