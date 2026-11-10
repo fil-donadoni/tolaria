@@ -108,7 +108,9 @@ A candidate with **≥2 providers and ≥2 requirers in the scope** earns a
 registry ticket, filed by the pass itself as a sub-issue of PRD #8772
 (`.claude/skills/next-ticket/filing.md` for band and labels:
 `area:limited-bot`, `enhancement`, `ready-for-agent`). Fewer → it stays in
-the residue as evidence; the next scope may complete it. Template:
+the residue as evidence; the next scope may complete it. Every card named
+in the ticket body is a link (`docs/agents/issue-tracker.md`
+§ Card names are Scryfall links; `bun run card:link`). Template:
 
 ```markdown
 ## Parent
