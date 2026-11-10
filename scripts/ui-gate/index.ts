@@ -86,8 +86,7 @@
  *   bun run check:ui -- --batch=9071,9096                # ONE walk for several
  *                                                        # PRs merged together,
  *                                                        # red attributed per PR
- *                                                        # (`batch-run.ts`,
- *                                                        # issue #9106)
+ *                                                        # (`batch-run.ts`)
  *
  * SPEED IS SIZED TO THE MACHINE (`parallel.ts`). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
