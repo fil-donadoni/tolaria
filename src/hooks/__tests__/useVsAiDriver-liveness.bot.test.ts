@@ -14,13 +14,7 @@
 // bug, and the invariant must hold *without* the gate's cooperation.
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import {
-    renderHook,
-    render,
-    act,
-    screen,
-    fireEvent,
-} from "@testing-library/react";
+import { renderHook, render, act, screen } from "@testing-library/react";
 import { createElement } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import { getCardByName } from "@convex/cards";
@@ -53,6 +47,11 @@ let mutationsThrow = false;
 /** When set, an ACCEPTED mutation advances the published board — the real
  *  server writes a new seq, and the watchdog keys on that state version. */
 let onMutation: ((ref: unknown) => void) | undefined;
+/** Rung 5's hand-off (issue #9003), answered apart from `mutationsThrow`: the
+ *  fixtures that reject every ladder rung must still reach the server. The
+ *  default is the server's answer for a window it advanced. */
+let reportStallImpl: (args: unknown) => Promise<unknown> = () =>
+    Promise.resolve({ advanced: true, outcome: "advanced" });
 
 vi.mock("@convex/_generated/api", () => {
     // Every mutation/query the driver reaches for, tagged by a plain string so
@@ -107,6 +106,7 @@ vi.mock("@convex/_generated/api", () => {
     return {
         api: {
             game: Object.fromEntries(names.map((n) => [n, n])),
+            botLiveness: { reportStall: "reportStall" },
             gameReads: Object.fromEntries(
                 [
                     "getGameTick",
@@ -117,6 +117,11 @@ vi.mock("@convex/_generated/api", () => {
                     "getMatchBotDifficulty",
                 ].map((n) => [n, n])
             ),
+        },
+        // Reached by the REAL `reportStall` handler the full-path test drives
+        // (it schedules the system report's filing).
+        internal: {
+            bugReports: { fileSystemReportIssue: "fileSystemReportIssue" },
         },
     };
 });
@@ -167,6 +172,7 @@ vi.mock("convex/react", async () => {
     };
     const useMutation = (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
+        if (ref === "reportStall") return reportStallImpl(args);
         if (mutationsThrow) return Promise.reject(new Error("server rejected"));
         // A hook for the fixtures that need an ACCEPTED mutation to actually
         // move the board — the real server writes a new seq, and the watchdog
@@ -291,8 +297,8 @@ const {
     getAiDecisions,
     clearAiDecisions,
 } = await import("~/lib/ai/trace-store");
-// The real mount point, so the rung-5 test exercises the actual UI seam
-// (`VsAiDriver` → `BotStuckNotice` → `resolveStuck`) rather than a stand-in.
+// The real mount point, so the rung-5 tests exercise the actual UI seam
+// (`VsAiDriver` → `reportStall` → `BotStuckNotice`) rather than a stand-in.
 const VsAiDriver = (await import("~/components/board/vs-ai-driver")).default;
 
 // ── Boards, one per Expected Input kind ─────────────────────────────────────
@@ -539,11 +545,24 @@ async function runToWatchdog() {
     await advance(BOT_WATCHDOG_MS + 100);
 }
 
+/** Watchdog rounds until rung 5 hands the window off (issue #9003), then one
+ *  flush so the server's answer renders — and no further: the skip notice is
+ *  transient, and more rounds would outlast it. */
+async function runToHandOff(maxRounds = 8) {
+    for (let round = 0; round < maxRounds; round++) {
+        await runToWatchdog();
+        if (calls.some((c) => c.ref === "reportStall")) break;
+    }
+    await advance(10);
+}
+
 beforeEach(() => {
     calls.length = 0;
     currentState = undefined;
     mutationsThrow = false;
     onMutation = undefined;
+    reportStallImpl = () =>
+        Promise.resolve({ advanced: true, outcome: "advanced" });
     stubDecideNone = true;
     stubDecideUnanswered = false;
     stubDecideThrows = false;
@@ -646,13 +665,15 @@ describe("bot liveness invariant (issue #2284)", () => {
         // successfully and the published state never moves.
         publish(priorityBoard());
         render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
-        for (let round = 0; round < 4; round++) await runToWatchdog();
+        await runToHandOff();
 
         // It did not go quiet after the first accepted-but-inert submission: it
-        // exhausted the ladder and surfaced rung 5 — never a dead end.
+        // exhausted the ladder and handed the window to the server — never a
+        // dead end (issue #9003).
         expect(calls.map((c) => c.ref)).toContain("passPriority");
-        expect(screen.getByRole("alert").textContent).toContain(
-            "The Bot could not act"
+        expect(calls.map((c) => c.ref)).toContain("reportStall");
+        expect(screen.getByRole("status").textContent).toContain(
+            "skipped a decision"
         );
     });
 
@@ -876,70 +897,112 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(unanswered!.seq).toBe(7);
     });
 
-    it("rung 5 hands the player a control that advances the game (end-to-end)", async () => {
+    it("rung 5 hands the window to the server ONCE per seq, with diagnostics — no manual exit (issue #9003)", async () => {
         // Every rung's mutation is rejected, so the automatic walk exhausts the
-        // ladder and lands on rung 5 — the user-visible, actionable state. The
-        // whole point of rung 5 is that it is NEVER a dead end.
+        // ladder. Rung 5 used to wait for the player's click; it now calls
+        // `reportStall` by itself, carrying the driver's telemetry.
         mutationsThrow = true;
-        publish(targetBoard());
+        publish(targetBoard(), 4);
         render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
         // One round per rung: a settled submission re-renders from a microtask
         // at the END of the previous round, so a single long advance would
         // leave the freshly-scheduled timer unfired.
-        for (let round = 0; round < 6; round++) await runToWatchdog();
-
-        // `getBy*`, not `findBy*`: the async queries poll on real timers, which
-        // never advance under `vi.useFakeTimers()`.
-        const notice = screen.getByRole("alert");
-        expect(notice.textContent).toContain("The Bot could not act");
-        const button = screen.getByRole("button", { name: /continue game/i });
-
-        // ── The server is still broken: the player clicks anyway ────────────
-        //
-        // Review finding 3. `resolveStuck` used to clear the banner
-        // unconditionally after `await runner()`, taking a settled mutation as
-        // proof the game moved — the same false premise the watchdog rested on.
-        // The human's ONE manual exit would vanish while the board sat exactly
-        // where it was: a dead end, which the issue explicitly forbids.
-        calls.length = 0;
-        await act(async () => {
-            fireEvent.click(button);
-            await vi.advanceTimersByTimeAsync(50);
-        });
-        expect(calls.length).toBeGreaterThan(0); // it really did try
-        expect(screen.getByRole("alert")).toBeTruthy(); // …and the exit remains
-        expect(
-            screen
-                .getByRole("button", { name: /continue game/i })
-                .hasAttribute("disabled")
-        ).toBe(false); // a rejected rung re-enables the button, no unhandled rejection
-
-        // ── The server recovers; the player clicks again ────────────────────
-        mutationsThrow = false;
-        calls.length = 0;
-        // An accepted submission moves the board — that state version change is
-        // the ONLY thing that clears the banner.
-        onMutation = () => {
-            const done = targetBoard();
-            done.pendingTarget = undefined;
-            done.stack.length = 0;
-            done.priorityPlayerId = HUMAN;
-            publish(done, (currentState as { seq: number }).seq + 1);
-        };
-        await act(async () => {
-            fireEvent.click(
-                screen.getByRole("button", { name: /continue game/i })
-            );
-            await vi.advanceTimersByTimeAsync(50);
-        });
-
-        // A LEGAL engine path: the raised target's minimal-legal submission,
-        // through the same `selectTargets` a human's clicks make (CR 603.3d) —
-        // not an invented skip, and not a state write outside the mutations.
-        expect(calls.map((c) => c.ref)).toContain("selectTargets");
-        expect(calls[0].args).toMatchObject({ gameId: GAME, playerId: BOT });
-        // And the banner clears once the game has actually moved.
+        await runToHandOff();
+        // A transient notice, and no control to click.
+        expect(screen.getByRole("status").textContent).toContain(
+            "reported automatically"
+        );
+        expect(screen.queryByRole("button")).toBeNull();
         expect(screen.queryByRole("alert")).toBeNull();
+        // Two rounds past the ladder: the hand-off does not repeat on the
+        // same version, and the notice goes away by itself.
+        await runToWatchdog();
+        await runToWatchdog();
+        expect(screen.queryByRole("status")).toBeNull();
+
+        const handOffs = calls.filter((c) => c.ref === "reportStall");
+        expect(handOffs).toHaveLength(1);
+        expect(handOffs[0].args).toMatchObject({
+            gameId: GAME,
+            seq: 4,
+            cause: "ladder-exhausted",
+        });
+        // The collector's payload: the Bot's decision and escalation rings.
+        const diagnostics = (
+            handOffs[0].args as {
+                diagnostics: { ai?: { escalations: unknown[] } };
+            }
+        ).diagnostics;
+        expect(diagnostics.ai?.escalations.length).toBeGreaterThan(0);
+    });
+
+    it("shows no skip notice when the server had nothing to advance", async () => {
+        // The game moved between the client's decision and the mutation: the
+        // server's no-op says nothing was skipped, so nothing is announced.
+        mutationsThrow = true;
+        reportStallImpl = () =>
+            Promise.resolve({ advanced: false, reason: "stale-seq" });
+        publish(targetBoard());
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        await runToHandOff();
+
+        expect(calls.map((c) => c.ref)).toContain("reportStall");
+        expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("full path: a stuck board → the driver → the REAL reportStall → an advanced game (issue #9003)", async () => {
+        // The Bot holds priority and every ladder rung is rejected. The
+        // hand-off runs the REGISTERED mutation over a stub store seeded with
+        // the same board, and the board it saves is published back — the game
+        // the player sees moves on with no click.
+        const { reportStall } = await import("@convex/botLiveness");
+        const { makeMutationCtx, runMutation } =
+            await import("@convex/__tests__/gameMutationHarness.fixture");
+        mutationsThrow = true;
+        const board = priorityBoard();
+        const store = makeMutationCtx("u1", [
+            {
+                _id: GAME,
+                __table: "games",
+                name: "Game",
+                status: "playing",
+                solo: true,
+                vsAi: true,
+                players: [{ id: HUMAN }, { id: BOT }],
+            },
+            {
+                _id: "gs-1",
+                __table: "gameStates",
+                gameId: GAME,
+                seq: 3,
+                state: structuredClone(board),
+                updatedAt: 0,
+            },
+        ]);
+        reportStallImpl = async (args) => {
+            const result = await runMutation(reportStall, store.ctx, args);
+            publish(store.state(), store.doc("gs-1").seq as number);
+            return result;
+        };
+        publish(board, 3);
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        await runToHandOff();
+
+        expect(calls.filter((c) => c.ref === "reportStall")).toHaveLength(1);
+        // CR 117.3d — the server's legal rung passed the Bot's priority.
+        expect(store.doc("gs-1").seq).toBe(4);
+        const after = store.state();
+        expect(after.priorityPlayerId).toBe(HUMAN);
+        expect(computeOwedPlayerIds(after)).not.toContain(BOT);
+        // The fault is on file, and the player was told.
+        const report = store.writes.find((w) => w.table === "bugReports");
+        expect(store.doc(report!.id)).toMatchObject({
+            source: "system",
+            fault: { origin: "client-handoff", expectedKind: "priority" },
+        });
+        expect(screen.getByRole("status").textContent).toContain(
+            "skipped a decision"
+        );
     });
 });
 
@@ -992,18 +1055,22 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
         expect(fault!.expectedKind).toBe("attack-mana-tax");
     });
 
-    it("surfaces the terminal rung when the bot's own view cannot be built", async () => {
+    it("hands the window off as a driver-error when the bot's own view cannot be built", async () => {
         // Every rung is computed FROM the view, so none can run: the window
-        // the TICK names goes straight to rung 5 rather than to silence.
+        // the TICK names goes straight to rung 5 — the hand-off to the server
+        // (issue #9003) — rather than to silence.
         stubViewThrows = true;
         publish(priorityBoard(), 9);
 
         render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
         await advance(50);
 
-        expect(screen.getByRole("alert").textContent).toContain(
-            "The Bot could not act"
-        );
+        const handOff = calls.find((c) => c.ref === "reportStall");
+        expect(handOff?.args).toMatchObject({
+            gameId: GAME,
+            seq: 9,
+            cause: "driver-error",
+        });
         const fault = getAiDecisions().find(
             (d) => d.outcome === "driver-error"
         );
