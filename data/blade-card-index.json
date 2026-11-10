@@ -380,6 +380,11 @@
             "needsSetup": false
         },
         {
+            "label": "land tempo pair: plays the untapped land when it makes a spell castable this turn",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "positive-control: plays its only land on an empty board",
             "tier": "must",
             "needsSetup": false
@@ -456,6 +461,11 @@
             "label": "charter: chump-blocks to survive lethal (block or die)",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "combat reserve pair: casts the creature after combat",
+            "tier": "must",
+            "needsSetup": false
         },
         {
             "label": "combo: activates Splinter Twin on granted Grizzly Bears (#2469)",
@@ -1004,6 +1014,13 @@
             "label": "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Shivan Oasis": [
+        {
+            "label": "land tempo pair: plays the enters-tapped land on an idle turn",
+            "tier": "stretch",
+            "needsSetup": false
         }
     ],
     "Show and Tell": [

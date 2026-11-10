@@ -715,6 +715,45 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "combat reserve pair: casts the creature after combat": {
+        "cards": [
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 4,
+        "libraryCount": 20
+    },
     "combo: activates Splinter Twin on enchanted Deceiver Exarch": {
         "cards": [
             {
@@ -3062,6 +3101,75 @@
     "known top: plays the creature instead when the known top is a blank": null,
     "land search: fetches the basic that is the only source of the hand's colour": null,
     "land search: fetches the utility land when the hand's colours are covered": null,
+    "land tempo pair: plays the enters-tapped land on an idle turn": {
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Shivan Oasis",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "libraryCount": 20
+    },
+    "land tempo pair: plays the untapped land when it makes a spell castable this turn": {
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Shivan Oasis",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Giant Spider",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "libraryCount": 20
+    },
     "land-type change: Reef Shaman makes a Forest to cast the green spell in hand": {
         "cards": [
             {
