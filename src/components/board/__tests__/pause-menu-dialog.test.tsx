@@ -13,6 +13,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { GameContext } from "~/hooks/useGameContext";
 import PauseMenuDialog from "../pause-menu-dialog";
 import { subscribeBugReportRequests } from "~/lib/bug-report-requests";
+import { loadBattlefieldGrouping } from "~/lib/boardViewPrefs";
 
 const concede = vi.fn(() => Promise.resolve(undefined));
 const forfeitMatch = vi.fn(() => Promise.resolve(undefined));
@@ -359,5 +360,27 @@ describe("PauseMenuDialog Decklist entry (issue #2241)", () => {
         rerender(el(true));
         expect(queryByRole("button", { name: "Back" })).toBeNull();
         expect(getByRole("button", { name: "Concede" })).toBeTruthy();
+    });
+});
+
+describe("PauseMenuDialog battlefield grouping (issue #7429)", () => {
+    beforeEach(() => window.localStorage.clear());
+
+    it("offers Stacked / Separate and stores the pick on this device", () => {
+        const { getByRole } = render(
+            <PauseMenuDialog
+                open
+                onOpenChange={() => {}}
+                gameId={gameId}
+                playerId="me"
+                match={bo(1)}
+            />
+        );
+        const stacked = getByRole("radio", {
+            name: /stacked/i,
+        }) as HTMLInputElement;
+        expect(stacked.checked).toBe(true);
+        fireEvent.click(getByRole("radio", { name: /separate/i }));
+        expect(loadBattlefieldGrouping()).toBe("separate");
     });
 });

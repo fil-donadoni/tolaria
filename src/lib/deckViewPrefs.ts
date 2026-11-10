@@ -102,7 +102,7 @@ function isNonEmptyString(value: unknown): value is string {
  * of the wrong type, the parsed value fails the vocabulary guard, or
  * `storage` itself throws (private browsing, quota exceeded).
  */
-function readPref<T>(
+export function readPref<T>(
     storage: Storage,
     key: string,
     guard: (value: unknown) => value is T,
@@ -120,7 +120,7 @@ function readPref<T>(
 
 /** Best-effort write — a throwing `storage` (quota exceeded, private
  *  browsing) is swallowed silently rather than surfaced. */
-function writePref(storage: Storage, key: string, value: unknown): void {
+export function writePref(storage: Storage, key: string, value: unknown): void {
     try {
         storage.setItem(key, JSON.stringify(value));
     } catch {
