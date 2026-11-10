@@ -63,6 +63,7 @@ import {
     zeroReadings,
     type AssertRow,
     type DiffScope,
+    type Evaluation,
     type ResultRow,
     type SurfaceWalk,
     type Verdict,
@@ -70,6 +71,12 @@ import {
     verdictDigest,
 } from "./receipt.ts";
 import { assertLabelsBySurface } from "./assertions.ts";
+import {
+    domDigest,
+    parseBatchBanner,
+    receiptRegion,
+    type DomEntry,
+} from "./batch-receipt.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { VIEWPORT_IDS, viewportIdsFor } from "./viewports.ts";
 
@@ -77,6 +84,35 @@ import { VIEWPORT_IDS, viewportIdsFor } from "./viewports.ts";
 export interface ExpectedScope {
     base: string;
     scope: UiScope;
+    /** The landing tree's `domDigest` over the diff's DOM-reachable paths
+     *  (`landingDomDigest`) — what a BATCH receipt's heads are matched
+     *  against (issue #9106). Absent, no BATCH receipt verifies. */
+    dom?: string;
+}
+
+/**
+ * The content identity of the landing tree's DOM-reachable change (issue
+ * #9106): `domDigest` over each DOM-reachable path of `changed` and its blob
+ * id in the WORKING TREE at `root` (`git hash-object`, so a merge-ref checkout
+ * and a rebased head hash what they hold), `null` for a path gone from disk.
+ * `batch-run.ts` computes the same digest at each merged head with `git
+ * ls-tree`; a file git can read in one and not the other differs, and the
+ * receipt is refused — fail closed.
+ */
+export function landingDomDigest(
+    changed: readonly string[],
+    root: string
+): string {
+    const entries: DomEntry[] = domReachablePaths(changed).map((p) => {
+        if (!fs.existsSync(path.join(root, p))) return { path: p, blob: null };
+        const blob = execFileSync("git", ["hash-object", "--", p], {
+            cwd: root,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+        return { path: p, blob };
+    });
+    return domDigest(entries);
 }
 
 /**
@@ -397,15 +433,19 @@ export function extractVerdictBlock(
     body: string,
     vocab: ReceiptVocabulary
 ): { block: VerdictBlock | null; problems: string[] } {
-    const lines = body.split(/\r?\n/).map((l) => l.trim());
+    // A batch receipt section (issue #9106), when the body holds one, is the
+    // receipt: an older single-PR paste above it is inert.
+    const lines = receiptRegion(body)
+        .split(/\r?\n/)
+        .map((l) => l.trim());
     const bannerIdx = lines.findIndex((l) =>
-        /^(RECEIPT|SCOPED|DIAGNOSTIC) —/.test(l)
+        /^(RECEIPT|SCOPED|BATCH|DIAGNOSTIC) —/.test(l)
     );
     if (bannerIdx === -1) {
         return {
             block: null,
             problems: [
-                "no RECEIPT/SCOPED/DIAGNOSTIC banner line found in the PR body — check:ui was not pasted, or the banner was removed",
+                "no RECEIPT/SCOPED/BATCH/DIAGNOSTIC banner line found in the PR body — check:ui was not pasted, or the banner was removed",
             ],
         };
     }
@@ -563,10 +603,11 @@ export function landableScope(
             ],
         };
     }
+    const kind = bannerLine.startsWith("BATCH —") ? "BATCH" : "SCOPED";
     if (!expected) {
         return {
             problems: [
-                "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run verify:ui-receipt <PR#>`, or paste a full RECEIPT",
+                `a ${kind} receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through \`bun run verify:ui-receipt <PR#>\`, or paste a full RECEIPT`,
             ],
         };
     }
@@ -580,13 +621,78 @@ export function landableScope(
     if (expected.scope.kind === "full") {
         return {
             problems: [
-                `the landing diff forces the full run (${expected.scope.reason}) — a SCOPED receipt cannot cover it; paste a full RECEIPT`,
+                `the landing diff forces the full run (${expected.scope.reason}) — a ${kind} receipt cannot cover it; paste a full RECEIPT`,
             ],
         };
+    }
+    if (kind === "BATCH") {
+        return batchScope(
+            bannerLine,
+            vocab,
+            expected.scope.surfaces,
+            expected.dom
+        );
     }
     return {
         surfaces: expected.scope.surfaces,
         diffScope: { base: expected.base, surfaces: expected.scope.surfaces },
+    };
+}
+
+/**
+ * A BATCH banner's landable scope (issue #9106): the batch's surfaces, when
+ * they cover the landing diff's own scope and one named head IS the landing
+ * tree by content (`ExpectedScope.dom`). The rows are then re-derived for the
+ * batch's surfaces exactly as a SCOPED receipt's are, so a batch that went red
+ * anywhere — on this PR's surfaces or another's — never verifies: its clean
+ * PRs get a receipt rendered for the surfaces that passed (`batch-run.ts`).
+ */
+function batchScope(
+    bannerLine: string,
+    vocab: ReceiptVocabulary,
+    owed: readonly string[],
+    dom: string | undefined
+):
+    | { surfaces: readonly string[]; diffScope: DiffScope }
+    | { problems: string[] } {
+    const batch = parseBatchBanner(bannerLine);
+    if (!batch) {
+        return {
+            problems: [
+                `the BATCH banner could not be read: ${JSON.stringify(bannerLine)} — paste the lines check:ui --batch printed, unedited`,
+            ],
+        };
+    }
+    const problems: string[] = [];
+    const unknown = batch.surfaces.filter((s) => !vocab.surfaceIds.includes(s));
+    if (unknown.length > 0) {
+        problems.push(
+            `the BATCH banner names surface(s) this tree does not define: ${unknown.join(", ")}`
+        );
+    }
+    const uncovered = owed.filter((s) => !batch.surfaces.includes(s));
+    if (uncovered.length > 0) {
+        problems.push(
+            `the batch walked no ${uncovered.join(", ")}, which this diff's scope owes — walk this PR again (alone or in the next batch)`
+        );
+    }
+    if (dom === undefined) {
+        problems.push(
+            "a BATCH receipt is matched to the landing tree by content, and no landing tree was given — verify it through `bun run verify:ui-receipt <PR#>` from the PR's worktree"
+        );
+    } else if (!batch.heads.some((h) => h.dom === dom)) {
+        problems.push(
+            `no head the batch merged holds this tree's DOM-reachable files (this tree ~${dom}; batch ${batch.heads.map((h) => `#${h.pr}~${h.dom}`).join(" ")}) — the PR changed, or its rebase touched those files, after the walk: walk it again`
+        );
+    }
+    if (problems.length > 0) return { problems };
+    return {
+        surfaces: batch.surfaces,
+        diffScope: {
+            base: batch.base,
+            surfaces: batch.surfaces,
+            batch: batch.heads,
+        },
     };
 }
 
@@ -600,6 +706,16 @@ export function landableVerdictBlock(
     vocab: ReceiptVocabulary,
     diffScope: DiffScope | null
 ): string[] {
+    return verdictBlockLines(landableEvaluation(surfaces, vocab, diffScope));
+}
+
+/** The evaluation behind `landableVerdictBlock` — `batch-run.ts` renders a
+ *  clean PR's digest lines from it (issue #9106). */
+export function landableEvaluation(
+    surfaces: readonly string[],
+    vocab: ReceiptVocabulary,
+    diffScope: DiffScope | null
+): Evaluation {
     const walks: SurfaceWalk[] = surfaces.map((surface) => ({
         surface,
         status: "measured",
@@ -619,18 +735,16 @@ export function landableVerdictBlock(
             })
         ),
     }));
-    return verdictBlockLines(
-        evaluateRun({
-            knownSurfaceIds: surfaces,
-            walks,
-            definedSurfaceIds: vocab.surfaceIds,
-            viewportIds: vocab.viewportIds,
-            viewportsOf: vocab.viewportsOf,
-            unwalked: vocab.unwalked,
-            diffScope,
-            assertsBySurface: vocab.assertsBySurface,
-        })
-    );
+    return evaluateRun({
+        knownSurfaceIds: surfaces,
+        walks,
+        definedSurfaceIds: vocab.surfaceIds,
+        viewportIds: vocab.viewportIds,
+        viewportsOf: vocab.viewportsOf,
+        unwalked: vocab.unwalked,
+        diffScope,
+        assertsBySurface: vocab.assertsBySurface,
+    });
 }
 
 /**
@@ -851,12 +965,16 @@ async function main(): Promise<number> {
         "..",
         ".."
     );
+    const changed = files.map((f) => f.path);
     const expected: ExpectedScope = {
         base: ORIGIN_BASE,
-        scope: landingDiffScope(
-            files.map((f) => f.path),
-            root
-        ),
+        scope: landingDiffScope(changed, root),
+        // A BATCH receipt is matched by content (issue #9106): the digest of
+        // THIS checkout's DOM-reachable files — run it from the PR's worktree.
+        // Computed only for a BATCH paste, as `pr-refusals.ts` does.
+        ...(/^\s*BATCH —/m.test(body)
+            ? { dom: landingDomDigest(changed, root) }
+            : {}),
     };
     const result = verifyReceiptText(body, expected);
     if (result.ok) {

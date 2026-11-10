@@ -561,3 +561,58 @@ now accepted with **no automated backstop**. A drift of that kind sits on the
 base and the release branch until a later PR's scoped walk reaches the
 surface it broke, or the owner runs the full walk by hand. A backend serving
 another sha (issues #6132, #6133) is out of this record's scope.
+
+## Amendment (issue #9106) — one walk for several PRs: the BATCH receipt
+
+### Why
+
+A SCOPED receipt covers exactly its own diff's scope: `verify-receipt`
+refuses a cell outside it. A walk of PRs A+B (scope A ∪ B) was therefore
+refused by both, so every UI PR paid its own walk — several minutes, on the
+one shared local deployment, re-run on every `INFRA` and every collision with
+a concurrent walk. With three UI issues in flight on 2026-11-10 (issue #2308,
+issue #7429, issue #9101) the machine walked the same surfaces over and over.
+Owner decision, same day: walk several UI PRs together in ONE `check:ui`, as
+long as a red stays attributable to the PR that caused it.
+
+### The rule
+
+11. **`bun run check:ui -- --batch=<PR#,…> [--write-receipts]`** builds a
+    detached worktree — the base tip, then each open PR's head merged with
+    `git merge --no-ff` in the order given (a conflict drops that PR and says
+    so) — and runs the ordinary SCOPED walk INSIDE it, against the base sha.
+    A PR whose own scope is FULL or undecided cannot ride a scoped walk: it is
+    dropped and the tree rebuilt without it. Scope-picking flags (`--all`,
+    `--surface=`, `--viewport=`, `--base=`, `--scope-only`) are refused.
+12. **The banner names the batch**: `BATCH — base <sha>, heads
+#A@<sha16>~<dom16> …, N surface(s) in scope: …`. It is the verdict block's
+    first line, re-rendered and compared by `verify-receipt` like any banner,
+    so the heads cannot be edited after the run.
+13. **Identity is by content, not by sha.** `<dom16>` is `domDigest`
+    (`scripts/ui-gate/batch-receipt.ts`): SHA-256 over each DOM-reachable path
+    of the PR's own diff and its blob id at the head. The verifier computes the
+    same digest over the landing tree's working files (`landingDomDigest`), so
+    `land:ready`'s preflight rebase and the `pr-check` runner's merge-ref
+    checkout verify; a PR whose DOM-reachable files changed after the walk —
+    a new commit, a rebase that touched them — does not, and walks again.
+14. **A BATCH receipt lands a PR** when every cell is `PASS`, the PR's own
+    re-derived scope ⊆ the banner's surfaces, and one named head's content
+    digest is the landing tree's. A FULL or undecided landing scope is refused
+    as for SCOPED.
+15. **Attribution on red** (`attributeBatch`, `settleAmbiguous`). A red
+    surface in one PR's scope reds that PR. One in several PRs' scopes is
+    re-walked on each candidate ALONE (base + that head, `--surface=`, a
+    DIAGNOSTIC that is never a receipt); the candidates red alone own it. A
+    red surface no PR owns — red in the batch, green on every candidate alone,
+    or reached by no PR's own scope — is an **orphan**: it reds nobody and
+    proves nothing for the PRs whose scope holds it (`UNPROVEN`). Every PR
+    whose scope is wholly green gets a BATCH receipt rendered for the surfaces
+    that passed — byte-identical to the walk's own digest when nothing went
+    red — printed, and with `--write-receipts` written into its body between
+    `<!-- check:ui batch receipt -->` markers, which the verifier reads in
+    preference to any other banner in the body.
+
+The in-session single-PR walk is unchanged and stays the default; the batch is
+an option a session or the owner takes when several UI PRs wait at once. The
+`ui-owed` label and a runner job that collects those PRs on its own are not
+part of this amendment (follow-up issue).
