@@ -8820,7 +8820,7 @@ function scopedContext(
             ctx.recallChoice(scope(choiceId)) ?? ctx.recallChoice(choiceId),
         requestChoice: (req) =>
             ctx.requestChoice({ ...req, choiceId: scope(req.choiceId) }),
-        // CR 107.3f / CR 117.3a — the numeric nomination and the may-pay
+        // CR 107.3f / CR 118.12a — the numeric nomination and the may-pay
         // boolean are scoped for the same reason `requestChoice` is: each
         // stored answer is keyed by `choiceId`, and inside a `forEach` body
         // (or a mode chosen more than once, CR 700.2d) every iteration asks

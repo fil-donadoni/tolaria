@@ -1793,7 +1793,7 @@ export const limDLsCohort = defineCard(() => ({
 }));
 // Lim-Dûl's Hex — "At the beginning of your upkeep, for each player, this
 // enchantment deals 1 damage to that player unless they pay {B} or {3}."
-// (CR 603.6a upkeep trigger + CR 117.3a may-pay, once per player.) The "{B} or
+// (CR 503.1a upkeep trigger + CR 118.12a "unless" may-pay, once per player.) The "{B} or
 // {3}" alternative cost has no single `MayPayCost` shape (the union covers
 // mana+life+sacrifice, not "either-or"), so each player is offered {B} first
 // and, only if they decline, {3}; a player who declines both is dealt 1.
