@@ -1201,26 +1201,6 @@ export default defineSchema({
         // (`setCardRating`/`clearCardRating`) — `(scope, cardId)` is this
         // table's natural primary key.
         .index("by_scope_and_card", ["scope", "cardId"]),
-    // LEGACY single-table Card Profiles (ADR 0072, issue #1608), keyed
-    // `(scope, cardId)` and carrying both halves. Superseded by
-    // `cardCapabilities` + `cardArchetypes` below (ADR 0167, issue #8890):
-    // nothing reads or writes it any more except the one-shot split
-    // migration (`limited/cardProfiles.ts`'s `splitLegacyCardProfiles`).
-    // Left in place, empty-able, for the PRD #8772 contract ticket that
-    // drops it.
-    cardProfiles: defineTable({
-        scope: v.string(),
-        cardId: v.string(),
-        archetypes: v.array(v.string()),
-        provides: v.array(v.string()),
-        requires: v.array(v.string()),
-        comboEdges: v.optional(
-            v.array(v.object({ cardId: v.string(), weight: v.number() }))
-        ),
-        reviewed: v.boolean(),
-    })
-        .index("by_scope", ["scope"])
-        .index("by_scope_card", ["scope", "cardId"]),
     // Card Capabilities (ADR 0167 §1, issue #8890): the scope-free half of a
     // Card Profile — a property of the CARD, held in every scope. DB
     // overrides layered over `data/card-profiles/capabilities.json` by the

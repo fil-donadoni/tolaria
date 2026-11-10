@@ -666,7 +666,8 @@ const makeCardEvalMeta =
  *  `getCardProfile` (ADR 0072, issue #1611) is the SECOND layered lookup built
  *  once per mutation call, by `loadEventCardProfile` below — it feeds the
  *  scorer's three synergy terms (Archetype Fit, Capability Fit, Combo Edge).
- *  For a scope with no `cardProfiles` rows and no seed file it resolves `null`
+ *  For a scope with no Card Profile rows (`cardCapabilities` /
+ *  `cardArchetypes`) and no seed file it resolves `null`
  *  for every card and all three terms contribute exactly 0, which is ADR
  *  0072's stated "set and block environments keep working with no profiles
  *  authored at all". */

@@ -1,7 +1,7 @@
 // Card Profile layer — the Convex FUNCTION shell (ADR 0072, PRD #1607; two
 // layers since ADR 0167, issue #8890). The pure core — the layer types,
 // `resolveEventCardProfile`, `buildDbProfileLayers`, the seed validators,
-// `splitCardProfiles`, the editor row builders — lives in the sibling
+// the editor row builders — lives in the sibling
 // `cardProfilesCore.ts` and is imported by both this module and the
 // BROWSER-side Draft Lab. This file owns the one thing the Lab must never
 // pull into its bundle: `ctx.db` access and the auth gate.
@@ -13,11 +13,9 @@
 // `scripts/__tests__/client-bundle-purity.test.ts` guards it.
 //
 // Two tables (`convex/schema.ts`): `cardCapabilities` keyed by `cardId`,
-// `cardArchetypes` keyed `(scope, cardId)`. The legacy single `cardProfiles`
-// table is read only by `splitLegacyCardProfiles`, the one-shot migration.
+// `cardArchetypes` keyed `(scope, cardId)`.
 import { v } from "convex/values";
 import {
-    internalMutation,
     mutation,
     query,
     type MutationCtx,
@@ -34,7 +32,6 @@ import {
     buildDbProfileLayers,
     buildScopeCardProfiles,
     cardProfileWriteErrors,
-    splitCardProfiles,
     type CardCapabilitiesRow,
     type ProfileLayerRows,
     type ScopeCardProfile,
@@ -304,66 +301,5 @@ export const listScopeCardProfilesForEditor = query({
         return buildScopeCardProfiles(normalizedScope, cards, db).sort((a, b) =>
             a.name.localeCompare(b.name)
         );
-    },
-});
-
-/** Bound on the legacy rows the migration reads in its one transaction —
- *  the table held at most a few hundred Admin edits. */
-const MAX_LEGACY_PROFILE_ROWS = 4000;
-
-/** One-shot migration (issue #8890, ADR 0167 Consequences): splits every
- *  legacy `cardProfiles` row into the two layer tables through the PURE
- *  `splitCardProfiles` — the same function that split the seed file. A
- *  thin shell: reads, splits, inserts each layer row that does not exist
- *  yet (re-running never clobbers an edit made since), reports. The legacy
- *  table is left in place for the PRD #8772 contract ticket. Run with
- *  `npx convex run limited/cardProfiles:splitLegacyCardProfiles`. */
-export const splitLegacyCardProfiles = internalMutation({
-    args: {},
-    returns: v.object({
-        legacyRows: v.number(),
-        capabilitiesInserted: v.number(),
-        archetypesInserted: v.number(),
-        capabilityConflicts: v.array(v.string()),
-    }),
-    handler: async (ctx) => {
-        const legacy = await ctx.db
-            .query("cardProfiles")
-            .withIndex("by_scope")
-            .take(MAX_LEGACY_PROFILE_ROWS + 1);
-        if (legacy.length > MAX_LEGACY_PROFILE_ROWS) {
-            throw new Error(
-                `cardProfiles holds more than ${MAX_LEGACY_PROFILE_ROWS} rows — batch the migration`
-            );
-        }
-        const split = splitCardProfiles(
-            legacy.map((row) => ({
-                scope: row.scope,
-                cardId: row.cardId,
-                archetypes: row.archetypes,
-                provides: row.provides,
-                requires: row.requires,
-                comboEdges: row.comboEdges,
-                reviewed: row.reviewed,
-            }))
-        );
-        let capabilitiesInserted = 0;
-        for (const row of split.capabilities) {
-            if (await loadCapabilitiesDoc(ctx, row.cardId)) continue;
-            await ctx.db.insert("cardCapabilities", row);
-            capabilitiesInserted++;
-        }
-        let archetypesInserted = 0;
-        for (const row of split.archetypes) {
-            if (await loadArchetypesDoc(ctx, row.scope, row.cardId)) continue;
-            await ctx.db.insert("cardArchetypes", row);
-            archetypesInserted++;
-        }
-        return {
-            legacyRows: legacy.length,
-            capabilitiesInserted,
-            archetypesInserted,
-            capabilityConflicts: split.capabilityConflicts,
-        };
     },
 });

@@ -17,8 +17,8 @@
 // CI-guard shape `convex/cards/mechanicsRegistry.ts` (ADR 0046) already
 // establishes for keyword/Op names: a catalogue-wide guard test
 // (`__tests__/capabilityRegistry.bot.test.ts`) rejects any `provides`/
-// `requires` string in a checked-in `cardProfiles` seed file
-// (`convex/limited/cardProfiles.ts`) that isn't a row here. Without this
+// `requires` string in the checked-in Card Capabilities seed file
+// (`data/card-profiles/capabilities.json`) that isn't a row here. Without this
 // guard the vocabulary silently forks into `value-on-death`, `dies-value`
 // and `death-trigger`, which no longer match each other; the model then
 // degrades to nothing while every test stays green.
@@ -43,7 +43,7 @@
 // like `reanimator`/`artifacts`/`jeskai-tempo` — instead). There is no
 // LOWER bound: a smaller, fully-participating vocabulary is the correct
 // outcome, never padded to hit a row-count target. This slice ships the
-// registry and its guard ONLY — no `cardProfiles` row references any of
+// registry and its guard ONLY — no Card Profile row references any of
 // these names yet (zero behaviour change, issue #1608's acceptance).
 
 /** The clusters a row is filed under, in the order a reader walks them (the
@@ -75,7 +75,7 @@ export interface CapabilityExample {
 }
 
 /** One row of the closed Capability vocabulary. `id` is the exact string a
- *  `cardProfiles` row's `provides`/`requires` array carries (kebab-case,
+ *  `cardCapabilities` row's `provides`/`requires` array carries (kebab-case,
  *  matching this repo's other closed-vocabulary ids —
  *  `MechanicRow.id`/`EffectOpRow.op` discipline). `description` is the
  *  PRECISE meaning of providing vs. requiring it — this is what makes a
@@ -247,7 +247,7 @@ const CAPABILITY_IDS: ReadonlySet<string> = new Set(
 );
 
 /** True iff `name` is a row in the closed Capability vocabulary — the single
- *  authority `cardProfiles` authoring (and its catalogue-wide guard test)
+ *  authority Card Capabilities authoring (and its catalogue-wide guard test)
  *  consults before writing a `provides`/`requires` string. Case-SENSITIVE:
  *  Capability ids are internal engine vocabulary, not user-facing text, so
  *  there is no reason to tolerate a casing typo silently matching (unlike
