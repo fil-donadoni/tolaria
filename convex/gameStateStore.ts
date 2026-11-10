@@ -7,6 +7,18 @@ import {
     refreshExpectedInput,
 } from "./gre/expectedInput";
 import { compactState, expandState } from "./gre/serialize";
+import { internal } from "./_generated/api";
+import {
+    advanceClock,
+    clockExpiresAt,
+    expiredPlayerId,
+    initialTickClock,
+    type TickClock,
+} from "./matchClock";
+
+/** A context that can persist a position: the database, plus the scheduler
+ *  a clocked Match's expiry job is armed through (issue #2308). */
+type SaveCtx = Pick<GenericMutationCtx<DataModel>, "db" | "scheduler">;
 
 // The `gameStates` / `gameTicks` read and write seam. Lifted out of `game.ts`
 // (issue #4855) so a second function module that persists a position —
@@ -36,7 +48,7 @@ export async function getLatestGameState(
  *  1 write. Callers pass that already-fetched doc as `existing` so we don't
  *  re-query. Pass `null` for first-time inserts (game creation paths). */
 export async function saveGameState(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: SaveCtx,
     gameId: GenericId<"games">,
     seq: number,
     state: GameState | Record<string, unknown>,
@@ -82,6 +94,9 @@ export async function saveGameState(
     // pending* / priority fields without touching every engine call site.
     refreshExpectedInput(state as GameState);
     const stored = compactState(state as GameState);
+    // The owning `games` row, read only on the insert branch below (once per
+    // Game) — the tick writer seeds a clocked Match's Game clock from it.
+    let insertedGame: Doc<"games"> | null = null;
     // const _blobSize = JSON.stringify(stored).length;
     // console.log(
     //     `[BANDWIDTH] blob=${_blobSize} bytes, seq=${seq}, gameId=${gameId}`
@@ -102,6 +117,7 @@ export async function saveGameState(
         // conversion (issue #3443), which re-stamps them on an EXISTING row
         // precisely because this branch never runs again.
         const game = await ctx.db.get(gameId);
+        insertedGame = game;
         await ctx.db.insert("gameStates", {
             gameId,
             seq,
@@ -117,7 +133,7 @@ export async function saveGameState(
     // cheap wake-up signal coherent with what was just persisted. `state` is
     // already past `refreshExpectedInput` above, so `expectedInput` is the
     // settled, authoritative value for this save.
-    await saveGameTick(ctx, gameId, seq, state as GameState);
+    await saveGameTick(ctx, gameId, seq, state as GameState, insertedGame);
 }
 
 /** Cheap wake-up-signal companion to `gameStates` (~150 bytes vs. 3-9 KB),
@@ -127,15 +143,29 @@ export async function saveGameState(
  *  can hold this instead of a second full `getPublicState` subscription that
  *  gets discarded on every beat it doesn't own (`getGameTick` below). */
 async function saveGameTick(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: SaveCtx,
     gameId: GenericId<"games">,
     seq: number,
-    state: GameState
+    state: GameState,
+    insertedGame: Doc<"games"> | null
 ) {
     const existing = await ctx.db
         .query("gameTicks")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .first();
+    const owedPlayerIds = computeOwedPlayerIds(state);
+    const previousClock =
+        existing?.clock ??
+        (existing ? undefined : await seedGameClock(ctx, insertedGame));
+    const clock = previousClock
+        ? await advanceGameClock(
+              ctx,
+              gameId,
+              previousClock,
+              awaitedPlayerId(state, owedPlayerIds),
+              state.gameOver !== undefined
+          )
+        : undefined;
     const fields = {
         seq,
         priorityPlayerId: state.priorityPlayerId,
@@ -147,8 +177,9 @@ async function saveGameTick(
         // it. `computeOwedPlayerIds` folds in the `damageAssignerIds`
         // sub-flow so every player who genuinely owes input this tick is
         // named, even when it's not `priorityPlayerId`.
-        owedPlayerIds: computeOwedPlayerIds(state),
+        owedPlayerIds,
         gameOver: state.gameOver !== undefined,
+        ...(clock ? { clock } : {}),
         updatedAt: Date.now(),
     };
     if (existing) {
@@ -156,4 +187,86 @@ async function saveGameTick(
         return;
     }
     await ctx.db.insert("gameTicks", { gameId, ...fields });
+}
+
+/** The one player a Match Clock charges for this position (issue #2308): the
+ *  player the game is waiting on — priority OR a pending decision without
+ *  priority (`computeExpectedInput`, ADR 0047). When the combat-damage
+ *  sub-flow owes exactly one assigner other than the priority holder
+ *  (`computeOwedPlayerIds`), that assigner is the one being waited on. */
+function awaitedPlayerId(
+    state: GameState,
+    owedPlayerIds: readonly string[]
+): string | null {
+    if (owedPlayerIds.length === 1) return owedPlayerIds[0];
+    return state.expectedInput?.playerId ?? null;
+}
+
+/** A clocked Match's new Game: its clock starts from the Match's carried
+ *  remainder (`initialTickClock`). Read once per Game, on the first save —
+ *  `null` for every unclocked Match (one extra read, then never again: an
+ *  absent `clock` on the tick row is never re-seeded). */
+async function seedGameClock(
+    ctx: SaveCtx,
+    game: Doc<"games"> | null
+): Promise<TickClock | undefined> {
+    if (!game?.matchId) return undefined;
+    const match = await ctx.db.get(game.matchId);
+    if (!match?.clock) return undefined;
+    return initialTickClock(
+        match.clock,
+        game.players.map((p) => p.id)
+    );
+}
+
+/** Charge and restart the clock for this save, keeping exactly one expiry job
+ *  armed for the running clock: a job whose instant still holds (the same
+ *  player keeps running — its expiry instant does not move) is kept; any
+ *  other is cancelled, and a fresh one armed for the new runner. The job
+ *  itself re-checks the tick row (`expireMatchClock`), so a job that slips
+ *  past a cancel is a no-op, never a wrong loss. */
+async function advanceGameClock(
+    ctx: SaveCtx,
+    gameId: GenericId<"games">,
+    previous: TickClock,
+    awaited: string | null,
+    gameOver: boolean
+): Promise<TickClock> {
+    const now = Date.now();
+    // A clock that already ran out stays as it is: the action that reached
+    // this save arrived after the flag fell, and the armed job is about to
+    // end the Match. Cancelling it here (the runner changed) would let a
+    // player act past zero and escape the loss. Once the game is over — the
+    // expiry job's own forfeit, or anything that beat it — the clock just
+    // stops; the job, if still pending, finds the game over and does nothing.
+    if (expiredPlayerId(previous, now) !== null) {
+        if (!gameOver) return previous;
+        return withoutExpiryJob(advanceClock(previous, null, now, true));
+    }
+    const next = advanceClock(previous, awaited, now, gameOver);
+    const before = clockExpiresAt(previous);
+    const after = clockExpiresAt(next);
+    const keepJob =
+        previous.expiryJobId !== undefined &&
+        after !== null &&
+        before === after &&
+        previous.runningPlayerId === next.runningPlayerId;
+    if (keepJob) return next;
+    if (previous.expiryJobId !== undefined)
+        await ctx.scheduler.cancel(previous.expiryJobId);
+    const rest = withoutExpiryJob(next);
+    if (after === null || next.runningPlayerId === undefined) return rest;
+    const expiryJobId = await ctx.scheduler.runAfter(
+        Math.max(0, after - now),
+        internal.game.expireMatchClock,
+        { gameId, playerId: next.runningPlayerId }
+    );
+    return { ...rest, expiryJobId };
+}
+
+/** The clock with no armed job recorded on it. */
+function withoutExpiryJob(clock: TickClock): TickClock {
+    const copy = { ...clock };
+    delete copy.expiryJobId;
+    return copy;
 }

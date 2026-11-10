@@ -82,7 +82,9 @@ export default function GameOverDialog({
               ? `${loserName} succumbed to poison`
               : gameOver.reason === "alternate-win"
                 ? `${winnerName} won by an alternate win condition`
-                : `${loserName} conceded`;
+                : gameOver.timedOut === true
+                  ? `${loserName} ran out of time`
+                  : `${loserName} conceded`;
 
     // Terminal Match result: the Match is decided (Bo1 always; Bo3 at first to
     // two). "Back to Lobby" is shown only when the Match is over (PRD #387).

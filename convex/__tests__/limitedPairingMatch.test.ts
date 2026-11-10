@@ -21,8 +21,10 @@ import {
     finalizeGameOver,
     forfeitMatch,
     joinGame,
+    setReady,
     startPairingMatch,
 } from "../game";
+import { getGame } from "../gameReads";
 import { expireRoundDeadline } from "../limitedEvents";
 import type { GameState } from "../gre/state";
 import { resolveDeckCardMeta } from "../cards";
@@ -203,6 +205,8 @@ function playingEvent(opts: {
     seed: number;
     gamesFormat: "bo1" | "bo3";
     botSeat?: boolean;
+    /** Round 1's stamped deadline (issue #2308); absent = no deadline. */
+    roundDeadlineAt?: number;
 }): Fixture {
     let seats = assignFreeSeat(buildEmptySeats(2), "alice", "Alice");
     seats = opts.botSeat
@@ -232,6 +236,9 @@ function playingEvent(opts: {
             {
                 roundNumber: 1,
                 startedAt: 0,
+                ...(opts.roundDeadlineAt !== undefined
+                    ? { deadlineAt: opts.roundDeadlineAt }
+                    : {}),
                 pairings: [{ seatA: 0, seatB: 1 }],
             },
         ],
@@ -1622,5 +1629,87 @@ describe("recordLimitedPairingResult — a scheduleRoundDeadline failure never r
         const event = stub.doc("event-sched-fail");
         expect(event.currentRound).toBe(2);
         expect((event.rounds as unknown[]).length).toBe(2);
+    });
+});
+
+// ── Round deadline on the board (issue #2308) ───────────────────────────────
+
+/** The board's OWN read of a Game (`<Board>` subscribes `getGame`): the round
+ *  countdown reads `limitedRoundDeadlineAt` off this row, never the event. */
+const boardGame = (stub: Stub, gameId: string) =>
+    (
+        getGame as unknown as {
+            _handler: (ctx: MutationCtx, args: Row) => Promise<Row | null>;
+        }
+    )._handler(stub.ctx, { gameId });
+
+describe("round deadline reaches the board through the Game row (issue #2308)", () => {
+    const DEADLINE = 1_900_000_000_000;
+
+    it("a human pairing's Game carries the round's stamped deadline", async () => {
+        const fx = playingEvent({
+            eventId: "event-dl-h",
+            seed: 555,
+            gamesFormat: "bo1",
+            roundDeadlineAt: DEADLINE,
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-dl-h",
+            deck: fx.deckForSeat(0),
+        });
+        // Single source: the same value the event page counts down from.
+        const roundDeadline = (
+            stub.doc("event-dl-h").rounds as { deadlineAt?: number }[]
+        )[0].deadlineAt;
+        expect(roundDeadline).toBe(DEADLINE);
+        expect((await boardGame(stub, gameId))?.limitedRoundDeadlineAt).toBe(
+            roundDeadline
+        );
+        expect(
+            stub.doc(stub.doc(gameId).matchId as string).limitedRoundDeadlineAt
+        ).toBe(roundDeadline);
+    });
+
+    it("a bot pairing's Game 2 still carries it (the Bo3 next-Game build mirrors it)", async () => {
+        const fx = playingEvent({
+            eventId: "event-dl-b",
+            seed: 999,
+            gamesFormat: "bo3",
+            botSeat: true,
+            roundDeadlineAt: DEADLINE,
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const g1 = await runStart(stub.ctx, {
+            eventId: "event-dl-b",
+            deck: fx.deckForSeat(0),
+        });
+        const matchId = stub.doc(g1).matchId as string;
+        await finishGame(stub.ctx, g1, "alice-p1");
+        expect(stub.doc(matchId).status).toBe("sideboarding");
+        const { gameId: g2 } = await (
+            setReady as unknown as Handler<Row, { gameId: string | null }>
+        )._handler(stub.ctx, { matchId, seatId: "alice-p1" });
+        expect(g2).not.toBeNull();
+        expect(g2).not.toBe(g1);
+        expect(
+            (await boardGame(stub, g2 as string))?.limitedRoundDeadlineAt
+        ).toBe(DEADLINE);
+    });
+
+    it("an event with no round deadline puts none on the Game", async () => {
+        const fx = playingEvent({
+            eventId: "event-dl-none",
+            seed: 555,
+            gamesFormat: "bo1",
+        });
+        const stub = makeCtx("alice", fx.seeds);
+        const gameId = await runStart(stub.ctx, {
+            eventId: "event-dl-none",
+            deck: fx.deckForSeat(0),
+        });
+        const game = await boardGame(stub, gameId);
+        expect(game).not.toBeNull();
+        expect(game?.limitedRoundDeadlineAt).toBeUndefined();
     });
 });

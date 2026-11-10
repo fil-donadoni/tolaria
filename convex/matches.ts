@@ -680,6 +680,11 @@ export type PublicMatch = {
      *  vs the Table" playtest). On the wire so the client can return to the
      *  EVENT lobby when the Match ends rather than the general lobby. */
     limitedEventId?: string;
+    /** Per-player Match Clock budget in ms (issue #2308); absent = unclocked.
+     *  The board subscribes to the Game's live clock only when this is set. */
+    clockBudgetMs?: number;
+    /** Epoch ms a clocked Bo3's sideboarding window closes (issue #2308). */
+    sideboardDeadlineAt?: number;
     players: PublicMatchPlayer[];
 };
 
@@ -726,6 +731,10 @@ export function projectMatch(
         solo,
         vsAi: match.vsAi === true,
         limitedEventId: match.limitedEventId,
+        ...(match.clock ? { clockBudgetMs: match.clock.budgetMs } : {}),
+        ...(match.sideboardDeadlineAt !== undefined
+            ? { sideboardDeadlineAt: match.sideboardDeadlineAt }
+            : {}),
         players: match.players.map((p) => {
             const deck = decks.get(p.id);
             return {

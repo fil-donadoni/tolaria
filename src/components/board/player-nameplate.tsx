@@ -20,6 +20,8 @@ import PlayerEnergyCounters from "./player-energy-counters";
 import PlayerExperienceCounters from "./player-experience-counters";
 import PlayerCastLock from "./player-cast-lock";
 import PlayerLifeGainLock from "./player-life-gain-lock";
+import PlayerMatchClock from "./player-match-clock";
+import ViewerRoundDeadline from "./viewer-round-deadline";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -401,6 +403,8 @@ export default function PlayerNameplate({
                     />
                     <PlayerLifeGainLock playerId={player.id} compact />
                     <PlayerCastLock playerId={player.id} compact />
+                    <PlayerMatchClock playerId={player.id} compact />
+                    <ViewerRoundDeadline playerId={player.id} />
                 </div>
             ) : (
                 // FULL plaque (desktop / classic chrome), v4 shape (ADR 0103
@@ -439,6 +443,8 @@ export default function PlayerNameplate({
                             />
                             <PlayerLifeGainLock playerId={player.id} />
                             <PlayerCastLock playerId={player.id} />
+                            <PlayerMatchClock playerId={player.id} />
+                            <ViewerRoundDeadline playerId={player.id} />
                         </span>
                     </div>
                 </div>

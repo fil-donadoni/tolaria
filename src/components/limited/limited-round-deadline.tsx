@@ -37,8 +37,12 @@ function formatRemaining(ms: number): string {
  *  counting down against. */
 export default function LimitedRoundDeadline({
     deadlineAt,
+    closingLabel = "Round closing…",
 }: {
     deadlineAt: number | null;
+    /** What the countdown reads once it reaches zero. A round's default; the
+     *  clocked Bo3 sideboarding window (issue #2308) names its own. */
+    closingLabel?: string;
 }) {
     const [now, setNow] = useState(() => Date.now());
 
@@ -65,7 +69,7 @@ export default function LimitedRoundDeadline({
             aria-live="polite"
             data-testid="round-deadline"
         >
-            {remainingMs > 0 ? formatRemaining(remainingMs) : "Round closing…"}
+            {remainingMs > 0 ? formatRemaining(remainingMs) : closingLabel}
         </span>
     );
 }

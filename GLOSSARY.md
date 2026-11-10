@@ -1535,6 +1535,10 @@ _Avoid_: Games Format (Bo1/Bo3), Format Compatibility (the retired deck-against-
 The optional per-**Round** clock of a **Limited Event**, configured at creation as a duration in **minutes** (not an epoch — each Round stamps its own expiry when it opens) and range-checked server-side. When it expires, an undecided human **Pairing** is closed as a loss with source `timeout`. Absent means the event has no clock: a relaxed table is never cut short. It is also how a Seat that goes away is handled — there is no explicit drop.
 _Avoid_: Timer, **Pick Timer** (that's the per-**Pick** clock), time limit
 
+**Match Clock**:
+The optional per-**Player** chess clock of a Constructed **Match** (issue #2308), set in the setup wizard as **minutes per Player for the whole Match** (default 15 Bo1 / 25 Bo3; on by default against another Player, off against the Bot, never in Solo). A Player's clock runs while the **Game** is waiting on that Player — priority or any pending decision — and stops when it is not. Reaching zero loses the **Match**. The remainder carries from **Game** to **Game**; during **Sideboarding** both clocks are stopped and the step has a fixed 2-minute window. Distinct from the **Round Deadline**, a shared per-**Round** clock of a **Limited Event**.
+_Avoid_: Timer, chess clock (informal), **Round Deadline** (shared, per Round), **Pick Timer** (per Pick)
+
 **Bye**:
 A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd count — awarded the match win, worth the games its **Games Format** requires, with source `bye`. At most one per Seat per event.
 _Avoid_: Forfeit, walkover (those imply an opponent who lost)

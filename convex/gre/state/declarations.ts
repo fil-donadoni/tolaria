@@ -5103,6 +5103,10 @@ export type GameState = {
             | "poison"
             | "alternate-win"
             | "bot-fault";
+        /** The loss is a Match Clock running out (issue #2308): not a game
+         *  rule — the Match is forfeited for the loser, so `reason` is
+         *  `"concede"` and this names why. */
+        timedOut?: boolean;
         /** True when the game ended in a draw (CR 104.4a). No winner, no loser. */
         isDraw?: boolean;
     };

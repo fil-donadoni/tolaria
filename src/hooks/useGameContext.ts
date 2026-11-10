@@ -4,6 +4,7 @@ import type { Phase } from "@convex/gre/types";
 import type { EmblemInstance } from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type { PlayerRestriction } from "@convex/gre/state";
+import type { TickClock } from "@convex/matchClock";
 import type {
     CardInstance,
     Combat,
@@ -187,6 +188,14 @@ type GameContext = {
      *  survives long enough to land. Absent on providers that don't animate
      *  (tests, classic surfaces) — consumers treat undefined as "no arrivals". */
     recentArrivals?: ReadonlySet<string>;
+    /** The Game's live per-player Match Clock (issue #2308), from its
+     *  `gameTicks` row. Absent for an unclocked Match — and on every provider
+     *  that has none (tests, Manual) — so the nameplate shows no clock. */
+    matchClock?: TickClock;
+    /** Epoch ms the Limited Event round this Game belongs to closes (issue
+     *  #2308, mirrored from the round onto the `games` row). Absent outside a
+     *  round pairing and for an event with no round deadline. */
+    roundDeadlineAt?: number;
     showAllCards: boolean;
     debugAllActions: boolean;
     /** Re-point the client session to another game in-place (state swap, no

@@ -198,6 +198,14 @@ export default function Board({
         api.matches.getMatch,
         pageVisible && matchId ? { matchId } : "skip"
     ).data;
+    // The live Match Clock (issue #2308) rides the Game's slim `gameTicks`
+    // row, not the Match (whose query hydrates decklists): subscribed only
+    // for a clocked Match. The vs-AI driver holds the identical subscription,
+    // which the Convex client shares rather than duplicates.
+    const matchClock = useResilientQuery(
+        api.gameReads.getGameTick,
+        pageVisible && match?.clockBudgetMs !== undefined ? { gameId } : "skip"
+    ).data?.clock;
     useEffect(() => {
         if (!gameCardIds || gameCardIds.length === 0) return;
         // Art crops are only fetched when the user opens the zoom panel (hover
@@ -519,6 +527,8 @@ export default function Board({
                 recentArrivals,
                 showAllCards,
                 debugAllActions,
+                matchClock,
+                roundDeadlineAt: game?.limitedRoundDeadlineAt,
                 onSwitchGame,
             }}
         >

@@ -20,6 +20,7 @@ import {
 import { interstitialChoiceState } from "~/lib/play-draw-choice";
 import SideboardSwapList from "./sideboard-swap-list";
 import SideboardOpponentStatus from "./sideboard-opponent-status";
+import LimitedRoundDeadline from "~/components/limited/limited-round-deadline";
 
 /** Play/draw segmented-control options for the G2+ chooser (the loser of the
  *  last Game). Module-level: a fresh array identity per render would defeat
@@ -129,6 +130,17 @@ export default function SideboardingDialog({
     }
 
     const opponent = opponentSeat(match, viewerId);
+    // A clocked Bo3's fixed sideboarding window (issue #2308): when it
+    // closes the server readies every seat with its deck as it stands.
+    const windowCountdown =
+        match.sideboardDeadlineAt !== undefined ? (
+            <div className="flex justify-center">
+                <LimitedRoundDeadline
+                    deadlineAt={match.sideboardDeadlineAt}
+                    closingLabel="Starting the next game…"
+                />
+            </div>
+        ) : null;
 
     if (!seat || !seat.deck) {
         // Nothing for this client to sideboard (e.g. waiting on the opponent in
@@ -176,6 +188,7 @@ export default function SideboardingDialog({
                     <p className="text-text-muted text-xs text-center">
                         The next game starts once both players are ready.
                     </p>
+                    {windowCountdown}
                     <SideboardOpponentStatus opponent={opponent} />
                 </div>
             </GameDialog>
@@ -279,6 +292,7 @@ export default function SideboardingDialog({
                     Swap cards between your Maindeck and Sideboard. Your
                     Maindeck must stay at {lockedSize}+ cards.
                 </p>
+                {windowCountdown}
                 {/* FIXED row height (QA): the hovered-card preview used to size
                     the dialog, so a long-oracle card grew the panel, moved the
                     row out from under the pointer, dropped the hover and shrank
