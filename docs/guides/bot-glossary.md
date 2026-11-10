@@ -207,6 +207,13 @@ Three kinds exist in the code, all on in live play:
   #8700, `DEFAULT_ACTION_PRIORS`). The sweep that landed it found `c = 0.15`
   the largest value keeping the `must` tier green (at 0.2 the Bot chump-blocks
   non-lethal damage). `LADDER_VARIANTS["no-action-priors"]` turns them off.
+  Two tactical **policy features** feed this prior (and the rollout default
+  policy) as evaluation terms (issue #8701): `combatReserve` scores a
+  sorcery-speed cast that taps out of a held instant before the Bot's own
+  combat below the same cast after it, and `landTempo` makes the
+  enters-tapped land the better drop on a turn whose open mana the hand cannot
+  spend. Both are fitted weights (`combatReserveWeight`, `landTempoWeight`);
+  their sign is pinned one ply deep in `policyTimingFeatures.bot.test.ts`.
 
 <a id="puct"></a>**PUCT** — UCB1 with [priors](#prior) folded into the
 curiosity bonus: children with a higher prior get their turn sooner. The

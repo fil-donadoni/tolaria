@@ -43,7 +43,6 @@ import {
     TITANIA_PAYOFF,
     EXTRA_PLAINS,
     SEVEN_POISON,
-    COMBAT_BEHIND,
     UNTAPPED_LAND_NEEDED,
     answersRaisedTargetLegally,
     submitsSoleTarget,
@@ -26716,10 +26715,17 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // seeds — the body's worth (~70 margin points over passing at one
         // ply) dwarfs the combat window `combatReserveWeight` prices at its
         // prior (6). The sign the term owes is pinned one ply deep in
-        // `policyTimingFeatures.bot.test.ts`; this verdict is what lets a
-        // refit size the weight.
+        // `policyTimingFeatures.bot.test.ts`.
+        //
+        // A PREDICATE pair, kept out of the weight fit on purpose (measured):
+        // as `forbidden`/`moves` verdicts the fit cannot close a ~70-point gap
+        // through `combatReserveWeight` inside its trust region, so it closes
+        // part of it through `latentCreatureDiscount` (0.620 → 0.641) — and
+        // that refit flips the `must` entry "Self-growing sacrifice outlet:
+        // casts the creature" to `pass` on seed 0x5eed. No `pairOf` (a
+        // predicate lowers to no verdict); each note names its twin.
         label: "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick",
-        classification: { kind: "conditional", discriminant: COMBAT_BEHIND },
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Grizzly Bears", owner: "me", zone: "hand" },
@@ -26748,19 +26754,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
         expect: {
-            forbidden: [{ kind: "cast-spell", card: "Grizzly Bears" }],
+            predicate: (move, state) =>
+                move !== null && !castsCardNamed(move, state, "Grizzly Bears"),
+            describe: "does not cast Grizzly Bears before combat",
         },
-        note: 'Issue #8701, the anchor of the combat-reserve Minimal Pair; its right-hand half, "combat reserve pair: casts the creature after combat", is the same board in the postcombat main phase. Stretch: cast on 5/5 seeds at 400 iterations when authored.',
+        note: 'Issue #8701, the anchor of the combat-reserve pair (predicate, no `pairOf`: see the comment); its twin, "combat reserve pair: casts the creature after combat", is the same board in the postcombat main phase. Stretch: cast on 5/5 seeds at 400 iterations when authored.',
     },
     {
         // COMBAT RESERVE PAIR, HALF (issue #8701). The same board after
         // combat: nothing is ahead this turn that the trick could back, so
         // the Bears are cast now — passing defers them a whole turn cycle.
         label: "combat reserve pair: casts the creature after combat",
-        pairOf: {
-            anchor: "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick",
-            discriminant: COMBAT_BEHIND,
-        },
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Grizzly Bears", owner: "me", zone: "hand" },
@@ -26789,9 +26794,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "cast-spell", card: "Grizzly Bears" }],
+            predicate: (move, state) =>
+                castsCardNamed(move, state, "Grizzly Bears"),
+            describe: "casts Grizzly Bears after combat",
         },
-        note: "Issue #8701, the right-hand half of the combat-reserve Minimal Pair. Cast on 5/5 seeds at 400 iterations when authored.",
+        note: 'Issue #8701, the twin of "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick" (predicate, no `pairOf`: see that entry). Cast on 5/5 seeds at 400 iterations when authored.',
     },
     {
         // LAND TEMPO PAIR, ANCHOR (issue #8701). Three Forests in play, a

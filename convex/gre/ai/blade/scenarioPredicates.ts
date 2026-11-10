@@ -595,11 +595,7 @@ export const SEVEN_POISON: Discriminant = {
     kind: "other",
     detail: "the bot at seven poison counters, two infect hits from losing",
 };
-// Issue #8701 — the two tactical features of the 1-ply policy.
-export const COMBAT_BEHIND: Discriminant = {
-    kind: "step",
-    detail: "the postcombat main phase, the bot's combat behind it",
-};
+// Issue #8701 — the land-tempo Minimal Pair of the 1-ply policy.
 export const UNTAPPED_LAND_NEEDED: Discriminant = {
     kind: "card",
     detail: "Giant Spider in hand, castable this turn only off an untapped land drop",
