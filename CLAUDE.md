@@ -163,8 +163,7 @@ Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
   recompile → `ready` delta → graduation
 - `/bot-change` (any play/draft Bot change): maps AI subsystem, walks seams,
   enforces verification doctrine
-- `/profile-census` (Card Profiles): capability / archetype / delta pass,
-  unreviewed seed rows + residue, `census:check`
+- `/profile-census` (Card Profiles): unreviewed seed rows + residue
 - `/retro` (owner only, after a session): proposes ranked environment
   changes — checks, pointers, deletions — never a new resident line
 
