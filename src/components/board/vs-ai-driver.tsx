@@ -17,19 +17,15 @@ export default function VsAiDriver({
     gameId: Id<"games">;
     botId: string | null;
 }) {
-    const {
-        thinking,
-        stuck,
-        resolveStuck,
-        subscriptionError,
-        retrySubscription,
-    } = useVsAiDriver(gameId, botId);
+    const { thinking, skipped, subscriptionError, retrySubscription } =
+        useVsAiDriver(gameId, botId);
     return (
         <>
             <BotThinkingIndicator thinking={thinking} />
-            {/* issue #2284 — rung 5: the ladder found no legal automatic exit,
-                so the player gets one. Never a silent no-op. */}
-            <BotStuckNotice stuck={stuck} onResolve={resolveStuck} />
+            {/* issue #9003 — rung 5: the ladder found no legal automatic exit,
+                so the server advanced the window and filed the fault. A
+                transient notice, never a control. */}
+            <BotStuckNotice skipped={skipped} />
             {/* issue #3266 review — the driver's OWN subscriptions gave up.
                 A bot that stopped because its queries are parked looks exactly
                 like a bot that is thinking, forever. */}

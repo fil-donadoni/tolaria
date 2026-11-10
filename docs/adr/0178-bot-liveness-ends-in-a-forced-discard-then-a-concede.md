@@ -68,5 +68,11 @@ driver leaves the game waiting forever.
   `finalizeConfirmAttackers` moved from `convex/game.ts` to GRE level
   (`gre/sacrificePick.ts`, `gre/attackDeclaration.ts`). `game.ts` re-exports
   them.
+- The client ladder's rung 5 no longer waits for the human (issue #9003).
+  It calls `botLiveness.reportStall` with the driver's diagnostics. The
+  server checks the caller is the human of that vs-AI game, the `seq` is
+  current and the Bot is owed. It then runs this function, saves the result
+  and files a `client-handoff` system report. The board shows a short notice
+  instead of a button.
 - `GameOver.reason` gains `"bot-fault"`. The self-play harness counts it as a
   freeze (`scripts/lib/tier1-smoke.ts`), never as a result.
