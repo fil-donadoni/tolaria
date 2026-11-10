@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:075c28d796b60a5ec71c605a69cdcb02aceda91c2203cbb7e1d05f2fa1591f14",
         "registryHash": "sha256:b1a55f0294f92d91e6c7d412ada04b1493558b78c49d42b866735d1868b794e6",
-        "botHash": "sha256:1e781e9e8eef5778631bcf72796614adcfb56fa3b4d5b332d7d80384eb7918dd",
+        "botHash": "sha256:c732e3196998846453ce95df1aec0de48d4c3cac645994dbe256108b0036481f",
         "poolHash": "sha256:18f4202dd457116e06919f8d0cf7b7c3b7523c264d88fd3c40909c5f83abfd0b",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29607,6 +29607,7 @@
         {"key":"never-chosen › Creature › pump+skipNextTurn","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
@@ -29615,10 +29616,10 @@
         {"key":"never-chosen › Instant › chooseCreatureType+gainLife","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant › createToken+delayedTrigger+if+loseGame+mayPay","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant › forEach+pump","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant › loseGame","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery X › choice+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery X › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [cascade,rebound] › cascade","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery [cascade,retrace] › cascade","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [epic] › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [storm] › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Artifact › addMana+destroy","outcome":"ignored","cards":1},
@@ -92258,7 +92259,7 @@
 
         {"oracleId":"e3431dae-969c-4896-9f9e-a80e7bec4bdf","name":"Avatar's Wrath","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59b32969cce8","6c3f0205e77c"]},
 
-        {"oracleId":"e3444fcf-70ed-4d6e-aea9-030af15cad56","name":"Throes of Chaos","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["cascade"],"definition":{"name":"Throes of Chaos","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)","staticAbilities":["cascade","retrace"]},"botReach":"ignored","botGap":"never-chosen › Sorcery [cascade,retrace] › cascade"},
+        {"oracleId":"e3444fcf-70ed-4d6e-aea9-030af15cad56","name":"Throes of Chaos","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["cascade"],"definition":{"name":"Throes of Chaos","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)","staticAbilities":["cascade","retrace"]},"botReach":"played"},
 
         {"oracleId":"e3473ed5-f2b2-4a41-aed9-ee37caa9d7be","name":"Dramatist's Puppet","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b88d0a19538a"]},
 
@@ -96106,7 +96107,7 @@
 
         {"oracleId":"f0adab66-c3fe-4989-b7c8-ab7bdc7f0fd1","name":"Temporal Machinations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6835d8794470"]},
 
-        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"played"},
+        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone"},
 
         {"oracleId":"f0b1dcdc-4fbb-4bcb-a4b0-1aa5928347f9","name":"Scepter of Fugue","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","discard"],"definition":{"name":"Scepter of Fugue","types":["Artifact"],"manaCost":{"B":2},"oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","activatedAbilities":[{"id":"scepter-of-fugue-ability","oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","cost":{"mana":{"X":1,"B":1},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"controllerTurnOnly":true}]},"botReach":"played"},
 
@@ -97542,7 +97543,7 @@
 
         {"oracleId":"f60d03ae-f45f-45b2-a0f7-108acb0a45db","name":"Cateran Brute","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Cateran Brute","types":["Creature"],"subtypes":["Horror","Mercenary"],"manaCost":{"X":2,"B":1},"power":2,"toughness":2,"oracleText":"{2}, {T}: Search your library for a Mercenary permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.","activatedAbilities":[{"id":"cateran-brute-ability","oracleText":"{2}, {T}: Search your library for a Mercenary permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.","cost":{"mana":{"X":2},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"subtype":"Mercenary","manaValueAtMost":2},"count":{"min":0,"max":1},"prompt":"Search your library for a Mercenary permanent card with mana value 2 or less.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"f60d0b8c-3086-425f-a53a-769c5badab45","name":"One with Death","state":"ready","slots":["spell"],"opsUsed":["loseGame"],"definition":{"name":"One with Death","types":["Instant"],"manaCost":{"B":1},"oracleText":"You lose the game.","effects":[{"op":"loseGame","player":"controller"}]},"botReach":"played"},
+        {"oracleId":"f60d0b8c-3086-425f-a53a-769c5badab45","name":"One with Death","state":"ready","slots":["spell"],"opsUsed":["loseGame"],"definition":{"name":"One with Death","types":["Instant"],"manaCost":{"B":1},"oracleText":"You lose the game.","effects":[{"op":"loseGame","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Instant › loseGame"},
 
         {"oracleId":"f60d6c0c-17c2-4823-8f2a-a3ac644caa14","name":"Shadowheart, Sharran Cleric","state":"unparsed","gaps":["fc5cf0061592"]},
 
