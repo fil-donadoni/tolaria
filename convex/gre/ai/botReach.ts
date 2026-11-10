@@ -103,6 +103,7 @@ import { libraryPutPose } from "./botReachLibraryPut";
 import { outsideGamePose } from "./botReachOutsideGame";
 import { costAlternativesPose } from "./botReachCostAlternatives";
 import { handRefillSpell } from "./botReachHandRefill";
+import { targetDiscardSpell } from "./botReachTargetDiscard";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -1029,7 +1030,7 @@ export function botReachSpec(
         });
     if (discardsFromTarget(def))
         cards.push({
-            name: DRAWN_SPELL,
+            name: targetDiscardSpell(def, DRAWN_SPELL),
             owner: "opp",
             zone: "library",
             position: 1,
