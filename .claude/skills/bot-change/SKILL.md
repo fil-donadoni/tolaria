@@ -21,7 +21,7 @@ you are changing before anything else.
 ```
 BotView / decideBotAction   (src/lib/ai/brain.ts)      does the bot owe an action at all? (cheap gate)
       ↓
-enumerateMoves              (convex/gre/moves.ts)      the legal Move[] — 17 kinds today
+enumerateMoves              (convex/gre/moves.ts)      the legal Move[] — 25 kinds today
       ↓
 search (ISMCTS)             (convex/gre/search.ts)     determinize → PUCT → expand → rollout → backprop
    ├─ applyMove             (convex/gre/applyMove.ts)  applies a Move via the REAL GRE (resolveTopOfStack, advancePhase)

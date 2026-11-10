@@ -1445,6 +1445,7 @@ function applyProbeChoice(
         case "cast-spell":
         case "activate-ability":
         case "activate-granted-ability":
+        case "activate-mana-ability":
         case "submit-target":
         case "declare-attackers":
         case "declare-blockers":
@@ -1992,6 +1993,7 @@ function probeEligible(
         case "plot":
         case "foretell":
         case "activate-granted-ability":
+        case "activate-mana-ability":
         case "submit-target":
         case "declare-attackers":
         case "declare-blockers":

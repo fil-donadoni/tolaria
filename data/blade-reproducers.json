@@ -1207,6 +1207,8 @@
         "landCount": 6,
         "libraryCount": 20
     },
+    "doomed mana float: City of Traitors taps in response to its own sacrifice to fund a three-drop (#8355)": null,
+    "doomed mana float: City of Traitors with no spender lets the sacrifice resolve (#8355)": null,
     "draw-replacement win: mills its own library empty under Jace, Wielder of Mysteries": {
         "cards": [
             {

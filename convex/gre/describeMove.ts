@@ -209,6 +209,9 @@ export function describeMove(move: Move, state: GameState): string {
                 : "";
             return `activate ${name}${x}${mode}${withTargets(state, move.targets)}`;
         }
+        case "activate-mana-ability":
+            // CR 605.3a (issue #8355) — the doomed-source float.
+            return `float mana from ${instanceName(state, move.cardInstanceId)}`;
         case "activate-granted-ability": {
             // CR 113.1b (issue #2903) — a player-level granted ability (Channel).
             const def = tryGetDefinition(move.sourceCardId);

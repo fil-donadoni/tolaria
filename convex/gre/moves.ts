@@ -287,6 +287,7 @@ import {
     withoutFutileKickerVariants,
 } from "./ai/futileKicker";
 import { collapseInterchangeableMoves } from "./ai/interchangeable";
+import { enumerateDoomedManaFloatMoves } from "./ai/doomedManaFloat";
 
 /** One land tap the executor must perform to fund a cast/activation.
  *
@@ -701,6 +702,20 @@ export type Move =
            *  `executor.ts` names exactly these cards to the server. Absent for
            *  an ability with no such leg. */
           costPicks?: ActivationCostPicks;
+      }
+    | {
+          /** CR 605.3a / 106.4 (issue #8355) — activate a permanent's plain
+           *  {T} mana ability STANDALONE, holding the mana in the pool. Offered
+           *  only in the doomed-source window (`ai/doomedManaFloat.ts`): an
+           *  item on the stack removes this untapped source on resolution, and
+           *  the floated mana has a spender afterwards. Everywhere else the
+           *  planner funds costs on demand and this Move is never emitted.
+           *  Realised through `tapUntap` (`executor.ts`). */
+          kind: "activate-mana-ability";
+          cardInstanceId: string;
+          /** The tap mutations' index into the source's mana option list —
+           *  present exactly when they require one (`needIndex`). */
+          manaChoiceIndex?: number;
       }
     | {
           /** Activate an ability granted to the PLAYER by an effect (CR 113.1b,
@@ -6267,6 +6282,10 @@ export type EnumerateMovesOptions = {
      *  `searchWithTrace`, which prunes at the root and reuses the verdict for
      *  the root layer of every iteration (issue #1905 review finding 3). */
     pruneDominatedNoOps?: boolean;
+    /** Skip the doomed-source float window (issue #8355). Set only by that
+     *  window's own spender probe, so probing a position never re-opens the
+     *  window on it. */
+    noManaFloat?: boolean;
     /** Called with each move `pruneDominatedNoOps` dropped, in enumeration
      *  order. Lets a caller reuse the (expensive) verdict elsewhere instead of
      *  re-probing — `searchWithTrace` turns it into the deny-set that keeps the
@@ -6816,6 +6835,15 @@ export function enumerateMoves(
     // player's own grants are scanned (mirroring the graveyard loop's
     // "your own graveyard" scoping).
     moves.push(...enumerateGrantedAbilityMoves(state, player));
+    // CR 605.3a / 106.4 (issue #8355) — a standalone mana ability, in the ONE
+    // window where holding the mana beats letting the planner fund on demand:
+    // the top of the stack removes the untapped source, and the mana has a
+    // spender after it resolves. Empty on every other position.
+    if (!options?.noManaFloat) {
+        moves.push(
+            ...enumerateDoomedManaFloatMoves(state, player, enumerateMoves)
+        );
+    }
     // Interchangeable-candidate collapse (issue #3593), BEFORE dominance: the
     // dominance probe is per-move and its verdict is identical for two moves
     // the engine cannot tell apart, so collapsing first pays for the proof
@@ -6971,6 +6999,15 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     }
     // Player-level granted abilities.
     if ((player.grantedAbilities?.length ?? 0) > 0) return false;
+    // The doomed-source float (issue #8355) — the same authority the
+    // enumerator reads, last because it is the one source here that clones:
+    // it is empty at once on an empty stack.
+    if (
+        state.stack.length > 0 &&
+        enumerateDoomedManaFloatMoves(state, player, enumerateMoves).length > 0
+    ) {
+        return false;
+    }
     return true;
 }
 
