@@ -161,6 +161,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › addMana+optionChoice",
+            "issue": 9087
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › choice+discard",
             "issue": 4276
         },
