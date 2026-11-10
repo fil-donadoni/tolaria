@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PendingChoice } from "~/types/game";
-import { revealDurationMs } from "~/lib/random-reveal-pacing";
+import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
+import { revealRounds } from "~/lib/random-reveal-flip";
 
 /** Keeps a VIEWER's Random Reveal alive after the engine removed its pending
  *  choice (CR 705.2 / ADR 0023, issue #5516). When the Bot is the flipper its
@@ -46,7 +47,7 @@ export function useLingeringRandomReveal(
                 : 0;
         const remaining = Math.max(
             0,
-            revealDurationMs() - (Date.now() - start)
+            sequenceDurationMs(revealRounds(held)) - (Date.now() - start)
         );
         const timer = window.setTimeout(() => setHeld(null), remaining);
         return () => window.clearTimeout(timer);

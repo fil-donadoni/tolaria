@@ -19781,6 +19781,8 @@ export function buildSpellContext(
                 sides: 2,
                 flips,
             };
+            if (req.announcedLimit !== undefined)
+                entry.flipLimit = req.announcedLimit;
             if (sourceCardId) {
                 entry.source = {
                     cardId: sourceCardId,

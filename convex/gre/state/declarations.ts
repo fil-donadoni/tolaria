@@ -4137,6 +4137,9 @@ export type PendingChoice = {
      *  stack item's `collectedChoices` holds the faces the resolution reads
      *  back; this is what both clients animate. Public (CR 705). */
     flips?: FlipRecord[];
+    /** For a coin `random-reveal` — the most flips the effect announced
+     *  (`FlipSequenceRequest.announcedLimit`); absent when it announced none. */
+    flipLimit?: number;
     /** For a coin `random-reveal` — the object the flips come from. */
     source?: RandomRevealSource;
     /** For a coin `random-reveal` — the sentences of the source's Oracle text

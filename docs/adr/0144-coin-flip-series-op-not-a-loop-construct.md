@@ -43,8 +43,9 @@ already exists (`if` over a comparison, a value that reads the binding).
 ]
 ```
 
-The Op draws each bit from the same seeded `SpellContext.flipCoin` that
-`coinFlipSync` uses, with no reveal suspension. It stops after `count` flips,
+The Op draws its flips through the Flip Sequence primitive
+(`SpellContext.requestFlipSequence`, ADR 0023 Amendment II, issue #5519): one
+seeded draw, one reveal both seats watch, bindings written after the ack. It stops after `count` flips,
 or at the first lost flip when `untilLoss` is set. It is a leaf Op, not a
 construct, so re-walking a suspended resolution skips it by position and it
 never flips again. Each bound name receives a tagged numeric
@@ -86,8 +87,8 @@ generic walker reads `bind` as a single name.
     - "Comes up heads" (Ral Zarek) is a flip with no call, and no one wins or
       loses it (CR 705.2).
     - Mana Clash has two players flipping at the same time.
-    - A per-flip reveal overlay (the ADR 0023 UX `coinFlip` has) is not built;
-      the series resolves inline like `coinFlipSync`.
+    - ~~A per-flip reveal overlay~~ (built by issue #5519: the series is
+      revealed flip by flip, ADR 0023 Amendment II).
 
     Each waits for its card to show the shape.
 

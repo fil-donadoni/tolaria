@@ -22,7 +22,10 @@ import {
 } from "../../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../state";
 import type { GameState } from "../../state";
-import { applyNumberChoiceSubmit } from "../../pendingChoiceSubmit";
+import {
+    applyNumberChoiceSubmit,
+    applyRandomRevealAck,
+} from "../../pendingChoiceSubmit";
 import { compactState, expandState } from "../../serialize";
 import { projectPublicState } from "../../../gameProjections";
 import { validateEffectScript } from "../validate";
@@ -62,6 +65,19 @@ function stateWithSeed(rngSeed: number): GameState {
     });
 }
 
+/** The flipper's client acknowledges the reveal (CR 705.2, ADR 0023): the
+ *  series suspends ONCE on a `random-reveal` carrying the whole list, and its
+ *  bindings are read only after this ack. */
+function ackReveal(state: GameState): void {
+    const head = state.pendingChoices![0];
+    expect(head.kind).toBe("random-reveal");
+    applyRandomRevealAck(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        choiceId: head.choiceId,
+    });
+}
+
 /** Each count lands in a life total, so a binding the reader never saw fails
  *  the assertion instead of reading 0. */
 function readBack(series: Extract<EffectOp, { op: "coinFlipSeries" }>) {
@@ -86,6 +102,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         const state = stateWithSeed(25); // W W W W L
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        ackReveal(state);
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].life).toBe(25); // 5 flips
         // 4 wins lost by p2, 1 loss gained back ×10.
@@ -100,6 +117,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         const state = stateWithSeed(2); // W L L W W
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        ackReveal(state);
         expect(state.players[0].life).toBe(25); // exactly 5 flips
         expect(state.players[1].life).toBe(20 - 3 + 20); // 3 won, 2 lost
     });
@@ -112,6 +130,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         const state = stateWithSeed(31); // W W | W L
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        ackReveal(state);
         expect(state.players[0].life).toBe(22);
         expect(state.players[1].life).toBe(18); // 2 won, 0 lost
     });
@@ -125,6 +144,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         const counter = state.rngCounter;
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0); // nothing to reveal
         expect(state.rngCounter).toBe(counter); // no bit drawn
         expect(state.players[0].life).toBe(20);
         expect(state.players[1].life).toBe(20);
@@ -148,11 +168,13 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         ]);
         const state = stateWithSeed(25); // W W W W L
         pushSpell(state, id, "p1");
-        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the pick
-        const counterAtSuspend = state.rngCounter;
-
-        // The persisted state is what the next mutation loads.
-        const reloaded = expandState(compactState(state));
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the reveal
+        // The persisted state is what each next mutation loads.
+        const revealed = expandState(compactState(state));
+        ackReveal(revealed);
+        expect(revealed.pendingChoices![0].kind).toBe("number-pick");
+        const counterAtSuspend = revealed.rngCounter;
+        const reloaded = expandState(compactState(revealed));
         applyNumberChoiceSubmit(reloaded, { playerId: "p1", amount: 3 });
 
         // The resumed walk re-reached the series and read it back: no bit
@@ -175,6 +197,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
         const state = stateWithSeed(31); // W W W
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        ackReveal(state);
         expect(state.players[0].life).toBe(23);
         expect(state.players[1].life).toBe(17);
     });
@@ -187,6 +210,7 @@ describe("Squee's Revenge — the series payoff (CR 705.2, issue #3813)", () => 
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].kind).toBe("number-pick");
         applyNumberChoiceSubmit(state, { playerId: "p1", amount });
+        if (amount > 0) ackReveal(state);
         return state;
     }
 
@@ -201,6 +225,61 @@ describe("Squee's Revenge — the series payoff (CR 705.2, issue #3813)", () => 
         // The opponent sees six cards arrive, not which.
         const opp = projectPublicState(state, 1, "p2");
         expect(opp.players[0].hand).toHaveLength(6);
+    });
+
+    it("suspends ONCE on a reveal carrying the whole list; the draw lands only after the ack (issue #5519)", () => {
+        const state = stateWithSeed(31); // W W W L
+        pushSpell(state, squeesRevenge().id, "p1");
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 10 });
+
+        // Resolution is parked on ONE reveal; nothing was drawn yet.
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.flips!.map((f) => f.outcome)).toEqual([
+            "win",
+            "win",
+            "win",
+            "lose",
+        ]);
+        expect(head.flips!.map((f) => f.round)).toEqual([0, 1, 2, 3]);
+        expect(head.flipLimit).toBe(10);
+        expect(head.source?.cardId).toBe(squeesRevenge().id);
+        expect(head.oracleExcerpt).toContain("If you win all the flips");
+        expect(head.realized?.consequence).toBe("Not every flip was won.");
+        expect(state.players[0].hand).toHaveLength(0);
+        // rngCounter advanced once per flip at the draw (4), not per resume.
+        const afterDraw = state.rngCounter;
+
+        // SURFACE: both seats receive the list, the limit and the source.
+        for (const seat of ["p1", "p2"]) {
+            const view = projectPublicState(state, 1, seat);
+            const seen = view.pendingChoices![0];
+            expect(seen.flips).toHaveLength(4);
+            expect(seen.flipLimit).toBe(10);
+            expect(seen.source?.cardId).toBe(squeesRevenge().id);
+        }
+
+        // Across a serialize round-trip the ack resumes without re-rolling.
+        const reloaded = expandState(compactState(state));
+        ackReveal(reloaded);
+        expect(reloaded.rngCounter).toBe(afterDraw);
+        expect(reloaded.pendingChoices ?? []).toHaveLength(0);
+        expect(reloaded.stack).toHaveLength(0);
+    });
+
+    it("winning every flip: the draw is applied only after the ack", () => {
+        const state = stateWithSeed(31); // W W W — stops at 3
+        pushSpell(state, squeesRevenge().id, "p1");
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 3 });
+        expect(state.pendingChoices![0].realized?.consequence).toBe(
+            "Every flip was won."
+        );
+        expect(state.players[0].hand).toHaveLength(0);
+        ackReveal(state);
+        expect(state.players[0].hand).toHaveLength(6);
     });
 
     it("losing a flip draws nothing, and ends the series there", () => {

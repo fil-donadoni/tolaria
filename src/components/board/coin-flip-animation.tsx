@@ -9,19 +9,23 @@ export { FLIP_ANIM_MS };
  *  halo (`tone`) and the `caption` under the coin — the coin itself never
  *  carries the outcome. `onLanded` fires exactly once when the toss ends.
  *  `skipped` (the overlay's click-to-end) jumps straight to the landed state.
- *  Under `prefers-reduced-motion` there is no toss or spin: the face fades in
- *  and the same `FLIP_ANIM_MS` pacing elapses before `onLanded`. Pure
- *  presentation; the outcome is decided server-side. */
+ *  The toss lasts `durationMs` (a Flip Sequence tosses faster each round,
+ *  `tossMs`); the overlay remounts the coin per round. Under
+ *  `prefers-reduced-motion` there is no toss or spin: the face fades in and the
+ *  same `durationMs` pacing elapses before `onLanded`. Pure presentation; the
+ *  outcome is decided server-side. */
 export default function CoinFlipAnimation({
     face,
     tone,
     caption,
+    durationMs = FLIP_ANIM_MS,
     skipped = false,
     onLanded,
 }: {
     face: "heads" | "tails";
     tone: "good" | "bad";
     caption: string;
+    durationMs?: number;
     skipped?: boolean;
     onLanded: () => void;
 }) {
@@ -31,9 +35,9 @@ export default function CoinFlipAnimation({
     const fired = useRef(false);
 
     useEffect(() => {
-        const t = setTimeout(() => setTossEnded(true), FLIP_ANIM_MS);
+        const t = setTimeout(() => setTossEnded(true), durationMs);
         return () => clearTimeout(t);
-    }, []);
+    }, [durationMs]);
 
     // Fires exactly once, whether the toss elapsed or the click skipped it.
     useEffect(() => {
@@ -47,7 +51,7 @@ export default function CoinFlipAnimation({
             <Coin3D
                 face={face}
                 phase={landed ? "landed" : "tossing"}
-                durationMs={FLIP_ANIM_MS}
+                durationMs={durationMs}
                 tone={tone}
                 reduceMotion={reduceMotion}
             />
