@@ -377,6 +377,12 @@ export type BladeSetupStep =
      *  (CR 117.3b) — the post-resolution window a sorcery-grant board (Channel,
      *  issue #2903) needs to hand the active player their grant-based decision. */
     | { kind: "pass"; seat?: BladeSeat }
+    /** Play the named land from a seat's HAND through the real move pipeline
+     *  (`enumerateMoves` + `applyMoveInSearch`, the same pair `cast` uses), so
+     *  a "when you play a land" trigger (City of Traitors' sacrifice, issue
+     *  #8355) ends up on the stack UNRESOLVED with priority still on the
+     *  player. Throws when the seat holds no legal play of that name. */
+    | { kind: "play-land"; card: string; by?: BladeSeat }
     /** ADR 0026 (issue #1524) — grant a seat persistent knowledge of the top
      *  `count` cards of a library, through the engine's OWN primitive
      *  (`grantKnowledge`, `gre/state.ts` — the exact function the scry /

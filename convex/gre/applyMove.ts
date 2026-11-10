@@ -165,6 +165,7 @@ import {
     searchCastManaSpent,
     searchRestrictedXManaOwedStamp,
 } from "./searchTapPlan";
+import { applyManaFloatInSearch } from "./ai/doomedManaFloat";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -2249,6 +2250,13 @@ export function applyMoveForSearch(
             // Costs only (see file header): the shared payment (issue #4444),
             // without the push `applyMoveInSearch` makes (issue #1920).
             payActivationInSearch(next, playerId, move);
+            checkStateBasedActions(next);
+            return next;
+
+        case "activate-mana-ability":
+            // CR 605.3a (issue #8355) — the doomed-source float, shared with
+            // the ISMCTS applier.
+            if (!applyManaFloatInSearch(next, playerId, move)) return next;
             checkStateBasedActions(next);
             return next;
 
