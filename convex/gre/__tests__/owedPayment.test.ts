@@ -92,6 +92,7 @@ const FULL_CAST: Required<PendingCast> = {
     warped: false,
     impended: false,
     emergeReductionOwed: true,
+    harmonizeTapCreatureId: "c1",
     bestowed: false,
     castOffSorceryTiming: false,
     improviseTappedArtifactIds: [],

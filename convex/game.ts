@@ -130,6 +130,10 @@ import { playerHasProtectionFromEverything } from "./gre/protection";
 import { getFlashbackAdditionalCost } from "./gre/flashback";
 import { countDistinctCardTypes, hasEscape } from "./gre/escape";
 import {
+    applyHarmonizeReduction,
+    harmonizeCreatureError,
+} from "./gre/harmonize";
+import {
     activationEvidenceUnpayable,
     collectEvidenceSatisfied,
 } from "./gre/collectEvidence";
@@ -2335,6 +2339,7 @@ import {
     castAlternativeCostForZone,
     castRawManaCost,
     exileCastRoutes,
+    graveyardCastMechanism,
     flashbackHandCostLeg,
     flashbackLifeCost,
     libraryTopCastPayment,
@@ -5519,6 +5524,10 @@ export function finalizeTargetSelection(
         manaCost,
         castSac
     );
+    // CR 702.180a / 601.2f — a harmonize cast's total is reduced by the power
+    // of the creature named at announcement, on the already-modified total.
+    const harmonizeTapCreatureId = pt.harmonizeTapCreatureId;
+    applyHarmonizeReduction(state, player, manaCost, harmonizeTapCreatureId);
     // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
     // "exile a blue card", Foil "discard an Island card and another card"). A
     // player-chosen filtered give-up FROM HAND, paid at commit through the
@@ -5674,6 +5683,9 @@ export function finalizeTargetSelection(
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
             ...(emergeReductionOwed ? { emergeReductionOwed: true } : {}),
+            ...(harmonizeTapCreatureId !== undefined
+                ? { harmonizeTapCreatureId }
+                : {}),
             ...(castConvokeChoice
                 ? { convokeCreatureChoice: castConvokeChoice }
                 : {}),
@@ -5774,6 +5786,9 @@ export function finalizeTargetSelection(
             legs: {
                 payLife,
                 sacrificeSelection: castSac,
+                ...(harmonizeTapCreatureId !== undefined
+                    ? { harmonizeTapCreatureId }
+                    : {}),
                 ...(altHandChoice?.pickedCardIds
                     ? { alternativeCostHandChoice: altHandChoice }
                     : {}),
@@ -5821,6 +5836,9 @@ export function finalizeTargetSelection(
             // Auto-resolved sacrifice (complete) rides along so the deferred
             // commit applies the chosen ids (CR 701.21a).
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            ...(harmonizeTapCreatureId !== undefined
+                ? { harmonizeTapCreatureId }
+                : {}),
             // CR 601.2f / 118.8 / 702.81a (issue #2358 review, finding 1) — and
             // so does an auto-resolved HAND choice. This is the THIRD cast-
             // commit path: `parkForSacrifice` above only fires on an INCOMPLETE
@@ -6167,6 +6185,12 @@ export const announceCast = mutation({
          *  Omitted → the engine auto-resolves to the most-life affordable split
          *  (the signature "pay 2 life" line). Clamped to `[0, pipCount]`. */
         phyrexianLifePips: v.optional(v.number()),
+        /** CR 702.180a/b — the untapped creature a HARMONIZE cast taps, chosen
+         *  as the harmonize cost is (CR 601.2b): its power comes off the
+         *  generic part of the total cost and it is tapped as the cost is
+         *  paid. Omitted = tap none ("up to one"). Rejected on any cast that is
+         *  not a harmonize cast. */
+        harmonizeCreatureId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -6348,6 +6372,22 @@ export const announceCast = mutation({
             castFromZone,
             args.alternativeCostId
         );
+        // CR 702.180a/b — the harmonize creature is named only on a harmonize
+        // cast, and must be an untapped creature the caster controls.
+        if (args.harmonizeCreatureId !== undefined) {
+            if (
+                castFromZone !== "graveyard" ||
+                graveyardCastMechanism(state, player, cardInHand, player.id) !==
+                    "harmonize"
+            ) {
+                throw new Error("Only a harmonize cast taps a creature for it");
+            }
+            const harmonizeError = harmonizeCreatureError(
+                player,
+                args.harmonizeCreatureId
+            );
+            if (harmonizeError) throw new Error(harmonizeError);
+        }
         // CR 601.3c / 118.9b — "An effect that allows you to cast a spell may
         // require a certain alternative cost to be paid." When the ONLY thing
         // licensing this cast right now is a permission that waives the mana
@@ -7298,6 +7338,11 @@ export const announceCast = mutation({
                 ...(args.additionalCostLegId
                     ? { additionalCostLegId: args.additionalCostLegId }
                     : {}),
+                // CR 702.180b — the harmonize creature, chosen at announcement,
+                // reduces and is tapped at cast commit.
+                ...(args.harmonizeCreatureId !== undefined
+                    ? { harmonizeTapCreatureId: args.harmonizeCreatureId }
+                    : {}),
                 // CR 601.2 (issue #2473) — carry the ANNOUNCEMENT-time timing
                 // snapshot through target selection so the commit downstream
                 // stamps the board this cast was proposed on, not the board it
@@ -7816,6 +7861,15 @@ export const announceCast = mutation({
             manaCost,
             getCostModifiers(state, cardInHand, "spell", undefined, player.id)
         );
+        // CR 702.180a / 601.2f — a harmonize cast's total is reduced by the
+        // power of the creature named at announcement, after the modifiers.
+        const harmonizeTapCreatureId = args.harmonizeCreatureId;
+        applyHarmonizeReduction(
+            state,
+            player,
+            manaCost,
+            harmonizeTapCreatureId
+        );
         // CR 107.4f — resolve this no-target cast's Phyrexian pips (Phyrexian
         // Metamorph's {U/P}): mana-paid pips fold into `manaCost`, life-paid pips
         // become `phyrexianPayLife`, deducted at commit (immediate below, or via
@@ -8061,6 +8115,9 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(harmonizeTapCreatureId !== undefined
+                    ? { harmonizeTapCreatureId }
+                    : {}),
                 ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — Phyrexian life rides to the deferred commit.
@@ -8173,6 +8230,9 @@ export const announceCast = mutation({
                 legs: {
                     payLife: phyrexianPayLife,
                     sacrificeSelection: castSac,
+                    ...(harmonizeTapCreatureId !== undefined
+                        ? { harmonizeTapCreatureId }
+                        : {}),
                 },
                 record: {
                     kickerPayments,
@@ -8196,6 +8256,9 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(harmonizeTapCreatureId !== undefined
+                    ? { harmonizeTapCreatureId }
+                    : {}),
                 ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — the Phyrexian life is paid at the deferred commit

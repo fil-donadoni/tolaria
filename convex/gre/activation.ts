@@ -58,6 +58,7 @@ import {
     stackManaValue,
 } from "./constants";
 import { findEscapeCastable } from "./escape";
+import { findHarmonizeCastable } from "./harmonize";
 import { payExertActivationCost } from "./exert";
 import { assertExpectedInput } from "./expectedInput";
 import { findFlashbackCastable } from "./flashback";
@@ -461,6 +462,10 @@ export function locateCastSource(
     // CR 702.138b — a card with escape may be cast from its owner's graveyard.
     const escape = findEscapeCastable(state, player, instanceId);
     if (escape) return { card: escape, zone: "graveyard" };
+    // CR 702.180a — a card with harmonize may be cast from its owner's
+    // graveyard; `graveyardCastStackFlags` reads the keyword for its exile.
+    const harmonize = findHarmonizeCastable(player, instanceId);
+    if (harmonize) return { card: harmonize, zone: "graveyard" };
     // CR 601.3 / 118.9 (issue #1344) — a card castable purely under a
     // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
     // reached only when the card has neither Flashback nor Escape (those
@@ -1851,6 +1856,9 @@ export function tryAutoCommitPendingCast(
                 : {}),
             ...(castExile ? { exileFromGraveyardChoice: castExile } : {}),
             ...(castConvoke ? { convokeCreatureChoice: castConvoke } : {}),
+            ...(pending.harmonizeTapCreatureId
+                ? { harmonizeTapCreatureId: pending.harmonizeTapCreatureId }
+                : {}),
             ...(castAltHand ? { alternativeCostHandChoice: castAltHand } : {}),
             ...(pending.revealHand ? { revealHand: true } : {}),
             ...(castAssist?.assistantId && castAssist.paid

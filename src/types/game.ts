@@ -353,7 +353,8 @@ export interface CardInstance {
         | "graveyard-grant"
         | "graveyard-intrinsic"
         | "retrace"
-        | "jump-start";
+        | "jump-start"
+        | "harmonize";
     /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
      *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of
      *  Insight). Present only on a `castKind: "flashback"` card carrying that

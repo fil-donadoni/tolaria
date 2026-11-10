@@ -51,6 +51,7 @@ import {
 import { knownLibraryIndices } from "./gre/libraryKnownRuns";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
+import { hasHarmonize } from "./gre/harmonize";
 import { hasRetrace } from "./gre/retrace";
 import { hasJumpStart } from "./gre/jumpStart";
 import {
@@ -186,7 +187,8 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "graveyard-grant"
         | "graveyard-intrinsic"
         | "retrace"
-        | "jump-start";
+        | "jump-start"
+        | "harmonize";
     /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
      *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
      *  additional cost ("Exile X blue cards from your graveyard", Flash of
@@ -995,6 +997,15 @@ function projectGraveyardCard(
     }
     if (isOwnGraveyard && hasEscape(state, card)) {
         return { ...slim, legalActions: legalActionsFor(), castKind: "escape" };
+    }
+    // CR 702.180a — a card with harmonize, castable from the graveyard for its
+    // harmonize cost; the client asks which creature (if any) to tap.
+    if (isOwnGraveyard && hasHarmonize(card)) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "harmonize",
+        };
     }
     // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card sitting in the
     // viewer's own graveyard tagged with a per-card cast grant (Malcolm,

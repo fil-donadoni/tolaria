@@ -1726,6 +1726,16 @@ export function commitCastInSearch(
         if (!discard) return null;
         discardToGraveyard(state, playerId, discard.id, { kind: "cost" });
     }
+    // CR 702.180b — the creature the harmonize Move names is tapped as the
+    // cost is paid; its reduction is already off the Move's tap plan. A stale
+    // Move whose creature is no longer untapped is skipped.
+    if (castMechanism === "harmonize" && move.harmonizeCreatureId) {
+        const creature = player.battlefield.find(
+            (c) => c.id === move.harmonizeCreatureId && !c.isTapped
+        );
+        if (!creature) return null;
+        creature.isTapped = true;
+    }
     // CR 702.34a flashback, CR 701.9a discard — the flashback cost's discard leg (Twinned Vision),
     // cheapest first like the jump-start discard above, through the seam the
     // server commit reads. A stale Move whose hand cannot cover it is skipped.

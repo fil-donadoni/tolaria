@@ -47,6 +47,7 @@ import {
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
 import { hasJumpStart } from "./jumpStart";
+import { getHarmonizeCost, hasHarmonize } from "./harmonize";
 import { isAdventureCastId } from "./adventure";
 import { castSubjectView, isFaceChoiceCastId } from "./castMode";
 import {
@@ -137,6 +138,9 @@ export function graveyardCastStackFlags(
     if (hasFlashback(card)) {
         return flashbackStackFlags(zone);
     }
+    // CR 702.180a — "If the harmonize cost was paid, exile this card instead
+    // of putting it anywhere else any time it would leave the stack."
+    if (hasHarmonize(card)) return EXILE_ANY_TIME_LEAVES_STACK_FLAGS;
     // CR 702.81a (issue #2358) — a RETRACE cast.
     //
     // THIS BRANCH IS DOCUMENTATION, NOT CONTROL FLOW: it returns exactly the
@@ -484,6 +488,9 @@ export function castRawManaCost(
     // Mountain", no mana portion) — `undefined` here correctly means "no mana
     // to pay", NOT "fall back to the printed cost".
     if (hasFlashback(card)) return getFlashbackCost(card);
+    // CR 702.180a — a harmonize cast pays the harmonize cost; the tapped
+    // creature's reduction joins the total at the commit sites.
+    if (hasHarmonize(card)) return getHarmonizeCost(card);
     // CR 305.1-analog / 601 (issue #1149) — neither Escape nor Flashback: a
     // plain cast under the BROAD graveyard-cast permission (Yawgmoth's Will),
     // the intrinsic "you may cast this from your graveyard" (Hogaak), Lurrus's
@@ -513,6 +520,7 @@ export type ExileCastRoutePrice = "free" | "alternative" | "printed";
 export type GraveyardCastMechanism =
     | "escape"
     | "flashback"
+    | "harmonize"
     | "retrace"
     | "jump-start"
     | "grant"
@@ -564,6 +572,8 @@ export function graveyardCastMechanismForMember(
     if (hasEscape(state, card)) return "escape";
     // CR 702.34 — flashback.
     if (hasFlashback(card)) return "flashback";
+    // CR 702.180 — harmonize.
+    if (hasHarmonize(card)) return "harmonize";
     // CR 702.81 — retrace (its own enumeration loop; listed for completeness).
     if (hasRetrace(state, card)) return "retrace";
     if (card.types.includes("Land")) return undefined;
@@ -601,7 +611,7 @@ export function graveyardCastMechanismForMember(
  *  A GENERIC permission names the card and no characteristic of it — the
  *  per-card grant (Malcolm), a graveyard play permission (Yawgmoth's Will) —
  *  so the back face, evaluated alone, is still covered. Escape, flashback,
- *  retrace and the intrinsic "you may cast this card from your graveyard" are
+ *  harmonize, retrace and the intrinsic "you may cast this card from your graveyard" are
  *  abilities of the FRONT face: the back face does not have them (CR 712.8a
  *  — in the graveyard the card has only its front face's characteristics), so
  *  they license the front face only. */
@@ -611,6 +621,7 @@ const GRAVEYARD_LICENCE_REACHES_BACK_FACE: Record<
 > = {
     escape: false,
     flashback: false,
+    harmonize: false,
     retrace: false,
     "jump-start": false,
     intrinsic: false,
