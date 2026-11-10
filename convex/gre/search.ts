@@ -140,6 +140,7 @@ import {
     applyMayPayTapPlanInSearch,
     applyTapPlanInSearch,
 } from "./searchTapPlan";
+import { applyManaFloatInSearch } from "./ai/doomedManaFloat";
 import { plotInSearch } from "./plot";
 import { foretellInSearch } from "./foretell";
 import { castNeedsSorceryWindow } from "./rules";
@@ -1290,6 +1291,15 @@ export function applyMoveInSearch(
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;
             drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "activate-mana-ability": {
+            // CR 605.3a / 605.3b (issue #8355) — the doomed-source float: the
+            // mana goes to the pool, nothing uses the stack, and priority stays
+            // with the actor (no pass is recorded, as `tapUntap` records none).
+            if (!applyManaFloatInSearch(state, playerId, move)) return;
             checkStateBasedActions(state);
             return;
         }

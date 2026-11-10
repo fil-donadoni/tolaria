@@ -6454,6 +6454,76 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #2903 — a PLAYER-level granted ability (Channel's 'Pay 1 life: Add {C}.' until end of turn, CR 113.1b) is invisible to the enumerator's battlefield/graveyard/opponent scan, which reads only card instances. The bot holds the grant, a Mountain and a Fireball at 2 life against an opponent at 1 with a 2/2 attacker: the only way to cast Fireball for lethal is to spend 1 life through the grant (Fireball {X}{R} is X=0 off the lone Mountain), and passing hands the opponent a lethal swing. The chosen root move must be the grant activation — the enumeration and the search's life/mana application both prove themselves on this entry.",
     },
     // -----------------------------------------------------------------------
+    // Doomed mana source float (issue #8355) — a discriminating pair. City of
+    // Traitors' "when you play another land, sacrifice this land" is on the
+    // stack with City untapped: tapping it in response (CR 605.3a) keeps its
+    // {C}{C} in the pool through the resolution (CR 106.4). Half 1 holds a
+    // spender for that mana (a {2}{G} creature, paid {C}{C} + the new Forest),
+    // half 2 only a {3}{G} one it cannot reach either way.
+    // -----------------------------------------------------------------------
+    {
+        label: "doomed mana float: City of Traitors taps in response to its own sacrifice to fund a three-drop (#8355)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "City of Traitors", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "hand" },
+                {
+                    name: "Sentinel of the Nameless City",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "play-land", card: "Forest" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "activate-mana-ability", card: "City of Traitors" },
+            ],
+        },
+        note: "Half 1 of a discriminating pair. Playing the Forest put City of Traitors' sacrifice trigger on the stack with City untapped. Passing loses City and leaves one mana; tapping City in response floats {C}{C} (CR 605.3a), the mana survives the trigger's resolution inside the main phase (CR 106.4), and with the Forest it pays for Sentinel of the Nameless City. The float is the only line that casts the three-drop this turn.",
+    },
+    {
+        label: "doomed mana float: City of Traitors with no spender lets the sacrifice resolve (#8355)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "City of Traitors", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Giant Spider", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "play-land", card: "Forest" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Half 2 of the discriminating pair above: the same trigger, but the only spell in hand is a {3}{G} creature that {C}{C} plus the Forest cannot pay. Floating would only empty the mana unspent at the end of the phase, so the window offers no float and the Bot passes. Not a declared ADR 0148 `pairOf` half: with no float offered the position is forced (pass only), which the Verdict derivation reads as unconstraining.",
+    },
+    // -----------------------------------------------------------------------
     // Protection-colour choice (issue #2306) — the Bot's colour pick for
     // "protection from the colour of your choice" (`protectionColorModes`,
     // `cards/abilities/index.ts`) read against the opponent's OBSERVED colour

@@ -9,6 +9,7 @@
 //   summon-companion → summonCompanion (CR 116.2 / 702.139a, ADR 0064)
 //   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
+//   activate-mana-ability → tapUntap (the doomed-source float, issue #8355)
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ declareAttackers → confirmAttackers
 //   declare-blockers → declareBlockers → confirmBlockers
@@ -818,6 +819,21 @@ export async function executeMove(
                 },
                 (tap) => mutations.activateManaAbility({ ...base, ...tap })
             );
+            return;
+        }
+
+        case "activate-mana-ability": {
+            // CR 605.3a (issue #8355) — the doomed-source float: the SAME
+            // `tapUntap` a human's click on an untapped land makes with
+            // priority. The mana stays in the pool for a later cast, which
+            // `tapForPayment` / `tapForActivationPayment` draw on at commit.
+            await mutations.tapUntap({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+                ...(move.manaChoiceIndex !== undefined
+                    ? { manaChoiceIndex: move.manaChoiceIndex }
+                    : {}),
+            });
             return;
         }
 

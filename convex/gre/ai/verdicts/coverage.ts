@@ -74,6 +74,7 @@ export const CLASS_OF_MOVE_KIND: Record<Move["kind"], DecisionClass> = {
     "cast-spell": "cast",
     "activate-ability": "activate",
     "activate-granted-ability": "activate",
+    "activate-mana-ability": "activate",
     "declare-attackers": "declare-attackers",
     "declare-blockers": "declare-blockers",
     "submit-target": "targeting",

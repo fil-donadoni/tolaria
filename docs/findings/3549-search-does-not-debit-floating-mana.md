@@ -34,3 +34,10 @@ Roku now enters the tree holding mana. That makes the gap routine rather than
 theoretical, which is the argument FOR a ticket; the argument against is that the
 fix is a plan-shape change on the ISMCTS hot path, for an error that only ever
 makes the bot optimistic about its own line.
+
+**Re-checked for issue #8355 (doomed-source float).** Still holds. The new
+`activate-mana-ability` Move (`gre/ai/doomedManaFloat.ts`) credits its mana to
+the pool in-tree, so inside that narrow window a branch may spend the floated
+mana twice. The window itself does not lean on the gap: its spender check asks
+the real enumerator on the settled position (one cast is the claim, not two),
+and the Move is emitted only when the stack top removes the source.

@@ -666,6 +666,44 @@ function castTargetIds(
     return instanceIdsForName(state, target);
 }
 
+/** The `play-land` step: the one legal play of the named land from the
+ *  seat's hand, applied through the search's own play-land chokepoint. */
+function applyPlayLand(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "play-land" }>
+): void {
+    const seat = step.by ?? "me";
+    const playerId = seatPlayerId(state, seat);
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no "${seat}" seat in the state.`
+        );
+    }
+    const def = getCardByName(step.card); // throws on an unknown name
+    const plays = enumerateMoves(state, playerId).filter(
+        (m): m is Extract<Move, { kind: "play-land" }> =>
+            m.kind === "play-land" &&
+            player.hand.some(
+                (c) =>
+                    c.id === m.cardInstanceId &&
+                    (c.card as { id?: string } | undefined)?.id === def.id
+            )
+    );
+    if (plays.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no legal play of "${step.card}" by "${seat}" — the engine offered none (check priority, timing, or the land drop).`
+        );
+    }
+    moveObserver?.(playerId, plays[0], state);
+    applyMoveInSearch(state, playerId, plays[0]);
+}
+
 /**
  * Cast the named card through the REAL move pipeline (issue #1490, ADR 0070 §4),
  * leaving the spell on the stack unresolved — the RESPONSE position a
@@ -1066,6 +1104,9 @@ function applyBladeSetupSteps(
                 break;
             case "cast":
                 applyCast(state, scenario.label, step);
+                break;
+            case "play-land":
+                applyPlayLand(state, scenario.label, step);
                 break;
             case "discard":
                 applyDiscard(state, step, scenario.label);
