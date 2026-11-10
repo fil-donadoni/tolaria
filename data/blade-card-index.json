@@ -137,6 +137,13 @@
             "needsSetup": true
         }
     ],
+    "City of Traitors": [
+        {
+            "label": "doomed mana float: City of Traitors taps in response to its own sacrifice to fund a three-drop (#8355)",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Containment Priest": [
         {
             "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
