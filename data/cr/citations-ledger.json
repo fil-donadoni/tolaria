@@ -45083,6 +45083,7 @@
         {"id":"109.2","line":"it(\"does not trigger off another permanent entering (CR 109.2 — self scope)\", () => {","sites":1,"status":"baseline"},
         {"id":"603.4","line":"/** CR 603.4 intervening-if; re-evaluated at resolve time by the engine. */","sites":4,"status":"baseline"},
         {"id":"701.26a","line":"// CR 701.26a — the tapped permanent is the source itself.","sites":1,"status":"confirmed","ruleHash":"f36f67020a26e4b1"},
+        {"id":"601.2d","line":"* permanently, or a FORCED un-stack — a divide-as-you-choose (CR 601.2d) or","sites":1,"status":"confirmed","ruleHash":"6f9f37717e4f0594"},
         {"id":"700.2c","line":"// MODE (CR 700.2c) — a modal card's chosen mode drives its targeting","sites":1,"status":"baseline"},
         {"id":"702.19b","line":"(CR 702.19b). Then make `setDamageAssignment` enforce the threshold as a","sites":1,"status":"baseline"},
         {"id":"508.1c","line":"// CR 508.1c / 509.1b — \"can't attack or block\": one restriction per","sites":1,"status":"confirmed","ruleHash":"2a0263833d3afcad"},
