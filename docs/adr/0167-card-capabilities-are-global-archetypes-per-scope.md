@@ -11,10 +11,11 @@ catalogue, admin-edited, scope-free as names and emergent in use).
 Implemented by issue #8890: tables `cardCapabilities` (by `cardId`) and
 `cardArchetypes` (by `scope` + `cardId`), seed files
 `data/card-profiles/capabilities.json` and
-`data/card-profiles/archetypes/<scope>.json`, split from the legacy rows by the
-pure `splitCardProfiles` (`convex/limited/cardProfilesCore.ts`) and the
-`splitLegacyCardProfiles` migration. The recomposed lookup carries one review
-flag per layer; Combo Edges sit in the Capability layer. The Archetype
+`data/card-profiles/archetypes/<scope>.json`, split from the legacy rows by a
+pure split function and a one-shot migration. Issue #8893 ran that migration on
+production (the legacy table held 0 rows there) and dropped the legacy
+`cardProfiles` table, the split and the migration. The recomposed lookup
+carries one review flag per layer; Combo Edges sit in the Capability layer. The Archetype
 Catalogue is implemented by issue #8892: seed `data/archetype-catalogue.json`,
 table `archetypeCatalogue`, pure core `convex/limited/archetypeCatalogueCore.ts`
 (row validation, seed ∪ DB merge, `activeRows`, `colourSignature`).

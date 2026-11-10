@@ -2,7 +2,7 @@
 // #1608). Mirrors `convex/cards/__tests__/mechanicsRegistry.test.ts`'s
 // authority-plus-CI-guard shape: this suite is the single CI authority on
 // Capability names — any `provides`/`requires` string in a checked-in
-// `cardProfiles` seed file that isn't a registry row fails here, and the
+// Card Capabilities seed file that isn't a registry row fails here, and the
 // registry itself is guarded against duplicate ids and an oversized
 // vocabulary (ADR 0072: "the vocabulary must stay small (~15-25 names) to
 // stay meaningful").

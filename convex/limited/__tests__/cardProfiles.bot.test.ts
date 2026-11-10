@@ -11,15 +11,12 @@ import {
     EMPTY_PROFILE_LAYERS,
     getCardArchetypeFile,
     getSeedCardArchetypes,
-    getSeedCardCapabilities,
     isCardProfileReviewed,
     resolveEventCardProfile,
-    splitCardProfiles,
     validateCardArchetypeFile,
     validateCardCapabilityFile,
     type CardArchetypes,
     type CardCapabilities,
-    type LegacyCardProfileRow,
     type ProfileLayers,
 } from "../cardProfilesCore";
 
@@ -236,123 +233,6 @@ describe("buildDbProfileLayers: rows -> ProfileLayers fold", () => {
         expect(db.getArchetypes("VINTAGE-CUBE", "b")?.archetypes).toEqual([
             "control",
         ]);
-    });
-});
-
-describe("splitCardProfiles (issue #8890): one legacy row -> at most one row per layer", () => {
-    function legacy(
-        overrides: Partial<LegacyCardProfileRow> & { cardId: string }
-    ): LegacyCardProfileRow {
-        return {
-            scope: "vintage-cube",
-            archetypes: [],
-            provides: [],
-            requires: [],
-            reviewed: false,
-            ...overrides,
-        };
-    }
-
-    const rows: LegacyCardProfileRow[] = [
-        // both layers, reviewed
-        legacy({
-            cardId: "both",
-            archetypes: ["reanimator"],
-            requires: ["reanimatable"],
-            comboEdges: [{ cardId: "partner", weight: 2 }],
-            reviewed: true,
-        }),
-        // archetypes only, unreviewed
-        legacy({ cardId: "arch-only", archetypes: ["aggro"] }),
-        // capabilities only, unreviewed
-        legacy({ cardId: "caps-only", provides: ["self-mills"] }),
-        // archetypes only, but REVIEWED: the empty capability half is a
-        // human's "nothing here" and survives
-        legacy({
-            cardId: "reviewed-arch",
-            archetypes: ["control"],
-            reviewed: true,
-        }),
-        // censused, found nothing: a verdict on both halves
-        legacy({ cardId: "empty" }),
-        // the same card in a second scope, archetypes differ
-        legacy({ scope: "LEA", cardId: "both", archetypes: ["aggro"] }),
-    ];
-    const split = splitCardProfiles(rows);
-    const capsOf = (cardId: string) =>
-        split.capabilities.filter((row) => row.cardId === cardId);
-    const archOf = (cardId: string) =>
-        split.archetypes.filter((row) => row.cardId === cardId);
-
-    it("no Archetype row is lost: every legacy row with archetype data keeps its (scope, cardId)", () => {
-        expect(archOf("both").map((r) => [r.scope, r.archetypes])).toEqual([
-            ["vintage-cube", ["reanimator"]],
-            ["lea", ["aggro"]],
-        ]);
-        expect(archOf("arch-only")).toHaveLength(1);
-    });
-
-    it("a card with only one layer's data yields only that layer's row", () => {
-        expect(archOf("caps-only")).toEqual([]);
-        expect(capsOf("caps-only")).toHaveLength(1);
-        expect(capsOf("arch-only")).toEqual([]);
-        expect(archOf("arch-only")).toHaveLength(1);
-    });
-
-    it("review state is kept per layer", () => {
-        expect(archOf("both")[0].reviewed).toBe(true);
-        expect(archOf("both")[1].reviewed).toBe(false);
-        expect(capsOf("both")[0].reviewed).toBe(true);
-        expect(capsOf("caps-only")[0].reviewed).toBe(false);
-        expect(archOf("arch-only")[0].reviewed).toBe(false);
-    });
-
-    it("a reviewed empty layer survives; a censused-empty row keeps both halves", () => {
-        expect(capsOf("reviewed-arch")).toEqual([
-            {
-                cardId: "reviewed-arch",
-                provides: [],
-                requires: [],
-                reviewed: true,
-            },
-        ]);
-        expect(capsOf("empty")).toHaveLength(1);
-        expect(archOf("empty")).toHaveLength(1);
-    });
-
-    it("Capabilities collapse to one row per card; the reviewed candidate wins and comboEdges travel with it", () => {
-        expect(capsOf("both")).toEqual([
-            {
-                cardId: "both",
-                provides: [],
-                requires: ["reanimatable"],
-                comboEdges: [{ cardId: "partner", weight: 2 }],
-                reviewed: true,
-            },
-        ]);
-    });
-
-    it("disagreeing Capability candidates are reported, agreeing ones are not", () => {
-        const conflicting = splitCardProfiles([
-            legacy({ cardId: "x", provides: ["self-mills"] }),
-            legacy({ scope: "lea", cardId: "x", provides: ["discard-outlet"] }),
-            legacy({ cardId: "y", provides: ["self-mills"] }),
-            legacy({ scope: "lea", cardId: "y", provides: ["self-mills"] }),
-        ]);
-        expect(conflicting.capabilityConflicts).toEqual(["x"]);
-        // unreviewed tie: the lowest scope string wins, never input order
-        expect(
-            conflicting.capabilities.find((row) => row.cardId === "x")!.provides
-        ).toEqual(["discard-outlet"]);
-    });
-
-    it("the checked-in seed is the split of the old census: every cube archetype row carries its scope file", () => {
-        // Spot-check the real seed shape the split produced.
-        const file = getCardArchetypeFile("vintage-cube")!;
-        expect(file.scope).toBe("vintage-cube");
-        const [cardId] = Object.keys(file.archetypes);
-        expect(getSeedCardArchetypes("lea", cardId)).toBeNull();
-        expect(getSeedCardCapabilities("not-a-real-card")).toBeNull();
     });
 });
 

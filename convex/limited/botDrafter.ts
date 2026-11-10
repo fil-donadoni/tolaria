@@ -158,7 +158,7 @@
 import type { Color, Rarity } from "../cards/types";
 import { cardValueById } from "../gre/cardValue";
 // TYPE-ONLY (erased at compile): the Card Profile seam is injected as a
-// closure, so this module never touches the `cardProfiles` table, its Convex
+// closure, so this module never touches the Card Profile tables, their Convex
 // query shell, or the card registry behind it — the same discipline
 // `GetCardEvalMeta`/`GetPickRating` already follow.
 import { capabilitySatisfiedBy } from "./capabilityRegistry";

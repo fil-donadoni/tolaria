@@ -143,7 +143,8 @@ export interface DraftLabState {
      *  round of one session MUST slice the same shuffle, so the pool is
      *  carried in the state rather than re-derived per `stepDraftLab` call. */
     cubePool?: readonly string[];
-    /** SNAPSHOT of the `cardProfiles` DB rows this session scores with (ADR
+    /** SNAPSHOT of the Card Profile DB rows (`cardCapabilities` +
+     *  `cardArchetypes`) this session scores with (ADR
      *  0072, issue #1611) — taken ONCE, at `initDraftLab`, and never read
      *  from a live query again for the rest of the run.
      *
