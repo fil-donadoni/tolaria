@@ -23,12 +23,12 @@
     },
     "large (49 moves)": {
         "iterationsCompleted": 100,
-        "clones": 1187,
+        "clones": 1199,
         "enumerations": 483,
-        "evaluations": 824,
-        "sbaSweeps": 3677,
-        "ptWalkVisits": 35858,
-        "censuses": 2429,
+        "evaluations": 836,
+        "sbaSweeps": 3695,
+        "ptWalkVisits": 36068,
+        "censuses": 2453,
         "rngDraws": 0,
         "searchDraws": 6880
     }
