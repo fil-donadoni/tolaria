@@ -46,16 +46,48 @@
 // registry and its guard ONLY — no `cardProfiles` row references any of
 // these names yet (zero behaviour change, issue #1608's acceptance).
 
+/** The clusters a row is filed under, in the order a reader walks them (the
+ *  Admin editor, the Profile Census prompt, the Draft Lab). A cluster is
+ *  presentation: it groups rows by the enabler family they serve and never
+ *  enters matching. */
+export const CAPABILITY_CLUSTERS = [
+    "Reanimator / graveyard",
+    "Cheat into play",
+    "Artifacts",
+] as const;
+
+export type CapabilityCluster = (typeof CAPABILITY_CLUSTERS)[number];
+
+/** A row's two one-line halves — the compact form of `description`, one per
+ *  side of the match, for the surfaces with room for a line, not a
+ *  paragraph. */
+export interface CapabilityGloss {
+    provides: string;
+    requires: string;
+}
+
+/** One real card on each side of the row, by printed name. `provider` is
+ *  `null` exactly on a derived row (`CapabilityRow.bound`): no card provides
+ *  one by hand, its base capability within the ceiling does. */
+export interface CapabilityExample {
+    provider: string | null;
+    requirer: string;
+}
+
 /** One row of the closed Capability vocabulary. `id` is the exact string a
  *  `cardProfiles` row's `provides`/`requires` array carries (kebab-case,
  *  matching this repo's other closed-vocabulary ids —
  *  `MechanicRow.id`/`EffectOpRow.op` discipline). `description` is the
  *  PRECISE meaning of providing vs. requiring it — this is what makes a
  *  later census repeatable (ADR 0072), so every row spells out both
- *  directions rather than a one-line gloss. */
+ *  directions in full; `gloss` is the one-line form beside it, never a
+ *  substitute for it. */
 export interface CapabilityRow {
     id: string;
     description: string;
+    gloss: CapabilityGloss;
+    cluster: CapabilityCluster;
+    example: CapabilityExample;
     /** Present on a MANA-VALUE-BOUNDED requirement (issue #1677): the row is
      *  a REQUIRES-side refinement of the `capability` row, satisfied by a
      *  card that provides `capability` AND has mana value <= `maxManaValue`
@@ -66,36 +98,73 @@ export interface CapabilityRow {
     bound?: { capability: string; maxManaValue: number };
 }
 
-/** The closed Capability vocabulary (ADR 0072). Grouped by the enabler
- *  family each row serves — the grouping is documentation only, not part of
- *  the data shape; `CAPABILITY_REGISTRY` stays a flat array so a lookup
- *  never needs to know which group a name lives in. */
+/** The closed Capability vocabulary (ADR 0072). Each row names its
+ *  `cluster`; `CAPABILITY_REGISTRY` stays a flat array so a lookup never
+ *  needs to know which cluster a name lives in. */
 export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     // ── Reanimator / graveyard cluster ──────────────────────────────────
     {
         id: "reanimatable",
+        cluster: "Reanimator / graveyard",
+        gloss: {
+            provides:
+                "A body worth cheating out of the graveyard, that actually STAYS there.",
+            requires:
+                "A graveyard-to-battlefield effect needs this from its target.",
+        },
+        example: { provider: "Griselbrand", requirer: "Animate Dead" },
         description:
             "PROVIDES: a creature/permanent that is disproportionately powerful put onto the battlefield directly from a graveyard, and that will actually still BE in the graveyard when a reanimation effect looks for it — no ability that removes it from the graveyard on its own (e.g. shuffling itself into its library on death, the reason Worldspine Wurm does not provide this). REQUIRES: a graveyard-to-battlefield effect (Animate Dead, Reanimate) requires this from its target; a target lacking it scores nothing from the effect regardless of shared archetype.",
     },
     {
         id: "reanimatable-mv-2",
+        cluster: "Reanimator / graveyard",
+        gloss: {
+            provides:
+                "Never set by hand: a `reanimatable` card with mana value ≤ 2 satisfies it.",
+            requires: "A reanimation effect capped at mana value 2.",
+        },
+        example: { provider: null, requirer: "Lorehold Charm" },
         bound: { capability: "reanimatable", maxManaValue: 2 },
         description:
             "PROVIDES: nothing directly — a card providing `reanimatable` satisfies this row exactly when its mana value is 2 or less (see `reanimatable` for the provider side). REQUIRES: a graveyard-to-battlefield effect with a mana-value ceiling of 2 (a charm returning a permanent with mana value 2 or less) requires this from its target instead of `reanimatable`: a big reanimation target above the ceiling can never be returned, so that pair scores nothing.",
     },
     {
         id: "reanimatable-mv-3",
+        cluster: "Reanimator / graveyard",
+        gloss: {
+            provides:
+                "Never set by hand: a `reanimatable` card with mana value ≤ 3 satisfies it.",
+            requires: "A reanimation effect capped at mana value 3.",
+        },
+        example: { provider: null, requirer: "Unearth" },
         bound: { capability: "reanimatable", maxManaValue: 3 },
         description:
             "PROVIDES: nothing directly — a card providing `reanimatable` satisfies this row exactly when its mana value is 3 or less (see `reanimatable` for the provider side). REQUIRES: a graveyard-to-battlefield effect with a mana-value ceiling of 3 (returns a permanent with mana value 3 or less) requires this from its target instead of `reanimatable`: a big reanimation target above the ceiling can never be returned, so that pair scores nothing.",
     },
     {
         id: "self-mills",
+        cluster: "Reanimator / graveyard",
+        gloss: {
+            provides:
+                "Puts cards from the top of a library into a graveyard, unchosen.",
+            requires:
+                "A cost or effect that scales with graveyard size names this directly.",
+        },
+        example: { provider: "Hermit Druid", requirer: "Abhorrent Oculus" },
         description:
             "PROVIDES: puts one or more cards from the top of a library into a graveyard (its own or a target player's) without choosing which cards — mill, self-mill, or a fetch land's crack-back — the RANDOM graveyard-fueling enabler for reanimator strategies. REQUIRES: a card whose own cost or effect scales with graveyard size (delve, threshold, flashback, escape) declares this directly in ITS OWN `requires` array — there is no separate 'graveyard-scaling' capability name; the requiring card names its enabler(s) directly (this row, and/or `discard-outlet` below).",
     },
     {
         id: "discard-outlet",
+        cluster: "Reanimator / graveyard",
+        gloss: {
+            provides:
+                "Puts a CHOSEN card from hand into the graveyard on demand.",
+            requires:
+                "A graveyard-scaling card names this directly as its enabler.",
+        },
+        example: { provider: "Faithless Looting", requirer: "Treasure Cruise" },
         description:
             "PROVIDES: lets its controller (or another player) put a SPECIFIC, chosen card from hand into a graveyard on demand (looting, discard-for-effect, cycling) — the reliable enabler that gets a KNOWN reanimation/flashback target into the graveyard on purpose, distinct from self-mills' random top-of-library dump. REQUIRES: same discipline as `self-mills` — a graveyard-scaling card requires this directly, by name, in its own `requires` array.",
     },
@@ -103,21 +172,54 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     // ── Cheat-into-play cluster (ADR 0072's motivating example) ─────────
     {
         id: "value-on-etb",
+        cluster: "Cheat into play",
+        gloss: {
+            provides:
+                "An enters trigger that pays even if the permanent leaves at once.",
+            requires:
+                "A one-shot cheat (Sneak Attack) needs this from its target.",
+        },
+        example: { provider: "Craterhoof Behemoth", requirer: "Sneak Attack" },
         description:
             "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.cards.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this.",
     },
     {
         id: "value-on-attack",
+        cluster: "Cheat into play",
+        gloss: {
+            provides:
+                "An attack trigger that pays the instant it attacks (Annihilator).",
+            requires: "A one-combat cheat needs this from its target.",
+        },
+        example: {
+            provider: "Emrakul, the Aeons Torn",
+            requirer: "Sneak Attack",
+        },
         description:
             "PROVIDES: an attack trigger or attack-scaling effect that pays off the instant the permanent attacks, independent of whether it survives past that combat (token creation, direct damage, a forced-sacrifice trigger) — Emrakul, the Aeons Torn's Annihilator 6 (CR 702.86, 'Whenever this creature attacks, defending player sacrifices six permanents'; shipped in roe/colorless.ts) is the canonical case, ADR 0072's own worked example ('a fine reanimation and Sneak Attack target') — even a one-combat cheat gets full value from it. REQUIRES: a one-combat cheat effect (Sneak Attack — sacrifices its target at the beginning of the next end step, AFTER one attack) requires this from its target; Griselbrand does NOT provide it — its only ability is 'Pay 7 life: Draw seven cards' (avr/black.ts), an activated ability usable any time, not gated on attacking — so the pair scores nothing despite Griselbrand being a fine reanimation target on its own stats. (Worldspine Wurm's payoff fires on DEATH, not attack — see `value-on-death`.)",
     },
     {
         id: "value-on-death",
+        cluster: "Cheat into play",
+        gloss: {
+            provides: "A death trigger that pays however it died.",
+            requires:
+                "An effect that sacrifices or trades permanents profitably.",
+        },
+        example: { provider: "Worldspine Wurm", requirer: "Flash" },
         description:
             "PROVIDES: a death trigger, or an effect elsewhere keyed off this permanent dying / being put into a graveyard from the battlefield, that pays off regardless of the cause of death (draws cards, creates tokens, deals damage) — the Worldspine Wurm shape (ADR 0072's Flash pairing): 'When this creature dies, create three 5/5 green Wurm creature tokens with trample' (rtr/green.cards.ts) fires no matter how it died, making it an excellent Flash target — even though it ALSO shuffles itself out of the graveyard afterward, so it does NOT provide `reanimatable` (see that row). REQUIRES: an effect that wants to sacrifice or trade away permanents profitably requires this from its fodder.",
     },
     {
         id: "value-on-cast",
+        cluster: "Cheat into play",
+        gloss: {
+            provides:
+                "Pays on CAST, countered or not: cast triggers, cascade, cantrips.",
+            requires:
+                "Storm payoffs and cast-trigger creatures need this from the spells feeding them.",
+        },
+        example: { provider: "Gitaxian Probe", requirer: "Tendrils of Agony" },
         description:
             "PROVIDES: a spell whose payoff is realized the moment it is CAST, independent of whether it resolves, is countered, or sticks around (a cast trigger, cascade, a storm-count contribution, a cantrip that replaces itself on resolution). REQUIRES: an effect that cares about spells being cast rather than resolved permanents (storm payoffs, cascade, a cast-trigger creature) requires this from the spells feeding it.",
     },
@@ -125,6 +227,14 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     // ── Artifacts cluster ────────────────────────────────────────────────
     {
         id: "cheap-artifact",
+        cluster: "Artifacts",
+        gloss: {
+            provides:
+                "A low-cost artifact whose value is filling the artifact count.",
+            requires:
+                "An artifact-count / Metalcraft payoff names this directly.",
+        },
+        example: { provider: "Mox Pearl", requirer: "Tolarian Academy" },
         description:
             "PROVIDES: a low mana-value artifact whose primary draft value is filling the artifact-count column for an artifact-count payoff (Moxen, Signets, cantrip artifacts) rather than its standalone rate. REQUIRES: an artifact-count/Metalcraft payoff card (its cost or effect scales with artifacts controlled) declares this directly, by name, in ITS OWN `requires` array — there is no separate 'artifact-payoff' capability name, matching the `self-mills`/`discard-outlet` discipline above.",
     },
@@ -144,6 +254,15 @@ const CAPABILITY_IDS: ReadonlySet<string> = new Set(
  *  `scope`, which IS user-facing/data-driven and normalizes to lowercase). */
 export function isRegisteredCapability(name: string): boolean {
     return CAPABILITY_IDS.has(name);
+}
+
+/** True iff `name` is a derived row — a mana-value-bounded refinement no
+ *  card provides by hand (`CapabilityRow.bound`), so the editor can show it
+ *  read-only on the providing side. */
+export function isDerivedCapability(name: string): boolean {
+    return (
+        CAPABILITY_REGISTRY.find((row) => row.id === name)?.bound !== undefined
+    );
 }
 
 /** True iff a card with `providerCapabilities` and mana value
