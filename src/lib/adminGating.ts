@@ -82,3 +82,20 @@ export function canUseDebugSheet(
 ): boolean {
     return user?.isTester === true || user?.isAdmin === true;
 }
+
+/**
+ * Whether the card preview renders the Engine view slot — the DSL/protocol
+ * badge, the Effect Script tree and its "Report a problem" draft (issue
+ * #7430). A developer instrument: for a player it is noise under the Oracle
+ * text and exposes implementation detail, so only admins see it. Fails CLOSED
+ * while the current-user query is in flight (`undefined`). The in-game bug
+ * report button (issue #3419) is a separate surface and stays for everyone.
+ *
+ * Cosmetic: the tree is derived client-side from public card definitions, so
+ * nothing secret is hidden; this only decides whether the slot renders.
+ */
+export function canViewEngineView(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isAdmin === true;
+}
