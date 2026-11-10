@@ -129,7 +129,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 33_135,
-    "next-ticket": 12_041, // +120 B: the §4 opus-reviewer row and `review-brief.md` pointer (issue #7659); +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
+    "next-ticket": 12_148, // +107 B: the draft:audit receipt cue (issue #8895); +120 B: the §4 opus-reviewer row and `review-brief.md` pointer (issue #7659); +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
     "profile-census": 8_179,
     prototype: 2_931,
     retro: 4_760,
