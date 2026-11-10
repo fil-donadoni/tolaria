@@ -3,20 +3,27 @@ import { Button } from "@/components/ui/button";
 
 type ActionButtonTone = "primary" | "secondary" | "destructive" | "ghost";
 
+/** The visible keyboard hint — presentation only. It is `aria-hidden` by its
+ *  wrapper below, so it never joins the button's accessible name (issue
+ *  #9088: a text hint made Pass Turn read "Pass Turn [P]"); the shortcut
+ *  reaches assistive tech through the button's `aria-keyshortcuts`. */
 function ShortcutHint({ shortcut }: { shortcut: string }) {
     const key = shortcut.toLowerCase();
     if (key === "space") {
-        return <Space className="w-3.5 h-3.5 opacity-70" aria-label="Space" />;
+        return <Space className="w-3.5 h-3.5 opacity-70" />;
     }
     if (key === "enter") {
-        return (
-            <CornerDownLeft
-                className="w-3.5 h-3.5 opacity-70"
-                aria-label="Enter"
-            />
-        );
+        return <CornerDownLeft className="w-3.5 h-3.5 opacity-70" />;
     }
     return <span className="text-xs opacity-70">[{shortcut}]</span>;
+}
+
+/** `aria-keyshortcuts` value for a shortcut name (WAI-ARIA 1.2 § 6.7). */
+function ariaKeyShortcut(shortcut: string): string {
+    const key = shortcut.toLowerCase();
+    if (key === "space") return "Space";
+    if (key === "enter") return "Enter";
+    return shortcut;
 }
 
 /** Board action button — thin domain wrapper over the unified ui/Button
@@ -44,6 +51,7 @@ export default function ActionButton({
             variant={tone}
             disabled={disabled}
             onClick={onClick}
+            aria-keyshortcuts={shortcut ? ariaKeyShortcut(shortcut) : undefined}
             className="px-5 py-2 text-sm"
         >
             <span className="inline-flex items-center gap-2">
