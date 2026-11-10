@@ -711,7 +711,8 @@ export type EffectSentenceIR =
            * CR 106.1a + CR 107.3 — "Add X mana of any one color, where X is
            * …" (Carpet of Flowers): this many mana, all of ONE colour the
            * controller picks as the effect resolves. `mana` is then empty: the
-           * colour is not printed, so there is no pip to tally.
+           * colour is not printed, so there is no pip to tally. "Add one mana
+           * of any color" (Quirion Sentinel) is the `fixed` 1 of the same read.
            */
           readonly anyOneColor?: AmountIR;
       }
@@ -5778,6 +5779,11 @@ const ADD_MANA_FOR_EACH = /^Add ((?:\{[WUBRGC]\})+) (for each .+)$/;
 /** CR 106.1a + CR 107.3 — "Add X mana of any one color": X is the "where X
  *  is …" tail's, bound by `bindWhereX`; a bare X stays unbound and refused. */
 const ADD_X_MANA_OF_ANY_ONE_COLOR = /^Add X mana of any one color$/;
+/** CR 106.1a — "Add one mana of any color" (Quirion Sentinel): ONE mana of a
+ *  colour the controller picks as the effect resolves, i.e. the single-mana
+ *  case of "any one color". Exact span: "two mana of any color", "one mana of
+ *  any color that …" and "…in any combination of colors" are other reads. */
+const ADD_ONE_MANA_OF_ANY_COLOR = /^Add one mana of any color$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
 const ADD_MANA_INSTEAD_IF_COUNT =
     /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
@@ -8406,6 +8412,12 @@ function effectSentence(
             kind: "add-mana" as const,
             mana: {},
             anyOneColor: { kind: "x" as const },
+        });
+    if (ADD_ONE_MANA_OF_ANY_COLOR.test(span))
+        return ok({
+            kind: "add-mana" as const,
+            mana: {},
+            anyOneColor: { kind: "fixed" as const, value: 1 },
         });
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
