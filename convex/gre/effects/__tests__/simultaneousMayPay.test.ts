@@ -2,7 +2,8 @@
 // "unless they pay" body: every player's payment decision in APNAP order,
 // then all the damage together (Lim-Dûl's Hex).
 import { describe, it, expect } from "vitest";
-import type { EffectOp, GameState } from "../../../cards/types";
+import type { EffectOp } from "../../../cards/types";
+import type { GameState } from "../../state";
 import { getDefinition } from "../../../cards/index";
 import {
     makeInstance,
