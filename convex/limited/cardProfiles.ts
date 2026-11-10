@@ -287,6 +287,7 @@ export const listScopeCardProfilesForEditor = query({
         v.object({
             cardId: v.string(),
             name: v.string(),
+            colours: v.array(v.string()),
             dbProfile: v.union(editorCardProfileValidator, v.null()),
             seedProfile: v.union(editorCardProfileValidator, v.null()),
         })

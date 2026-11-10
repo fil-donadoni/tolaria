@@ -1,3 +1,4 @@
+import { Checkbox } from "~/components/ui/checkbox";
 import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
 
 interface CardProfileArchetypePickerProps {
@@ -68,23 +69,20 @@ export default function CardProfileArchetypePicker({
 
     return (
         <fieldset className="flex flex-col gap-1">
-            <legend className="text-[11px] font-medium text-text-muted">
-                {legend}
-            </legend>
+            <legend className="text-label">{legend}</legend>
             {unregistered.length > 0 && (
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                     {unregistered.map((entry) => (
                         <label
                             key={entry}
                             title={`"${entry}" is not a row of the Archetype Catalogue — it predates the closed vocabulary. Untick it to make this profile saveable.`}
-                            className="flex items-center gap-1 rounded-sm bg-danger-strong/20 px-1 text-[11px] text-danger-strong"
+                            className="flex items-center gap-1 rounded-sm bg-danger-strong/20 px-1 text-xs text-danger-strong"
                         >
-                            <input
-                                type="checkbox"
+                            <Checkbox
                                 checked
                                 disabled={disabled}
                                 aria-label={`Unregistered archetype ${entry} for ${cardName}`}
-                                onChange={() => toggle(entry)}
+                                onCheckedChange={() => toggle(entry)}
                             />
                             {entry} (unregistered)
                         </label>
@@ -96,14 +94,13 @@ export default function CardProfileArchetypePicker({
                     <label
                         key={row.id}
                         title={row.description}
-                        className="flex items-center gap-1 text-[11px] text-text"
+                        className="flex items-center gap-1 text-xs text-text"
                     >
-                        <input
-                            type="checkbox"
+                        <Checkbox
                             checked={value.includes(row.id)}
                             disabled={disabled}
                             aria-label={`Archetype ${row.id} for ${cardName}`}
-                            onChange={() => toggle(row.id)}
+                            onCheckedChange={() => toggle(row.id)}
                         />
                         {row.id}
                     </label>

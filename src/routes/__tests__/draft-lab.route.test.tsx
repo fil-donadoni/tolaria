@@ -17,7 +17,7 @@
 //     the gate's admin branch — inline it back into the route and `useDraftLab`
 //     would run for everyone, firing a query the server now rejects. This test
 //     is what fails if someone does. (Mirrors
-//     `card-profile-admin-panel.test.tsx`'s "never even CONSTRUCTS" case.)
+//     `card-profiles-admin-panel.test.tsx`'s "never even CONSTRUCTS" case.)
 //
 // convex/react is mocked so the gate is exercised with no live backend.
 import { describe, it, expect, vi, beforeEach } from "vitest";

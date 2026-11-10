@@ -344,6 +344,15 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
         expect(row.seedProfile!.reviewed).toBe(false);
     });
 
+    it("the editor row carries the card's colour identity for the rail's colour bar (issue #8903)", () => {
+        const [row] = buildScopeCardProfiles(
+            CUBE_SOURCE_KEY,
+            [{ cardId: cardId("Griselbrand"), name: "Griselbrand" }],
+            EMPTY_PROFILE_LAYERS
+        );
+        expect(row.colours).toEqual(["B"]);
+    });
+
     it("a ONE-layer override shows the other layer from the seed, never blank", () => {
         const id = cardId("Griselbrand");
         const [row] = buildScopeCardProfiles(

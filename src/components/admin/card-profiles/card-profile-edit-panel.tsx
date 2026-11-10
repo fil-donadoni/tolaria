@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
 import type {
     EditableCardProfile,
@@ -159,13 +160,12 @@ export default function CardProfileEditPanel({
                 disabled={pending}
             />
             <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-1 text-[11px] text-text">
-                    <input
-                        type="checkbox"
+                <label className="flex items-center gap-1 text-xs text-text">
+                    <Checkbox
                         checked={reviewed}
                         disabled={pending}
                         aria-label={`Reviewed for ${card.name}`}
-                        onChange={(e) => setReviewed(e.currentTarget.checked)}
+                        onCheckedChange={setReviewed}
                     />
                     Reviewed (full weight)
                 </label>
@@ -196,13 +196,11 @@ export default function CardProfileEditPanel({
                 >
                     Clear
                 </Button>
-                <span className="text-[10px] text-text-muted">
+                <span className="text-xs text-text-muted">
                     ⌘/Ctrl+Enter marks reviewed and opens the next card
                 </span>
                 {error && (
-                    <span className="text-[11px] text-danger-strong">
-                        {error}
-                    </span>
+                    <span className="text-xs text-danger-strong">{error}</span>
                 )}
             </div>
         </div>
