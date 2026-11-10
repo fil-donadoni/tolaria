@@ -150,6 +150,10 @@ import {
     LAND_SUBTYPES,
 } from "../../oracle/grammar/shared/subtypes";
 import { attachmentsLast } from "../umbraArmor";
+import {
+    isSimultaneousPlayerMayPayBody,
+    mayPayBodyPhase,
+} from "./simultaneousPlayers";
 
 /** CR 205.3m (issue #3721) — the creature-type table as an `option-pick`
  *  option list, built ONCE at module load (it is a ~280-entry constant, and
@@ -8816,24 +8820,20 @@ function scopedContext(
             ctx.recallChoice(scope(choiceId)) ?? ctx.recallChoice(choiceId),
         requestChoice: (req) =>
             ctx.requestChoice({ ...req, choiceId: scope(req.choiceId) }),
-        // CR 107.3f (issue #1701) — the numeric nomination is scoped for the
-        // same reason `requestChoice` is: its stored answer is keyed by
-        // `choiceId`, and inside a `forEach` body every iteration asks the
-        // SAME author binding name. Unscoped, the enqueue still prompts once
-        // per iteration (the key folds `resolutionStep`, which is the Op's
-        // per-iteration position), but the READ falls back to the unscoped
-        // name and `recallChoice` returns the FIRST key whose suffix matches —
-        // so iteration 2 pays its own amount and then reads iteration 1's.
-        // Measured on a players-set forEach before this line existed: p1
-        // nominates 3 and p2 nominates 1, and p2 gains 3.
-        //
-        // `requestMayPay` is NOT scoped here and carries the identical defect
-        // for its boolean binding, on ~10 shipped card sites. That is a
-        // pre-existing bug with its own blast radius, not this Op's to change
-        // under an unrelated issue — drafted in
-        // `docs/findings/1701-maypay-binding-unscoped-inside-foreach.md`.
+        // CR 107.3f / CR 117.3a — the numeric nomination and the may-pay
+        // boolean are scoped for the same reason `requestChoice` is: each
+        // stored answer is keyed by `choiceId`, and inside a `forEach` body
+        // every iteration asks the SAME author binding name. Unscoped, the
+        // enqueue still prompts once per iteration (the key folds
+        // `resolutionStep`, the Op's per-iteration position), but the READ
+        // falls back to the unscoped name and `recallChoice` returns the FIRST
+        // key whose suffix matches — so iteration 2 answers for itself and
+        // then reads iteration 1's answer (p2 declines a may-pay and is
+        // treated as having paid).
         requestNumberChoice: (req) =>
             ctx.requestNumberChoice({ ...req, choiceId: scope(req.choiceId) }),
+        requestMayPay: (req) =>
+            ctx.requestMayPay({ ...req, choiceId: scope(req.choiceId) }),
     };
 }
 
@@ -9070,22 +9070,30 @@ function execForEach(
     // intact (positions stay monotonic and stable across a re-walk, so a
     // suspension in pass 1 resumes at exactly its own member's choice, and
     // every already-completed Op is skipped by the same `cursor.resume` rule).
-    // The validator constrains the body to `[choice, sacrifice|discard]`, so
-    // pass 2 holds no suspending Op and cannot interleave a prompt back into
-    // the applied half.
+    // The validator constrains the body to `[choice, sacrifice|discard]` or a
+    // may-pay-or-damage tree, so pass 2 holds no suspending Op and cannot
+    // interleave a prompt back into the applied half.
     if (op.select.set === "players" && op.simultaneous) {
         // The validator admits two bodies: `[choice, sacrifice|discard]`
         // (the halves are already two Ops) and a lone `chooseCategorized`
         // with a sweep (issue #3712), which is BOTH halves in one Op — run it
         // once per pass, in its "choose" then its "apply" phase.
+        // The third, a may-pay-or-damage tree (CR 101.4 "unless they pay"),
+        // is split by leaf kind: the decide phase keeps its `mayPay`s, the
+        // act phase its `dealDamage`s, both under the same binding-only `if`s.
         const categorized =
             op.effects.length === 1 && op.effects[0].op === "chooseCategorized";
+        const mayPayBody = isSimultaneousPlayerMayPayBody(op.effects);
         const choiceOps = categorized
             ? [withCategorizedPhase(op.effects[0], "choose")]
-            : op.effects.slice(0, 1);
+            : mayPayBody
+              ? mayPayBodyPhase(op.effects, "decide")
+              : op.effects.slice(0, 1);
         const applyOps = categorized
             ? [withCategorizedPhase(op.effects[0], "apply")]
-            : op.effects.slice(1);
+            : mayPayBody
+              ? mayPayBodyPhase(op.effects, "act")
+              : op.effects.slice(1);
         // Pass 1 — every player's decision, APNAP order (CR 101.4), nothing
         // applied yet.
         for (let k = 0; k < members.length; k++) {

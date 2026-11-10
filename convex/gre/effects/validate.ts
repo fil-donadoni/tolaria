@@ -55,6 +55,7 @@ import {
 import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
 import type { BindingFieldName } from "./bindingFields";
 import { isManaAbilityEffectOp } from "./manaAbilityEffectOps";
+import { isSimultaneousPlayerMayPayBody } from "./simultaneousPlayers";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -4056,6 +4057,10 @@ function isSimultaneousExileReturnBody(effects: unknown): boolean {
  *  would fix the choice half and still fire N separate entry events. */
 function isSimultaneousPlayerChoiceBody(effects: unknown): boolean {
     if (isSimultaneousCategorizedSweepBody(effects)) return true;
+    // CR 101.4 — the per-player "unless they pay" arm (may-pays, then damage,
+    // under binding-only `if`s); its shape and safety argument live beside
+    // the phase split the interpreter re-sequences by (`simultaneousPlayers.ts`).
+    if (isSimultaneousPlayerMayPayBody(effects)) return true;
     if (!Array.isArray(effects) || effects.length !== 2) return false;
     const choice = effects[0] as Record<string, unknown>;
     const apply = effects[1] as Record<string, unknown>;
@@ -7089,8 +7094,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             //   exiledWithSource (CR 607.2a) — the same batch from exile.
             //   players   (CR 101.4) — `[choice, sacrifice |
             //     discard]`, re-sequenced by the interpreter into
-            //     every-choice-then-every-action; or a lone
-            //     `chooseCategorized` with a `sweep`, split the same way.
+            //     every-choice-then-every-action; a lone
+            //     `chooseCategorized` with a `sweep`, split the same way;
+            //     or a may-pay-then-damage tree ("unless they pay").
             const select = entry.select as { set?: unknown } | undefined;
             // CR 607.2a — the linked pile returns as ONE instruction; the
             // per-member walk has no exile-card carrier, so it is refused.
@@ -7119,7 +7125,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 } else if (set === "players") {
                     if (!isSimultaneousPlayerChoiceBody(entry.effects)) {
                         errors.push(
-                            'field "simultaneous" over { set: "players" } requires "effects" to be exactly [{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …: { ref: "$b" } }] or [{ op: "chooseCategorized", …, sweep }] — the CR 101.4 choices-then-actions shapes the interpreter re-sequences'
+                            'field "simultaneous" over { set: "players" } requires "effects" to be exactly [{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …: { ref: "$b" } }], [{ op: "chooseCategorized", …, sweep }] or a tree of binding-predicate "if"s over { op: "mayPay", player: { ref: "$each" } } then { op: "dealDamage", to: { player: { ref: "$each" } } } leaves — the CR 101.4 choices-then-actions shapes the interpreter re-sequences'
                         );
                     }
                 } else {
