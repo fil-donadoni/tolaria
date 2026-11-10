@@ -55,8 +55,8 @@ what the lane does not cover, or to diagnose what it flagged.
 
 **Paste it byte-exact** (#2760): `land:ready` re-derives the verdict block
 and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
-(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
-`DIAGNOSTIC`; never reflow a line.
+(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT`/`SCOPED`/`BATCH` (`--batch=`),
+never `DIAGNOSTIC`; never reflow a line.
 
 **Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
 desktop `1440x900x2` (and `1440x900x1`, DPR 1 in the full Chromium, on a

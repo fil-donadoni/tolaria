@@ -1428,6 +1428,18 @@ reach the DOM" line is not done. What changed is that the receipt is now
 mechanical, reproducible, and available to a headless agent, which the manual
 CDP procedure never was.
 
+**One walk for several PRs (issue #9106, ADR 0131 § Amendment).**
+`bun run check:ui -- --batch=<PR#,…> [--write-receipts]` merges the PRs'
+heads onto the base tip in a detached worktree and walks the union scope once;
+its `BATCH` receipt names the base and every head with a content digest of
+its DOM-reachable files (`scripts/ui-gate/batch-receipt.ts`). `land:ready` and
+the `pr-check` `ui-receipt` job accept it for a PR whose own scope it covers
+and whose landing tree matches one named head by that digest — so the
+preflight rebase and the runner's merge ref verify, a later change to those
+files does not. A red surface is attributed to the PR whose scope holds it; a
+surface several PRs reach is re-walked on each alone; the PRs no red touches
+get their receipt from the same walk. The single-PR walk stays the default.
+
 **An invariant gate, not a budget (ADR 0132).** Nine **Floors** —
 `cardsZero`, `cardsStranded`, `cardsSquare`, `cardsSoft`, `ctrlsZero`,
 `ctrlsStranded`, `axeSerious`, `axeCritical`, `hOverflow` — are constants in

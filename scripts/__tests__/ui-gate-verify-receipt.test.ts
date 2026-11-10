@@ -333,7 +333,7 @@ describe("verify-receipt — the verdict block must be the one its scope re-deri
     it("refuses a deleted banner", () => {
         const [, ...rest] = verdictBlockLines(run(ALL));
         expect(verify(rest.join("\n")).problems[0]).toMatch(
-            /^no RECEIPT\/SCOPED\/DIAGNOSTIC banner line found/
+            /^no RECEIPT\/SCOPED\/BATCH\/DIAGNOSTIC banner line found/
         );
     });
 

@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { changedPaths, type Lane } from "../check-lane";
 import {
     landingDiffScope,
+    landingDomDigest,
     landingRestoresParent,
     landingWalkOwed,
     verifyReceiptText,
@@ -68,7 +69,8 @@ export function skinReceiptInvalidForDiff(
         reverted: readonly string[],
         changed: string[],
         root: string
-    ) => boolean = landingRestoresParent
+    ) => boolean = landingRestoresParent,
+    domOf: (changed: string[], root: string) => string = landingDomDigest
 ): boolean {
     // WHATEVER the lane (issue #5459, absorbing issue #5380): a `full` diff
     // (`src/**` + `convex/**`) reaches the DOM through its `src/**` paths just
@@ -90,9 +92,21 @@ export function skinReceiptInvalidForDiff(
             reasons: [`scope unavailable: ${(err as Error).message}`],
         };
     }
+    // A BATCH receipt (issue #9106) is matched to this tree by the content of
+    // its DOM-reachable paths; computed only when the body carries one. A
+    // digest that cannot be computed leaves it unset, and the receipt refused.
+    let dom: string | undefined;
+    if (/^\s*BATCH —/m.test(prBody)) {
+        try {
+            dom = domOf(paths, root);
+        } catch {
+            dom = undefined;
+        }
+    }
     const receiptOk = verifyReceiptText(prBody, {
         base: ORIGIN_BASE,
         scope,
+        ...(dom !== undefined ? { dom } : {}),
     }).ok;
     if (receiptOk) return false;
     // The RED ladder's revert (issue #6071, ADR 0156 Amendment II): no walk
