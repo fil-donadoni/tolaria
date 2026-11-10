@@ -17,11 +17,13 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
     DRAFT_LAB_SEAT_COUNT,
+    buildDraftLabBuiltSeats,
     buildDraftLabCardProfile,
     buildDraftLabPickRating,
     initDraftLab,
     standardPackSlots,
     stepDraftLab,
+    type DraftLabBuiltSeat,
     type DraftLabState,
 } from "@/lib/limited/draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
@@ -58,6 +60,10 @@ export interface UseDraftLabResult {
      *  seed produces a second later. The Draft Lab controls disable Start
      *  while this is false. */
     canStart: boolean;
+    /** Every seat's Built deck and its Draft Table Audit report (issue
+     *  #8899) once the draft is completed; `null` before. Derived from
+     *  `state` alone, so it is the same decks the same seed builds. */
+    builtSeats: readonly DraftLabBuiltSeat[] | null;
 }
 
 export function useDraftLab(): UseDraftLabResult {
@@ -124,6 +130,11 @@ export function useDraftLab(): UseDraftLabResult {
         setIsAutoPlaying((v) => !v);
     }, []);
 
+    const builtSeats = useMemo(
+        () => (state?.completed ? buildDraftLabBuiltSeats(state) : null),
+        [state]
+    );
+
     // `stateRef` mirrors `state` for the interval callback below — a plain
     // ref write, not a `setState` call, so syncing it is not the "setState
     // synchronously within an effect" pattern the lint rule flags.
@@ -166,5 +177,6 @@ export function useDraftLab(): UseDraftLabResult {
         toggleAutoPlay,
         getCardProfile,
         canStart,
+        builtSeats,
     };
 }

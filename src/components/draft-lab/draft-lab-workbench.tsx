@@ -18,6 +18,7 @@ import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import DraftLabControls from "@/components/draft-lab/draft-lab-controls";
 import DraftLabSeatTable from "@/components/draft-lab/draft-lab-seat-table";
 import DraftLabFocusPanel from "@/components/draft-lab/draft-lab-focus-panel";
+import DraftLabBuiltDeckPanel from "@/components/draft-lab/draft-lab-built-deck-panel";
 import DraftLabModeTabs, {
     type DraftLabMode,
 } from "@/components/draft-lab/draft-lab-mode-tabs";
@@ -26,6 +27,13 @@ import DraftLabReplayPanel from "@/components/draft-lab/draft-lab-replay-panel";
 export default function DraftLabWorkbench() {
     const [mode, setMode] = useState<DraftLabMode>("synthetic");
     const lab = useDraftLab();
+
+    const focusedSeatLabel =
+        lab.state?.seats[lab.focusedSeat]?.nickname ??
+        `Seat ${lab.focusedSeat + 1}`;
+    const focusedBuiltSeat = lab.builtSeats?.find(
+        (s) => s.seatIndex === lab.focusedSeat
+    );
 
     const lastPickForFocusedSeat = lab.state
         ? [...lab.state.pickLog]
@@ -72,12 +80,14 @@ export default function DraftLabWorkbench() {
                                     onFocusSeat={lab.setFocusedSeat}
                                     getCardProfile={lab.getCardProfile}
                                 />
+                                {focusedBuiltSeat && (
+                                    <DraftLabBuiltDeckPanel
+                                        seatLabel={focusedSeatLabel}
+                                        built={focusedBuiltSeat}
+                                    />
+                                )}
                                 <DraftLabFocusPanel
-                                    seatLabel={
-                                        lab.state.seats[lab.focusedSeat]
-                                            ?.nickname ??
-                                        `Seat ${lab.focusedSeat + 1}`
-                                    }
+                                    seatLabel={focusedSeatLabel}
                                     record={lastPickForFocusedSeat}
                                     getCardProfile={lab.getCardProfile}
                                 />

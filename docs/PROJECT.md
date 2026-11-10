@@ -879,7 +879,9 @@ dall'Admin. Tabella vuota ⇒ si drafta byte-identico al path solo-seed.
 Il **Draft Lab** (ADR 0074) esegue draft interi in-browser sopra gli stessi
 moduli, e ricostruisce il replay di un draft giocato mostrando il diff fra le
 pick storiche e quelle che lo scorer attuale farebbe (per questo l'evento stampa
-`scorerVersion` a `startEvent`).
+`scorerVersion` a `startEvent`). A draft concluso mostra, per il seat a fuoco, il
+Maindeck che Auto-Build ne ricava con i campi del Draft Table Audit
+(`src/lib/limited/draftTableAudit.ts`, lo stesso modulo di `bun run draft:audit`).
 
 > Chi ships una carta del Vintage Cube deve aggiungerne l'id a
 > `data/pick-ratings/vintage-cube.json`, o `pickRatings.bot.test.ts` diventa
