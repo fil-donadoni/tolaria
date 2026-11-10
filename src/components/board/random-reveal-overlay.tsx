@@ -136,6 +136,8 @@ export default function RandomRevealOverlay({
     return (
         <div
             data-testid="random-reveal-overlay"
+            role="dialog"
+            aria-label="Coin flip"
             className="absolute inset-0 z-modal flex cursor-pointer items-center justify-center modal-scrim"
             onClick={handleClick}
         >

@@ -1985,6 +1985,24 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
         },
     },
     {
+        slug: "random-reveal-rounds",
+        module: "board/random-reveal-overlay.tsx",
+        label: "Coin flip rounds (Mana Clash)",
+        layer: "[data-random-reveal-specimen]",
+        layerAssert: {
+            label: "dialog: Coin flip",
+            locator: { role: "dialog", name: "Coin flip" },
+            check: "visible",
+        },
+        // A reveal offers no control (no decision, CR 705.2); what it exists
+        // to show is the per-seat table and the consequence line.
+        entry: {
+            label: "table: You / Rival damage",
+            locator: { selector: '[data-testid="flip-round-table"]' },
+            check: "visible",
+        },
+    },
+    {
         slug: "sideboarding",
         module: "board/sideboarding-dialog.tsx",
         label: "Sideboarding",
