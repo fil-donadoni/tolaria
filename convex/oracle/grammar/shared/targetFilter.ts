@@ -1486,15 +1486,16 @@ const READ_BY_BOARD_MANA_FILTER: ReadonlySet<string> = new Set([
  * subtype, a kindred one included (CR 205.3m), not only Elf CREATURES.
  *
  * `wholeBoard` is the "on the battlefield" reading, which carries no
- * controller clause; otherwise the descriptor MUST say "you control" (CR
- * 109.5) — the only controller the corpus prints at these sites. Every other
+ * controller clause; `you` MUST say "you control" and `opponents` "an
+ * opponent controls" (CR 109.5) — the two controllers the corpus prints at
+ * these sites. Every other
  * clause (a colour, a keyword, a power bound, a tapped state) is refused by
  * name rather than dropped, because a dropped clause counts — or reads the
  * mana of — permanents the card does not mean.
  */
 export function boardManaFilterFromDescriptor(
     descriptor: DescriptorIR,
-    scope: "you" | "wholeBoard"
+    scope: "you" | "opponents" | "wholeBoard"
 ): RuleResult<PermanentFilter> {
     if (descriptor.player !== undefined || descriptor.anyTarget === true)
         return fail("a player is not a permanent on the battlefield", "player");
@@ -1537,6 +1538,13 @@ export function boardManaFilterFromDescriptor(
             'a board-derived mana descriptor reads "you control"',
             "controller"
         );
+    // CR 109.5 — "a land an opponent controls" (Fellwar Stone): every
+    // permanent controlled by a player other than the ability's controller.
+    if (scope === "opponents" && descriptor.controller !== "opponent")
+        return fail(
+            'a board-derived mana descriptor reads "an opponent controls"',
+            "controller"
+        );
     if (scope === "wholeBoard" && descriptor.controller !== undefined)
         return fail(
             '"on the battlefield" beside a controller clause',
@@ -1555,6 +1563,7 @@ export function boardManaFilterFromDescriptor(
     if (Object.keys(filter).length === 0)
         return fail("board-derived mana filter matches everything", "filter");
     if (scope === "you") filter.controllerRelation = "you";
+    if (scope === "opponents") filter.controllerRelation = "opponents";
     return ok(filter as PermanentFilter);
 }
 

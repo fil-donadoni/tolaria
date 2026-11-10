@@ -13,10 +13,12 @@
 //     a count of permanents "you control" (Gaea's Cradle; Cabal Stronghold's
 //     costed, supertype-filtered line beside a plain {C} one), a count "on
 //     the battlefield" (Priest of Titania — every player's Elves, CR 109.2),
-//     and the any-TYPE read (Reflecting Pool).
+//     the any-TYPE read (Reflecting Pool), and the any-COLOR read of an
+//     opponent's lands (Quirion Explorer).
 //  2. GOLD over the hand-written catalogue — Gaea's Cradle, Tolarian Academy
 //     and Serra's Sanctum compile from their own printed text back into their
-//     own shipped definitions (Guard C).
+//     own shipped definitions (Guard C); so do Fellwar Stone and Quirion
+//     Explorer.
 //  3. REFUSALS — every neighbour the descriptor cannot carry stays
 //     `unparsed`, fail-closed (ADR 0105 § 2).
 
@@ -30,6 +32,8 @@ import {
     serrasSanctum,
     tolarianAcademy,
 } from "../../cards/sets/usg/colorless.cards";
+import { fellwarStone } from "../../cards/sets/drk/colorless.cards";
+import { quirionExplorer } from "../../cards/sets/pls/green.cards";
 import { oracleCard } from "./oracle.fixture";
 
 function compiledOf(card: OracleCard): CompiledDefinition {
@@ -212,14 +216,68 @@ describe("golden — the any-TYPE read lowers to a producesType manaColorSource 
     });
 });
 
+describe("golden — the any-COLOR read of an opponent's lands lowers to a produces manaColorSource (CR 106.7)", () => {
+    it("Quirion Explorer — the whole Compiled Definition, the five colours in the no-board fallback", () => {
+        const text =
+            "{T}: Add one mana of any color that a land an opponent controls could produce.";
+        const compiled = compiledOf(
+            oracleCard({
+                name: "Quirion Explorer",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Elf Druid Scout",
+                oracleText: text,
+                power: "1",
+                toughness: "1",
+            })
+        );
+        expect(sortKeys(compiled)).toEqual(
+            sortKeys({
+                name: "Quirion Explorer",
+                oracleText: text,
+                types: ["Creature"],
+                subtypes: ["Elf", "Druid", "Scout"],
+                manaCost: { X: 1, G: 1 },
+                power: 1,
+                toughness: 1,
+                activatedAbilities: [
+                    {
+                        id: "quirion-explorer-mana",
+                        oracleText: text,
+                        cost: { tap: true },
+                        useStack: false,
+                        // CR 106.1a — the five colours; {C} is not a colour.
+                        manaChoices: [
+                            { W: 1 },
+                            { U: 1 },
+                            { B: 1 },
+                            { R: 1 },
+                            { G: 1 },
+                        ],
+                        manaColorSource: {
+                            filter: {
+                                types: ["Land"],
+                                controllerRelation: "opponents",
+                            },
+                            colors: "produces",
+                        },
+                    },
+                ],
+            })
+        );
+    });
+});
+
 describe("gold — the hand-written board-count lands round-trip through their own text", () => {
-    it.each([gaeasCradle(), tolarianAcademy(), serrasSanctum()])(
-        "$name",
-        (card) => {
-            const verdict = roundTripCard(card).verdict;
-            expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
-        }
-    );
+    it.each([
+        gaeasCradle(),
+        tolarianAcademy(),
+        serrasSanctum(),
+        fellwarStone(),
+        quirionExplorer(),
+    ])("$name", (card) => {
+        const verdict = roundTripCard(card).verdict;
+        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
+    });
 });
 
 describe("refusals — every neighbour the board-derived descriptor cannot carry", () => {
@@ -249,8 +307,8 @@ describe("refusals — every neighbour the board-derived descriptor cannot carry
             "{T}: Add {C} for each charge counter on this artifact.",
         ],
         [
-            "the any-COLOR read of an opponent's lands (Fellwar Stone — its own gap)",
-            "{T}: Add one mana of any color that a land an opponent controls could produce.",
+            "the any-COLOR read of lands YOU control",
+            "{T}: Add one mana of any color that a land you control could produce.",
         ],
         [
             "the any-TYPE read of an opponent's lands",

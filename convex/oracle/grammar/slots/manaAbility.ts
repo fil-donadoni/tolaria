@@ -47,10 +47,10 @@
  * `manaChoices` list the hand-written catalogue already ships for it (Birds of
  * Paradise, Phyrexian Altar, Celestial Prism). `anyColorProduction` below
  * reads it; every NEIGHBOUR that restricts or counts the set —
- * "…of any color that a land you control could produce" (board-derived,
- * `manaColorSource`), "…in your commander's color identity", "two mana of any
- * one color" — stays refused, because each needs a descriptor this rule does
- * not emit.
+ * "…of any color that a land an opponent controls could produce" (board-
+ * derived, `manaColorSource` — `boardChoiceProduction` below reads it),
+ * "…in your commander's color identity", "two mana of any one color" — is
+ * refused by THIS rule, because each needs a descriptor it does not emit.
  *
  * The painland rider (`PAINLAND_RIDER` below, issue #3828) is scoped to the
  * literal "This land …" — the Talisman cycle prints the byte-identical shape
@@ -261,11 +261,17 @@ const forEachProduction: Rule<ManaProductionIR> = rule(
  * included (CR 106.1b), lowered to a `manaColorSource` with the
  * `"producesType"` read (issue #5195).
  *
- * Only the TYPE read: "any COLOR that a land an opponent controls could
- * produce" (Fellwar Stone) is the same descriptor with `"produces"`, a
- * neighbour this rule refuses rather than reads — it stays its own gap.
+ * "one mana of any COLOR that a land an opponent controls could produce"
+ * (Fellwar Stone, Exotic Orchard, Quirion Explorer) is the same descriptor
+ * read for COLOURS only (CR 106.1a — {C} is not a colour), lowered with the
+ * `"produces"` read. Each word picks one axis and the two are not mixed:
+ * "type" reads only "you control", "color" only "an opponent controls" —
+ * the two pairings the corpus prints; "any color that a land you control
+ * could produce" and "any type that a land an opponent controls could
+ * produce" stay refused until a card earns them a fixture.
  */
-const ANY_TYPE_THAT = /^one mana of any type that an? (.+) could produce$/;
+const ANY_TYPE_THAT =
+    /^one mana of any (type|color) that an? (.+) could produce$/;
 
 const boardChoiceProduction: Rule<ManaProductionIR> = rule(
     "mana any type a permanent could produce",
@@ -273,21 +279,25 @@ const boardChoiceProduction: Rule<ManaProductionIR> = rule(
         const m = ANY_TYPE_THAT.exec(span);
         if (m === null)
             return fail(
-                'production is not "one mana of any type that … could produce"',
+                'production is not "one mana of any type|color that … could produce"',
                 span
             );
-        const descriptor = descriptorRule.run(m[1]!, ctx);
+        const read = m[1] === "type" ? ("type" as const) : ("color" as const);
+        const descriptor = descriptorRule.run(m[2]!, ctx);
         if (!descriptor.ok) return descriptor;
         if (descriptor.value.plural === true)
             return fail(
                 '"a … could produce" names a singular descriptor',
-                m[1]!
+                m[2]!
             );
-        const filter = boardManaFilterFromDescriptor(descriptor.value, "you");
+        const filter = boardManaFilterFromDescriptor(
+            descriptor.value,
+            read === "type" ? "you" : "opponents"
+        );
         if (!filter.ok) return filter;
         return ok({
             kind: "board-choice" as const,
-            read: "type" as const,
+            read,
             filter: filter.value,
         });
     }

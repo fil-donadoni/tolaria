@@ -7,11 +7,16 @@
 //     (each mana picked separately), a targeted PLAYER rather than opponent,
 //     a counted noun carrying its own controller clause, and a per-player
 //     damage count that would override the targeted controller.
+//  3. "Add one mana of any color" — the single-mana case of the same read
+//     (CR 106.1a): Quirion Sentinel's golden, its hand-written twin compiled
+//     back, and the neighbours that count or restrict the offered set.
 
 import { describe, expect, it } from "vitest";
 import { colorChoiceModes } from "../../cards/abilities/chooseColor";
+import { quirionSentinel } from "../../cards/sets/inv/green.cards";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
+import { roundTripCard } from "../gold";
 import { oracleCard } from "./oracle.fixture";
 
 const CARPET_TEXT =
@@ -154,5 +159,81 @@ describe("add X mana of any one color (CR 106.1a, CR 107.3)", () => {
                 "At the beginning of your upkeep, add two mana of any one color."
             )
         ).toBe(true);
+    });
+});
+
+const SENTINEL_TEXT = "When this creature enters, add one mana of any color.";
+
+describe("add one mana of any color (CR 106.1a)", () => {
+    const creature = (name: string, oracleText: string) =>
+        oracleCard({
+            name,
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Elf Druid",
+            oracleText,
+            power: "2",
+            toughness: "1",
+        });
+
+    it("Quirion Sentinel compiles whole: one mana of a colour picked on resolution", () => {
+        const outcome = compileCard(
+            creature("Quirion Sentinel", SENTINEL_TEXT)
+        );
+        if (outcome.state === "unparsed")
+            throw new Error(`unparsed: ${JSON.stringify(outcome.gaps)}`);
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Quirion Sentinel",
+                types: ["Creature"],
+                subtypes: ["Elf", "Druid"],
+                manaCost: { X: 1, G: 1 },
+                power: 2,
+                toughness: 1,
+                oracleText: SENTINEL_TEXT,
+                compiledTriggeredAbilities: [
+                    {
+                        id: "quirion-sentinel-trigger",
+                        oracleText: SENTINEL_TEXT,
+                        head: { kind: "entered", scope: "self" },
+                        effects: [
+                            {
+                                op: "optionChoice",
+                                prompt: "Quirion Sentinel: add mana of which color?",
+                                modes: colorChoiceModes((color) => [
+                                    { op: "addMana", mana: { [color]: 1 } },
+                                ]),
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+    });
+
+    it("the hand-written Quirion Sentinel compiles back from its own text", () => {
+        expect(roundTripCard(quirionSentinel()).verdict.ok).toBe(true);
+    });
+
+    it.each([
+        [
+            "a count of two mana",
+            "When this creature enters, add two mana of any color.",
+        ],
+        [
+            "a board-derived restriction of the colours",
+            "When this creature enters, add one mana of any color that a land you control could produce.",
+        ],
+        [
+            "a combination of colours",
+            "When this creature enters, add two mana in any combination of colors.",
+        ],
+        [
+            "another player as the recipient",
+            "When this creature enters, that player adds one mana of any color.",
+        ],
+    ])("refuses %s", (_label, oracleText) => {
+        expect(compileCard(creature("Quota Elf", oracleText)).state).toBe(
+            "unparsed"
+        );
     });
 });

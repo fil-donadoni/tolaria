@@ -696,11 +696,20 @@ export function lowerManaAbility(input: {
         // CR 106.7 (issue #5195) — the offered set is the board's; the static
         // list is the six-type no-board fallback every descriptor twin in the
         // catalogue carries beside its `manaColorSource` (Fellwar Stone).
+        // The "color" read (CR 106.1a) offers the five colours as its
+        // no-board list and `"produces"` as its live one — {C} never counts.
         case "board-choice":
-            ability.manaChoices = MANA_COLORS.map((c) => ({ [c]: 1 }));
+            ability.manaChoices = (
+                input.produces.read === "type"
+                    ? MANA_COLORS
+                    : COLORED_MANA_COLORS
+            ).map((c) => ({ [c]: 1 }));
             ability.manaColorSource = {
                 filter: input.produces.filter,
-                colors: "producesType",
+                colors:
+                    input.produces.read === "type"
+                        ? "producesType"
+                        : "produces",
             };
             break;
         // CR 614.12a — the five colours are the no-board list (CR 106.7: what
