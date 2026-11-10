@@ -604,8 +604,8 @@ export interface AutoBuildSeatContext {
  *  `(seat.pool, getMeta, resolveBasicLand, options)` — no RNG — but those
  *  inputs include Admin-editable Card Profiles, so the SAME Pool can build a
  *  different deck after an edit. Hence the deck is built ONCE, at Pool-final,
- *  and stored (`convex/limitedAutoBuiltDeckStore.ts`, issue #8896: a review
- *  never changes a choice already made); readers call this only as the
+ *  and stored (`convex/limitedAutoBuiltDeckStore.ts`: a review never changes
+ *  a choice already made); readers call this only as the
  *  fallback for an event older than the store. */
 export function computeBotAutoBuiltDeck(
     seat: AutoBuildSeatContext,

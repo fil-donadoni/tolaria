@@ -871,8 +871,8 @@ async function loadBasicLandResolver(
     return makeResolveBasicLand(setCode, printIdsInSet);
 }
 
-/** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
- *  with this module's two registry resolvers). `null` for a seat that has
+/** ONE seat's Auto-Built deck (`computeBotAutoBuiltDeck` wired with this
+ *  module's registry resolvers). `null` for a seat that has
  *  none — a human seat, a seat that doesn't exist, or an event whose Pool
  *  isn't final yet.
  *
@@ -885,10 +885,11 @@ async function loadBasicLandResolver(
  *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
  *  `game.ts`.
  *
- *  Reads the STORED deck (issue #8896) — the one decided at Pool-final — and
- *  builds on demand only for an event whose decks were never stored.
+ *  Reads the STORED deck — the one decided at Pool-final — and builds on
+ *  demand only for an event whose decks were never stored.
  *
- *  The fallback MUST hydrate before reading the seat (issue #1646 review finding 1):
+ *  The fallback MUST hydrate before reading the seat (issue #1646 review
+ *  finding 1):
  *  `event.seats[].pool` is absent on every row `saveSeats` writes since the
  *  `limitedSeats` child-row split (`convex/limitedSeatStore.ts`) — reading
  *  the raw `event.seats` here silently evaluates every bot seat as an empty
@@ -1364,7 +1365,7 @@ async function buildSeatStrengthResolver(
  *    call site such an event sticks in `started` with `completed: true`
  *    forever.
  *
- *  Before any of that it runs `freezeAutoBuiltDecks` (issue #8896) — the
+ *  Before any of that it runs `freezeAutoBuiltDecks` — the
  *  same call sites are exactly the writes that make a Pool final or drop a
  *  Seat (`leaveLimitedEvent` calls it too), so this is the one seam where an
  *  auto-driven seat's deck becomes decided.

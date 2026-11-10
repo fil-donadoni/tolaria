@@ -52,7 +52,7 @@ export interface EventCompletionResult {
  *  humans submitted, bots auto-built"). A bot seat counts as soon as the
  *  event's Pool is final (`isEventPoolFinal` — the exact gate
  *  `computeBotAutoBuiltDeck` already uses, issue #1115): its deck is decided
- *  (and stored, issue #8896) at that point, never a separately-submitted
+ *  (and stored, `limitedAutoBuiltDeckStore.ts`) at that point, never a separately-submitted
  *  artifact. A human
  *  seat counts only once `hasHumanDeck(seatIndex)` reports a real submitted
  *  `userDecks` row. An event with zero seats is never "completed" (nothing
