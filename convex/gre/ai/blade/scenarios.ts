@@ -20971,33 +20971,36 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: false,
                 },
-                { name: "Hill Giant", owner: "me", zone: "library" },
-                { name: "Hill Giant", owner: "me", zone: "library" },
-                { name: "Hill Giant", owner: "me", zone: "library" },
-                { name: "Hill Giant", owner: "me", zone: "library" },
-                { name: "Hill Giant", owner: "me", zone: "library" },
-                { name: "Hill Giant", owner: "me", zone: "library" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "library",
+                    count: 6,
+                },
+                // The opponent's draw step needs a card; a basic does
+                // nothing else in the rollout.
+                { name: "Plains", owner: "opp", zone: "library", count: 6 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 0,
+            // Empty BOTH base libraries: without it the base deck's Plains
+            // stay in the bot's library beside the Hill Giants, the search
+            // determinizes that library, and the reveal is mana value 0 nine
+            // times in ten, so saddling rightly loses to the full swing.
+            libraryCount: 0,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        // Without `libraryCount` the two root moves are a near-tie at 400,
+        // so the entry would pass there regardless; the library defect shows
+        // from 2000 iterations, where its absence loses every seed.
+        budget: { iterations: 2000 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        // A budget artefact under either selection rule (issue #8736): the two
-        // root moves tie on a clipped reward, the subtree margin decides, and
-        // more search moves it towards `pass`. Its own seeds were green at 400
-        // under flat UCB1 and lose two of five under PUCT (issue #8700).
-        beyondBudget: {
-            cause: "valuation",
-            note: "Both root moves sit at the reward clip, so `material-tiebreak` reads the subtree mean margin, whose gap falls from about +3 at 400 iterations to about -8 at 4000. Missing: a valuation that keeps the 4 life the saddled line saves visible past the clip (issue #8736, where the sweep is).",
-        },
+        tier: "must",
         expect: {
             moves: [{ kind: "activate-ability", card: "Caustic Bronco" }],
         },
-        note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart: with `becomeSaddled` made a no-op, saddling just throws away 4 damage.",
+        note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart. `libraryCount: 0` is load-bearing: without it the base deck's Plains share the determinized library, the reveal is mana value 0 nine times in ten, and the full swing is rightly better (issue #8736). Both root moves sit at the reward clip, so `material-tiebreak` decides on the subtree mean margin, about +30 for the saddle at 400 to 4000 iterations. A POSITION GUARD, not a discriminating one: with `becomeSaddled` made a no-op the saddle still wins, because the `pass` subtree's mean is diluted by its eight tied attack declarations (issue #9049).",
     },
     // CR 702.26a — a phasing creature comes back at its controller's next untap
     // step. Read as gone for good, the rollouts priced casting it below holding
