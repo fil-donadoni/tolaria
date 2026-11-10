@@ -12,8 +12,16 @@
 // `getByText` itself throws when nothing matches, so a bare call already
 // proves presence.
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render as rtlRender, cleanup } from "@testing-library/react";
 import CardPreviewEngineView from "../card-preview-engine-view";
+import { EngineViewAccessContext } from "~/hooks/engineViewAccessContext";
+
+// The slot is admin-only (issue #7430): these render it as an admin unless a
+// test says otherwise.
+const render = (ui: React.ReactElement) =>
+    rtlRender(
+        <EngineViewAccessContext value={true}>{ui}</EngineViewAccessContext>
+    );
 
 afterEach(cleanup);
 
@@ -91,5 +99,32 @@ describe("CardPreviewEngineView (issue #2728)", () => {
         expect(queryByText("Engine view")).toBeNull();
         expect(container.querySelector("[data-engine-view-slot]")).toBeNull();
         expect(container.querySelector("[data-engine-view-tree]")).toBeNull();
+    });
+});
+
+describe("CardPreviewEngineView is admin-only (issue #7430)", () => {
+    it("renders nothing, full or compact, for a non-admin (the default)", () => {
+        for (const compact of [false, true]) {
+            const { container, unmount } = rtlRender(
+                <CardPreviewEngineView
+                    badge={{ kind: "dsl", opCount: 3 }}
+                    compact={compact}
+                />
+            );
+            expect(container.innerHTML).toBe("");
+            expect(
+                container.querySelector("[data-engine-view-slot]")
+            ).toBeNull();
+            unmount();
+        }
+    });
+
+    it("renders for an admin", () => {
+        const { container } = render(
+            <CardPreviewEngineView badge={{ kind: "dsl", opCount: 3 }} />
+        );
+        expect(
+            container.querySelector("[data-engine-view-slot]")
+        ).not.toBeNull();
     });
 });

@@ -14,6 +14,7 @@ import { getCardByName } from "@convex/cards";
 import CardPreview, { HOVER_DWELL_MS, HOVER_GRACE_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
 import { GameContext } from "~/hooks/useGameContext";
+import { EngineViewAccessContext } from "~/hooks/engineViewAccessContext";
 import { makeManualGameContext } from "~/lib/manual-game-context";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -963,13 +964,16 @@ describe("CardPreview — Arena click model (#332)", () => {
 describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
     const BOLT_ID = getCardByName("Lightning Bolt").id;
 
-    function renderRealCardOnBoard() {
+    // Admin by default: the slot is admin-only (issue #7430).
+    function renderRealCardOnBoard(isAdmin = true) {
         return render(
-            <GameContext value={GAME_CTX}>
-                <CardPreview cardId={BOLT_ID} cardName="Lightning Bolt">
-                    <div>face</div>
-                </CardPreview>
-            </GameContext>
+            <EngineViewAccessContext value={isAdmin}>
+                <GameContext value={GAME_CTX}>
+                    <CardPreview cardId={BOLT_ID} cardName="Lightning Bolt">
+                        <div>face</div>
+                    </CardPreview>
+                </GameContext>
+            </EngineViewAccessContext>
         );
     }
 
@@ -1031,6 +1035,27 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(report!.getAttribute("href")).toContain(
             encodeURIComponent("Lightning Bolt")
         );
+    });
+
+    it("a non-admin gets no engine view on the dock (no slot, no Alt hint) or the long-press overlay (issue #7430)", () => {
+        const { container } = renderRealCardOnBoard(false);
+        const root = container.firstElementChild as HTMLElement;
+        hoverEnter(root);
+        dwellPast();
+        const panel = dock()!;
+        expect(panel).toBeTruthy();
+        expect(panel.textContent).not.toContain("Alt: engine view");
+        expect(panel.textContent).not.toContain("DSL");
+        hoverLeave(root);
+
+        act(() => {
+            fireEvent.touchStart(root, {
+                touches: [{ clientX: 10, clientY: 10 }],
+            });
+            vi.advanceTimersByTime(400);
+        });
+        expect(document.querySelector("[data-engine-view-slot]")).toBeNull();
+        expect(document.body.textContent).not.toContain("Engine view");
     });
 
     it("the mobile long-press overlay renders the FULL slot", () => {
