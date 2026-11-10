@@ -1,9 +1,8 @@
 // Board view preferences (issue #7429): per-DEVICE presentation knobs for the
 // game board. Not game state and not a server-side user setting — the same
-// `tolaria:` localStorage discipline as `deckViewPrefs.ts` (whose read/write
-// helpers this reuses): an absent, corrupt, out-of-vocabulary or inaccessible
-// value degrades to the documented default, never throws.
-import { readPref, writePref } from "~/lib/deckViewPrefs";
+// `tolaria:` localStorage discipline as `deckViewPrefs.ts` and
+// `skip-phase-prefs.ts`: an absent, corrupt, out-of-vocabulary or
+// inaccessible value degrades to the documented default, never throws.
 
 /** How identical permanents lay out on the battlefield (issue #7429).
  *  `"stacked"` collapses identical, interchangeable permanents into one fanned
@@ -44,17 +43,27 @@ function isBattlefieldGrouping(value: unknown): value is BattlefieldGrouping {
 export function loadBattlefieldGrouping(
     storage: Storage = window.localStorage
 ): BattlefieldGrouping {
-    return readPref(
-        storage,
-        BATTLEFIELD_GROUPING_KEY,
-        isBattlefieldGrouping,
-        DEFAULT_BATTLEFIELD_GROUPING
-    );
+    try {
+        const raw = storage.getItem(BATTLEFIELD_GROUPING_KEY);
+        if (raw === null) return DEFAULT_BATTLEFIELD_GROUPING;
+        const parsed = JSON.parse(raw) as unknown;
+        return isBattlefieldGrouping(parsed)
+            ? parsed
+            : DEFAULT_BATTLEFIELD_GROUPING;
+    } catch {
+        return DEFAULT_BATTLEFIELD_GROUPING;
+    }
 }
 
+/** Best-effort write — a throwing `storage` (quota, private browsing) is
+ *  swallowed silently. */
 export function saveBattlefieldGrouping(
     grouping: BattlefieldGrouping,
     storage: Storage = window.localStorage
 ): void {
-    writePref(storage, BATTLEFIELD_GROUPING_KEY, grouping);
+    try {
+        storage.setItem(BATTLEFIELD_GROUPING_KEY, JSON.stringify(grouping));
+    } catch {
+        // best-effort persistence — quota/serialization errors are ignored
+    }
 }
