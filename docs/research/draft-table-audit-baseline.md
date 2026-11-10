@@ -12,7 +12,8 @@ bun run draft:audit -- --scope lea            # seeds 1..8, 64 decks
 For each seed eight Bots draft three packs of the scope through the Draft
 Lab's synthetic engine (seed profile layers only, no DB) and every seat is
 Auto-Built by the server's `autoBuildDeck`. Script: `scripts/draft-audit.ts`;
-measures and Floors: `scripts/lib/draft-audit.ts`.
+per-deck measures: `src/lib/limited/draftTableAudit.ts` (moved there by issue
+#8899, unchanged); aggregate and Floors: `scripts/lib/draft-audit.ts`.
 
 **Castability model** (declared, simple): a spell of mana value `mv` is cast on
 the play on turn `max(1, mv)`, after `7 + turn − 1` cards seen. For each

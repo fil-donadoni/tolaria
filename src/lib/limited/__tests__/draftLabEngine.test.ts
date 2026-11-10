@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
     DRAFT_LAB_SEAT_COUNT,
+    buildDraftLabBuiltSeats,
     buildDraftLabPickRating,
     draftLabSeatCount,
     initDraftLab,
@@ -16,6 +17,7 @@ import {
     stepDraftLab,
 } from "../draftLabEngine";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
+import { FORMAT_RULES } from "@convex/formats";
 import {
     buildCubePool,
     maxCubeSeats,
@@ -202,6 +204,21 @@ describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
         expect(stepped.cardProfileRows).toEqual(rows);
     });
 
+    it("the Built deck audit reads the session's snapshot, not the seed layer alone (issue #8899)", () => {
+        const seed = 4242;
+        const rows = censusFor(seed);
+        const state = runFullDraftLab(
+            seed,
+            packSlots,
+            DRAFT_LAB_SEAT_COUNT,
+            rows
+        );
+        const plans = buildDraftLabBuiltSeats(state).map(
+            (s) => s.audit.planArchetype
+        );
+        expect(plans).toContain("lab-archetype");
+    });
+
     it("no snapshot at all degrades to the pre-#1611 draft, unchanged", () => {
         const seed = 99;
         const explicitlyEmpty = runFullDraftLab(
@@ -255,5 +272,37 @@ describe("Draft Lab cube singleton (ADR 0062 — the 8-seat duplicate bug)", () 
         expect(
             initDraftLab(11, ["lea", "lea", "lea"]).cubePool
         ).toBeUndefined();
+    });
+});
+
+describe("Draft Lab Built deck (issue #8899)", () => {
+    const packSlots = standardPackSlots(CUBE_SOURCE_KEY);
+
+    it("builds and audits every seat of a completed draft", () => {
+        const state = runFullDraftLab(7, packSlots);
+        const built = buildDraftLabBuiltSeats(state);
+
+        expect(built.map((s) => s.seatIndex)).toEqual(
+            state.seats.map((s) => s.seatIndex)
+        );
+        for (const seat of built) {
+            expect(seat.pool).toBe(state.seats[seat.seatIndex].pool);
+            expect(seat.deck.cards.length).toBeGreaterThanOrEqual(
+                FORMAT_RULES.limited.minMain
+            );
+            expect(seat.audit.seed).toBe(7);
+            expect(seat.audit.seatIndex).toBe(seat.seatIndex);
+            expect(seat.audit.mainSize).toBe(seat.deck.cards.length);
+            expect(seat.audit.colors).toEqual(seat.deck.colors);
+            expect(seat.audit.landCount + seat.audit.spellCount).toBe(
+                seat.deck.cards.length - seat.audit.unresolved
+            );
+        }
+    });
+
+    it("refuses a draft still in progress — no Pool is final yet", () => {
+        expect(() =>
+            buildDraftLabBuiltSeats(initDraftLab(7, packSlots))
+        ).toThrow(/not completed/);
     });
 });

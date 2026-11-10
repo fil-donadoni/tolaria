@@ -59,6 +59,7 @@ import {
 import { autoBuildDeck, type AutoBuiltDeck } from "@convex/limited/autoBuild";
 import { makeResolveBasicLand } from "@convex/limited/resolveBasicLand";
 import { observeLabPack } from "./draftLabSignal";
+import { auditSeatDeck, type DeckAudit } from "./draftTableAudit";
 import {
     draftLabResolveCardMeta,
     draftLabGetCardEvalMeta,
@@ -435,6 +436,16 @@ export function runFullDraftLab(
     return state;
 }
 
+/** The profile lookup a session scored with: its `cardProfileRows` snapshot
+ *  over the seed layer — what the build and its audit read, never a live
+ *  query. */
+function draftLabSessionCardProfile(state: DraftLabState): GetCardProfile {
+    return buildDraftLabCardProfile(
+        state.packSlots,
+        buildDbProfileLayers(state.cardProfileRows)
+    );
+}
+
 /** One seat's Auto-Built deck beside the Pool it was built from. */
 export interface DraftLabSeatDeck {
     seatIndex: number;
@@ -457,10 +468,7 @@ export function buildDraftLabSeatDecks(
             "buildDraftLabSeatDecks: the draft is not completed — a Pool is final only once every pack is picked through."
         );
     }
-    const getCardProfile = buildDraftLabCardProfile(
-        state.packSlots,
-        buildDbProfileLayers(state.cardProfileRows)
-    );
+    const getCardProfile = draftLabSessionCardProfile(state);
     const resolveBasicLand = makeResolveBasicLand("", new Map());
     return state.seats.map((seat) => {
         const pool = seat.pool ?? [];
@@ -475,4 +483,24 @@ export function buildDraftLabSeatDecks(
             ),
         };
     });
+}
+
+/** One seat's Built deck view (issue #8899): its Auto-Built deck and the
+ *  Draft Table Audit's report of it. */
+export interface DraftLabBuiltSeat extends DraftLabSeatDeck {
+    audit: DeckAudit;
+}
+
+/** Builds EVERY seat of a completed Lab draft (`buildDraftLabSeatDecks`) and
+ *  measures each with the Draft Table Audit's own `auditSeatDeck` — the same
+ *  module and the same numbers the audit's Floors hold, under the session's
+ *  profile snapshot. Pure; throws on a draft that is not completed. */
+export function buildDraftLabBuiltSeats(
+    state: DraftLabState
+): DraftLabBuiltSeat[] {
+    const getCardProfile = draftLabSessionCardProfile(state);
+    return buildDraftLabSeatDecks(state).map((seat) => ({
+        ...seat,
+        audit: auditSeatDeck(state.seed, seat, getCardProfile),
+    }));
 }

@@ -13,7 +13,12 @@ import {
     runDraftAudit,
     type DeckAudit,
 } from "../lib/draft-audit";
-import { DRAFT_LAB_SEAT_COUNT } from "../../src/lib/limited/draftLabEngine";
+import {
+    DRAFT_LAB_SEAT_COUNT,
+    buildDraftLabBuiltSeats,
+    runFullDraftLab,
+    standardPackSlots,
+} from "../../src/lib/limited/draftLabEngine";
 import type { AutoBuildCardMeta } from "../../convex/limited/autoBuild";
 
 const cube = runDraftAudit("vintage-cube", [1]);
@@ -65,6 +70,13 @@ describe("draft:audit builds every seat and reports every field", () => {
 
     it("is deterministic for a given seed", () => {
         expect(runDraftAudit("vintage-cube", [1])).toEqual(cube);
+    });
+
+    it("the Draft Lab's Built deck view reports the very decks the audit measures (issue #8899)", () => {
+        const lab = buildDraftLabBuiltSeats(
+            runFullDraftLab(1, standardPackSlots("vintage-cube"))
+        );
+        expect(lab.map((s) => s.audit)).toEqual(cube.decks);
     });
 });
 
