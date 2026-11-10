@@ -652,18 +652,18 @@ const makeCardEvalMeta =
  *  bot seat's actual Pool. `getPickRating` is the LAYERED lookup built once
  *  per mutation call by `loadEventPickRating` below (database override over
  *  the checked-in seed file, `convex/limited/cardRatings.ts`'s
- *  `resolveEventPickRating`, PRD #1296 Slice A, issue #1297) — replacing the
+ *  `resolveEventPickRating`) — replacing the
  *  old registry-agnostic `pickRatings.ts#getPickRatingByCardId`. A `null`
  *  from either layer falls through to the quality heuristic mapped onto the
  *  SAME rating scale (`heuristicAsRating`, ADR 0073).
  *
- *  `packsSeen` (ADR 0073 / issue #1609) is forwarded from the engine straight
+ *  `packsSeen` (ADR 0073) is forwarded from the engine straight
  *  into `chooseBotPick` — every bot-pick path in this module
  *  (`startLimitedEvent`, `submitPick`, `autoPickSeatTimeout`) goes through
  *  THIS adapter, so the parameter is threaded once for all three. Nothing
  *  reads it yet: Draft Signal reading is a later slice of PRD #1607.
  *
- *  `getCardProfile` (ADR 0072, issue #1611) is the SECOND layered lookup built
+ *  `getCardProfile` (ADR 0072) is the SECOND layered lookup built
  *  once per mutation call, by `loadEventCardProfile` below — it feeds the
  *  scorer's three synergy terms (Archetype Fit, Capability Fit, Combo Edge).
  *  For a scope with no Card Profile rows (`cardCapabilities` /
