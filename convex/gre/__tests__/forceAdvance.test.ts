@@ -26,6 +26,7 @@ import {
     type ForceAdvanceResult,
 } from "../forceAdvance";
 import { LEGAL_STEPS } from "../forceAdvanceLegal";
+import { buildDefaultDamageAssignments } from "../phases";
 import {
     autoResolveFungible,
     isSacrificeSelectionComplete,
@@ -79,14 +80,16 @@ function priorityWithParkedCast(): Fixture {
     return { state, bot: "p1" };
 }
 
-/** p1 (the Bot, active) has an attack declaration open: a pass is illegal
- *  until it confirms (CR 508.1), and no ctx-free confirm core exists. */
-function attackDeclarationOpen(): Fixture {
+/** p1 (the Bot, active) has an attack declaration open with one voluntary
+ *  attacker selected: a pass is illegal until it confirms (CR 508.1). With
+ *  `forced`, a second Bear must attack this turn (CR 508.1d). */
+function attackDeclarationOpen({ forced = false } = {}): Fixture {
+    const battlefield = [bear("attacker", "p1")];
+    if (forced) {
+        battlefield.push(bear("forced", "p1", { mustAttackThisTurn: true }));
+    }
     const state = makeState({
-        players: [
-            makePlayer("p1", { battlefield: [bear("attacker", "p1")] }),
-            makePlayer("p2"),
-        ],
+        players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
         phase: "DECLARE_ATTACKERS",
         activePlayerId: "p1",
         priorityPlayerId: "p1",
@@ -98,6 +101,48 @@ function attackDeclarationOpen(): Fixture {
         },
     });
     return { state, bot: "p1" };
+}
+
+/** p1's Bear attacks into two p2 Bears, so its damage is assigned by hand (CR
+ *  510.1c-d) and the window waits on `combat.damageAssignerIds`. `assigner`
+ *  names who assigns it: p1 (active, holds priority, has entered nothing yet)
+ *  or p2 (a banding blocker shifts the assignment to it, CR 702.22j — it does
+ *  not hold priority, so its pass is a no-op), with the engine's default map. */
+function damageAssignmentOwed(assigner: "p1" | "p2"): Fixture {
+    const banding = assigner === "p2" ? { staticAbilities: ["banding"] } : {};
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [bear("attacker", "p1", { isAttacking: true })],
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    bear("blk1", "p2", { isBlocking: true, ...banding }),
+                    bear("blk2", "p2", { isBlocking: true }),
+                ],
+            }),
+        ],
+        phase: "COMBAT_DAMAGE",
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        combat: {
+            attackerIds: ["attacker"],
+            confirmed: true,
+            blockerAssignments: { blk1: ["attacker"], blk2: ["attacker"] },
+            blockersConfirmed: true,
+            damageConfirmed: false,
+            damageAssignerIds: { attacker: assigner },
+            damageAssignmentConfirmedBy: [],
+            damageAssignments: {},
+        },
+    });
+    if (assigner === "p2") {
+        state.combat!.damageAssignments = buildDefaultDamageAssignments(
+            state,
+            "regular"
+        );
+    }
+    return { state, bot: assigner };
 }
 
 /** p1 attacks with a Bear; p2 (the Bot) has its Bear assigned to block. */
@@ -514,15 +559,87 @@ describe("forceAdvanceOwedInput — a throwing legal rung falls to the forced di
         expect(result.state.pendingCast).toBeUndefined();
     });
 
-    it("priority: a pass the rules refuse (attack declaration open) needs no injected throw", () => {
-        const f = attackDeclarationOpen();
-        const result = forceAdvanceOwedInput(f.state, f.bot);
+    it("priority: an open attack declaration is abandoned, requirements ignored", () => {
+        const f = attackDeclarationOpen({ forced: true });
+        const result = forcedThrow("priority", f);
         expect(result.outcome).toBe("discarded");
-        expect(result.steps[0]).toMatchObject({ action: "legal-step" });
-        expect(result.steps[0].error).toMatch(/declare attackers/);
         expect(result.state.combat!.confirmed).toBe(true);
         expect(result.state.combat!.attackerIds).toEqual([]);
         expectWindowClosed(f, result);
+    });
+});
+
+// Issue #9028 — the turn-based declarations that ride a priority window have
+// no pass; their legal rung is the confirmation core the mutation runs.
+describe("forceAdvanceOwedInput — the priority window's declarations close legally", () => {
+    /** One legal step named `action`, outcome advanced, window closed. */
+    function expectLegalClose(f: Fixture, action: string): GameState {
+        const result = forceAdvanceOwedInput(f.state, f.bot);
+        expect(result.outcome).toBe("advanced");
+        expect(result.steps).toEqual([
+            { kind: "priority", action, legal: true, discarded: false },
+        ]);
+        expectWindowClosed(f, result);
+        return result.state;
+    }
+
+    it("declare attackers: CR 508.1a — the Bot declares no voluntary attacker", () => {
+        const state = expectLegalClose(
+            attackDeclarationOpen(),
+            "declare-no-attackers"
+        );
+        expect(state.combat!.confirmed).toBe(true);
+        expect(state.combat!.attackerIds).toEqual([]);
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(attacker.isTapped).toBe(false);
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("declare attackers: CR 508.1d — a creature required to attack is folded in", () => {
+        const state = expectLegalClose(
+            attackDeclarationOpen({ forced: true }),
+            "declare-no-attackers"
+        );
+        expect(state.combat!.attackerIds).toEqual(["forced"]);
+        const forced = state.players[0].battlefield.find(
+            (c) => c.id === "forced"
+        )!;
+        expect(forced.isAttacking).toBe(true);
+        expect(forced.isTapped).toBe(true);
+    });
+
+    it("combat damage: CR 510.1c-d — the active assigner confirms the default and damage is dealt", () => {
+        const f = damageAssignmentOwed("p1");
+        const state = expectLegalClose(f, "confirm-damage");
+        expect(state.combat!.damageConfirmed).toBe(true);
+        // The engine's default puts all 2 on the first blocker — one of the
+        // divisions CR 510.1c leaves to the assigner.
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["blk1"]);
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("combat damage: CR 702.22j — a defending assigner without priority confirms too", () => {
+        const f = damageAssignmentOwed("p2");
+        expect(f.state.priorityPlayerId).toBe("p1");
+        const state = expectLegalClose(f, "confirm-damage");
+        expect(state.combat!.damageConfirmed).toBe(true);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["blk1"]);
+    });
+
+    it("combat damage: with another assigner still owed, the Bot is released and damage waits", () => {
+        const f = damageAssignmentOwed("p2");
+        f.state.players[0].battlefield.push(
+            bear("attacker2", "p1", { isAttacking: true })
+        );
+        const combat = f.state.combat!;
+        combat.attackerIds.push("attacker2");
+        combat.damageAssignerIds!.attacker2 = "p1";
+        const state = expectLegalClose(f, "confirm-damage");
+        expect(state.combat!.damageConfirmed).toBe(false);
+        expect(state.combat!.damageAssignmentConfirmedBy).toEqual(["p2"]);
+        expect(state.players[1].graveyard).toEqual([]);
     });
 });
 
