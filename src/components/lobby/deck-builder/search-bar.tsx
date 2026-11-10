@@ -10,7 +10,7 @@ interface SearchBarProps {
 export default function SearchBar({
     value,
     onChange,
-    placeholder = "Search cards by name or rules text…",
+    placeholder = "Search cards by name, type or rules text…",
 }: SearchBarProps) {
     const inputRef = useRef<HTMLInputElement>(null);
 
