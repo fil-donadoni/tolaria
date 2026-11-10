@@ -13112,6 +13112,16 @@
         "source": "compiled"
     },
     {
+        "name": "Channeled Dragonfire",
+        "scryfallId": "24204881-690c-4043-8771-20cb93385072",
+        "oracleId": "91179937-6f55-4d1b-8f06-2efe1c8fea7a",
+        "firstSet": "tdm",
+        "firstPrintId": "24204881-690c-4043-8771-20cb93385072",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Channeled Force",
         "scryfallId": "8918d24e-8ae8-4028-9f06-ba6fafcc717e",
         "oracleId": "e12ed186-01c1-4da5-b90f-cfbb77c4e8d0",
@@ -48127,6 +48137,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mammoth Bellow",
+        "scryfallId": "468b17b4-79ce-4dfa-8873-a9cfc347e38f",
+        "oracleId": "6f2e4607-bece-42ba-a2a3-5dc50f246793",
+        "firstSet": "tdm",
+        "firstPrintId": "468b17b4-79ce-4dfa-8873-a9cfc347e38f",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mammoth Growth",
         "scryfallId": "0e55041f-69a5-4bcf-899f-a4b44c208b4d",
         "oracleId": "bd433a27-1f3f-4d69-8b7e-97239fdf165b",
@@ -65386,6 +65406,16 @@
         "firstSet": "snc",
         "firstPrintId": "e2e65a50-d2bc-43a0-a9d4-0e846d170f78",
         "firstPrintSet": "snc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Roamer's Routine",
+        "scryfallId": "fb8c2d5c-ba0c-4d50-8898-5c6574b1e974",
+        "oracleId": "cf2355f3-11d2-4b03-b663-9fad6b07e4b2",
+        "firstSet": "tdm",
+        "firstPrintId": "fb8c2d5c-ba0c-4d50-8898-5c6574b1e974",
+        "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -86856,6 +86886,16 @@
         "firstPrintSet": "ulg"
     },
     {
+        "name": "Unending Whisper",
+        "scryfallId": "fc48180a-ccac-469f-938d-c050821d0160",
+        "oracleId": "c5da5c31-0cf1-4393-8701-eda7880ecebc",
+        "firstSet": "tdm",
+        "firstPrintId": "fc48180a-ccac-469f-938d-c050821d0160",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Unexpected Assistance",
         "scryfallId": "7b540a5f-7f1b-421a-864f-5af469556fc6",
         "oracleId": "c452e748-8a2a-4f68-8869-e294925a8b0b",
@@ -87475,6 +87515,16 @@
         "firstSet": "plc",
         "firstPrintId": "19e1224f-82cb-4f41-8739-f880cba61bbb",
         "firstPrintSet": "plc"
+    },
+    {
+        "name": "Ureni's Rebuff",
+        "scryfallId": "722716df-9cea-40a7-924b-c28497e227e6",
+        "oracleId": "c0b7e989-8194-484c-93aa-a44df0764a77",
+        "firstSet": "tdm",
+        "firstPrintId": "722716df-9cea-40a7-924b-c28497e227e6",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Urgent Exorcism",
@@ -93343,6 +93393,16 @@
         "firstPrintId": "b33d38fa-bbcf-4bcc-93a8-adbfd9c93faa",
         "firstPrintSet": "dsk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Winternight Stories",
+        "scryfallId": "64d9367c-f50c-4568-aa63-6760c44ecaeb",
+        "oracleId": "d64687e4-ec37-4db2-9e60-4626c7a3b011",
+        "firstSet": "tdm",
+        "firstPrintId": "64d9367c-f50c-4568-aa63-6760c44ecaeb",
+        "firstPrintSet": "tdm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
