@@ -22,6 +22,7 @@ import type {
     StaticMayExertAsAttacks,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { liveDefinitionOf, type LiveStaticSource } from "../cards/liveStatics";
 
 /** CR 701.43a — "To exert a permanent, you choose to have it not untap during
  *  your next untap step." Stamps that choice on `card` and returns the
@@ -54,28 +55,29 @@ export function exertPermanent(
     };
 }
 
-/** The `may-exert-as-attacks` static effect declared by `card`'s definition, or
- *  undefined when it declares none (CR 701.43d). The offer is self-scoped — the
- *  source IS the creature the choice is made for — so this is a definition read
- *  and never a battlefield scan, unlike the attack TAXES (`collectAttackManaTax`)
- *  a different permanent imposes. */
+/** The `may-exert-as-attacks` static effect `source` offers right now, or
+ *  undefined when it offers none (CR 701.43d). The offer is self-scoped — the
+ *  source IS the creature the choice is made for — so this is a read of the
+ *  creature's own definition and never a battlefield scan, unlike the attack
+ *  TAXES (`collectAttackManaTax`) a different permanent imposes.
+ *
+ *  CR 613.1f / 604.1 (issue #8991) — "You may exert this creature as it
+ *  attacks" is a static ability: a creature that LOST its abilities (Humility,
+ *  Titania's Song) offers nothing, so the read goes through `liveDefinitionOf`.
+ *
+ *  The SINGLE authority for the server (`exertableAttackerIds`, the Bot's
+ *  `enumerateMoves`) AND the client (`ExertChoicePanel`,
+ *  `anyAttackerOffersExert`): `LiveStaticSource` is structural, satisfied by
+ *  the engine's `CardInstanceState` and by the projected `CardInstance` alike,
+ *  both of which carry `card.id` and `abilitiesSuppressedBy` through the wire.
+ *  A client call keyed by definition id could not see the suppression marker
+ *  and would show a button the mutation refuses. The client passes the
+ *  instance itself, never a `knownCardId`-derived id: a face-down permanent's
+ *  `card.id` is the honest 2/2 sentinel the engine reads too (CR 708.2). */
 export function mayExertAsAttacks(
-    card: CardInstanceState
+    source: LiveStaticSource
 ): StaticMayExertAsAttacks | undefined {
-    return mayExertAsAttacksById((card.card as { id?: string }).id ?? "");
-}
-
-/** The same read keyed by CARD DEFINITION ID, for the client: the projection
- *  strips `card` down to `{ id }` (`projectPublicState`), and the frontend's
- *  own `CardInstance` is a different type from `CardInstanceState`, so the
- *  affordance cannot call the instance form. Both forms answer from the SAME
- *  definition lookup, so the button the player sees and the offer the mutation
- *  accepts can never disagree. */
-export function mayExertAsAttacksById(
-    cardDefinitionId: string
-): StaticMayExertAsAttacks | undefined {
-    const def = tryGetDefinition(cardDefinitionId);
-    return def?.staticEffects?.find(
+    return liveDefinitionOf(source)?.staticEffects?.find(
         (e): e is StaticMayExertAsAttacks & typeof e =>
             e.kind === "may-exert-as-attacks"
     );

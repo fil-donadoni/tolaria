@@ -87,6 +87,20 @@ vi.mock("@convex/cards", () => ({
     tryGetDefinition: (id: string) =>
         id === "exerter" ? EXERT_DEF : PLAIN_DEF,
 }));
+// The exert offer reads a permanent's live definition (CR 613.1f) through
+// `liveDefinitionOf`, which resolves ids through the cards REGISTRY, not the
+// `@convex/cards` barrel mocked above.
+vi.mock("@convex/cards/liveStatics", () => ({
+    liveDefinitionOf: (s: {
+        card?: { id?: string };
+        abilitiesSuppressedBy?: readonly unknown[];
+    }) =>
+        (s.abilitiesSuppressedBy?.length ?? 0) > 0
+            ? undefined
+            : s.card?.id === "exerter"
+              ? EXERT_DEF
+              : PLAIN_DEF,
+}));
 vi.mock("@convex/cards/attackRestrictions", () => ({
     globalAttackProhibitionReason: () => undefined,
 }));
