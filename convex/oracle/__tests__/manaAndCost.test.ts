@@ -191,10 +191,10 @@ describe("Add {mana} — refused neighbours", () => {
         ).toBe("unparsed");
     });
 
-    it('"one mana of any color" is a descriptor, not fixed pips', () => {
+    it('"two mana of any color" is a descriptor, not fixed pips', () => {
         expect(
             enchantment(
-                "When this enchantment enters, add one mana of any color."
+                "When this enchantment enters, add two mana of any color."
             ).state
         ).toBe("unparsed");
     });
