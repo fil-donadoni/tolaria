@@ -105,7 +105,7 @@ describe("draftAuditRefusal — proof of each refusal", () => {
     it("refuses a receipt whose Floors verdict is not green", () => {
         expect(
             draftAuditRefusal(true, bodyFor("FAIL"), derive(HEX_A, "FAIL"))
-        ).toMatch(/floors: FAIL/);
+        ).toMatch(/receipt says floors: FAIL/);
     });
 
     it("refuses a green-claiming receipt the tree re-derives as FAIL", () => {
