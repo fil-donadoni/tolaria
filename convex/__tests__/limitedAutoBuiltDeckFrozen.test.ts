@@ -155,13 +155,13 @@ async function eventDoc(stub: Stub, id = EVENT_ID) {
     return stub.get(id) as unknown as Doc<"limitedEvents">;
 }
 
-/** An Admin's Card Profile review: every non-land card the Bot left in its
+/** An Admin's Card Profile review: every card the Bot left in its
  *  Sideboard now provides AND requires one shared Capability, so they score
  *  each other up in Auto-Build's Capability pass (ADR 0072). */
 function reviewSideboardProfiles(stub: Stub, deck: AutoBuiltDeck) {
     for (const card of deck.sideboard) {
         const meta = resolveDeckCardMeta(card.cardId);
-        if (!meta || meta.isLand) continue;
+        if (!meta) continue;
         stub.insert("cardCapabilities", {
             cardId: meta.cardId,
             provides: ["frozen-deck-test"],
