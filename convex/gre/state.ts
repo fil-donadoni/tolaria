@@ -19783,6 +19783,7 @@ export function buildSpellContext(
             };
             if (req.announcedLimit !== undefined)
                 entry.flipLimit = req.announcedLimit;
+            if (req.faceDamage !== undefined) entry.faceDamage = req.faceDamage;
             if (sourceCardId) {
                 entry.source = {
                     cardId: sourceCardId,

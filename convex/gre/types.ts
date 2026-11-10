@@ -342,6 +342,13 @@ export type FlipRecord = {
     round: number;
 };
 
+/** The damage a flip deals its own flipper for each face it can land on, for an
+ *  effect that deals damage per face ("deals 1 damage to each player whose coin
+ *  comes up tails"). Descriptive only: the effect deals the damage itself, after
+ *  the reveal; the reveal carries the stake so both seats can read it on each
+ *  coin and total it per seat. */
+export type FlipFaceDamage = Record<FlipFace, number>;
+
 /** When a Flip Sequence ends. `count`: after that many rounds. `untilLoss`:
  *  after the first round holding a lost flip, or after `maxRounds` ("that many
  *  times or until you lose a flip"). `until`: after the first round the

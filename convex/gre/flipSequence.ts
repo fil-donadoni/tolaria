@@ -5,6 +5,7 @@
 
 import type {
     FlipFace,
+    FlipFaceDamage,
     FlipOutcome,
     FlipRecord,
     FlipStopRule,
@@ -33,6 +34,9 @@ export type FlipSequenceRequest = {
      *  N"; absent when the effect announced none, so the heading never hints
      *  at the length. */
     announcedLimit?: number;
+    /** What each face costs its flipper, when the effect deals damage per
+     *  face. Carried on the reveal for both seats; the caller still deals it. */
+    faceDamage?: FlipFaceDamage;
     realize?: (flips: readonly FlipRecord[]) => RealizedOutcome;
 } & (
     | { stop: FlipStopRule; faceOnly?: false }
