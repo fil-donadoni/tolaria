@@ -1162,6 +1162,33 @@ export default defineSchema({
         // that used to live on the event row.
         pool: v.array(v.string()),
     }).index("by_event", ["eventId"]),
+    // An auto-driven Seat's Auto-Built deck, DECIDED once (issue #8896): when
+    // the seat's Pool is final, or when a seat with no submitted deck drops
+    // after that. Owner rule: a review never changes a choice already made —
+    // so a Card Profile or Pick Rating edit after Pool-final must never reach
+    // a Bot's deck, and every reader (pairing strength, the pairing Match, the
+    // event view, the archive) reads this row instead of re-building.
+    // Written once, never overwritten. Absent for events whose Pools were
+    // final before this table existed — readers fall back to on-demand
+    // computation. `convex/limitedAutoBuiltDeckStore.ts` is the ONLY module
+    // that reads or writes it.
+    limitedAutoBuiltDecks: defineTable({
+        eventId: v.id("limitedEvents"),
+        seatIndex: v.number(),
+        cards: v.array(v.object({ cardId: v.string(), cardName: v.string() })),
+        sideboard: v.array(
+            v.object({ cardId: v.string(), cardName: v.string() })
+        ),
+        colors: v.array(
+            v.union(
+                v.literal("W"),
+                v.literal("U"),
+                v.literal("B"),
+                v.literal("R"),
+                v.literal("G")
+            )
+        ),
+    }).index("by_event", ["eventId", "seatIndex"]),
     // Bot Drafter Pick Ratings (PRD #1296, ADR 0065, issue #1297). Evolves
     // the checked-in `data/pick-ratings/*.json` seed layer
     // (`convex/limited/pickRatings.ts`, issue #1117) into an Admin-editable

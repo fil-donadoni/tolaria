@@ -111,6 +111,9 @@ function makeCtx(userId: string, seeds: Row[]): Stub {
                     return {
                         collect: async () => rows,
                         first: async () => rows[0] ?? null,
+                        // `loadProfileLayerRows` (Card Profiles, read by
+                        // the Auto-Build fallback) uses `.take(n)`.
+                        take: async (n: number) => rows.slice(0, n),
                         // `limitedSeatStore`'s payload read (the off-row Pool
                         // store) uses `.unique()`.
                         unique: async () => {

@@ -33,6 +33,7 @@ import type {
 } from "./limited/eventTypes";
 import { resolveSheetCardMeta } from "./limitedCardMeta";
 import { loadPrintRows } from "./cardPrintRows";
+import { deleteAutoBuiltDecks } from "./limitedAutoBuiltDeckStore";
 import { makeResolveCardMetaFromRows } from "./cards/printRows";
 import type { ResolveCardMeta } from "./limited/eventLogic";
 
@@ -660,4 +661,5 @@ export async function deleteSeats(
         .withIndex("by_event", (q) => q.eq("eventId", eventId))
         .collect();
     for (const row of selections) await ctx.db.delete(row._id);
+    await deleteAutoBuiltDecks(ctx, eventId);
 }
