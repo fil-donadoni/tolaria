@@ -12,7 +12,11 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { canSummonCompanion, COMPANION_SUMMON_COST } from "../companion";
+import {
+    canSummonCompanion,
+    COMPANION_SUMMON_COST,
+    moveCompanionToHand,
+} from "../companion";
 import {
     getManaSubstitutions,
     payManaCostForSpell,
@@ -82,9 +86,7 @@ function applySummonCompanionMutation(
     }
     payManaCostForSpell(player, COMPANION_SUMMON_COST, [], subs);
     commitLandsForCost(player, COMPANION_SUMMON_COST);
-    const companion = player.companion!;
-    player.hand.push({ ...companion.instance, zone: "hand" });
-    companion.used = true;
+    moveCompanionToHand(state, player);
     return true;
 }
 
