@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CardInstance } from "~/types/game";
 import CardsPile from "./cards-pile";
+import { CARD_TILE_BUTTON_CLASS } from "~/lib/card-layout";
 
 /** Corner peek-stack for the satellites attached to a battlefield permanent —
  *  auras stacked on a creature (CR 303.4) or cards held in exile by a permanent
@@ -120,7 +121,7 @@ export default function AttachedCardsCluster({
                                 <button
                                     type="button"
                                     onClick={() => setOpen(true)}
-                                    className="w-full h-full bg-transparent border-0 p-0 cursor-pointer"
+                                    className={CARD_TILE_BUTTON_CLASS}
                                     aria-label={`${n} attached — open pile`}
                                 >
                                     {box}
