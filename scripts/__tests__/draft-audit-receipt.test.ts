@@ -45,14 +45,17 @@ describe("owesDraftAuditReceipt — path predicate", () => {
         "convex/limited/swiss.ts",
         "convex/limited/__tests__/cardProfiles.bot.test.ts",
         "scripts/__tests__/draft-audit.bot.test.ts",
-        "docs/agents/quality-gates.md",
+        "convex/cards/sets/lea/black.ts",
     ])("owes nothing for %s", (p) => {
         expect(owesDraftAuditReceipt([p])).toBe(false);
     });
 
     it("owes when any one path of a mixed diff does", () => {
         expect(
-            owesDraftAuditReceipt(["docs/x.md", "convex/limited/botDrafter.ts"])
+            owesDraftAuditReceipt([
+                "convex/cards/sets/lea/red.ts",
+                "convex/limited/botDrafter.ts",
+            ])
         ).toBe(true);
         expect(owesDraftAuditReceipt([])).toBe(false);
     });
