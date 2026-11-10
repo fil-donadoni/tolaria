@@ -205,15 +205,10 @@ describe("beneficial-slot guard through the search (issue #9044 position)", () =
     const LABEL =
         "far behind: the prepared Ancestral Recall copy is never cast at the opponent (issue #8954 position)";
 
-    const scenario = BLADE_SCENARIOS.find((s) => s.label === LABEL);
-    if (!scenario) throw new Error(`registry lost the entry: ${LABEL}`);
-
-    // One `it` per registry seed: a search per seed inside a single `it` ran
-    // ~40 s locally and passed the 60 s `bot-node` timeout on a slower runner
-    // (health RED, issue #9074). Each seed now gets its own timeout.
-    it.each(scenario.seeds ?? [0xb1ade])(
-        "on registry seed %i the misdirected cast is never the pick",
-        (seed) => {
+    it("on every registry seed the misdirected cast is never the pick", () => {
+        const scenario = BLADE_SCENARIOS.find((s) => s.label === LABEL);
+        if (!scenario) throw new Error(`registry lost the entry: ${LABEL}`);
+        for (const seed of scenario.seeds ?? [0xb1ade]) {
             const state = buildBladeState(scenario);
             const bot = seatPlayerId(state, scenario.bot);
             const { move } = searchWithTrace(
@@ -225,5 +220,5 @@ describe("beneficial-slot guard through the search (issue #9044 position)", () =
             expect(move).not.toBeNull();
             expect(misdirectedPlayerGiftCount(state, move!, bot)).toBe(0);
         }
-    );
+    });
 });
