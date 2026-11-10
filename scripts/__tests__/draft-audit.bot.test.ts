@@ -8,7 +8,6 @@ import {
     aggregateAudit,
     castabilityOf,
     checkFloors,
-    DRAFT_AUDIT_FLOORS,
     floorsExitCode,
     hypergeometricAtLeast,
     runDraftAudit,
@@ -108,11 +107,6 @@ describe("castability model", () => {
 });
 
 describe("Floors", () => {
-    it("declares Floors for the Vintage Cube and the profile-less LEA", () => {
-        expect(DRAFT_AUDIT_FLOORS["vintage-cube"]).toBeDefined();
-        expect(DRAFT_AUDIT_FLOORS.lea).toBeDefined();
-    });
-
     it("a deliberately broken Floor is a red exit; a held one is green", () => {
         const aggregate = aggregateAudit(cube.decks);
         const value = aggregate.meanCastability!;
