@@ -26,6 +26,7 @@ import {
     getDefinitionProducibleColors,
     manaValue,
 } from "@convex/gre/constants";
+import type { GetAutoBuildCardMeta } from "@convex/limited/autoBuild";
 import type { GetCardEvalMeta } from "@convex/limited/botDrafter";
 
 /** The server's `resolveCardMeta`, re-exported under the Lab's name.
@@ -55,5 +56,23 @@ export const draftLabGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         rarity: meta.rarity,
         pips: getPipCountsFromCost(def.manaCost),
         producedColors: [...getDefinitionProducibleColors(def)],
+    };
+};
+
+/** Mirrors `convex/limitedEvents.ts`'s private `makeAutoBuildCardMeta` — the
+ *  Pick Heuristic's `CardEvalMeta` plus the two builder-only facts Auto-Build
+ *  reads: `isLand` and `isBasicLand` (`autoBuild.ts#AutoBuildCardMeta`). */
+export const draftLabGetAutoBuildCardMeta: GetAutoBuildCardMeta = (
+    scryfallId
+) => {
+    const meta = draftLabGetCardEvalMeta(scryfallId);
+    if (!meta) return null;
+    const def = tryGetDefinition(meta.cardId);
+    if (!def) return null;
+    const isLand = def.types.includes("Land");
+    return {
+        ...meta,
+        isLand,
+        isBasicLand: isLand && (def.supertypes?.includes("Basic") ?? false),
     };
 };

@@ -56,10 +56,13 @@ import {
     emptySeatSignalState,
     type SeatSignalState,
 } from "@convex/limited/draftSignal";
+import { autoBuildDeck, type AutoBuiltDeck } from "@convex/limited/autoBuild";
+import { makeResolveBasicLand } from "@convex/limited/resolveBasicLand";
 import { observeLabPack } from "./draftLabSignal";
 import {
     draftLabResolveCardMeta,
     draftLabGetCardEvalMeta,
+    draftLabGetAutoBuildCardMeta,
 } from "./draftLabCardMeta";
 
 /** Seats in a standard Draft table (PRD #1107 / ADR 0054) — the Lab always
@@ -429,4 +432,46 @@ export function runFullDraftLab(
         }
     }
     return state;
+}
+
+/** One seat's Auto-Built deck beside the Pool it was built from. */
+export interface DraftLabSeatDeck {
+    seatIndex: number;
+    pool: readonly LimitedPoolCard[];
+    deck: AutoBuiltDeck;
+}
+
+/** Auto-Builds EVERY seat of a completed Lab draft with the server's own
+ *  `autoBuildDeck`, the profile lookup the draft scored with (the session's
+ *  `cardProfileRows` snapshot over the seed) and canonical-printing basics —
+ *  the Lab has no drafted Set's `cardPrints` to choose a printing from, and a
+ *  basic's printing changes no build decision. Pure: the same state builds the
+ *  same decks. Throws on a draft that is not completed, whose Pools are not
+ *  final (`isEventPoolFinal`'s contract). */
+export function buildDraftLabSeatDecks(
+    state: DraftLabState
+): DraftLabSeatDeck[] {
+    if (!state.completed) {
+        throw new Error(
+            "buildDraftLabSeatDecks: the draft is not completed — a Pool is final only once every pack is picked through."
+        );
+    }
+    const getCardProfile = buildDraftLabCardProfile(
+        state.packSlots,
+        buildDbProfileLayers(state.cardProfileRows)
+    );
+    const resolveBasicLand = makeResolveBasicLand("", new Map());
+    return state.seats.map((seat) => {
+        const pool = seat.pool ?? [];
+        return {
+            seatIndex: seat.seatIndex,
+            pool,
+            deck: autoBuildDeck(
+                pool,
+                draftLabGetAutoBuildCardMeta,
+                resolveBasicLand,
+                { getCardProfile }
+            ),
+        };
+    });
 }
