@@ -1348,8 +1348,8 @@ function handNeedsEveryOpenMana(
  *  the `mana` term's own) plus `landTempoWeight`, ONCE — the drop is one per
  *  turn. So on an idle turn the tapped drop beats the untapped one by exactly
  *  `landTempoWeight`, a gap whose sign holds for any positive weight. Zero
- *  the moment the new land's mana is spent, and at the cleanup step that
- *  clears `enteredOnTurn`'s turn — never a standing offset. */
+ *  the moment the new land's mana is spent, and on the next turn (`enteredOnTurn`
+ *  no longer equals `state.turn`) — never a standing offset. */
 function landTempoTerm(
     state: GameState,
     player: PlayerState,
