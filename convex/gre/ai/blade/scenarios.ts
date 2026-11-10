@@ -353,8 +353,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        // Seed 2 replaced under PUCT (issue #8700); see the note and issue #8740.
-        seeds: [0xb1ade, 1, 5, 3, 4],
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         // A PREDICATE, like the Kicker {X} entries beside it: a reachability
         // claim, kept out of the weight fit.
@@ -366,7 +365,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "casts Wan Shi Tong, Librarian with X = 5, spending every mana",
         },
-        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X would price every X alike, and the extra five mana would buy nothing. Passes on 10/12 seeds at 200 iterations under PUCT: `pass` trails by about the outcome band, so `last-window-deferral` fires on noise (issue #8740).",
+        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X would price every X alike, and the extra five mana would buy nothing. The cast is a flash body, so `pass` is a timing contender: it trails the X = 5 cast by 0.059 reward at 200 iterations (0.666 vs 0.725, within 0.002 on every robustness seed and jitter vector), outside the 0.05 outcome band, so `last-window-deferral` does not hold it. Without the Grizzly Bears the gap closes to 0.021 and the hold fires on every seed: the gap is the blocking side `waitsUnchanged` leaves to the band (issue #8740).",
     },
     {
         // KICKER {X} WITH A MINIMUM X reachability (CR 107.3 / 601.2b, issue
