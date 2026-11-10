@@ -55,8 +55,21 @@ what the lane does not cover, or to diagnose what it flagged.
 
 **Paste it byte-exact** (#2760): `land:ready` re-derives the verdict block
 and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
-(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
-`DIAGNOSTIC`; never reflow a line.
+(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT`, `SCOPED` or `BATCH`,
+never `DIAGNOSTIC`; never reflow a line.
+
+**Several UI PRs owe a walk at once → batch them** (issue #9106, ADR 0131
+§ Amendment issue #9106): `bun run check:ui -- --batch=9071,9096
+--write-receipts` merges every open PR's head onto the base in a detached
+worktree (a conflicting or FULL-scope PR is dropped, said so), walks the union
+scope once, and prints per PR `CLEAN` (its `BATCH` receipt, written into the
+body between `<!-- check:ui batch receipt -->` markers) or `RED` with its red
+lines. A surface several PRs reach is re-walked on each alone to attribute it;
+one that breaks only in combination is an `orphan` and proves nothing. A
+`BATCH` receipt lands a PR whose own scope it covers and whose DOM-reachable
+files it names by content: a new commit or a rebase touching those files after
+the walk owes a new walk. Run it from any checkout; it needs no
+`--surface=`/`--all` (refused).
 
 **Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
 desktop `1440x900x2` (and `1440x900x1`, DPR 1 in the full Chromium, on a
