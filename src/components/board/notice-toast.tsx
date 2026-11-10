@@ -7,7 +7,7 @@ import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 export const NOTICE_TOAST_MS = 5000;
 
 /** Non-error toast (issue #5661): a confirmation of something that already
- *  happened (a pile pick). The quiet twin of `ErrorToast` — same anchor, a
+ *  happened (a pile pick, a finished coin flip). The quiet twin of `ErrorToast` — same anchor, a
  *  `success` tone, `role="status"`, and it hides itself after
  *  {@link NOTICE_TOAST_MS} since there is nothing to copy or act on. `message`
  *  null hides it; a new message restarts the timer. */
@@ -15,6 +15,7 @@ export default function NoticeToast({
     message,
     noticeKey,
     hidden = false,
+    durationMs = NOTICE_TOAST_MS,
     onDismiss,
 }: {
     message: string | null;
@@ -24,11 +25,13 @@ export default function NoticeToast({
     /** Yield the anchor (to the error toast) without pausing the timer, so a
      *  notice never resurfaces long after the fact. */
     hidden?: boolean;
+    /** How long this notice stays up; {@link NOTICE_TOAST_MS} by default. */
+    durationMs?: number;
     onDismiss: () => void;
 }) {
     useEffect(() => {
         if (!noticeKey) return;
-        const timer = setTimeout(onDismiss, NOTICE_TOAST_MS);
+        const timer = setTimeout(onDismiss, durationMs);
         return () => clearTimeout(timer);
         // onDismiss is a fresh closure every render; the timer is per notice.
         // eslint-disable-next-line react-hooks/exhaustive-deps

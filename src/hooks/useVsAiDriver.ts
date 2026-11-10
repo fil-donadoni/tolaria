@@ -135,7 +135,8 @@ import {
 import { projectedToGameState } from "~/lib/ai/state-adapter";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
 import { getStoredDifficulty } from "~/lib/session";
-import { revealDurationMs } from "~/lib/random-reveal-pacing";
+import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
+import { revealRounds } from "~/lib/random-reveal-flip";
 
 /** A small visible "thinking" beat before the bot acts, so the game does not
  *  feel like it is skipping the opponent's turn instantly. */
@@ -1143,7 +1144,8 @@ export function useVsAiDriver(
             }
             actDelayMs = Math.max(
                 THINK_DELAY_MS,
-                revealDurationMs() - (Date.now() - revealWait.current.startedAt)
+                sequenceDurationMs(revealRounds(head)) -
+                    (Date.now() - revealWait.current.startedAt)
             );
         }
 
@@ -1533,7 +1535,17 @@ export function useVsAiDriver(
             }, delay);
             watchdog.current = { signature, timer, immediate: delay === 0 };
         };
-        arm(escalateImmediately ? 0 : BOT_WATCHDOG_MS);
+        // A Bot flipper's Random Reveal is paced on purpose (the ack below waits
+        // the sequence duration), so its window is slow by design, not hung:
+        // the watchdog interval starts once that wait is over (issue #5519 — a
+        // long Flip Sequence outlasts `BOT_WATCHDOG_MS` by itself).
+        const revealHead = botState.pendingChoices?.[0];
+        const pacedWaitMs =
+            revealHead?.kind === "random-reveal" &&
+            revealHead.playerId === botId
+                ? sequenceDurationMs(revealRounds(revealHead))
+                : 0;
+        arm(escalateImmediately ? 0 : BOT_WATCHDOG_MS + pacedWaitMs);
         // NO cleanup: see the comment above. The timer is owned by the ref, not
         // by this effect run.
         // eslint-disable-next-line react-hooks/exhaustive-deps

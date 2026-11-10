@@ -14,7 +14,7 @@
 // hand-built view would prove nothing about what the client receives.
 
 import { describe, it, expect } from "vitest";
-import { submitNumberChoice } from "../game";
+import { submitNumberChoice, submitRandomRevealAck } from "../game";
 import { resolveTopOfStack } from "../gre/state";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
@@ -41,6 +41,30 @@ type NumberChoiceArgs = {
     playerId: string;
     amount: number;
 };
+
+type AckArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    stackItemId: string;
+    choiceId: string;
+};
+
+/** The flipper's client acknowledges the held series (ADR 0023):
+ *  the draw is applied only after this ack. */
+async function ackSeries(stub: ReturnType<typeof makeMutationCtx>) {
+    const head = stub.state().pendingChoices![0];
+    if (head.kind !== "random-reveal") throw new Error("expected a reveal");
+    await runMutation<AckArgs, void>(
+        submitRandomRevealAck as unknown as Handler<AckArgs, void>,
+        stub.ctx,
+        {
+            gameId: GAME_ID,
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        }
+    );
+}
 
 const submit = (ctx: Parameters<typeof runMutation>[1], amount: number) =>
     runMutation<NumberChoiceArgs, void>(
@@ -74,6 +98,13 @@ describe("Squee's Revenge through the real mutation (CR 705.2, issue #3813)", ()
         const stub = makeMutationCtx("p1", [gameStateSeed(suspendedSquee(31))]);
         await submit(stub.ctx, 3); // W W W — the series stops at 3
 
+        // Held on the reveal: nothing drawn until the flipper acks.
+        expect(stub.state().pendingChoices?.[0]?.kind).toBe("random-reveal");
+        expect(
+            projectPublicState(stub.state(), 1, "p1").players[0].hand
+        ).toHaveLength(0);
+        await ackSeries(stub);
+
         const after = stub.state();
         expect(after.stack).toHaveLength(0);
         expect(after.pendingChoices ?? []).toHaveLength(0);
@@ -87,6 +118,8 @@ describe("Squee's Revenge through the real mutation (CR 705.2, issue #3813)", ()
     it("a lost flip ends the series and draws nothing", async () => {
         const stub = makeMutationCtx("p1", [gameStateSeed(suspendedSquee(31))]);
         await submit(stub.ctx, 6); // W W W L — stops at the loss
+        expect(stub.state().pendingChoices?.[0]?.kind).toBe("random-reveal");
+        await ackSeries(stub);
 
         const view = projectPublicState(stub.state(), 1, "p1");
         expect(view.players[0].hand).toHaveLength(0);

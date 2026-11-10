@@ -6,7 +6,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingChoice } from "~/types/game";
 import { useLingeringRandomReveal } from "~/hooks/useLingeringRandomReveal";
-import { revealDurationMs } from "~/lib/random-reveal-pacing";
+import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
 
 const HUMAN = "u1-p1";
 const BOT = "u1-p2";
@@ -42,10 +42,36 @@ describe("useLingeringRandomReveal (issue #5516)", () => {
         expect(result.current).toBe(head);
 
         act(() => {
-            vi.advanceTimersByTime(revealDurationMs() - 300 - 1);
+            vi.advanceTimersByTime(sequenceDurationMs(1) - 300 - 1);
         });
         expect(result.current).toBe(head);
 
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current).toBeNull();
+    });
+
+    it("a series lingers for its own sequence duration, not a single flip's (issue #5519)", () => {
+        const series = {
+            ...reveal(BOT),
+            flips: [0, 1, 2, 3].map((round) => ({
+                flipperId: BOT,
+                face: round === 3 ? "tails" : "heads",
+                outcome: round === 3 ? "lose" : "win",
+                round,
+            })),
+        } as unknown as PendingChoice;
+        const { result, rerender } = renderHook(
+            ({ h }: { h: PendingChoice | undefined }) =>
+                useLingeringRandomReveal(h, HUMAN),
+            { initialProps: { h: series as PendingChoice | undefined } }
+        );
+        rerender({ h: undefined });
+        act(() => {
+            vi.advanceTimersByTime(sequenceDurationMs(4) - 1);
+        });
+        expect(result.current).toBe(series);
         act(() => {
             vi.advanceTimersByTime(1);
         });
