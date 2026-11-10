@@ -44,6 +44,7 @@ const page = vi.hoisted(() => ({
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useDraftableSets: () => [
+        { setCode: "lea", draftable: true, missingCardCount: 0, sheets: [] },
         {
             setCode: "vintage-cube",
             draftable: true,
@@ -651,6 +652,9 @@ describe("CardProfilesPage — the desktop tool (issue #8903)", () => {
         ).toBeNull();
         expect(screen.queryByLabelText("Scope rail")).toBeNull();
         expect(page.scopesAsked.at(-1)).toBe("vintage-cube");
+        // Back on Archetypes the rail's first scope is asked for instead.
+        fireEvent.click(screen.getByRole("radio", { name: "Archetypes" }));
+        expect(page.scopesAsked.at(-1)).toBe("lea");
     });
 
     it("the rail collapses to its toggle and expands again", () => {
