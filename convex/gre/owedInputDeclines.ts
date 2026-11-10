@@ -52,8 +52,10 @@ import { resolveTopOfStack, type GameState } from "./state";
 
 /** Why a decline core changed nothing. `not-priority-holder` — a pass from a
  *  player who does not hold priority (ADR 0047 "waiting for another player"):
- *  a harmless misclick for a human, a stale request for a scheduler. */
-export type DeclineNoOpReason = "not-priority-holder";
+ *  a harmless misclick for a human, a stale request for a scheduler.
+ *  `already-confirmed` — a second confirmation of an attack declaration that
+ *  is already locked in (a double-press, `gre/attackDeclaration.ts`). */
+export type DeclineNoOpReason = "not-priority-holder" | "already-confirmed";
 
 /** What a decline core did: `changed` when it advanced the state, else the
  *  reason it was a no-op. An illegal decline throws instead. */
