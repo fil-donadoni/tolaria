@@ -30,11 +30,6 @@ which `land:ready` accepts on the same terms (#4419). A no-flag run walks the di
 surfaces and prints `SCOPED` (ADR 0131), re-derived by `land:ready`; `RECEIPT` covers
 any diff; never `DIAGNOSTIC`; never reflow a row. **The full walk (`--all`) is run by hand only — no automated run, `release` included** (issue #6143).
 
-**Several UI PRs waiting → one walk** (issue #9106, ADR 0131 § Amendment):
-`bun run check:ui -- --batch=<PR#,…> --write-receipts` merges them onto the
-base, walks the union once, writes a `BATCH` receipt into each clean PR's body
-and names each red PR; the single-PR walk stays the default.
-
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.
 
