@@ -9,7 +9,7 @@
 //   summon-companion → summonCompanion (CR 116.2 / 702.139a, ADR 0064)
 //   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
-//   activate-mana-ability → tapUntap (the doomed-source float, issue #8355)
+//   activate-mana-ability → tapUntap (the doomed-source float)
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ declareAttackers → confirmAttackers
 //   declare-blockers → declareBlockers → confirmBlockers
