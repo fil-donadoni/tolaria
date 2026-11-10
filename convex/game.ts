@@ -2,7 +2,12 @@ import { ConvexError, v, type GenericId, type Infer } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, isAdminUser } from "./auth";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+    internalMutation,
+    mutation,
+    query,
+    type MutationCtx,
+} from "./_generated/server";
 import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { copyExceptName } from "./cards/cardNames";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
@@ -610,6 +615,12 @@ import {
     toNextGamePlayers,
     type PlayDrawChoice,
 } from "./matches";
+import { internal } from "./_generated/api";
+import {
+    clockBudgetMs,
+    expiredPlayerId,
+    SIDEBOARD_WINDOW_MS,
+} from "./matchClock";
 import {
     appendMatchSeat,
     hydrateGameSeats,
@@ -934,6 +945,51 @@ async function recordLimitedPairingResult(
     }
 }
 
+/** The Match row's clock fields for a configured budget (issue #2308): none
+ *  when the creator chose no clock. `clockBudgetMs` refuses a value outside
+ *  the bounds — the client's wizard is never the authority on it. */
+function matchClockFields(
+    clockMinutes: number | undefined
+): Pick<Doc<"matches">, "clock"> {
+    if (clockMinutes === undefined) return {};
+    try {
+        return { clock: { budgetMs: clockBudgetMs(clockMinutes) } };
+    } catch (err) {
+        throw new ConvexError((err as Error).message);
+    }
+}
+
+/** A clocked Bo3 between Games (issue #2308): the Game's clock — already
+ *  stopped by the game-over save — hands each player's remainder to the Match
+ *  for the next Game to start from, and the fixed sideboarding window opens
+ *  (`expireSideboardWindow` closes it). Nothing for an unclocked Match, or a
+ *  Game that decided the Match. */
+async function carryMatchClock(
+    ctx: MutationCtx,
+    gameId: GenericId<"games">,
+    match: Doc<"matches">,
+    nextStatus: Doc<"matches">["status"] | undefined,
+    now: number
+): Promise<Partial<Doc<"matches">>> {
+    if (!match.clock || nextStatus !== "sideboarding") return {};
+    const tick = await ctx.db
+        .query("gameTicks")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .first();
+    await ctx.scheduler.runAfter(
+        SIDEBOARD_WINDOW_MS,
+        internal.game.expireSideboardWindow,
+        { matchId: match._id, gameNumber: match.currentGameNumber }
+    );
+    return {
+        clock: {
+            budgetMs: match.clock.budgetMs,
+            remaining: tick?.clock?.players ?? match.clock.remaining,
+        },
+        sideboardDeadlineAt: now + SIDEBOARD_WINDOW_MS,
+    };
+}
+
 /** If SBA detected game over, persist the result to the games table AND record
  *  it into the owning Match (PRD #387 / ADR 0029): bump the winner's score and,
  *  for a Bo1, immediately finish the Match. (Bo3 routes to "sideboarding" — a
@@ -982,7 +1038,11 @@ export async function finalizeGameOver(
         ? recordGameResult(match, winnerId)
         : recordDrawnGame(match);
     if (!patch) return;
-    await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
+    await ctx.db.patch(game.matchId, {
+        ...patch,
+        ...(await carryMatchClock(ctx, gameId, match, patch.status, now)),
+        updatedAt: now,
+    });
     // Limited Event round pairing (issue #1645): a normal win and a concede
     // both land here, so this is where a played pairing's result is recorded.
     // A no-op unless the patch actually FINISHED the Match (a Bo3 routing to
@@ -2855,6 +2915,9 @@ export const createGame = mutation({
         // An UNLISTED table (issue #4670, `schema.ts` § games): joinable by
         // link or code, never broadcast by `listOpenGames`.
         unlisted: v.optional(v.boolean()),
+        // Per-player Match Clock in minutes (issue #2308, `matchClock.ts`).
+        // Absent = no clock. Bounds re-checked here (`clockBudgetMs`).
+        clockMinutes: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         // ADR 0080 — a manual-format deck is rejected by the real engine.
@@ -2895,6 +2958,7 @@ export const createGame = mutation({
             matchFormat,
             status: "waiting",
             players: buildMatchPlayers([player]),
+            ...matchClockFields(args.clockMinutes),
             currentGameNumber: 1,
             createdAt: now,
             updatedAt: now,
@@ -3187,6 +3251,7 @@ export const startPairingMatch = mutation({
                 botDifficulty: resolveEventBotDifficulty(event),
                 limitedEventId: args.eventId,
                 limitedPairing,
+                limitedRoundDeadlineAt: round.deadlineAt,
                 createdAt: now,
                 updatedAt: now,
             });
@@ -3200,6 +3265,7 @@ export const startPairingMatch = mutation({
                 vsAi: true,
                 limitedEventId: args.eventId,
                 limitedPairing,
+                limitedRoundDeadlineAt: round.deadlineAt,
                 createdAt: now,
                 updatedAt: now,
             });
@@ -3232,6 +3298,7 @@ export const startPairingMatch = mutation({
                 limitedEventId: args.eventId,
                 limitedChallenge,
                 limitedPairing,
+                limitedRoundDeadlineAt: round.deadlineAt,
             });
             gameId = await insertGameWithDecks(ctx, {
                 name,
@@ -3244,6 +3311,7 @@ export const startPairingMatch = mutation({
                 limitedEventId: args.eventId,
                 limitedChallenge,
                 limitedPairing,
+                limitedRoundDeadlineAt: round.deadlineAt,
             });
         }
 
@@ -3296,8 +3364,19 @@ export const createSoloGame = mutation({
         // `deck2` (the Bot's or the second seat's) included. Absent ⇒ seat
         // 1's Deck Format.
         matchFormat: matchFormatValidator,
+        // Per-player Match Clock in minutes (issue #2308). vs-AI lobby
+        // Matches only: a solo game has no opponent to race, and a Limited
+        // playtest runs on the event's clock, never its own.
+        clockMinutes: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        if (
+            args.clockMinutes !== undefined &&
+            (args.vsAi !== true || args.limitedEventId !== undefined)
+        )
+            throw new ConvexError(
+                "A Match clock is only available against the Bot or another player."
+            );
         // ADR 0080 — a manual-format deck is rejected by the real engine.
         if (args.deck.format === "manual")
             throw new ConvexError(
@@ -3403,6 +3482,7 @@ export const createSoloGame = mutation({
             vsAi: args.vsAi === true ? true : undefined,
             botDifficulty,
             limitedEventId: args.limitedEventId,
+            ...matchClockFields(args.clockMinutes),
             createdAt: now,
             updatedAt: now,
         });
@@ -3729,7 +3809,7 @@ export const joinGameByCode = mutation({
  * chooser auto-chooses play. Caller must have verified status === "sideboarding".
  */
 async function buildNextGameForMatch(
-    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    ctx: Pick<GenericMutationCtx<DataModel>, "db" | "scheduler">,
     match: Doc<"matches">,
     nickname: string,
     choice?: PlayDrawChoice
@@ -3771,6 +3851,7 @@ async function buildNextGameForMatch(
         // -accept marker `joinGame` consumes, already spent by G2.
         limitedEventId: match.limitedEventId,
         limitedPairing: match.limitedPairing,
+        limitedRoundDeadlineAt: match.limitedRoundDeadlineAt,
         createdAt: now,
         updatedAt: now,
     });
@@ -3780,6 +3861,7 @@ async function buildNextGameForMatch(
         currentGameNumber: nextGameNumber,
         currentGameId: gameId,
         playDrawChooserId: undefined,
+        sideboardDeadlineAt: undefined,
         updatedAt: now,
     });
 
@@ -3935,49 +4017,117 @@ export const forfeitMatch = mutation({
         // Idempotent: an already-finished Match needs nothing.
         if (match.status === "finished") return;
 
-        const patch = computeForfeitMatch(match, args.playerId);
-        if (!patch) throw new Error("Seat not found in this match");
+        await endMatchAgainst(ctx, match, args.playerId, "concede");
+    },
+});
 
-        const now = Date.now();
-        await ctx.db.patch(args.matchId, { ...patch, updatedAt: now });
-        // The SECOND place a Match becomes finished (issue #1645). A forfeited
-        // pairing Match must land in the standings exactly like a played one —
-        // `computeForfeitMatch` awarded the opponent the games they needed, so
-        // the recorded score is already internally consistent (2-0 in a Bo3).
-        await recordLimitedPairingResult(ctx, { ...match, ...patch }, now);
+/** End the WHOLE Match as a loss for `loserId` (issue #396's forfeit body,
+ *  shared with the Match Clock's expiry, issue #2308): the opponent is awarded
+ *  the Games they need, the Match is finished and recorded (Limited standings
+ *  included), and a Game still in progress is ended with `reason` so the board
+ *  shows the result. The caller has verified the Match is not finished and
+ *  that `loserId` may lose it. */
+async function endMatchAgainst(
+    ctx: MutationCtx,
+    match: Doc<"matches">,
+    loserId: string,
+    reason: "concede" | "timeout"
+): Promise<void> {
+    const patch = computeForfeitMatch(match, loserId);
+    if (!patch) throw new Error("Seat not found in this match");
 
-        // If a Game is in progress, end it too so the board shows the result.
-        // The opponent (the Match winner) is the Game winner.
-        const winnerId = patch.winner;
-        if (match.currentGameId && winnerId) {
-            const gameState = await getLatestGameState(
+    const now = Date.now();
+    await ctx.db.patch(match._id, {
+        ...patch,
+        sideboardDeadlineAt: undefined,
+        updatedAt: now,
+    });
+    // The SECOND place a Match becomes finished (issue #1645). A forfeited
+    // pairing Match must land in the standings exactly like a played one —
+    // `computeForfeitMatch` awarded the opponent the games they needed, so
+    // the recorded score is already internally consistent (2-0 in a Bo3).
+    await recordLimitedPairingResult(ctx, { ...match, ...patch }, now);
+
+    // If a Game is in progress, end it too so the board shows the result.
+    // The opponent (the Match winner) is the Game winner.
+    const winnerId = patch.winner;
+    if (match.currentGameId && winnerId) {
+        const gameState = await getLatestGameState(ctx, match.currentGameId);
+        if (gameState && !gameState.state.gameOver) {
+            const state = structuredClone(gameState.state) as GameState;
+            endGame(state, {
+                winnerId,
+                loserId,
+                reason: "concede",
+                ...(reason === "timeout" ? { timedOut: true } : {}),
+            });
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(
                 ctx,
-                match.currentGameId
+                match.currentGameId,
+                nextSeq,
+                state,
+                gameState
             );
-            if (gameState && !gameState.state.gameOver) {
-                const state = structuredClone(gameState.state) as GameState;
-                endGame(state, {
-                    winnerId,
-                    loserId: args.playerId,
-                    reason: "concede",
-                });
-                const nextSeq = gameState.seq + 1;
-                await saveGameState(
-                    ctx,
-                    match.currentGameId,
-                    nextSeq,
-                    state,
-                    gameState
-                );
-                // Mark the games row finished (the Match patch above already
-                // recorded the final score; don't re-run recordGameResult).
-                await ctx.db.patch(match.currentGameId, {
-                    status: "finished",
-                    winner: winnerId,
-                    updatedAt: now,
-                });
-            }
+            // Mark the games row finished (the Match patch above already
+            // recorded the final score; don't re-run recordGameResult).
+            await ctx.db.patch(match.currentGameId, {
+                status: "finished",
+                winner: winnerId,
+                updatedAt: now,
+            });
         }
+    }
+}
+
+/** A Match Clock ran out (issue #2308, `convex/matchClock.ts`): armed by the
+ *  tick writer (`gameStateStore.ts` § `advanceGameClock`) for the running
+ *  clock's zero instant. Re-checks everything against the tick row before
+ *  acting — the game may have ended, the clock may have stopped or moved to
+ *  the other player since (a cancel that lost the race) — so a stale job is
+ *  a no-op, never a wrong loss. A live one ends the Match against the player
+ *  whose flag fell. Server-driven only: no client can call it. */
+export const expireMatchClock = internalMutation({
+    args: { gameId: v.id("games"), playerId: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+        const tick = await ctx.db
+            .query("gameTicks")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .first();
+        if (!tick?.clock || tick.gameOver) return null;
+        if (expiredPlayerId(tick.clock, Date.now()) !== args.playerId)
+            return null;
+        const game = await ctx.db.get(args.gameId);
+        if (!game?.matchId) return null;
+        const match = await ctx.db.get(game.matchId);
+        if (!match || match.status === "finished") return null;
+        if (match.currentGameId !== args.gameId) return null;
+        await endMatchAgainst(ctx, match, args.playerId, "timeout");
+        return null;
+    },
+});
+
+/** The sideboarding window of a clocked Bo3 closed (issue #2308,
+ *  `SIDEBOARD_WINDOW_MS`): every seat not yet ready is readied with its deck
+ *  as it stands, and the next Game is built exactly as `setReady` builds it
+ *  when the last seat readies. A no-op once the Match has left the window
+ *  (everyone readied in time, a forfeit) or moved past `gameNumber`. */
+export const expireSideboardWindow = internalMutation({
+    args: { matchId: v.id("matches"), gameNumber: v.number() },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+        const match = await ctx.db.get(args.matchId);
+        if (!match || match.status !== "sideboarding") return null;
+        if (match.currentGameNumber !== args.gameNumber) return null;
+        const players = match.players.map((p) => ({ ...p, ready: true }));
+        await ctx.db.patch(match._id, { players, updatedAt: Date.now() });
+        await buildNextGameForMatch(
+            ctx,
+            { ...match, players },
+            match.players[0]?.name ?? "Player"
+        );
+        return null;
     },
 });
 

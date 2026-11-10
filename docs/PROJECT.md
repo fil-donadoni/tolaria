@@ -211,6 +211,16 @@ servono a quella decisione: `seq`, `priorityPlayerId`, `phase`,
 `expectedInputKind`, `owedPlayerIds`, `gameOver`. Il driver del bot vs-AI monta
 la query pesante solo quando `owedPlayerIds` nomina il proprio seat.
 
+Nei Match con **Match Clock** (issue #2308, `convex/matchClock.ts`) il tick porta
+anche `clock`: il residuo di ciascun giocatore, chi sta correndo e da quando.
+Sta qui perché il tick è già letto e riscritto a ogni save stabile — il clock
+non costa letture in più — e il board lo legge da questa riga invece di
+rieseguire la query del Match (che idrata i mazzi). Corre il clock del giocatore
+che il gioco sta aspettando (priorità o decisione pendente); allo zero un job
+schedulato chiude il Match come sconfitta di quel giocatore. Il residuo
+passa da una game all'altra sul row `matches`; tra le game di un Bo3 i clock
+sono fermi e il sideboarding ha una finestra fissa di 2 minuti.
+
 `owedPlayerIds` è un **array**, non un singolo id, e va sempre testato con
 `.includes()`. L'assegnazione del danno da combattimento (CR 510.1c, banding
 702.22j-k) si presenta come una normale finestra di priority ma l'attore reale
