@@ -1,6 +1,6 @@
 // The Profile Census seed validator (`scripts/lib/profile-census.ts`) and the
 // residue schema (`convex/limited/cardProfilesCore.ts`) — the mechanical half
-// of `.claude/skills/profile-census/`. Each refusal is pinned by a fixture
+// of the `profile-census` project skill. Each refusal is pinned by a fixture
 // that makes exactly that one mistake, so a rule that stops firing reds.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
