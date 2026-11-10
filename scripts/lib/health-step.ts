@@ -226,10 +226,10 @@ export const PR_RECEIPT_GUARDS: Readonly<
     // Archetype Catalogue or the Capability registry pastes one `draft:audit:`
     // line per scope and `pr:checks draft-audit` re-derives it.
     "draft:audit": {
-        measuredCostS: 19,
+        measuredCostS: 14,
         measured:
-            "`draft:audit --scope vintage-cube` 8.9 s + `--scope lea` 10.1 s, eight seeds each (docs/research/draft-table-audit-baseline.md, issue #8894); a fresh run under load ~100 did not finish in 20 min, so the baseline stands",
-        why: "LEA alone is above the 10 s lane ceiling (issue #4963); the receipt keeps the cost off every diff that cannot move a build",
+            "`draft:audit --scope vintage-cube` 9 s + `--scope lea` 5 s, eight seeds each, 14 s for the pair a receipt re-derives (2026-11-10, load ~40); baseline 8.9 s + 10.1 s (docs/research/draft-table-audit-baseline.md, issue #8894)",
+        why: "the pair is above the 10 s lane ceiling (issue #4963); the receipt keeps the cost off every diff that cannot move a build",
     },
 };
 

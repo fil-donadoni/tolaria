@@ -870,7 +870,7 @@ cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
 `--all` walk: 14m39s green, 45m37s red), which issue #6143 moved to a fourth
 place, `PR_RECEIPT_GUARDS`: a PR runs it by hand and pastes the receipt `land`
 re-derives, and no health or `release` run composes it. Issue #8895 adds `draft:audit`
-(the Draft Table Audit, 8.9 s + 10.1 s for its two scopes, 19 s: LEA alone is over the 10 s
+(the Draft Table Audit, 9 s + 5 s for its two scopes, 14 s measured 2026-11-10: the pair is over the 10 s
 ceiling) to the same place: a diff touching the Bot Drafter, Auto-Build, the Card Profile
 layers or seeds, the Archetype Catalogue or the Capability registry
 (`owesDraftAuditReceipt`, `scripts/lib/draft-audit-receipt.ts`) pastes one
