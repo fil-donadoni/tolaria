@@ -450,8 +450,8 @@ the opener grid, and the walk scrolls it on screen before the probe measures.
 ## /settings (2026-09-23)
 
 Walked since issue #4418: one navigation, no click sequence in front of it — a
-page reached by URL. `/settings` is Density, Motion, Phase stops and Card
-preview default, and it is NOT under the admin gate: it is a general-user route
+page reached by URL. `/settings` is Density, Motion, Phase stops, Board
+(battlefield grouping, issue #7429) and Card preview default, and it is NOT under the admin gate: it is a general-user route
 (`src/router.tsx`).
 
 **The `/admin/*` pages are not walked** (issue #5075): they are staff-only

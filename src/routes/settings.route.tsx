@@ -1,10 +1,11 @@
 // /settings (issue #2595, PRD #2405 slice 16/16, ADR 0101) — the single
 // surface for the app's per-user knobs: density, motion, the board pod's
-// phase stops, and the card-preview Oracle/Printed default. Each concern is
+// phase stops, the battlefield grouping (issue #7429), and the card-preview Oracle/Printed default. Each concern is
 // its own Panel section (`src/components/settings/`); this route is layout
 // only, same shape as `design-system.route.tsx`.
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import SettingsBoardSection from "@/components/settings/settings-board-section";
 import SettingsDensitySection from "@/components/settings/settings-density-section";
 import SettingsMotionSection from "@/components/settings/settings-motion-section";
 import SettingsPhaseStopsSection from "@/components/settings/settings-phase-stops-section";
@@ -26,6 +27,7 @@ export default function SettingsRoute() {
                     <SettingsDensitySection />
                     <SettingsMotionSection />
                     <SettingsPhaseStopsSection />
+                    <SettingsBoardSection />
                     <SettingsPreviewSection />
                 </div>
             </div>

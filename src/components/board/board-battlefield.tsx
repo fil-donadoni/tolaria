@@ -11,7 +11,8 @@ import {
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
 import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
-import { groupBattlefield } from "~/lib/battlefield-stacks";
+import { groupBattlefield, isStackingDisabled } from "~/lib/battlefield-stacks";
+import { useBattlefieldGrouping } from "~/hooks/useBattlefieldGrouping";
 import { attachmentHostName, attachmentLabel } from "~/lib/attachment";
 import { toLayerState } from "~/lib/effective-stats";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
@@ -190,7 +191,14 @@ export default function BoardBattlefield({
     // untap, or a sacrifice/exile/tap-other cost pick), so each candidate leaves
     // the fan into its own slot and its selection ring is visible — mirrors the
     // divide-as-you-choose un-stack above.
-    const unstackForSelection = divideActive || isSelectingOnThisBoard;
+    // Issue #7429 — the viewer's "separate" board preference lays every
+    // permanent out on its own, permanently: the same singleton path the two
+    // forced un-stacks above take, so those behave identically in both modes.
+    const [battlefieldGrouping] = useBattlefieldGrouping();
+    const stackingDisabled = isStackingDisabled(
+        battlefieldGrouping,
+        divideActive || isSelectingOnThisBoard
+    );
     // Zone-arrival deferral (flight animation): a permanent that just arrived
     // on this battlefield renders as its OWN singleton for the arrival window
     // even when identical stackable neighbours exist — joining the fan now
@@ -477,19 +485,19 @@ export default function BoardBattlefield({
         const creatureGroups = groupBattlefield(
             creatures,
             attachedAurasByHost,
-            unstackForSelection,
+            stackingDisabled,
             arrivalDeferIds
         );
         const landGroups = groupBattlefield(
             lands,
             attachedAurasByHost,
-            unstackForSelection,
+            stackingDisabled,
             arrivalDeferIds
         );
         const otherGroups = groupBattlefield(
             others,
             attachedAurasByHost,
-            unstackForSelection,
+            stackingDisabled,
             arrivalDeferIds
         );
         // A fanned stack is wider than one card, so each group reserves its own
@@ -562,7 +570,7 @@ export default function BoardBattlefield({
         player.battlefield,
         hostExistsAnywhere,
         attachedAurasByHost,
-        unstackForSelection,
+        stackingDisabled,
         choiceBuffer,
         myPhasedCards,
         arrivalDeferIds,

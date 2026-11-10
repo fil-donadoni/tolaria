@@ -1,5 +1,6 @@
 import type { CardInstance } from "~/types/game";
 import { displayCardId } from "~/lib/card-utils";
+import type { BattlefieldGrouping } from "~/lib/boardViewPrefs";
 
 // ---------------------------------------------------------------------------
 // Permanent stacking (PRD #621, issue #622).
@@ -185,6 +186,19 @@ function orderMembers(
         if (at !== bt) return at - bt; // untapped (0) before tapped (1)
         return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
     });
+}
+
+/** Whether a battlefield renders every permanent as its own singleton
+ *  (`groupBattlefield`'s `disableStacking`). Two independent causes, either
+ *  sufficient (issue #7429): the viewer's `"separate"` board preference, held
+ *  permanently, or a FORCED un-stack — a divide-as-you-choose (CR 601.2d) or
+ *  per-instance selection active on this board — which applies in both modes
+ *  alike. */
+export function isStackingDisabled(
+    grouping: BattlefieldGrouping,
+    forcedUnstack: boolean
+): boolean {
+    return grouping === "separate" || forcedUnstack;
 }
 
 /**
