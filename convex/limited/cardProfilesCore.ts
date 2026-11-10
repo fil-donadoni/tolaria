@@ -122,7 +122,7 @@ export interface CardArchetypeFile {
 
 /** `capabilities.json` is the LLM-generated Vintage Cube census (issue #1614,
  *  ADR 0072's "Profiles are LLM-seeded and human-reviewed"), split out of the
- *  old per-scope file by `splitCardProfiles` (issue #8890). Every row ships
+ *  old single-layer per-scope file (issue #8890). Every row ships
  *  `reviewed: false` — HALF weight (`botDrafter.ts`'s
  *  `UNREVIEWED_PROFILE_WEIGHT`) until a human flips it in the Admin editor. */
 const CHECKED_IN_CARD_CAPABILITIES = capabilitiesJson as CardCapabilityFile;
@@ -431,126 +431,6 @@ export function buildDbProfileLayers(rows: ProfileLayerRows): ProfileLayers {
         getArchetypes: (scope, cardId) =>
             archetypes.get(`${scope.toLowerCase()}::${cardId}`) ?? null,
     };
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// The split (issue #8890, ADR 0167 Consequences): one legacy `(scope,
-// cardId)` row carrying both halves becomes at most one row per layer. Pure,
-// so the seed-file split and the `cardProfiles` table migration
-// (`cardProfiles.ts`'s `splitLegacyCardProfiles`) run the SAME function.
-// ─────────────────────────────────────────────────────────────────────────
-
-/** One row of the legacy single-table model (`cardProfiles`, ADR 0072). */
-export interface LegacyCardProfileRow {
-    scope: string;
-    cardId: string;
-    archetypes: string[];
-    provides: string[];
-    requires: string[];
-    comboEdges?: ComboEdge[];
-    reviewed: boolean;
-}
-
-export interface CardProfileSplit {
-    capabilities: CardCapabilitiesRow[];
-    archetypes: ScopedCardArchetypes[];
-    /** Cards whose legacy rows in different scopes disagree on the
-     *  Capability half — one row survives per card (rule below), the
-     *  disagreement is reported, never silently merged. */
-    capabilityConflicts: string[];
-}
-
-function hasCapabilityData(row: LegacyCardProfileRow): boolean {
-    return (
-        row.provides.length > 0 ||
-        row.requires.length > 0 ||
-        (row.comboEdges?.length ?? 0) > 0
-    );
-}
-
-function sameCapabilities(a: CardCapabilitiesRow, b: CardCapabilitiesRow) {
-    return (
-        JSON.stringify([a.provides, a.requires, a.comboEdges ?? []]) ===
-        JSON.stringify([b.provides, b.requires, b.comboEdges ?? []])
-    );
-}
-
-/** Splits legacy rows into the two layers.
- *
- *  - A layer row is emitted when the legacy row carries data for that layer,
- *    OR was reviewed (a reviewed empty layer is a human's "nothing here"),
- *    OR carries no data in EITHER layer (the census looked and found
- *    nothing — a verdict on both halves, so no legacy row vanishes). An
- *    unreviewed empty layer beside a non-empty one is dropped — the scorer
- *    reads it as absent. So a card with only one layer's data yields only
- *    that layer's row.
- *  - The review state is carried to EVERY layer the row emits: the legacy
- *    single flag reviewed the whole row.
- *  - Archetypes keep their `(scope, cardId)` key — no row is lost.
- *  - Capabilities collapse to one row per card (ADR 0167 §1). When several
- *    scopes carry one, a reviewed row beats an unreviewed one, then the
- *    lowest scope string wins (deterministic, never input order); a card
- *    whose candidates disagree is listed in `capabilityConflicts`. */
-export function splitCardProfiles(
-    rows: readonly LegacyCardProfileRow[]
-): CardProfileSplit {
-    const archetypes: ScopedCardArchetypes[] = [];
-    const candidates = new Map<
-        string,
-        { scope: string; row: CardCapabilitiesRow }[]
-    >();
-
-    for (const legacy of rows) {
-        const scope = legacy.scope.toLowerCase();
-        const hasArchetypes = legacy.archetypes.length > 0;
-        const hasCapabilities = hasCapabilityData(legacy);
-        const censusedEmpty = !hasArchetypes && !hasCapabilities;
-        if (hasArchetypes || legacy.reviewed || censusedEmpty) {
-            archetypes.push({
-                scope,
-                cardId: legacy.cardId,
-                archetypes: [...legacy.archetypes],
-                reviewed: legacy.reviewed,
-            });
-        }
-        if (hasCapabilities || legacy.reviewed || censusedEmpty) {
-            const row: CardCapabilitiesRow = {
-                cardId: legacy.cardId,
-                provides: [...legacy.provides],
-                requires: [...legacy.requires],
-                ...(legacy.comboEdges === undefined
-                    ? {}
-                    : {
-                          comboEdges: legacy.comboEdges.map((edge) => ({
-                              ...edge,
-                          })),
-                      }),
-                reviewed: legacy.reviewed,
-            };
-            const list = candidates.get(legacy.cardId) ?? [];
-            list.push({ scope, row });
-            candidates.set(legacy.cardId, list);
-        }
-    }
-
-    const capabilities: CardCapabilitiesRow[] = [];
-    const capabilityConflicts: string[] = [];
-    for (const [cardId, list] of candidates) {
-        const ranked = [...list].sort((a, b) =>
-            a.row.reviewed !== b.row.reviewed
-                ? a.row.reviewed
-                    ? -1
-                    : 1
-                : a.scope.localeCompare(b.scope)
-        );
-        const winner = ranked[0].row;
-        capabilities.push(winner);
-        if (ranked.some((entry) => !sameCapabilities(entry.row, winner))) {
-            capabilityConflicts.push(cardId);
-        }
-    }
-
-    return { capabilities, archetypes, capabilityConflicts };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

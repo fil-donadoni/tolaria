@@ -253,7 +253,6 @@ tramite `nameRegistry` quando serve. Conseguenza: una carta implementata domani
 | `cardCapabilities`   | Card Capabilities per `cardId` (provides/requires, Combo Edge), override Admin su `data/card-profiles/capabilities.json` (ADR 0167) |
 | `cardArchetypes`     | Card Archetypes per `(scope, cardId)`, override Admin su `data/card-profiles/archetypes/<scope>.json` (ADR 0167)                    |
 | `archetypeCatalogue` | righe dell'Archetype Catalogue create/modificate da Admin, sopra `data/archetype-catalogue.json` (ADR 0167)                         |
-| `cardProfiles`       | legacy (ADR 0072): sorgente della sola migrazione `splitLegacyCardProfiles`, da rimuovere (PRD #8772)                               |
 
 Lo split `limitedEvents`/`limitedSeats` merita attenzione perché è **l'esempio
 canonico del vincolo di costo Convex**. I payload dei seat erano il 99% del

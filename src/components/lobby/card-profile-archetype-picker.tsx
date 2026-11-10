@@ -35,7 +35,7 @@ interface CardProfileArchetypePickerProps {
  *
  *  UNREGISTERED STORED VALUES GET A ROW OF THEIR OWN. Closing a vocabulary
  *  that was open for a whole release cannot assume the stored data already
- *  obeys it: a `cardProfiles` row written through the old free-text field may
+ *  obeys it: a `cardArchetypes` row written through the old free-text field may
  *  carry a name the catalogue does not have, and a picker that rendered only
  *  catalogue rows would leave that name INVISIBLE while still submitting it —
  *  so every save of that row would fail server-side (`cardProfileWriteErrors`

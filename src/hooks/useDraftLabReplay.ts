@@ -87,7 +87,7 @@ export interface UseDraftLabReplayResult {
      *  `ratingsLoading`). */
     result: ReplayResult | null;
     /** True once an event with a visible `seed` is selected but this file's
-     *  own scope reads — `cardRatings` AND `cardProfiles`, the two DB layers
+     *  own scope reads — `cardRatings` AND the Card Profile tables, the DB layers
      *  the real event was drafted under — haven't both resolved (and been
      *  snapshotted) for THAT event yet. The panel uses this to show a "loading" state
      *  instead of a misleading blank gap between selecting an event and
