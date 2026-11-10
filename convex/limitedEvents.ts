@@ -22,6 +22,11 @@ import {
     saveCubePool,
 } from "./limitedCubePoolStore";
 import {
+    loadStoredAutoBuiltDeck,
+    loadStoredAutoBuiltDecks,
+    saveAutoBuiltDeck,
+} from "./limitedAutoBuiltDeckStore";
+import {
     deleteSeats,
     ensureSeatsMigrated,
     eventHasInlinePayload,
@@ -330,9 +335,9 @@ const colorValidator = v.union(
 );
 
 /** Wire shape of a bot Seat's Auto-Built deck (issue #1115) — the Maindeck +
- *  Sideboard + the two chosen colors (for a compact "R/G" label). Computed
- *  on demand (`computeBotAutoBuiltDeck`), never persisted — see
- *  `convex/limited/autoBuild.ts`'s module comment. */
+ *  Sideboard + the two chosen colors (for a compact "R/G" label). Decided
+ *  once at Pool-final and STORED (`convex/limitedAutoBuiltDeckStore.ts`,
+ *  issue #8896); built on demand only for an event older than that. */
 const autoBuiltDeckValidator = v.object({
     cards: v.array(deckCardValidator),
     sideboard: v.array(deckCardValidator),
@@ -866,8 +871,8 @@ async function loadBasicLandResolver(
     return makeResolveBasicLand(setCode, printIdsInSet);
 }
 
-/** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
- *  with this module's two registry resolvers). `null` for a seat that has
+/** ONE seat's Auto-Built deck (`computeBotAutoBuiltDeck` wired with this
+ *  module's registry resolvers). `null` for a seat that has
  *  none — a human seat, a seat that doesn't exist, or an event whose Pool
  *  isn't final yet.
  *
@@ -880,7 +885,11 @@ async function loadBasicLandResolver(
  *  `game.ts -> limitedEvents.ts` only; this module imports nothing from
  *  `game.ts`.
  *
- *  MUST hydrate before reading the seat (issue #1646 review finding 1):
+ *  Reads the STORED deck — the one decided at Pool-final — and builds on
+ *  demand only for an event whose decks were never stored.
+ *
+ *  The fallback MUST hydrate before reading the seat (issue #1646 review
+ *  finding 1):
  *  `event.seats[].pool` is absent on every row `saveSeats` writes since the
  *  `limitedSeats` child-row split (`convex/limitedSeatStore.ts`) — reading
  *  the raw `event.seats` here silently evaluates every bot seat as an empty
@@ -892,23 +901,95 @@ export async function resolveSeatAutoBuiltDeck(
     event: Doc<"limitedEvents">,
     seatIndex: number
 ): Promise<AutoBuiltDeck | null> {
+    // The STORED deck first (issue #8896): decided once at Pool-final, so a
+    // profile/rating edit since then never reaches the Match.
+    if (isEventPoolFinal(autoBuildEventContext(event))) {
+        const stored = await loadStoredAutoBuiltDeck(ctx, event._id, seatIndex);
+        if (stored) return stored;
+    }
     const hydratedSeats = await hydrateSeat(ctx, event, seatIndex);
     const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
     if (!seat) return null;
+    const buildSeatDeck = await loadSeatDeckBuilder(ctx, event);
+    return buildSeatDeck(seat);
+}
+
+function autoBuildEventContext(
+    event: Doc<"limitedEvents">
+): AutoBuildEventContext {
+    return {
+        type: event.type,
+        status: event.status,
+        draftCompletedAt: event.draftCompletedAt,
+    };
+}
+
+/** Builds ONE seat's Auto-Built deck from TODAY's registry, Card Profiles and
+ *  basic-land printings — `computeBotAutoBuiltDeck` with every live input
+ *  loaded once. The single authority both the freeze (`freezeAutoBuiltDecks`)
+ *  and the legacy fallback of every reader go through, so a seat's deck is
+ *  built the same way whichever path built it. */
+async function loadSeatDeckBuilder(
+    ctx: QueryCtx,
+    event: Doc<"limitedEvents">
+): Promise<(seat: LimitedEventSeat) => AutoBuiltDeck | null> {
+    const eventContext = autoBuildEventContext(event);
     const { getAutoBuildCardMeta } = await loadEventCardResolvers(
         ctx,
         event.packSlots
     );
-    return computeBotAutoBuiltDeck(
-        seat,
-        {
-            type: event.type,
-            status: event.status,
-            draftCompletedAt: event.draftCompletedAt,
-        },
-        getAutoBuildCardMeta,
-        await loadBasicLandResolver(ctx, event.packSlots[0] ?? "")
+    const resolveBasicLand = await loadBasicLandResolver(
+        ctx,
+        event.packSlots[0] ?? ""
     );
+    // Card Profiles feed Auto-Build's Capability term (ADR 0072, issue
+    // #1615) — the SAME layered seam the Pick Heuristic reads.
+    const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+    return (seat) =>
+        computeBotAutoBuiltDeck(
+            seat,
+            eventContext,
+            getAutoBuildCardMeta,
+            resolveBasicLand,
+            { getCardProfile }
+        );
+}
+
+/** Decides and STORES the Auto-Built deck of every auto-driven seat that has
+ *  none yet (issue #8896) — a Bot Drafter seat, or a Dropped Seat with no
+ *  submitted deck. Owner rule: a review never changes a choice already made,
+ *  so the deck is fixed the moment it becomes decidable (the Pool is final,
+ *  or a seat drops after that) and never rebuilt.
+ *
+ *  Idempotent and self-gating: a no-op before Pool-final, and a seat already
+ *  stored is never rebuilt. Called from `openPlayPhaseIfReady`, the one seam
+ *  every Pool-final write (`startLimitedEvent`, `submitPick`,
+ *  `autoPickSeatTimeout`) and every Drop (`leaveLimitedEvent`) already flows
+ *  through — so no path can reach a reader with the deck still undecided. */
+export async function freezeAutoBuiltDecks(
+    ctx: MutationCtx,
+    event: Doc<"limitedEvents">
+): Promise<void> {
+    if (!isEventPoolFinal(autoBuildEventContext(event))) return;
+    const autoDriven = event.seats.filter(isAutoDrivenSeat);
+    if (autoDriven.length === 0) return;
+    const stored = await loadStoredAutoBuiltDecks(ctx, event._id);
+    const undecided = autoDriven.filter((s) => !stored.has(s.seatIndex));
+    if (undecided.length === 0) return;
+    // A Dropped Seat that submitted a deck keeps it; only one without is
+    // Auto-Built (same rule as `buildEventView`).
+    const humanDecksBySeat = await loadHumanDecksBySeat(ctx, event._id);
+    const toBuild = undecided
+        .map((s) => s.seatIndex)
+        .filter((seatIndex) => !humanDecksBySeat.has(seatIndex));
+    if (toBuild.length === 0) return;
+    const seats = await hydrateSeats(ctx, event, toBuild);
+    const buildSeatDeck = await loadSeatDeckBuilder(ctx, event);
+    for (const seat of seats) {
+        if (!toBuild.includes(seat.seatIndex)) continue;
+        const deck = buildSeatDeck(seat);
+        if (deck) await saveAutoBuiltDeck(ctx, event._id, seat.seatIndex, deck);
+    }
 }
 
 /** A projected Seat view (`eventProjection.ts`) plus its Auto-Built deck
@@ -1123,12 +1204,25 @@ async function projectEventForViewer(
         ? await loadEventChallenges(ctx, event._id)
         : [];
     const viewerChallenges = projectViewerChallenges(challenges, viewerUserId);
-    // Card Profiles feed Auto-Build's Capability term (ADR 0072, issue #1615)
-    // — the SAME layered seam the Pick Heuristic reads, so a Pool drafted
-    // around an enabler is BUILT around it too. Loaded only once Pools exist
-    // (an `open` event has no deck to build, so the lobby list never pays for
-    // the scan).
-    const getCardProfile = arePoolsDealt(event.status)
+    // The STORED decks (issue #8896), decided once at Pool-final: a profile
+    // or rating edit since then never rewrites what this view — the live
+    // event or its archive — shows.
+    const storedDecks = isEventPoolFinal(eventContext)
+        ? await loadStoredAutoBuiltDecks(ctx, event._id)
+        : new Map<number, AutoBuiltDeck>();
+    // Legacy fallback only: an event whose Pools were final before decks
+    // were stored builds on demand. Card Profiles feed Auto-Build's
+    // Capability term (ADR 0072, issue #1615); loaded only when some seat
+    // actually falls back, so a stored table never pays for the scan.
+    const needsFallback =
+        isEventPoolFinal(eventContext) &&
+        seats.some(
+            (seat) =>
+                isAutoDrivenSeat(seat) &&
+                !humanDecksBySeat.has(seat.seatIndex) &&
+                !storedDecks.has(seat.seatIndex)
+        );
+    const getCardProfile = needsFallback
         ? await loadEventCardProfile(ctx, event.packSlots)
         : undefined;
     return {
@@ -1136,15 +1230,16 @@ async function projectEventForViewer(
         seats: base.seats.map((seatView, i) => {
             // A Dropped Seat that submitted a deck keeps it; only one without
             // is Auto-Built.
-            const autoBuiltDeck = computeBotAutoBuiltDeck(
-                humanDecksBySeat.has(seatView.seatIndex)
-                    ? { ...seats[i], droppedAt: undefined }
-                    : seats[i],
-                eventContext,
-                getAutoBuildCardMeta,
-                resolveBasicLand,
-                { getCardProfile }
-            );
+            const autoBuiltDeck = humanDecksBySeat.has(seatView.seatIndex)
+                ? null
+                : (storedDecks.get(seatView.seatIndex) ??
+                  computeBotAutoBuiltDeck(
+                      seats[i],
+                      eventContext,
+                      getAutoBuildCardMeta,
+                      resolveBasicLand,
+                      { getCardProfile }
+                  ));
             return {
                 ...seatView,
                 autoBuiltDeck,
@@ -1189,39 +1284,42 @@ async function buildSeatStrengthResolver(
     ctx: QueryCtx | MutationCtx,
     event: Doc<"limitedEvents">
 ): Promise<ResolveSeatStrength> {
-    const eventContext: AutoBuildEventContext = {
-        type: event.type,
-        status: event.status,
-        draftCompletedAt: event.draftCompletedAt,
-    };
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-    const resolveBasicLand = await loadBasicLandResolver(
+    const { getCardEvalMeta } = await loadEventCardResolvers(
         ctx,
-        event.packSlots[0] ?? ""
+        event.packSlots
     );
-    const { getCardEvalMeta, getAutoBuildCardMeta } =
-        await loadEventCardResolvers(ctx, event.packSlots);
-    // Bot deck strength is Auto-Built from the seat's POOL, which no longer
-    // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
-    // is one of the paths that must hydrate in FULL. A slim `event.seats` here
-    // would silently evaluate every bot seat as an empty deck and decide the
-    // bot-vs-bot pairings on nothing at all.
-    const hydratedSeats = await hydrateSeats(ctx, event);
+    // The STORED decks (issue #8896): a bot's strength is its deck as decided
+    // at Pool-final, never a re-build against today's profiles.
+    const storedDecks = isEventPoolFinal(autoBuildEventContext(event))
+        ? await loadStoredAutoBuiltDecks(ctx, event._id)
+        : new Map<number, AutoBuiltDeck>();
+    // Legacy fallback (an event whose Pools were final before decks were
+    // stored) Auto-Builds from the seat's POOL, which no longer lives on the
+    // event row (`convex/schema.ts`'s `limitedSeats`) — so it must hydrate in
+    // FULL. A slim `event.seats` here would silently evaluate every bot seat
+    // as an empty deck and decide the bot-vs-bot pairings on nothing at all.
+    // Loaded only when some auto-driven seat has no stored deck, and each
+    // fallback deck is built lazily, on its first strength question.
+    const needsFallback = event.seats.some(
+        (seat) => isAutoDrivenSeat(seat) && !storedDecks.has(seat.seatIndex)
+    );
+    const fallbackSeats = needsFallback ? await hydrateSeats(ctx, event) : [];
+    const buildSeatDeck = needsFallback
+        ? await loadSeatDeckBuilder(ctx, event)
+        : () => null;
+    const deckOf = (seatIndex: number): AutoBuiltDeck | null => {
+        const stored = storedDecks.get(seatIndex);
+        if (stored) return stored;
+        const seat = fallbackSeats.find((s) => s.seatIndex === seatIndex);
+        return seat ? buildSeatDeck(seat) : null;
+    };
     const strengthCache = new Map<number, DeckStrength>();
     return (seatIndex) => {
         const cached = strengthCache.get(seatIndex);
         if (cached) return cached;
-        const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
-        const deck = seat
-            ? computeBotAutoBuiltDeck(
-                  seat,
-                  eventContext,
-                  getAutoBuildCardMeta,
-                  resolveBasicLand
-              )
-            : null;
         const strength = evaluateDeckStrength(
-            deck?.cards ?? [],
+            deckOf(seatIndex)?.cards ?? [],
             getCardEvalMeta,
             getPickRating
         );
@@ -1267,6 +1365,11 @@ async function buildSeatStrengthResolver(
  *    call site such an event sticks in `started` with `completed: true`
  *    forever.
  *
+ *  Before any of that it runs `freezeAutoBuiltDecks` — the
+ *  same call sites are exactly the writes that make a Pool final or drop a
+ *  Seat (`leaveLimitedEvent` calls it too), so this is the one seam where an
+ *  auto-driven seat's deck becomes decided.
+ *
  *  Returns whether it actually opened the phase. */
 export async function openPlayPhaseIfReady(
     ctx: MutationCtx,
@@ -1275,6 +1378,10 @@ export async function openPlayPhaseIfReady(
 ): Promise<boolean> {
     const event = await ctx.db.get(eventId);
     if (!event) return false;
+    // Every Pool-final write and every Drop flows through here: decide the
+    // auto-driven seats' decks FIRST (issue #8896), so round 1's strength
+    // resolver below — and every later reader — reads the stored deck.
+    await freezeAutoBuiltDecks(ctx, event);
     // Phase QUESTIONS, not literals: the play phase opens exactly once, out of
     // the draft/deckbuild phase — Pools dealt, rounds not yet running, event
     // not concluded.
