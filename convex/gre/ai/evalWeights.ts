@@ -319,6 +319,22 @@ export type EvalWeights = {
      *  historical hard clip (flat past ±`materialFull`); the `reward-soft-tail`
      *  ladder variant sets 0.6. Not the default yet: ADR 0176 records why. */
     materialLinearShare: number;
+    /** The Root Heuristic Share λ (issue #9045, PRD #9043): the FIXED share
+     *  the one-ply policy value of each root candidate — `policyValue` of the
+     *  position right after the move, mapped through `rewardFromValue` — holds
+     *  in the Brain's root verdict. Every root rule reads ONE score,
+     *  `(1 − λ) · mean rollout reward + λ · one-ply reward` (`makeRootScorer`
+     *  in `search.ts`); a candidate with no memoized one-ply value blends with
+     *  its own mean. At a starved root the share never drops under the
+     *  `STARVED_ROOT_PRIOR_VISITS` virtual rollouts the one-ply reading has
+     *  always counted for, so λ is a floor there, not a replacement. `0` is
+     *  the pre-#9045 Brain, byte-identical (the `root-heuristic-share-0` ladder
+     *  variant); the value here was chosen by the grid ADR 0177 records —
+     *  bounded below by the reconstructed issue #8954 position, above by the
+     *  held-trick entries where only the rollouts see the window a greedy cast
+     *  gives up. Root only: the in-tree PUCT priors are unchanged. Never
+     *  fitted. */
+    rootHeuristicShare: number;
     /** Fitted logistic margin → win-probability constant, ladder corpus
      *  (`CALIBRATED_REWARD_K`; issue #1929). */
     calibratedRewardK: number;
@@ -481,6 +497,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     terminalBand: 0.25,
     materialFull: 500,
     materialLinearShare: 1,
+    rootHeuristicShare: 0.1,
     calibratedRewardK: 9.983957e-4,
     choicePriorC: 0.75,
     visitTol: 0.15,

@@ -80,6 +80,7 @@ function candidate(label: string, visits: number): CandidateTrace {
         move: { kind: "pass" },
         visits,
         meanReward: 0.5,
+        score: 0.5,
         meanMargin: 0,
         avail: visits,
         eval: {

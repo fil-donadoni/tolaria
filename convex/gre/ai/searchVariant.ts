@@ -348,6 +348,36 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         evalWeights: { materialLinearShare: 0.6 },
     },
 
+    /** The Root Heuristic Share grid (issue #9045, PRD #9043, ADR 0177): λ,
+     *  the fixed share the one-ply policy value of each root candidate holds
+     *  in the root verdict (`makeRootScorer`, `search.ts`). The base vector
+     *  carries the value the grid chose; these five arms are the RECORD of
+     *  the measurement and the A/B legs around it — `0` is the pre-#9045
+     *  Brain (the one-ply reading heard only at a starved root), the control
+     *  arm of every later claim about λ. Run as
+     *  `BLADE_VARIANT=root-heuristic-share-<λ> bun run test:blade` and
+     *  `verdicts:pick-agreement`; the grid's numbers are in ADR 0177. */
+    "root-heuristic-share-0": {
+        name: "root-heuristic-share-0",
+        evalWeights: { rootHeuristicShare: 0 },
+    },
+    "root-heuristic-share-0.1": {
+        name: "root-heuristic-share-0.1",
+        evalWeights: { rootHeuristicShare: 0.1 },
+    },
+    "root-heuristic-share-0.15": {
+        name: "root-heuristic-share-0.15",
+        evalWeights: { rootHeuristicShare: 0.15 },
+    },
+    "root-heuristic-share-0.2": {
+        name: "root-heuristic-share-0.2",
+        evalWeights: { rootHeuristicShare: 0.2 },
+    },
+    "root-heuristic-share-0.3": {
+        name: "root-heuristic-share-0.3",
+        evalWeights: { rootHeuristicShare: 0.3 },
+    },
+
     /** PUCT priors + FPU on the main action space (issue #2684, map #1892
      *  attack-order step 4).
      *

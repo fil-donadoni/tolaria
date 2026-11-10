@@ -50,6 +50,7 @@ function candidate(
         move,
         visits,
         meanReward: 0.123456,
+        score: 0.123456,
         meanMargin: 1,
         avail: visits,
         eval: {
