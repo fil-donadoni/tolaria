@@ -476,3 +476,160 @@ describe("RandomRevealOverlay — Flip Sequence (issue #5519)", () => {
         expect(queryAllByTestId("flip-history-ghost")).toHaveLength(0);
     });
 });
+
+describe("RandomRevealOverlay — two-player rounds (Mana Clash, issue #5520)", () => {
+    // CR 705.2 — "You and target opponent each flip a coin": face-only flips,
+    // nobody wins or loses; each tails costs its flipper 1 damage. Rounds (you
+    // / opponent): T T · T H · H T · H H.
+    const CLASH: PendingChoice = {
+        ...WIN_CHOICE,
+        stackItemId: "clash",
+        choiceId: "mana-clash-rounds",
+        flips: (
+            [
+                ["tails", "tails"],
+                ["tails", "heads"],
+                ["heads", "tails"],
+                ["heads", "heads"],
+            ] as const
+        ).flatMap(([mine, theirs], round) => [
+            { flipperId: "p1", face: mine, outcome: "none" as const, round },
+            { flipperId: "p2", face: theirs, outcome: "none" as const, round },
+        ]),
+        faceDamage: { heads: 0, tails: 1 },
+        source: { cardId: "Mana Clash", controllerId: "p1" },
+        oracleExcerpt: "You and target opponent each flip a coin.",
+        realized: undefined,
+    };
+    const advance = (...phases: number[]) =>
+        phases.forEach((ms) =>
+            act(() => {
+                vi.advanceTimersByTime(ms);
+            })
+        );
+    const seats = (root: HTMLElement) =>
+        Array.from(
+            root.querySelectorAll('[data-testid="flip-round-seat"]')
+        ).map((seat) => ({
+            chip: seat.querySelector("span")?.textContent,
+            caption: seat.querySelector('[data-testid="coin-anim"]')
+                ?.textContent,
+            tone: seat
+                .querySelector('[data-testid="coin-anim"]')
+                ?.getAttribute("data-tone"),
+        }));
+    const tableColumns = (root: HTMLElement) =>
+        root.querySelectorAll('[data-testid="flip-round-table"] thead th')
+            .length - 2; // the seat and Damage headers
+    const damageTotals = (root: HTMLElement) =>
+        Array.from(
+            root.querySelectorAll('[data-testid="flip-round-damage"]')
+        ).map((cell) => cell.textContent);
+    const allRounds = () =>
+        advance(
+            tossMs(0),
+            holdMs(0),
+            tossMs(1),
+            holdMs(1),
+            tossMs(2),
+            holdMs(2),
+            tossMs(3)
+        );
+
+    beforeEach(() => {
+        autoLand = false;
+        timedLand = true;
+        vi.useFakeTimers();
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("tosses the round's two coins side by side, each under its seat chip, captioned by face and damage", () => {
+        const { container, getAllByTestId } = renderOverlay("p1", CLASH);
+        expect(getAllByTestId("coin-anim")).toHaveLength(2);
+        expect(seats(container)).toEqual([
+            { chip: "You", caption: "Tails — 1 damage", tone: "bad" },
+            { chip: "Bob", caption: "Tails — 1 damage", tone: "bad" },
+        ]);
+        advance(tossMs(0), holdMs(0));
+        expect(seats(container)).toEqual([
+            { chip: "You", caption: "Tails — 1 damage", tone: "bad" },
+            { chip: "Bob", caption: "Heads — no damage", tone: "good" },
+        ]);
+        // No win/lose wording anywhere: nobody wins a face-only flip.
+        expect(container.textContent).not.toMatch(/\b(win|lose)s?\b/i);
+    });
+
+    it("the You/Bob table grows a column per landed round with each seat's Damage total", () => {
+        const { container, queryByTestId, getAllByTestId } = renderOverlay(
+            "p1",
+            CLASH
+        );
+        expect(queryByTestId("flip-round-table")).toBeNull();
+        advance(tossMs(0));
+        expect(tableColumns(container)).toBe(1);
+        expect(damageTotals(container)).toEqual(["1", "1"]);
+        expect(
+            getAllByTestId("flip-round-row").map(
+                (row) => row.querySelector("th")?.textContent
+            )
+        ).toEqual(["You", "Bob"]);
+        advance(holdMs(0), tossMs(1));
+        expect(tableColumns(container)).toBe(2);
+        expect(damageTotals(container)).toEqual(["2", "1"]);
+        expect(
+            Array.from(
+                container.querySelectorAll('[data-testid="flip-round-coin"]')
+            ).map((coin) => coin.getAttribute("data-face"))
+        ).toEqual(["tails", "tails", "tails", "heads"]);
+    });
+
+    it("hides the round count until the clash ends, then says who took what", () => {
+        const { container, queryByTestId, getByTestId } = renderOverlay(
+            "p1",
+            CLASH
+        );
+        advance(
+            tossMs(0),
+            holdMs(0),
+            tossMs(1),
+            holdMs(1),
+            tossMs(2),
+            holdMs(2),
+            tossMs(3) - 1
+        );
+        // The last round is in the air: three columns, no heading, no
+        // consequence — nothing says how many rounds there are.
+        expect(tableColumns(container)).toBe(3);
+        expect(queryByTestId("flip-heading")).toBeNull();
+        expect(queryByTestId("reveal-consequence")).toBeNull();
+        advance(1);
+        expect(tableColumns(container)).toBe(4);
+        expect(damageTotals(container)).toEqual(["2", "2"]);
+        expect(getByTestId("reveal-consequence").textContent).toBe(
+            "4 rounds — you take 2 damage, Bob takes 2."
+        );
+    });
+
+    it("the opponent's view names the caster and says 'you' for itself", () => {
+        const { container, getByTestId } = renderOverlay("p2", CLASH);
+        allRounds();
+        expect(seats(container).map((seat) => seat.chip)).toEqual([
+            "Alice",
+            "You",
+        ]);
+        expect(getByTestId("reveal-consequence").textContent).toBe(
+            "4 rounds — Alice takes 2 damage, you take 2."
+        );
+        advance(REVEAL_FINAL_HOLD_MS);
+        expect(submitRandomRevealAck).not.toHaveBeenCalled();
+    });
+
+    it("the caster acks once, after the final hold of the last round", () => {
+        renderOverlay("p1", CLASH);
+        allRounds();
+        advance(REVEAL_FINAL_HOLD_MS - 1);
+        expect(submitRandomRevealAck).not.toHaveBeenCalled();
+        advance(1);
+        expect(submitRandomRevealAck).toHaveBeenCalledTimes(1);
+    });
+});

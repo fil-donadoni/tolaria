@@ -1,6 +1,7 @@
 import { tryGetDefinition } from "@convex/cards";
 import type { FlipRecord } from "@convex/gre/types";
 import type { PendingChoice, Player } from "~/types/game";
+import { roundsDamageConsequence } from "~/lib/random-reveal-rounds";
 
 /** How long the summary toast stays up after a Random Reveal closes. */
 export const REVEAL_SUMMARY_MS = 4000;
@@ -34,8 +35,10 @@ function revealFlips(choice: PendingChoice): FlipRecord[] {
 
 /** The one-line toast of a finished Random Reveal: source, each flipper's
  *  tally, then the realized consequence — "Squee's Revenge — You: 3 won, 1
- *  lost. Not every flip was won." Viewer-relative, client-only, never
- *  persisted (PRD issue #4433). */
+ *  lost. Not every flip was won." A clash several players flip each round,
+ *  dealing damage per face, ends on its damage line instead: "… 4 rounds — you
+ *  take 2 damage, Bot takes 2." Viewer-relative, client-only, never persisted
+ *  (PRD issue #4433). */
 export function formatRevealSummary(
     choice: PendingChoice,
     players: readonly Pick<Player, "id" | "name">[],
@@ -46,15 +49,22 @@ export function formatRevealSummary(
         ? (tryGetDefinition(choice.source.cardId)?.name ?? "Coin flip")
         : "Coin flip";
     const flipperIds = [...new Set(flips.map((flip) => flip.flipperId))];
+    const nameOf = (id: string) =>
+        players.find((p) => p.id === id)?.name ?? "Opponent";
     const tallies = flipperIds
         .map((id) => {
-            const who =
-                id === viewerId
-                    ? "You"
-                    : (players.find((p) => p.id === id)?.name ?? "Opponent");
+            const who = id === viewerId ? "You" : nameOf(id);
             return `${who}: ${tally(flips.filter((f) => f.flipperId === id))}.`;
         })
         .join(" ");
-    const consequence = choice.realized?.consequence;
+    const consequence =
+        choice.faceDamage && flipperIds.length > 1
+            ? roundsDamageConsequence(
+                  flips,
+                  choice.faceDamage,
+                  nameOf,
+                  viewerId
+              )
+            : choice.realized?.consequence;
     return [`${source} — ${tallies}`, consequence].filter(Boolean).join(" ");
 }
