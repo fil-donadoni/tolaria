@@ -99,7 +99,6 @@ import {
     buildSacrificeRequirements,
     autoResolveFungible,
     isSacrificeSelectionComplete,
-    isSacrificeCandidateLegal,
     applySacrificeSelection,
     tapPaymentSpokenForIds,
     costPickSpokenForIds,
@@ -403,7 +402,6 @@ import { assertExpectedInput } from "./gre/expectedInput";
 import {
     drainAutoPasses,
     applyAllCombatDamage,
-    emitAttackersDeclaredEvents,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
     wasCastOffSorceryTiming,
@@ -454,6 +452,19 @@ import { isInlineManaAbilityPark } from "./gre/activation";
 import { getBlockDeclarerId } from "./gre/combat";
 
 export { cancelTriggerTargetSelection } from "./gre/owedInputDeclines";
+// issue #9002 — the sacrifice pick and the attack-declaration finalize moved to
+// GRE level (the Bot liveness ladder runs them without a ctx); imported for the
+// mutations below and re-exported for the tests that import them from here.
+import { finalizeConfirmAttackers } from "./gre/attackDeclaration";
+import {
+    findActiveSacrificeSelection,
+    selectSacrificeOnState,
+} from "./gre/sacrificePick";
+export {
+    finalizeConfirmAttackers,
+    findActiveSacrificeSelection,
+    selectSacrificeOnState,
+};
 export {
     abandonPendingPayment,
     refundTapBonusMana,
@@ -516,8 +527,6 @@ import {
     validateDeclaredAttackers,
     collectAttackSacrificeTax,
     collectAttackManaTax,
-    markAttacking,
-    recordAttackerDeclared,
 } from "./gre/combat";
 import {
     exertableAttackerIds,
@@ -547,11 +556,7 @@ import { applyPlot } from "./gre/plot";
 import { applyForetell } from "./gre/foretell";
 import { paySpecialActionManaCost } from "./gre/specialActionPayment";
 import { isOverloadAlternativeCost } from "./gre/overload";
-import {
-    applyEmergeReduction,
-    isEmergeAlternativeCost,
-    settleEmergeReduction,
-} from "./gre/emerge";
+import { isEmergeAlternativeCost, settleEmergeReduction } from "./gre/emerge";
 import { turnFaceUpOnBattlefield } from "./gre/faceDown";
 import {
     adventureCastOptionFor,
@@ -8644,116 +8649,6 @@ export const untapArtifactForImprovise = mutation({
     },
 });
 
-/** The single sacrifice selection currently awaiting `playerId`'s choice, and
- *  which in-flight container holds it (CR 701.21a). At most one is active. */
-export function findActiveSacrificeSelection(
-    state: GameState,
-    playerId: string
-): {
-    sel: SacrificeSelection;
-    container: "cast" | "activation" | "attack";
-} | null {
-    // CR 605.3a / 605.3b (issue #3455) — a MANA ability announced while a
-    // spell's cost is being paid is the INNERMOST announcement, so its victim
-    // pick is the one this player is being asked for. Checked before the cast,
-    // mirroring `nextOwedPayment`'s own hoist: the two must name the same
-    // selection or the pick lands in the wrong container.
-    const inline = state.pendingActivation;
-    if (
-        inline?.resolveWithoutStack &&
-        inline.playerId === playerId &&
-        inline.sacrificeSelection &&
-        !isSacrificeSelectionComplete(inline.sacrificeSelection)
-    ) {
-        return { sel: inline.sacrificeSelection, container: "activation" };
-    }
-    const pc = state.pendingCast;
-    if (
-        pc &&
-        pc.playerId === playerId &&
-        pc.sacrificeSelection &&
-        !isSacrificeSelectionComplete(pc.sacrificeSelection)
-    ) {
-        return { sel: pc.sacrificeSelection, container: "cast" };
-    }
-    const pa = state.pendingActivation;
-    if (
-        pa &&
-        pa.playerId === playerId &&
-        pa.sacrificeSelection &&
-        !isSacrificeSelectionComplete(pa.sacrificeSelection)
-    ) {
-        return { sel: pa.sacrificeSelection, container: "activation" };
-    }
-    const at = state.combat?.pendingAttackSacrifice;
-    if (at && at.playerId === playerId && !isSacrificeSelectionComplete(at)) {
-        return { sel: at, container: "attack" };
-    }
-    return null;
-}
-
-/** CR 701.21a — the sacrificing player picks one permanent to sacrifice. Routes
- *  to whichever in-flight action is awaiting this player's sacrifice choice
- *  (cast, activation, or attack-declaration tax — exactly one is active). When
- *  the choice completes, resumes the parked action. */
-export function selectSacrificeOnState(
-    state: GameState,
-    args: { playerId: string; cardInstanceId: string }
-): void {
-    assertGameNotOver(state);
-
-    // The container decides the Expected Input this pick belongs to
-    // (ADR 0047). A cast/activation sacrifice is paid inside a priority
-    // window (the payer holds priority), so it expects `priority`. The
-    // attack-declaration land tax (CR 508.1c/1g) is a parked turn-based
-    // action, not a priority window, so it expects `sacrifice` — the gate
-    // then rejects any competing priority action (endTurn / passPriority /
-    // casting) until the pick clears. Determining the container is
-    // read-only, so it may precede the gate.
-    const active = findActiveSacrificeSelection(state, args.playerId);
-    if (!active) throw new Error("No sacrifice choice awaiting you");
-    const { sel, container } = active;
-    assertExpectedInput(state, {
-        playerId: args.playerId,
-        expect: container === "attack" ? "sacrifice" : "priority",
-        // CR 608.2g / 605.3a (issue #3455) — a MANA ability is activatable
-        // inside a may-pay window, where the Expected Input is the `choice`
-        // itself. Answering the pick that activation parked on is part of the
-        // same window: without this the park could be opened there and never
-        // closed, which is a freeze rather than a rejection.
-        allowManaForMayPay: isInlineManaAbilityPark(state, args.playerId),
-    });
-    if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
-        throw new Error("Selected permanent is not a legal sacrifice");
-    }
-    sel.picked.push(args.cardInstanceId);
-
-    if (isSacrificeSelectionComplete(sel)) {
-        if (container === "cast") {
-            // CR 702.119a / 702.119c — the emerge victim is now chosen, so
-            // the total it reduces is final before any pool test commits it.
-            const pc = state.pendingCast!;
-            if (pc.emergeReductionOwed) {
-                applyEmergeReduction(state, pc.manaCost, sel);
-                delete pc.emergeReductionOwed;
-            }
-            // tryAutoCommitPendingCast applies the selection + finalizes when
-            // mana is also covered (else the player keeps tapping lands).
-            tryAutoCommitPendingCast(state, args.playerId);
-        } else if (container === "activation") {
-            tryAutoCommitPendingActivation(state, args.playerId);
-        } else {
-            // Attack tax: apply and finalize the declaration (the cast /
-            // activation resume paths apply internally; this one does not).
-            applySacrificeSelection(state, sel);
-            if (state.combat) {
-                state.combat.pendingAttackSacrifice = undefined;
-            }
-            finalizeConfirmAttackers(state);
-        }
-    }
-}
-
 export const selectSacrifice = mutation({
     args: {
         gameId: v.id("games"),
@@ -11765,45 +11660,6 @@ export const removeBand = mutation({
         );
     },
 });
-
-/** Finalize the attacker declaration once every combat-declaration cost is paid
- *  (CR 508): tap and mark the attackers, open blocker declaration, fire the
- *  "when creatures attack" triggers, and hand priority to the active player.
- *  Shared by the inline path (fungible/no tax) and the selectSacrifice resume
- *  path (attack sacrifice tax chosen). */
-export function finalizeConfirmAttackers(state: GameState): void {
-    const player = getPlayer(state, state.activePlayerId);
-    const combat = state.combat;
-    if (!combat) return;
-    // Tap and mark each attacker (vigilance creatures don't tap)
-    for (const attackerId of combat.attackerIds) {
-        const card = player.battlefield.find((c) => c.id === attackerId);
-        if (card) {
-            if (!card.staticAbilities.includes("vigilance")) {
-                // CR 708.9 / ADR 0013 — a face-down attacker turns up as it
-                // taps to attack.
-                tapPermanent(state, card);
-            }
-            // Shared helper (`gre/combat.ts`, issue #1195) — sets BOTH
-            // `combat.attackerIds` membership (already true here; idempotent)
-            // AND `isAttacking` together, the single sync point every
-            // combat-scoped read depends on.
-            markAttacking(state, card);
-            // CR 506.3 — the shared declaration record: per-card
-            // `hasAttackedThisTurn` plus the game-level
-            // `creatureAttackedThisTurn` (issue #1944).
-            recordAttackerDeclared(state, card);
-        }
-    }
-    combat.confirmed = true;
-    combat.blockerAssignments = {};
-    combat.blockersConfirmed = false;
-    // ADR 0012 — fire "when creatures attack" triggers (Raging River).
-    emitAttackersDeclaredEvents(state);
-    state.priorityPlayerId = state.activePlayerId;
-    state.passCount = 0;
-    drainAutoPasses(state);
-}
 
 /** Aggregate a list of mana costs into a single ManaCost (CR 508.1c/1g — one
  *  charge per taxed attacker per taxing source). Each cost is normalized (a

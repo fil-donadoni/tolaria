@@ -819,8 +819,16 @@ export interface GameOver {
     winnerId: string;
     loserId: string;
     /** "alternate-win" (issue #1066, CR 104.2a) — a spell/ability designates
-     *  the winner directly (Coalition Victory). */
-    reason: "life" | "decked" | "concede" | "draw" | "poison" | "alternate-win";
+     *  the winner directly (Coalition Victory). "bot-fault" (issue #9002) —
+     *  the Bot conceded because the liveness ladder could not advance it. */
+    reason:
+        | "life"
+        | "decked"
+        | "concede"
+        | "draw"
+        | "poison"
+        | "alternate-win"
+        | "bot-fault";
     /** True when the game ended in a draw (CR 104.4a — Divine Intervention). */
     isDraw?: boolean;
 }

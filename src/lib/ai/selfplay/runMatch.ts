@@ -72,6 +72,7 @@ const ZERO_REASONS = (): Record<GameEndReason, number> => ({
     draw: 0,
     poison: 0,
     "alternate-win": 0,
+    "bot-fault": 0,
     stall: 0,
     "max-plies": 0,
     "resolution-error": 0,
