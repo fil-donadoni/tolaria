@@ -80,6 +80,12 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/artefact-classification.test.ts",
         admits: /^data\/|^\.gitattributes$/,
     },
+    // data/card-profiles/residue/** — every Profile Census residue file
+    // validates against the residue schema
+    {
+        test: "scripts/__tests__/profile-census.test.ts",
+        admits: /^data\/card-profiles\/residue\//,
+    },
     // docs, .claude, convex, src, scripts, GLOSSARY.md — no ADR 0001 beside an
     // ISMCTS/Brain word, no dead link into docs/adr/ (issue #8723); the guard
     // reads files through fs, so no import edge reaches it
