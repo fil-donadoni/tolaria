@@ -1,42 +1,46 @@
-// Rung 5 of the bot's liveness ladder (issue #2284) — the human's manual
-// exit. No dom test existed before issue #2730's v4 re-skin (bespoke
-// `rounded-md border-border bg-surface shadow-lg` box → the shared `Banner`
-// danger tone + `Button`). Covers the window label, the Continue action, and
-// pins that it renders through `Banner` (`data-slot="banner"`).
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import BotStuckNotice from "../bot-stuck-notice";
+// Rung 5 of the bot's liveness ladder (issue #9003): the transient notice that
+// the server skipped a Bot decision and filed the fault. No control — the
+// player never clicks anything — and it goes away by itself.
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { render, screen, cleanup, act } from "@testing-library/react";
+import BotStuckNotice, { BOT_SKIP_NOTICE_MS } from "../bot-stuck-notice";
 
-afterEach(cleanup);
+beforeEach(() => {
+    vi.useFakeTimers();
+});
 
-describe("BotStuckNotice (issue #2284)", () => {
-    it("renders nothing when not stuck", () => {
-        const { container } = render(
-            <BotStuckNotice stuck={null} onResolve={() => Promise.resolve()} />
-        );
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
+
+describe("BotStuckNotice (issue #9003)", () => {
+    it("renders nothing before the first skip", () => {
+        const { container } = render(<BotStuckNotice skipped={null} />);
         expect(container.firstChild).toBeNull();
     });
 
-    it("names the window the AI could not act in, through the shared Banner", () => {
-        const { container } = render(
-            <BotStuckNotice
-                stuck={{ expectedKind: "target" }}
-                onResolve={() => Promise.resolve()}
-            />
+    it("says the decision was skipped and reported, through the shared Banner, with no control", () => {
+        const { container } = render(<BotStuckNotice skipped={{ id: 1 }} />);
+        expect(screen.getByRole("status").textContent).toContain(
+            "The Bot hit an error and skipped a decision — reported automatically"
         );
-        expect(screen.getByText(/choosing a target/)).toBeTruthy();
         expect(container.querySelector('[data-slot="banner"]')).not.toBeNull();
+        expect(screen.queryByRole("button")).toBeNull();
     });
 
-    it("Continue game invokes onResolve", () => {
-        const onResolve = vi.fn(() => Promise.resolve());
-        render(
-            <BotStuckNotice
-                stuck={{ expectedKind: "priority" }}
-                onResolve={onResolve}
-            />
-        );
-        fireEvent.click(screen.getByText("Continue game"));
-        expect(onResolve).toHaveBeenCalled();
+    it("goes away by itself, and comes back for the next skip", () => {
+        const { rerender } = render(<BotStuckNotice skipped={{ id: 1 }} />);
+        act(() => {
+            vi.advanceTimersByTime(BOT_SKIP_NOTICE_MS + 1);
+        });
+        expect(screen.queryByRole("status")).toBeNull();
+
+        // The same skip re-rendered stays gone.
+        rerender(<BotStuckNotice skipped={{ id: 1 }} />);
+        expect(screen.queryByRole("status")).toBeNull();
+
+        rerender(<BotStuckNotice skipped={{ id: 2 }} />);
+        expect(screen.getByRole("status")).toBeTruthy();
     });
 });

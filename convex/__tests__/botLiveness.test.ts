@@ -5,7 +5,11 @@
 // `saveGameState`) and the `source: "system"` report row.
 import { describe, expect, it } from "vitest";
 import type { MutationCtx } from "../_generated/server";
-import { reportStall, type ReportStallResult } from "../botLiveness";
+import {
+    STALL_DIAGNOSTICS_MAX_BYTES,
+    reportStall,
+    type ReportStallResult,
+} from "../botLiveness";
 import { getCardByName } from "../cards";
 import {
     makeInstance,
@@ -207,6 +211,16 @@ describe("botLiveness.reportStall — a valid hand-off (issue #9003)", () => {
             expectedKind: "target",
             targetType: "Creature",
             sourceCardName: "Grizzly Bears",
+        });
+    });
+
+    it("stores oversized diagnostics as a size note, and still advances", async () => {
+        const stub = makeMutationCtx(USER, seeds(botPriorityBoard()));
+        const huge = { console: ["x".repeat(STALL_DIAGNOSTICS_MAX_BYTES)] };
+        const result = await call(stub.ctx, { diagnostics: huge });
+        expect(result.advanced).toBe(true);
+        expect(systemRows(stub)[0].clientDiagnostics).toMatchObject({
+            omitted: expect.stringContaining("cap"),
         });
     });
 });

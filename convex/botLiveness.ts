@@ -55,6 +55,26 @@ const reportStallResultValidator = v.union(
 );
 export type ReportStallResult = Infer<typeof reportStallResultValidator>;
 
+/** The largest client diagnostics payload a report row keeps. The row also
+ *  holds the frozen board, and a document over Convex's size limit fails the
+ *  insert — and with it the advance, which must never wait on evidence. */
+export const STALL_DIAGNOSTICS_MAX_BYTES = 256 * 1024;
+
+/** The diagnostics as stored: verbatim, or — over the cap, or not
+ *  serialisable — a note of why they are not. */
+export function boundedDiagnostics(diagnostics: unknown): unknown {
+    if (diagnostics === undefined) return undefined;
+    let bytes: number;
+    try {
+        bytes = JSON.stringify(diagnostics).length;
+    } catch {
+        return { omitted: "not serialisable" };
+    }
+    return bytes > STALL_DIAGNOSTICS_MAX_BYTES
+        ? { omitted: `over the ${STALL_DIAGNOSTICS_MAX_BYTES}-byte cap`, bytes }
+        : diagnostics;
+}
+
 /**
  * The Bot seat of a vs-AI game, and the proof the caller is its human player.
  * Throws for a game that is not vs-AI and for a caller who does not own the
@@ -113,7 +133,10 @@ export function botFaultFromForceAdvance(input: {
         origin: input.origin,
         expectedKind: owed.kind,
         ...(owed.kind === "choice" ? { choiceKind: owed.choiceKind } : {}),
-        ...(owed.kind === "target" ? { targetType: owed.targetType } : {}),
+        // A multi-type requirement (`["Creature", "player"]`) as one string.
+        ...(owed.kind === "target"
+            ? { targetType: [owed.targetType].flat().join("|") }
+            : {}),
         ...(name ? { sourceCardName: name } : {}),
         faultClass: input.faultClass,
         steps: input.result.steps.map((s) => ({
@@ -173,7 +196,7 @@ export const reportStall = mutation({
                 seq: gameState.seq,
                 state: state as unknown as Record<string, unknown>,
             },
-            clientDiagnostics: args.diagnostics,
+            clientDiagnostics: boundedDiagnostics(args.diagnostics),
         });
 
         const nextSeq = gameState.seq + 1;

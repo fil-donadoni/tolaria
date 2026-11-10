@@ -39,8 +39,10 @@
 //  3. **Every rung is legal and every rung is loud.** `escalationLadder`
 //     (`src/lib/ai/owed-input.ts`) is deterministic, exhaustive over the
 //     Expected Input kind union, and made only of declines the CR already
-//     defines for that window, routed through existing mutations. Rung 5 is a
-//     user-visible, actionable state — never a silent no-op.
+//     defines for that window, routed through existing mutations. Rung 5 is
+//     the HAND-OFF (issue #9003): the driver calls `botLiveness.reportStall`,
+//     the server force-advances the window and files the fault, and the
+//     player sees a transient notice — never a silent no-op, never a click.
 //
 // A thrown submission no longer latches the loop: the in-flight guard is
 // cleared, the state re-read, the submission retried within
@@ -135,6 +137,7 @@ import {
 import { projectedToGameState } from "~/lib/ai/state-adapter";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
 import { getStoredDifficulty } from "~/lib/session";
+import { collectStallDiagnostics } from "~/lib/diagnostics/stall-diagnostics";
 import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
 import { revealRounds } from "~/lib/random-reveal-flip";
 
@@ -208,15 +211,11 @@ export type VsAiDriverStatus = {
     /** True while the bot is searching for a move (a worthwhile window). Clears
      *  the moment it submits. Trivial immediate passes never set it. */
     thinking: boolean;
-    /** Rung 5 (issue #2284): the escalation ladder ran out of legal automatic
-     *  exits while the game was waiting on the bot. Never a silent no-op — the
-     *  board surfaces it and offers {@link VsAiDriverStatus.resolveStuck}.
-     *  `null` while the invariant holds. */
-    stuck: { expectedKind: ExpectedInputKind } | null;
-    /** The human's manual exit from a stuck game: re-walks the ladder from the
-     *  top and submits the first legal rung. Resolves once the submission
-     *  settles. */
-    resolveStuck: () => Promise<void>;
+    /** Rung 5's last hand-off the server ACTED on (issue #9003): the ladder
+     *  ran out, `botLiveness.reportStall` force-advanced the Bot's window and
+     *  filed the fault. `id` grows with each one, so the board's transient
+     *  notice re-shows for a second skip. `null` until the first. */
+    skipped: { id: number } | null;
     /** The driver's OWN subscriptions gave up (issue #3266 review). The board's
      *  error surface cannot cover this: these two queries are private to this
      *  hook, and a parked subscription never un-parks by itself — the bot would
@@ -431,14 +430,9 @@ export function useVsAiDriver(
     const revealWait = useRef<{ signature: string; startedAt: number } | null>(
         null
     );
-    // Rung 5's banner, stored WITH the state version it belongs to so the
-    // exposed value can be DERIVED (below) rather than cleared from an effect:
-    // a synchronous `setState` inside an effect is a cascading-render hazard,
-    // and "the game moved on" is a pure function of the current signature.
-    const [stuckAt, setStuckAt] = useState<{
-        signature: string;
-        expectedKind: ExpectedInputKind;
-    } | null>(null);
+    // Rung 5's hand-offs the server acted on (issue #9003) — what the board's
+    // transient "skipped a decision" notice keys on.
+    const [skipped, setSkipped] = useState<{ id: number } | null>(null);
     // Bumped whenever an in-flight submission SETTLES without advancing the
     // game (a rejection, or a mock/server that accepted without a new tick).
     // Without it a thrown mutation left the loop permanently quiet: a rejection
@@ -600,6 +594,13 @@ export function useVsAiDriver(
     // CR 510.1c-d (issue #5662) — the bot's combat-damage split, submitted
     // before `confirmDamage`. Driven directly, like `confirmDamage`.
     const setDamageAssignment = useMutation(api.game.setDamageAssignment);
+    // Rung 5's hand-off (issue #9003). Reached from `escalate`, which is frozen
+    // at the first render, so it is read through a ref synced every commit.
+    const reportStall = useMutation(api.botLiveness.reportStall);
+    const reportStallRef = useRef(reportStall);
+    useEffect(() => {
+        reportStallRef.current = reportStall;
+    }, [reportStall]);
 
     const directMutations: DirectMutations = {
         setDamageAssignment,
@@ -640,10 +641,10 @@ export function useVsAiDriver(
     const escalationAttempt = useRef(0);
     const retrySignature = useRef<string | null>(null);
     const retries = useRef(0);
-    // The state version rung 5 already surfaced. Without it the ladder's
-    // terminal rung re-fires on every render (a fresh banner object is a state
-    // change, which re-runs the effect, which re-arms the watchdog), and the
-    // "never a silent no-op" guarantee turns into a render loop.
+    // The state version rung 5 already handed off. Without it the ladder's
+    // terminal rung re-fires on every render (a settled hand-off is a state
+    // change, which re-runs the effect, which re-arms the watchdog): one
+    // `reportStall` per state version.
     const stuckSignature = useRef<string | null>(null);
     // The state version a decision-path step THREW on (issue #8999). Read by
     // the normal path (stop re-driving a version that throws — the ladder owns
@@ -930,6 +931,63 @@ export function useVsAiDriver(
         [note, guard, escalateFault]
     );
 
+    // ── Rung 5: the hand-off to the server (issue #9003) ────────────────────
+    //
+    // The ladder ran out on state version `seq`. The server re-validates the
+    // call (the human of this vs-AI game, the seq still current, the Bot still
+    // owed), force-advances the Bot's window and files the fault with the
+    // diagnostics collected here. A stale or no-longer-owed call is the
+    // server's no-op: the game already moved, and nothing was skipped.
+    //
+    // A REJECTED hand-off is recorded and not retried: every rejection the
+    // server makes is permanent for this game (not its player, not vs-AI), and
+    // a network failure is the Convex client's to retry. The server deadline
+    // is the backstop for a window no client hands off.
+    const handOff = useCallback(
+        (
+            ctx: RealisationContext,
+            kind: ExpectedInputKind,
+            cause: "ladder-exhausted" | "driver-error"
+        ) => {
+            const seq = ctx.botState.seq;
+            const at = { phase: ctx.botState.phase, seq };
+            let diagnostics: unknown;
+            try {
+                diagnostics = collectStallDiagnostics();
+            } catch {
+                // A lost diagnostic, never a lost hand-off.
+            }
+            let pending: Promise<{ advanced: boolean }>;
+            try {
+                pending = reportStallRef.current({
+                    gameId: ctx.gameId,
+                    seq,
+                    cause,
+                    diagnostics,
+                });
+            } catch (e) {
+                pending = Promise.reject(e);
+            }
+            void pending.then(
+                (result) => {
+                    if (result?.advanced) {
+                        setSkipped((prev) => ({ id: (prev?.id ?? 0) + 1 }));
+                    }
+                },
+                (e: unknown) =>
+                    note(
+                        "submit-error",
+                        {
+                            expectedKind: kind,
+                            message: `reportStall: ${e instanceof Error ? e.message : String(e)}`,
+                        },
+                        at
+                    )
+            );
+        },
+        [note]
+    );
+
     // ── Rung 1..5: the escalation ladder ────────────────────────────────────
     const escalate = useCallback(
         (
@@ -1010,15 +1068,22 @@ export function useVsAiDriver(
                 return;
             }
 
-            // Rung 5 — out of legal automatic exits. Surface it; never a silent
-            // no-op. Once per state version.
+            // Rung 5 — out of legal automatic exits: hand the window to the
+            // server (issue #9003). Never a silent no-op, never the player's
+            // click. Once per state version.
             stuckSignature.current = signature;
             recordAiEscalation({
                 rung: 5,
                 expectedKind: kind,
-                action: "no legal automatic exit — awaiting the player",
+                action: "no legal automatic exit — handed to the server",
             });
-            setStuckAt({ signature, expectedKind: kind });
+            handOff(
+                ctx,
+                kind,
+                faultSignature.current === signature
+                    ? "driver-error"
+                    : "ladder-exhausted"
+            );
         },
         // Everything this closes over is a ref, a stable setState, an argument,
         // or `dispatch` — which is itself stable, and had to become so: this
@@ -1028,7 +1093,7 @@ export function useVsAiDriver(
         // yet (the bug this dependency now makes structurally impossible rather
         // than merely commented). The ladder itself is a pure function of what
         // it is handed. Stable on purpose — the watchdog effect depends on it.
-        [dispatch, guard]
+        [dispatch, guard, handOff]
     );
 
     // ── The normal decision path ────────────────────────────────────────────
@@ -1435,8 +1500,8 @@ export function useVsAiDriver(
         }
 
         const signature = currentSignature!;
-        // Already the terminal rung for this state version: the player's control
-        // is the exit, and burning more timers changes nothing.
+        // Already the terminal rung for this state version: the hand-off to the
+        // server is the exit, and burning more timers changes nothing.
         if (stuckSignature.current === signature) {
             disarmWatchdog();
             return;
@@ -1554,67 +1619,9 @@ export function useVsAiDriver(
     // The one place the watchdog is torn down by React: leaving the board.
     useEffect(() => disarmWatchdog, [disarmWatchdog]);
 
-    // Rung 5's human exit: re-walk the ladder from the top. Deliberately resets
-    // the attempt counter, so the player's click always tries the cheapest legal
-    // answer first rather than resuming wherever the automatic walk stopped.
-    //
-    // It does NOT clear the banner itself (review finding 3). `stuck` is DERIVED
-    // from "this state version is still the one rung 5 fired on", so the banner
-    // disappears exactly when the game moves — and only then. Clearing it after
-    // `await runner()` took a resolved mutation as proof the game advanced, which
-    // is the same false premise the watchdog used to rest on: a rung that hits
-    // `passPriority`'s silent no-op branch (`convex/game.ts` returns without
-    // saving when the caller does not hold priority) would have removed the
-    // human's ONE manual exit while the board sat exactly where it was. Clearing
-    // `stuckSignature` before submitting re-arms the automatic watchdog too, so
-    // an inert rung is followed by the next one rather than by silence.
-    //
-    // Never rejects: a rung whose mutation is rejected leaves the banner up so
-    // the player can retry, and `BotStuckNotice` re-enables its button.
-    const resolveStuck = useCallback(async () => {
-        if (!botId || !botState || !realisationContext) return;
-        const view = buildBotView(botState, botId);
-        const owed = view.owedInput;
-        // Nothing is owed any more — the game moved on without us.
-        if (!owed) {
-            setStuckAt(null);
-            return;
-        }
-        const ladder = escalationLadder(owed.kind, view);
-        for (const step of ladder) {
-            const runner = realiseBotAction(step.action, realisationContext);
-            if (!runner) continue;
-            recordAiEscalation({
-                rung: step.rung,
-                expectedKind: owed.kind,
-                action: `${step.action.kind} (player-triggered)`,
-            });
-            inFlight.current = false;
-            stuckSignature.current = null;
-            escalationSignature.current = null;
-            try {
-                await runner();
-            } catch {
-                // The server rejected it. The banner is still on this state
-                // version, so it stays up and the player can try again.
-            }
-            setSettleNonce((n) => n + 1);
-            return;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, botState]);
-
-    // Derived, never cleared from an effect: the banner belongs to ONE state
-    // version, so the moment the game advances (a new tick seq) it is gone.
-    const stuck =
-        stuckAt && stuckAt.signature === currentSignature
-            ? { expectedKind: stuckAt.expectedKind }
-            : null;
-
     return {
         thinking,
-        stuck,
-        resolveStuck,
+        skipped,
         // Either query giving up is the same outcome for the player: the bot
         // stops moving. The tick is reported first because it is the one that
         // gates everything else.
