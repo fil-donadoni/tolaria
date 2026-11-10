@@ -1,7 +1,7 @@
 ---
 name: profile-census
 disable-model-invocation: true
-description: "Tag Card Profiles the repeatable way (PRD #8772, ADR 0167): a capability pass over the catalogue, an archetype pass over one scope, or a delta for new catalogue/registry rows. Writes unreviewed seed rows with a sourced rationale, emits a residue of Capability candidates, files their promotion tickets. Use when a new Draftable scope needs Archetypes, the catalogue needs Capabilities, or a new row must be swept across a scope."
+description: "Profile Census (PRD #8772): capability, archetype or delta pass — unreviewed seed rows, a residue, promotion tickets."
 argument-hint: "capability | archetype <scope> | delta <scope> --rows <id,id>"
 ---
 
