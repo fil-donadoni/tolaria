@@ -294,6 +294,23 @@ bands** reserve the top and bottom quarter for positions that are won or lost
 outright, so a win dominates any material count. Code: `rewardFromValue` in
 `convex/gre/search.ts`.
 
+<a id="root-heuristic-share"></a>**Root Heuristic Share (λ)** — the fixed
+share the one-ply [evaluation](#evaluation) of each root candidate (the
+position right after the move, before any rollout, mapped to a
+[reward](#reward)) holds in the Brain's root verdict: every root rule reads
+ONE score, `(1 − λ) · mean rollout reward + λ · one-ply reward`. A candidate
+with no memoized one-ply value blends with its own mean; at a starved root
+(under two iterations per candidate) the one-ply reading never weighs less
+than the eight virtual rollouts it always counted for, so λ is a floor there.
+λ = 0 is the pre-#9045 Brain, whose root heard the one-ply reading only when
+starved and let it fade. Chosen by a measured grid, bounded below by the
+issue #8954 position (the rollouts alone ranked "they draw three" first) and
+above by the held-trick entries where only the rollouts see the window a
+greedy cast gives up (ADR 0177). Code: `rootHeuristicShare` in
+`convex/gre/ai/evalWeights.ts`, `makeRootScorer` in `convex/gre/search.ts`;
+the Decision Trace shows it as `h` (one-ply reward) and `s` (score) beside
+`r` (mean reward).
+
 <a id="indifference-band"></a>**Indifference band** — the range of margin
 inside which two root candidates count as tied (`OUTCOME_EPS` on the reward
 scale). Measured at ~100 margin points (≈ 12.5 life, ≈ 0.6 of a vanilla 2/2):

@@ -24,6 +24,8 @@ import {
     keyedMovesFor,
     computeActionPriors,
     rootDecisionSettled,
+    makeRootScorer,
+    STARVED_ROOT_PRIOR_VISITS,
     type DecisionTrace,
     type Edge,
     type Node,
@@ -47,7 +49,10 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
-import type { SearchStats } from "../ai/decisionTelemetry";
+import type {
+    RootDecisionMechanism,
+    SearchStats,
+} from "../ai/decisionTelemetry";
 
 /** Stub `SearchStats` for a `buildTrace` call site that hand-builds a `Node`
  *  (no real search loop ran, so there is nothing genuine to report — issue
@@ -3284,5 +3289,211 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
             [creature(SPIDER, "p2", "spider")]
         );
         expect(isWastefulAttack(state, { kind: "pass" })).toBe(false);
+    });
+});
+
+describe("selectRootMove — Root Heuristic Share λ (issue #9045, PRD #9043)", () => {
+    const PASS: Move = { kind: "pass" };
+    const CAST_SELF = {
+        kind: "cast-spell",
+        cardInstanceId: "recall",
+        targets: [{ kind: "player", id: "p1" }],
+        manaPayment: {},
+    } as unknown as Move;
+    const CAST_OPP = {
+        kind: "cast-spell",
+        cardInstanceId: "recall",
+        targets: [{ kind: "player", id: "p2" }],
+        manaPayment: {},
+    } as unknown as Move;
+    const MOVES = [PASS, CAST_SELF, CAST_OPP];
+    const KEYS = ["pass", "self", "opp"];
+
+    /** A hand-built root: three candidates with the given mean rollout reward
+     *  at `visits` visits each, and (unless `policyValues` is null) a memoized
+     *  one-ply policy value per key — the raw `evaluate` number
+     *  `computeActionPriors` caches on the root, mapped by `rewardFromValue`.
+     *  Margins follow the moves (the self-draw leaves more material than the
+     *  gift), so the material tie-break is never the pool's order. */
+    const MARGINS = [0, 100, -100];
+    function rootOf(
+        means: number[],
+        oneply: (number | undefined)[] | null,
+        visits = 100
+    ): Node {
+        const children = new Map<string, Edge>();
+        MOVES.forEach((move, i) => {
+            children.set(KEYS[i], {
+                move,
+                key: KEYS[i],
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: means[i] * visits,
+                totalMargin: MARGINS[i] * visits,
+                avail: visits,
+            });
+        });
+        const root: Node = { children };
+        if (oneply) {
+            root.policyValues = new Map();
+            oneply.forEach((v, i) => {
+                if (v !== undefined) root.policyValues!.set(KEYS[i], v);
+            });
+        }
+        return root;
+    }
+    const withShare = (lambda: number) => ({
+        ...DEFAULT_EVAL_WEIGHTS,
+        rootHeuristicShare: lambda,
+    });
+    const W0 = withShare(0);
+    const W02 = withShare(0.2);
+    // One-ply values on the `evaluate` scale: the self-draw reads +600 (the
+    // half-band and past it), the misdirected draw −600, pass 0.
+    const ONEPLY = [0, 600, -600];
+    // Rollout means: the misdirected cast leads by more than `outcomeEps`,
+    // so at λ = 0 it is the ONLY contender and the pick, as the report showed.
+    const MEANS = [0.4, 0.47, 0.54];
+    const h = (v: number) => rewardFromValue(v, DEFAULT_EVAL_WEIGHTS);
+    const edgesOf = (root: Node) => [...root.children.values()];
+
+    it("λ = 0: the blended score IS today's mean for every candidate", () => {
+        const root = rootOf(MEANS, ONEPLY);
+        const { mean, share } = makeRootScorer(root, W0);
+        for (const e of edgesOf(root)) {
+            expect(mean(e)).toBe(e.totalReward / e.visits);
+            expect(share(e)).toBe(0);
+        }
+    });
+
+    it("λ = 0: the pick is byte-identical to a root with no one-ply values at all", () => {
+        const picked = selectRootMove(
+            rootOf(MEANS, ONEPLY),
+            MOVES,
+            undefined,
+            undefined,
+            undefined,
+            W0
+        );
+        const blind = selectRootMove(
+            rootOf(MEANS, null),
+            MOVES,
+            undefined,
+            undefined,
+            undefined,
+            W0
+        );
+        expect(picked).toEqual(blind);
+        expect(picked).toEqual(CAST_OPP);
+    });
+
+    it("λ = 0.2: score = 0.8 · mean + 0.2 · rewardFromValue(one-ply), per candidate", () => {
+        const root = rootOf(MEANS, ONEPLY);
+        const { mean, oneply, share } = makeRootScorer(root, W02);
+        edgesOf(root).forEach((e, i) => {
+            expect(oneply(e)).toBe(h(ONEPLY[i]));
+            expect(share(e)).toBe(0.2);
+            expect(mean(e)).toBeCloseTo(
+                0.8 * MEANS[i] + 0.2 * h(ONEPLY[i]),
+                12
+            );
+        });
+    });
+
+    it("λ = 0.3: the one-ply reading moves the verdict off the misdirected cast by score alone (no tie-break)", () => {
+        // 0.7 · 0.47 + 0.3 · 0.75 = 0.554 against 0.7 · 0.54 + 0.3 · 0.25 =
+        // 0.453: a lead past `outcomeEps`, so the search's own argmax decides
+        // and the material tie-break never runs (review of the PR for issue
+        // #9045: at 0.2 the lead is 0.044, inside the band, and the margins
+        // decide).
+        const out = { mechanism: "mean-reward" as RootDecisionMechanism };
+        const picked = selectRootMove(
+            rootOf(MEANS, ONEPLY),
+            MOVES,
+            undefined,
+            undefined,
+            undefined,
+            withShare(0.3),
+            undefined,
+            out
+        );
+        expect(picked).toEqual(CAST_SELF);
+        expect(out.mechanism).toBe("mean-reward");
+    });
+
+    it("a candidate with no memoized one-ply value blends with its own mean (no penalty)", () => {
+        const root = rootOf(MEANS, [0, undefined, -200]);
+        const { mean, oneply } = makeRootScorer(root, W02);
+        const [, self] = edgesOf(root);
+        expect(oneply(self)).toBeUndefined();
+        expect(mean(self)).toBe(self.totalReward / self.visits);
+    });
+
+    it("a root that never memoized a one-ply value scores every candidate by its mean, whatever λ", () => {
+        const root = rootOf(MEANS, null);
+        const { mean } = makeRootScorer(root, withShare(0.3));
+        edgesOf(root).forEach((e) =>
+            expect(mean(e)).toBe(e.totalReward / e.visits)
+        );
+    });
+
+    it("starved root: the one-ply reading weighs at least STARVED_ROOT_PRIOR_VISITS virtual rollouts — λ is a floor, not a replacement", () => {
+        // One real rollout per child: under two iterations per candidate.
+        const visits = 1;
+        const root = rootOf(MEANS, ONEPLY, visits);
+        const floor =
+            STARVED_ROOT_PRIOR_VISITS / (visits + STARVED_ROOT_PRIOR_VISITS);
+        // λ under the floor: the historical starved-root arithmetic, exactly.
+        const s0 = makeRootScorer(root, W0, true);
+        edgesOf(root).forEach((e, i) => {
+            expect(s0.share(e)).toBe(floor);
+            expect(s0.mean(e)).toBe(
+                (e.totalReward + STARVED_ROOT_PRIOR_VISITS * h(ONEPLY[i])) /
+                    (e.visits + STARVED_ROOT_PRIOR_VISITS)
+            );
+        });
+        // λ over the floor (0.95 > 8/9): λ wins.
+        const s95 = makeRootScorer(root, withShare(0.95), true);
+        edgesOf(root).forEach((e, i) => {
+            expect(s95.share(e)).toBe(0.95);
+            expect(s95.mean(e)).toBeCloseTo(
+                0.05 * MEANS[i] + 0.95 * h(ONEPLY[i]),
+                12
+            );
+        });
+        // The same root NOT flagged starved reads λ alone.
+        expect(makeRootScorer(root, W02).share(edgesOf(root)[0])).toBe(0.2);
+    });
+
+    it("starved root through selectRootMove: searchStats under two iterations per candidate engage the floor", () => {
+        const stats: SearchStats = {
+            iterationsCompleted: 3,
+            iterationsRequested: 3,
+            elapsedMs: 0,
+            stoppedBy: "iterations",
+        };
+        // At λ = 0 the floor alone (8 virtual rollouts against 1 real) hands
+        // the pick to the one-ply favourite — today's starved-root behaviour.
+        const picked = selectRootMove(
+            rootOf(MEANS, ONEPLY, 1),
+            MOVES,
+            undefined,
+            undefined,
+            stats,
+            W0
+        );
+        expect(picked).toEqual(CAST_SELF);
+        // Without the stats the same root is not starved: at λ = 0 the raw
+        // means decide and the misdirected cast stands.
+        const unstarved = selectRootMove(
+            rootOf(MEANS, ONEPLY, 1),
+            MOVES,
+            undefined,
+            undefined,
+            undefined,
+            W0
+        );
+        expect(unstarved).toEqual(CAST_OPP);
     });
 });

@@ -5,9 +5,10 @@
 // `searchWithTrace` agree on a fixed seed. These assert the TOOL, not the
 // gameplay bug it exists to diagnose. See `convex/gre/search.ts`,
 // `evaluate.ts`, `describeMove.ts`.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { search, searchWithTrace } from "../search";
+import { setSearchVariant } from "../ai/searchVariant";
 import { evaluate, evaluateBreakdown } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { UNKNOWN_COLOR_COVERAGE } from "../ai/colorCoverage";
@@ -420,5 +421,80 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         );
         expect(trace!.stoppedBy).toBe("iterations");
         expect(trace!.iterationsCompleted).toBe(200);
+    });
+});
+
+describe("DecisionTrace — the Root Heuristic Share's two numbers per candidate (issue #9045)", () => {
+    afterEach(() => setSearchVariant(null));
+
+    function botMainWithLand() {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    name: "Bot",
+                    hand: [inHand(MOUNTAIN, "p1", "land1")],
+                    battlefield: [],
+                }),
+                makePlayer("p2", { name: "You" }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it("every candidate carries `oneplyReward` (the root memoizes a policy value per child under PUCT) and `score`", () => {
+        const { trace } = searchWithTrace(
+            botMainWithLand(),
+            "p1",
+            BUDGET,
+            SEED
+        );
+        expect(trace!.candidates.length).toBeGreaterThan(1);
+        for (const cand of trace!.candidates) {
+            expect(typeof cand.oneplyReward).toBe("number");
+            expect(cand.oneplyReward).toBeGreaterThanOrEqual(0);
+            expect(cand.oneplyReward).toBeLessThanOrEqual(1);
+            expect(typeof cand.score).toBe("number");
+        }
+    });
+
+    it("λ = 0: `score` equals `meanReward` on every candidate", () => {
+        setSearchVariant({
+            name: "rhs-0-test",
+            evalWeights: { rootHeuristicShare: 0 },
+        });
+        const { trace } = searchWithTrace(
+            botMainWithLand(),
+            "p1",
+            BUDGET,
+            SEED
+        );
+        for (const cand of trace!.candidates) {
+            expect(cand.score).toBe(cand.meanReward);
+        }
+    });
+
+    it("λ = 0.2: `score` is the declared blend of `meanReward` and `oneplyReward`", () => {
+        setSearchVariant({
+            name: "rhs-0.2-test",
+            evalWeights: { rootHeuristicShare: 0.2 },
+        });
+        const { trace } = searchWithTrace(
+            botMainWithLand(),
+            "p1",
+            BUDGET,
+            SEED
+        );
+        let blendedDiffers = 0;
+        for (const cand of trace!.candidates) {
+            expect(cand.score).toBeCloseTo(
+                0.8 * cand.meanReward + 0.2 * cand.oneplyReward!,
+                12
+            );
+            if (cand.score !== cand.meanReward) blendedDiffers++;
+        }
+        // The field is not a copy of `meanReward` under a non-zero share.
+        expect(blendedDiffers).toBeGreaterThan(0);
     });
 });

@@ -21,6 +21,14 @@ const LEGEND: { group: string; items: [string, string][] }[] = [
         items: [
             ["v", "Visits — times this move was simulated"],
             ["r", "Mean reward — win-rate estimate, 0–1"],
+            [
+                "h",
+                "One-ply reward — the Evaluation of the position right after the move, 0–1",
+            ],
+            [
+                "s",
+                "Score — the blended root verdict: (1 − λ) · mean reward + λ · one-ply reward",
+            ],
             ["a", "Availability — times the move was a legal option"],
         ],
     },
