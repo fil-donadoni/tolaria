@@ -35,6 +35,7 @@ interface Stub {
     insert: (table: string, doc: Row) => void;
     patch: (id: string, patch: Row) => void;
     get: (id: string) => Row;
+    clear: (table: string) => void;
 }
 
 /** An in-memory `MutationCtx`: `withIndex` applies every `eq` the range
@@ -107,6 +108,9 @@ function makeCtx(userId: string, seeds: Row[]): Stub {
         insert: (table, doc) => void insert(table, doc),
         patch: (id, patch) => docs.set(id, { ...docs.get(id), ...patch }),
         get: (id) => docs.get(id)!,
+        clear: (table) => {
+            for (const row of tableRows(table)) docs.delete(row._id as string);
+        },
     };
 }
 
@@ -185,6 +189,15 @@ describe("Auto-Built deck is fixed at Pool-final (issue #8896)", () => {
 
     it("a Card Profile edit after Pool-final never changes the deck any reader returns", async () => {
         const stub = makeCtx("alice", seeds());
+        // The Bot's deck with no Card Profile at all — built before anything
+        // is stored, i.e. on demand.
+        const unprofiled = await resolveSeatAutoBuiltDeck(
+            stub.ctx,
+            await eventDoc(stub),
+            BOT_SEAT
+        );
+        // A review in force at Pool-final: the deck is decided under it.
+        reviewSideboardProfiles(stub, unprofiled!);
         await openPlayPhaseIfReady(
             stub.ctx,
             EVENT_ID as Id<"limitedEvents">,
@@ -195,41 +208,28 @@ describe("Auto-Built deck is fixed at Pool-final (issue #8896)", () => {
             await eventDoc(stub),
             BOT_SEAT
         );
-        expect(frozen).not.toBeNull();
+        // Precondition — the review genuinely shapes the build. Without this
+        // every assertion below would pass on an edit that changes nothing.
+        expect(maindeckIds(frozen)).not.toEqual(maindeckIds(unprofiled));
 
-        reviewSideboardProfiles(stub, frozen!);
-        // A further Pool-final/Drop write runs the freeze again: the first
-        // decision stands, nothing is rebuilt.
+        // The Admin withdraws the review after Pool-final. A further
+        // Pool-final/Drop write runs the freeze again: the first decision
+        // stands, nothing is rebuilt.
+        stub.clear("cardCapabilities");
         await openPlayPhaseIfReady(
             stub.ctx,
             EVENT_ID as Id<"limitedEvents">,
             2
         );
 
-        // Precondition — the edit genuinely changes a FRESH build: the same
-        // table under another id, with no stored deck, builds differently.
-        // Without this the assertions below would pass on an edit that
-        // changes nothing.
-        stub.insert("limitedEvents", {
-            ...deckbuildEvent("unused"),
-        });
-        const fresh = stub
-            .rows("limitedEvents")
-            .find((r) => r._id !== EVENT_ID)!;
-        const rebuilt = await resolveSeatAutoBuiltDeck(
-            stub.ctx,
-            fresh as unknown as Doc<"limitedEvents">,
-            BOT_SEAT
-        );
-        expect(maindeckIds(rebuilt)).not.toEqual(maindeckIds(frozen));
-
         // The pairing-Match reader (`convex/game.ts`'s `startPairingMatch`).
-        const forMatch = await resolveSeatAutoBuiltDeck(
-            stub.ctx,
-            await eventDoc(stub),
-            BOT_SEAT
-        );
-        expect(forMatch).toEqual(frozen);
+        expect(
+            await resolveSeatAutoBuiltDeck(
+                stub.ctx,
+                await eventDoc(stub),
+                BOT_SEAT
+            )
+        ).toEqual(frozen);
 
         // The event view (live and archived alike).
         const view = await (
