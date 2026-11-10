@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { matchClockConfigValidator, tickClockValidator } from "./matchClock";
 import {
     classificationValidator,
     pairOfValidator,
@@ -155,6 +156,13 @@ export default defineSchema({
         // and the game deadlocks waiting for input that never arrives.
         owedPlayerIds: v.optional(v.array(v.string())),
         gameOver: v.optional(v.boolean()),
+        // The Game's live Match Clock (issue #2308, `convex/matchClock.ts`):
+        // present only when the owning Match was started with a clock.
+        // Carried HERE because this row is already read and rewritten on
+        // every stable save (`saveGameTick`) — the clock costs no extra read
+        // per action, and the board reads it from this ~200-byte row instead
+        // of re-running the Match query (which hydrates decklists) per save.
+        clock: v.optional(tickClockValidator),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
     // Manual Mode state (ADR 0080) — mirrors gameStates, one row per game,
@@ -452,6 +460,22 @@ export default defineSchema({
                 seatB: v.number(),
             })
         ),
+        /** Round deadline of the pairing this Match IS (issue #2308): a copy
+         *  of the round's `deadlineAt` (`limitedEvents.rounds[].deadlineAt`),
+         *  stamped at `startPairingMatch` so the board reads it without the
+         *  fat event view. Safe to mirror: a round's deadline is stamped once
+         *  when it opens and never mutated. Absent for every non-pairing
+         *  Match and for an event with no round deadline. */
+        limitedRoundDeadlineAt: v.optional(v.number()),
+        /** Per-player Match Clock configuration (issue #2308,
+         *  `convex/matchClock.ts`): the budget, plus each player's remainder
+         *  once a Game has ended. Absent = the Match is unclocked. The live
+         *  clock of the current Game rides its `gameTicks` row. */
+        clock: v.optional(matchClockConfigValidator),
+        /** Epoch ms the between-Games sideboarding window of a clocked Bo3
+         *  closes (issue #2308): at it, every seat not yet ready is readied
+         *  with its deck unchanged. Absent outside that window. */
+        sideboardDeadlineAt: v.optional(v.number()),
         createdAt: v.number(),
         updatedAt: v.number(),
     }).index("by_status", ["status"]),
@@ -540,6 +564,10 @@ export default defineSchema({
                 seatB: v.number(),
             })
         ),
+        /** Round deadline of the pairing this Game belongs to (issue #2308) —
+         *  mirror of the owning Match's `limitedRoundDeadlineAt`, read by the
+         *  board from the `getGame` subscription it already holds. */
+        limitedRoundDeadlineAt: v.optional(v.number()),
         /** Short human-typeable code for "Join by code" (issue #2649). Minted
          *  by `createGame` for a public Arena table and CLEARED the moment the
          *  table leaves `waiting` — so the field's presence IS the code's

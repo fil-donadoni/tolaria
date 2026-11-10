@@ -7,7 +7,9 @@ import {
     MATCH_SETUP_STORAGE_KEY,
     applyChange,
     archivedDecksOffered,
+    clockOffered,
     defaultBotDeckId,
+    effectiveClock,
     firstOpenStep,
     loadSetup,
     matchFormatOptions,
@@ -618,5 +620,88 @@ describe("another player's archived deck (issue #8411, ADR 0106 §4)", () => {
             matchFormatOptions(list).find((o) => o.format === "freeform")
                 ?.admitted;
         expect(count(decks)).toBe(count(DECKS));
+    });
+});
+
+describe("Match Clock (issue #2308)", () => {
+    const NICK = "Filo";
+    const host = { ...READY_BOT, opponent: "host" as const };
+
+    it("is offered against another player or the Bot, never solo, a joined table or Tabletop", () => {
+        expect(clockOffered(host)).toBe(true);
+        expect(clockOffered(READY_BOT)).toBe(true);
+        expect(clockOffered({ ...READY_BOT, opponent: "solo" })).toBe(false);
+        expect(clockOffered({ ...READY_BOT, opponent: "join" })).toBe(false);
+        expect(clockOffered({ ...host, mode: "cockatrice" })).toBe(false);
+    });
+
+    it("defaults on against a player, off against the Bot; 15' Bo1, 25' Bo3", () => {
+        expect(effectiveClock(host)).toEqual({ on: true, minutes: 25 });
+        expect(effectiveClock({ ...host, gamesFormat: 1 })).toEqual({
+            on: true,
+            minutes: 15,
+        });
+        expect(effectiveClock(READY_BOT)).toEqual({ on: false, minutes: 25 });
+        expect(effectiveClock({ ...READY_BOT, opponent: "solo" })).toBeNull();
+    });
+
+    it("Start sends the minutes only while the clock is on", () => {
+        expect(startRequest(host, DECKS, NICK)?.args).toMatchObject({
+            clockMinutes: 25,
+        });
+        expect(startRequest(READY_BOT, DECKS, NICK)?.args).not.toHaveProperty(
+            "clockMinutes"
+        );
+        expect(
+            startRequest(
+                { ...READY_BOT, clockOn: true, clockMinutes: 40 },
+                DECKS,
+                NICK
+            )?.args
+        ).toMatchObject({ vsAi: true, clockMinutes: 40 });
+        expect(
+            startRequest({ ...host, clockOn: false }, DECKS, NICK)?.args
+        ).not.toHaveProperty("clockMinutes");
+        expect(
+            startRequest(
+                { ...READY_BOT, opponent: "solo", clockOn: true },
+                DECKS,
+                NICK
+            )?.args
+        ).not.toHaveProperty("clockMinutes");
+    });
+
+    it("a new opponent or Games Format re-defaults what was not set in that change", () => {
+        const toggled = applyChange(host, { clockOn: false }, DECKS);
+        expect(applyChange(toggled, { opponent: "bot" }, DECKS).clockOn).toBe(
+            null
+        );
+        const custom = applyChange(host, { clockMinutes: 40 }, DECKS);
+        expect(
+            applyChange(custom, { gamesFormat: 1 }, DECKS).clockMinutes
+        ).toBe(null);
+        expect(
+            applyChange(custom, { myDeckId: "burn" }, DECKS).clockMinutes
+        ).toBe(40);
+    });
+
+    it("round-trips through storage, dropping an out-of-bounds value", () => {
+        expect(
+            parseSetup(
+                JSON.stringify({ ...host, clockOn: false, clockMinutes: 30 })
+            )
+        ).toMatchObject({ clockOn: false, clockMinutes: 30 });
+        expect(
+            parseSetup(
+                JSON.stringify({ ...host, clockOn: "yes", clockMinutes: 999 })
+            )
+        ).toMatchObject({ clockOn: null, clockMinutes: null });
+    });
+
+    it("the recap names the clock while it is on", () => {
+        const format = (s: MatchSetup) =>
+            setupSteps(s, DECKS).find((st) => st.key === "format")?.answer;
+        expect(format(host)).toBe("Premodern · Bo3 · 25' clock");
+        expect(format(READY_BOT)).toBe("Premodern · Bo3");
     });
 });

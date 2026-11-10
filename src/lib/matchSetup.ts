@@ -18,6 +18,11 @@ import {
     DIFFICULTIES,
     type Difficulty,
 } from "@convex/gre/difficulty";
+import {
+    MATCH_CLOCK_DEFAULT_MINUTES,
+    MATCH_CLOCK_MAX_MINUTES,
+    MATCH_CLOCK_MIN_MINUTES,
+} from "@convex/matchClock";
 import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import {
     deckPayload,
@@ -52,6 +57,12 @@ export interface MatchSetup {
      *  enumerable oracle (issue #2649) — so the table's Match Format stays
      *  unknown and the server re-checks the deck at Start. Never persisted. */
     joinCode: string | null;
+    /** Per-player Match Clock on/off (issue #2308); `null` = the default for
+     *  the opponent — on against another player, off against the Bot. */
+    clockOn: boolean | null;
+    /** Minutes per player while the clock is on; `null` = the Games Format's
+     *  default (`MATCH_CLOCK_DEFAULT_MINUTES`: 15 Bo1, 25 Bo3). */
+    clockMinutes: number | null;
 }
 
 /** The setup a first visit opens on. Mirror is the default second deck. */
@@ -67,6 +78,8 @@ export const EMPTY_SETUP: MatchSetup = {
     joinTableId: null,
     joinTableFormat: null,
     joinCode: null,
+    clockOn: null,
+    clockMinutes: null,
 };
 
 const GAME_MODES: readonly GameMode[] = ["arena", "cockatrice"];
@@ -110,6 +123,34 @@ export interface OpenTable {
     players: readonly { name: string }[];
 }
 
+/** Whether this setup offers the Match Clock (issue #2308): an Arena Match
+ *  against another player or the Bot. Solo (one user, both seats) races no
+ *  one; a joined table takes the host's clock; Tabletop has no engine. */
+export function clockOffered(s: MatchSetup): boolean {
+    return (
+        s.mode === "arena" && (s.opponent === "host" || s.opponent === "bot")
+    );
+}
+
+/** The clock this setup starts with, or `null` where none is offered. */
+export function effectiveClock(
+    s: MatchSetup
+): { on: boolean; minutes: number } | null {
+    if (!clockOffered(s)) return null;
+    return {
+        on: s.clockOn ?? s.opponent === "host",
+        minutes: s.clockMinutes ?? MATCH_CLOCK_DEFAULT_MINUTES[s.gamesFormat],
+    };
+}
+
+/** A minutes value the wizard accepts, clamped to the server's bounds. */
+export function clampClockMinutes(minutes: number): number {
+    if (!Number.isFinite(minutes)) return MATCH_CLOCK_MIN_MINUTES;
+    return Math.min(
+        MATCH_CLOCK_MAX_MINUTES,
+        Math.max(MATCH_CLOCK_MIN_MINUTES, Math.round(minutes))
+    );
+}
 /** The open tables of one game mode: Cockatrice sees Manual tables only,
  *  Arena everything else (story 27). */
 export function tablesForMode<T extends Pick<OpenTable, "mode">>(
@@ -265,7 +306,7 @@ export function stepInfo(
                 title: "Match Format",
                 answer:
                     s.matchFormat &&
-                    `${FORMAT_LABELS[s.matchFormat]} · Bo${s.gamesFormat}`,
+                    `${FORMAT_LABELS[s.matchFormat]} · Bo${s.gamesFormat}${clockAnswer(s)}`,
             };
         case "myDeck":
             return {
@@ -291,6 +332,12 @@ export function stepInfo(
             };
         }
     }
+}
+
+/** The recap's clock suffix: ` · 25' clock` while one is on, else nothing. */
+function clockAnswer(s: MatchSetup): string {
+    const clock = effectiveClock(s);
+    return clock?.on ? ` · ${clock.minutes}' clock` : "";
 }
 
 /** Every step of this setup with its answer, in walk order. */
@@ -348,6 +395,18 @@ export function applyChange(
     const next: MatchSetup = { ...s, ...patch };
     if (next.opponent && opponentUnavailableReason(next.mode, next.opponent)) {
         next.opponent = null;
+    }
+    // The clock's defaults depend on the opponent (on vs a player, off vs the
+    // Bot) and the Games Format (15'/25'): a new answer to either re-defaults
+    // what the player did not set in this same change.
+    if (next.opponent !== s.opponent && patch.clockOn === undefined) {
+        next.clockOn = null;
+    }
+    if (
+        next.gamesFormat !== s.gamesFormat &&
+        patch.clockMinutes === undefined
+    ) {
+        next.clockMinutes = null;
     }
     // A table belongs to one game mode: switching mode leaves it behind.
     if (next.opponent === "join" && next.mode !== s.mode) next.opponent = null;
@@ -503,6 +562,12 @@ export function parseSetup(raw: string | null): MatchSetup {
         joinTableId: stringOrNull(o.joinTableId),
         joinTableFormat: formatOrNull(o.joinTableFormat),
         joinCode: null,
+        clockOn: typeof o.clockOn === "boolean" ? o.clockOn : null,
+        clockMinutes:
+            typeof o.clockMinutes === "number" &&
+            o.clockMinutes === clampClockMinutes(o.clockMinutes)
+                ? o.clockMinutes
+                : null,
     };
 }
 
@@ -541,6 +606,7 @@ export type StartRequest = { seat: "own" | "p1" } & (
               deck: DeckArg;
               bestOf: GamesFormat;
               matchFormat: FormatId;
+              clockMinutes?: number;
           };
       }
     | {
@@ -552,6 +618,7 @@ export type StartRequest = { seat: "own" | "p1" } & (
               vsAi?: true;
               bestOf: GamesFormat;
               matchFormat: FormatId;
+              clockMinutes?: number;
           };
       }
     | {
@@ -598,6 +665,8 @@ export function startRequest(
     const deck2 = second ? deckPayload(second) : undefined;
     const bestOf = s.gamesFormat;
     const manual = s.mode === "cockatrice";
+    const clock = effectiveClock(s);
+    const clockArg = clock?.on ? { clockMinutes: clock.minutes } : {};
 
     switch (s.opponent) {
         case "join":
@@ -632,6 +701,7 @@ export function startRequest(
                           deck,
                           bestOf,
                           matchFormat: mf,
+                          ...clockArg,
                       },
                   };
         case "solo":
@@ -668,6 +738,7 @@ export function startRequest(
                     vsAi: true,
                     bestOf,
                     matchFormat: mf,
+                    ...clockArg,
                 },
             };
     }

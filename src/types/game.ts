@@ -830,6 +830,8 @@ export interface GameOver {
         | "poison"
         | "alternate-win"
         | "bot-fault";
+    /** The loser's Match Clock ran out (issue #2308); `reason` is "concede". */
+    timedOut?: boolean;
     /** True when the game ended in a draw (CR 104.4a — Divine Intervention). */
     isDraw?: boolean;
 }
