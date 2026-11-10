@@ -43,6 +43,7 @@ import {
     TITANIA_PAYOFF,
     EXTRA_PLAINS,
     SEVEN_POISON,
+    UNTAPPED_LAND_NEEDED,
     answersRaisedTargetLegally,
     submitsSoleTarget,
     boundedGraveyardCastIsOffered,
@@ -26700,5 +26701,168 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "gives up both mana rocks before any creature, and the dual only after every basic",
         },
         note: 'Issue #8382, the no-lethal half of "annihilator: sacrifices the mana rocks and keeps its untapped blockers" (no `pairOf`: both halves are predicate entries, which derive no verdict). Six permanents from a board with two rocks: any answer that gives a creature (the owner\'s ruling) or the dual (its extension, `sacrificeGoesFirst`) must give both rocks first, and the surveil dual is priced on the battlefield by what it still does, so it never goes before a basic.',
+    },
+    {
+        // COMBAT RESERVE PAIR, ANCHOR (issue #8701). The bot's main phase
+        // BEFORE combat: an untapped 2/2 that can attack into the opponent's
+        // 2/2, Giant Growth in hand, and a second Grizzly Bears. Forest +
+        // Swamp pay for either card, not both, so casting the Bears now taps
+        // out of the trick for the attack it would back — and the Bears gain
+        // nothing from being cast first (no haste: they cannot attack this
+        // turn, CR 302.6). Attack with the trick up, cast them after combat.
+        //
+        // STRETCH, measured: the search casts the Bears precombat on all five
+        // seeds — the body's worth (~70 margin points over passing at one
+        // ply) dwarfs the combat window `combatReserveWeight` prices at its
+        // prior (6). The sign the term owes is pinned one ply deep in
+        // `policyTimingFeatures.bot.test.ts`.
+        //
+        // A PREDICATE pair, kept out of the weight fit on purpose (measured):
+        // as `forbidden`/`moves` verdicts the fit cannot close a ~70-point gap
+        // through `combatReserveWeight` inside its trust region, so it closes
+        // part of it through `latentCreatureDiscount` (0.620 → 0.641) — and
+        // that refit flips the `must` entry "Self-growing sacrifice outlet:
+        // casts the creature" to `pass` on seed 0x5eed. No `pairOf` (a
+        // predicate lowers to no verdict); each note names its twin.
+        label: "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            predicate: (move, state) =>
+                move !== null && !castsCardNamed(move, state, "Grizzly Bears"),
+            describe: "does not cast Grizzly Bears before combat",
+        },
+        note: 'Issue #8701, the anchor of the combat-reserve pair (predicate, no `pairOf`: see the comment); its twin, "combat reserve pair: casts the creature after combat", is the same board in the postcombat main phase. Stretch: cast on 5/5 seeds at 400 iterations when authored.',
+    },
+    {
+        // COMBAT RESERVE PAIR, HALF (issue #8701). The same board after
+        // combat: nothing is ahead this turn that the trick could back, so
+        // the Bears are cast now — passing defers them a whole turn cycle.
+        label: "combat reserve pair: casts the creature after combat",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                castsCardNamed(move, state, "Grizzly Bears"),
+            describe: "casts Grizzly Bears after combat",
+        },
+        note: 'Issue #8701, the twin of "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick" (predicate, no `pairOf`: see that entry). Cast on 5/5 seeds at 400 iterations when authored.',
+    },
+    {
+        // LAND TEMPO PAIR, ANCHOR (issue #8701). Three Forests in play, a
+        // Forest and an enters-tapped Shivan Oasis in hand (CR 603.6d), and
+        // nothing to cast: the turn has no use for a fourth open mana, so the
+        // Oasis is the drop and the Forest keeps its untapped entry for a
+        // turn that needs it (CR 305.2, one drop a turn).
+        //
+        // STRETCH, measured: Oasis on 4 of 5 seeds (seed 0xb1ade plays the
+        // Forest), every pick by `material-tiebreak` — the two drops tie on
+        // mean reward and the tie-break reads rollout noise. Before the
+        // `landTempo` term the same seeds played the Forest on 4 of 5. The
+        // sign is pinned one ply deep in `policyTimingFeatures.bot.test.ts`.
+        label: "land tempo pair: plays the enters-tapped land on an idle turn",
+        classification: {
+            kind: "conditional",
+            discriminant: UNTAPPED_LAND_NEEDED,
+        },
+        spec: {
+            cards: [
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Shivan Oasis", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: { moves: [{ kind: "play-land", card: "Shivan Oasis" }] },
+        note: 'Issue #8701, the anchor of the land-tempo Minimal Pair; its right-hand half, "land tempo pair: plays the untapped land when it makes a spell castable this turn", adds Giant Spider. Stretch: Oasis on 4/5 seeds at 400 iterations when authored, all by material-tiebreak.',
+    },
+    {
+        // LAND TEMPO PAIR, HALF (issue #8701). The same board plus Giant
+        // Spider ({3}{G}): the untapped Forest is the fourth mana that casts
+        // it this turn, so the Forest is the drop.
+        label: "land tempo pair: plays the untapped land when it makes a spell castable this turn",
+        pairOf: {
+            anchor: "land tempo pair: plays the enters-tapped land on an idle turn",
+            discriminant: UNTAPPED_LAND_NEEDED,
+        },
+        spec: {
+            cards: [
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Shivan Oasis", owner: "me", zone: "hand" },
+                { name: "Giant Spider", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "play-land", card: "Forest" }] },
+        note: "Issue #8701, the right-hand half of the land-tempo Minimal Pair. Forest on 5/5 seeds at 400 iterations when authored.",
     },
 ];

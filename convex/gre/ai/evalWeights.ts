@@ -184,6 +184,20 @@ export type EvalWeights = {
     /** Cap on how many instants/activations `flexWeight` credits
      *  (`FLEX_CARD_CAP`). */
     flexCardCap: number;
+    /** Per held instant-speed card the player tapped below before its own
+     *  combat, the combat-reserve term (issue #8701, `combatReserveTerm` in
+     *  `evaluate.ts`). Its PRIOR is `flexWeight`'s: the combat window is one
+     *  more window the held trick would have covered, priced like the
+     *  option `flexibility` already prices for the rest of the turn cycle. */
+    combatReserveWeight: number;
+    /** The tempo, over the tapped premium, of an untapped land kept in hand
+     *  for a turn that needs it — the land-tempo term (issue #8701,
+     *  `landTempoTerm` in `evaluate.ts`). On an idle turn the enters-tapped
+     *  drop beats the untapped one by exactly this weight, so any positive
+     *  value keeps the sign; the prior, 3, sits above the one-point floor
+     *  under which "one land outranks the other" is true in float arithmetic
+     *  and false in play (`FIT_BANDS`, `verdicts/fit.ts`). */
+    landTempoWeight: number;
     /** Per extra distinct colour an untapped source can produce — smart
      *  auto-tap ranking only, never the bot's own move search
      *  (`W_SOURCE_BREADTH`). */
@@ -486,6 +500,8 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     colorCoverageWeight: 24,
     flexWeight: 6,
     flexCardCap: 3,
+    combatReserveWeight: 6,
+    landTempoWeight: 3,
     sourceBreadthWeight: 4,
     sourceDualPurposeWeight: 20,
     blockCautionFraction: 0.5,

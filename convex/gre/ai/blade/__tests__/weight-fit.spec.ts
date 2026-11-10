@@ -87,6 +87,8 @@ describe("weight fit report formatting (issue #3401)", () => {
                 manaDevelopment: 0,
                 colorCoverage: 0,
                 flexibility: 0,
+                combatReserve: 0,
+                landTempo: 0,
                 library: 0,
                 poison: 0,
                 graveyard: 0,

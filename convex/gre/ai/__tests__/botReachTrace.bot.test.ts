@@ -29,6 +29,8 @@ const TERM_KEYS = Object.keys({
     manaDevelopment: true,
     colorCoverage: true,
     flexibility: true,
+    combatReserve: true,
+    landTempo: true,
     library: true,
     poison: true,
     graveyard: true,

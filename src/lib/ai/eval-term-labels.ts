@@ -150,6 +150,22 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "keeps an answer up",
         loss: "gives up an answer",
     },
+    combatReserve: {
+        short: "Cr",
+        name: "Combat reserve (trick tapped below before combat)",
+        // Half a held trick's combat window.
+        floor: W.combatReserveWeight / 2,
+        gain: "keeps a trick up for combat",
+        loss: "taps below a trick before combat",
+    },
+    landTempo: {
+        short: "Lt",
+        name: "Land tempo (untapped drop on an idle turn)",
+        // Half the tempo an idle-turn tapped drop saves.
+        floor: W.landTempoWeight / 2,
+        gain: "saves an untapped land for later",
+        loss: "spends the untapped land drop idly",
+    },
     library: {
         short: "Lb",
         name: "Library (cards left before decking)",
