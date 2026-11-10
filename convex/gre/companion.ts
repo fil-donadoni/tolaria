@@ -17,7 +17,11 @@ import type { CardDefinition, CardType } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { GameState, PlayerState } from "./state";
-import { getManaSubstitutions, spendablePoolWithRiders } from "./state";
+import {
+    getManaSubstitutions,
+    grantKnowledgeToAll,
+    spendablePoolWithRiders,
+} from "./state";
 import { isSorceryTimingFor } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { manaGateBattlefields, manaValue } from "./constants";
@@ -226,4 +230,26 @@ export function canSummonCompanion(
             sources
         ) !== null
     );
+}
+
+/** CR 116.2 / 702.139a — the zone move of the companion summon special action:
+ *  the slot's card enters its owner's Hand and the slot is spent. Shared by the
+ *  authoritative `summonCompanion` mutation (game.ts) and the Bot's
+ *  `summonCompanionInSearch` so search and the real game cannot disagree.
+ *  The slot's `instance` stays in place (a historical record — `used: true`
+ *  alone gates a further summon).
+ *
+ *  ADR 0026 (issue #8735): the card was public in the Companion Slot and the
+ *  move happens in full view, so it is known to every Player. The grant only
+ *  stamps cards already in a Hand, so it FOLLOWS the push. CR 702.139a says
+ *  nothing about hiding the card again. */
+export function moveCompanionToHand(
+    state: GameState,
+    player: PlayerState
+): void {
+    const companion = player.companion;
+    if (!companion) return;
+    player.hand.push({ ...companion.instance, zone: "hand" });
+    grantKnowledgeToAll(state, player.id, [companion.instance.id]);
+    companion.used = true;
 }

@@ -89,6 +89,7 @@ import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
     selectCompanion,
     canSummonCompanion,
+    moveCompanionToHand,
     COMPANION_SUMMON_COST,
 } from "./gre/companion";
 import { instantiateDeckCard } from "./gre/setup";
@@ -4158,9 +4159,7 @@ export const summonCompanion = mutation({
         // Move the companion into hand (no stack item, CR 116.2a) and mark it
         // spent. The slot's `instance` is left in place (a historical record —
         // `used: true` alone gates any further summon).
-        const companion = player.companion!;
-        player.hand.push({ ...companion.instance, zone: "hand" });
-        companion.used = true;
+        moveCompanionToHand(state, player);
         state.pendingCompanionPay = undefined;
 
         const nextSeq = gameState.seq + 1;
