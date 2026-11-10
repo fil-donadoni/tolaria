@@ -1,0 +1,15 @@
+{
+    "pass": "archetype",
+    "scope": "vintage-cube",
+    "candidates": [
+        {
+            "name": "graveyard-card-types",
+            "providers": [
+                "16c8d2fa-54a7-46e8-980c-905258497c90",
+                "68c72226-6f52-4322-8b14-18737293dfa0"
+            ],
+            "requirers": ["f979fc86-2c7e-49b3-965e-607a203cbfb1"],
+            "why": "cube-writeup: fetchlands put a land card in the graveyard, Barrowgoyf grows with card TYPES there; self-mills says nothing of types"
+        }
+    ]
+}

@@ -41,6 +41,7 @@ const IN_REPO_SKILLS = [
     "grill",
     "triage",
     "bot-audit",
+    "profile-census",
 ];
 
 function isTracked(relPath: string): boolean {

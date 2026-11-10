@@ -66,7 +66,7 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
  * above to ~2%: the slack the old 35,500 left was room for regrowth, not for
  * norms.
  */
-const RESIDENT_CEILING_BYTES = 29_075; // +105: the base-drift preflight norm — rebase first, verify after (issue #6647)
+const RESIDENT_CEILING_BYTES = 29_139; // +64: the `/profile-census` line in CLAUDE.md § Skills (issue #8901)
 
 /**
  * Measured 2026-09-28: 24,718 bytes across `convex/CLAUDE.md` (20,370) and
@@ -130,6 +130,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "create-ticket": 16_518,
     "new-set": 33_135,
     "next-ticket": 12_041, // +120 B: the §4 opus-reviewer row and `review-brief.md` pointer (issue #7659); +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
+    "profile-census": 8_179,
     prototype: 2_931,
     retro: 4_760,
     "to-prd": 6_076,
