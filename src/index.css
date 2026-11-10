@@ -291,6 +291,14 @@
     --color-combat-2: #3b82f6;
     --color-combat-3: #22c55e;
     --color-combat-4: #eab308;
+    /* The five mana colours — the colour bar of a catalogue row (issue
+       #8903) and any other place a colour SHARE is drawn. Muted to read on
+       --color-surface; card art stays the loud colour. */
+    --color-mana-white: #e8e0b8;
+    --color-mana-blue: #5b9fd6;
+    --color-mana-black: #8a7f87;
+    --color-mana-red: #d9674f;
+    --color-mana-green: #5fa571;
 
     /* Chart categorical palette (issue #2586, dataviz skill): identity hues
        for a chart series (e.g. the deck-stats type band), never reused for

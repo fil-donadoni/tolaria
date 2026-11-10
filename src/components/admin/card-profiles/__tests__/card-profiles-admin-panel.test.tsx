@@ -1,17 +1,17 @@
-// CardProfileAdminPanel + CardProfilePanel wiring (PRD #1607, ADR 0072,
-// issue #1614): `CardProfileAdminPanel` owns ONLY the admin gate (mirrors
-// `PickRatingAdminPanel`/`BanlistAdminPanel`); `CardProfilePanel` — mounted
+// CardProfilesAdminPanel + CardProfilesPage wiring (PRD #1607, ADR 0072,
+// issue #1614): `CardProfilesAdminPanel` owns ONLY the admin gate (mirrors
+// `PickRatingAdminPanel`/`BanlistAdminPanel`); `CardProfilesPage` — mounted
 // only once the gate passes — owns scope selection and the query/mutation
 // hooks, handing plain data + callbacks down to the presentational
-// `CardProfileEditor` (its own dedicated test,
-// `card-profile-editor.test.tsx`, drives the real query-shape rendering).
+// `CardProfilesPage`'s table (its own dedicated test,
+// `card-profiles-page.test.tsx`, drives the real query-shape rendering).
 // convex/react is mocked so this wiring — admin gate, scope switch, mutation
 // argument threading, and the admin-gated query never even being CONSTRUCTED
 // for a non-admin — is exercised without a live backend.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ARCHETYPE_CATALOGUE_SEED } from "@convex/limited/archetypeCatalogueCore";
-import CardProfileAdminPanel from "../card-profile-admin-panel";
+import CardProfilesAdminPanel from "../card-profiles-admin-panel";
 
 let currentUser: { isAdmin?: boolean } | null | undefined;
 const setCardProfile = vi.fn();
@@ -42,6 +42,7 @@ const SCOPE_CARDS: Record<string, unknown[]> = {
     lea: [
         {
             cardId: "black-lotus",
+            colours: [],
             name: "Black Lotus",
             dbProfile: null,
             seedProfile: null,
@@ -50,12 +51,14 @@ const SCOPE_CARDS: Record<string, unknown[]> = {
     "vintage-cube": [
         {
             cardId: "griselbrand",
+            colours: ["B"],
             name: "Griselbrand",
             dbProfile: null,
             seedProfile: SEEDED,
         },
         {
             cardId: "sol-ring",
+            colours: [],
             name: "Sol Ring",
             dbProfile: { ...SEEDED, archetypes: ["artifacts"], reviewed: true },
             seedProfile: SEEDED,
@@ -118,7 +121,7 @@ vi.mock("~/hooks/useCurrentUser", () => ({
     useCurrentUser: () => currentUser,
 }));
 
-describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
+describe("CardProfilesAdminPanel (PRD #1607, issue #1614)", () => {
     beforeEach(() => {
         currentUser = { isAdmin: true };
         setCardProfile.mockReset().mockResolvedValue(null);
@@ -128,24 +131,24 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
 
     it("renders nothing for a non-admin user", () => {
         currentUser = { isAdmin: false };
-        const { container } = render(<CardProfileAdminPanel />);
+        const { container } = render(<CardProfilesAdminPanel />);
         expect(container.firstChild).toBeNull();
     });
 
     it("renders nothing while the user is still loading (undefined) or signed out (null)", () => {
         currentUser = undefined;
         expect(
-            render(<CardProfileAdminPanel />).container.firstChild
+            render(<CardProfilesAdminPanel />).container.firstChild
         ).toBeNull();
         currentUser = null;
         expect(
-            render(<CardProfileAdminPanel />).container.firstChild
+            render(<CardProfilesAdminPanel />).container.firstChild
         ).toBeNull();
     });
 
     it("never even CONSTRUCTS the admin-gated profiles query for a non-admin", () => {
         currentUser = { isAdmin: false };
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         expect(
             useQueryCalls.some(
                 (c) => c.name === "listScopeCardProfilesForEditor"
@@ -154,7 +157,7 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
     });
 
     it("lists only DRAFTABLE scopes and labels its own scope axis", () => {
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         expect(
             screen.getByRole("radiogroup", { name: "Profile Scope" })
         ).toBeTruthy();
@@ -166,7 +169,7 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
     });
 
     it("switches the rendered cards when a different scope is selected", () => {
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         expect(screen.getByText("Black Lotus")).toBeTruthy();
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         expect(screen.getByText("Griselbrand")).toBeTruthy();
@@ -174,7 +177,7 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
     });
 
     it("submits setCardProfile with the CURRENT scope + cardId + edited profile", async () => {
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         // Rows are name-sorted: Griselbrand, then Sol Ring.
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
@@ -195,7 +198,7 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
     });
 
     it("offers an Archetype row that exists only in the DB catalogue — no code change", () => {
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
         expect(
@@ -204,7 +207,7 @@ describe("CardProfileAdminPanel (PRD #1607, issue #1614)", () => {
     });
 
     it("submits clearCardProfile with the CURRENT scope + cardId for an overridden card", async () => {
-        render(<CardProfileAdminPanel />);
+        render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         // Sol Ring is the only row with a database override, so its Clear is
         // the only enabled one.

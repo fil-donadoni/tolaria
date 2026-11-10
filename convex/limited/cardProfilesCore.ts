@@ -40,6 +40,9 @@
 import { isRegisteredCapability } from "./capabilityRegistry";
 import { ARCHETYPE_CATALOGUE_SEED_IDS } from "./archetypeCatalogueCore";
 import { resolveCardName } from "../cards";
+import { tryGetDefinition } from "../cards/registry";
+import { getCardColorIdentity } from "../cards/colors";
+import type { Color } from "../cards/types";
 import { CUBE_SOURCE_KEY } from "./cubeSource";
 import type { ScopeCard } from "./cardRatingsCore";
 import capabilitiesJson from "../../data/card-profiles/capabilities.json";
@@ -545,6 +548,15 @@ export function toEditorCardProfile(
 export interface ScopeCardProfile extends ScopeCard {
     dbProfile: EditorCardProfile | null;
     seedProfile: EditorCardProfile | null;
+    /** The card's colour identity (`getCardColorIdentity`) — what the
+     *  Archetype Catalogue rail's colour bar is computed from (ADR 0167). */
+    colours: Color[];
+}
+
+/** One card's colour identity, `[]` for an id with no definition. */
+export function cardColours(cardId: string): Color[] {
+    const def = tryGetDefinition(cardId);
+    return def === null ? [] : getCardColorIdentity(def);
 }
 
 /** Annotates `cards` (a scope's enumerated card list, `cardRatingsCore.ts`'s
@@ -566,6 +578,7 @@ export function buildScopeCardProfiles(
         const overridden = dbCapabilities !== null || dbArchetypes !== null;
         return {
             ...card,
+            colours: cardColours(card.cardId),
             dbProfile: overridden
                 ? toEditorCardProfile(
                       dbCapabilities ?? seedCapabilities,
