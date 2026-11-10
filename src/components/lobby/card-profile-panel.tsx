@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useDraftableSets } from "~/hooks/useLimitedEvent";
 import {
+    useArchetypeCatalogue,
     useScopeCardProfiles,
     useCardProfileMutations,
 } from "~/hooks/useCardProfiles";
@@ -27,6 +28,7 @@ export default function CardProfilePanel() {
 
     const cards = useScopeCardProfiles(resolvedScope);
     const { setProfile, clearProfile } = useCardProfileMutations();
+    const archetypeCatalogue = useArchetypeCatalogue();
 
     return (
         <Panel>
@@ -54,6 +56,7 @@ export default function CardProfilePanel() {
                         onClear={(cardId) =>
                             clearProfile({ scope: resolvedScope, cardId })
                         }
+                        archetypeCatalogue={archetypeCatalogue}
                     />
                 ) : (
                     <p className="text-xs text-text-muted">

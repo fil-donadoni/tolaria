@@ -10,7 +10,12 @@ Amended by ADR 0167 (index Status, issue #8699; see `docs/research/adr-audit-202
 The single `cardProfiles` table below is superseded: since issue #8890 a Card
 Profile is two layers — `cardCapabilities` keyed `cardId` and `cardArchetypes`
 keyed `(scope, cardId)`, each with its own `reviewed` flag — recomposed by
-`resolveEventCardProfile` (`convex/limited/cardProfilesCore.ts`).
+`resolveEventCardProfile` (`convex/limited/cardProfilesCore.ts`). The
+Archetype vocabulary is no longer a code-side registry: since issue #8892 it is
+the **Archetype Catalogue** (GLOSSARY), a seed file
+(`data/archetype-catalogue.json`) under an Admin-edited `archetypeCatalogue`
+table, pure core `convex/limited/archetypeCatalogueCore.ts`. The Capability
+vocabulary below stays in code.
 
 ## Context
 

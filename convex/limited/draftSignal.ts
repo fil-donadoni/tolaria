@@ -20,7 +20,7 @@
 // the pack generator config (variant weight × slot count × sheet card weight),
 // uniform over the pool for a cube — never authored.
 import type { Color } from "../cards/types";
-import { ARCHETYPE_REGISTRY } from "./archetypeRegistry";
+import { ARCHETYPE_CATALOGUE_SEED_IDS } from "./archetypeCatalogueCore";
 import type { BoosterConfig } from "./boosterTypes";
 import { isCubeSource } from "./cubeSource";
 import type { DraftPackCard } from "./eventTypes";
@@ -190,10 +190,10 @@ export function foldPackIntoRead(
             (colour[c] ?? 0) + (shares.colour[c] - expected.colour[c]) * w;
     }
     const archetype = { ...prev.archetype };
-    // Every registered Archetype is an axis value, so a pack with none of it
-    // left (share 0) correctly reads as "taken".
+    // Every catalogue seed Archetype is an axis value, so a pack with none of
+    // it left (share 0) correctly reads as "taken".
     const ids = new Set([
-        ...ARCHETYPE_REGISTRY.map((r) => r.id),
+        ...ARCHETYPE_CATALOGUE_SEED_IDS,
         ...Object.keys(shares.archetype),
     ]);
     for (const a of ids) {

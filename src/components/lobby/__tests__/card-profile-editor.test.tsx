@@ -16,7 +16,7 @@ import {
 import { listScopeCards } from "@convex/limited/cardRatingsCore";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cube";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
-import { ARCHETYPE_REGISTRY } from "@convex/limited/archetypeRegistry";
+import { ARCHETYPE_CATALOGUE_SEED } from "@convex/limited/archetypeCatalogueCore";
 import { tryGetCardByName } from "@convex/cards";
 import CardProfileEditor from "../card-profile-editor";
 import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
@@ -63,6 +63,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     it("renders a loading state while the query is in flight", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={undefined}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -74,6 +75,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     it("shows the census seed as the effective profile, flagged Unreviewed", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -88,6 +90,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     it("surfaces the census verdict per card — Worldspine Wurm's value-on-death, and no reanimatable", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -110,6 +113,7 @@ describe("CardProfileEditor (issue #1614)", () => {
         );
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows(dbAfterSaves(reviewedRow))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -124,6 +128,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     it("filters by card name", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -139,6 +144,7 @@ describe("CardProfileEditor (issue #1614)", () => {
     it("only offers Capability names from the closed registry", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -161,6 +167,7 @@ describe("CardProfileEditor (issue #1614)", () => {
         const onSave = vi.fn().mockResolvedValue(null);
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -200,6 +207,7 @@ describe("CardProfileEditor (issue #1614)", () => {
         );
         const { rerender } = render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -214,6 +222,7 @@ describe("CardProfileEditor (issue #1614)", () => {
 
         rerender(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows(dbAfterSaves(override))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -228,16 +237,17 @@ describe("CardProfileEditor (issue #1614)", () => {
 });
 
 describe("CardProfileEditor — shaped for the review pass (issue #3597)", () => {
-    it("only offers Archetype names from the closed registry — no free-text field", () => {
+    it("only offers Archetype names from the catalogue — no free-text field", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
             />
         );
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
-        for (const row of ARCHETYPE_REGISTRY) {
+        for (const row of ARCHETYPE_CATALOGUE_SEED) {
             expect(
                 screen.getByLabelText(`Archetype ${row.id} for Griselbrand`),
                 row.id
@@ -264,6 +274,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         );
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows(dbAfterSaves(reviewedRow))}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -290,6 +301,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     it("shows each card's art, and its rules text once the row is open", () => {
         const { container } = render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -316,6 +328,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     it("states the provides/requires distinction, and that an empty Requires is normal", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -332,6 +345,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         const onSave = vi.fn().mockResolvedValue(null);
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -367,6 +381,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         const onSave = vi.fn().mockResolvedValue(null);
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -392,6 +407,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         const onSave = vi.fn().mockRejectedValue(new Error("nope"));
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -413,6 +429,7 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
     it("is a single-open accordion — opening one row closes the other", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -441,6 +458,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         // those abandoned values and flagged the row reviewed.
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -473,10 +491,10 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         ).toBe(false);
     });
 
-    it("shows a STORED archetype the registry does not have, and lets it be removed", async () => {
+    it("shows a STORED archetype the catalogue does not have, and lets it be removed", async () => {
         // Closing a vocabulary that was open for a release cannot assume the
         // stored rows obey it: a profile written through the old free-text
-        // field carries a name this registry lacks. Rendered nowhere, it
+        // field carries a name the catalogue lacks. Rendered nowhere, it
         // would still be submitted — and rejected server-side — naming a
         // string the reviewer could neither see nor untick.
         const legacy = buildCardProfileRows(
@@ -492,6 +510,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         const onSave = vi.fn().mockResolvedValue(null);
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows(dbAfterSaves(legacy))}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -509,9 +528,48 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         expect(onSave.mock.calls[0][1].archetypes).toEqual([]);
     });
 
+    it("treats a stored archetype from a DB catalogue row as a catalogue row, not a stray", () => {
+        const kicker = {
+            id: "kicker",
+            description:
+                "TAG WHEN: the card has kicker. NOT: a card that merely costs a lot (`ramp`).",
+            gloss: { when: "Kicker cards.", not: "Expensive cards (ramp)." },
+            example: "Lightning Bolt",
+        };
+        const tagged = buildCardProfileRows(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["kicker"],
+                provides: [],
+                requires: [],
+                reviewed: false,
+            }
+        );
+        render(
+            <CardProfileEditor
+                archetypeCatalogue={[...ARCHETYPE_CATALOGUE_SEED, kicker]}
+                cards={cubeRows(dbAfterSaves(tagged))}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        const row = screen.getByLabelText(
+            "Archetype kicker for Griselbrand"
+        ) as HTMLInputElement;
+        expect(row.checked).toBe(true);
+        expect(
+            screen.queryByLabelText(
+                "Unregistered archetype kicker for Griselbrand"
+            )
+        ).toBeNull();
+    });
+
     it("hands focus back to the toggle when a row closes, and wires aria-controls", () => {
         render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={vi.fn()}
                 onClear={vi.fn()}
@@ -542,6 +600,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         const onSave = vi.fn().mockResolvedValue(null);
         const { rerender } = render(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows()}
                 onSave={onSave}
                 onClear={vi.fn()}
@@ -575,6 +634,7 @@ describe("CardProfileEditor — review findings (issue #3597)", () => {
         );
         rerender(
             <CardProfileEditor
+                archetypeCatalogue={ARCHETYPE_CATALOGUE_SEED}
                 cards={cubeRows(dbAfterSaves(saved))}
                 onSave={onSave}
                 onClear={vi.fn()}

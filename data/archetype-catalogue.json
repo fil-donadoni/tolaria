@@ -1,0 +1,76 @@
+{
+    "rows": [
+        {
+            "id": "aggro",
+            "description": "TAG WHEN: the card's value is pressure applied EARLY — a cheap creature whose rate beats its cost, a one-mana burn spell, a haste threat, an aggressive equipment — so a deck accumulating it wants to end the game before the opponent's expensive cards matter. NOT: a big creature that happens to attack well (that is `ramp` or `reanimator` depending on how it gets into play), and NOT efficient interaction that merely buys time — removal held up for the opponent's threats is `control`.",
+            "gloss": {
+                "when": "Cheap pressure that wants the game over early.",
+                "not": "A big attacker (ramp/reanimator) or removal held up for threats (control)."
+            },
+            "example": "Chain Lightning"
+        },
+        {
+            "id": "artifacts",
+            "description": "TAG WHEN: the card IS an artifact whose draft value is partly the artifact-count column it fills, or it is a payoff whose cost/effect scales with artifacts (Metalcraft, affinity, an artifact tutor, artifact recursion). NOT: an artifact whose text has nothing to do with artifacts and whose rate stands alone — a colourless removal wand belongs to whatever plan its EFFECT serves; the type line alone is not the archetype.",
+            "gloss": {
+                "when": "An artifact that fills the count, or a payoff that scales with artifacts.",
+                "not": "An artifact whose text ignores artifacts — tag the plan its effect serves."
+            },
+            "example": "Emry, Lurker of the Loch"
+        },
+        {
+            "id": "combo",
+            "description": "TAG WHEN: the card's ceiling is being one named half of an intentional two-card loop, or the tutor/protection that assembles and defends one (Painter's Servant, Grindstone, a tutor whose best target is a combo piece). NOT: a card that merely wins a long game on its own (`control`), and NOT a critical-mass engine where no single partner is named — that is `storm`. A SPECIFIC, signed two-card pairing is a Combo Edge on the profile, not an archetype tag; this tag says the card LIVES in that kind of deck.",
+            "gloss": {
+                "when": "One named half of a two-card loop, or the tutor that assembles it.",
+                "not": "A long-game finisher (control) or a critical-mass engine (storm)."
+            },
+            "example": "Painter's Servant"
+        },
+        {
+            "id": "control",
+            "description": "TAG WHEN: the card trades for more than it costs over a long game — counterspells, one-for-more removal, sweepers, card draw, a win condition that needs the game to go long. NOT: cheap interaction whose job is to clear a blocker for an early attack (`aggro`), and NOT a card whose card advantage comes from the graveyard rather than the library (`graveyard`).",
+            "gloss": {
+                "when": "Trades for more than it costs over a long game.",
+                "not": "Interaction that clears the way for an attack (aggro), or graveyard card advantage (graveyard)."
+            },
+            "example": "Counterspell"
+        },
+        {
+            "id": "graveyard",
+            "description": "TAG WHEN: the graveyard is a RESOURCE the card fills or spends — self-mill, flashback/escape/delve, a discard outlet, a card that scales with graveyard size, graveyard hate. NOT: a card whose only graveyard interaction is returning a single fat creature to the battlefield (`reanimator`, the narrower plan), and NOT a death trigger on a creature that simply dies in combat — that is a Capability (`value-on-death`), not a plan.",
+            "gloss": {
+                "when": "Fills or spends the graveyard as a resource.",
+                "not": "Returning one fatty to play (reanimator), or a plain death trigger (a Capability)."
+            },
+            "example": "Barrowgoyf"
+        },
+        {
+            "id": "ramp",
+            "description": "TAG WHEN: the card either produces mana ahead of the curve (mana rock, mana dork, land fetch, a cost reducer) or is a payoff expensive enough that a deck only casts it because it ramped. NOT: a cheap artifact whose value is the artifact COUNT rather than the mana (`artifacts`), and NOT a card that skips paying the cost entirely by putting a creature into play from hand or graveyard — cheating is `reanimator`/`combo`, not acceleration.",
+            "gloss": {
+                "when": "Mana ahead of the curve, or a payoff only castable after ramping.",
+                "not": "A cheap artifact counted for its type (artifacts), or cheating a cost entirely (reanimator/combo)."
+            },
+            "example": "Birds of Paradise"
+        },
+        {
+            "id": "reanimator",
+            "description": "TAG WHEN: the card is one end of the put-a-fatty-into-play-early plan — a graveyard-to-battlefield effect, a discard/self-mill enabler chosen FOR that plan, or a creature whose whole draft case is being cheated in. NOT: generic graveyard value, recursion of small cards, or flashback (`graveyard`, the wider plan). The card-to-card half of this — whether a specific fatty is actually retrievable — is the `reanimatable` Capability, not this tag.",
+            "gloss": {
+                "when": "One end of putting a fatty into play early from the graveyard.",
+                "not": "Generic graveyard value, small-card recursion or flashback (graveyard)."
+            },
+            "example": "Animate Dead"
+        },
+        {
+            "id": "storm",
+            "description": "TAG WHEN: the card contributes to, or pays off, a CRITICAL MASS of spells cast in one turn — rituals, free/near-free spells, cost reducers aimed at a single turn, and the payoffs that count them. NOT: a named two-card loop (`combo`), and NOT mana acceleration meant to cast one expensive spell a turn early (`ramp`) — the axis here is spell COUNT within a turn, not mana available across turns.",
+            "gloss": {
+                "when": "Adds to or pays off many spells cast in one turn.",
+                "not": "A named two-card loop (combo) or acceleration for one big spell (ramp)."
+            },
+            "example": "Cabal Ritual"
+        }
+    ]
+}
