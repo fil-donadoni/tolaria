@@ -86,7 +86,6 @@ function makeCtx() {
             ],
             limitedSeats: [],
             cardRatings: [],
-            cardProfiles: [],
         },
         { identitySubject: "u1|session1" }
     );
