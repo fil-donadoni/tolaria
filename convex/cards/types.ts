@@ -20858,16 +20858,18 @@ export type EffectOp =
      *  constructs stay frozen, and the payoff is written with them (`if` over
      *  a comparison on the bound counts, a value that reads them).
      *
-     *  A thin declarative skin over the single `SpellContext.flipCoin`
-     *  primitive (the same seeded-PRNG bit `requestCoinFlip` draws), one execution
-     *  path (ADR 0045). The series stops after `count` flips, or at the first
+     *  A thin declarative skin over the single `SpellContext.requestFlipSequence`
+     *  primitive (ADR 0023 Amendment I, issue #5519), one execution path (ADR
+     *  0045): the whole series is drawn once, persisted and revealed in ONE
+     *  suspension, and the bindings are written after the ack. The series stops after `count` flips, or at the first
      *  LOST flip when `untilLoss` is set, whichever comes first; at least one
      *  of the two is required (the validator rejects neither), and without a
      *  `count` the series is bounded only by the first loss (it ends with
-     *  probability 1). A LEAF, not a construct: a re-walk after a later
-     *  suspension skips it by position, so it never flips again (the engine
-     *  runs each instruction once; CR 608.2c orders them) and its bindings are read
-     *  back from the persisted answer store.
+     *  probability 1). A LEAF, not a construct: it suspends at its own
+     *  position and re-runs there on resume, reading the stored faces back; a
+     *  re-walk after a later suspension skips it by position, so it never flips
+     *  again (the engine runs each instruction once; CR 608.2c orders them) and
+     *  its bindings are read back from the persisted answer store.
      *  A `count` that resolves below 1, or cannot be resolved, flips nothing
      *  and binds zeros. Skipped when the flipper cannot be resolved
      *  (CR 608.2b) — its bindings are then uncaptured and their readers skip.
@@ -20875,8 +20877,7 @@ export type EffectOp =
      *  What it deliberately does NOT do (ADR 0144): run a body per flip (no
      *  printed card applies its payoff mid-series); let the flipper stop
      *  voluntarily (Fiery Gambit — a suspension per flip); flip without a
-     *  call (CR 705.2 "comes up heads", Ral Zarek); suspend on a reveal
-     *  overlay (the `coinFlip` ADR 0023 UX). */
+     *  call (CR 705.2 "comes up heads", Ral Zarek). */
     | {
           op: "coinFlipSeries";
           /** The flipping player (CR 705.2); the resolving `"controller"` by

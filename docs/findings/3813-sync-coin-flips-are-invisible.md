@@ -8,10 +8,11 @@ confidence: high
 
 **What is wrong.** `SpellContext.flipCoin` (`convex/gre/state.ts`, the
 `flipCoin()` primitive) draws a bit and emits no event, log line or reveal.
-A synchronous sibling of `coinFlip` (retired by issue #5521) used it and the
-new `coinFlipSeries` (issue #3813) still does, so on
-Squee's Revenge the players never see how many flips were won. The caster only
-sees "drew N cards" or nothing. CR 705.2 has the flipper call each flip, so the
+A synchronous sibling of `coinFlip` (retired by issue #5521) and the new
+`coinFlipSeries` (issue #3813; routed through the Flip Sequence by issue #5519)
+used it, so on Squee's Revenge the players never saw how many flips were won.
+The caster only saw "drew N cards" or nothing. Mana Clash's imperative loop is
+the path that still does (issue #5520). CR 705.2 has the flipper call each flip, so the
 result is public information.
 
 **Evidence.** The retired sibling's registry row recorded QA's complaint that

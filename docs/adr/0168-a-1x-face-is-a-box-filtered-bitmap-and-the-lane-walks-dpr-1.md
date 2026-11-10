@@ -96,7 +96,10 @@ it 1:1. The face names its art in `data-art-src`.
   measured 120×167 became 120×120, re-keyed and made a square bitmap; a
   `height` attribute copied from the box fed the measurement back and grew a
   picker tile 5px a round). A lazy grid's face waits until its slot nears
-  the viewport first.
+  the viewport first, marked `data-face-pending="deferred"` while it does:
+  nothing is in flight for it, so the lane's settle skips it and waits only
+  on `data-face-pending=""`, a bitmap being made (issue #5519 — the printing
+  picker's off-screen tiles never settled at DPR 1).
 - Entries are reference-counted and LRU-evicted past 400; a URL a mounted
   face shows is never revoked. Everything fails open to the srcset path.
 - Displays at DPR ≥ 1.5 take the srcset path unchanged.

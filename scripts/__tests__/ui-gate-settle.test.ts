@@ -343,12 +343,16 @@ describe("NETWORK_INSTRUMENT_SOURCE — Convex requests in flight", () => {
 });
 
 describe("the page sampler counts a printed face whose 1x bitmap is pending (issue #8321)", () => {
-    it("counts the placeholder and an undecoded bitmap as in flight, named", () => {
+    // The `deferred` face (a lazy tile not yet near the viewport) is NOT
+    // counted: nothing is being made for it, so a settle waiting on it never
+    // ends — the printing picker's off-screen tiles at DPR 1.
+    it("counts the placeholder and an undecoded bitmap as in flight, named — never a deferred lazy face", () => {
         const window = new Window({ url: "http://localhost/" });
         const doc = window.document;
         doc.body.innerHTML = `
             <main></main>
             <img data-card-face="printed" data-face-pending="" src="data:image/gif;base64,R0lGOD">
+            <img data-card-face="printed" data-face-pending="deferred" src="data:image/gif;base64,R0lGOD">
             <img id="blob" data-card-face="printed" src="blob:http://localhost/1">
             <img data-card-face="printed" src="https://cards.scryfall.io/grid/front/a/b/ab.webp">`;
         Object.defineProperty(doc.getElementById("blob")!, "complete", {

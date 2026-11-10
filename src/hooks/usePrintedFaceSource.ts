@@ -24,7 +24,14 @@ export type PrintedFaceAttrs =
     | { src: string; srcSet: string; sizes: string }
     | { src: string }
     | { src: string; "data-art-src": string }
-    | { src: typeof PENDING_FACE_SRC; "data-face-pending": "" };
+    | {
+          src: typeof PENDING_FACE_SRC;
+          /** `""` while the bitmap is being made; `"deferred"` while a lazy
+           *  face waits to near the viewport — nothing is in flight, and
+           *  `check:ui`'s settle must not wait on it (an off-screen grid
+           *  tile never nears without a scroll). */
+          "data-face-pending": "" | "deferred";
+      };
 
 /** The source a pending face shows: a transparent SVG with the CARD's
  *  intrinsic size (every Scryfall front rendition is 488:680), so the element
@@ -176,7 +183,10 @@ export default function usePrintedFaceSource<T extends HTMLElement>({
         // which would fetch (and paint) the frame this path exists to avoid.
         const lazyWaiting =
             lazy && bitmap && box !== null && !near && supportsFaceBitmaps();
-        if (lazyWaiting || (bitmapKey !== null && !bitmapReady)) {
+        if (lazyWaiting) {
+            // Not near yet: no bitmap is being made, none is in flight.
+            attrs = { src: PENDING_FACE_SRC, "data-face-pending": "deferred" };
+        } else if (bitmapKey !== null && !bitmapReady) {
             // The bitmap is being made.
             attrs = { src: PENDING_FACE_SRC, "data-face-pending": "" };
         } else if (bitmapReady?.url) {

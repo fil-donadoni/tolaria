@@ -82,6 +82,8 @@ import { isSacrificeComplete } from "~/lib/sacrifice-selection";
 import AssistPlayerDialog from "./assist-player-dialog";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import { useLingeringRandomReveal } from "~/hooks/useLingeringRandomReveal";
+import { useRandomRevealSummary } from "~/hooks/useRandomRevealSummary";
+import { REVEAL_SUMMARY_MS } from "~/lib/random-reveal-summary";
 import PileDivisionPicker from "./pile-division/pile-division-picker";
 import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
@@ -344,6 +346,15 @@ export default function Board({
     const pileNotice = usePileChoiceNotice(
         state !== undefined,
         state?.lastPileChoice
+    );
+
+    // Coin-flip summary toast (PRD issue #4433) for EVERY seat: once a Random
+    // Reveal stops being the prompt (the flipper's ack, or a viewer's lingering
+    // overlay closing), a one-line "source — tally — consequence" recap.
+    const revealSummary = useRandomRevealSummary(
+        state?.pendingChoices?.[0] ?? lingeringReveal,
+        state?.players ?? [],
+        viewerId
     );
 
     // Escalated: retries are exhausted, or the failure was never the kind a
@@ -932,6 +943,26 @@ export default function Board({
                                                     }
                                                     onDismiss={
                                                         pileNotice.dismiss
+                                                    }
+                                                />
+                                                <NoticeToast
+                                                    message={
+                                                        revealSummary.summary
+                                                            ?.message ?? null
+                                                    }
+                                                    noticeKey={
+                                                        revealSummary.summary
+                                                            ?.key ?? null
+                                                    }
+                                                    durationMs={
+                                                        REVEAL_SUMMARY_MS
+                                                    }
+                                                    hidden={
+                                                        !!pendingChoiceBuffer.lastError ||
+                                                        !!pileNotice.confirm
+                                                    }
+                                                    onDismiss={
+                                                        revealSummary.dismiss
                                                     }
                                                 />
                                             </main>

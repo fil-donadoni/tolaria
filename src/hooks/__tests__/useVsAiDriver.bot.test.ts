@@ -366,7 +366,7 @@ const { getAiDecisions, clearAiDecisions } =
     await import("~/lib/ai/trace-store");
 // Resets the Brain's per-game Worker respawn budget between the issue #3040
 // cases below, which deliberately spend it.
-import { revealDurationMs } from "~/lib/random-reveal-pacing";
+import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
 
 const { disposeBrain, MAX_BRAIN_WORKER_FAILURES } =
     await import("~/lib/ai/brain-client");
@@ -1215,7 +1215,39 @@ describe("useVsAiDriver (issue #110)", () => {
         });
         renderHook(() => useVsAiDriver(GAME, BOT));
 
-        await vi.advanceTimersByTimeAsync(revealDurationMs() - 100);
+        await vi.advanceTimersByTimeAsync(sequenceDurationMs(1) - 100);
+        expect(calls).toHaveLength(0);
+
+        await vi.advanceTimersByTimeAsync(100);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].ref).toBe("submitRandomRevealAck");
+    });
+
+    // Issue #5519 — a Flip Sequence of n rounds waits sequenceDurationMs(n):
+    // every toss, every hold between tosses, then the final hold.
+    it("holds a series' ack for sequenceDurationMs(n) of its rounds", async () => {
+        const flips = [0, 1, 2, 3].map((round) => ({
+            flipperId: BOT,
+            face: round === 3 ? ("tails" as const) : ("heads" as const),
+            outcome: round === 3 ? ("lose" as const) : ("win" as const),
+            round,
+        }));
+        currentState = botState({
+            pendingChoices: [
+                {
+                    kind: "random-reveal",
+                    randomKind: "coin",
+                    playerId: BOT,
+                    choiceId: "c1",
+                    stackItemId: "s1",
+                    count: { min: 0, max: 0 },
+                    flips,
+                },
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+
+        await vi.advanceTimersByTimeAsync(sequenceDurationMs(4) - 100);
         expect(calls).toHaveLength(0);
 
         await vi.advanceTimersByTimeAsync(100);

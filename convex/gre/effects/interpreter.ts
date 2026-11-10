@@ -117,7 +117,11 @@ import {
     legalTargetSlots,
     tallyMostCommonColors,
 } from "../../cards/types";
-import type { LookDistributeDestination } from "../types";
+import type {
+    FlipRecord,
+    LookDistributeDestination,
+    RealizedOutcome,
+} from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
@@ -467,6 +471,17 @@ function modeLandType(mode: EffectMode): string | undefined {
  *  coinFlip Ops in one script persist their drawn bits distinctly and each
  *  re-reads its own on a re-walk (no re-roll, CR 608.3 / ADR 0023). */
 const COIN_FLIP_ID = "coinFlipOutcome";
+const COIN_FLIP_SERIES_ID = "coinFlipSeriesOutcome";
+
+/** The one-line consequence a series reveal previews (CR 705.2). Neutral
+ *  between the seats and between cards: what winning or losing MEANS is the
+ *  Oracle excerpt the overlay quotes above it. */
+function seriesRealizedOutcome(flips: readonly FlipRecord[]): RealizedOutcome {
+    const lost = flips.some((flip) => flip.outcome === "lose");
+    return lost
+        ? { face: "LOSE", consequence: "Not every flip was won." }
+        : { face: "WIN", consequence: "Every flip was won." };
+}
 
 /** CR 608.2g (issue #1477) — the Cast / Decline options offered by the
  *  cast-during-resolution Op's "you may cast" prompt (an `option-pick`). */
@@ -7721,22 +7736,24 @@ export const OP_EXECUTORS: {
         const branch = won ? op.win.effects : op.loss.effects;
         return runOpList(ctx, branch, cursor);
     },
-    // coinFlipSeries — CR 705.1–705.2 (issue #3813, ADR 0144): a bounded
-    // SERIES of flips whose results are bound as numbers. The loop is this
-    // Op's own, never grammar (ADR 0045's constructs stay frozen). Each bit is
-    // the SAME `SpellContext.flipCoin` seeded-PRNG draw `requestCoinFlip` makes.
-    // The series ends after `count` flips or — with `untilLoss` — at the first
-    // lost flip, whichever comes first (CR 705.2: the flipper wins a flip
-    // whose call matches). A `count` that cannot be resolved flips nothing
-    // and binds zeros, like one that resolves to 0.
+    // coinFlipSeries — CR 705.1–705.2 (issue #3813, ADR 0144; issue #5519): a
+    // bounded SERIES of flips whose results are bound as numbers. The loop is
+    // this Op's own, never grammar (ADR 0045's constructs stay frozen). It is a
+    // thin skin over the Flip Sequence primitive (`requestFlipSequence`, ADR
+    // 0023 Amendment I): the whole series is drawn ONCE from the seeded PRNG,
+    // persisted, and revealed in ONE suspension, so both seats watch every
+    // flip before the consequence reads the bindings. The series ends after
+    // `count` flips or — with `untilLoss` — at the first lost flip, whichever
+    // comes first (CR 705.2: the flipper wins a flip whose call matches). A
+    // `count` that cannot be resolved flips nothing and binds zeros, like one
+    // that resolves to 0 — the primitive returns `[]` with no pause.
     //
     // A LEAF, not a construct: it carries no nested Op list, so it is not in
-    // runOpList's re-descend exception, and a re-walk after a later Op
-    // suspends SKIPS it by position — it never flips again (the engine runs
-    // each instruction once; CR 608.2c orders them), and its bindings are read back
-    // from the persisted `collectedChoices` `noteChoice` wrote. That is why
-    // it needs no draw memoization: only an Op that re-descends into a branch
-    // re-runs on a re-walk, and this one never does.
+    // runOpList's re-descend exception. It suspends at its own position and
+    // re-runs there on resume, reading the stored faces back (no re-roll, CR
+    // 608.3); a re-walk after a LATER Op suspends skips it by position, and its
+    // bindings are read from the persisted `collectedChoices` `noteChoice`
+    // wrote after the ack.
     coinFlipSeries(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
         if (playerId === undefined) return; // CR 608.2b — flipper gone, skip
@@ -7744,20 +7761,31 @@ export const OP_EXECUTORS: {
             op.count === undefined
                 ? UNCAPPED_FLIP_SERIES_LIMIT
                 : Math.max(0, Math.trunc(resolveValue(ctx, op.count) ?? 0));
-        let flips = 0;
-        let wins = 0;
-        while (flips < cap) {
-            const won = ctx.flipCoin();
-            flips += 1;
-            if (won) wins += 1;
-            else if (op.untilLoss) break;
-        }
+        const flips = ctx.requestFlipSequence({
+            choiceId: COIN_FLIP_SERIES_ID,
+            flippers: [playerId],
+            stop: op.untilLoss
+                ? {
+                      kind: "untilLoss",
+                      maxRounds: op.count === undefined ? undefined : cap,
+                  }
+                : { kind: "count", count: cap },
+            // The reveal's heading reads "Flip k of up to N" only when the
+            // card announced a number.
+            announcedLimit: op.count === undefined ? undefined : cap,
+            realize: seriesRealizedOutcome,
+        });
+        if (flips === undefined) return "suspend"; // enqueued reveal — wait
+        const wins = flips.filter((flip) => flip.outcome === "win").length;
         if (op.bindFlips !== undefined)
-            ctx.noteChoice(op.bindFlips, writeTaggedNumber(flips));
+            ctx.noteChoice(op.bindFlips, writeTaggedNumber(flips.length));
         if (op.bindWins !== undefined)
             ctx.noteChoice(op.bindWins, writeTaggedNumber(wins));
         if (op.bindLosses !== undefined)
-            ctx.noteChoice(op.bindLosses, writeTaggedNumber(flips - wins));
+            ctx.noteChoice(
+                op.bindLosses,
+                writeTaggedNumber(flips.length - wins)
+            );
     },
     // CR 701.21 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick

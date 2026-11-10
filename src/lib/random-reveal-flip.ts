@@ -1,4 +1,5 @@
 import type { FlipRecord } from "@convex/gre/types";
+import type { PendingChoice } from "~/types/game";
 
 /** Presentation of one coin of a Random Reveal (CR 705.2): the halo/caption
  *  tone and the caption text. A win/lose flip is green/red; a face-only flip
@@ -29,4 +30,37 @@ export function sourceKindLabel(types: readonly string[] | undefined): string {
     const spell = types?.find((t) => t === "Instant" || t === "Sorcery");
     if (spell) return spell.toUpperCase();
     return "TRIGGERED ABILITY";
+}
+
+/** The tosses a reveal plays: one per round of its Flip Sequence. A reveal
+ *  saved before the list existed is one flip. */
+export function revealRounds(choice: Pick<PendingChoice, "flips">): number {
+    const flips = choice.flips;
+    if (!flips || flips.length === 0) return 1;
+    return Math.max(...flips.map((flip) => flip.round)) + 1;
+}
+
+/** The flips of round `round`, in draw order. */
+export function flipsOfRound(
+    flips: readonly FlipRecord[],
+    round: number
+): FlipRecord[] {
+    return flips.filter((flip) => flip.round === round);
+}
+
+/** Caption of one landed round in the history: "1 · Win", "2 · Lose"; a
+ *  face-only flip names its face. */
+export function historyCaption(
+    flip: Pick<FlipRecord, "face" | "outcome">,
+    round: number
+): string {
+    const label =
+        flip.outcome === "none"
+            ? flip.face === "heads"
+                ? "Heads"
+                : "Tails"
+            : flip.outcome === "win"
+              ? "Win"
+              : "Lose";
+    return `${round + 1} · ${label}`;
 }
