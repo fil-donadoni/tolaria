@@ -15,6 +15,7 @@ import {
     startStamp,
     type ProcessRow,
 } from "../convex-ensure";
+import { CONVEX_BACKEND_ENV } from "../lib/convex-backend-env";
 import { localInstanceName } from "../lib/convex-reachable";
 
 // `convex:ensure` (issue #4945) is driven here as the loop drives it — a real
@@ -35,7 +36,7 @@ const http = require("http");
 const fs = require("fs");
 const [port, counter, delayMs] = process.argv.slice(2);
 fs.appendFileSync(counter, process.pid + "\\n");
-console.log("stub backend starting");
+console.log("stub backend starting DOCUMENT_RETENTION_DELAY=" + process.env.DOCUMENT_RETENTION_DELAY);
 setTimeout(() => {
     http.createServer((_q, s) => s.end("ok")).listen(+port, "127.0.0.1");
 }, +delayMs);
@@ -173,6 +174,12 @@ describe("convex:ensure — the backend is down", () => {
         expect(
             fs.readFileSync(path.join(telemetry, "convex-dev.log"), "utf8")
         ).toMatch(/stub backend starting/);
+        // The backend's knobs ride on the spawn's environment (issue #9105).
+        expect(
+            fs.readFileSync(path.join(telemetry, "convex-dev.log"), "utf8")
+        ).toContain(
+            `DOCUMENT_RETENTION_DELAY=${CONVEX_BACKEND_ENV.DOCUMENT_RETENTION_DELAY}`
+        );
         expect(fs.existsSync(path.join(telemetry, "convex-ensure.lock"))).toBe(
             false
         );

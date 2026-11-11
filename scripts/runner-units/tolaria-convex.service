@@ -20,6 +20,9 @@ WorkingDirectory=__REPO__
 # the checkout's `mise.toml` (Node at the repo's pin: Convex's node actions
 # need 20/22/24) over the user's global mise config, which supplies bun.
 ExecStart=__MISE__ exec -- bun x convex dev --local
+# scripts/lib/convex-backend-env.ts (issue #9105): one day of document
+# history, not the backend's 14 — `convex dev` hands it to the backend.
+Environment=DOCUMENT_RETENTION_DELAY=86400
 # Never a tty, never stdin: the CLI must not prompt.
 StandardInput=null
 Restart=on-failure

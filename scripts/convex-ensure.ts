@@ -65,6 +65,7 @@ import * as fs from "node:fs";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
+import { CONVEX_BACKEND_ENV } from "./lib/convex-backend-env.ts";
 import { LAUNCHD_CONVEX_LABEL } from "./lib/github-runner.ts";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
@@ -822,6 +823,7 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
             cwd: o.root,
             detached: true,
             stdio: ["ignore", out, out],
+            env: { ...process.env, ...CONVEX_BACKEND_ENV },
         });
         fs.closeSync(out);
         const spawnError = await new Promise<Error | null>((resolve) => {

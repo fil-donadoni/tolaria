@@ -11,7 +11,8 @@
  *          each merged PR left standing, ingest the telemetry.
  *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
  *          no merge will ever clean up — PR closed unmerged, or no PR, no
- *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
+ *          claim and idle — by `wt:gc`'s classifier, `--issues-only`; then
+ *          `convex:blob-gc --auto` (issue #9105), weekly by its own stamp.
  *   seed   the `seed` machine only: fast-forward again (a no-op when `sync`
  *          already did), register each merged PR's `## Preset scenario`, and
  *          `seed:preset --all` when the push changed a card set.
@@ -591,7 +592,15 @@ if (import.meta.main) {
         process.exit(2);
     }
     const primary = primaryCheckout();
-    if (step === "sweep") process.exit(sweep(primary) ? 0 : 1);
+    if (step === "sweep") {
+        const ok = sweep(primary);
+        // The host's other disk sweep (issue #9105): the local Convex
+        // deployment's orphaned source-package blobs, at most once per seven
+        // days by its own stamp. `--auto` always exits 0 — it never reds the
+        // leg.
+        bun(["scripts/convex-blob-gc.ts", "--auto"], primary);
+        process.exit(ok ? 0 : 1);
+    }
     const run = step === "sync" ? sync : seed;
     process.exit(
         run(primary, flag(argv, "--before"), flag(argv, "--after")) ? 0 : 1
