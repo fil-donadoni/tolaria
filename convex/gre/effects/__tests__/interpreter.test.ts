@@ -37613,6 +37613,58 @@ describe("life gain equal to a randomly revealed hand card's mana value (CR 701.
         expect(projected.players[1].hand[0]?.id).toBe("p2-hand-0");
     });
 
+    it("a plain sum is a legal signed pump amount (+X/+X)", () => {
+        const sumValue = {
+            sum: {
+                of: { ref: "$revealed" },
+                read: "manaValue",
+                zone: "hand",
+                player: "opponent",
+            },
+        };
+        const effects = [
+            {
+                op: "reveal",
+                player: "opponent",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: sumValue,
+                toughness: sumValue,
+                duration: { phase: "end-of-turn" },
+            },
+        ] as unknown as EffectOp[];
+        expect(validateEffectScript({ effects } as never)).toEqual([]);
+        const id = registerScript("test-random-reveal-mv-pump", effects);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p1", id: "bearP" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(GOLD_CREATURE_ID, {
+                            id: "p2-hand-0",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearP" }]);
+        resolveTopOfStack(state);
+        const pumped = state.players[0].battlefield.find(
+            (c) => c.id === "bearP"
+        )!;
+        expect(getEffectivePower(state, pumped)).toBe(5);
+        expect(getEffectiveToughness(state, pumped)).toBe(8);
+    });
+
     it("the graveyard zone does not see a card still in the hand", () => {
         const effects = [
             {

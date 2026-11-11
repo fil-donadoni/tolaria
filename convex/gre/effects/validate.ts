@@ -2869,8 +2869,9 @@ function isNegatedValue(value: unknown): boolean {
  *  `negate`-wrapped value member for the negative of one of those
  *  non-negative-by-nature reads (Toxic Deluge's "-X/-X"), or the
  *  `setSize` of a bound set (Myr Battlesphere's "+X/+0" where X
- *  is how many Myr were tapped), or the opponents attacked this combat
- *  (melee's "+1/+1 for each", CR 702.121a). */
+ *  is how many Myr were tapped), or the `sum` over a bound set (a randomly
+ *  revealed hand card's mana value as "+X/+X"), or the opponents attacked
+ *  this combat (melee's "+1/+1 for each", CR 702.121a). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
     return (
@@ -2880,6 +2881,7 @@ function isSignedEffectValue(value: unknown): boolean {
         isCountersValue(value) ||
         isDomainValue(value) ||
         isSetSizeValue(value) ||
+        isSumValue(value) ||
         isOpponentsAttackedThisCombatValue(value) ||
         isNegatedValue(value)
     );
