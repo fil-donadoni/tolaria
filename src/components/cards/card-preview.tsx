@@ -19,6 +19,11 @@ import {
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
+import {
+    chooseDockSide,
+    dockWidth,
+    type DockSide,
+} from "~/lib/card-preview-placement";
 import CardPreviewAnchored from "./card-preview-anchored";
 import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 import CardPreviewYieldMenu from "./card-preview-yield-menu";
@@ -87,6 +92,8 @@ export default function CardPreview({
     const tokenPrints = useTokenPrints();
     const [showAnchored, setShowAnchored] = useState(false);
     const [showHoverDock, setShowHoverDock] = useState(false);
+    // Decided once at dwell-open from the hovered card's rect (issue #8955).
+    const [dockSide, setDockSide] = useState<DockSide>("right");
     const [imgLoaded, setImgLoaded] = useState(false);
     // Mirrors the open states for synchronous reads inside event handlers
     // (the quick-click toggle and the outside-click listener run before React
@@ -118,6 +125,9 @@ export default function CardPreview({
         holdPreview &&
         (longPress.phase === "longPressed" || longPress.phase === "locked");
     const sawTouchRef = useRef(false);
+    // Whether the dock will be double width (copy permanent); mirrored from
+    // render so the dwell timer reads the current value.
+    const hasOriginalRef = useRef(false);
 
     // Latest close handle, read by the singleton (one-open-at-a-time) from a
     // stable identity so open/close don't need it in their dep arrays. Closes
@@ -419,6 +429,13 @@ export default function CardPreview({
                 requestOpenPreview(closeRef.current);
                 hoverOpenRef.current = true;
                 setImgLoaded(false);
+                setDockSide(
+                    chooseDockSide(
+                        cardEl.getBoundingClientRect(),
+                        dockWidth(hasOriginalRef.current),
+                        { width: window.innerWidth, height: window.innerHeight }
+                    )
+                );
                 setShowHoverDock(true);
             }, HOVER_DWELL_MS);
         };
@@ -529,6 +546,10 @@ export default function CardPreview({
     const imageSrc = currentBody.imageSrc;
     // Two faces double the surface width; keep the mobile overlay clamped by
     // its max-w so it never exceeds the viewport.
+    const hasOriginal = Boolean(originalBody);
+    useEffect(() => {
+        hasOriginalRef.current = hasOriginal;
+    }, [hasOriginal]);
     const overlayFactor = originalBody ? 3 : 1.5;
 
     return (
@@ -639,6 +660,7 @@ export default function CardPreview({
                     size="md"
                     imageLoaded={imageSrc ? imgLoaded : true}
                     onImageLoaded={() => setImgLoaded(true)}
+                    side={dockSide}
                     onPointerEnter={cancelHoverClose}
                     onPointerLeave={scheduleHoverClose}
                     // Desktop lateral zoom (ADR 0103 issue body, issue
