@@ -96,7 +96,7 @@ export default function LimitedSetupTableStep({
                     note="If the draft starts with 2+ humans, the timer is always on."
                     consequence={
                         setup.pickTimer
-                            ? "On — each pick's time tightens through the pack on the official schedule; an expired pick auto-picks with the bot engine."
+                            ? "On — each pick's time tightens through the pack, from 75s down to a 30s floor; an expired pick auto-picks with the bot engine."
                             : "Off — seats pick at their own pace."
                     }
                 />

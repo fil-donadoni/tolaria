@@ -1,12 +1,16 @@
-// Official MTGO/Wizards descending pick-timer schedule (ADR 0060, issue
-// #1243): the per-pick countdown length as a PURE function of CARDS
+// Arena-like descending pick-timer schedule (ADR 0060, issues #1243, #9149):
+// 75 s on a 15-card pack, -5 s per pick, floored at 30 s. Wizards publishes no
+// per-pick MTG Arena table; this encodes the REPORTED shape ("75 s on the first
+// pick, decreasing each pick, never below 30 s"), not a published source. It
+// replaces the MTR Appendix B paper-tournament table (40 s -> 5 s), too harsh
+// for the last picks. The per-pick countdown length is a PURE function of CARDS
 // REMAINING in the pack the seat is about to pick from — never the round
 // number, an absolute pick count, or the pack's original size. That's what
 // lets a smaller-than-15-card pack (ARN/ATQ Booster = 8 cards) reuse the
 // exact same table with no separate schedule or scaling: its very first pick
 // simply starts at "8 cards remaining" instead of "15", so the countdown is
-// shorter from the first pick onward, matching the official rule (CR: N/A —
-// a house/tournament convention, not a Comprehensive Rules-governed timing).
+// shorter from the first pick onward (CR: N/A — a house convention, not a
+// Comprehensive Rules-governed timing).
 //
 // `null` means "auto": with 1 card remaining there is no real choice left to
 // time, so NO COUNTDOWN IS SHOWN for it. That is a DISPLAY claim and nothing
@@ -19,20 +23,20 @@
 // "how long before we Auto-Pick for an absent Seat" (`null` only at 0 cards,
 // where there is nothing to pick).
 const PICK_TIMER_SCHEDULE: ReadonlyMap<number, number> = new Map([
-    [15, 40],
-    [14, 40],
-    [13, 35],
-    [12, 30],
-    [11, 25],
-    [10, 25],
-    [9, 20],
-    [8, 20],
-    [7, 15],
-    [6, 10],
-    [5, 10],
-    [4, 5],
-    [3, 5],
-    [2, 5],
+    [15, 75],
+    [14, 70],
+    [13, 65],
+    [12, 60],
+    [11, 55],
+    [10, 50],
+    [9, 45],
+    [8, 40],
+    [7, 35],
+    [6, 30],
+    [5, 30],
+    [4, 30],
+    [3, 30],
+    [2, 30],
 ]);
 
 /** Largest key the schedule table defines — a pack bigger than a standard
@@ -51,9 +55,8 @@ export function pickTimerSecondsForCardsRemaining(
     return PICK_TIMER_SCHEDULE.get(clamped) ?? null;
 }
 
-/** The schedule's floor — the countdown length already given to 2/3/4 cards
- *  remaining, reused as the Auto-Pick timeout for a 1-card pack (issue
- *  #2278). Short because there is nothing to deliberate over; the Seat who IS
+/** The Auto-Pick timeout for a 1-card pack (issue #2278) — deliberately
+ *  shorter than the 30 s countdown floor (issue #9149). Short because there is nothing to deliberate over; the Seat who IS
  *  present sees the card and clicks it exactly as before, and its manual pick
  *  cancels the pending timeout through the usual `pickSeq` bump. */
 export const AUTO_PICK_FLOOR_SECONDS = 5;
