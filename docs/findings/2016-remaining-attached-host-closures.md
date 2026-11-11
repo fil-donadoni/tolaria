@@ -31,3 +31,10 @@ those cases the missing piece is a different one (a host-controller player
 selector, for example) and `$host` alone does not migrate them. The sweep may
 shrink to a few cards plus comment corrections, which could go in a
 `/new-card` hand-tail pass rather than a separate ticket.
+
+**Stale prose noticed in review.** `convex/gre/ai/blade/scenarios.ts:18575`
+(note of the issue #5493 entry) and `convex/gre/ai/futileShield.ts:43` still
+describe Sleeping Potion's enters trigger as a `resolve()` closure read through
+an `aiEffects` shadow script. It is now an `effects` script on `$host`. Behaviour
+is the same, because `futileShield.ts` reads `effects ?? aiEffects` and the
+script still only taps.
