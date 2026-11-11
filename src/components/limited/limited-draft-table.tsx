@@ -12,7 +12,6 @@ import {
 } from "~/hooks/useLimitedEvent";
 import CardImage from "~/components/cards/card-image";
 import { Banner } from "@/components/ui/banner";
-import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useShowAutopick } from "~/hooks/useShowAutopick";
 import { cn } from "@/lib/utils";
@@ -61,6 +60,17 @@ import {
 import type { DraftPhonePanesProps } from "./draft-room/draftPhonePanes";
 import { useDraftPackRecall } from "./draft-room/useDraftPackRecall";
 import { useDraftSnapStops } from "./draft-room/useDraftSnapStops";
+import DraftHoverEnlarge from "./draft-room/draft-hover-enlarge";
+import DraftPackSizeControl from "./draft-room/draft-pack-size-control";
+import DraftZoomHint from "./draft-room/draft-zoom-hint";
+import {
+    readCardWidth,
+    type DraftPackSizing,
+} from "./draft-room/draftPackSizing";
+import { useDraftPackFit } from "./draft-room/useDraftPackFit";
+import { useDraftPackSizeMode } from "./draft-room/useDraftPackSizeMode";
+import { useDraftPackWheelZoom } from "./draft-room/useDraftPackWheelZoom";
+import { useDraftZoomHint } from "./draft-room/useDraftZoomHint";
 
 // Same responsive base size as the shared pool deckbuilder surface / draft
 // pack (`CARD_BASE` in `pool-deck-builder-form.tsx` / `limited-draft-pack.tsx`),
@@ -227,12 +237,23 @@ export default function LimitedDraftTable({
     // mirrors the deckbuilder's per-zone `useCardZoom`/`CardZoomSlider`
     // wiring, its own "booster" zone so it persists independently of the
     // Pool surface's own zoom.
+    //
+    // Issue #9166: the default rose 1.2 → 1.5 (cards were too small to read in
+    // time) under a NEW storage zone — the old key persisted 1.2 for every
+    // returning player on first mount, which would have made the new default
+    // unreachable. The slider is gone; the `Large` mode's size is stepped by
+    // ⌘/Ctrl + wheel (`useDraftPackWheelZoom`).
     const boosterZoom = useCardZoom({
-        zone: "limited-booster",
+        zone: "limited-booster-v2",
         min: 1,
         max: 2.2,
-        initial: 1.2,
+        initial: 1.5,
     });
+    const sizeMode = useDraftPackSizeMode();
+    const zoomHint = useDraftZoomHint(
+        layout !== "phone-portrait" && layout !== "phone-landscape"
+    );
+    const boosterBandRef = useRef<HTMLDivElement | null>(null);
     // "Show autopick" toggle (ADR 0095, issue #2271) — see
     // `useShowAutopick`'s doc comment: default OFF, opt-in only.
     const showAutopick = useShowAutopick();
@@ -248,6 +269,26 @@ export default function LimitedDraftTable({
     const [density, setDensity] = useState<DraftPackDensity>("fit");
 
     const pack = seat.currentPack ?? [];
+    const isDesktop = phoneOrientation === null;
+    const fitLayout = useDraftPackFit(
+        boosterBandRef,
+        isDesktop && sizeMode.value === "fit",
+        pack.length,
+        showPool
+    );
+    useDraftPackWheelZoom(isDesktop, (direction) => {
+        // Resizing by hand is a `Large` act: leave Fit / Read for it.
+        sizeMode.set("large");
+        boosterZoom.set(boosterZoom.value + direction * 0.1);
+        zoomHint.dismiss();
+    });
+    const packSizing: DraftPackSizing | undefined = !isDesktop
+        ? undefined
+        : sizeMode.value === "read"
+          ? { mode: "read", cardWidth: readCardWidth(window.innerWidth) }
+          : sizeMode.value === "fit" && fitLayout
+            ? { mode: "fit", ...fitLayout }
+            : { mode: "large" };
     // Memoised on the seat's own array: `?? []` mints a fresh empty array on
     // every render, which would re-run the Pool split below every time.
     const pool = useMemo(() => seat.pool ?? [], [seat.pool]);
@@ -784,6 +825,7 @@ export default function LimitedDraftTable({
             }
             pending={pending}
             zoom={phoneOrientation === null ? boosterZoom.value : undefined}
+            sizing={packSizing}
             columns={
                 phoneOrientation === null
                     ? undefined
@@ -796,6 +838,15 @@ export default function LimitedDraftTable({
         <>
             {timer}
             {packGrid}
+            {isDesktop && (
+                <DraftHoverEnlarge
+                    pack={pack}
+                    enabled={sizeMode.value !== "read"}
+                />
+            )}
+            {isDesktop && zoomHint.visible && (
+                <DraftZoomHint onDismiss={zoomHint.dismiss} />
+            )}
         </>
     );
 
@@ -965,12 +1016,9 @@ export default function LimitedDraftTable({
                         >
                             Show autopick
                         </button>
-                        <CardZoomSlider
-                            value={boosterZoom.value}
-                            min={boosterZoom.min}
-                            max={boosterZoom.max}
-                            onChange={boosterZoom.set}
-                            label="Booster card size"
+                        <DraftPackSizeControl
+                            mode={sizeMode.value}
+                            onChange={sizeMode.set}
                         />
                     </div>
                 )}
@@ -1055,6 +1103,7 @@ export default function LimitedDraftTable({
                     // untouched).
                     <>
                         <div
+                            ref={boosterBandRef}
                             className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto"
                             data-slot="draft-stacked-booster"
                         >

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { clampMenuPosition } from "./draft-room/draftMenuPosition";
 import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 
 export interface LimitedDraftMenuState {
@@ -57,6 +58,19 @@ export default function LimitedPickContextMenu({
             document.removeEventListener("keydown", onKeyDown);
         };
     }, [onClose]);
+
+    // Issue #9166: keep the click-anchored menu inside the viewport.
+    useLayoutEffect(() => {
+        const el = menuRef.current;
+        if (!el) return;
+        const { x, y } = clampMenuPosition(
+            { x: state.x, y: state.y },
+            { width: el.offsetWidth, height: el.offsetHeight },
+            { width: window.innerWidth, height: window.innerHeight }
+        );
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+    }, [state.x, state.y]);
 
     return createPortal(
         <div
