@@ -3,6 +3,7 @@ import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cardBase } from "~/lib/cardSizing";
 import EmptyState from "~/components/ui/empty-state";
 import LimitedDraftPackCard from "./limited-draft-pack-card";
+import type { DraftPackSizing } from "./draft-room/draftPackSizing";
 
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
@@ -33,6 +34,7 @@ export default function LimitedDraftPack({
     onOpenContextMenu,
     pending,
     zoom,
+    sizing,
     columns,
 }: {
     pack: DraftPackCard[];
@@ -58,6 +60,10 @@ export default function LimitedDraftPack({
     /** Zoom multiplier from the caller's `useCardZoom` (default 1 if the
      *  caller doesn't wire a slider). */
     zoom?: number;
+    /** Desktop size MODE (issue #9166). `fit` = fixed tracks of the fitted
+     *  card width, `read` = one horizontally scrolling row at the read width;
+     *  `large` / absent = the `auto-fill` track driven by `zoom`. */
+    sizing?: DraftPackSizing;
     /** A FIXED column count (issue #2588, ADR 0101 §6: "pack grid 3×5
      *  portrait / 8×2 landscape with a density toggle"). The phone
      *  arrangements lay the Booster out in a known grid so a 15-card pack
@@ -71,12 +77,18 @@ export default function LimitedDraftPack({
     }
 
     const sorted = [...pack].sort(compareDraftPackCards);
+    const read = sizing?.mode === "read";
+    const fit = sizing?.mode === "fit" ? sizing : null;
 
     return (
         <ul
             className={
                 columns === undefined
-                    ? "grid gap-3"
+                    ? read
+                        ? "flex gap-3 overflow-x-auto overflow-y-hidden px-1 pb-3"
+                        : fit
+                          ? "grid content-start justify-center gap-3"
+                          : "grid gap-3"
                     : // The grid IS the scroller in the fixed-column
                       // arrangement (issue #2588) — no wrapper. A wrapper
                       // whose single child is this whole `<ul>` is a scroll
@@ -90,17 +102,28 @@ export default function LimitedDraftPack({
             }
             data-slot="draft-pack-grid"
             data-columns={columns}
+            data-size-mode={
+                columns === undefined ? (sizing?.mode ?? "large") : undefined
+            }
             style={
                 {
-                    gridTemplateColumns:
-                        columns === undefined
+                    gridTemplateColumns: read
+                        ? undefined
+                        : fit
+                          ? `repeat(${fit.columns}, ${fit.cardWidth}px)`
+                          : columns === undefined
                             ? `repeat(auto-fill, minmax(calc(${CARD_BASE} * ${zoom ?? 1}), 1fr))`
                             : `repeat(${columns}, minmax(0, 1fr))`,
                 } as React.CSSProperties
             }
         >
             {sorted.map((card) => (
-                <li key={card.pickId}>
+                <li
+                    key={card.pickId}
+                    style={
+                        read ? { flex: `0 0 ${sizing.cardWidth}px` } : undefined
+                    }
+                >
                     <LimitedDraftPackCard
                         card={card}
                         selected={card.pickId === selectedPickId}
