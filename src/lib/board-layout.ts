@@ -491,6 +491,17 @@ export type DensityTier = {
 /** Back row's size relative to the creature row (lands read one step below). */
 export const BACK_ROW_GROWTH_RATIO = 0.7;
 
+/** A tier never draws a row below the base card (issue #9164): a board slot
+ *  under base size resolves a rendition between two mip levels and reads soft
+ *  (a 0.77× land row: Blur Index 0.61 at 820x1180x2). Below base is the shrink
+ *  ladder's job alone ({@link zoneFitScale}), when the row must fit. */
+const tierGrowth = (g: number): number => Math.max(1, g);
+
+/** The back row's growth for a creature row grown by `creatureGrowth`. */
+export function backRowGrowth(creatureGrowth: number): number {
+    return tierGrowth(creatureGrowth * BACK_ROW_GROWTH_RATIO);
+}
+
 /** Discrete battlefield card sizes by crowding (issue #9164, prototype verdict
  *  B). Ascending `maxFootprints`; a side past the last entry uses
  *  {@link FULL_BOARD_TIER}. */
@@ -498,21 +509,21 @@ export const DENSITY_TIERS: readonly DensityTier[] = [
     {
         maxFootprints: 5,
         creatureGrowth: 1.45,
-        backGrowth: 1.45 * BACK_ROW_GROWTH_RATIO,
+        backGrowth: backRowGrowth(1.45),
     },
     {
         maxFootprints: 10,
         creatureGrowth: 1.1,
-        backGrowth: 1.1 * BACK_ROW_GROWTH_RATIO,
+        backGrowth: backRowGrowth(1.1),
     },
 ];
 
-/** Past the last tier: below base size, then the shrink ladder
- *  ({@link zoneFitScale}) still applies on top. */
+/** Past the last tier: base size, never under it (see {@link backRowGrowth});
+ *  the shrink ladder ({@link zoneFitScale}) still applies on top. */
 export const FULL_BOARD_TIER: DensityTier = {
     maxFootprints: Infinity,
-    creatureGrowth: 0.85,
-    backGrowth: 0.85 * BACK_ROW_GROWTH_RATIO,
+    creatureGrowth: 1,
+    backGrowth: 1,
 };
 
 /** The tier for a side holding `footprints` laid-out footprints (one per card,

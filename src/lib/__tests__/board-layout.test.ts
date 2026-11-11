@@ -1109,15 +1109,26 @@ describe("densityTier (issue #9164)", () => {
         expect(densityTier(11)).toBe(FULL_BOARD_TIER);
     });
 
-    it("keeps the back row below the creature row in every tier", () => {
+    it("keeps the back row at or below the creature row in every tier", () => {
         for (const n of [0, 5, 6, 10, 11, 60]) {
             const t = densityTier(n);
-            expect(t.backGrowth).toBeLessThan(t.creatureGrowth);
+            expect(t.backGrowth).toBeLessThanOrEqual(t.creatureGrowth);
+        }
+        expect(densityTier(5).backGrowth).toBeLessThan(
+            densityTier(5).creatureGrowth
+        );
+    });
+
+    it("never draws a row below the base card: under base is the shrink ladder's alone", () => {
+        for (const n of [0, 5, 6, 10, 11, 60]) {
+            const t = densityTier(n);
+            expect(t.creatureGrowth).toBeGreaterThanOrEqual(1);
+            expect(t.backGrowth).toBeGreaterThanOrEqual(1);
         }
     });
 
-    it("full-board fallback sits under base size and hands over to the shrink ladder", () => {
-        expect(FULL_BOARD_TIER.creatureGrowth).toBeLessThan(1);
+    it("full-board fallback sits at base size and hands over to the shrink ladder", () => {
+        expect(FULL_BOARD_TIER.creatureGrowth).toBe(1);
         const placed = bandedRowsLayout({
             bands: [{ count: 40, centerYFrac: 0.5 }],
             width: 800,
