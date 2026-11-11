@@ -89,6 +89,30 @@ describe("useRandomRevealSummary (issue #5519)", () => {
         );
     });
 
+    it("a two-player clash ends on its damage line (Mana Clash, issue #5520)", () => {
+        const clash = reveal(
+            [
+                { flipperId: "p1", face: "tails", outcome: "none", round: 0 },
+                { flipperId: "p2", face: "tails", outcome: "none", round: 0 },
+                { flipperId: "p1", face: "heads", outcome: "none", round: 1 },
+                { flipperId: "p2", face: "heads", outcome: "none", round: 1 },
+            ],
+            {
+                source: {
+                    cardId: "72955141-d990-459f-adbe-7d3d0f5f6c95",
+                    controllerId: "p1",
+                },
+                faceDamage: { heads: 0, tails: 1 },
+            }
+        );
+        const { result, rerender } = render("p2");
+        rerender({ head: clash });
+        rerender({ head: null });
+        expect(result.current.summary?.message).toBe(
+            "Mana Clash — Alice: 1 heads, 1 tails. You: 1 heads, 1 tails. 2 rounds — Alice takes 1 damage, you take 1."
+        );
+    });
+
     it("a second reveal replacing the first summarises the first", () => {
         const { result, rerender } = render("p1");
         rerender({ head: SERIES });

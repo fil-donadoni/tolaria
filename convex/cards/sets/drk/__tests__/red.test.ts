@@ -37,6 +37,8 @@ import {
     stopApplyingStaticEffects,
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+import { applyRandomRevealAck } from "../../../../gre/pendingChoiceSubmit";
+import { compactState, expandState } from "../../../../gre/serialize";
 
 const ballLightning = getDefinition("c1ba83ab-83f5-421d-bba1-0f925870b5c8");
 const bloodMoon = getDefinition("78373616-e2d6-4ccf-998f-09f02bea45b4");
@@ -640,17 +642,128 @@ describe("Goblins of the Flarg — mountainwalk + sac when you control a Dwarf (
     });
 });
 
-describe("Mana Clash — coin-flip loop, 1 damage per tails (CR 705)", () => {
-    it("loops until both coins are heads, dealing 1 per tails", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-        });
+// Mana Clash — draw-then-reveal (PRD issue #4433, issue #5520).
+//
+//   705.2  Some effects that instruct a player to flip a coin care only about
+//          whether the coin comes up heads or tails. No player wins or loses a
+//          coin flip for this kind of effect. …
+//   704.3  Whenever a player would get priority …, the game checks for any of
+//          the listed conditions for state-based actions …
+//
+// Every round is drawn up front, so the reveal can show it; SBAs are never
+// checked mid-resolution (CR 704.3), so pre-drawing changes no outcome. Seed 19
+// draws (you / opponent): T T · T H · H T · H H — four rounds, two tails each.
+describe("Mana Clash — every round revealed, then 1 damage per tails (CR 705.2, CR 704.3)", () => {
+    function castManaClash(state: GameState): void {
         pushSpell(state, manaClash.id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
-        // The loop must terminate; each player ends with finite life ≤ 20.
-        expect(state.players[0].life).toBeLessThanOrEqual(20);
-        expect(state.players[1].life).toBeLessThanOrEqual(20);
-        // The spell fully resolved (no infinite loop, stack cleared).
+    }
+
+    function ackReveal(state: GameState): void {
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
+    function seeded(rngSeed: number): GameState {
+        return makeState({
+            rngSeed,
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+    }
+
+    it("suspends ONCE on the whole clash; the damage lands only after the ack, without a re-roll", () => {
+        const state = seeded(19);
+        const before = state.rngCounter ?? 0;
+        castManaClash(state);
+
+        // One reveal, every round on it: two coins per round, you then the
+        // opponent, ending on the first round both came up heads.
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.playerId).toBe("p1");
+        const flips = head.flips!;
+        expect(flips.map((f) => f.round)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
+        expect(flips.map((f) => f.flipperId)).toEqual([
+            "p1",
+            "p2",
+            "p1",
+            "p2",
+            "p1",
+            "p2",
+            "p1",
+            "p2",
+        ]);
+        expect(flips.map((f) => f.face)).toEqual([
+            "tails",
+            "tails",
+            "tails",
+            "heads",
+            "heads",
+            "tails",
+            "heads",
+            "heads",
+        ]);
+        // CR 705.2 — a face-only flip: nobody wins or loses it.
+        expect(flips.every((f) => f.outcome === "none")).toBe(true);
+        expect(head.faceDamage).toEqual({ heads: 0, tails: 1 });
+        // rngCounter advanced twice per round, at the draw.
+        const afterDraw = state.rngCounter ?? 0;
+        expect(afterDraw - before).toBe(8);
+        // Nothing dealt yet: the damage waits for the ack.
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+        expect(state.stack).toHaveLength(1);
+
+        // SURFACE: both seats receive the rounds and the per-face stake.
+        for (const seat of ["p1", "p2"]) {
+            const seen = projectPublicState(state, 1, seat).pendingChoices![0];
+            expect(seen.flips).toHaveLength(8);
+            expect(seen.faceDamage).toEqual({ heads: 0, tails: 1 });
+            expect(seen.source?.cardId).toBe(manaClash.id);
+        }
+
+        // Across a serialize round-trip the ack resumes without re-rolling.
+        const reloaded = expandState(compactState(state));
+        ackReveal(reloaded);
+        expect(reloaded.rngCounter ?? 0).toBe(afterDraw);
+        expect(reloaded.players[0].life).toBe(18);
+        expect(reloaded.players[1].life).toBe(18);
+        expect(reloaded.pendingChoices ?? []).toHaveLength(0);
+        expect(reloaded.stack).toHaveLength(0);
+    });
+
+    it("deals each tails as its own 1-damage event: a one-shot shield prevents one round, not the clash", () => {
+        const state = seeded(19);
+        // CR 615.1 — the next damage that would be dealt to the opponent is
+        // prevented. Dealt as one event of 2, the shield would eat both.
+        state.playerDamagePrevention = [
+            {
+                playerId: "p2",
+                match: {},
+                mode: "all",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        castManaClash(state);
+        ackReveal(state);
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("a first round of two heads ends the clash at once, dealing nothing", () => {
+        const state = seeded(5); // H H
+        castManaClash(state);
+        expect(state.pendingChoices![0].flips).toHaveLength(2);
+        ackReveal(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
         expect(state.stack).toHaveLength(0);
     });
 });
