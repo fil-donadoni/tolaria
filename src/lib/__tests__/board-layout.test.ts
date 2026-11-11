@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
     rowLayout,
     bandedRowsLayout,
+    densityTier,
+    FULL_BOARD_TIER,
+    growthBandHeights,
     splitRowLayout,
     fanLayout,
     mirrorVertical,
@@ -1095,5 +1098,137 @@ describe("the hand fan shrinks instead of burying its cards (#2725)", () => {
             expect(left).toBeGreaterThanOrEqual(-0.5);
             expect(right).toBeLessThanOrEqual(400.5);
         }
+    });
+});
+
+describe("densityTier (issue #9164)", () => {
+    it("grows a sparse side, tier boundaries inclusive", () => {
+        expect(densityTier(0).creatureGrowth).toBe(1.45);
+        expect(densityTier(5).creatureGrowth).toBe(1.45);
+        expect(densityTier(6).creatureGrowth).toBe(1.1);
+        expect(densityTier(10).creatureGrowth).toBe(1.1);
+        expect(densityTier(11)).toBe(FULL_BOARD_TIER);
+    });
+
+    it("keeps the back row at or below the creature row in every tier", () => {
+        for (const n of [0, 5, 6, 10, 11, 60]) {
+            const t = densityTier(n);
+            expect(t.backGrowth).toBeLessThanOrEqual(t.creatureGrowth);
+        }
+        expect(densityTier(5).backGrowth).toBeLessThan(
+            densityTier(5).creatureGrowth
+        );
+    });
+
+    it("never draws a row below the base card: under base is the shrink ladder's alone", () => {
+        for (const n of [0, 5, 6, 10, 11, 60]) {
+            const t = densityTier(n);
+            expect(t.creatureGrowth).toBeGreaterThanOrEqual(1);
+            expect(t.backGrowth).toBeGreaterThanOrEqual(1);
+        }
+    });
+
+    it("full-board fallback sits at base size and hands over to the shrink ladder", () => {
+        expect(FULL_BOARD_TIER.creatureGrowth).toBe(1);
+        const placed = bandedRowsLayout({
+            bands: [{ count: 40, centerYFrac: 0.5 }],
+            width: 800,
+            height: 600,
+            growth: [FULL_BOARD_TIER.creatureGrowth],
+        });
+        expect(placed).toHaveLength(40);
+        expect(placed[0].scale).toBeLessThan(FULL_BOARD_TIER.creatureGrowth);
+        expect(placed[0].scale).toBeGreaterThanOrEqual(28 / CARD_WIDTH - 1e-9);
+    });
+});
+
+describe("bandedRowsLayout growth (issue #9164)", () => {
+    const bands = [
+        { count: 3, centerYFrac: 0.28 },
+        { split: { left: 2, right: 0 }, centerYFrac: 0.74 },
+    ];
+
+    it("lets a sparse tall board grow past base size, creatures over lands", () => {
+        const t = densityTier(5);
+        const placed = bandedRowsLayout({
+            bands,
+            width: 1600,
+            height: 900,
+            growth: [t.creatureGrowth, t.backGrowth],
+        });
+        expect(placed[0].scale).toBeGreaterThan(1);
+        expect(placed[0].scale).toBeLessThanOrEqual(t.creatureGrowth);
+        expect(placed[3].scale).toBeLessThan(placed[0].scale);
+    });
+
+    it("never overflows its height slice", () => {
+        const placed = bandedRowsLayout({
+            bands,
+            width: 1600,
+            height: 300,
+            growth: [1.45, 1.015],
+        });
+        for (const p of placed) {
+            expect(p.y + (CARD_WIDTH * 1.4 * p.scale) / 2).toBeLessThanOrEqual(
+                300 + 1e-6
+            );
+        }
+    });
+
+    it("without growth is the unchanged even split, scale ≤ 1", () => {
+        const placed = bandedRowsLayout({ bands, width: 1600, height: 900 });
+        expect(Math.max(...placed.map((p) => p.scale))).toBeLessThanOrEqual(1);
+    });
+});
+
+describe("growthBandHeights (issue #9164)", () => {
+    it("pins a band squeezed under its base need, the rest by weight", () => {
+        // 1.45 : 1.015 of 300 gives the back band 123 < its 140 need.
+        const h = growthBandHeights(300, [1.45, 1.015], [140, 140]);
+        expect(h[1]).toBe(140);
+        expect(h[0]).toBeCloseTo(160);
+    });
+
+    it("is the proportional split when every share covers its need", () => {
+        const h = growthBandHeights(900, [1.45, 1.015], [140, 140]);
+        expect(h[0]).toBeCloseTo((900 * 1.45) / 2.465);
+        expect(h[1]).toBeCloseTo((900 * 1.015) / 2.465);
+    });
+
+    it("falls back to the proportional split when the needs do not fit", () => {
+        const h = growthBandHeights(200, [1.45, 1.015], [140, 140]);
+        expect(h[0]).toBeCloseTo((200 * 1.45) / 2.465);
+    });
+});
+
+describe("bandedRowsLayout growth: no row under base (issue #9164)", () => {
+    it("a grown creature row never squeezes the land row below base size", () => {
+        const t = densityTier(4);
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 1, centerYFrac: 0.28 },
+                { split: { left: 3, right: 0 }, centerYFrac: 0.74 },
+            ],
+            width: 800,
+            height: 2 * CARD_WIDTH * 1.4 + 40,
+            growth: [t.creatureGrowth, t.backGrowth],
+        });
+        for (const p of placed.slice(1))
+            expect(p.scale).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe("bandedRowsLayout growth: empty band (issue #9164)", () => {
+    it("an empty band does not take height from the occupied one", () => {
+        const lone = bandedRowsLayout({
+            bands: [
+                { count: 0, centerYFrac: 0.28 },
+                { count: 2, centerYFrac: 0.74 },
+            ],
+            width: 1600,
+            height: 260,
+            growth: [1.45, 1.015],
+        });
+        expect(lone[0].scale).toBeGreaterThanOrEqual(1);
     });
 });

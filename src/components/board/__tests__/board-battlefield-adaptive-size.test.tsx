@@ -184,7 +184,9 @@ describe("adaptive per-zone card size reaches the DOM (issue #2725)", () => {
         renderBattlefield(twelveIdentical());
         const placed = slots();
         expect(placed).toHaveLength(1);
-        expect(placed[0].scale).toBe(1);
+        // Never shrunk: one footprint is a sparse side (density tiers, issue
+        // #9164 — it may even grow), unlike the twelve distinct cards.
+        expect(placed[0].scale).toBeGreaterThanOrEqual(1);
     });
 
     it("does NOT shrink for a tapped permanent's wider rotated box", () => {

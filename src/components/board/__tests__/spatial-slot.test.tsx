@@ -188,3 +188,44 @@ describe("SpatialSlot zone-transition animation (#252)", () => {
         expect(centerFromSlot(el).x).toBeCloseTo(300, 2);
     });
 });
+
+describe("SpatialSlot grown cards (issue #9164)", () => {
+    beforeEach(() => {
+        cleanup();
+        reduceMotion = false;
+    });
+
+    function slotOf(p: Placement) {
+        const { container } = render(
+            <LayoutGroup>
+                <SpatialSlot
+                    slotId="c1"
+                    placement={p}
+                    cardWidth={CARD_WIDTH}
+                    cardHeight={CARD_HEIGHT}
+                >
+                    <div />
+                </SpatialSlot>
+            </LayoutGroup>
+        );
+        return container.querySelector("[data-card-slot]") as HTMLElement;
+    }
+
+    it("grows the layout box instead of CSS-upscaling, keeping the centre", () => {
+        const el = slotOf(place({ scale: 1.5 }));
+        expect(el.style.width).toBe(`${CARD_WIDTH * 1.5}px`);
+        expect(el.style.height).toBe(`${CARD_HEIGHT * 1.5}px`);
+        expect(el.style.transform).toContain("scale(1)");
+        const m = el.style.transform.match(
+            /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/
+        );
+        expect(Number(m![1]) + (CARD_WIDTH * 1.5) / 2).toBeCloseTo(100);
+        expect(Number(m![2]) + (CARD_HEIGHT * 1.5) / 2).toBeCloseTo(100);
+    });
+
+    it("keeps the base box and a transform scale when shrunk", () => {
+        const el = slotOf(place({ scale: 0.5 }));
+        expect(el.style.width).toBe(`${CARD_WIDTH}px`);
+        expect(el.style.transform).toContain("scale(0.5)");
+    });
+});

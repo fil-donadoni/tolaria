@@ -152,7 +152,8 @@ function xOf(slotId: string): number {
     // The transform is `translate(x - cardWidth/2, ...)`; recover the
     // placement center (matches `geometryOf` in the landscape-footprint
     // sibling test, minus the y/scale fields this file doesn't need).
-    return Number(m![1]) + CARD_WIDTH / 2;
+    // A grown card (density tiers, issue #9164) has a wider layout box.
+    return Number(m![1]) + parseFloat(el!.style.width) / 2;
 }
 
 beforeEach(cleanup);
@@ -184,7 +185,18 @@ describe("BoardBattlefield row layout is blind to tap state (#1994 round 2)", ()
             land("land-b", "island-def", false),
         ]);
         const gap = xOf("land-b") - xOf("land-a");
-        expect(gap).toBeCloseTo(CARD_WIDTH + 12, 3);
+        // Spacing = drawn scale × (card width + default gap); the drawn scale
+        // is the layout-box growth times the residual transform scale.
+        const el = document.querySelector<HTMLElement>(
+            '[data-card-slot="land-a"]'
+        )!;
+        const residual = Number(
+            /scale\(([\d.]+)\)/.exec(el.style.transform)![1]
+        );
+        const drawn = (parseFloat(el.style.width) / CARD_WIDTH) * residual;
+        // The grown box is rounded to whole pixels, so `drawn` is off the
+        // placement's true scale by under half a pixel of box width.
+        expect(Math.abs(gap - drawn * (CARD_WIDTH + 12))).toBeLessThan(1);
     });
 });
 
