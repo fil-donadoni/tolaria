@@ -107,6 +107,10 @@ const ALLOWLIST = new Map([
         "convex/__tests__/limitedEventViewValidator.test.ts",
         "walks the limitedEvent queries' returns validator over the real projection; it reaches matchSim only transitively through limitedEvents, and asserts validator/shape agreement, not bot behaviour",
     ],
+    [
+        "src/components/admin/pick-ratings/__tests__/pick-ratings-dialog.test.tsx",
+        "covers the admin Pick Rating dialog (DOM); it imports contextCapForPick / DEFAULT_DRAFT_PICKS only as the expected value of the cap the pack tab displays (one authority with the scorer), and asserts the dialog, not the drafter's picks",
+    ],
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
