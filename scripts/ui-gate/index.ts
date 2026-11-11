@@ -1907,6 +1907,27 @@ async function main(): Promise<number> {
                         await measure(surface);
                     }
 
+                    // Issue #9210: the account belongs to the LANE, and the
+                    // lane walks its next viewport with it. A game this
+                    // viewport created and left standing (a `--surface=` walk
+                    // that never reached `game-manage-yields`, the row that
+                    // concedes it, or a walk cut short) would meet that
+                    // viewport as a game it did not create — every scenario
+                    // row there UNWALKED. End it here, whatever the scope.
+                    if (ctx.createdGame) {
+                        setProgress(viewport.id, "ending the lane's game");
+                        await ensurePage();
+                        await withDeadline(
+                            () => recreateLaneGame(page, ctx),
+                            CELL_DEADLINE_MS,
+                            `ending the ${viewport.id} lane game`
+                        ).catch((e: unknown) =>
+                            lines.push(
+                                `    · could not end the lane's own game — the lane's next viewport will find it standing: ${(e as Error).message.split("\n")[0]}`
+                            )
+                        );
+                    }
+
                     setProgress(viewport.id, "closing its context");
                     await withDeadline(
                         () => context.close(),
