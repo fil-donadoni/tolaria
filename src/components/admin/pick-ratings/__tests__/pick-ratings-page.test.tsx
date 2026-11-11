@@ -38,6 +38,10 @@ vi.mock("~/hooks/useCardProfiles", async () => {
 
 vi.mock("~/hooks/useCardRatings", () => ({
     useScopeCardRatings: () => page.cards,
+    useCardRatingMutations: () => ({
+        setRating: vi.fn(),
+        clearRating: vi.fn(),
+    }),
 }));
 
 afterEach(() => {
@@ -100,6 +104,7 @@ describe("PickRatingsPage (issue #8908)", () => {
             "Archetypes",
             "Rating",
             "Source",
+            "Actions",
         ]);
     });
 
