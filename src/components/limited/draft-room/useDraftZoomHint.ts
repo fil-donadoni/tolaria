@@ -14,7 +14,9 @@ function alreadySeen(): boolean {
     }
 }
 
-export function useDraftZoomHint() {
+/** `active` = the surface that can show the hint (desktop): off, the 12 s
+ *  timer must not mark the hint seen for a player who never saw it. */
+export function useDraftZoomHint(active = true) {
     const [visible, setVisible] = useState(() => !alreadySeen());
 
     const dismiss = useCallback(() => {
@@ -27,10 +29,10 @@ export function useDraftZoomHint() {
     }, []);
 
     useEffect(() => {
-        if (!visible) return;
+        if (!visible || !active) return;
         const id = setTimeout(dismiss, DRAFT_ZOOM_HINT_MS);
         return () => clearTimeout(id);
-    }, [visible, dismiss]);
+    }, [visible, active, dismiss]);
 
     return { visible, dismiss };
 }

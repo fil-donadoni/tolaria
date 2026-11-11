@@ -250,7 +250,7 @@ export default function LimitedDraftTable({
         initial: 1.5,
     });
     const sizeMode = useDraftPackSizeMode();
-    const zoomHint = useDraftZoomHint();
+    const zoomHint = useDraftZoomHint(phoneOrientation === null);
     const boosterBandRef = useRef<HTMLDivElement | null>(null);
     // "Show autopick" toggle (ADR 0095, issue #2271) — see
     // `useShowAutopick`'s doc comment: default OFF, opt-in only.
