@@ -1767,6 +1767,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "exile-cost",
+        cards: true,
         module: "board/exile-cost-dialog.tsx",
         label: "Exile cost",
         layer: "[role=dialog]",

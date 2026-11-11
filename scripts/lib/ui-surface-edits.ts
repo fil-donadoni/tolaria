@@ -18,6 +18,22 @@
  * `shared` and the caller runs the full lane. Comment and blank lines between
  * elements are the one thing outside an element that moves nothing.
  *
+ * SPECIMEN TABLES (issue #9226). A `*_SPECIMENS` table is a second home of
+ * surface definitions: each of its rows becomes ONE surface through
+ * `...X_SPECIMENS.map((spec) => dialogSpecimenSurface(SECTION, spec))` in the
+ * array, with id `<SECTION.idPrefix>-<slug>`. A hunk wholly inside a row of
+ * such a table selects that surface, by the same rule as a `SURFACES`
+ * element. Fail-closed: a table no spread maps, a section whose `idPrefix`
+ * cannot be read, or a row with no `slug` leaves the table unparsed, and a
+ * hunk there is `shared`, as before.
+ *
+ * A row FIELD read outside its own surface is shared machinery (review of
+ * issue #9226): `SPECIMEN_LAYERS` spreads every table and reads each row's
+ * `layer`, which then decides page reuse for EVERY specimen surface. Any
+ * other reference to a table must be a `...TABLE,` spread closed by
+ * `].map((s) => s.<field>)`; that field is shared, and a hunk touching it is
+ * `shared`. A reference of any other shape leaves the table unparsed.
+ *
  * Pure: the caller supplies the NEW source and a `git diff -U0` of the file.
  */
 
@@ -48,15 +64,36 @@ const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const INERT_LINE =
     /^\s*(?:\/\/.*|\/\*.*\*\/\s*|\/\*(?!.*\*\/).*|\*\/\s*|\*(?!\/).*)?$/;
 
-/** The `SURFACES` array's bracket lines and its elements, in the NEW source. */
-export function parseSurfaceElements(source: string): {
+/** A bracketed list of surface definitions in the NEW source: the
+ *  `SURFACES` array, or a specimen table mapped into it (issue #9226). */
+interface Region {
     open: number;
     close: number;
     elements: ElementSpan[];
-} | null {
-    const lines = source.split("\n");
-    const open = lines.findIndex((l) => ARRAY_OPEN.test(l)) + 1;
-    if (open === 0) return null;
+    /** Row fields other code reads across rows (a specimen table only). */
+    sharedFields?: ReadonlySet<string>;
+}
+
+const SPECIMEN_TABLE_OPEN = /^const (\w+_SPECIMENS): readonly \w+\[\] = \[$/;
+const SPECIMEN_SLUG = /^ {8}slug: "([^"]+)",?$/;
+const SPECIMEN_SPREAD = /^ {4}\.\.\.(\w+_SPECIMENS)\.map\(\(spec\) =>$/;
+const SPECIMEN_SURFACE_CALL = /^ {8}dialogSpecimenSurface\((\w+), spec\)$/;
+const SECTION_OPEN = /^const (\w+): DialogSpecimenSection = \{$/;
+const SECTION_ID_PREFIX = /^ {4}idPrefix: "([^"]+)",$/;
+const SPECIMEN_FIELD = /^ {8}(\w+):/;
+const SPREAD_FIELD_MAP = /^\s*\]\.map\(\((\w+)\) => \1\.(\w+)\),?$/;
+/** How far a cross-row spread may run before its `].map(...)` closes it. */
+const SPREAD_LOOKAHEAD = 8;
+
+/** Elements of the list opened at line `open` (1-indexed), each id read by
+ *  `idLine` and passed through `toId`; null when a row has no id or the list
+ *  never closes. */
+function parseList(
+    lines: string[],
+    open: number,
+    idLine: RegExp,
+    toId: (raw: string) => string
+): Region | null {
     const elements: ElementSpan[] = [];
     let start = 0;
     let id: string | null = null;
@@ -70,7 +107,10 @@ export function parseSurfaceElements(source: string): {
             }
             continue;
         }
-        if (id === null) id = ELEMENT_ID.exec(line)?.[1] ?? null;
+        if (id === null) {
+            const raw = idLine.exec(line)?.[1];
+            if (raw !== undefined) id = toId(raw);
+        }
         if (ELEMENT_CLOSE.test(line)) {
             if (id === null) return null; // an element with no id: unparseable
             elements.push({ id, start, end: n });
@@ -78,6 +118,106 @@ export function parseSurfaceElements(source: string): {
         }
     }
     return null;
+}
+
+/** `idPrefix` of every `DialogSpecimenSection` constant, by its name. */
+function sectionPrefixes(lines: string[]): Map<string, string> {
+    const prefixes = new Map<string, string>();
+    let section: string | null = null;
+    for (const line of lines) {
+        const open = SECTION_OPEN.exec(line);
+        if (open) {
+            section = open[1];
+            continue;
+        }
+        if (section === null) continue;
+        if (line === "};") section = null;
+        else {
+            const prefix = SECTION_ID_PREFIX.exec(line)?.[1];
+            if (prefix !== undefined) prefixes.set(section, prefix);
+        }
+    }
+    return prefixes;
+}
+
+/** Each specimen table the `SURFACES` array spreads through
+ *  `dialogSpecimenSurface`, as a region whose ids are the surfaces it yields.
+ *  A table that cannot be read whole is left out: its hunks stay `shared`. */
+export function parseSpecimenTables(source: string): Region[] {
+    const lines = source.split("\n");
+    const prefixes = sectionPrefixes(lines);
+    const sectionOf = new Map<string, string>();
+    for (let n = 1; n < lines.length; n++) {
+        const table = SPECIMEN_SPREAD.exec(lines[n - 1])?.[1];
+        const section = SPECIMEN_SURFACE_CALL.exec(lines[n])?.[1];
+        if (table !== undefined && section !== undefined) {
+            // A table spread twice (two sections) is ambiguous: leave it out.
+            sectionOf.set(table, sectionOf.has(table) ? "" : section);
+        }
+    }
+    const regions: Region[] = [];
+    lines.forEach((line, i) => {
+        const table = SPECIMEN_TABLE_OPEN.exec(line)?.[1];
+        if (table === undefined) return;
+        const prefix = prefixes.get(sectionOf.get(table) ?? "");
+        if (prefix === undefined) return;
+        const sharedFields = crossRowFields(lines, table);
+        if (sharedFields === null) return;
+        const region = parseList(
+            lines,
+            i + 1,
+            SPECIMEN_SLUG,
+            (slug) => `${prefix}-${slug}`
+        );
+        if (region) regions.push({ ...region, sharedFields });
+    });
+    return regions;
+}
+
+/** The fields of `table`'s rows that code outside its own surface reads:
+ *  every reference other than its declaration and its `dialogSpecimenSurface`
+ *  spread must be a `...TABLE,` spread closed by `].map((s) => s.<field>)`.
+ *  Null when a reference has any other shape: the table cannot be narrowed. */
+function crossRowFields(lines: string[], table: string): Set<string> | null {
+    const fields = new Set<string>();
+    const name = new RegExp(`\\b${table}\\b`);
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!name.test(line)) continue;
+        if (SPECIMEN_TABLE_OPEN.exec(line)?.[1] === table) continue;
+        if (SPECIMEN_SPREAD.exec(line)?.[1] === table) continue;
+        if (line.trim() !== `...${table},`) return null;
+        let field: string | undefined;
+        for (
+            let j = i + 1;
+            j <= i + SPREAD_LOOKAHEAD && j < lines.length;
+            j++
+        ) {
+            field = SPREAD_FIELD_MAP.exec(lines[j])?.[2];
+            if (field !== undefined) break;
+        }
+        if (field === undefined) return null;
+        fields.add(field);
+    }
+    return fields;
+}
+
+/** The row field line `n` belongs to: the nearest `        field:` at or
+ *  above it inside `row`; null on the row's own brace lines. */
+function fieldAt(lines: string[], row: ElementSpan, n: number): string | null {
+    for (let k = n; k > row.start; k--) {
+        const field = SPECIMEN_FIELD.exec(lines[k - 1] ?? "")?.[1];
+        if (field !== undefined) return field;
+    }
+    return null;
+}
+
+/** The `SURFACES` array's bracket lines and its elements, in the NEW source. */
+export function parseSurfaceElements(source: string): Region | null {
+    const lines = source.split("\n");
+    const open = lines.findIndex((l) => ARRAY_OPEN.test(l)) + 1;
+    if (open === 0) return null;
+    return parseList(lines, open, ELEMENT_ID, (id) => id);
 }
 
 interface Hunk {
@@ -106,6 +246,32 @@ function parseHunks(diff: string): Hunk[] {
     return hunks;
 }
 
+/** A shared field the hunk adds, removes or edits inside `rows`, else null.
+ *  A pure deletion belongs to the field of the line it follows, and any
+ *  removed line that opens a field names that field too. */
+function sharedFieldTouched(
+    hunk: Hunk,
+    rows: ElementSpan[],
+    newLines: string[],
+    sharedFields: ReadonlySet<string>
+): string | null {
+    const { newStart: c, newCount: d } = hunk;
+    const fields: (string | null)[] = [];
+    for (const row of rows) {
+        const span = d > 0 ? [c, c + d - 1] : [c, c];
+        for (
+            let n = Math.max(span[0], row.start);
+            n <= Math.min(span[1], row.end);
+            n++
+        ) {
+            fields.push(fieldAt(newLines, row, n));
+        }
+    }
+    for (const l of hunk.removed)
+        fields.push(SPECIMEN_FIELD.exec(l)?.[1] ?? null);
+    return fields.find((f) => f !== null && sharedFields.has(f)) ?? null;
+}
+
 const shared = (reason: string, unreadable = false): SurfaceEdits =>
     unreadable
         ? { kind: "shared", reason, unreadable }
@@ -117,7 +283,7 @@ export function classifySurfaceEdits(
 ): SurfaceEdits {
     const parsed = parseSurfaceElements(newSource);
     if (!parsed) return shared("the SURFACES array could not be parsed", true);
-    const { open, close, elements } = parsed;
+    const regions = [parsed, ...parseSpecimenTables(newSource)];
     const newLines = newSource.split("\n");
     const ids = new Set<string>();
 
@@ -133,18 +299,34 @@ export function classifySurfaceEdits(
     }
     for (const hunk of hunks) {
         const { newStart: c, newCount: d } = hunk;
-        const inside =
-            d > 0 ? c > open && c + d - 1 < close : c >= open && c < close;
-        if (!inside) {
+        const region = regions.find(({ open, close }) =>
+            d > 0 ? c > open && c + d - 1 < close : c >= open && c < close
+        );
+        if (!region) {
             return shared(
-                `the hunk at line ${c} is outside the SURFACES array (a shared helper, selector or table)`
+                `the hunk at line ${c} is outside the SURFACES array and every specimen table (a shared helper, selector or table)`
             );
         }
+        const { elements, sharedFields } = region;
         const touched =
             d > 0
                 ? elements.filter((e) => e.start <= c + d - 1 && e.end >= c)
                 : elements.filter((e) => e.start <= c && c < e.end);
         for (const e of touched) ids.add(e.id);
+
+        if (sharedFields && sharedFields.size > 0) {
+            const hit = sharedFieldTouched(
+                hunk,
+                touched,
+                newLines,
+                sharedFields
+            );
+            if (hit !== null) {
+                return shared(
+                    `the hunk at line ${c} edits \`${hit}\`, a specimen field read across every row`
+                );
+            }
+        }
 
         // Lines no element accounts for must move nothing: comments, blanks.
         const inElement = (n: number) =>
@@ -152,7 +334,7 @@ export function classifySurfaceEdits(
         for (let n = c; n < c + d; n++) {
             if (!inElement(n) && !INERT_LINE.test(newLines[n - 1] ?? "")) {
                 return shared(
-                    `line ${n} is between SURFACES elements and is not a comment`
+                    `line ${n} is between list elements and is not a comment`
                 );
             }
         }
@@ -160,7 +342,7 @@ export function classifySurfaceEdits(
             const stray = hunk.removed.find((l) => !INERT_LINE.test(l));
             if (stray !== undefined) {
                 return shared(
-                    `a hunk at line ${c} removes code no SURFACES element accounts for`
+                    `a hunk at line ${c} removes code no list element accounts for`
                 );
             }
         }
