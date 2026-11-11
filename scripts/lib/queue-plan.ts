@@ -475,6 +475,24 @@ export interface PlannedIssue {
 export interface InFlightIssue {
     number: number;
     files: string[] | null;
+    /**
+     * Its open PR carries `merge:manual` (issue #9137): only the owner's
+     * `bun run merge:manual` lands it, so draining never clears this entry. The
+     * PR number, for the dispatcher's line. Absent = the queue or a pass drains it.
+     */
+    awaitsOwnerPr?: number;
+}
+
+/** Label of a PR the Mergify queue refuses and only the owner lands (issue #9137). */
+export const MERGE_MANUAL_LABEL = "merge:manual";
+
+/** Open PRs waiting on the owner's hand merge (issue #9137): `merge:manual`. */
+export function ownerWaitPrsOf(prs: readonly OpenPrFact[]): Set<number> {
+    return new Set(
+        prs
+            .filter((p) => p.labels.includes(MERGE_MANUAL_LABEL))
+            .map((p) => p.number)
+    );
 }
 
 /** Default for `queuePlan.stalledPrHours` (issue #8258). */
@@ -565,6 +583,20 @@ export function priorityHoldLine(h: PriorityHold): string {
     return `held for P0 #${h.number} (${h.reason})`;
 }
 
+/** A P0 deferred only by overlap with in-flight PRs that wait on the owner
+ *  (issue #9137): its files stay occupied, but it holds no slot — draining
+ *  cannot clear it. */
+export interface OwnerWaitP0 {
+    number: number;
+    /** The `merge:manual` PR it waits on. */
+    pr: number;
+}
+
+/** The dispatcher's line for a P0 behind an owner merge (issue #9137). */
+export function ownerWaitLine(w: OwnerWaitP0): string {
+    return `P0 #${w.number} waits on owner merge of PR #${w.pr} (${MERGE_MANUAL_LABEL}) — not holding slots`;
+}
+
 /** One warning line per stalled PR — the plan's and the dispatcher's text. */
 export function stalledPrLine(s: {
     pr: number;
@@ -582,27 +614,43 @@ export function stalledPrLine(s: {
  * one the declared (else inferred) `Target files` stand in; with neither the
  * radius is unknown (`files: null`). The caller passes ONLY claims that are
  * live or have an open PR — a stale or released claim occupies nothing. A
- * claim whose PR is in `stalledPrs` (issue #8258) occupies nothing either.
+ * claim whose PR is in `stalledPrs` (issue #8258) occupies nothing either. A
+ * claim whose PR is in `ownerWaitPrs` (`merge:manual`, issue #9137) is marked
+ * `awaitsOwnerPr`.
  */
 export function inFlightSet(
     claims: { issue: number; pr: number | null }[],
     prFiles: Record<number, string[]>,
     body: (issue: number) => string,
     inferred: Record<number, string[]> = {},
-    stalledPrs: ReadonlySet<number> = new Set()
+    stalledPrs: ReadonlySet<number> = new Set(),
+    ownerWaitPrs: ReadonlySet<number> = new Set()
 ): InFlightIssue[] {
     return claims
         .filter(({ pr }) => pr === null || !stalledPrs.has(pr))
-        .map(({ issue, pr }) => {
+        .map(({ issue, pr }): InFlightIssue => {
+            const owner =
+                pr !== null && ownerWaitPrs.has(pr)
+                    ? { awaitsOwnerPr: pr }
+                    : {};
             const fromPr = pr === null ? undefined : prFiles[pr];
             if (fromPr && fromPr.length > 0)
-                return { number: issue, files: fromPr.map(normalizePath) };
+                return {
+                    number: issue,
+                    files: fromPr.map(normalizePath),
+                    ...owner,
+                };
             const declared = parseTargetFiles(body(issue));
-            if (declared !== null) return { number: issue, files: declared };
+            if (declared !== null)
+                return { number: issue, files: declared, ...owner };
             const guess = inferred[issue];
             if (guess && guess.length > 0)
-                return { number: issue, files: guess.map(normalizePath) };
-            return { number: issue, files: null };
+                return {
+                    number: issue,
+                    files: guess.map(normalizePath),
+                    ...owner,
+                };
+            return { number: issue, files: null, ...owner };
         });
 }
 
@@ -646,6 +694,9 @@ export interface BatchPlan {
     /** A P0 waiting on in-flight work (issue #8920): every lower band is
      *  deferred behind it. Absent = no such P0. */
     priorityHold?: PriorityHold;
+    /** The first P0 deferred by overlap with `merge:manual` PRs only (issue
+     *  #9137): no hold, only its own files reserved. Absent = no such P0. */
+    ownerWaitP0?: OwnerWaitP0;
     /**
      * Issues held by a claim the planner judged LIVE — `in-progress`, not
      * stale, and not a PRD umbrella (which is skipped before the claim branch
@@ -1049,6 +1100,7 @@ export function planBatch(
         .filter((f) => f.files !== null)
         .map((f) => ({
             number: f.number,
+            awaitsOwnerPr: f.awaitsOwnerPr,
             files: f.files!.filter(
                 (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
             ),
@@ -1063,6 +1115,7 @@ export function planBatch(
         all: boolean;
     }[] = [];
     let priorityHold: PriorityHold | undefined;
+    let ownerWaitP0: OwnerWaitP0 | undefined;
     const stalledOverlap = new Map<number, Set<number>>();
     const inFlightUnknown = (config.inFlight ?? [])
         .filter((f) => f.files === null)
@@ -1449,11 +1502,15 @@ export function planBatch(
 
         // In-flight overlap (issue #6195). A repair pick is never deferred by
         // its own PR: the issue's own entry occupies nothing against itself.
-        const busy = occupied.find(
+        const busyAll = occupied.filter(
             (f) =>
                 f.number !== issue.number &&
                 f.files.some((a) => comparable.some((c) => pathsOverlap(a, c)))
         );
+        // Draining clears no entry that waits on the owner (issue #9137): a P0
+        // behind ONLY such entries takes no hold. One drainable overlap keeps it.
+        const drainable = busyAll.find((f) => f.awaitsOwnerPr === undefined);
+        const busy = drainable ?? busyAll[0];
         if (busy) {
             // The deferred issue keeps its files (issue #6897): left free, the
             // slot goes to a lower band on the same hot file, whose PR then
@@ -1461,7 +1518,13 @@ export function planBatch(
             // A `*` radius reserves nothing below P0: it would hold the whole
             // repo. A P0 holds every slot whatever its radius (issue #8920).
             const reason = `target files overlap in-flight #${busy.number}`;
-            if (!holdForP0(issue, reason) && batchable)
+            const ownerOnly = drainable === undefined;
+            if (ownerOnly && band(issue) === priorityRank("P0"))
+                ownerWaitP0 ??= {
+                    number: issue.number,
+                    pr: busy.awaitsOwnerPr!,
+                };
+            if (!(ownerOnly ? false : holdForP0(issue, reason)) && batchable)
                 reserved.push({
                     number: issue.number,
                     rank: band(issue),
@@ -1610,6 +1673,7 @@ export function planBatch(
         activeClaims,
         ...(inFlightUnknown.length > 0 ? { inFlightUnknown } : {}),
         ...(priorityHold ? { priorityHold } : {}),
+        ...(ownerWaitP0 ? { ownerWaitP0 } : {}),
         ...((config.stalledPrs ?? []).length > 0
             ? {
                   stalledPrs: config.stalledPrs!.map((st) => ({

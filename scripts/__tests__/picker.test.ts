@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import {
+    inFlightSet,
+    ownerWaitPrsOf,
     planBatch,
     type IssueDetail,
     type PlanConfig,
@@ -521,6 +523,112 @@ describe("planner — a waiting P0 holds every lower slot (issue #8920)", () => 
         );
         expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
         expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+        expect(plan.batch).toEqual([]);
+    });
+
+    // Issue #9137: an in-flight PR labelled `merge:manual` is landed only by
+    // the owner, so a P0 behind it must not freeze the lower bands.
+    const ownerWait = [
+        { number: 1, files: ["convex/cards/types.ts"], awaitsOwnerPr: 77 },
+    ];
+    const p0OverlapQueue = () =>
+        queue(
+            { 2: "P0", 3: "P1" },
+            { 2: "convex/cards/types.ts", 3: "scripts/b.ts" }
+        );
+
+    it("inFlightSet marks only the claims whose PR carries merge:manual (issue #9137)", () => {
+        const prs = [
+            {
+                number: 77,
+                issue: 1,
+                labels: ["merge:manual"],
+                files: [],
+                headCommittedAt: null,
+            },
+            {
+                number: 78,
+                issue: 4,
+                labels: ["ready-to-land"],
+                files: [],
+                headCommittedAt: null,
+            },
+        ];
+        const set = inFlightSet(
+            [
+                { issue: 1, pr: 77 },
+                { issue: 4, pr: 78 },
+                { issue: 5, pr: null },
+            ],
+            { 77: ["a.ts"], 78: ["b.ts"] },
+            () => "",
+            {},
+            new Set(),
+            ownerWaitPrsOf(prs)
+        );
+        expect(set.map((f) => f.awaitsOwnerPr)).toEqual([
+            77,
+            undefined,
+            undefined,
+        ]);
+    });
+
+    it("a P0 behind a merge:manual PR is deferred but takes no hold; a disjoint P1 is admitted (issue #9137)", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight: ownerWait },
+            p0OverlapQueue()
+        );
+        expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
+        expect(plan.priorityHold).toBeUndefined();
+        expect(plan.ownerWaitP0).toEqual({ number: 2, pr: 77 });
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+
+    it("the same shape without merge:manual still holds the P1 (issue #8920 guard)", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            p0OverlapQueue()
+        );
+        expect(plan.priorityHold).toMatchObject({ number: 2 });
+        expect(plan.ownerWaitP0).toBeUndefined();
+        expect(reason(plan, 3)).toMatch(/reserved by higher-priority #2/);
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("a P0 overlapping both a merge:manual and a drainable entry still holds (issue #9137)", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            {
+                ...CONFIG,
+                inFlight: [
+                    ...ownerWait,
+                    { number: 4, files: ["convex/cards/types.ts"] },
+                ],
+            },
+            p0OverlapQueue()
+        );
+        expect(plan.priorityHold).toMatchObject({ number: 2 });
+        expect(plan.ownerWaitP0).toBeUndefined();
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("a not-held P0 still reserves its own files: an overlapping P1 is deferred (issue #9137)", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight: ownerWait },
+            queue(
+                { 2: "P0", 3: "P1" },
+                {
+                    2: "convex/cards/types.ts\nscripts/b.ts",
+                    3: "scripts/b.ts",
+                }
+            )
+        );
+        expect(reason(plan, 3)).toBe(
+            "target files reserved by higher-priority #2"
+        );
         expect(plan.batch).toEqual([]);
     });
 

@@ -24,6 +24,7 @@
 import type { ClaimVerdictState } from "./claim-verdict";
 import {
     inFlightSet,
+    ownerWaitPrsOf,
     planBatch,
     stalledPrsOf,
     resumeItems,
@@ -191,7 +192,8 @@ export function pick(input: PickerInput): PickResult {
         input.prFiles ?? {},
         (n) => port.issueDetail(n).body,
         config.inferredTargetFiles,
-        new Set(stalled.map((p) => p.pr))
+        new Set(stalled.map((p) => p.pr)),
+        ownerWaitPrsOf(input.prFacts ?? [])
     );
     const planned = planBatch(
         competing,

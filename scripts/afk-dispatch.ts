@@ -55,6 +55,7 @@ import {
     parseAreaModels,
     parseStalledPrHours,
     repairItems,
+    ownerWaitLine,
     priorityHoldLine,
     stalledPrLine,
     type PlanConfig,
@@ -833,6 +834,10 @@ async function main(): Promise<void> {
         // hold left the batch empty — a P0 admitted beside it explains itself.
         ...(picked.plan.priorityHold && picked.plan.batch.length === 0
             ? [priorityHoldLine(picked.plan.priorityHold)]
+            : []),
+        // A P0 behind an owner merge holds nothing (issue #9137): say so.
+        ...(picked.plan.ownerWaitP0 && !picked.plan.priorityHold
+            ? [ownerWaitLine(picked.plan.ownerWaitP0)]
             : []),
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
