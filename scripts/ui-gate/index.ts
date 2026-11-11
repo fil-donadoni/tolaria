@@ -1916,9 +1916,11 @@ async function main(): Promise<number> {
                     // row there UNWALKED. End it here, whatever the scope.
                     if (ctx.createdGame) {
                         setProgress(viewport.id, "ending the lane's game");
-                        await ensurePage();
                         await withDeadline(
-                            () => recreateLaneGame(page, ctx),
+                            async () => {
+                                await ensurePage();
+                                await recreateLaneGame(page, ctx);
+                            },
                             CELL_DEADLINE_MS,
                             `ending the ${viewport.id} lane game`
                         ).catch((e: unknown) =>
