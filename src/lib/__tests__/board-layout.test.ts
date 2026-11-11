@@ -4,6 +4,7 @@ import {
     bandedRowsLayout,
     densityTier,
     FULL_BOARD_TIER,
+    growthBandHeights,
     splitRowLayout,
     fanLayout,
     mirrorVertical,
@@ -1177,6 +1178,43 @@ describe("bandedRowsLayout growth (issue #9164)", () => {
     it("without growth is the unchanged even split, scale ≤ 1", () => {
         const placed = bandedRowsLayout({ bands, width: 1600, height: 900 });
         expect(Math.max(...placed.map((p) => p.scale))).toBeLessThanOrEqual(1);
+    });
+});
+
+describe("growthBandHeights (issue #9164)", () => {
+    it("pins a band squeezed under its base need, the rest by weight", () => {
+        // 1.45 : 1.015 of 300 gives the back band 123 < its 140 need.
+        const h = growthBandHeights(300, [1.45, 1.015], [140, 140]);
+        expect(h[1]).toBe(140);
+        expect(h[0]).toBeCloseTo(160);
+    });
+
+    it("is the proportional split when every share covers its need", () => {
+        const h = growthBandHeights(900, [1.45, 1.015], [140, 140]);
+        expect(h[0]).toBeCloseTo((900 * 1.45) / 2.465);
+        expect(h[1]).toBeCloseTo((900 * 1.015) / 2.465);
+    });
+
+    it("falls back to the proportional split when the needs do not fit", () => {
+        const h = growthBandHeights(200, [1.45, 1.015], [140, 140]);
+        expect(h[0]).toBeCloseTo((200 * 1.45) / 2.465);
+    });
+});
+
+describe("bandedRowsLayout growth: no row under base (issue #9164)", () => {
+    it("a grown creature row never squeezes the land row below base size", () => {
+        const t = densityTier(4);
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 1, centerYFrac: 0.28 },
+                { split: { left: 3, right: 0 }, centerYFrac: 0.74 },
+            ],
+            width: 800,
+            height: 2 * CARD_WIDTH * 1.4 + 40,
+            growth: [t.creatureGrowth, t.backGrowth],
+        });
+        for (const p of placed.slice(1))
+            expect(p.scale).toBeGreaterThanOrEqual(1);
     });
 });
 

@@ -535,6 +535,45 @@ export function densityTier(footprints: number): DensityTier {
     );
 }
 
+/** Height slices for grown bands (issue #9164). Every band first gets
+ *  `needs[i]` — the height its base card takes — when the zone can afford all
+ *  of them; the rest of the height is shared in proportion to `weights`. A
+ *  band whose proportional share falls under its need is pinned to the need,
+ *  so growth on one row never pushes another row under base size (a back row
+ *  squeezed to 0.9× by a 1.45× creature row read soft: Blur Index 0.61). A
+ *  zone that cannot afford every need is split purely by weight. Pure. */
+export function growthBandHeights(
+    height: number,
+    weights: readonly number[],
+    needs: readonly number[]
+): number[] {
+    const total = weights.reduce((a, b) => a + b, 0);
+    if (total <= 0) return weights.map(() => height / weights.length);
+    const proportional = weights.map((w) => (height * w) / total);
+    if (needs.reduce((a, b) => a + b, 0) > height) return proportional;
+    const pinned = weights.map(() => false);
+    for (;;) {
+        const pinnedHeight = needs.reduce(
+            (a, n, i) => (pinned[i] ? a + n : a),
+            0
+        );
+        const freeWeight = weights.reduce(
+            (a, w, i) => (pinned[i] ? a : a + w),
+            0
+        );
+        const heights = weights.map((w, i) =>
+            pinned[i]
+                ? needs[i]
+                : freeWeight > 0
+                  ? ((height - pinnedHeight) * w) / freeWeight
+                  : 0
+        );
+        const short = heights.findIndex((h, i) => !pinned[i] && h < needs[i]);
+        if (short === -1) return heights;
+        pinned[short] = true;
+    }
+}
+
 /**
  * Stacks several rows inside ONE full-height zone — the battlefield split into a
  * creature row and a lands+noncreature back row (Arena-style) without clipping.
@@ -598,13 +637,17 @@ export function bandedRowsLayout(opts: {
     const weights = growths.map((g, i) =>
         occupied.some(Boolean) && !occupied[i] ? 0 : g
     );
-    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    const heights = growthBandHeights(
+        height,
+        weights,
+        weights.map((w, i) =>
+            w > 0 ? cardHeight * Math.min(1, growths[i]) + bandPad : 0
+        )
+    );
     let consumed = 0;
     return bands.flatMap((band, i) => {
         const g = growths[i];
-        const bandHeight = growth
-            ? (height * weights[i]) / totalWeight
-            : height / bands.length;
+        const bandHeight = growth ? heights[i] : height / bands.length;
         const centerY = growth
             ? consumed + bandHeight / 2
             : height * band.centerYFrac;
