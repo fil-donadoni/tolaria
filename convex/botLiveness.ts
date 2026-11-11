@@ -6,8 +6,8 @@
 // clicks anything.
 //
 // - `reportStall` — the client driver's HAND-OFF when its escalation ladder
-//   ran out (issue #9003).
-// - `checkDeadline` — the server deadline (issue #9004): the one scheduled
+//   ran out.
+// - `checkDeadline` — the server deadline: the one scheduled
 //   check per game `saveGameState` arms while the Bot is owed
 //   (`convex/botDeadline.ts`). It holds when no client acts at all.
 //
