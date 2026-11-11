@@ -50957,6 +50957,14 @@
         "source": "compiled"
     },
     {
+        "name": "Mirrorpool",
+        "scryfallId": "edbea2b5-eed3-464b-9d5c-9591f309f298",
+        "oracleId": "57b86d5c-3269-44bc-a838-3c5439d820d9",
+        "firstSet": "ogw",
+        "firstPrintId": "edbea2b5-eed3-464b-9d5c-9591f309f298",
+        "firstPrintSet": "ogw"
+    },
+    {
         "name": "Mirrorwood Treefolk",
         "scryfallId": "ba9a1c94-2b7f-4df7-8517-a122616d9ae4",
         "oracleId": "fec51ab9-484f-46a8-b2b0-772a61d89e41",
