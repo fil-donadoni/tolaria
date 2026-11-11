@@ -424,7 +424,9 @@ describe("CR 701.20a — census: every shipped `reveal` Op notifies (issue #3425
                 // key comparison rather than spelled into a fourth expected
                 // shape, so the census keeps saying "these three fields and
                 // nothing else that could be a hand-rolled notification".
-                .filter((key) => key !== "bind")
+                // The random hand shape's `random: true` is the same kind of
+                // DATA: it picks WHICH card, not how it is shown.
+                .filter((key) => key !== "bind" && key !== "random")
                 .sort();
             expect(keys, card).toEqual(
                 keys.includes("cards")

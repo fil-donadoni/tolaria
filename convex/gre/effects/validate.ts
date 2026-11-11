@@ -1937,8 +1937,8 @@ function isPlayerCountersValue(value: unknown): boolean {
  *  (CR 122 counting / CR 404, issue #3243). All four keys are REQUIRED: `of` is
  *  a BARE PICKS ref (no `.property` — the same `isBarePicksRef` shape
  *  `discard`'s `cards` and `mayPay`'s `manaCostOf` accept), `read` and `zone`
- *  are single-member closed vocabularies naming the characteristic and lookup
- *  axes, and `player` is a PLAYER selector saying whose zone the ids are looked
+ *  are closed vocabularies naming the characteristic and lookup axes
+ *  (`zone`: `"graveyard"` | `"hand"`), and `player` is a PLAYER selector saying whose zone the ids are looked
  *  up in. `of` is family-checked as a PICKS position by the ordered ref pass
  *  (the `keyHint === "sum"` case in `collectRefUses`) — needed because the bare
  *  key `of` means an OBJECT everywhere else in the value grammar
@@ -1955,7 +1955,7 @@ function isSumValue(value: unknown): boolean {
     if (!allowed.every((k) => k in s)) return false;
     if (!Object.keys(s).every((k) => allowed.includes(k))) return false;
     if (s.read !== "manaValue") return false;
-    if (s.zone !== "graveyard") return false;
+    if (s.zone !== "graveyard" && s.zone !== "hand") return false;
     return isBarePicksRef(s.of) && isPlayerRef(s.player);
 }
 
@@ -2869,8 +2869,9 @@ function isNegatedValue(value: unknown): boolean {
  *  `negate`-wrapped value member for the negative of one of those
  *  non-negative-by-nature reads (Toxic Deluge's "-X/-X"), or the
  *  `setSize` of a bound set (Myr Battlesphere's "+X/+0" where X
- *  is how many Myr were tapped), or the opponents attacked this combat
- *  (melee's "+1/+1 for each", CR 702.121a). */
+ *  is how many Myr were tapped), or the `sum` over a bound set (a randomly
+ *  revealed hand card's mana value as "+X/+X"), or the opponents attacked
+ *  this combat (melee's "+1/+1 for each", CR 702.121a). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
     return (
@@ -2880,6 +2881,7 @@ function isSignedEffectValue(value: unknown): boolean {
         isCountersValue(value) ||
         isDomainValue(value) ||
         isSetSizeValue(value) ||
+        isSumValue(value) ||
         isOpponentsAttackedThisCombatValue(value) ||
         isNegatedValue(value)
     );

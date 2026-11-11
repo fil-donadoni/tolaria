@@ -147,13 +147,8 @@ export const noxiousVapors = defineCard(() => ({
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (parent PRD #1935, issue #1950) — every card below is
 // expressible with already-shipped Ops/keywords, per the issue's own scope
-// statement. ONE card is a commented stub instead (Planeswalker's Scorn) —
-// see its own comment for the specific tracked gap; it is a stop-and-issue
-// case per `.claude/rules/gre-development.md` § DSL-first authoring ("the Op
-// I need doesn't exist yet" is explicitly not a valid `resolve()`
-// justification). Dark Suspicions was the second such stub and has since
-// SHIPPED (issue #2006 closed both its gaps: the `count` construct's
-// `zone: "hand"` and the `{ difference: { from, minus } }` value).
+// statement. Planeswalker's Scorn and Dark Suspicions were once commented
+// stubs; both have since shipped as Effect Scripts.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Bog Down — {2}{B} Sorcery. "Kicker—Sacrifice two lands. Target player
@@ -735,30 +730,75 @@ export const phyrexianScuta = defineCard(() => ({
 }));
 
 // Planeswalker's Scorn — {2}{B} Enchantment. "{3}{B}: Target opponent
-// reveals a card at random from their hand. Target creature gets -X/-X
-// until end of turn, where X is the revealed card's mana value. Activate
-// only as a sorcery."
-//
-// STOP-AND-ISSUE (`.claude/rules/gre-development.md` § DSL-first authoring):
-// the engine has the underlying primitive
-// (`SpellContext.revealRandomHandCard`, CR 701.20a public reveal, used today
-// only from a `resolve()` closure in `tmp/colorless.cards.ts`) but no Effect
-// Script Op wraps it. The DSL's only random-hand-card Op is `lookRandomHand`
-// — deliberately the PRIVATE CR 400.2 "look" sibling
-// (`lookRandomHandCard`, known to the looker alone); using it here for a
-// card whose Oracle text says "reveals" would be a silent CR/visibility
-// violation, not a valid substitute, and it has no `bind` to read the
-// picked card's mana value back afterward regardless. Left as a stub
-// rather than a card-shaped `resolve()` ("the Op I need doesn't exist yet"
-// is explicitly not a valid `resolve()` justification).
-// tracked-by: #2003
-// export const planeswalkersScorn: CardDefinition = {
-//     id: "8ed08376-836f-4313-83d0-481895ead9da", // PLS 52
-//     name: "Planeswalker's Scorn",
-//     rarity: "rare",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Enchantment"],
-// };
+// reveals a card at random from their hand. Target creature gets -X/-X until
+// end of turn, where X is the revealed card's mana value. Activate only as a
+// sorcery."
+// Effect Script (ADR 0045): CR 701.20a random reveal (`reveal` with `random:
+// true` — the card stays in the opponent's hand, known to every player) bound
+// as a one-card picks set; X is that card's CR 202.3 mana value, read back in
+// the HAND (`sum` with `zone: "hand"`), applied as a -X/-X `pump` until
+// end of turn (CR 611.2a). An empty hand reveals nothing and X is 0.
+// "Activate only as a sorcery" is `sorcerySpeedOnly` (CR 602.5d).
+// compiler-gap: Target opponent reveals a card at random from their hand (#4592)
+export const planeswalkersScorn = defineCard(() => ({
+    id: "8ed08376-836f-4313-83d0-481895ead9da", // PLS 52
+    name: "Planeswalker's Scorn",
+    rarity: "rare",
+    oracleText:
+        "{3}{B}: Target opponent reveals a card at random from their hand. Target creature gets -X/-X until end of turn, where X is the revealed card's mana value. Activate only as a sorcery.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "planeswalkers-scorn-reveal",
+            oracleText:
+                "{3}{B}: Target opponent reveals a card at random from their hand. Target creature gets -X/-X until end of turn, where X is the revealed card's mana value. Activate only as a sorcery.",
+            cost: { mana: { X: 3, B: 1 } },
+            useStack: true,
+            sorcerySpeedOnly: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+            effects: [
+                {
+                    op: "reveal",
+                    player: { target: 0 },
+                    zone: "hand",
+                    random: true,
+                    bind: "$revealed",
+                },
+                {
+                    op: "pump",
+                    target: { target: 1 },
+                    power: {
+                        negate: {
+                            sum: {
+                                of: { ref: "$revealed" },
+                                read: "manaValue",
+                                zone: "hand",
+                                player: { target: 0 },
+                            },
+                        },
+                    },
+                    toughness: {
+                        negate: {
+                            sum: {
+                                of: { ref: "$revealed" },
+                                read: "manaValue",
+                                zone: "hand",
+                                player: { target: 0 },
+                            },
+                        },
+                    },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+}));
 
 // Shriek of Dread — {1}{B} Instant. "Target creature gains fear until end
 // of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant via the

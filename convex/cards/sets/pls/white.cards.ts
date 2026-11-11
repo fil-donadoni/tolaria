@@ -191,9 +191,8 @@ export const heroicDefiance = defineCard(() => ({
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1948, parent PRD #1935) — every card below is
 // expressible with already-shipped Ops/keywords (Kicker, Domain, cost
-// reduction, the CR 614.12 as-enters choice, the layer system). Two cards
-// hit genuine capability gaps and are left as tracked stubs at the end of
-// this section (Planeswalker's Mirth, Sunscape Battlemage).
+// reduction, the CR 614.12 as-enters choice, the layer system). Sunscape
+// Battlemage is documented, unregistered, at the end of this section.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Aura Blast — {1}{W} Instant. "Destroy target enchantment.\nDraw a card."
@@ -830,50 +829,77 @@ export const voiceOfAll = defineCard(() => ({
     })),
 }));
 
+// Planeswalker's Mirth — {2}{W} Enchantment. "{3}{W}: Target opponent reveals
+// a card at random from their hand. You gain life equal to that card's mana
+// value." Effect Script (ADR 0045): CR 701.20a random reveal (`reveal` with
+// `random: true` — the card stays in the opponent's hand, known to every
+// player) bound as a one-card picks set, then CR 119.3 life gain of the CR
+// 202.3 mana value read back off that set in the HAND (`sum` with `zone:
+// "hand"`). An empty hand reveals nothing and the sum over the empty set is 0.
+// compiler-gap: Target opponent reveals a card at random from their hand (#4592)
+export const planeswalkersMirth = defineCard(() => ({
+    id: "0205d094-c846-4aa0-ade8-2a52c57b11da", // PLS 12
+    name: "Planeswalker's Mirth",
+    rarity: "rare",
+    oracleText:
+        "{3}{W}: Target opponent reveals a card at random from their hand. You gain life equal to that card's mana value.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "planeswalkers-mirth-reveal",
+            oracleText:
+                "{3}{W}: Target opponent reveals a card at random from their hand. You gain life equal to that card's mana value.",
+            cost: { mana: { X: 3, W: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "reveal",
+                    player: { target: 0 },
+                    zone: "hand",
+                    random: true,
+                    bind: "$revealed",
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        sum: {
+                            of: { ref: "$revealed" },
+                            read: "manaValue",
+                            zone: "hand",
+                            player: { target: 0 },
+                        },
+                    },
+                },
+            ],
+        },
+    ],
+}));
+
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gap, tracked-by: #2003) — of the two PLS White
-// cards below, only Planeswalker's Mirth still needs a genuinely unbuilt
-// engine capability, tracked-by: #2003. Sunscape Battlemage's OWN blocker (issue #1328) is
-// resolved — see its bullet — so it stays documented here for the
-// implementation notes but is no longer a Guard-B divergence; it is
-// intentionally NOT registered (no exported CardDefinition) to keep the card
-// pool honest; flagged in the PR.
+// Not registered: Sunscape Battlemage. It is intentionally NOT registered (no
+// exported CardDefinition) to keep the card pool honest until someone does the
+// ordinary card work; nothing in the engine blocks it.
 // ─────────────────────────────────────────────────────────────────────────
-//
-//   • Planeswalker's Mirth (Enchantment) — "{3}{W}: Target opponent reveals a
-//     card at random from their hand. You gain life equal to that card's
-//     mana value." Needs a PUBLIC random-hand-card reveal Op with a `bind`
-//     (the `discardAtRandom` Op's shape, but revealing — the card stays in
-//     hand — not discarding: `SpellContext.revealRandomHandCard` already
-//     exists, used today only by Cursed Scroll's `resolve()`, but no Effect
-//     Script Op wraps it, and the existing `reveal` Op's two shapes — whole-
-//     hand and a searched-and-found card — are neither a RANDOM single-card
-//     reveal). tracked-by: #2003.
 //
 //   • Sunscape Battlemage (Creature) — "Kicker {1}{G} and/or {2}{U}\nWhen
 //     this creature enters, if it was kicked with its {1}{G} kicker, destroy
 //     target creature with flying.\nWhen this creature enters, if it was
 //     kicked with its {2}{U} kicker, draw two cards." Each ETB clause is a
-//     SEPARATELY-firing `TriggeredAbility` (CR 603.6a, a new stack item
-//     pushed after the permanent enters) whose `interveningIf` needs to read
-//     WHICH kicker was paid. That was the blocker when this note was
-//     written: nothing persisted a per-Kicker tally onto the entering
-//     permanent for a later-firing trigger to read (issue #1328's gap 1,
-//     "ETB-trigger readability of kicker" — Shivan Emissary / Benalish
-//     Emissary, `inv/*.ts`, the shipped precedent for leaving a card
-//     unshipped rather than working around it). NO LONGER APPLIES, and #1328
-//     itself CLOSED once it shipped: `kickerPayments` is now a typed,
-//     serialized field on `CardInstanceState`/`PermanentView` (#1950), and
-//     `additionalCostPaidCondition` (`abilities/triggers/shared.ts`, issue #2015) is
-//     the shared per-Kicker CHECK-TIME predicate its three shipped cycle
-//     siblings already use — paired, as they all are, with a resolution-time
+//     SEPARATELY-firing `TriggeredAbility` (CR 603.6a) that must know WHICH
+//     kicker was paid. `kickerPayments` on `CardInstanceState` /
+//     `PermanentView` records it, and `additionalCostPaidCondition`
+//     (`abilities/triggers/shared.ts`) is the per-Kicker check-time predicate
+//     its shipped cycle siblings use — paired with a resolution-time
 //     `if { additionalCostPaid: "<id>" }` branch inside the ability's own
-//     `effects[]` rather than an `interveningIf`; see that helper's doc block
-//     for why that branch is the load-bearing one (CR 707.10 ability copies),
-//     and why the blink hazard it used to guard against is gone. The card is
-//     unblocked
-//     and needs only ordinary card work — out of scope for issue #2560
-//     (a stale-reference fix, not a card implementation).
+//     `effects[]` (see that helper's doc block for why that branch is the
+//     load-bearing one, CR 707.10 ability copies).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS C4 — source-scoped prevention shields + divided allocation (#1955,

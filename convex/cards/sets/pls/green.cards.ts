@@ -509,26 +509,68 @@ export const nemataGroveGuardian = defineCard(() => ({
 }));
 
 // Planeswalker's Favor — {2}{G} Enchantment. "{3}{G}: Target opponent
-// reveals a card at random from their hand. Target creature gets +X/+X
-// until end of turn, where X is the revealed card's mana value."
-//
-// STOP-AND-ISSUE (`.claude/rules/gre-development.md` § DSL-first authoring):
-// the engine has the underlying primitive (`SpellContext.
-// revealRandomHandCard`, CR 701.20a public reveal) but no Effect Script Op
-// wraps it — the DSL's only random-hand-card Op, `lookRandomHand`, is the
-// deliberately PRIVATE CR 400.2 sibling and has no `bind` to read the
-// picked card's mana value back afterward regardless. Same gap as
-// Planeswalker's Scorn (`pls/black.cards.ts`, the cycle's black member, issue
-// #1950) — tracked by the SAME shared issue, which explicitly lists this
-// slice (#1952) among its siblings. Left as a stub rather than a
-// card-shaped `resolve()`. tracked-by: #2003
-// export const planeswalkersFavor: CardDefinition = {
-//     id: "b3387540-93bf-451e-8e7a-fc78caab42b0", // PLS 86
-//     name: "Planeswalker's Favor",
-//     rarity: "rare",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Enchantment"],
-// };
+// reveals a card at random from their hand. Target creature gets +X/+X until
+// end of turn, where X is the revealed card's mana value."
+// Effect Script (ADR 0045): CR 701.20a random reveal (`reveal` with `random:
+// true` — the card stays in the opponent's hand, known to every player) bound
+// as a one-card picks set; X is that card's CR 202.3 mana value, read back in
+// the HAND (`sum` with `zone: "hand"`), applied as a +X/+X `pump` until
+// end of turn (CR 611.2a). An empty hand reveals nothing and X is 0.
+// compiler-gap: Target opponent reveals a card at random from their hand (#4592)
+export const planeswalkersFavor = defineCard(() => ({
+    id: "b3387540-93bf-451e-8e7a-fc78caab42b0", // PLS 86
+    name: "Planeswalker's Favor",
+    rarity: "rare",
+    oracleText:
+        "{3}{G}: Target opponent reveals a card at random from their hand. Target creature gets +X/+X until end of turn, where X is the revealed card's mana value.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "planeswalkers-favor-reveal",
+            oracleText:
+                "{3}{G}: Target opponent reveals a card at random from their hand. Target creature gets +X/+X until end of turn, where X is the revealed card's mana value.",
+            cost: { mana: { X: 3, G: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+            effects: [
+                {
+                    op: "reveal",
+                    player: { target: 0 },
+                    zone: "hand",
+                    random: true,
+                    bind: "$revealed",
+                },
+                {
+                    op: "pump",
+                    target: { target: 1 },
+                    power: {
+                        sum: {
+                            of: { ref: "$revealed" },
+                            read: "manaValue",
+                            zone: "hand",
+                            player: { target: 0 },
+                        },
+                    },
+                    toughness: {
+                        sum: {
+                            of: { ref: "$revealed" },
+                            read: "manaValue",
+                            zone: "hand",
+                            player: { target: 0 },
+                        },
+                    },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+}));
 
 // Primal Growth — {2}{G} Sorcery. "Kicker—Sacrifice a creature. Search your
 // library for a basic land card, put that card onto the battlefield, then
