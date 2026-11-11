@@ -4331,12 +4331,21 @@ export type PendingTarget = {
      *  Propagated from TargetRequirement.spellWasKicked. Used by Ertai's
      *  Trickery. Ignored for non-spell target types. */
     spellWasKicked?: boolean;
+    /** Narrows the spell half of a stack-object target to colorless spells
+     *  (CR 105.2c); abilities pass. Propagated from
+     *  TargetRequirement.spellColorless. Ignored for non-spell types. */
+    spellColorless?: boolean;
     /** Restricts a stack-object target by object kind (CR 113 / 114.1).
      *  Propagated from TargetRequirement.spellStackKind. Used by Brown Ouphe
      *  ("counter target activated ability ...") and Stifle ("... activated or
      *  triggered ability", `"ability"`), and Ward ("... spell or ability",
      *  `"any"`, CR 702.21a). Ignored for non-spell types. */
-    spellStackKind?: "spell" | "activated-ability" | "ability" | "any";
+    spellStackKind?:
+        | "spell"
+        | "activated-ability"
+        | "ability"
+        | "spell-or-triggered-ability"
+        | "any";
     /** Restricts a stack-object target to objects whose source card types
      *  include at least one of these (CR 113.7a). Propagated from
      *  TargetRequirement.stackSourceTypeFilter. Used by Brown Ouphe

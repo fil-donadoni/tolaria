@@ -1269,19 +1269,30 @@ const playerControlsMoreThanDescriptor = defineFilter<
 // stays ALWAYS ACTIVE (never `undefined`, never skipped by the registry's
 // loop semantics), matching the pre-refactor implicit default exactly.
 const spellStackKindDescriptor = defineFilter<
-    "spell" | "activated-ability" | "ability" | "any"
+    | "spell"
+    | "activated-ability"
+    | "ability"
+    | "spell-or-triggered-ability"
+    | "any"
 >({
     lower: (req) => req.spellStackKind ?? "spell",
     checks: {
         spell: (item, value) => {
             const isAbilityItem = !isSpellStackItem(item);
-            const acceptsSpell = value === "spell" || value === "any";
+            const acceptsSpell =
+                value === "spell" ||
+                value === "spell-or-triggered-ability" ||
+                value === "any";
             const acceptsAbility =
                 value === "activated-ability" ||
                 value === "ability" ||
+                value === "spell-or-triggered-ability" ||
                 value === "any";
             if (isAbilityItem) {
                 if (!acceptsAbility) return "Target must be a spell";
+                if (value === "spell-or-triggered-ability" && item.abilityId) {
+                    return "Target must be a spell or triggered ability";
+                }
                 if (value === "activated-ability" && !item.abilityId) {
                     return "Target must be an activated ability";
                 }
@@ -1515,6 +1526,21 @@ const spellWasKickedDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 105.2c — "colorless spell": narrows the SPELL half of a stack-object
+// target only. An ability on the stack passes (the kind filter above already
+// decided whether abilities are admitted), so "triggered ability or colorless
+// spell" is `spellStackKind: "spell-or-triggered-ability"` + this.
+const spellColorlessDescriptor = defineFilter<boolean>({
+    lower: (req) => (req.spellColorless ? true : undefined),
+    checks: {
+        spell: (item) =>
+            !isSpellStackItem(item) ||
+            STATIC_EFFECT_CTX.getColors(item).length === 0
+                ? null
+                : "Target spell must be colorless",
+    },
+});
+
 // CR 114.1 + 701.8 — Equinox's granted counter ability: the chosen spell
 // must be one that would destroy a land the activating player controls.
 const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
@@ -1582,6 +1608,7 @@ export const SPELL_ONLY_FILTER_KEYS = [
     // targets / Kicker state rather than its characteristics.
     "spellTargetsPermanentFilter",
     "spellWasKicked",
+    "spellColorless",
 ] as const;
 
 export type SpellOnlyFilterKey = (typeof SPELL_ONLY_FILTER_KEYS)[number];
@@ -1654,6 +1681,7 @@ export const REGISTRY = {
     spellTargetsPermanentFilter:
         spellTargetsPermanentFilterDescriptor as FilterDescriptor<unknown>,
     spellWasKicked: spellWasKickedDescriptor as FilterDescriptor<unknown>,
+    spellColorless: spellColorlessDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
     playerControlsMoreThan:
@@ -1816,6 +1844,7 @@ export const SPELL_FILTER_KEYS = [
     "spellWouldDestroyLandYouControl",
     "spellTargetsPermanentFilter",
     "spellWasKicked",
+    "spellColorless",
 ] as const;
 
 export type SpellFilterKey = (typeof SPELL_FILTER_KEYS)[number];
@@ -1824,7 +1853,12 @@ export type SpellFilterKey = (typeof SPELL_FILTER_KEYS)[number];
  *  output shape, and exactly what both `getLegalTargets` and `selectTarget`
  *  pass into `checkSpellTargetFilters`. */
 export type SpellFilterValues = Partial<{
-    spellStackKind: "spell" | "activated-ability" | "ability" | "any";
+    spellStackKind:
+        | "spell"
+        | "activated-ability"
+        | "ability"
+        | "spell-or-triggered-ability"
+        | "any";
     controller: TargetRequirement["controller"];
     stackSourceTypeFilter: CardType[];
     spellTargetsInstanceIds: ReadonlyArray<string>;
@@ -1842,6 +1876,7 @@ export type SpellFilterValues = Partial<{
         controller?: TargetRequirement["controller"];
     };
     spellWasKicked: boolean;
+    spellColorless: boolean;
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a stack item)

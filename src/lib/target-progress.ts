@@ -25,6 +25,9 @@ const STACK_KIND_LABEL: Record<string, string> = {
     // practice Ward's own target auto-resolves (spellTargetsSelfSource); this
     // label only surfaces in the rare multi-legal-target fallback prompt.
     any: "a spell or ability on the stack",
+    // CR 113 — "triggered ability or colorless spell": the colorless
+    // narrowing (`spellColorless`) applies to the spell half only.
+    "spell-or-triggered-ability": "a spell or triggered ability on the stack",
 };
 
 export function formatTargetLabel(

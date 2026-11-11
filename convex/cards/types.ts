@@ -1167,6 +1167,13 @@ export interface TargetRequirement {
      *  UNkicked spells qualify). An ability on the stack is never kicked.
      *  Ignored for non-spell target types. */
     spellWasKicked?: boolean;
+    /** Narrows the SPELL half of a stack-object target to colorless spells
+     *  (CR 105.2c — a spell with no colors; CR 202.2 derives colors from the
+     *  mana cost). Abilities on the stack are NOT narrowed by it: the filter
+     *  exists for the disjunction "triggered ability or colorless spell"
+     *  (`spellStackKind: "spell-or-triggered-ability"`), where the colorless
+     *  clause modifies only "spell". Ignored for non-spell target types. */
+    spellColorless?: boolean;
     /** Divide-as-you-choose marker (CR 601.2d / 120.4). When set, this spell
      *  divides a fixed total of damage / counters among the chosen targets,
      *  each target getting at least 1. `total` resolves the budget:
@@ -1212,12 +1219,21 @@ export interface TargetRequirement {
      *  Stifle ("Counter target activated or triggered ability"). `"any"`
      *  (CR 702.21a, Ward) keeps BOTH spells and abilities — "counter that
      *  spell or ability" needs no kind narrowing at all, unlike every other
-     *  value here which excludes one side or the other. Abilities are legal
+     *  value here which excludes one side or the other.
+     *  `"spell-or-triggered-ability"` keeps spells and TRIGGERED (and delayed)
+     *  abilities but no activated ones — "target triggered ability or ...
+     *  spell"; pair it with `spellColorless` for the spell half's narrowing.
+     *  Abilities are legal
      *  targets ONLY under an explicit ability-admitting kind (`"activated-
      *  ability"` / `"ability"` / `"any"`). Mana abilities never use the stack
      *  (CR 605.3a), so they are never a legal target regardless. Ignored for
      *  non-spell target types. */
-    spellStackKind?: "spell" | "activated-ability" | "ability" | "any";
+    spellStackKind?:
+        | "spell"
+        | "activated-ability"
+        | "ability"
+        | "spell-or-triggered-ability"
+        | "any";
     /** Restricts a stack-object target (`type: "spell"`) to objects whose
      *  SOURCE card types include at least one of these (CR 113.7a). An
      *  activated ability on the stack carries the source permanent's card

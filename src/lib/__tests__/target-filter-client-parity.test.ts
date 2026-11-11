@@ -41,6 +41,7 @@ import {
 } from "~/lib/card-utils";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 
+import { solRing } from "@convex/cards/sets/lea/colorless.cards";
 import { prohibit } from "@convex/cards/sets/inv/blue.cards";
 import { gainsay } from "@convex/cards/sets/pls/blue.cards";
 import { fireAndBrimstone } from "@convex/cards/sets/drk/white.cards";
@@ -171,6 +172,23 @@ describe("spell-target client parity (issue #1734)", () => {
         const server = serverOffered(state, req);
         expect(server).toHaveLength(1);
         expect(clientSpellOffered(state, req)).toEqual(server);
+    });
+
+    it("spellColorless + spell-or-triggered-ability (CR 105.2c) — server and client offer the colorless spell and the triggered ability only", () => {
+        const state = stackWith(counterspell().id, solRing().id);
+        const trig = pushSpell(state, counterspell().id, "p2");
+        trig.triggeredAbilityId = "some-trigger";
+        const act = pushSpell(state, counterspell().id, "p2");
+        act.abilityId = "some-activation";
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellStackKind: "spell-or-triggered-ability",
+            spellColorless: true,
+        };
+        const server = serverOffered(state, req);
+        expect(server.sort()).toEqual([state.stack[1].id, trig.id].sort());
+        expect(clientSpellOffered(state, req).sort()).toEqual(server);
     });
 
     it("delayed triggers are not spells (CR 603.7a) — offered set matches the server", () => {
