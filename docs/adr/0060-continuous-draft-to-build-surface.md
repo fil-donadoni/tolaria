@@ -51,10 +51,14 @@ heuristic Auto-Pick overrides a present-but-slow human's actual intent.
   card" idea for an away player — the heuristic fallback picks a real card, not
   position 1. Never random.
 
-- **Timer is on/off, following the official MTGO/Wizards descending schedule**
-  (amends ADR 0055's admin-configurable fixed `timerSeconds`). When on, seconds
-  are a function of **cards remaining in the pack**: 15→40, 14→40, 13→35,
-  12→30, 11→25, 10→25, 9→20, 8→20, 7→15, 6→10, 5→10, 4→5, 3→5, 2→5, 1→auto
+- **Timer is on/off, following an Arena-like descending schedule**
+  (amends ADR 0055's admin-configurable fixed `timerSeconds`; table replaced in
+  issue #9149 — the original MTR Appendix B paper table, 40 s → 5 s, was too
+  harsh for the last picks). The shape is the REPORTED MTG Arena one (Wizards
+  publishes no per-pick table): 75 s first pick, −5 s per pick, floor 30 s.
+  When on, seconds are a function of **cards remaining in the pack**: 15→75,
+  14→70, 13→65, 12→60, 11→55, 10→50, 9→45, 8→40, 7→35, 6→30, 5→30, 4→30,
+  3→30, 2→30, 1→auto
   (single card, no choice). Packs smaller than 15 (ARN/ATQ = 8 cards) index the
   same table by cards-remaining, so a small pack simply starts lower on the
   schedule. The between-pack review period (30s after pack 1, +15s each) is
