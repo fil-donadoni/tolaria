@@ -57,10 +57,10 @@ describe("LimitedDraftTimer — absent timer (issue #2238)", () => {
 });
 
 describe("LimitedDraftTimer — bar fill relative to THIS Pick's allowance", () => {
-    // 15 cards remaining -> 40s allowance (pickTimerSecondsForCardsRemaining).
+    // 8 cards remaining -> 40s allowance (pickTimerSecondsForCardsRemaining).
     it("starts full at the beginning of the Pick", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         expect(scaleXOf(fillEl(container))).toBe(1);
         expect(readoutText(container)).toBe("40s left");
@@ -68,7 +68,7 @@ describe("LimitedDraftTimer — bar fill relative to THIS Pick's allowance", () 
 
     it("drains proportionally to elapsed time against the 40s allowance, not the schedule max", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(10_000));
         // The READOUT (and, below, the fraction it stands for) is the TRUE
@@ -87,18 +87,18 @@ describe("LimitedDraftTimer — bar fill relative to THIS Pick's allowance", () 
 
     it("(bug-fix, blocking finding #2) targets one tick further ahead than the true remaining time once ticking, so a real browser's transition arrives in sync instead of trailing a uniform 1s behind", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={5_000} cardsRemaining={4} />
+            <LimitedDraftTimer pickDeadline={30_000} cardsRemaining={4} />
         );
         // Before any tick has fired, the bar is NOT projected ahead — it
         // reads the true fraction (1, full) so a fresh Pick still starts
         // full.
         expect(scaleXOf(fillEl(container))).toBe(1);
-        act(() => vi.advanceTimersByTime(1_000)); // one tick: 4s of true time left
-        // True remaining is 4s (0.8 of the 5s allowance). The bar's target
-        // is one tick further ahead: 3s / 5s = 0.6.
-        expect(scaleXOf(fillEl(container))).toBeCloseTo(0.6, 5);
-        expect(readoutText(container)).toBe("4s left");
-        act(() => vi.advanceTimersByTime(3_000)); // 3 more ticks: true time now 1s left
+        act(() => vi.advanceTimersByTime(1_000)); // one tick: 29s of true time left
+        // True remaining is 29s of the 30s allowance. The bar's target is one
+        // tick further ahead: 28s / 30s.
+        expect(scaleXOf(fillEl(container))).toBeCloseTo(28 / 30, 5);
+        expect(readoutText(container)).toBe("29s left");
+        act(() => vi.advanceTimersByTime(28_000)); // 28 more ticks: true time now 1s left
         // barRemainingMs = max(0, 1000 - 1000) = 0 -> the bar reaches EMPTY
         // one tick before the readout says "Auto-picking…" is due — this is
         // the fix: in a real browser the transition toward 0 completes
@@ -110,26 +110,26 @@ describe("LimitedDraftTimer — bar fill relative to THIS Pick's allowance", () 
 
     it("reads empty and shows the expiry text once the deadline passes", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(40_000));
         expect(scaleXOf(fillEl(container))).toBe(0);
         expect(readoutText(container)).toBe("Auto-picking…");
     });
 
-    it("a short Pick (4 cards remaining -> 5s) starts full too — full always means 'just started'", () => {
+    it("a floor-length Pick (4 cards remaining -> 30s) starts full too — full always means 'just started'", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={5_000} cardsRemaining={4} />
+            <LimitedDraftTimer pickDeadline={30_000} cardsRemaining={4} />
         );
         expect(scaleXOf(fillEl(container))).toBe(1);
-        expect(readoutText(container)).toBe("5s left");
+        expect(readoutText(container)).toBe("30s left");
     });
 });
 
 describe("LimitedDraftTimer — urgent tone at the unchanged 10s threshold", () => {
     it("is NOT urgent just above the threshold", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(29_000)); // 11s left
         expect(fillEl(container).className).not.toContain("bg-danger");
@@ -141,7 +141,7 @@ describe("LimitedDraftTimer — urgent tone at the unchanged 10s threshold", () 
 
     it("flips both bar and readout to the danger tone at <=10s left", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(30_000)); // exactly 10s left
         expect(fillEl(container).className).toContain("bg-danger");
@@ -151,7 +151,7 @@ describe("LimitedDraftTimer — urgent tone at the unchanged 10s threshold", () 
         expect(readout.className).toContain("text-danger-strong");
     });
 
-    it("a Pick whose whole allowance is <=10s is urgent from its first instant (born urgent)", () => {
+    it("a Pick that is already within its last 10s is urgent from its first render (born urgent)", () => {
         const { container } = render(
             <LimitedDraftTimer pickDeadline={5_000} cardsRemaining={4} />
         );
@@ -162,7 +162,7 @@ describe("LimitedDraftTimer — urgent tone at the unchanged 10s threshold", () 
 describe("LimitedDraftTimer — motion (transform only, never a layout property)", () => {
     it("full motion applies a CSS transition on transform", () => {
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         expect(fillEl(container).className).toContain("transition-transform");
     });
@@ -170,7 +170,7 @@ describe("LimitedDraftTimer — motion (transform only, never a layout property)
     it("reduced motion drops the transition and advances in discrete 1s steps instead — never frozen, never hidden", () => {
         reduceMotion = true;
         const { container } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         expect(fillEl(container).className).not.toContain(
             "transition-transform"
@@ -188,7 +188,7 @@ describe("LimitedDraftTimer — motion (transform only, never a layout property)
 describe("LimitedDraftTimer — accessible live region does not spam every tick", () => {
     it("the role=timer live region text stays put through a run of ticks that don't cross a phase boundary", () => {
         const { getByRole } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         expect(getByRole("timer").textContent).toBe("40s left");
         act(() => vi.advanceTimersByTime(5_000)); // still "normal" phase
@@ -197,7 +197,7 @@ describe("LimitedDraftTimer — accessible live region does not spam every tick"
 
     it("the live region DOES update once the phase actually changes (urgent, then expiry)", () => {
         const { getByRole } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(30_000));
         expect(getByRole("timer").textContent).toBe("10s left");
@@ -206,22 +206,20 @@ describe("LimitedDraftTimer — accessible live region does not spam every tick"
     });
 
     it("(bug-fix, blocking finding #1) re-syncs the live region when a NEW PICK starts even if the phase doesn't change across the boundary — catches the frozen-across-picks case, not just a phase transition", () => {
-        // Pick A: 15 cards remaining (40s allowance) — starts "normal".
+        // Pick A: 8 cards remaining (40s allowance) — starts "normal".
         const { container, getByRole, rerender } = render(
-            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={15} />
+            <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
         act(() => vi.advanceTimersByTime(32_000)); // 8s left -> enters "urgent"
         expect(getByRole("timer").textContent).toBe("8s left");
 
-        // Pick B starts right away: 4 cards remaining -> a fresh 5s
-        // allowance, born "urgent" (5s <= URGENT_THRESHOLD_SECONDS). The
+        // Pick B starts right away: 4 cards remaining, 5s left on its
+        // deadline, born "urgent" (5s <= URGENT_THRESHOLD_SECONDS). The
         // PHASE stays "urgent" across this boundary (urgent -> urgent), so a
         // fix that re-syncs only on a phase change would never fire here —
-        // this is exactly the schedule's ≤10s-allowance run at 6/5/4/3/2
-        // cards remaining (picks 10-14 of a 15-card Booster), which is
-        // "most cards spent below the urgent threshold, most of every
-        // Booster". The live region must still report Pick B's own fresh
-        // 5s, not Pick A's stale "8s left".
+        // this is a Seat that picks late in two consecutive packs. The live
+        // region must still report Pick B's own 5s, not Pick A's stale
+        // "8s left".
         rerender(
             <LimitedDraftTimer pickDeadline={37_000} cardsRemaining={4} />
         );

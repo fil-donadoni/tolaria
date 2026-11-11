@@ -794,7 +794,7 @@ ammette on-ramp parziali all'80% per sheet).
 `convex/limited/draftEngine.ts`. Si prende una carta, si passa il resto; i pack
 ruotano sinistra/destra/sinistra a ogni round; ogni seat ha una **coda di pack in
 arrivo**, così un seat veloce non si serializza su uno lento. Timer per pick
-opzionale, con la scaletta ufficiale discendente indicizzata sulle carte rimaste
+opzionale, con una scaletta discendente stile Arena (75 s → 30 s) indicizzata sulle carte rimaste
 (`pickTimerSchedule.ts`) e Auto-Pick cancellato via `pickSeq`.
 
 Il **Vintage Cube** (ADR 0062) è una sorgente draft speciale: il pool è
