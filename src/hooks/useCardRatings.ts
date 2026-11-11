@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
+import type { ManaCost, Rarity } from "@convex/cards/types";
 
 // Bot Pick Rating Admin editor (PRD #1296 Slice C, issue #1300). Thin wrapper
 // hooks over `convex/limited/cardRatings.ts`'s query/mutations — mirrors
@@ -8,12 +9,22 @@ import { api } from "@convex/_generated/api";
 // `api` directly (CLAUDE.md: types come from `convex/`, the frontend only
 // reaches the GRE/domain through public mutations/queries).
 
-/** One card of a chosen scope, annotated with both rating layers — the exact
- *  wire shape `listScopeCardRatings` returns (`{ cardId, name, dbRating,
- *  seedRating }`). */
-export type ScopeCardRating = FunctionReturnType<
+type ScopeCardRatingWire = FunctionReturnType<
     typeof api.limited.cardRatings.listScopeCardRatings
 >[number];
+
+/** One card of a chosen scope, annotated with both rating layers — the wire
+ *  shape `listScopeCardRatings` returns (`{ cardId, name, dbRating,
+ *  seedRating, fallbackRating, isFallback, manaCost, manaValue, rarity,
+ *  types, colours, archetypes }`). `manaCost` and `rarity` are narrowed from
+ *  the validator's `any` / `string` to the definition's own types. */
+export type ScopeCardRating = Omit<
+    ScopeCardRatingWire,
+    "manaCost" | "rarity"
+> & {
+    manaCost: ManaCost | null;
+    rarity: Rarity | null;
+};
 
 /** Every rated/ratable card of `scope`, `undefined` while loading. `scope`
  *  undefined skips the query (no scope chosen yet). Admin-gated server-side
@@ -27,7 +38,7 @@ export function useScopeCardRatings(
     return useQuery(
         api.limited.cardRatings.listScopeCardRatings,
         scope ? { scope } : "skip"
-    );
+    ) as ScopeCardRating[] | undefined;
 }
 
 /** The two write mutations the editor's inline rating controls fire —

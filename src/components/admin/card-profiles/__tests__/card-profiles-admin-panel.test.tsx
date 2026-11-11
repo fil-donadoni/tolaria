@@ -1,6 +1,6 @@
 // CardProfilesAdminPanel + CardProfilesPage wiring (PRD #1607, ADR 0072,
 // issue #1614): `CardProfilesAdminPanel` owns ONLY the admin gate (mirrors
-// `PickRatingAdminPanel`/`BanlistAdminPanel`); `CardProfilesPage` — mounted
+// `PickRatingsAdminPanel`/`BanlistAdminPanel`); `CardProfilesPage` — mounted
 // only once the gate passes — owns scope selection and the query/mutation
 // hooks, handing plain data + callbacks down to the presentational
 // `CardProfilesPage`'s table (its own dedicated test,

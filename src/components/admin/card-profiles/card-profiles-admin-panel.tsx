@@ -6,7 +6,7 @@ import CardProfilesPage from "./card-profiles-page";
 /**
  * Admin-only Card Profile editor entry point (PRD #1607, ADR 0072, issue
  * #1614). Self-gated on `canEditPresets` — the same admin predicate
- * `PickRatingAdminPanel`/`BanlistAdminPanel` use (ADR 0033) — renders
+ * `PickRatingsAdminPanel`/`BanlistAdminPanel` use (ADR 0033) — renders
  * nothing for a non-admin or a still-loading user. THIS component calls only
  * `useCurrentUser`, deferring every admin-gated query/mutation hook to
  * `CardProfilesPage`, which mounts ONLY once the gate passes — so the

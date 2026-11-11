@@ -30,6 +30,10 @@ import { getPickRating, getScopeMedianRating } from "./pickRatings";
 import { getBoosterConfig } from "./registry";
 import { buildCubePool, isCubeSource } from "./cube";
 import { resolveCardName } from "../cards";
+import { tryGetDefinition } from "../cards/registry";
+import { getCardColorIdentity } from "../cards/colors";
+import { manaValue } from "../gre/constants";
+import type { Color, ManaCost, Rarity } from "../cards/types";
 import type { GetPickRating } from "./botDrafter";
 
 /** Resolves ONE `(scope, cardId)` pair to its DATABASE rating, or `null` when
@@ -130,6 +134,48 @@ export interface ScopeCardRating extends ScopeCard {
     fallbackRating: number;
     /** `true` when neither layer rates the card: "manual rating missing". */
     isFallback: boolean;
+    /** The admin table's descriptive columns and filters (PRD #8772, issue
+     *  #8908) — read off the card's definition, `null`/`[]` for an id with
+     *  none. `rarity` is the HOME-set rarity (`CardDefinition.rarity`). */
+    manaCost: ManaCost | null;
+    manaValue: number;
+    rarity: Rarity | null;
+    types: string[];
+    colours: Color[];
+    /** The card's EFFECTIVE Archetype Catalogue ids in this scope (database
+     *  layer over the census seed) — `[]` while unprofiled. */
+    archetypes: string[];
+}
+
+/** Where a card's effective rating comes from: an explicit database write
+ *  (an Override, even one equal to the seed), the checked-in seed, or the
+ *  scope median it falls back to (issue #7652). */
+export type RatingSource = "override" | "seed" | "median";
+
+/** The descriptive half of a `ScopeCardRating`, from the card's definition. */
+export function describeScopeCard(
+    cardId: string
+): Pick<
+    ScopeCardRating,
+    "manaCost" | "manaValue" | "rarity" | "types" | "colours"
+> {
+    const def = tryGetDefinition(cardId);
+    if (def === null) {
+        return {
+            manaCost: null,
+            manaValue: 0,
+            rarity: null,
+            types: [],
+            colours: [],
+        };
+    }
+    return {
+        manaCost: def.manaCost ?? null,
+        manaValue: manaValue(def.manaCost),
+        rarity: def.rarity,
+        types: [...def.types],
+        colours: getCardColorIdentity(def),
+    };
 }
 
 /** Enumerates the distinct cards of a scope — a Draftable Set's Booster
@@ -184,7 +230,8 @@ export function listScopeCards(scope: string): ScopeCard[] {
 export function buildScopeCardRatings(
     scope: string,
     cards: readonly ScopeCard[],
-    getDbRating: GetDbRating
+    getDbRating: GetDbRating,
+    getArchetypes: (cardId: string) => readonly string[] = () => []
 ): ScopeCardRating[] {
     const normalizedScope = scope.toLowerCase();
     const fallbackRating = getScopeMedianRating(normalizedScope);
@@ -197,6 +244,8 @@ export function buildScopeCardRatings(
             seedRating,
             fallbackRating,
             isFallback: dbRating === null && seedRating === null,
+            ...describeScopeCard(card.cardId),
+            archetypes: [...getArchetypes(card.cardId)],
         };
     });
 }
