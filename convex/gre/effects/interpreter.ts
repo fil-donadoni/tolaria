@@ -1029,8 +1029,8 @@ function resolveValue(
     // characteristic across the SET of cards a preceding Op bound, the
     // aggregate sibling of the single-object `manaValue` above. `of` is a bare
     // picks ref read through the SAME `resolvePicks` every other picks consumer
-    // uses; the ids are looked up in `player`'s graveyard through the SAME
-    // `ctx.getGraveyardCards` reader `picksMatchFilter` uses (CR 404), and
+    // uses; the ids are looked up in `player`'s `zone` (graveyard or hand)
+    // through the SAME readers `picksMatchFilter` uses (CR 404 / CR 402), and
     // `read` names the characteristic (CR 202.3 mana value, with {X} folded to
     // 0 outside the stack per CR 202.3e — the registry read already does that).
     //
@@ -1041,7 +1041,7 @@ function resolveValue(
     // set is 0.
     // An unresolvable `player` IS undefined, so the consuming Op skips exactly
     // as it does for any other missing player ref. An id that has since left
-    // the graveyard simply contributes nothing — the read is live rather than a
+    // the zone simply contributes nothing — the read is live rather than a
     // CR 608.2h snapshot replay, a deliberate deviation documented on the
     // type.
     if ("sum" in value) {
@@ -1049,7 +1049,13 @@ function resolveValue(
         if (!playerId) return undefined;
         const picks = resolvePicks(ctx, value.sum.of);
         if (!picks || picks.length === 0) return 0;
-        const cards = ctx.getGraveyardCards(playerId);
+        // CR 701.20a — a card revealed from hand is still in the hand, so a
+        // random-reveal binding is looked up there (CR 402); every other
+        // picks binding names cards its Op left in the graveyard (CR 404).
+        const cards =
+            value.sum.zone === "hand"
+                ? ctx.getHandCards(playerId)
+                : ctx.getGraveyardCards(playerId);
         let total = 0;
         for (const id of picks) {
             const card = cards.find((c) => c.id === id);
