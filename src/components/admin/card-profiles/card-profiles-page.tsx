@@ -12,6 +12,7 @@ import type { SortState } from "~/lib/adminTableSort";
 import AdminReviewProgress from "../tool/admin-review-progress";
 import AdminScopeRail from "../tool/admin-scope-rail";
 import CardProfilesCapabilityRail from "./card-profiles-capability-rail";
+import CardProfilesExportButton from "./card-profiles-export-button";
 import CardProfilesFilters from "./card-profiles-filters";
 import CardProfilesScopeRail from "./card-profiles-scope-rail";
 import CardProfilesSweepBoard from "./card-profiles-sweep-board";
@@ -49,8 +50,8 @@ type FilterKey = "status" | "archetype" | "provides" | "requires";
  *  out of the way. **Archetypes** is per scope: the rail picks the scope and
  *  its catalogue rows filter the table. Either tab's rail opens the sweep
  *  board on one catalogue row (issue #8905) in the table's place — the
- *  Capabilities tab's rail carries no scope, only the Capability rows.
- *  Mounted only by
+ *  Capabilities tab's rail carries no scope, only the Capability rows. Either rail's Export downloads its layer in
+ *  seed-file format (issue #8907). Mounted only by
  *  `CardProfilesAdminPanel` once the admin gate has passed. */
 export default function CardProfilesPage() {
     const draftableSets = useDraftableSets();
@@ -139,6 +140,10 @@ export default function CardProfilesPage() {
                     onToggle={() => setRailOpen((open) => !open)}
                     label="Catalogue rail"
                 >
+                    <CardProfilesExportButton
+                        layer="capabilities"
+                        scope={undefined}
+                    />
                     <CardProfilesCapabilityRail
                         cards={cards}
                         onSweep={(kind, id) => setSweep({ kind, id })}
@@ -162,6 +167,10 @@ export default function CardProfilesPage() {
                             toggleFilter("archetype", id)
                         }
                         onSweep={(id) => setSweep({ kind: "archetype", id })}
+                    />
+                    <CardProfilesExportButton
+                        layer="archetypes"
+                        scope={resolvedScope}
                     />
                 </AdminScopeRail>
             )}
