@@ -97,3 +97,16 @@ export function useCardProfileExport() {
             ...(scope === undefined ? {} : { scope }),
         });
 }
+
+/** The Archetype Catalogue's two admin writes — add a row, edit a row. Both
+ *  re-validate server-side (`archetypeCatalogueWriteErrors`) and reject with
+ *  the reason; callers disable their controls while one is in flight. */
+export function useArchetypeCatalogueMutations() {
+    const createRow = useMutation(
+        api.limited.archetypeCatalogue.createArchetypeRow
+    );
+    const updateRow = useMutation(
+        api.limited.archetypeCatalogue.updateArchetypeRow
+    );
+    return { createRow, updateRow };
+}

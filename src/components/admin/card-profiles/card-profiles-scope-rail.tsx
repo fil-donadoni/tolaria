@@ -1,12 +1,19 @@
-import { Layers } from "lucide-react";
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
 import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
 import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
-import { Button } from "~/components/ui/button";
 import AdminReviewProgress from "../tool/admin-review-progress";
 import LimitedScopePicker from "~/components/lobby/limited-scope-picker";
-import CardProfilesColourBar from "./card-profiles-colour-bar";
-import { catalogueCounts, reviewProgress } from "./card-profiles-model";
+import { useState } from "react";
+import type { CensusResidueFile } from "@convex/limited/cardProfilesCore";
+import CardProfilesCatalogueForm from "./card-profiles-catalogue-form";
+import CardProfilesCatalogueRow from "./card-profiles-catalogue-row";
+import CardProfilesInfoTip from "./card-profiles-info-tip";
+import CardProfilesResidue from "./card-profiles-residue";
+import {
+    BLANK_CATALOGUE_ROW,
+    catalogueCounts,
+    reviewProgress,
+} from "./card-profiles-model";
 
 interface CardProfilesScopeRailProps {
     scopes: DraftableSetInfo[];
@@ -19,7 +26,16 @@ interface CardProfilesScopeRailProps {
     onToggleArchetype: (id: string) => void;
     /** Opens the sweep board on one catalogue row (issue #8905). */
     onSweep: (id: string) => void;
+    onCreateRow: (row: ArchetypeCatalogueRow) => Promise<unknown>;
+    onUpdateRow: (row: ArchetypeCatalogueRow) => Promise<unknown>;
+    /** Census residue to show as pending Capability proposals. */
+    residues: readonly CensusResidueFile[];
 }
+
+type FormState =
+    | { mode: "create" }
+    | { mode: "edit"; row: ArchetypeCatalogueRow }
+    | null;
 
 /** The Archetypes tab's rail body: the scope, the scope's review progress and
  *  its catalogue rows with tagged counts and computed colour bars (prototype
@@ -34,7 +50,11 @@ export default function CardProfilesScopeRail({
     selectedArchetypes,
     onToggleArchetype,
     onSweep,
+    onCreateRow,
+    onUpdateRow,
+    residues,
 }: CardProfilesScopeRailProps) {
+    const [form, setForm] = useState<FormState>(null);
     const progress = reviewProgress(cards, "archetypes");
     const rows = cards ? catalogueCounts(cards, catalogue) : [];
     return (
@@ -52,50 +72,58 @@ export default function CardProfilesScopeRail({
                 emptyText="No profiled cards in this scope"
             />
             <div className="flex flex-col gap-1">
-                <span className="text-label">Catalogue rows in this scope</span>
+                <span className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-label">
+                        Catalogue rows in this scope
+                        <CardProfilesInfoTip label="About the counts">
+                            Each row shows reviewed cards, then proposed cards
+                            with a question mark. Example: 127 · 77? is 127
+                            reviewed and 77 the census proposed.
+                        </CardProfilesInfoTip>
+                    </span>
+                    <button
+                        type="button"
+                        className="text-xs text-text-muted hover:text-text"
+                        onClick={() => setForm({ mode: "create" })}
+                    >
+                        Add row
+                    </button>
+                </span>
+                {form && (
+                    <CardProfilesCatalogueForm
+                        key={form.mode === "edit" ? form.row.id : "create"}
+                        mode={form.mode}
+                        initial={
+                            form.mode === "edit"
+                                ? form.row
+                                : BLANK_CATALOGUE_ROW
+                        }
+                        catalogue={catalogue}
+                        onSubmit={(row) =>
+                            form.mode === "edit"
+                                ? onUpdateRow(row)
+                                : onCreateRow(row)
+                        }
+                        onCancel={() => setForm(null)}
+                    />
+                )}
                 {rows.length === 0 && (
                     <p className="text-xs text-text-muted">
                         No card here is tagged with a catalogue row yet.
                     </p>
                 )}
-                {rows.map(({ row, tagged, signature }) => {
-                    const active = selectedArchetypes.includes(row.id);
-                    return (
-                        <div key={row.id} className="flex items-stretch gap-1">
-                            <button
-                                type="button"
-                                aria-pressed={active}
-                                title={row.description}
-                                onClick={() => onToggleArchetype(row.id)}
-                                className={`flex min-w-0 flex-1 flex-col gap-1 rounded-sm border px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-elevated/40 ${
-                                    active
-                                        ? "border-accent text-parchment"
-                                        : "border-border-subtle/30 text-text"
-                                }`}
-                            >
-                                <span className="flex items-baseline justify-between gap-2">
-                                    <span>{row.id}</span>
-                                    <span className="text-text-muted">
-                                        {tagged} tagged
-                                    </span>
-                                </span>
-                                <CardProfilesColourBar signature={signature} />
-                            </button>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`Sweep ${row.id}`}
-                                title={`Sweep ${row.id}`}
-                                onClick={() => onSweep(row.id)}
-                                className="self-center"
-                            >
-                                <Layers aria-hidden="true" />
-                            </Button>
-                        </div>
-                    );
-                })}
+                {rows.map((entry) => (
+                    <CardProfilesCatalogueRow
+                        key={entry.row.id}
+                        entry={entry}
+                        active={selectedArchetypes.includes(entry.row.id)}
+                        onToggle={() => onToggleArchetype(entry.row.id)}
+                        onEdit={() => setForm({ mode: "edit", row: entry.row })}
+                        onSweep={() => onSweep(entry.row.id)}
+                    />
+                ))}
             </div>
+            <CardProfilesResidue residues={residues} />
         </div>
     );
 }

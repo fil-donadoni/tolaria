@@ -171,27 +171,40 @@ export function reviewProgress(
 
 export interface CatalogueCount {
     row: ArchetypeCatalogueRow;
+    /** Cards a human REVIEWED as carrying the row. */
     tagged: number;
+    /** Cards the census proposed the row for (unreviewed seed or DB rows). */
+    proposed: number;
     signature: ColourSignature;
 }
 
 /** The rail's catalogue rows for one scope — those a card tags — with their
- *  tagged count and the colour signature computed from the tagged cards
- *  (`colourSignature`, never authored). */
+ *  tagged / proposed counts and the colour signature computed from ALL the
+ *  cards tagged (`colourSignature`, never authored). */
 export function catalogueCounts(
     cards: readonly ScopeCardProfile[],
     catalogue: readonly ArchetypeCatalogueRow[]
 ): CatalogueCount[] {
-    const scoped = cards.map((card) => ({
-        archetypes: effectiveProfile(card)?.archetypes ?? [],
-        colours: card.colours as Color[],
-    }));
-    return activeRows(scoped, catalogue).map((row) => ({
-        row,
-        tagged: scoped.filter((card) => card.archetypes.includes(row.id))
-            .length,
-        signature: colourSignature(scoped, row.id),
-    }));
+    const scoped = cards.map((card) => {
+        const effective = effectiveProfile(card);
+        return {
+            archetypes: effective?.archetypes ?? [],
+            colours: card.colours as Color[],
+            reviewed: layerReviewed(card, "archetypes") === true,
+        };
+    });
+    return activeRows(scoped, catalogue).map((row) => {
+        const carrying = scoped.filter((card) =>
+            card.archetypes.includes(row.id)
+        );
+        const tagged = carrying.filter((card) => card.reviewed).length;
+        return {
+            row,
+            tagged,
+            proposed: carrying.length - tagged,
+            signature: colourSignature(scoped, row.id),
+        };
+    });
 }
 
 /** A registry description's two halves, split on its two markers
@@ -254,3 +267,14 @@ export function relatedCards(
         )
         .slice(0, limit);
 }
+
+const BLANK_DESCRIPTION = "TAG WHEN: \nNOT: ";
+
+/** Blank row a create form starts from: the description pre-seeded with the
+ *  two clauses every row must carry. */
+export const BLANK_CATALOGUE_ROW: ArchetypeCatalogueRow = {
+    id: "",
+    description: BLANK_DESCRIPTION,
+    gloss: { when: "", not: "" },
+    example: "",
+};
