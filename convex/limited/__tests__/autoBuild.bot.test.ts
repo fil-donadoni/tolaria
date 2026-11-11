@@ -376,9 +376,18 @@ function flashFixture() {
         poolCard("flash", flash),
         poolCard("wurm", wurm),
     ];
+    // Half the filler is green (same card, same quality) so the deck runs
+    // enough Forests to cast the Wurm's {G}{G}{G}: the subject here is the
+    // Capability term, not castability.
+    const greenFiller: AutoBuildCardMeta = {
+        ...filler,
+        pips: { G: 1 },
+        colors: ["G"],
+    };
     for (let i = 0; i < 30; i++) {
-        entries[`f${i}`] = filler;
-        pool.push(poolCard(`f${i}`, filler));
+        const meta = i % 2 === 0 ? filler : greenFiller;
+        entries[`f${i}`] = meta;
+        pool.push(poolCard(`f${i}`, meta));
     }
     return { pool, getMeta: metaLookup(entries), flash, wurm, filler };
 }
@@ -1098,11 +1107,10 @@ function maindeckMetas(
 /** A red/green Pool deep enough in castable spells to fill every slot. */
 function redGreenBase(): [string, AutoBuildCardMeta, number][] {
     return [
-        ["ogre", metaOf("Gray Ogre"), 8],
-        ["giant", metaOf("Hill Giant"), 6],
-        ["bears", metaOf("Grizzly Bears"), 8],
+        ["ogre", metaOf("Gray Ogre"), 10],
+        ["giant", metaOf("Hill Giant"), 8],
+        ["bears", metaOf("Grizzly Bears"), 10],
         ["elves", metaOf("Llanowar Elves"), 3],
-        ["bolt", metaOf("Lightning Bolt"), 3],
     ];
 }
 
@@ -1178,19 +1186,19 @@ describe("Build Invariants (PRD #8772)", () => {
     });
 
     it("raising a card's Pick Rating moves it into the build", () => {
-        const raiders = metaOf("Mons's Goblin Raiders");
+        // Lightning Bolt's heuristic value is the Pool's lowest, so unrated
+        // it is cut; rated at the top of the scale it plays.
+        const bolt = metaOf("Lightning Bolt");
         const { pool, getMeta } = invariantPool([
             ...redGreenBase(),
-            ["raiders", raiders, 1],
+            ["bolt", bolt, 1],
         ]);
         const unrated = autoBuildDeck(pool, getMeta, resolveBasicLand);
-        expect(unrated.cards.some((c) => c.cardName === "raiders0")).toBe(
-            false
-        );
+        expect(unrated.cards.some((c) => c.cardName === "bolt0")).toBe(false);
         const rated = autoBuildDeck(pool, getMeta, resolveBasicLand, {
-            getPickRating: (cardId) => (cardId === raiders.cardId ? 5 : null),
+            getPickRating: (cardId) => (cardId === bolt.cardId ? 5 : null),
         });
-        expect(rated.cards.some((c) => c.cardName === "raiders0")).toBe(true);
+        expect(rated.cards.some((c) => c.cardName === "bolt0")).toBe(true);
         expect(rated.cards).toHaveLength(unrated.cards.length);
     });
 
