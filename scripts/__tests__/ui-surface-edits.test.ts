@@ -206,3 +206,124 @@ describe("classifySurfaceEdits", () => {
         ).toMatchObject({ kind: "shared" });
     });
 });
+
+// Specimen tables (issue #9226): a `*_SPECIMENS` row becomes ONE surface,
+// `<SECTION.idPrefix>-<slug>`, through a `dialogSpecimenSurface` spread in
+// the array. The fixture mirrors that shape: section, table, spread.
+function specimen(slug: string, body = "label"): string {
+    return [
+        "    {",
+        `        slug: "${slug}",`,
+        `        // ${body}`,
+        "        module: `x.tsx`,",
+        "    },",
+    ].join("\n");
+}
+
+const SPECIMENS = ["alpha", "beta"].map((slug) => specimen(slug));
+
+function specimenSource(opts: {
+    rows?: string[];
+    prefix?: string;
+    spread?: boolean;
+}): string {
+    const spread =
+        opts.spread === false
+            ? []
+            : [
+                  "    ...BOARD_SPECIMENS.map((spec) =>",
+                  "        dialogSpecimenSurface(BOARD_SECTION, spec)",
+                  "    ),",
+              ];
+    return [
+        "const BOARD_SECTION: DialogSpecimenSection = {",
+        `    idPrefix: "${opts.prefix ?? "dlg"}",`,
+        '    seam: "data-board",',
+        "};",
+        "",
+        "const BOARD_SPECIMENS: readonly DialogSpecimen[] = [",
+        (opts.rows ?? SPECIMENS).join("\n"),
+        "];",
+        "",
+        "export const SURFACES: readonly Surface[] = [",
+        BASE.join("\n"),
+        ...spread,
+        "];",
+        "",
+    ].join("\n");
+}
+
+describe("classifySurfaceEdits — specimen tables (issue #9226)", () => {
+    const before = specimenSource({});
+
+    it("an edit inside a specimen row selects `<idPrefix>-<slug>` alone", () => {
+        const after = specimenSource({
+            rows: [SPECIMENS[0], specimen("beta", "cards: true")],
+        });
+        expect(classify(after, before)).toEqual({
+            kind: "surfaces",
+            ids: ["dlg-beta"],
+        });
+    });
+
+    it("the section's idPrefix names the surface", () => {
+        const b = specimenSource({ prefix: "pick" });
+        const after = specimenSource({
+            prefix: "pick",
+            rows: [specimen("alpha", "x"), SPECIMENS[1]],
+        });
+        expect(classify(after, b)).toEqual({
+            kind: "surfaces",
+            ids: ["pick-alpha"],
+        });
+    });
+
+    it("a specimen row AND a SURFACES element select both", () => {
+        const after = specimenSource({
+            rows: [specimen("alpha", "x"), SPECIMENS[1]],
+        }).replace(element("two"), element("two", "y"));
+        expect(classify(after, before)).toEqual({
+            kind: "surfaces",
+            ids: ["dlg-alpha", "two"],
+        });
+    });
+
+    it("a table no spread maps into SURFACES stays shared", () => {
+        const b = specimenSource({ spread: false });
+        const after = specimenSource({
+            spread: false,
+            rows: [specimen("alpha", "x"), SPECIMENS[1]],
+        });
+        expect(classify(after, b)).toMatchObject({ kind: "shared" });
+    });
+
+    it("a section whose idPrefix cannot be read stays shared", () => {
+        const noPrefix = (src: string) =>
+            src.replace('    idPrefix: "dlg",\n', "");
+        const after = specimenSource({
+            rows: [specimen("alpha", "x"), SPECIMENS[1]],
+        });
+        expect(classify(noPrefix(after), noPrefix(before))).toMatchObject({
+            kind: "shared",
+        });
+    });
+
+    it("a table with a row that has no slug stays shared", () => {
+        const noSlug = ["    {", "        // no slug", "    },"].join("\n");
+        const b = specimenSource({ rows: [...SPECIMENS, noSlug] });
+        const after = specimenSource({
+            rows: [specimen("alpha", "x"), SPECIMENS[1], noSlug],
+        });
+        expect(classify(after, b)).toMatchObject({ kind: "shared" });
+    });
+
+    it("an edit to the section constant stays shared", () => {
+        const after = specimenSource({}).replace("data-board", "data-other");
+        expect(classify(after, before)).toMatchObject({ kind: "shared" });
+    });
+
+    it("removing a whole specimen row is shared", () => {
+        const after = specimenSource({ rows: [SPECIMENS[0]] });
+        expect(classify(after, before)).toMatchObject({ kind: "shared" });
+    });
+});
