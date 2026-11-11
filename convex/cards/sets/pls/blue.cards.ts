@@ -567,12 +567,8 @@ export const sisaysIngenuity = defineCard(() => ({
 // template, `m12/blue.cards.ts`, re-keyed to the AURA'S HOST via `self.attachedTo`
 // instead of `self.id`.)
 //
-// The ETB "tap enchanted creature" trigger stays `resolve()`: NOT
-// DSL-migratable (ADR 0045) — there is no attached-host `EffectObjectSelector`
-// in the DSL (only announced target slots, `$source`, `$each`), the exact,
-// already-established gap Venarian Gold's own ETB trigger documents (leaving
-// it unticketed there was the PR #2010 review's MINOR 6 finding).
-// tracked-by: #2016.
+// The ETB "tap enchanted creature" trigger acts on the Aura's attachment host
+// through the `$host` binding (CR 303.4).
 export const sleepingPotion = defineCard(() => ({
     id: "6f79f4b2-71cd-4f78-a161-d75b162c745e", // PLS 34
     rarity: "common",
@@ -595,23 +591,8 @@ export const sleepingPotion = defineCard(() => ({
             id: "sleeping-potion-etb-tap",
             oracleText: "When this Aura enters, tap enchanted creature.",
             scope: "self",
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedToId();
-                if (!hostId) return;
-                ctx.tap({ type: "permanent", id: hostId });
-            },
-            // aiEffects (PRD #1423, issue #1519) — bare `resolve()` closure
-            // (no attached-host `EffectObjectSelector` exists to express
-            // "tap enchanted creature" declaratively, see the card-level
-            // note), so the bot's value model has nothing to walk without a
-            // shadow script. The one-time tap-down's own value is minor next
-            // to the CONTINUOUS "doesn't untap" lock (a real `staticEffects[]`
-            // entry, already walkable on its own) — `{ ref: "$source" }`
-            // (tapping the Aura itself, always legal, always near-zero
-            // impact) is an honest low-value stand-in rather than a
-            // fabricated host reference the interpreter would never resolve.
-            aiEffects: [
-                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$host" } },
             ],
         }),
         {
