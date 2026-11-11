@@ -594,7 +594,7 @@ export function applyNameCardSubmit(
     if ("error" in resolved) throw new Error(resolved.error);
     const canonical = resolved.canonical;
 
-    // Issue #8956 — a chosen name is public (CR 201.3): every seat reads it.
+    // Issue #8956 — a chosen name is announced to every seat.
     const announceSeq = (state.lastChoiceAnnouncement?.seq ?? 0) + 1;
     state.lastChoiceAnnouncement = {
         key: `${announceSeq}:${head.stackItemId}:${head.step}:${head.choiceId}`,

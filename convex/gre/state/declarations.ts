@@ -4735,9 +4735,9 @@ export type PileChoiceNotice = {
 /** Issue #8956 — the most recent answered `name-card` / `order-top` choice, so
  *  EVERY seat can read what was announced. One slot beside
  *  {@link PileChoiceNotice}, overwritten by the next answer — never a log. A
- *  chosen card name is public (CR 201.3); a scry / surveil split is public as
- *  COUNTS only, because the library half stays hidden information (CR 701.22a /
- *  701.25a). `chooserNames` is the chooser-only part — the names of the cards
+ *  chosen card name is announced to every seat; a scry / surveil split is
+ *  public as COUNTS only, because the library half stays hidden information
+ *  (CR 701.22a / 701.25a, CR 401.2). `chooserNames` is the chooser-only part — the names of the cards
  *  left in the library — and `projectPublicState` strips it for every other
  *  viewer. A graveyard destination is public, so `graveyardNames` crosses to
  *  both seats. */
