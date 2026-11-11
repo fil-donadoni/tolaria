@@ -527,6 +527,7 @@ export type {
     NormalizedMayPayCost,
     MayPayHandCard,
     PileChoiceNotice,
+    ChoiceAnnouncement,
     PlayerRestriction,
     PlayerRestrictionKind,
 } from "./state/declarations";

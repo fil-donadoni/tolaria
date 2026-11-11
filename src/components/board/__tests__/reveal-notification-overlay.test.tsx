@@ -32,7 +32,8 @@ const LOOK: RevealNotification = {
 
 function renderOverlay(
     pendingReveals?: RevealNotification[],
-    pendingChoices?: { playerId: string }[]
+    pendingChoices?: { playerId: string }[],
+    overlayProps: React.ComponentProps<typeof RevealNotificationOverlay> = {}
 ) {
     const ctx = {
         gameId: "game-id",
@@ -45,7 +46,7 @@ function renderOverlay(
     } as unknown as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={ctx}>
-            <RevealNotificationOverlay />
+            <RevealNotificationOverlay {...overlayProps} />
         </GameContext>
     );
 }
@@ -173,5 +174,61 @@ describe("RevealNotificationOverlay (private look / public reveal popup)", () =>
         ]);
         expect(getByText("Revealed cards")).toBeTruthy();
         expect(getAllByTestId("reveal-card")).toHaveLength(2);
+    });
+});
+
+// Issue #8956 — an announcement from the same resolution (Tamiyo: the name,
+// then the reveal of four) is one composition with the reveal and one Space
+// dismisses both.
+describe("RevealNotificationOverlay with an announcement (issue #8956)", () => {
+    const NOTICE = { key: "1:s:0:n", message: "Alice named Island" };
+
+    it("puts the announcement inside the reveal panel, not as a second toast", () => {
+        const { getByText, queryByLabelText } = renderOverlay(
+            [{ ...LOOK, audience: ["p1", "p2"], kind: "reveal" }],
+            undefined,
+            { notice: NOTICE, onNoticeDismiss: () => {} }
+        );
+        expect(getByText("Alice named Island")).toBeTruthy();
+        expect(queryByLabelText("Dismiss notice")).toBeNull();
+    });
+
+    it("one Space dismisses the reveal and the announcement", () => {
+        const onNoticeDismiss = vi.fn();
+        const { queryByTestId } = renderOverlay([LOOK], undefined, {
+            notice: NOTICE,
+            onNoticeDismiss,
+        });
+        fireEvent.keyDown(document.body, { code: "Space", key: " " });
+        expect(queryByTestId("reveal-card")).toBeNull();
+        expect(onNoticeDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("times the reveal and the announcement out together after 5 s", () => {
+        vi.useFakeTimers();
+        const onNoticeDismiss = vi.fn();
+        renderOverlay([LOOK], undefined, { notice: NOTICE, onNoticeDismiss });
+        act(() => vi.advanceTimersByTime(4900));
+        expect(onNoticeDismiss).not.toHaveBeenCalled();
+        act(() => vi.advanceTimersByTime(200));
+        expect(onNoticeDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("with no reveal, shows the announcement as the ordinary toast", () => {
+        const { getByRole } = renderOverlay(undefined, undefined, {
+            notice: NOTICE,
+            onNoticeDismiss: () => {},
+        });
+        expect(getByRole("status").textContent).toContain("Alice named Island");
+    });
+
+    it("leaves Space to a pending choice for the prompted viewer", () => {
+        const onNoticeDismiss = vi.fn();
+        renderOverlay(undefined, [{ playerId: "p1" }], {
+            notice: NOTICE,
+            onNoticeDismiss,
+        });
+        fireEvent.keyDown(document.body, { code: "Space", key: " " });
+        expect(onNoticeDismiss).not.toHaveBeenCalled();
     });
 });
