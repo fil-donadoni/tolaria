@@ -19,8 +19,19 @@ export type ScopeCardProfile = FunctionReturnType<
     typeof api.limited.cardProfiles.listScopeCardProfilesForEditor
 >[number];
 
-/** The `CardProfile` half of a row — what the editor writes back. */
-export type EditableCardProfile = NonNullable<ScopeCardProfile["dbProfile"]>;
+/** The effective profile half of a row — both layers' data, each layer's
+ *  own review flag and census rationale. */
+export type EditorCardProfile = NonNullable<ScopeCardProfile["dbProfile"]>;
+
+/** One layer's editable write — what the sweep board and the focus dialog
+ *  hand the page; the page routes it to the layer's own mutation. */
+export interface EditableCardProfile {
+    archetypes: string[];
+    provides: string[];
+    requires: string[];
+    comboEdges?: { cardId: string; weight: number }[];
+    reviewed: boolean;
+}
 
 /** Every profiled/profilable card of `scope`, `undefined` while loading.
  *  `scope` undefined skips the query (no scope chosen yet). Admin-gated
@@ -46,13 +57,28 @@ export function useArchetypeCatalogue(): readonly ArchetypeCatalogueRow[] {
     );
 }
 
-/** The two write mutations the editor's inline controls fire —
- *  `setCardProfile` (save, including the review toggle) and
- *  `clearCardProfile` (revert to the checked-in census seed / to no profile).
- *  Both are admin-gated server-side; callers must disable their controls
- *  while a call from either is in flight (project-wide rule). */
+/** The editor's write mutations, ONE LAYER each (ADR 0167, issue #8904):
+ *  the Capabilities tab saves/clears the scope-free Capability row, the
+ *  Archetypes tab the scope's Archetype row — so "Mark reviewed" flips only
+ *  the flag of the layer on screen. Admin-gated server-side; callers disable
+ *  their controls while a call is in flight (project-wide rule). */
 export function useCardProfileMutations() {
-    const setProfile = useMutation(api.limited.cardProfiles.setCardProfile);
-    const clearProfile = useMutation(api.limited.cardProfiles.clearCardProfile);
-    return { setProfile, clearProfile };
+    const setCapabilities = useMutation(
+        api.limited.cardProfiles.setCardCapabilities
+    );
+    const setArchetypes = useMutation(
+        api.limited.cardProfiles.setCardArchetypes
+    );
+    const clearCapabilities = useMutation(
+        api.limited.cardProfiles.clearCardCapabilities
+    );
+    const clearArchetypes = useMutation(
+        api.limited.cardProfiles.clearCardArchetypes
+    );
+    return {
+        setCapabilities,
+        setArchetypes,
+        clearCapabilities,
+        clearArchetypes,
+    };
 }

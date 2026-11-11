@@ -5,11 +5,7 @@ import {
     TableHeader,
     TableRow,
 } from "~/components/ui/table";
-import type {
-    EditableCardProfile,
-    ScopeCardProfile,
-} from "~/hooks/useCardProfiles";
-import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
+import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
 import { nextSort, type SortState } from "~/lib/adminTableSort";
 import AdminSortableHead from "../tool/admin-sortable-head";
 import CardProfilesRow from "./card-profiles-row";
@@ -26,27 +22,20 @@ interface CardProfilesTableProps {
     cards: ScopeCardProfile[];
     sort: SortState<ProfileSortKey>;
     onSort: (sort: SortState<ProfileSortKey>) => void;
+    /** The card open in the focus dialog, highlighted here. */
     openCardId: string | null;
-    onToggleRow: (cardId: string) => void;
-    onSave: (cardId: string, profile: EditableCardProfile) => Promise<unknown>;
-    onClear: (cardId: string) => Promise<unknown>;
-    onAdvance: (cardId: string) => void;
-    archetypeCatalogue: readonly ArchetypeCatalogueRow[];
+    onOpen: (cardId: string) => void;
 }
 
 /** The tab's sortable table: every column header sorts (`aria-sort`), the
- *  last column holds the row's Edit button. */
+ *  last column holds the row's Open button. */
 export default function CardProfilesTable({
     tab,
     cards,
     sort,
     onSort,
     openCardId,
-    onToggleRow,
-    onSave,
-    onClear,
-    onAdvance,
-    archetypeCatalogue,
+    onOpen,
 }: CardProfilesTableProps) {
     const columns = TAB_COLUMNS[tab];
     return (
@@ -71,13 +60,10 @@ export default function CardProfilesTable({
                     <CardProfilesRow
                         key={card.cardId}
                         card={card}
+                        tab={tab}
                         columns={columns}
                         open={openCardId === card.cardId}
-                        onToggle={() => onToggleRow(card.cardId)}
-                        onSave={(profile) => onSave(card.cardId, profile)}
-                        onClear={() => onClear(card.cardId)}
-                        onAdvance={() => onAdvance(card.cardId)}
-                        archetypeCatalogue={archetypeCatalogue}
+                        onOpen={() => onOpen(card.cardId)}
                     />
                 ))}
             </TableBody>

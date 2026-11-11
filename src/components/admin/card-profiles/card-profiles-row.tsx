@@ -2,65 +2,50 @@ import { useEffect, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { TableCell, TableRow } from "~/components/ui/table";
 import CardImage from "~/components/cards/card-image";
-import type {
-    EditableCardProfile,
-    ScopeCardProfile,
-} from "~/hooks/useCardProfiles";
-import type { ArchetypeCatalogueRow } from "@convex/limited/archetypeCatalogueCore";
-import CardProfileEditPanel from "./card-profile-edit-panel";
+import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
 import CardProfilesStatusBadge from "./card-profiles-status-badge";
 import {
     effectiveProfile,
     profileStatus,
     type ProfileSortKey,
+    type ProfileTab,
 } from "./card-profiles-model";
 
 interface CardProfilesRowProps {
     card: ScopeCardProfile;
+    tab: ProfileTab;
     columns: readonly ProfileSortKey[];
-    /** Whether this row's editing panel is open. OWNED BY THE TABLE (issue
-     *  #3597): "save this one and open the next" is a statement about the
-     *  review QUEUE, which a row that owns its own flag cannot make. */
+    /** Whether this row's card is the one open in the focus dialog. */
     open: boolean;
-    onToggle: () => void;
-    onSave: (profile: EditableCardProfile) => Promise<unknown>;
-    onClear: () => Promise<unknown>;
-    onAdvance: () => void;
-    archetypeCatalogue: readonly ArchetypeCatalogueRow[];
+    onOpen: () => void;
 }
 
 function listText(list: readonly string[] | undefined): string {
     return list === undefined || list.length === 0 ? "—" : list.join(", ");
 }
 
-/** One card of the Card Profiles table, plus its editor row when open. The
- *  whole row is the click target (until the card focus dialog, issue #8772's
- *  later slice, a row opens the existing editor panel); the Edit button is
- *  the keyboard path and the focus-return target. */
+/** One card of the Card Profiles table. The whole row is the click target
+ *  and opens the card in the focus dialog (issue #8904); the Open button is
+ *  the keyboard path and where focus returns when the dialog closes on it. */
 export default function CardProfilesRow({
     card,
+    tab,
     columns,
     open,
-    onToggle,
-    onSave,
-    onClear,
-    onAdvance,
-    archetypeCatalogue,
+    onOpen,
 }: CardProfilesRowProps) {
     const effective = effectiveProfile(card);
     const wasOpen = useRef(false);
-    const panelId = `card-profile-panel-${card.cardId}`;
-    const toggleId = `card-profile-toggle-${card.cardId}`;
+    const openId = `card-profile-open-${card.cardId}`;
 
-    // Closing a row hands focus back to the toggle that opened it, not
-    // `<body>`. Advancing the queue closes this row and opens the NEXT one in
-    // the same commit; the next row is below, so its focus-on-mount wins.
+    // The dialog closing on this card hands focus back to its Open button,
+    // not `<body>`.
     useEffect(() => {
         if (!open && wasOpen.current) {
-            document.getElementById(toggleId)?.focus();
+            document.getElementById(openId)?.focus();
         }
         wasOpen.current = open;
-    }, [open, toggleId]);
+    }, [open, openId]);
 
     const cell = (key: ProfileSortKey) => {
         switch (key) {
@@ -87,7 +72,9 @@ export default function CardProfilesRow({
             case "status":
                 return (
                     <TableCell key={key}>
-                        <CardProfilesStatusBadge status={profileStatus(card)} />
+                        <CardProfilesStatusBadge
+                            status={profileStatus(card, tab)}
+                        />
                     </TableCell>
                 );
             case "archetypes":
@@ -112,36 +99,22 @@ export default function CardProfilesRow({
     };
 
     return (
-        <>
-            <TableRow className="cursor-pointer" onClick={onToggle}>
-                {columns.map(cell)}
-                <TableCell className="text-right">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        id={toggleId}
-                        aria-expanded={open}
-                        aria-controls={panelId}
-                    >
-                        {open ? "Close" : "Edit"}
-                    </Button>
-                </TableCell>
-            </TableRow>
-            {open && (
-                <TableRow>
-                    <TableCell colSpan={columns.length + 1}>
-                        <CardProfileEditPanel
-                            card={card}
-                            panelId={panelId}
-                            onSave={onSave}
-                            onClear={onClear}
-                            onAdvance={onAdvance}
-                            archetypeCatalogue={archetypeCatalogue}
-                        />
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
+        <TableRow
+            className={open ? "cursor-pointer bg-accent/15" : "cursor-pointer"}
+            onClick={onOpen}
+        >
+            {columns.map(cell)}
+            <TableCell className="text-right">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    id={openId}
+                    aria-haspopup="dialog"
+                >
+                    Open
+                </Button>
+            </TableCell>
+        </TableRow>
     );
 }
