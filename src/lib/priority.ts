@@ -218,7 +218,7 @@ export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
 }
 
 /** Who must act NOW, for the board's priority frame: the owner of a pending
- *  choice (CR 601.2 / ADR 0007) while one stands — a chooser is mid-resolution
+ *  choice (ADR 0007) while one stands — a chooser is mid-resolution
  *  and nobody holds priority — else the priority state. Never the ACTIVE
  *  player: a response window on the opponent's turn lights MY half. */
 export function computeActingSeat(ctx: PriorityStateCtx): PriorityState {
