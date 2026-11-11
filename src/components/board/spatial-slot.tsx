@@ -76,8 +76,9 @@ export default function SpatialSlot({
     // a base-size bitmap (blur). The centre stays on the placement. Shrinking
     // keeps the transform scale (downscaling a bigger bitmap stays sharp).
     const grow = Math.max(1, placement.scale);
-    const boxW = cardWidth * grow;
-    const boxH = cardHeight * grow;
+    // Whole pixels: a fractional box is resampled by the promoted layer (soft).
+    const boxW = grow === 1 ? cardWidth : Math.round(cardWidth * grow);
+    const boxH = grow === 1 ? cardHeight : Math.round(cardHeight * grow);
     const transform =
         `translate(${placement.x - boxW / 2}px, ` +
         `${placement.y - boxH / 2}px) ` +
