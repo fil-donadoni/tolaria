@@ -1,44 +1,38 @@
 import { useGameContext } from "~/hooks/useGameContext";
-import { computePriorityState, type PriorityState } from "~/lib/priority";
+import { computeActingSeat } from "~/lib/priority";
 
-// Strong, unmissable priority cue (#152). A board-edge glow plus a labelled
-// badge make the three priority states instantly distinguishable — far more
-// visible than the life-total ring alone, which is easy to miss. The "none"
-// state (game over, pre-priority phase, auto-resolving) renders nothing so the
-// board reads as quiet when no one is being asked to act.
-const STATE_STYLE: Record<
-    Exclude<PriorityState, "none">,
-    { glow: string; badge: string; label: string; pulse: boolean }
-> = {
-    mine: {
-        glow: "inset 0 0 0 3px color-mix(in srgb, var(--color-signal-self) 85%, transparent), inset 0 0 44px color-mix(in srgb, var(--color-signal-self) 30%, transparent)",
-        badge: "bg-signal-self/90 text-surface-base",
-        label: "Your priority",
-        pulse: true,
-    },
+// The board-edge priority cue (#152, #9160). The frame is cut at the board
+// midline and ONLY the half of the seat that must act lights up — the priority
+// holder, or the chooser while a pending choice stands. It is keyed on who
+// acts, never on whose turn it is: a response window on the opponent's turn
+// lights MY half. The turn itself is announced once by `TurnChangeSweep`, not
+// painted permanently. "none" (game over, auto-resolving) renders nothing.
+const SEAT_STYLE = {
+    mine: { half: "priority-half-mine", testId: "priority-half-mine" },
     opponent: {
-        glow: "inset 0 0 0 2px color-mix(in srgb, var(--color-signal-pending) 45%, transparent), inset 0 0 30px color-mix(in srgb, var(--color-signal-pending) 14%, transparent)",
-        badge: "bg-signal-pending/80 text-surface-base",
-        label: "Opponent's priority",
-        pulse: false,
+        half: "priority-half-opponent",
+        testId: "priority-half-opponent",
     },
-};
+} as const;
 
 export default function PriorityIndicator() {
     const ctx = useGameContext();
-    const state = computePriorityState(ctx);
-    if (state === "none") return null;
-    const style = STATE_STYLE[state];
+    const seat = computeActingSeat(ctx);
+    if (seat === "none") return null;
+    const { half, testId } = SEAT_STYLE[seat];
 
-    // The labelled top badge moved into the controller pod's cue badge (#331);
-    // only the board-edge glow stays here so the priority cue reads without a
-    // floating banner.
     return (
         <div
             aria-hidden
             data-testid="priority-indicator"
+            data-acting-seat={seat}
             className="pointer-events-none absolute inset-0 z-hud"
-            style={{ boxShadow: style.glow }}
-        />
+        >
+            <div
+                data-testid={testId}
+                data-lit="true"
+                className={`priority-half ${half}`}
+            />
+        </div>
     );
 }
