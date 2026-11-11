@@ -163,6 +163,11 @@ export default defineSchema({
         // per action, and the board reads it from this ~200-byte row instead
         // of re-running the Match query (which hydrates decklists) per save.
         clock: v.optional(tickClockValidator),
+        // Epoch ms the pending Bot server-deadline check fires at (issue
+        // #9004, `convex/botDeadline.ts`): present exactly while ONE
+        // `botLiveness.checkDeadline` is scheduled for this vs-AI game. A save
+        // never schedules while it stands; only the check clears or moves it.
+        botDeadlineAt: v.optional(v.number()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
     // Manual Mode state (ADR 0080) — mirrors gameStates, one row per game,

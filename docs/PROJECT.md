@@ -359,11 +359,18 @@ consecutivi (`passCount === 2`) per procedere.
 `StackItem` porta spell, abilità attivate, abilità innescate e le loro copie.
 Le mana ability hanno `useStack: false` e risolvono immediatamente (CR 605.3a).
 
-Timer di priority: 30 secondi via `ctx.scheduler.runAfter`, con **cancellazione
-basata su seq** — quando il timer scatta confronta il `seq` catturato alla
-schedulazione con quello vivo; se differiscono l'azione è già avvenuta e il
-timeout è un no-op. Convex non ha una cancellazione economica dei job
-schedulati, quindi questo pattern ricorre ovunque serva un timer (lo riusa
+Nessun timer di priority: un giocatore umano può tenere la priority quanto
+vuole. L'unico timer di gioco è la **deadline server del Bot** (vs-AI, issue
+#9004, `convex/botDeadline.ts`): `saveGameState` arma **un solo**
+`botLiveness.checkDeadline` per partita mentre il Bot deve un input
+(`gameTicks.botDeadlineAt` è il marcatore; un save con un check pendente non
+ne schedula un altro). Allo scatto il check rilegge il tick: Bot non più in
+debito → pulisce; in debito a un `seq` più nuovo → si riarma per
+`updatedAt + BOT_SERVER_DEADLINE_MS` (60 s, sopra l'intera scala del client);
+stesso `seq` oltre la deadline → `forceAdvanceOwedInput` + report di sistema
+con origin `server-deadline`. È il pattern di **cancellazione basata su seq**:
+Convex non ha una cancellazione economica dei job schedulati, quindi il job
+confronta il `seq` catturato alla schedulazione con quello vivo (lo riusa
 identico l'Auto-Pick del draft, con `pickSeq`).
 
 ### 5.4 Fasi

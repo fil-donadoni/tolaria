@@ -130,6 +130,19 @@ describe("system bug report — issue payload (issue #9000)", () => {
         expect(request.body).not.toContain('"players"');
         expect(request.title).not.toContain(HIDDEN_HAND);
     });
+
+    it("notes the missing client hand-off on a server-deadline fault only (issue #9004)", () => {
+        const note = "no client hand-off — driver dead or tab closed";
+        expect(request.body).not.toContain(note);
+        const deadline = { ...FAULT, origin: "server-deadline" as const };
+        const body = buildBotFaultIssueRequest({
+            fault: deadline,
+            fingerprint: botFaultFingerprint(deadline),
+            reportId: "report-43",
+            gameSection: null,
+        }).body;
+        expect(body).toContain(note);
+    });
 });
 
 describe("system bug report — fingerprint (issue #9000)", () => {
