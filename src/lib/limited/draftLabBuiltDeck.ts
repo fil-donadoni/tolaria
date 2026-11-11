@@ -4,7 +4,10 @@
 // (`draftTableAudit.ts`), never re-measured here.
 import type { DeckCard } from "@convex/deckPresets";
 import { curveBucket, CURVE_MAX_BUCKET } from "@convex/limited/botDrafter";
+import type { DraftContext } from "@convex/botFindingsCore";
+import { SCORER_VERSION } from "@convex/limited/scorerVersion";
 import type { DeckAudit } from "./draftTableAudit";
+import type { DraftLabState } from "./draftLabEngine";
 import { draftLabGetAutoBuildCardMeta } from "./draftLabCardMeta";
 
 export interface BuiltDeckCardLine {
@@ -141,4 +144,21 @@ export function builtDeckAuditFields(audit: DeckAudit): BuiltDeckAuditField[] {
             value: `archetypes ${formatShare(audit.unreviewedShare.archetypes)} · capabilities ${formatShare(audit.unreviewedShare.capabilities)}`,
         },
     ];
+}
+
+/** What reruns this Lab draft for one seat (issue #8900): the seed, the Pack
+ *  Source every slot dealt from (`standardPackSlots` repeats ONE key), the
+ *  seat, and the scorer the Lab picked with — the context a Bot Finding report
+ *  stores. Read off the STATE, never the controls: a Pack Source changed after
+ *  Start no longer describes the draft on screen. */
+export function draftLabFindingContext(
+    state: Pick<DraftLabState, "seed" | "packSlots">,
+    seatIndex: number
+): DraftContext {
+    return {
+        seed: state.seed,
+        scope: state.packSlots[0] ?? "",
+        seatIndex,
+        scorerVersion: SCORER_VERSION,
+    };
 }

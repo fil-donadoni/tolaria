@@ -75,6 +75,42 @@ const FORBIDDEN_PATTERNS: RegExp[] = [
     /\.(mutation|action)\(/,
 ];
 
+/**
+ * ADR 0074, Amendment I (issue #8900): the Draft Lab's ONE write — filing a
+ * Bot Finding report off a seat's built deck. It changes nothing about
+ * drafts, events, ratings or profiles. The exception is a single entry, and
+ * a single call: the allowed file may hold its `useMutation` import and ONE
+ * `useMutation(<that mutation>)` call, each removed exactly once before the
+ * scan — a second call, any other mutation, or the same call in any other
+ * file still matches a forbidden pattern.
+ */
+const ALLOWED_WRITES = [
+    {
+        file: "src/components/draft-lab/draft-lab-report-finding-form.tsx",
+        mutation: "api.botFindings.reportDraftFinding",
+    },
+] as const;
+
+const ALLOWED_IMPORT = 'import { useMutation } from "convex/react";';
+
+/** The source with the allowlisted import and call removed ONCE each when the
+ *  file is the allowed one; any other file is scanned as written. */
+function scannedSource(rel: string, source: string): string {
+    const allowed = ALLOWED_WRITES.find((w) => w.file === rel);
+    if (allowed === undefined) return source;
+    return source
+        .replace(ALLOWED_IMPORT, "")
+        .replace(`useMutation(${allowed.mutation})`, "");
+}
+
+/** Every forbidden pattern the file still matches. */
+function violationsIn(rel: string, source: string): string[] {
+    const scanned = scannedSource(rel, source);
+    return FORBIDDEN_PATTERNS.filter((pattern) => pattern.test(scanned)).map(
+        (pattern) => `${rel} matches ${pattern}`
+    );
+}
+
 function isSourceFile(name: string): boolean {
     return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name);
 }
@@ -139,19 +175,60 @@ describe("Draft Lab writes nothing (issue #1612 acceptance)", () => {
         const violations: string[] = [];
 
         for (const file of files) {
-            const source = fs.readFileSync(file, "utf-8");
-            for (const pattern of FORBIDDEN_PATTERNS) {
-                if (pattern.test(source)) {
-                    violations.push(
-                        `${path.relative(REPO_ROOT, file)} matches ${pattern}`
-                    );
-                }
-            }
+            violations.push(
+                ...violationsIn(
+                    path.relative(REPO_ROOT, file),
+                    fs.readFileSync(file, "utf-8")
+                )
+            );
         }
 
         expect(
             violations,
             `Draft Lab must never call a Convex mutation (ADR 0074):\n${violations.join("\n")}`
         ).toEqual([]);
+    });
+});
+
+describe("the ONE allowed Draft Lab write (ADR 0074 Amendment I, issue #8900)", () => {
+    const [allowed] = ALLOWED_WRITES;
+    const source = fs.readFileSync(path.join(REPO_ROOT, allowed.file), "utf-8");
+    const call = `useMutation(${allowed.mutation})`;
+
+    it("the allowlist is one entry, and it is the only Draft Lab file holding a mutation", () => {
+        expect(ALLOWED_WRITES).toHaveLength(1);
+        const holders = collectDraftLabFiles()
+            .filter((f) => /useMutation/.test(fs.readFileSync(f, "utf-8")))
+            .map((f) => path.relative(REPO_ROOT, f));
+        expect(holders).toEqual([allowed.file]);
+    });
+
+    it("the allowed file makes that one call, once, and is in the scan", () => {
+        expect(source.split(call).length - 1).toBe(1);
+        expect(
+            collectDraftLabFiles().map((f) => path.relative(REPO_ROOT, f))
+        ).toContain(allowed.file);
+        expect(violationsIn(allowed.file, source)).toEqual([]);
+    });
+
+    it("a second mutation in the allowed file still reds", () => {
+        for (const extra of [
+            "useMutation(api.limited.events.createLimitedEvent)",
+            call,
+        ])
+            expect(
+                violationsIn(allowed.file, `${source}\nconst x = ${extra};`)
+            ).toEqual([`${allowed.file} matches /useMutation/`]);
+    });
+
+    it("the allowed call in any other Draft Lab file still reds", () => {
+        expect(
+            violationsIn(
+                "src/components/draft-lab/draft-lab-controls.tsx",
+                `${ALLOWED_IMPORT}\nconst r = ${call};`
+            )
+        ).toEqual([
+            "src/components/draft-lab/draft-lab-controls.tsx matches /useMutation/",
+        ]);
     });
 });

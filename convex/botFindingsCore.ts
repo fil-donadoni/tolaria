@@ -31,6 +31,52 @@ export const HUMAN_SOURCE = "human";
  *  under an older Bot". */
 export const HUMAN_STAMP = "human-report";
 
+/** A finding filed from a Draft Lab seat's built deck (issue #8900, ADR 0074
+ *  amendment). A deck has no single card, so its row carries a
+ *  {@link draftContextValidator} instead, and its own source keeps it apart
+ *  from the sweep's measured rows and from a human report on a card. */
+export const DRAFT_LAB_SOURCE = "draft-lab";
+
+/** What reruns a Draft Lab draft: the seed, the Pack Source key (the scope
+ *  every pack slot deals from), the seat whose built deck is reported, and
+ *  the scorer version the Lab picked under (`limited/scorerVersion.ts`). */
+export const draftContextValidator = v.object({
+    seed: v.number(),
+    scope: v.string(),
+    seatIndex: v.number(),
+    scorerVersion: v.number(),
+});
+export type DraftContext = Infer<typeof draftContextValidator>;
+
+/** The row key a Draft Lab report takes in `oracleId`'s place — one report
+ *  per (scope, seed, seat, scorer version), and never a real oracle id. */
+export function draftFindingKey(context: DraftContext): string {
+    return `draft:${context.scope}:${context.seed}:${context.seatIndex}:v${context.scorerVersion}`;
+}
+
+/** The row's display name: what was drafted, from where, by which seat. */
+export function draftFindingName(context: DraftContext): string {
+    return `Draft Lab — ${context.scope}, seed ${context.seed}, seat ${context.seatIndex + 1}`;
+}
+
+/** Refuse a context that cannot rerun a draft: the seed and the seat are
+ *  non-negative integers, the scope is named, the scorer version positive. */
+export function checkedDraftContext(context: DraftContext): DraftContext {
+    const scope = context.scope.trim();
+    if (
+        scope === "" ||
+        !Number.isInteger(context.seed) ||
+        !Number.isInteger(context.seatIndex) ||
+        context.seatIndex < 0 ||
+        !Number.isInteger(context.scorerVersion) ||
+        context.scorerVersion <= 0
+    )
+        throw new ConvexError(
+            "A Draft Lab report needs a seed, a scope, a seat and a scorer version"
+        );
+    return { ...context, scope };
+}
+
 /** Which definition the measured card shipped with — `ShippedSource` in
  *  `scripts/lib/oracle-bot-reach.ts`, restated: that module drags the engine. */
 export const compileSourceValidator = v.union(
