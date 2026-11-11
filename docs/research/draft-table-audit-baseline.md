@@ -57,7 +57,7 @@ runner, CPU at full clock, on mains — about 1.1 to 1.3 s per table.
 
 ## Floors
 
-`DRAFT_AUDIT_FLOORS` holds these numbers rounded down to two decimals:
+First set from these numbers (re-declared after the build fixes, `draft-table-audit-build-fixes.md`), rounded down to two decimals:
 Vintage Cube `builtShare ≥ 1`, `meanCastability ≥ 0.76`,
 `worstDeckCastability ≥ 0.55`, `meanPlanShare ≥ 0.47`,
 `meanCapabilityPairs ≥ 12`; LEA `builtShare ≥ 1`, `meanCastability ≥ 0.79`,

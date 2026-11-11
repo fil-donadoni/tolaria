@@ -5,8 +5,12 @@
 // judges a deck by eye with the very numbers the gate holds — one module,
 // never a copy. Pure: no DB, no Convex call (ADR 0074).
 import { FORMAT_RULES } from "@convex/formats";
-import type { Color } from "@convex/cards/types";
 import type { AutoBuildCardMeta } from "@convex/limited/autoBuild";
+import {
+    hasColouredPip as hasPip,
+    hypergeometricAtLeast,
+    pipCastability,
+} from "@convex/limited/castability";
 import {
     curveBucket,
     CURVE_MAX_BUCKET,
@@ -19,69 +23,32 @@ import type {
 import type { DraftLabSeatDeck } from "./draftLabEngine";
 import { draftLabGetAutoBuildCardMeta } from "./draftLabCardMeta";
 
-/** Opening hand size, the first of the cards seen by a turn (castability). */
-const OPENING_HAND = 7;
-
-const TRUE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
-
 // ── Castability model ──────────────────────────────────────────────────────
+// The model is `convex/limited/castability.ts`'s, the one the builder scores
+// with — never a copy here.
 
-/** `P(X ≥ atLeast)` for `X ~ Hypergeometric(population, successes, draws)`. */
-export function hypergeometricAtLeast(
-    population: number,
-    successes: number,
-    draws: number,
-    atLeast: number
-): number {
-    if (atLeast <= 0) return 1;
-    const n = Math.min(draws, population);
-    if (successes < atLeast || n < atLeast) return 0;
-    const lnC = (a: number, b: number): number => {
-        let s = 0;
-        for (let i = 0; i < b; i++) s += Math.log(a - i) - Math.log(i + 1);
-        return s;
-    };
-    const failures = population - successes;
-    let below = 0;
-    for (let k = Math.max(0, n - failures); k < atLeast; k++) {
-        below += Math.exp(
-            lnC(successes, k) + lnC(failures, n - k) - lnC(population, n)
-        );
-    }
-    return Math.max(0, Math.min(1, 1 - below));
-}
+export { hypergeometricAtLeast };
 
-/** The declared castability model. A spell of mana value `mv` is cast on the
- *  play on turn `max(1, mv)`, having seen `7 + turn − 1` cards of the
- *  Maindeck. For each coloured pip colour `c` it needs `pips[c]` sources of
- *  `c` among those cards, where a source is any OTHER Maindeck card that
- *  produces `c` (`producedColors`: lands, Moxen, mana creatures alike). The
- *  colours are treated as independent hypergeometric draws and multiplied.
- *
- *  Not modelled, deliberately: the generic part of the cost and the total land
- *  drop (a "pays its pips" measure, not a "cast on curve" one), a dual paying
- *  only one pip at a time, colourless `{C}` pips, mulligans, the draw on the
- *  draw. A spell with no coloured pip is excluded from every mean (it is
- *  castable by this model whatever the mana base). */
+/** One Maindeck spell's castability under the declared model, a source being
+ *  any OTHER Maindeck card that produces the colour (`producedColors`: lands,
+ *  Moxen, mana creatures alike). A spell with no coloured pip is excluded from
+ *  every mean (it is castable by this model whatever the mana base). */
 export function castabilityOf(
     spell: AutoBuildCardMeta,
     deck: readonly AutoBuildCardMeta[],
     spellIndex: number
 ): number {
     const others = deck.filter((_, i) => i !== spellIndex);
-    const sources = sourceCountsByColor(others);
-    const draws = OPENING_HAND + Math.max(1, Math.round(spell.manaValue)) - 1;
-    let p = 1;
-    for (const c of TRUE_COLORS) {
-        const pips = spell.pips[c] ?? 0;
-        if (pips <= 0) continue;
-        p *= hypergeometricAtLeast(deck.length, sources[c] ?? 0, draws, pips);
-    }
-    return p;
+    return pipCastability(
+        spell.pips,
+        spell.manaValue,
+        deck.length,
+        sourceCountsByColor(others)
+    );
 }
 
 function hasColouredPip(meta: AutoBuildCardMeta): boolean {
-    return TRUE_COLORS.some((c) => (meta.pips[c] ?? 0) > 0);
+    return hasPip(meta.pips);
 }
 
 // ── Per-deck report ────────────────────────────────────────────────────────
