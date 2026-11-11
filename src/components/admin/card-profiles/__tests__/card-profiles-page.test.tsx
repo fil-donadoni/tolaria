@@ -717,3 +717,154 @@ describe("CardProfilesPage — the desktop tool (issue #8903)", () => {
         expect(cardOrder()).not.toContain("Lightning Bolt");
     });
 });
+
+describe("CardProfilesPage — the sweep board (issue #8905)", () => {
+    function lane(name: string) {
+        return within(screen.getByRole("region", { name }));
+    }
+
+    function laneCards(name: string): string[] {
+        return lane(name)
+            .queryAllByRole("checkbox")
+            .map((box) =>
+                (box.getAttribute("aria-label") ?? "").replace(/^.* for /, "")
+            )
+            .sort();
+    }
+
+    /** Cards the fixture carries as reanimator, read straight off the rows. */
+    function reanimatorCards(cards: ScopeCardProfile[]) {
+        return cards.filter((card) =>
+            (card.dbProfile ?? card.seedProfile)?.archetypes.includes(
+                "reanimator"
+            )
+        );
+    }
+
+    it("opens from the rail's catalogue row in three lanes computed from the layer rows", () => {
+        const reviewed = buildCardProfileRows(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["reanimator"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        const cards = cubeRows(dbAfterSaves(reviewed));
+        renderPage(cards, vi.fn(), vi.fn());
+        fireEvent.click(
+            screen.getByRole("button", { name: "Sweep reanimator" })
+        );
+
+        expect(screen.queryByRole("table")).toBeNull();
+        expect(laneCards("Tagged · reviewed")).toEqual(["Griselbrand"]);
+        const proposed = reanimatorCards(cards)
+            .filter((card) => card.name !== "Griselbrand")
+            .map((card) => card.name)
+            .sort();
+        expect(laneCards("Proposed by the census")).toEqual(proposed);
+        expect(laneCards("Not tagged")).toContain("Lightning Bolt");
+
+        fireEvent.click(screen.getByRole("button", { name: "Back to table" }));
+        expect(screen.getByRole("table")).toBeTruthy();
+    });
+
+    it("a tile's toggle writes the row into the Archetype layer only", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        const cards = cubeRows();
+        renderPage(cards, onSave, vi.fn());
+        fireEvent.click(
+            screen.getByRole("button", { name: "Sweep reanimator" })
+        );
+        fireEvent.click(
+            lane("Not tagged").getByRole("checkbox", {
+                name: "reanimator for Lightning Bolt",
+            })
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        const bolt = cards.find((card) => card.name === "Lightning Bolt");
+        const seed = bolt?.seedProfile;
+        expect(onSave).toHaveBeenCalledWith(cardId("Lightning Bolt"), {
+            archetypes: [...(seed?.archetypes ?? []), "reanimator"],
+            provides: seed?.provides ?? [],
+            requires: seed?.requires ?? [],
+            reviewed: seed?.reviewed ?? false,
+        });
+    });
+
+    it("'Confirm all proposed' writes only the middle lane, then the lanes refresh", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        const cards = cubeRows();
+        const { rerender } = renderPage(cards, onSave, vi.fn());
+        fireEvent.click(
+            screen.getByRole("button", { name: "Sweep reanimator" })
+        );
+        const proposed = reanimatorCards(cards);
+        expect(proposed.length).toBeGreaterThan(1);
+        expect(laneCards("Tagged · reviewed")).toEqual([]);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: `Confirm all proposed (${proposed.length})`,
+            })
+        );
+        await waitFor(() =>
+            expect(onSave).toHaveBeenCalledTimes(proposed.length)
+        );
+        for (const card of proposed) {
+            const seed = card.seedProfile;
+            expect(onSave).toHaveBeenCalledWith(card.cardId, {
+                ...seed,
+                reviewed: true,
+            });
+        }
+        const written = onSave.mock.calls.map(([id]) => id as string);
+        expect(written).not.toContain(cardId("Lightning Bolt"));
+
+        // The query echoes the writes; the board re-derives its lanes.
+        const saves = onSave.mock.calls.map(([id, profile]) =>
+            buildCardProfileRows(
+                CUBE_SOURCE_KEY,
+                id as string,
+                profile as Parameters<typeof buildCardProfileRows>[2]
+            )
+        );
+        rerenderPage(
+            rerender,
+            cubeRows(dbAfterSaves(...saves)),
+            onSave,
+            vi.fn()
+        );
+        expect(laneCards("Proposed by the census")).toEqual([]);
+        expect(laneCards("Tagged · reviewed")).toEqual(
+            proposed.map((card) => card.name).sort()
+        );
+        expect(laneCards("Not tagged")).toContain("Lightning Bolt");
+    });
+
+    it("the Capabilities rail sweeps one side of a Capability and writes that side", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        renderPage(cubeRows(), onSave, vi.fn());
+        fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+        expect(screen.queryByLabelText("Scope rail")).toBeNull();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Sweep Provides reanimatable" })
+        );
+        expect(laneCards("Proposed by the census")).toContain("Griselbrand");
+        fireEvent.click(
+            screen.getByRole("checkbox", {
+                name: "Provides reanimatable for Griselbrand",
+            })
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        const [id, profile] = onSave.mock.calls[0] as [
+            string,
+            { provides: string[]; archetypes: string[] },
+        ];
+        expect(id).toBe(cardId("Griselbrand"));
+        expect(profile.provides).not.toContain("reanimatable");
+        expect(profile.archetypes).toEqual(["reanimator"]);
+    });
+});

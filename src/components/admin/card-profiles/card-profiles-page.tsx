@@ -5,13 +5,16 @@ import {
     useArchetypeCatalogue,
     useCardProfileMutations,
     useScopeCardProfiles,
+    type EditableCardProfile,
 } from "~/hooks/useCardProfiles";
 import SegmentedControl from "~/components/ui/segmented-control";
 import type { SortState } from "~/lib/adminTableSort";
 import AdminReviewProgress from "../tool/admin-review-progress";
 import AdminScopeRail from "../tool/admin-scope-rail";
+import CardProfilesCapabilityRail from "./card-profiles-capability-rail";
 import CardProfilesFilters from "./card-profiles-filters";
 import CardProfilesScopeRail from "./card-profiles-scope-rail";
+import CardProfilesSweepBoard from "./card-profiles-sweep-board";
 import CardProfilesTable from "./card-profiles-table";
 import {
     EMPTY_FILTERS,
@@ -23,6 +26,8 @@ import {
     type ProfileSortKey,
     type ProfileTab,
 } from "./card-profiles-model";
+import type { SweepRow } from "./card-profiles-sweep-model";
+import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
 
 const TAB_OPTIONS = [
     { value: "capabilities", label: "Capabilities" },
@@ -42,7 +47,10 @@ type FilterKey = "status" | "archetype" | "provides" | "requires";
  *  **Capabilities** is the catalogue-wide layer — no scope: it lists the
  *  cube the Capability census covers (`CUBE_SOURCE_KEY`) and the rail stays
  *  out of the way. **Archetypes** is per scope: the rail picks the scope and
- *  its catalogue rows filter the table. Mounted only by
+ *  its catalogue rows filter the table. Either tab's rail opens the sweep
+ *  board on one catalogue row (issue #8905) in the table's place — the
+ *  Capabilities tab's rail carries no scope, only the Capability rows.
+ *  Mounted only by
  *  `CardProfilesAdminPanel` once the admin gate has passed. */
 export default function CardProfilesPage() {
     const draftableSets = useDraftableSets();
@@ -55,6 +63,7 @@ export default function CardProfilesPage() {
     const [filters, setFilters] = useState<ProfileFilters>(EMPTY_FILTERS);
     const [sort, setSort] = useState(DEFAULT_SORT);
     const [openCardId, setOpenCardId] = useState<string | null>(null);
+    const [sweep, setSweep] = useState<SweepRow | null>(null);
 
     const resolvedScope = scope ?? scopes[0]?.setCode;
     const activeScope =
@@ -74,6 +83,7 @@ export default function CardProfilesPage() {
         setFilters(EMPTY_FILTERS);
         setSort(DEFAULT_SORT);
         setOpenCardId(null);
+        setSweep(null);
     }
 
     function changeTab(next: ProfileTab) {
@@ -105,10 +115,36 @@ export default function CardProfilesPage() {
         setOpenCardId(next ? next.cardId : null);
     }
 
+    function saveProfile(cardId: string, profile: EditableCardProfile) {
+        if (activeScope === undefined) return Promise.resolve(null);
+        return setProfile({ scope: activeScope, cardId, ...profile });
+    }
+
+    const sweepDescription =
+        sweep === null
+            ? undefined
+            : sweep.kind === "archetype"
+              ? archetypeCatalogue.find((row) => row.id === sweep.id)
+                    ?.description
+              : CAPABILITY_REGISTRY.find((row) => row.id === sweep.id)
+                    ?.description;
+
     const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
 
     return (
         <div className="flex flex-col gap-4 min-[1500px]:flex-row">
+            {tab === "capabilities" && (
+                <AdminScopeRail
+                    open={railOpen}
+                    onToggle={() => setRailOpen((open) => !open)}
+                    label="Catalogue rail"
+                >
+                    <CardProfilesCapabilityRail
+                        cards={cards}
+                        onSweep={(kind, id) => setSweep({ kind, id })}
+                    />
+                </AdminScopeRail>
+            )}
             {tab === "archetypes" && (
                 <AdminScopeRail
                     open={railOpen}
@@ -125,6 +161,7 @@ export default function CardProfilesPage() {
                         onToggleArchetype={(id) =>
                             toggleFilter("archetype", id)
                         }
+                        onSweep={(id) => setSweep({ kind: "archetype", id })}
                     />
                 </AdminScopeRail>
             )}
@@ -155,54 +192,66 @@ export default function CardProfilesPage() {
                     storm/metalcraft payoffs and graveyard-scaling costs require
                     anything.
                 </p>
-                <CardProfilesFilters
-                    tab={tab}
-                    filters={filters}
-                    onSearch={(search) =>
-                        setFilters((prev) => ({ ...prev, search }))
-                    }
-                    onToggle={toggleFilter}
-                    catalogue={archetypeCatalogue}
-                />
-                {activeScope === undefined ? (
-                    <p className="text-xs text-text-muted">
-                        Select a scope to view/edit its Card Profiles.
-                    </p>
-                ) : visible === undefined ? (
-                    <p className="text-xs text-text-muted">Loading…</p>
-                ) : cards?.length === 0 ? (
-                    <p className="text-xs text-text-muted">
-                        No cards for this scope yet.
-                    </p>
-                ) : visible.length === 0 ? (
-                    <p className="text-xs text-text-muted">
-                        No cards match your filters.
-                    </p>
-                ) : (
-                    <CardProfilesTable
-                        tab={tab}
-                        cards={visible}
-                        sort={sortable}
-                        onSort={setSort}
-                        openCardId={openCardId}
-                        onToggleRow={(cardId) =>
-                            setOpenCardId((prev) =>
-                                prev === cardId ? null : cardId
-                            )
-                        }
-                        onSave={(cardId, profile) =>
-                            setProfile({
-                                scope: activeScope,
-                                cardId,
-                                ...profile,
-                            })
-                        }
-                        onClear={(cardId) =>
-                            clearProfile({ scope: activeScope, cardId })
-                        }
-                        onAdvance={advanceFrom}
-                        archetypeCatalogue={archetypeCatalogue}
+                {sweep !== null && cards !== undefined ? (
+                    <CardProfilesSweepBoard
+                        row={sweep}
+                        description={sweepDescription}
+                        cards={cards}
+                        onSave={saveProfile}
+                        onClose={() => setSweep(null)}
                     />
+                ) : (
+                    <>
+                        <CardProfilesFilters
+                            tab={tab}
+                            filters={filters}
+                            onSearch={(search) =>
+                                setFilters((prev) => ({ ...prev, search }))
+                            }
+                            onToggle={toggleFilter}
+                            catalogue={archetypeCatalogue}
+                        />
+                        {activeScope === undefined ? (
+                            <p className="text-xs text-text-muted">
+                                Select a scope to view/edit its Card Profiles.
+                            </p>
+                        ) : visible === undefined ? (
+                            <p className="text-xs text-text-muted">Loading…</p>
+                        ) : cards?.length === 0 ? (
+                            <p className="text-xs text-text-muted">
+                                No cards for this scope yet.
+                            </p>
+                        ) : visible.length === 0 ? (
+                            <p className="text-xs text-text-muted">
+                                No cards match your filters.
+                            </p>
+                        ) : (
+                            <CardProfilesTable
+                                tab={tab}
+                                cards={visible}
+                                sort={sortable}
+                                onSort={setSort}
+                                openCardId={openCardId}
+                                onToggleRow={(cardId) =>
+                                    setOpenCardId((prev) =>
+                                        prev === cardId ? null : cardId
+                                    )
+                                }
+                                onSave={(cardId, profile) =>
+                                    setProfile({
+                                        scope: activeScope,
+                                        cardId,
+                                        ...profile,
+                                    })
+                                }
+                                onClear={(cardId) =>
+                                    clearProfile({ scope: activeScope, cardId })
+                                }
+                                onAdvance={advanceFrom}
+                                archetypeCatalogue={archetypeCatalogue}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </div>
