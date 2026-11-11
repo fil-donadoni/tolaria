@@ -158,21 +158,20 @@ export type DraftAuditFloors = Partial<Record<FloorMetric, number>>;
  *  `1..DEFAULT_AUDIT_SEEDS`. First set from the baseline before any build
  *  change (`docs/research/draft-table-audit-baseline.md`), then re-set after
  *  the Auto-Build fixes of issue #8897
- *  (`docs/research/draft-table-audit-build-fixes.md`): tightened where the
+ *  (`docs/research/draft-table-audit-build-fixes.md`), then after the
+ *  plan-first build of issue #8898
+ *  (`docs/research/draft-table-audit-plan-first.md`): tightened where the
  *  build improved, loosened where it traded against the metric — each
  *  loosening says why below. None may loosen without saying why. A scope
  *  with no profiles declares no plan or Capability Floor. */
 export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
-        meanCastability: 0.85,
-        worstDeckCastability: 0.74,
-        // Loosened 0.47 → 0.42: a gold card is now maindecked only when
-        // every pip is payable, and spells are valued by Pick Rating — both
-        // cut plan-tagged cards the old build played. The plan-first build
-        // (issue #8898) is what raises this.
-        meanPlanShare: 0.42,
-        meanCapabilityPairs: 13.82,
+        meanCastability: 0.86,
+        worstDeckCastability: 0.77,
+        // The plan-first build raised it past the baseline's 0.47.
+        meanPlanShare: 0.52,
+        meanCapabilityPairs: 16.71,
     },
     lea: {
         builtShare: 1,

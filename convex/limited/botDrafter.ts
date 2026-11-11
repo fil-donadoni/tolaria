@@ -974,6 +974,27 @@ export function poolProfiles(
     return [...byCardId.values()];
 }
 
+/** The Pool's accumulated commitment per Archetype: each profiled Pool card
+ *  adds its copies to every Archetype it declares, an unreviewed Archetype
+ *  layer at half weight (`archetypeLayerWeight`). Read by Archetype Fit, the
+ *  Archetype Signal and Auto-Build's plan choice, so the build finishes the
+ *  plan the picks were weighted toward. */
+export function archetypeCommitment(
+    profiled: readonly PoolProfileEntry[]
+): Map<string, number> {
+    const commitment = new Map<string, number>();
+    for (const entry of profiled) {
+        const weight = archetypeLayerWeight(entry.profile) * entry.copies;
+        for (const archetype of entry.profile.archetypes) {
+            commitment.set(
+                archetype,
+                (commitment.get(archetype) ?? 0) + weight
+            );
+        }
+    }
+    return commitment;
+}
+
 /** An empty synergy term — the overwhelmingly common case (no profile for the
  *  candidate, or no profiled Pool card), factored out so all three terms
  *  report "computed, contributed nothing" identically rather than each
@@ -1014,16 +1035,7 @@ function archetypeFitTerm(
         );
     }
 
-    const commitment = new Map<string, number>();
-    for (const entry of profiled) {
-        const weight = archetypeLayerWeight(entry.profile) * entry.copies;
-        for (const archetype of entry.profile.archetypes) {
-            commitment.set(
-                archetype,
-                (commitment.get(archetype) ?? 0) + weight
-            );
-        }
-    }
+    const commitment = archetypeCommitment(profiled);
 
     // Candidate-declared order, strict `>` — the winner is a pure function of
     // the profile data, never of Map iteration order.
@@ -1320,7 +1332,7 @@ const SIGNAL_RAW_CAP = 0.5;
  *  counts as fully able to be "settled" — below it, concentration is scaled
  *  down so a seat with one pick is not already considered committed. */
 const COLOUR_SETTLE_UNITS = 12;
-const ARCHETYPE_SETTLE_UNITS = 4;
+export const ARCHETYPE_SETTLE_UNITS = 4;
 
 /** 0..1 measure of how settled a Pool is on few axis values: the share of the
  *  two largest accumulators, scaled by how much Pool there is. Monotone: adding
@@ -1424,13 +1436,7 @@ function archetypeSignalTerm(
             "no Archetype of this card reads as open upstream"
         );
     }
-    const commitment = new Map<string, number>();
-    for (const entry of profiled) {
-        const w = archetypeLayerWeight(entry.profile) * entry.copies;
-        for (const a of entry.profile.archetypes) {
-            commitment.set(a, (commitment.get(a) ?? 0) + w);
-        }
-    }
+    const commitment = archetypeCommitment(profiled);
     const weight =
         1 - settledness([...commitment.values()], ARCHETYPE_SETTLE_UNITS);
     const raw =

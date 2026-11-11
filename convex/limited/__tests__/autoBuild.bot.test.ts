@@ -1235,3 +1235,253 @@ describe("Build Invariants (PRD #8772)", () => {
         expect(lands(low)).toBeLessThan(lands(high));
     });
 });
+
+// --- Plan-first Auto-Build (issue #8898) -----------------------------------
+
+/** The share of the Maindeck's spells the deepest plan must keep — the Build
+ *  Invariant's declared threshold. The fixture's plan holds 11 of ~23 spell
+ *  slots once it decides the colours; a build that ignores it plays none. */
+const PLAN_SHARE_THRESHOLD = 0.4;
+
+function archetypeProfile(
+    archetypes: string[],
+    archetypesReviewed = true
+): CardProfile {
+    return {
+        archetypes,
+        provides: [],
+        requires: [],
+        archetypesReviewed,
+        capabilitiesReviewed: true,
+    };
+}
+
+function profilesById(rows: readonly [string, CardProfile][]): GetCardProfile {
+    const byId = new Map(rows.map(([name, p]) => [getCardByName(name).id, p]));
+    return (cardId) => byId.get(cardId) ?? null;
+}
+
+/** Eleven single-pip R/G `aggro` cards against eight double-pip U/B
+ *  `control` cards: by Colour Commitment the Pool is U/B (the control
+ *  cards' pips outweigh the aggro cards'), by depth it is aggro. */
+function rivalPlansPool() {
+    return invariantPool([
+        ["ogre", metaOf("Gray Ogre"), 6],
+        ["bears", metaOf("Grizzly Bears"), 5],
+        ["air", metaOf("Air Elemental"), 4],
+        ["vampire", metaOf("Sengir Vampire"), 4],
+        ["giant", metaOf("Hill Giant"), 4],
+        ["wurm", metaOf("Craw Wurm"), 2],
+        ["merfolk", metaOf("Merfolk of the Pearl Trident"), 4],
+        ["zombies", metaOf("Scathe Zombies"), 4],
+    ]);
+}
+
+const AGGRO_CARDS = ["Gray Ogre", "Grizzly Bears"];
+const CONTROL_CARDS = ["Air Elemental", "Sengir Vampire"];
+
+function rivalPlanProfiles(aggroReviewed = true): GetCardProfile {
+    return profilesById([
+        ...AGGRO_CARDS.map(
+            (n) =>
+                [n, archetypeProfile(["aggro"], aggroReviewed)] as [
+                    string,
+                    CardProfile,
+                ]
+        ),
+        ...CONTROL_CARDS.map(
+            (n) => [n, archetypeProfile(["control"])] as [string, CardProfile]
+        ),
+    ]);
+}
+
+/** The rival control cards are the better cards: top of the rating scale. */
+const controlRatedHigher = (cardId: string): number | null =>
+    CONTROL_CARDS.some((n) => getCardByName(n).id === cardId)
+        ? 4.5
+        : AGGRO_CARDS.some((n) => getCardByName(n).id === cardId)
+          ? 2.5
+          : null;
+
+function planShareOf(
+    built: { cards: { cardId: string; cardName: string }[] },
+    getMeta: GetAutoBuildCardMeta,
+    getCardProfile: GetCardProfile,
+    archetype: string
+): number {
+    const spells = maindeckMetas(built, getMeta).filter((m) => !m.isLand);
+    return (
+        spells.filter((m) =>
+            getCardProfile(m.cardId)?.archetypes.includes(archetype)
+        ).length / spells.length
+    );
+}
+
+describe("Plan-first Auto-Build (issue #8898)", () => {
+    it("Build Invariant: the deepest plan survives the build against a higher-rated rival plan with fewer cards", () => {
+        const { pool, getMeta } = rivalPlansPool();
+        const getCardProfile = rivalPlanProfiles();
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile,
+            getPickRating: controlRatedHigher,
+        });
+        expect(built.cards.length).toBeGreaterThanOrEqual(40);
+        expect(
+            planShareOf(built, getMeta, getCardProfile, "aggro")
+        ).toBeGreaterThan(PLAN_SHARE_THRESHOLD);
+        // Every aggro card plays: the plan's cards go first.
+        expect(
+            built.cards.filter((c) => /^(ogre|bears)/.test(c.cardName))
+        ).toHaveLength(11);
+    });
+
+    it("the plan's cards take their slots ahead of better-rated on-colour cards", () => {
+        // R/G either way; 25 on-colour spells for 22 slots. Rated, the
+        // fillers outscore the aggro cards, so a build that reads ratings
+        // alone cuts three aggro cards.
+        const { pool, getMeta } = invariantPool([
+            ["ogre", metaOf("Gray Ogre"), 6],
+            ["bears", metaOf("Grizzly Bears"), 5],
+            ["giant", metaOf("Hill Giant"), 8],
+            ["wurm", metaOf("Craw Wurm"), 6],
+        ]);
+        const getCardProfile = rivalPlanProfiles();
+        const fillers = ["Hill Giant", "Craw Wurm"].map(
+            (n) => getCardByName(n).id
+        );
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile,
+            getPickRating: (cardId) => (fillers.includes(cardId) ? 4.5 : 2.5),
+        });
+        expect(
+            built.cards.filter((c) => /^(ogre|bears)/.test(c.cardName))
+        ).toHaveLength(11);
+        expect(
+            built.cards.filter((c) => /^(giant|wurm)/.test(c.cardName)).length
+        ).toBeLessThan(14);
+    });
+
+    it("colours follow the plan's signature, not the Pool's pip-weighted commitment", () => {
+        const { pool, getMeta } = rivalPlansPool();
+        // Without profiles the double pips of the control cards win.
+        expect(chooseDeckColors(pool, getMeta)).toEqual(["U", "B"]);
+        expect(chooseDeckColors(pool, getMeta, rivalPlanProfiles())).toEqual([
+            "R",
+            "G",
+        ]);
+    });
+
+    it("an unreviewed Archetype counts half: eleven unreviewed aggro cards lose the plan to eight reviewed control cards", () => {
+        // 11 × 0.5 = 5.5 units of aggro against 8 of control.
+        const { pool, getMeta } = rivalPlansPool();
+        const getCardProfile = rivalPlanProfiles(false);
+        expect(chooseDeckColors(pool, getMeta, getCardProfile)).toEqual([
+            "U",
+            "B",
+        ]);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile,
+        });
+        expect(
+            built.cards.filter((c) => /^(air|vampire)/.test(c.cardName))
+        ).toHaveLength(8);
+    });
+
+    it("a third plan colour is admitted only when the Pool's dual lands pay for it", () => {
+        // A W/R/G aggro plan, a third of its cards in each colour, beside the
+        // same U/B control rival. White is the plan's lightest colour by
+        // pips, so it ranks third; four W/B duals cover its share of 17
+        // lands, and without them the deck stays on two.
+        const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
+        const rows: [string, AutoBuildCardMeta, number][] = [
+            ["lions", metaOf("Savannah Lions"), 4],
+            [
+                "raiders",
+                spellWithPips(metaOf("Mons's Goblin Raiders"), { R: 2 }),
+                4,
+            ],
+            ["bears", spellWithPips(metaOf("Grizzly Bears"), { G: 2 }), 4],
+            ["air", metaOf("Air Elemental"), 4],
+            ["vampire", metaOf("Sengir Vampire"), 4],
+            ["merfolk", metaOf("Merfolk of the Pearl Trident"), 4],
+            ["zombies", metaOf("Scathe Zombies"), 4],
+        ];
+        const getCardProfile = profilesById([
+            ["Savannah Lions", archetypeProfile(["aggro"])],
+            ["Mons's Goblin Raiders", archetypeProfile(["aggro"])],
+            ["Grizzly Bears", archetypeProfile(["aggro"])],
+            ["Air Elemental", archetypeProfile(["control"])],
+            ["Sengir Vampire", archetypeProfile(["control"])],
+        ]);
+        const withDuals = invariantPool([...rows, ["dual", dual, 4]]);
+        const colours = chooseDeckColors(
+            withDuals.pool,
+            withDuals.getMeta,
+            getCardProfile
+        );
+        expect(new Set(colours)).toEqual(new Set(["W", "R", "G"]));
+        const built = autoBuildDeck(
+            withDuals.pool,
+            withDuals.getMeta,
+            resolveBasicLand,
+            { getCardProfile }
+        );
+        expect(built.colors).toHaveLength(3);
+        expect(
+            built.cards.filter((c) => c.cardName.startsWith("dual"))
+        ).toHaveLength(4);
+
+        const noDuals = invariantPool(rows);
+        const two = chooseDeckColors(
+            noDuals.pool,
+            noDuals.getMeta,
+            getCardProfile
+        );
+        expect(two).toEqual(["R", "G"]);
+    });
+
+    it("profile-less: the build is the plan-less build, card for card", () => {
+        // No profile seam, a seam that profiles nothing, and one whose only
+        // Archetype is too shallow to be a plan (three cards, under the
+        // depth the pick scorer counts as settled) all build the same deck.
+        const packSlots = ["lea"];
+        let seats = buildEmptySeats(2);
+        seats = fillBotSeats(seats);
+        seats = generateSealedPools(
+            seats,
+            packSlots,
+            6,
+            getBoosterConfig,
+            resolveCardMeta,
+            makeRng(8898)
+        );
+        const pool = seats[0].pool!;
+        const getPickRating = (cardId: string) =>
+            cardId.length % 2 === 0 ? 3 : null;
+        const plain = autoBuildDeck(
+            pool,
+            getAutoBuildCardMeta,
+            resolveBasicLand,
+            { getPickRating }
+        );
+        const nothing = autoBuildDeck(
+            pool,
+            getAutoBuildCardMeta,
+            resolveBasicLand,
+            { getPickRating, getCardProfile: () => null }
+        );
+        const shallowId = getAutoBuildCardMeta(pool[0].scryfallId)!.cardId;
+        const shallow = autoBuildDeck(
+            pool,
+            getAutoBuildCardMeta,
+            resolveBasicLand,
+            {
+                getPickRating,
+                getCardProfile: (cardId) =>
+                    cardId === shallowId ? archetypeProfile(["aggro"]) : null,
+            }
+        );
+        expect(nothing).toEqual(plain);
+        expect(shallow).toEqual(plain);
+    });
+});

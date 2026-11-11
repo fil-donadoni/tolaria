@@ -4,13 +4,22 @@
 // Limited deck so a human can test their own draft against the table
 // (`docs/adr/0055-limited-event-architecture.md` decision 3). Auto-Build:
 //
-//   1. picks the seat's strongest colors (`chooseDeckColors`) — pip-weighted
-//      Colour Commitment (`botDrafter.ts`'s own `colourAffinityWeights`, ADR
-//      0073), with the color COUNT derived: two by default, three when the
-//      Pool's own mana base pays for the third (`manaBaseSupportsThirdColor`,
-//      the same `max(0, demand − sources)` deficit arithmetic as Fixing
-//      Value);
-//   2. curve-fills a spell base from the Pool's on-colour (+ colourless)
+//   0. finds the PLAN (`choosePlan`, PRD #8772): the Archetype the Pool is
+//      deepest in, by the pick scorer's own accumulator
+//      (`archetypeCommitment`: copies count, an unreviewed Archetype layer
+//      at half weight), so the builder finishes the plan the draft was
+//      heading for. No profiles, or no Archetype deep enough to be settled,
+//      means no plan, and every step below runs exactly as without one;
+//   1. picks the seat's colors (`chooseDeckColors`): the plan's colour
+//      signature in the Pool first (the Archetype Catalogue's
+//      `colourSignature`), then pip-weighted Colour Commitment
+//      (`botDrafter.ts`'s own `colourAffinityWeights`, ADR 0073), with the
+//      color COUNT derived: two by default, three when the Pool's own mana
+//      base pays for the third (`manaBaseSupportsThirdColor`, the same
+//      `max(0, demand − sources)` deficit arithmetic as Fixing Value);
+//   2. takes the plan's castable core first — its own cards, their
+//      Capability partners and the deck's mana-producing spells — then
+//      curve-fills a spell base from the Pool's on-colour (+ colourless)
 //      cards — a gold card is on-colour only when EVERY coloured pip is a
 //      colour of the deck — reusing `botDrafter.ts`'s `CURVE_TARGET` /
 //      `curveBucket` shape so draft-time and build-time curve-awareness never
@@ -29,7 +38,8 @@
 //      by the Maindeck's own pip demand.
 //
 // Every card-quality judgement routes through `botDrafter.ts` —
-// `candidateBaseRating`, `CURVE_TARGET`/`curveBucket`, `colourAffinityWeights`,
+// `archetypeCommitment`, `candidateBaseRating`, `CURVE_TARGET`/`curveBucket`,
+// `colourAffinityWeights`,
 // `pipDemandByColor`, `sourceCountsByColor`, `capabilityFitTerm` —
 // deliberately: ONE card-quality authority for draft time and build time (ADR
 // 0073's "Auto-Build consumes the same seams"), never two that drift apart.
@@ -51,8 +61,10 @@ import type { DeckCard } from "../deckPresets";
 import { FORMAT_RULES } from "../formats";
 import type { Color } from "../cards/types";
 import {
+    ARCHETYPE_SETTLE_UNITS,
     CURVE_MAX_BUCKET,
     CURVE_TARGET,
+    archetypeCommitment,
     candidateBaseRating,
     candidateQuality,
     capabilityFitTerm,
@@ -64,6 +76,10 @@ import {
     type CardEvalMeta,
     type GetPickRating,
 } from "./botDrafter";
+import {
+    colourSignature,
+    type ColourSignature,
+} from "./archetypeCatalogueCore";
 import { pipCastability } from "./castability";
 import type { GetCardProfile } from "./cardProfilesCore";
 import { isAutoDrivenSeat } from "./droppedSeat";
@@ -219,6 +235,65 @@ function resolvedMetas(
         .filter((m): m is AutoBuildCardMeta => m !== null);
 }
 
+/** The plan Auto-Build finishes: the Archetype the Pool is deepest in, its
+ *  colour signature over the Pool, and which cards carry it. */
+interface BuildPlan {
+    archetype: string;
+    signature: ColourSignature;
+    isPlanCard: (meta: CardEvalMeta) => boolean;
+}
+
+/** A signature colour carrying less than this share of the plan's cards is a
+ *  splash of the plan, not one of its colours: it ranks by the Pool's Colour
+ *  Commitment like any colour outside the plan. Without it, a plan spread
+ *  thin over five colours (cube `control`) names colours the Pool barely
+ *  plays, and a mono-colour plan's one gold card names the second colour.
+ *  Chosen on the Vintage Cube audit, where a lower bar costs the worst
+ *  deck's castability (`docs/research/draft-table-audit-plan-first.md`). */
+const PLAN_COLOUR_MIN_SHARE = 0.3;
+
+/** The Pool's deepest Archetype, or `null` when nothing is profiled or no
+ *  Archetype is deep enough to be a plan. Depth is `archetypeCommitment`,
+ *  the pick scorer's own accumulator (copies count, an unreviewed Archetype
+ *  layer at half weight), so card COUNT decides, never card quality: eleven
+ *  aggro cards outrank eight better control cards. A plan must reach
+ *  `ARCHETYPE_SETTLE_UNITS`, the depth at which the pick scorer counts a
+ *  Pool as settled: below it, a scope with a handful of profiled cards
+ *  builds as an unprofiled one. Ties break by Archetype id, as the Draft
+ *  Table Audit reads the plan. The signature is the Archetype Catalogue's
+ *  `colourSignature` with the Pool as its scope. */
+function choosePlan(
+    resolved: readonly ResolvedEntry[],
+    getCardProfile: GetCardProfile | undefined
+): BuildPlan | null {
+    if (!getCardProfile) return null;
+    const metas = resolvedMetas(resolved);
+    const commitment = archetypeCommitment(poolProfiles(metas, getCardProfile));
+    let archetype: string | null = null;
+    let depth = 0;
+    for (const [a, units] of [...commitment].sort(([x], [y]) =>
+        x.localeCompare(y)
+    )) {
+        if (units > depth) {
+            archetype = a;
+            depth = units;
+        }
+    }
+    if (archetype === null || depth < ARCHETYPE_SETTLE_UNITS) return null;
+    const plan = archetype;
+    const isPlanCard = (meta: CardEvalMeta) =>
+        getCardProfile(meta.cardId)?.archetypes.includes(plan) ?? false;
+    const scope = metas.map((m) => ({
+        archetypes: getCardProfile(m.cardId)?.archetypes ?? [],
+        colours: m.colors,
+    }));
+    return {
+        archetype: plan,
+        signature: colourSignature(scope, plan),
+        isPlanCard,
+    };
+}
+
 /** True once the Pool's OWN mana base pays for a third colour (issue #1615,
  *  ADR 0073: "the colour COUNT becomes derived — two, or three when the Pool's
  *  own mana base supports it, by the same source/deficit arithmetic").
@@ -279,6 +354,12 @@ function manaBaseSupportsThirdColor(
  *  the draft's plan rather than re-deciding it from summed card quality, which
  *  is blind to how hard a card commits and blind to the mana base entirely.
  *
+ *  With a plan (`choosePlan`), the plan's colour signature ranks first: a
+ *  colour holding at least `PLAN_COLOUR_MIN_SHARE` of the plan's cards
+ *  outranks every colour that does not, by its share; Colour Commitment
+ *  orders the rest and breaks ties. Without one, every signature share reads
+ *  0 and the ranking is Colour Commitment alone.
+ *
  *  The COUNT is derived, never hardcoded: two colours, plus a third when
  *  `manaBaseSupportsThirdColor` says the Pool pays for it. Ties break by WUBRG
  *  order — deterministic, since `ranked` is built in WUBRG order and
@@ -286,13 +367,20 @@ function manaBaseSupportsThirdColor(
  *  cards at all (a degenerate/test case, never a real draft) falls back to
  *  `["W", "U"]` rather than throwing. */
 function chooseDeckColorsFromResolved(
-    resolved: readonly ResolvedEntry[]
+    resolved: readonly ResolvedEntry[],
+    plan: BuildPlan | null
 ): TrueColor[] {
     const metas = resolvedMetas(resolved);
     const affinity = colourAffinityWeights(metas);
-    const ranked = WUBRG.map((c) => ({ c, score: affinity[c] ?? 0 })).sort(
-        (a, b) => b.score - a.score
-    );
+    const planShare = (c: TrueColor): number => {
+        const share = plan?.signature[c] ?? 0;
+        return share >= PLAN_COLOUR_MIN_SHARE ? share : 0;
+    };
+    const ranked = WUBRG.map((c) => ({
+        c,
+        plan: planShare(c),
+        score: affinity[c] ?? 0,
+    })).sort((a, b) => b.plan - a.plan || b.score - a.score);
     const colors: TrueColor[] = ranked
         .slice(0, MIN_DECK_COLORS)
         .map((r) => r.c);
@@ -310,12 +398,18 @@ function chooseDeckColorsFromResolved(
 /** Public entry point for `chooseDeckColorsFromResolved` — resolves `pool`
  *  first via `getMeta` (exported standalone, mirrors `botDrafter.ts`'s
  *  `scoreCandidate`, so colour selection is directly unit-testable without
- *  building a whole deck). Returns 2 or 3 colours (`MAX_DECK_COLORS`). */
+ *  building a whole deck). Returns 2 or 3 colours (`MAX_DECK_COLORS`).
+ *  `getCardProfile` is the plan's seam, as in `AutoBuildOptions`. */
 export function chooseDeckColors(
     pool: readonly LimitedPoolCard[],
-    getMeta: GetAutoBuildCardMeta
+    getMeta: GetAutoBuildCardMeta,
+    getCardProfile?: GetCardProfile
 ): TrueColor[] {
-    return chooseDeckColorsFromResolved(resolvePool(pool, getMeta));
+    const resolved = resolvePool(pool, getMeta);
+    return chooseDeckColorsFromResolved(
+        resolved,
+        choosePlan(resolved, getCardProfile)
+    );
 }
 
 /** A gold card is on-colour only when EVERY coloured pip is a colour of the
@@ -386,11 +480,17 @@ export function landCountForCurve(spells: readonly CardEvalMeta[]): number {
  *  a Pool is colour-pure, and a later tier (a strained or off-colour spell)
  *  only plays when every earlier one is in.
  *
+ *  `planFirst` cards (the plan's core, see `autoBuildDeck`) are taken before
+ *  any of that, best score first; they occupy their curve buckets, so the curve
+ *  fill tops up only what the plan left empty. Empty, the selection is the
+ *  plan-less one.
+ *
  *  `score` is injected so the SAME selection runs twice: once on standalone
  *  quality to establish what the deck provisionally is, then once more with
  *  the Castability and Capability terms measured against that provisional
  *  deck. */
 function selectSpells(
+    planFirst: readonly ResolvedEntry[],
     tiers: readonly (readonly ResolvedEntry[])[],
     spellCount: number,
     score: SpellScore
@@ -409,11 +509,21 @@ function selectSpells(
     const byScoreDesc = (a: ResolvedEntry, b: ResolvedEntry): number =>
         scoreOf(b) - scoreOf(a);
 
+    for (const r of [...planFirst].sort(byScoreDesc).slice(0, spellCount)) {
+        chosen.push(r);
+        taken.add(r.entry);
+    }
+
     const first = tiers[0] ?? [];
     for (let bucket = 1; bucket <= CURVE_MAX_BUCKET; bucket++) {
-        const target = CURVE_TARGET[bucket] ?? 0;
+        const inBucket = (r: ResolvedEntry) =>
+            curveBucket(r.meta!.manaValue) === bucket;
+        const target = Math.max(
+            0,
+            (CURVE_TARGET[bucket] ?? 0) - chosen.filter(inBucket).length
+        );
         const bucketCards = first
-            .filter((r) => curveBucket(r.meta!.manaValue) === bucket)
+            .filter((r) => !taken.has(r.entry) && inBucket(r))
             .sort(byScoreDesc);
         for (const r of bucketCards.slice(0, target)) {
             if (chosen.length >= spellCount) break;
@@ -601,7 +711,8 @@ export function autoBuildDeck(
     options: AutoBuildOptions = {}
 ): AutoBuiltDeck {
     const resolved = resolvePool(pool, getMeta);
-    const colors = chooseDeckColorsFromResolved(resolved);
+    const plan = choosePlan(resolved, options.getCardProfile);
+    const colors = chooseDeckColorsFromResolved(resolved, plan);
     const colorSet = new Set<Color>(colors);
 
     const spellCandidates = resolved.filter(
@@ -613,6 +724,22 @@ export function autoBuildDeck(
         (r) => !onColorEntries.has(r.entry)
     );
     const base = baseSpellScore(options.getPickRating);
+    // The plan's core: its own cards, the cards `isPartner` names, and every
+    // spell producing a deck colour. A mana source serves whatever plan the
+    // deck plays; cutting one for a plan card costs every other spell its
+    // castability.
+    const planCore = (
+        rs: readonly ResolvedEntry[],
+        isPartner: (r: ResolvedEntry) => boolean
+    ): ResolvedEntry[] =>
+        plan
+            ? rs.filter(
+                  (r) =>
+                      plan.isPlanCard(r.meta!) ||
+                      isPartner(r) ||
+                      r.meta!.producedColors.some((c) => colorSet.has(c))
+              )
+            : [];
 
     // TWO passes. The first establishes what the deck provisionally IS on
     // standalone value at the nominal split; the curve of that deck sizes
@@ -623,6 +750,7 @@ export function autoBuildDeck(
     // loop to a fixpoint can oscillate between two equally-scoring decks, and
     // determinism is a hard requirement of this module.
     const provisional = selectSpells(
+        planCore(onColor, () => false),
         [onColor, offColor],
         Math.min(PROVISIONAL_SPELL_COUNT, spellCandidates.length),
         base
@@ -645,17 +773,30 @@ export function autoBuildDeck(
               options.getCardProfile
           )
         : () => 0;
+    // A Capability partner of the plan: a match with one of the plan's cards
+    // in the provisional Maindeck (the enabler a plan card requires).
+    const planFit =
+        plan && options.getCardProfile
+            ? capabilityFit(
+                  provisional
+                      .map((r) => r.meta!)
+                      .filter((m) => plan.isPlanCard(m)),
+                  options.getCardProfile
+              )
+            : () => 0;
     const score: SpellScore = (r) =>
         base(r) + BUILD_CASTABILITY_RATING * castability(r) + fit(r);
 
-    // A strained spell (castability under the floor) competes only after
-    // every castable on-colour one; off-colour spells only after both.
+    // The plan's castable core goes first. A strained spell (castability
+    // under the floor) competes only after every castable on-colour one,
+    // plan or not; off-colour spells only after both.
     const castable = onColor.filter(
         (r) => castability(r) >= BUILD_CASTABILITY_FLOOR
     );
     const castableEntries = new Set(castable.map((r) => r.entry));
     const strained = onColor.filter((r) => !castableEntries.has(r.entry));
     const chosen = selectSpells(
+        planCore(castable, (r) => planFit(r) > 0),
         [castable, strained, offColor],
         spellCount,
         score
