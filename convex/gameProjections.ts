@@ -1956,7 +1956,7 @@ export function projectPublicState(
             r.audience.includes(viewerId)
         ),
         // Issue #8956 — the names of the cards left in the library are the
-        // chooser's alone (CR 701.22a / 701.25a); every seat keeps the counts.
+        // chooser's alone (CR 401.2); every seat keeps the counts.
         lastChoiceAnnouncement: projectChoiceAnnouncement(
             state.lastChoiceAnnouncement,
             viewerId

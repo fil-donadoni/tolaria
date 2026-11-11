@@ -1,8 +1,7 @@
 // Issue #8956 — the `lastChoiceAnnouncement` one-slot record that lets EVERY
-// seat read a named card (CR 201.3: a chosen name is public) and the shape of
-// a scry / surveil split (CR 701.22a / 701.25a: counts public, the library
-// half hidden). The opponent's wire copy never names a card left in the
-// library; a graveyard destination is public.
+// seat read a named card and the shape of a scry / surveil split
+// (CR 701.22a / 701.25a: counts public; CR 401.2: the library half hidden).
+// The opponent's wire copy never names a card left in the library; a graveyard destination is public.
 import { describe, it, expect } from "vitest";
 import { ponder } from "../../cards/sets/lrw/blue.cards";
 import {
@@ -149,7 +148,7 @@ describe("lastChoiceAnnouncement — order-top (CR 701.22a / 701.25a)", () => {
     });
 });
 
-describe("lastChoiceAnnouncement — name-card (CR 201.3)", () => {
+describe("lastChoiceAnnouncement — name-card", () => {
     it("records the canonical name, public to both seats", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
