@@ -92,7 +92,7 @@ const RESIDENT_CEILING_BYTES = 29_139; // +64: the `/profile-census` line in CLA
  * Raised by 354 for the doc-comment convention (ticket 6170): a new norm
  * the guard `check:issue-log-comments` enforces.
  */
-const ON_DEMAND_CEILING_BYTES = 25_454; // +250: the undecided-scope pointer in src/CLAUDE.md (issue #6144)
+const ON_DEMAND_CEILING_BYTES = 25_543; // +89: the ui-owed pointer in src/CLAUDE.md (issue #9122); +250: the undecided-scope pointer in src/CLAUDE.md (issue #6144)
 
 /**
  * TIER 3 — SKILL MANIFEST (PRD #5096 D6, issue #5100). A skill's `SKILL.md`
@@ -129,7 +129,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 33_135,
-    "next-ticket": 12_148, // +107 B: the draft:audit receipt cue (issue #8895); +120 B: the §4 opus-reviewer row and `review-brief.md` pointer (issue #7659); +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
+    "next-ticket": 12_232, // +84 B: the ui-owed cue (issue #9122); +107 B: the draft:audit receipt cue (issue #8895); +120 B: the §4 opus-reviewer row and `review-brief.md` pointer (issue #7659); +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
     "profile-census": 8_179,
     prototype: 2_931,
     retro: 4_760,

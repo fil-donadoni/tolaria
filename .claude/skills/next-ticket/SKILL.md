@@ -211,6 +211,7 @@ nor wait.
 - PR body: what changed, tests + a `proof` receipt per guarding test for the
   pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
+  `owed` → label `ui-owed`, no in-session walk (`quality-gates.md`, issue #9122).
   `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
 - Drafter/Auto-Build/profile/catalogue diff: paste the `draft:audit:` lines
   (`quality-gates.md`, issue #8895).

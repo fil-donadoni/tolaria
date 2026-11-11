@@ -746,6 +746,12 @@ as a health and then a RELEASE step (issue #5378), is retired too (issue
 #6143): a PR walks the surfaces its diff can reach, and no automated run —
 batch health, `bun run release` — walks them all; `--all` is run by hand.
 
+An owed walk is batched (issue #9122): the PR wears `ui-owed` (`land:ready`
+refuses it) and `bun run check:ui:batch` walks all of them in ONE `--batch` run,
+then lands the clean, labels a red one `land-failed`, and leaves DROPPED /
+UNPROVEN PRs `ui-owed` with a comment. It needs the local Convex deployment and
+the lane slot (ADR 0156); trigger is by hand until a workflow is measured.
+
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)
 
 **A guard whose measured cost is ≤ 10 s on the heavy tier belongs in the lane;

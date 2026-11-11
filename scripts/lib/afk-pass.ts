@@ -23,7 +23,7 @@
 import { sumWindow, type Categories, type UsageRecord } from "./usage-window";
 import { ISSUE_BRANCH, type OpenPr, type PassRecord } from "./afk-dispatch";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./claim-labels";
-import { READY_LABEL } from "./land-labels";
+import { READY_LABEL, UI_OWED_LABEL } from "./land-labels";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Inputs and the command line
@@ -252,7 +252,13 @@ export interface OutcomeFacts {
  * — neither `in-progress` nor `pr-open` left; then how `claude` ended.
  */
 export function passOutcome(f: OutcomeFacts): PassOutcome {
-    if (f.pr !== null && f.pr.labels.includes(READY_LABEL)) return "handed-off";
+    // `ui-owed` (issue #9122): the pass handed the PR to the batch collector.
+    if (
+        f.pr !== null &&
+        (f.pr.labels.includes(READY_LABEL) ||
+            f.pr.labels.includes(UI_OWED_LABEL))
+    )
+        return "handed-off";
     if (f.issueClosed) return "closed";
     if (f.usageLimited) return "usage-limit";
     const claimed =
