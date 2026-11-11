@@ -37,9 +37,9 @@
 // Deck SIZE and LAND COUNT: the Maindeck is exactly `FORMAT_RULES.limited.
 // minMain` (40), the format's legality floor. The land count follows the
 // curve: `LAND_COUNT_BASE + LAND_COUNT_PER_MANA_VALUE × average mana value` of
-// the provisional spells, rounded and clamped into `LAND_COUNT_BAND` (15–18 —
-// a 2-drop deck plays 15, a 3.5-average deck 18, real Limited practice, not
-// CR-mandated), and the spells fill the rest. A Pool too thin in spells
+// the provisional spells, rounded and clamped into `LAND_COUNT_BAND` (16–18 —
+// a deck averaging 2.5 or less plays 16, 3.5 or more plays 18; real Limited
+// practice, not CR-mandated), and the spells fill the rest. A Pool too thin in spells
 // still reaches 40 by GROWING the land count past the band, never by shipping
 // a short deck.
 //
@@ -159,13 +159,16 @@ const NOMINAL_LAND_COUNT = 17;
 const PROVISIONAL_SPELL_COUNT = TARGET_MAIN_SIZE - NOMINAL_LAND_COUNT;
 
 /** The declared band the curve-sized land count lives in (real-practice
- *  Limited: 15 for a deck of two-drops, 18 for a deck of fatties). Only a
- *  Pool too thin in spells to reach the format floor plays more. */
-export const LAND_COUNT_BAND = { min: 15, max: 18 } as const;
+ *  Limited: 16 for a low curve, 18 for a deck of fatties). The floor is 16,
+ *  not 15: under the Draft Table Audit's castability model every land below
+ *  17 costs about 0.04 of mean castability on a low-curve set (LEA), and
+ *  that model cannot see what the extra spell buys. Only a Pool too thin in
+ *  spells to reach the format floor plays more than the band's top. */
+export const LAND_COUNT_BAND = { min: 16, max: 18 } as const;
 
 /** Land count = `LAND_COUNT_BASE + LAND_COUNT_PER_MANA_VALUE × average mana
- *  value`, rounded, then clamped into `LAND_COUNT_BAND`: an average of 2.0
- *  plays 15, 2.5 plays 16, 3.0 plays 17, 3.5 plays 18. */
+ *  value`, rounded, then clamped into `LAND_COUNT_BAND`: an average of 2.5
+ *  plays 16, 3.0 plays 17, 3.5 plays 18. */
 const LAND_COUNT_BASE = 11;
 const LAND_COUNT_PER_MANA_VALUE = 2;
 
