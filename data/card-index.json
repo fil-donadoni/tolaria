@@ -34662,6 +34662,14 @@
         "source": "compiled"
     },
     {
+        "name": "Goryo's Vengeance",
+        "scryfallId": "3027e6c5-eed3-44e7-bb12-67569721af99",
+        "oracleId": "3ea3c681-f0ad-45a2-bc25-2813efd8d560",
+        "firstSet": "bok",
+        "firstPrintId": "3027e6c5-eed3-44e7-bb12-67569721af99",
+        "firstPrintSet": "bok"
+    },
+    {
         "name": "Graceful Cat",
         "scryfallId": "b42ba8bf-9fc1-4d57-9c80-42491d18d929",
         "oracleId": "69fffad0-6469-4623-9977-347143fa7289",
