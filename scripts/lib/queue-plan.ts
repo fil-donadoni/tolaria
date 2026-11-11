@@ -32,6 +32,7 @@
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
+import { MANUAL_LABEL } from "./land-labels";
 import {
     lintIssue,
     parseDependencies,
@@ -483,15 +484,10 @@ export interface InFlightIssue {
     awaitsOwnerPr?: number;
 }
 
-/** Label of a PR the Mergify queue refuses and only the owner lands (issue #9137). */
-export const MERGE_MANUAL_LABEL = "merge:manual";
-
 /** Open PRs waiting on the owner's hand merge (issue #9137): `merge:manual`. */
 export function ownerWaitPrsOf(prs: readonly OpenPrFact[]): Set<number> {
     return new Set(
-        prs
-            .filter((p) => p.labels.includes(MERGE_MANUAL_LABEL))
-            .map((p) => p.number)
+        prs.filter((p) => p.labels.includes(MANUAL_LABEL)).map((p) => p.number)
     );
 }
 
@@ -594,7 +590,7 @@ export interface OwnerWaitP0 {
 
 /** The dispatcher's line for a P0 behind an owner merge (issue #9137). */
 export function ownerWaitLine(w: OwnerWaitP0): string {
-    return `P0 #${w.number} waits on owner merge of PR #${w.pr} (${MERGE_MANUAL_LABEL}) — not holding slots`;
+    return `P0 #${w.number} waits on owner merge of PR #${w.pr} (${MANUAL_LABEL}) — not holding slots`;
 }
 
 /**
