@@ -36,7 +36,7 @@ const MAX_DB_ARCHETYPE_ROWS = 200;
 
 /** The effective catalogue — seed ∪ DB, a DB row overriding the seed row of
  *  its `id`. The one place the catalogue read touches `ctx.db`: the editor
- *  query below and `setCardProfile`'s write boundary both call it. */
+ *  query below and `setCardArchetypes`'s write boundary both call it. */
 export async function loadArchetypeCatalogue(
     ctx: QueryCtx | MutationCtx
 ): Promise<ArchetypeCatalogueRow[]> {

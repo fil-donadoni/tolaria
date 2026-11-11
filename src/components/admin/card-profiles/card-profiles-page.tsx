@@ -6,6 +6,7 @@ import {
     useCardProfileMutations,
     useScopeCardProfiles,
     type EditableCardProfile,
+    type ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
 import SegmentedControl from "~/components/ui/segmented-control";
 import type { SortState } from "~/lib/adminTableSort";
@@ -17,17 +18,21 @@ import CardProfilesFilters from "./card-profiles-filters";
 import CardProfilesScopeRail from "./card-profiles-scope-rail";
 import CardProfilesSweepBoard from "./card-profiles-sweep-board";
 import CardProfilesTable from "./card-profiles-table";
+import CardProfileFocusDialog from "./card-profile-focus-dialog";
 import {
+    effectiveProfile,
     EMPTY_FILTERS,
     filterCards,
     reviewProgress,
     sortCards,
     TAB_COLUMNS,
+    type LayerSave,
     type ProfileFilters,
     type ProfileSortKey,
     type ProfileTab,
 } from "./card-profiles-model";
 import type { SweepRow } from "./card-profiles-sweep-model";
+import { sweepTab } from "./card-profiles-sweep-model";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
 
 const TAB_OPTIONS = [
@@ -41,6 +46,15 @@ const DEFAULT_SORT: SortState<ProfileSortKey> = {
 };
 
 type FilterKey = "status" | "archetype" | "provides" | "requires";
+
+/** The focus dialog's walk: the table's order FROZEN when a row opens. The
+ *  dialog is modal, so the filters and the sort cannot change under it —
+ *  but a save can move the open card out of a filtered list, and the walk
+ *  must still step to the card that FOLLOWED it, not skip one. */
+interface Walk {
+    ids: string[];
+    index: number;
+}
 
 /** The Card Profiles desktop tool (PRD #8772, issue #8903; prototype verdict
  *  D): a collapsible scope rail, two tabs and a table that takes the width.
@@ -64,27 +78,40 @@ export default function CardProfilesPage() {
     const [railOpen, setRailOpen] = useState(true);
     const [filters, setFilters] = useState<ProfileFilters>(EMPTY_FILTERS);
     const [sort, setSort] = useState(DEFAULT_SORT);
-    const [openCardId, setOpenCardId] = useState<string | null>(null);
+    const [walk, setWalk] = useState<Walk | null>(null);
     const [sweep, setSweep] = useState<SweepRow | null>(null);
 
     const resolvedScope = scope ?? scopes[0]?.setCode;
     const activeScope =
         tab === "capabilities" ? CUBE_SOURCE_KEY : resolvedScope;
     const cards = useScopeCardProfiles(activeScope);
-    const { setProfile, clearProfile } = useCardProfileMutations();
+    const {
+        setCapabilities,
+        setArchetypes,
+        clearCapabilities,
+        clearArchetypes,
+    } = useCardProfileMutations();
     const archetypeCatalogue = useArchetypeCatalogue();
 
+    const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
     const visible = useMemo(
         () =>
-            cards ? sortCards(filterCards(cards, filters), sort) : undefined,
-        [cards, filters, sort]
+            cards
+                ? sortCards(filterCards(cards, filters, tab), sortable, tab)
+                : undefined,
+        [cards, filters, sortable, tab]
     );
-    const progress = reviewProgress(cards);
+    const progress = reviewProgress(cards, tab);
+    const openCardId = walk ? walk.ids[walk.index] : null;
+    const openCard =
+        openCardId === null
+            ? null
+            : (cards?.find((card) => card.cardId === openCardId) ?? null);
 
     function resetView() {
         setFilters(EMPTY_FILTERS);
         setSort(DEFAULT_SORT);
-        setOpenCardId(null);
+        setWalk(null);
         setSweep(null);
     }
 
@@ -107,19 +134,64 @@ export default function CardProfilesPage() {
         }));
     }
 
-    /** Open the row AFTER `cardId` in the CURRENT visible order, or close up
-     *  when it was the last — read before the saved row leaves a filtered
-     *  list. */
-    function advanceFrom(cardId: string) {
-        const list = visible ?? [];
-        const index = list.findIndex((card) => card.cardId === cardId);
-        const next = index === -1 ? undefined : list[index + 1];
-        setOpenCardId(next ? next.cardId : null);
+    function openRow(cardId: string) {
+        const ids = (visible ?? []).map((card) => card.cardId);
+        const index = ids.indexOf(cardId);
+        if (index !== -1) setWalk({ ids, index });
     }
 
+    /** Steps the walk; past its last card the dialog closes. */
+    function step(delta: 1 | -1) {
+        setWalk((prev) => {
+            if (prev === null) return null;
+            const index = prev.index + delta;
+            if (index < 0) return prev;
+            return index >= prev.ids.length ? null : { ...prev, index };
+        });
+    }
+
+    /** Writes ONLY `layer`'s row (ADR 0167, issue #8904): "Mark reviewed" on
+     *  the Archetypes tab never flips the Capability flag, nor the reverse. */
+    function saveToLayer(
+        layer: ProfileTab,
+        card: ScopeCardProfile,
+        save: LayerSave
+    ) {
+        if (layer === "capabilities") {
+            return setCapabilities({
+                cardId: card.cardId,
+                provides: save.provides,
+                requires: save.requires,
+                comboEdges: effectiveProfile(card)?.comboEdges,
+                reviewed: save.reviewed,
+            });
+        }
+        if (activeScope === undefined) {
+            return Promise.reject(new Error("No scope selected"));
+        }
+        return setArchetypes({
+            scope: activeScope,
+            cardId: card.cardId,
+            archetypes: save.archetypes,
+            reviewed: save.reviewed,
+        });
+    }
+
+    function clearLayer(card: ScopeCardProfile) {
+        if (tab === "capabilities") {
+            return clearCapabilities({ cardId: card.cardId });
+        }
+        if (activeScope === undefined) {
+            return Promise.reject(new Error("No scope selected"));
+        }
+        return clearArchetypes({ scope: activeScope, cardId: card.cardId });
+    }
+
+    /** The sweep board writes the layer of the row it sweeps. */
     function saveProfile(cardId: string, profile: EditableCardProfile) {
-        if (activeScope === undefined) return Promise.resolve(null);
-        return setProfile({ scope: activeScope, cardId, ...profile });
+        const card = cards?.find((entry) => entry.cardId === cardId);
+        if (card === undefined || sweep === null) return Promise.resolve(null);
+        return saveToLayer(sweepTab(sweep.kind), card, profile);
     }
 
     const sweepDescription =
@@ -130,8 +202,6 @@ export default function CardProfilesPage() {
                     ?.description
               : CAPABILITY_REGISTRY.find((row) => row.id === sweep.id)
                     ?.description;
-
-    const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
 
     return (
         <div className="flex flex-col gap-4 min-[1500px]:flex-row">
@@ -242,28 +312,25 @@ export default function CardProfilesPage() {
                                 sort={sortable}
                                 onSort={setSort}
                                 openCardId={openCardId}
-                                onToggleRow={(cardId) =>
-                                    setOpenCardId((prev) =>
-                                        prev === cardId ? null : cardId
-                                    )
-                                }
-                                onSave={(cardId, profile) =>
-                                    setProfile({
-                                        scope: activeScope,
-                                        cardId,
-                                        ...profile,
-                                    })
-                                }
-                                onClear={(cardId) =>
-                                    clearProfile({ scope: activeScope, cardId })
-                                }
-                                onAdvance={advanceFrom}
-                                archetypeCatalogue={archetypeCatalogue}
+                                onOpen={openRow}
                             />
                         )}
                     </>
                 )}
             </div>
+            <CardProfileFocusDialog
+                tab={tab}
+                card={openCard}
+                index={walk?.index ?? 0}
+                total={walk?.ids.length ?? 0}
+                scopeCards={cards ?? []}
+                archetypeCatalogue={archetypeCatalogue}
+                onSave={(card, save) => saveToLayer(tab, card, save)}
+                onClear={clearLayer}
+                onPrev={walk !== null && walk.index > 0 ? () => step(-1) : null}
+                onNext={() => step(1)}
+                onClose={() => setWalk(null)}
+            />
         </div>
     );
 }

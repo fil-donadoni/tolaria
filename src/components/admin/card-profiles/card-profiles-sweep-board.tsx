@@ -66,12 +66,14 @@ export default function CardProfilesSweepBoard({
     const toggle = (card: ScopeCardProfile) =>
         write([{ cardId: card.cardId, profile: toggleRowTag(card, row) }]);
     const confirm = (card: ScopeCardProfile) =>
-        write([{ cardId: card.cardId, profile: confirmProfile(card) }]);
+        write([
+            { cardId: card.cardId, profile: confirmProfile(card, row.kind) },
+        ]);
     const confirmAll = () =>
         write(
             lanes.proposed.map((card) => ({
                 cardId: card.cardId,
-                profile: confirmProfile(card),
+                profile: confirmProfile(card, row.kind),
             }))
         );
 

@@ -14,8 +14,16 @@ import { ARCHETYPE_CATALOGUE_SEED } from "@convex/limited/archetypeCatalogueCore
 import CardProfilesAdminPanel from "../card-profiles-admin-panel";
 
 let currentUser: { isAdmin?: boolean } | null | undefined;
-const setCardProfile = vi.fn();
-const clearCardProfile = vi.fn();
+const setCardCapabilities = vi.fn();
+const setCardArchetypes = vi.fn();
+const clearCardCapabilities = vi.fn();
+const clearCardArchetypes = vi.fn();
+const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
+    setCardCapabilities,
+    setCardArchetypes,
+    clearCardCapabilities,
+    clearCardArchetypes,
+};
 const useQueryCalls: { name: string; args: unknown }[] = [];
 
 const DRAFTABLE_SETS = [
@@ -35,7 +43,8 @@ const SEEDED = {
     archetypes: ["reanimator"],
     provides: ["reanimatable"],
     requires: [],
-    reviewed: false,
+    capabilitiesReviewed: false,
+    archetypesReviewed: false,
 };
 
 const SCOPE_CARDS: Record<string, unknown[]> = {
@@ -60,7 +69,11 @@ const SCOPE_CARDS: Record<string, unknown[]> = {
             cardId: "sol-ring",
             colours: [],
             name: "Sol Ring",
-            dbProfile: { ...SEEDED, archetypes: ["artifacts"], reviewed: true },
+            dbProfile: {
+                ...SEEDED,
+                archetypes: ["artifacts"],
+                archetypesReviewed: true,
+            },
             seedProfile: SEEDED,
         },
     ],
@@ -92,11 +105,7 @@ vi.mock("convex/react", () => ({
         }
         return undefined;
     },
-    useMutation: (fn: { _name: string }) => {
-        if (fn._name === "setCardProfile") return setCardProfile;
-        if (fn._name === "clearCardProfile") return clearCardProfile;
-        return vi.fn();
-    },
+    useMutation: (fn: { _name: string }) => MUTATIONS[fn._name] ?? vi.fn(),
 }));
 
 vi.mock("@convex/_generated/api", () => ({
@@ -112,8 +121,10 @@ vi.mock("@convex/_generated/api", () => ({
                 listScopeCardProfilesForEditor: {
                     _name: "listScopeCardProfilesForEditor",
                 },
-                setCardProfile: { _name: "setCardProfile" },
-                clearCardProfile: { _name: "clearCardProfile" },
+                setCardCapabilities: { _name: "setCardCapabilities" },
+                setCardArchetypes: { _name: "setCardArchetypes" },
+                clearCardCapabilities: { _name: "clearCardCapabilities" },
+                clearCardArchetypes: { _name: "clearCardArchetypes" },
             },
         },
     },
@@ -126,8 +137,9 @@ vi.mock("~/hooks/useCurrentUser", () => ({
 describe("CardProfilesAdminPanel (PRD #1607, issue #1614)", () => {
     beforeEach(() => {
         currentUser = { isAdmin: true };
-        setCardProfile.mockReset().mockResolvedValue(null);
-        clearCardProfile.mockReset().mockResolvedValue(null);
+        for (const mutation of Object.values(MUTATIONS)) {
+            mutation.mockReset().mockResolvedValue(null);
+        }
         useQueryCalls.length = 0;
     });
 
@@ -178,51 +190,69 @@ describe("CardProfilesAdminPanel (PRD #1607, issue #1614)", () => {
         expect(screen.queryByText("Black Lotus")).toBeNull();
     });
 
-    it("submits setCardProfile with the CURRENT scope + cardId + edited profile", async () => {
+    it("the Archetypes tab saves ONLY the scope's Archetype layer: setCardArchetypes with the CURRENT scope + cardId", async () => {
         render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         // Rows are name-sorted: Griselbrand, then Sol Ring.
-        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.click(screen.getAllByRole("button", { name: "Open" })[0]);
         fireEvent.click(screen.getByLabelText("Reviewed for Griselbrand"));
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() =>
-            expect(setCardProfile).toHaveBeenCalledWith({
+            expect(setCardArchetypes).toHaveBeenCalledWith({
                 scope: "vintage-cube",
                 cardId: "griselbrand",
                 archetypes: ["reanimator"],
+                reviewed: true,
+            })
+        );
+        expect(setCardCapabilities).not.toHaveBeenCalled();
+    });
+
+    it("the Capabilities tab saves ONLY the scope-free Capability layer: setCardCapabilities, no scope", async () => {
+        render(<CardProfilesAdminPanel />);
+        fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+        fireEvent.click(screen.getAllByRole("button", { name: "Open" })[0]);
+        fireEvent.click(screen.getByLabelText("Reviewed for Griselbrand"));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() =>
+            expect(setCardCapabilities).toHaveBeenCalledWith({
+                cardId: "griselbrand",
                 provides: ["reanimatable"],
                 requires: [],
                 comboEdges: undefined,
                 reviewed: true,
             })
         );
+        expect(setCardArchetypes).not.toHaveBeenCalled();
     });
 
     it("offers an Archetype row that exists only in the DB catalogue — no code change", () => {
         render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
-        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.click(screen.getAllByRole("button", { name: "Open" })[0]);
         expect(
             screen.getByLabelText("Archetype kicker for Griselbrand")
         ).toBeTruthy();
     });
 
-    it("submits clearCardProfile with the CURRENT scope + cardId for an overridden card", async () => {
+    it("clears the Archetype layer with the CURRENT scope + cardId for an overridden card", async () => {
         render(<CardProfilesAdminPanel />);
         fireEvent.click(screen.getByRole("radio", { name: "Vintage Cube" }));
         // Sol Ring is the only row with a database override, so its Clear is
         // the only enabled one.
-        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[1]);
+        fireEvent.click(screen.getAllByRole("button", { name: "Open" })[1]);
         const clear = screen.getByRole("button", { name: "Clear" });
         expect(clear.hasAttribute("disabled")).toBe(false);
         fireEvent.click(clear);
 
         await waitFor(() =>
-            expect(clearCardProfile).toHaveBeenCalledWith({
+            expect(clearCardArchetypes).toHaveBeenCalledWith({
                 scope: "vintage-cube",
                 cardId: "sol-ring",
             })
         );
+        expect(clearCardCapabilities).not.toHaveBeenCalled();
     });
 });

@@ -35,7 +35,7 @@ export default function CardProfilesScopeRail({
     onToggleArchetype,
     onSweep,
 }: CardProfilesScopeRailProps) {
-    const progress = reviewProgress(cards);
+    const progress = reviewProgress(cards, "archetypes");
     const rows = cards ? catalogueCounts(cards, catalogue) : [];
     return (
         <div className="flex flex-col gap-4">

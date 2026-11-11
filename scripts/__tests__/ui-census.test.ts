@@ -62,6 +62,8 @@ const EXEMPT: Record<string, string> = {
     ...staffOnlyExemptions(),
     "src/components/debug/debug-sheet.tsx": STAFF_ONLY_REASON,
     "src/components/lobby/banlist-cards-dialog.tsx": STAFF_ONLY_REASON,
+    "src/components/admin/card-profiles/card-profile-focus-dialog.tsx":
+        STAFF_ONLY_REASON,
 };
 
 /**

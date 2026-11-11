@@ -61,7 +61,7 @@ export interface ComboEdge {
  *  file share. `provides`/`requires` entries MUST be rows of
  *  `CAPABILITY_REGISTRY` (`capabilityRegistry.ts`) — enforced by
  *  `validateCardCapabilityFile` for the seed layer and by
- *  `cardProfileWriteErrors` at the Admin write boundary. */
+ *  `capabilitiesWriteErrors` at the Admin write boundary. */
 export interface CardCapabilities {
     provides: string[];
     requires: string[];
@@ -98,17 +98,43 @@ export interface CardProfile {
     capabilitiesReviewed: boolean;
 }
 
-/** The one profile shape the CURRENT Admin editor reads and writes: both
- *  layers' data and a single review act (saving "reviewed" flips BOTH layers;
- *  `reviewed` reads `true` only when every layer present is reviewed). The
- *  desktop rewrite with one tab per layer is a later slice of PRD #8772. */
+/** The profile shape the Admin editor READS: both layers' data, and each
+ *  layer's OWN review flag and census rationale (ADR 0167 — one tab per
+ *  layer, issue #8904). A flag is `null` when the card has no row in that
+ *  layer (nothing to review there); a rationale is the census's one line,
+ *  absent when it wrote none. */
 export interface EditorCardProfile {
     archetypes: string[];
     provides: string[];
     requires: string[];
     comboEdges?: ComboEdge[];
+    capabilitiesReviewed: boolean | null;
+    archetypesReviewed: boolean | null;
+    capabilitiesRationale?: string;
+    archetypesRationale?: string;
+}
+
+/** One Admin save of a card's Capability layer (`setCardCapabilities`). */
+export interface CapabilitiesWrite {
+    provides: string[];
+    requires: string[];
+    comboEdges?: ComboEdge[];
     reviewed: boolean;
 }
+
+/** One Admin save of a card's Archetype layer in one scope
+ *  (`setCardArchetypes`). */
+export interface ArchetypesWrite {
+    archetypes: string[];
+    reviewed: boolean;
+}
+
+/** Both layers under ONE review flag — the fixture and census-tool form.
+ *  `cardProfileWriteErrors` and `buildCardProfileRows` compose the per-layer
+ *  halves below (`capabilitiesWriteErrors` / `archetypesWriteErrors`,
+ *  `buildCapabilitiesRow` / `buildArchetypesRow`). The editor never writes it: each tab saves its
+ *  own layer. */
+export type CardProfileSave = CapabilitiesWrite & ArchetypesWrite;
 
 /** The catalogue-wide checked-in Capability seed file — `cardId`-keyed, no
  *  scope (ADR 0167 §1). An entry is OPTIONAL per card: everything absent
@@ -438,8 +464,9 @@ export function buildDbProfileLayers(rows: ProfileLayerRows): ProfileLayers {
 
 // ─────────────────────────────────────────────────────────────────────────
 // Admin write boundary — PURE pieces only (PRD #1607, ADR 0072, issue
-// #1614). The `assertIsAdmin`-gated `setCardProfile`/`clearCardProfile`
-// mutations and the editor query own `ctx.db` and live in `cardProfiles.ts`.
+// #1614). The `assertIsAdmin`-gated per-layer mutations (`setCardCapabilities`,
+// `setCardArchetypes`, `clearCardCapabilities`, `clearCardArchetypes`) and
+// the editor query own `ctx.db` and live in `cardProfiles.ts`.
 // ─────────────────────────────────────────────────────────────────────────
 
 /** Normalizes an Archetype list: trimmed, lowercased, empties dropped,
@@ -461,19 +488,30 @@ export function normalizeArchetypes(archetypes: readonly string[]): string[] {
     return out;
 }
 
-/** Every reason ONE editor write must be rejected, or `[]` when it is legal —
- *  the Capability half through the SAME `capabilityErrors` the seed guard
- *  uses, the Archetype half on the NORMALIZED form (what is about to be
- *  stored: a direct mutation call typing `Control` lands as `control` or is
- *  rejected, never stored as a third spelling) against `catalogue`, the
- *  effective Archetype Catalogue's ids (seed ∪ DB, ADR 0167). Pure. */
-export function cardProfileWriteErrors(
+/** Every reason ONE Capability-layer save must be rejected, or `[]` — the
+ *  SAME `capabilityErrors` the seed guard uses. Pure. */
+export function capabilitiesWriteErrors(
     cardId: string,
-    profile: EditorCardProfile,
+    write: Pick<CapabilitiesWrite, "provides" | "requires" | "comboEdges">
+): string[] {
+    return capabilityErrors(cardId, write);
+}
+
+/** Every reason ONE Archetype-layer save must be rejected, or `[]` — checked
+ *  on the NORMALIZED form (what is about to be stored: a direct mutation
+ *  call typing `Control` lands as `control` or is rejected, never stored as
+ *  a third spelling) against `catalogue`, the effective Archetype
+ *  Catalogue's ids (seed ∪ DB, ADR 0167). Pure. */
+export function archetypesWriteErrors(
+    cardId: string,
+    write: Pick<ArchetypesWrite, "archetypes">,
     catalogue: ReadonlySet<string>
 ): string[] {
-    const errors = capabilityErrors(cardId, profile);
-    for (const archetype of normalizeArchetypes(profile.archetypes)) {
+    const errors: string[] = [];
+    if (resolveCardName(cardId) === null) {
+        errors.push(`cardId "${cardId}" does not resolve to a card`);
+    }
+    for (const archetype of normalizeArchetypes(write.archetypes)) {
         if (!catalogue.has(archetype)) {
             errors.push(`Archetype "${archetype}" is not a catalogue row`);
         }
@@ -481,43 +519,71 @@ export function cardProfileWriteErrors(
     return errors;
 }
 
-/** The exact two rows `setCardProfile` upserts for one editor save: the
- *  card's Capability row (scope-free — an edit made from one scope's editor
- *  holds in every scope, ADR 0167 §1) and its Archetype row for `scope`
- *  (lowercased). `archetypes` normalized, capabilities deduped on the way IN
- *  (`capabilityFitTerm` collapses duplicates defensively, but without this
- *  they would persist and round-trip through the editor forever); one review
- *  act flips both layers. Does NOT validate — `cardProfileWriteErrors`. */
-export function buildCardProfileRows(
-    scope: string,
+/** Both halves' errors for a two-layer save, the card check reported once. */
+export function cardProfileWriteErrors(
     cardId: string,
-    profile: EditorCardProfile
-): { capabilities: CardCapabilitiesRow; archetypes: ScopedCardArchetypes } {
+    profile: CardProfileSave,
+    catalogue: ReadonlySet<string>
+): string[] {
+    const archetypeErrors = archetypesWriteErrors(cardId, profile, catalogue);
+    const capability = capabilitiesWriteErrors(cardId, profile);
+    return [
+        ...capability,
+        ...archetypeErrors.filter((error) => !capability.includes(error)),
+    ];
+}
+
+/** The `cardCapabilities` row one Capability save upserts — scope-free, so
+ *  an edit made from any tab holds in every scope (ADR 0167 §1).
+ *  Capabilities deduped on the way IN (`capabilityFitTerm` collapses
+ *  duplicates defensively, but without this they would persist and
+ *  round-trip through the editor forever). Does NOT validate. */
+export function buildCapabilitiesRow(
+    cardId: string,
+    write: CapabilitiesWrite
+): CardCapabilitiesRow {
     return {
-        capabilities: {
-            cardId,
-            provides: [...new Set(profile.provides)],
-            requires: [...new Set(profile.requires)],
-            ...(profile.comboEdges === undefined
-                ? {}
-                : {
-                      comboEdges: profile.comboEdges.map((edge) => ({
-                          ...edge,
-                      })),
-                  }),
-            reviewed: profile.reviewed,
-        },
-        archetypes: {
-            scope: scope.toLowerCase(),
-            cardId,
-            archetypes: normalizeArchetypes(profile.archetypes),
-            reviewed: profile.reviewed,
-        },
+        cardId,
+        provides: [...new Set(write.provides)],
+        requires: [...new Set(write.requires)],
+        ...(write.comboEdges === undefined
+            ? {}
+            : {
+                  comboEdges: write.comboEdges.map((edge) => ({ ...edge })),
+              }),
+        reviewed: write.reviewed,
     };
 }
 
-/** Folds one card's two layers into the editor's single-review shape, or
- *  `null` when it has neither. `reviewed` = every PRESENT layer reviewed. */
+/** The `(scope, cardId)` `cardArchetypes` row one Archetype save upserts —
+ *  scope lowercased, archetypes normalized. Does NOT validate. */
+export function buildArchetypesRow(
+    scope: string,
+    cardId: string,
+    write: ArchetypesWrite
+): ScopedCardArchetypes {
+    return {
+        scope: scope.toLowerCase(),
+        cardId,
+        archetypes: normalizeArchetypes(write.archetypes),
+        reviewed: write.reviewed,
+    };
+}
+
+/** Both rows of a two-layer save — the two halves above, composed. */
+export function buildCardProfileRows(
+    scope: string,
+    cardId: string,
+    profile: CardProfileSave
+): { capabilities: CardCapabilitiesRow; archetypes: ScopedCardArchetypes } {
+    return {
+        capabilities: buildCapabilitiesRow(cardId, profile),
+        archetypes: buildArchetypesRow(scope, cardId, profile),
+    };
+}
+
+/** Folds one card's two layers into the editor's read shape, or `null`
+ *  when it has neither. Each layer keeps its own flag and rationale. */
 export function toEditorCardProfile(
     capabilities: CardCapabilities | null,
     archetypes: CardArchetypes | null
@@ -534,9 +600,28 @@ export function toEditorCardProfile(
                       ...edge,
                   })),
               }),
-        reviewed:
-            (capabilities?.reviewed ?? true) && (archetypes?.reviewed ?? true),
+        capabilitiesReviewed: capabilities ? capabilities.reviewed : null,
+        archetypesReviewed: archetypes ? archetypes.reviewed : null,
+        ...(capabilities?.rationale === undefined
+            ? {}
+            : { capabilitiesRationale: capabilities.rationale }),
+        ...(archetypes?.rationale === undefined
+            ? {}
+            : { archetypesRationale: archetypes.rationale }),
     };
+}
+
+/** A DB layer row with the census rationale it overrides carried over: an
+ *  Admin save never writes a rationale, and the reason the census gave is
+ *  still what the reviewer is judging. */
+function withCensusRationale<T extends { rationale?: string }>(
+    db: T | null,
+    seed: { rationale?: string } | null
+): T | null {
+    if (db === null || db.rationale !== undefined) return db;
+    return seed?.rationale === undefined
+        ? db
+        : { ...db, rationale: seed.rationale };
 }
 
 /** One card of a scope as the Admin editor lists it: `dbProfile` — the
@@ -581,8 +666,10 @@ export function buildScopeCardProfiles(
             colours: cardColours(card.cardId),
             dbProfile: overridden
                 ? toEditorCardProfile(
-                      dbCapabilities ?? seedCapabilities,
-                      dbArchetypes ?? seedArchetypes
+                      withCensusRationale(dbCapabilities, seedCapabilities) ??
+                          seedCapabilities,
+                      withCensusRationale(dbArchetypes, seedArchetypes) ??
+                          seedArchetypes
                   )
                 : null,
             seedProfile: toEditorCardProfile(seedCapabilities, seedArchetypes),

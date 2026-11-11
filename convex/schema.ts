@@ -1239,7 +1239,7 @@ export default defineSchema({
     // overrides layered over `data/card-profiles/capabilities.json` by the
     // pure `limited/cardProfilesCore.ts`'s `resolveEventCardProfile`.
     // `provides`/`requires` are `CAPABILITY_REGISTRY` rows (checked at the
-    // Admin write boundary, `cardProfileWriteErrors`); `comboEdges` are the
+    // Admin write boundary, `capabilitiesWriteErrors`); `comboEdges` are the
     // ADR 0072 escape hatch, weighed only when the partner is in the Pool
     // (ADR 0167 §5). `reviewed` flips from the LLM census's `false` when a
     // human confirms the row; unreviewed counts half (ADR 0072).

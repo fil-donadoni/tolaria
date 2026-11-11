@@ -27,11 +27,13 @@ import { loadArchetypeCatalogue } from "./archetypeCatalogue";
 import { catalogueIds } from "./archetypeCatalogueCore";
 import {
     archetypesOf,
-    buildCardProfileRows,
+    archetypesWriteErrors,
+    buildArchetypesRow,
+    buildCapabilitiesRow,
     capabilitiesOf,
     buildDbProfileLayers,
     buildScopeCardProfiles,
-    cardProfileWriteErrors,
+    capabilitiesWriteErrors,
     type CardCapabilitiesRow,
     type ProfileLayerRows,
     type ScopeCardProfile,
@@ -165,9 +167,9 @@ export const listScopeCardProfiles = query({
 
 // ─────────────────────────────────────────────────────────────────────────
 // Admin write boundary + editor read query (PRD #1607, ADR 0072, issue
-// #1614). The current editor keeps its one-profile-per-card shape: a save
-// writes BOTH layers (the Capability row is scope-free, so an edit made from
-// one scope's editor holds in every scope — ADR 0167 §1).
+// #1614). One tab per layer (issue #8904): each save and each clear touches
+// ONE layer, with that layer's own review flag (ADR 0167). The Capability row
+// is scope-free, so an edit made from any tab holds in every scope (§1).
 // ─────────────────────────────────────────────────────────────────────────
 
 async function loadCapabilitiesDoc(ctx: MutationCtx, cardId: string) {
@@ -221,53 +223,83 @@ async function upsertArchetypes(
     }
 }
 
-/** Admin-only save of ONE card's profile from a scope's editor: the card's
- *  Capability row and its `(scope, cardId)` Archetype row, both upserted
- *  (identity/`_id` preserved on a patch). `assertIsAdmin` runs FIRST. Every
- *  `provides`/`requires` string must be a `CAPABILITY_REGISTRY` row, every
- *  archetype a row of the effective Archetype Catalogue (seed ∪ DB, ADR
- *  0167), every cardId a real card (`cardProfileWriteErrors`). `reviewed` is an explicit
- *  argument: flipping an LLM-seeded row to reviewed IS the human review act
- *  (ADR 0072), and one act reviews both layers. */
-export const setCardProfile = mutation({
+/** Admin-only save of ONE card's Capability layer: its scope-free
+ *  `cardCapabilities` row, upserted (identity/`_id` preserved on a patch).
+ *  `assertIsAdmin` runs FIRST. Every `provides`/`requires` string must be a
+ *  `CAPABILITY_REGISTRY` row, the cardId a real card
+ *  (`capabilitiesWriteErrors`). `reviewed` is an explicit argument: flipping
+ *  an LLM-seeded row to reviewed IS the human review act (ADR 0072), and it
+ *  reviews THIS layer only. */
+export const setCardCapabilities = mutation({
     args: {
-        scope: v.string(),
         cardId: v.string(),
-        archetypes: v.array(v.string()),
         provides: v.array(v.string()),
         requires: v.array(v.string()),
         comboEdges: comboEdgesValidator,
         reviewed: v.boolean(),
     },
     returns: v.null(),
-    handler: async (ctx, { scope, cardId, ...profile }) => {
+    handler: async (ctx, { cardId, ...write }) => {
         await assertIsAdmin(ctx);
-        const errors = cardProfileWriteErrors(
-            cardId,
-            profile,
-            catalogueIds(await loadArchetypeCatalogue(ctx))
-        );
+        const errors = capabilitiesWriteErrors(cardId, write);
         if (errors.length > 0) {
-            throw new Error(`Invalid Card Profile: ${errors.join("; ")}`);
+            throw new Error(`Invalid Card Capabilities: ${errors.join("; ")}`);
         }
-        const rows = buildCardProfileRows(scope, cardId, profile);
-        await upsertCapabilities(ctx, rows.capabilities);
-        await upsertArchetypes(ctx, rows.archetypes);
+        await upsertCapabilities(ctx, buildCapabilitiesRow(cardId, write));
         return null;
     },
 });
 
-/** Admin-only revert of ONE card to its checked-in census: deletes its
- *  Capability override (scope-free — every scope falls back to the seed) and
- *  its Archetype override for `scope`. `assertIsAdmin` runs FIRST.
- *  Idempotent: clearing an absent pair is a no-op, never an error. */
-export const clearCardProfile = mutation({
+/** Admin-only save of ONE card's Archetype layer in `scope`: its
+ *  `(scope, cardId)` `cardArchetypes` row, upserted. `assertIsAdmin` runs
+ *  FIRST. Every archetype must be a row of the effective Archetype Catalogue
+ *  (seed ∪ DB, ADR 0167), the cardId a real card (`archetypesWriteErrors`).
+ *  `reviewed` reviews THIS layer only. */
+export const setCardArchetypes = mutation({
+    args: {
+        scope: v.string(),
+        cardId: v.string(),
+        archetypes: v.array(v.string()),
+        reviewed: v.boolean(),
+    },
+    returns: v.null(),
+    handler: async (ctx, { scope, cardId, ...write }) => {
+        await assertIsAdmin(ctx);
+        const errors = archetypesWriteErrors(
+            cardId,
+            write,
+            catalogueIds(await loadArchetypeCatalogue(ctx))
+        );
+        if (errors.length > 0) {
+            throw new Error(`Invalid Card Archetypes: ${errors.join("; ")}`);
+        }
+        await upsertArchetypes(ctx, buildArchetypesRow(scope, cardId, write));
+        return null;
+    },
+});
+
+/** Admin-only revert of ONE card's Capability layer to its checked-in census:
+ *  deletes the override (scope-free — every scope falls back to the seed).
+ *  `assertIsAdmin` runs FIRST. Idempotent: clearing an absent row is a
+ *  no-op, never an error. */
+export const clearCardCapabilities = mutation({
+    args: { cardId: v.string() },
+    returns: v.null(),
+    handler: async (ctx, { cardId }) => {
+        await assertIsAdmin(ctx);
+        const capabilities = await loadCapabilitiesDoc(ctx, cardId);
+        if (capabilities) await ctx.db.delete(capabilities._id);
+        return null;
+    },
+});
+
+/** Admin-only revert of ONE card's Archetype layer in `scope` to its
+ *  checked-in census. `assertIsAdmin` runs FIRST. Idempotent. */
+export const clearCardArchetypes = mutation({
     args: { scope: v.string(), cardId: v.string() },
     returns: v.null(),
     handler: async (ctx, { scope, cardId }) => {
         await assertIsAdmin(ctx);
-        const capabilities = await loadCapabilitiesDoc(ctx, cardId);
-        if (capabilities) await ctx.db.delete(capabilities._id);
         const archetypes = await loadArchetypesDoc(
             ctx,
             scope.toLowerCase(),
@@ -283,7 +315,10 @@ const editorCardProfileValidator = v.object({
     provides: v.array(v.string()),
     requires: v.array(v.string()),
     comboEdges: comboEdgesValidator,
-    reviewed: v.boolean(),
+    capabilitiesReviewed: v.union(v.boolean(), v.null()),
+    archetypesReviewed: v.union(v.boolean(), v.null()),
+    capabilitiesRationale: v.optional(v.string()),
+    archetypesRationale: v.optional(v.string()),
 });
 
 /** Admin-only editor read (issue #1614): for a chosen `scope` (a Draftable
