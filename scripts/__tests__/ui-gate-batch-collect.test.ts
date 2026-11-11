@@ -24,7 +24,9 @@ describe("planCollect", () => {
         const actions = planCollect({
             clean: [],
             red: new Map(),
-            dropped: [20],
+            dropped: [
+                { pr: 20, reason: "its head conflicts with the batch so far" },
+            ],
             unproven: [21],
         });
         expect(actions.map((a) => [a.kind, a.pr])).toEqual([
@@ -37,5 +39,35 @@ describe("planCollect", () => {
         expect(actions[1]).toMatchObject({
             comment: expect.stringContaining("UNPROVEN"),
         });
+    });
+});
+
+// Issue #9210: a DROPPED PR's comment says why the batch dropped it.
+describe("planCollect — drop reasons (issue #9210)", () => {
+    it("names each DROPPED PR's own reason", () => {
+        const actions = planCollect({
+            clean: [],
+            red: new Map(),
+            dropped: [
+                {
+                    pr: 40,
+                    reason: "its scope is full (src/index.css is a stylesheet); it cannot ride a SCOPED walk",
+                },
+                {
+                    pr: 41,
+                    reason: "its head conflicts with the batch so far; walk it alone or in another batch",
+                },
+                {
+                    pr: 42,
+                    reason: "CLOSED, base main (a batch merges open PRs against staging)",
+                },
+            ],
+            unproven: [],
+        });
+        expect(actions.map((a) => a.kind === "hold" && a.comment)).toEqual([
+            expect.stringContaining("src/index.css is a stylesheet"),
+            expect.stringContaining("conflicts with the batch"),
+            expect.stringContaining("CLOSED, base main"),
+        ]);
     });
 });

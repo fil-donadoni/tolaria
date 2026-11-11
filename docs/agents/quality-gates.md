@@ -749,7 +749,10 @@ batch health, `bun run release` — walks them all; `--all` is run by hand.
 An owed walk is batched (issue #9122): the PR wears `ui-owed` (`land:ready`
 refuses it) and `bun run check:ui:batch` walks all of them in ONE `--batch` run,
 then lands the clean, labels a red one `land-failed`, and leaves DROPPED /
-UNPROVEN PRs `ui-owed` with a comment. It needs the local Convex deployment and
+UNPROVEN PRs `ui-owed` with a comment (a DROPPED one's names the logged reason).
+A surface red in the batch and reached by several PRs is re-walked on each
+alone; only a measured `FAIL` there blames a PR — an `UNWALKED` / `INFRA` solo
+row leaves it UNPROVEN, never `land-failed` (issue #9210). It needs the local Convex deployment and
 the lane slot (ADR 0156); trigger is by hand until a workflow is measured.
 
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)

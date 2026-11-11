@@ -111,10 +111,17 @@ export interface BatchOutcome {
     clean: number[];
     /** PR → its red lines. */
     red: Map<number, string[]>;
-    /** PRs the batch could not carry (not open, conflict, FULL scope). */
-    dropped: number[];
+    /** PRs the batch could not carry, each with the reason it logged (not
+     *  open against the base, a merge conflict, a FULL / undecided scope). */
+    dropped: DroppedPr[];
     /** PRs whose scope holds a red surface no PR owns. */
     unproven: number[];
+}
+
+/** A PR the batch could not carry, and why (issue #9210). */
+export interface DroppedPr {
+    pr: number;
+    reason: string;
 }
 
 interface Merged {
@@ -141,12 +148,16 @@ function tryGit(args: string[], cwd: string): boolean {
     return spawnSync("git", args, { cwd, stdio: "ignore" }).status === 0;
 }
 
-/** Fetch PR `pr`'s head; null (with the reason logged) when it cannot ride. */
+/** Fetch PR `pr`'s head, or the reason (logged) it cannot ride. */
 function fetchHead(
     pr: number,
     root: string,
     log: Log
-): { pr: number; sha: string } | null {
+): { pr: number; sha: string } | DroppedPr {
+    const drop = (reason: string): DroppedPr => {
+        log(`batch: dropped #${pr} — ${reason}`);
+        return { pr, reason };
+    };
     let info: { state: string; baseRefName: string; headRefOid: string };
     try {
         info = JSON.parse(
@@ -159,24 +170,20 @@ function fetchHead(
             ])
         );
     } catch (err) {
-        log(`batch: dropped #${pr} — ${(err as Error).message}`);
-        return null;
+        return drop((err as Error).message);
     }
     if (info.state !== "OPEN" || info.baseRefName !== BASE_BRANCH) {
-        log(
-            `batch: dropped #${pr} — ${info.state}, base ${info.baseRefName} (a batch merges open PRs against ${BASE_BRANCH})`
+        return drop(
+            `${info.state}, base ${info.baseRefName} (a batch merges open PRs against ${BASE_BRANCH})`
         );
-        return null;
     }
     if (!tryGit(["fetch", "--quiet", "origin", `pull/${pr}/head`], root)) {
-        log(`batch: dropped #${pr} — could not fetch pull/${pr}/head`);
-        return null;
+        return drop(`could not fetch pull/${pr}/head`);
     }
     if (!tryGit(["cat-file", "-e", `${info.headRefOid}^{commit}`], root)) {
-        log(
-            `batch: dropped #${pr} — head ${info.headRefOid} not present after the fetch (pushed mid-run?)`
+        return drop(
+            `head ${info.headRefOid} not present after the fetch (pushed mid-run?)`
         );
-        return null;
     }
     return { pr, sha: info.headRefOid };
 }
@@ -205,13 +212,14 @@ function headIdentity(
 }
 
 /** A detached worktree at `baseSha` with each head merged, in order. A
- *  conflicting head is aborted and dropped. */
+ *  conflicting head is aborted and dropped (into `dropped`, when given). */
 function buildTree(
     dir: string,
     baseSha: string,
     heads: readonly Merged[],
     root: string,
-    log: Log
+    log: Log,
+    dropped?: DroppedPr[]
 ): Merged[] {
     git(["worktree", "add", "--quiet", "--detach", dir, baseSha], root);
     const merged: Merged[] = [];
@@ -233,9 +241,10 @@ function buildTree(
         );
         if (!ok) {
             tryGit(["merge", "--abort"], dir);
-            log(
-                `batch: dropped #${m.head.pr} — its head conflicts with the batch so far; walk it alone or in another batch`
-            );
+            const reason =
+                "its head conflicts with the batch so far; walk it alone or in another batch";
+            log(`batch: dropped #${m.head.pr} — ${reason}`);
+            dropped?.push({ pr: m.head.pr, reason });
             continue;
         }
         merged.push(m);
@@ -300,14 +309,20 @@ function newTreeDir(label: string): string {
     );
 }
 
-/** The red surfaces a solo `--surface=` re-walk printed. */
-function redSurfacesOf(output: string): string[] {
+/**
+ * The surfaces a solo `--surface=` re-walk MEASURED red (issue #9210): a
+ * `FAIL` row or a failed assertion. An `UNWALKED` or `INFRA` row measured
+ * nothing — the solo walk could not reach the surface, or the machine cut it
+ * short — so it attributes nothing: the surface stays an orphan and the PR
+ * ends UNPROVEN, never RED. Pure.
+ */
+export function redSurfacesOf(output: string): string[] {
     const { block } = extractVerdictBlock(output, LANE_VOCABULARY);
     if (!block) return [];
     const red = new Set<string>();
-    for (const r of block.rows) if (r.verdict !== "PASS") red.add(r.surface);
+    for (const r of block.rows) if (r.verdict === "FAIL") red.add(r.surface);
     for (const a of block.assertRows)
-        if (a.verdict !== "PASS") red.add(a.surface);
+        if (a.verdict === "FAIL") red.add(a.surface);
     return [...red];
 }
 
@@ -403,11 +418,12 @@ export async function runBatch(
     log(`batch: base ${ORIGIN_BASE} @ ${baseSha}`);
 
     let candidates: Merged[] = [];
-    const dropped: number[] = [];
+    const dropped: DroppedPr[] = [];
     for (const pr of prs) {
         const h = fetchHead(pr, root, log);
-        if (h) candidates.push(headIdentity(h.pr, h.sha, baseSha, root));
-        else dropped.push(pr);
+        if ("sha" in h)
+            candidates.push(headIdentity(h.pr, h.sha, baseSha, root));
+        else dropped.push(h);
     }
 
     // Build, scope, and rebuild without any PR the batch cannot carry. The
@@ -432,10 +448,7 @@ export async function runBatch(
         let scopes = new Map<number, readonly string[]>();
         for (;;) {
             dir = newTreeDir("walk");
-            merged = buildTree(dir, baseSha, candidates, root, log);
-            for (const c of candidates) {
-                if (!merged.includes(c)) dropped.push(c.head.pr);
-            }
+            merged = buildTree(dir, baseSha, candidates, root, log, dropped);
             scopes = new Map();
             const unscoped: Merged[] = [];
             for (const m of merged) {
@@ -444,15 +457,14 @@ export async function runBatch(
                     scopes.set(m.head.pr, scope.surfaces);
                 else {
                     unscoped.push(m);
-                    log(
-                        `batch: dropped #${m.head.pr} — its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`
-                    );
+                    const reason = `its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`;
+                    log(`batch: dropped #${m.head.pr} — ${reason}`);
+                    dropped.push({ pr: m.head.pr, reason });
                 }
             }
             if (unscoped.length === 0) break;
             removeTree(dir, root);
             dir = "";
-            dropped.push(...unscoped.map((m) => m.head.pr));
             candidates = merged.filter((m) => !unscoped.includes(m));
         }
 
@@ -544,7 +556,7 @@ export async function runBatch(
                 `orphan: ${surface} is red in the batch and owned by no single PR — it breaks only in combination, or no PR's own scope reaches it`
             );
         }
-        for (const pr of dropped) log(`#${pr}: DROPPED — walk it alone`);
+        for (const d of dropped) log(`#${d.pr}: DROPPED — ${d.reason}`);
         const unproven = merged
             .map((m) => m.head.pr)
             .filter((pr) => !clean.includes(pr) && !attribution.red.has(pr));
@@ -556,7 +568,7 @@ export async function runBatch(
         onOutcome?.({
             clean: [...clean],
             red: new Map(attribution.red),
-            dropped: [...dropped],
+            dropped: dropped.map((d) => ({ ...d })),
             unproven,
         });
         return clean.length === prs.length ? 0 : 1;

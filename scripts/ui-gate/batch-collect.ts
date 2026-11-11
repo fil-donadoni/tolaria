@@ -38,11 +38,11 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
             comment: `check:ui batch walk: RED\n\n\`\`\`\n${red.join("\n")}\n\`\`\``,
         });
     }
-    for (const pr of outcome.dropped) {
+    for (const { pr, reason } of outcome.dropped) {
         actions.push({
             kind: "hold",
             pr,
-            comment: `check:ui batch walk: #${pr} was DROPPED (not open against the base, a merge conflict with the batch, or a FULL / undecided scope). It stays \`${UI_OWED_LABEL}\`; rebase it, or walk it alone with \`bun run check:ui\`.`,
+            comment: `check:ui batch walk: #${pr} was DROPPED — ${reason}. It stays \`${UI_OWED_LABEL}\`; rebase it, or walk it alone with \`bun run check:ui\`.`,
         });
     }
     for (const pr of outcome.unproven) {
