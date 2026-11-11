@@ -37599,6 +37599,13 @@ describe("life gain equal to a randomly revealed hand card's mana value (CR 701.
         const state = gainRevealedManaValue([GOLD_CREATURE_ID]);
         expect(state.players[0].life).toBe(23);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2-hand-0"]);
+        // CR 701.20a — shown to all players, like every other reveal shape.
+        expect(
+            (state.pendingReveals ?? []).map((r) => [
+                r.cards.map((c) => c.instanceId),
+                [...r.audience].sort(),
+            ])
+        ).toEqual([[["p2-hand-0"], ["p1", "p2"]]]);
     });
 
     it("an empty hand reveals nothing → gains 0", () => {

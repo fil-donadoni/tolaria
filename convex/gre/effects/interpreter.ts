@@ -7015,12 +7015,14 @@ export const OP_EXECUTORS: {
             if (op.bind) ctx.noteChoice(op.bind, libraryIds);
             return;
         }
-        // issue #4550 — ONE card at random (CR 701.20a, Cursed Scroll). The
-        // primitive draws from the seeded PRNG exactly once and does its own
-        // known-to-all stamp (no dialog); the id is the binding.
+        // ONE card at random (CR 701.20a). The primitive draws from the
+        // seeded PRNG exactly once; the picked card then gets the same
+        // known-to-all stamp + all-players dialog as every other reveal shape,
+        // and its id is the binding.
         if ("random" in op) {
             const picked = ctx.revealRandomHandCard(playerId);
             if (picked === undefined) return; // empty hand — nothing revealed
+            revealToAllPlayers(ctx, playerId, [picked]);
             ctx.noteChoice(op.bind, [picked]);
             return;
         }
