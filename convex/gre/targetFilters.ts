@@ -628,6 +628,13 @@ const supertypeFilterDescriptor = defineFilter<string[]>({
             value.every((s) => hasSupertypeLive(card, s))
                 ? null
                 : `Target must be ${value.join(" and ")}`,
+        // CR 205.4a — a graveyard-zone "target legendary creature card" is a
+        // CARD-kind candidate; the supertype is read the same way a
+        // permanent's is, so the offered and accepted sets share one check.
+        card: (card, value) =>
+            value.every((s) => hasSupertypeLive(card, s))
+                ? null
+                : `Target must be ${value.join(" and ")}`,
     },
 });
 
@@ -2135,6 +2142,7 @@ export const CARD_FILTER_KEYS = [
     "subtypeFilter",
     "excludeSubtypes",
     "colorFilterAny",
+    "supertypeFilter",
     "sameController",
     "zoneOwnerId",
     "excludeInstanceIds",
@@ -2153,6 +2161,7 @@ export type CardFilterValues = Partial<{
     subtypeFilter: string[];
     excludeSubtypes: string[];
     colorFilterAny: ReadonlyArray<Color>;
+    supertypeFilter: string[];
     sameController: boolean;
     zoneOwnerId: string;
     excludeInstanceIds: ReadonlyArray<string>;
