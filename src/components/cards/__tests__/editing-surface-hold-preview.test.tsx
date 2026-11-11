@@ -290,6 +290,9 @@ describe("editing-surface census closure (issue #2583)", () => {
         "components/admin/card-profiles/card-profile-related-card.tsx",
         "components/deckbuilder/deck-card-tile.tsx",
         "components/deckbuilder/deck-builder-shell.tsx",
+        // Issue #9166: the hover-enlarged copy of a pack card — a
+        // `pointer-events: none` overlay, mouse only; it can never be held.
+        "components/limited/draft-room/draft-hover-enlarge.tsx",
         "components/limited/limited-draft-pack-card.tsx",
         "components/limited/limited-draft-table.tsx",
         "components/lobby/deck-builder/result-card.tsx",
