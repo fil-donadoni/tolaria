@@ -1753,6 +1753,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
                 spellWouldDestroyLandYouControl: true,
                 spellTargetsPermanentFilter: { types: ["Creature"] },
                 spellWasKicked: true,
+                spellColorless: true,
             },
             undefined
         );
