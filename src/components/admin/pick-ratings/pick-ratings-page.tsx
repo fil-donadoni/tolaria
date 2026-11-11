@@ -53,6 +53,7 @@ export default function PickRatingsPage() {
     const [sort, setSort] = useState(DEFAULT_SORT);
     const [walk, setWalk] = useState<Walk | null>(null);
     const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const resolvedScope = scope ?? scopes[0]?.setCode;
     const cards = useScopeCardRatings(resolvedScope);
@@ -117,8 +118,15 @@ export default function PickRatingsPage() {
     /** One write at a time: every rating control waits for it. */
     async function write(save: () => Promise<unknown>) {
         setSaving(true);
+        setSaveError(null);
         try {
             await save();
+        } catch (error) {
+            setSaveError(
+                error instanceof Error
+                    ? error.message
+                    : "The rating was not saved."
+            );
         } finally {
             setSaving(false);
         }
@@ -220,6 +228,7 @@ export default function PickRatingsPage() {
                 total={walk?.ids.length ?? 0}
                 backToName={backToName}
                 saving={saving}
+                saveError={saveError}
                 onRate={rate}
                 onClear={clear}
                 onJump={jumpTo}
