@@ -82,4 +82,60 @@ describe("NoticeToast (issue #5661)", () => {
         act(() => vi.advanceTimersByTime(NOTICE_TOAST_MS));
         expect(onDismiss).toHaveBeenCalledTimes(1);
     });
+
+    // Issue #8956 — Space / Escape dismiss, captured so the key never also
+    // passes priority; a pending choice owns the keyboard.
+    it("Space dismisses and the keystroke never reaches a bubble listener", () => {
+        const onDismiss = vi.fn();
+        const bubble = vi.fn();
+        window.addEventListener("keydown", bubble);
+        render(
+            <NoticeToast message="m" noticeKey="k1" onDismiss={onDismiss} />
+        );
+        fireEvent.keyDown(document.body, { code: "Space", key: " " });
+        window.removeEventListener("keydown", bubble);
+        expect(onDismiss).toHaveBeenCalledTimes(1);
+        expect(bubble).not.toHaveBeenCalled();
+    });
+
+    it("Escape dismisses too", () => {
+        const onDismiss = vi.fn();
+        render(
+            <NoticeToast message="m" noticeKey="k1" onDismiss={onDismiss} />
+        );
+        fireEvent.keyDown(document.body, { key: "Escape" });
+        expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves Space to the pending choice while the viewer is prompted", () => {
+        const onDismiss = vi.fn();
+        const bubble = vi.fn();
+        window.addEventListener("keydown", bubble);
+        render(
+            <NoticeToast
+                message="m"
+                noticeKey="k1"
+                keysSuppressed
+                onDismiss={onDismiss}
+            />
+        );
+        fireEvent.keyDown(document.body, { code: "Space", key: " " });
+        window.removeEventListener("keydown", bubble);
+        expect(onDismiss).not.toHaveBeenCalled();
+        expect(bubble).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores Space while hidden behind an error", () => {
+        const onDismiss = vi.fn();
+        render(
+            <NoticeToast
+                message="m"
+                noticeKey="k1"
+                hidden
+                onDismiss={onDismiss}
+            />
+        );
+        fireEvent.keyDown(document.body, { code: "Space", key: " " });
+        expect(onDismiss).not.toHaveBeenCalled();
+    });
 });

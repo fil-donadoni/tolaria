@@ -594,6 +594,16 @@ export function applyNameCardSubmit(
     if ("error" in resolved) throw new Error(resolved.error);
     const canonical = resolved.canonical;
 
+    // Issue #8956 — a chosen name is public (CR 201.3): every seat reads it.
+    const announceSeq = (state.lastChoiceAnnouncement?.seq ?? 0) + 1;
+    state.lastChoiceAnnouncement = {
+        key: `${announceSeq}:${head.stackItemId}:${head.step}:${head.choiceId}`,
+        seq: announceSeq,
+        chooserId: head.playerId,
+        kind: "named-card",
+        cardName: canonical,
+    };
+
     // CR 614.1c (ADR 0100 D3/D5) — the as-enters `name` kind REUSES this same
     // `name-card` shape, but its prompt is STACKLESS (`stackItemId: ""`): there
     // is no stack item to commit the answer into, and the finalize writes the
