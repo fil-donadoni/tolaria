@@ -13,9 +13,15 @@ import {
     flipsOfRound,
     revealRounds,
 } from "~/lib/random-reveal-flip";
+import {
+    roundFlipperIds,
+    roundsDamageConsequence,
+} from "~/lib/random-reveal-rounds";
 import { Panel } from "~/components/ui/panel";
 import CoinFlipAnimation from "~/components/board/coin-flip-animation";
 import FlipHistory from "~/components/board/flip-history";
+import FlipRoundCoins from "~/components/board/flip-round-coins";
+import FlipRoundTable from "~/components/board/flip-round-table";
 import RandomRevealSourceRow from "~/components/board/random-reveal-source-row";
 
 /** Center-screen reveal for an engine-drawn random outcome (CR 705.2,
@@ -30,6 +36,11 @@ import RandomRevealSourceRow from "~/components/board/random-reveal-source-row";
  *  coin; the series' length — and the realized `consequence` — stay hidden
  *  until it ends, when "not flipped" ghosts fill up to the number the card
  *  announced. Click-to-end jumps to that final state.
+ *
+ *  When several players flip each round (Mana Clash), the round's coins toss
+ *  side by side under seat chips and the history is a per-seat table, with a
+ *  Damage total when the effect deals damage per face (`faceDamage`); the
+ *  consequence line is then the viewer-relative damage summary.
  *
  *  Routes on `randomKind`: `coin` ships now; `die` is deferred (ADR 0023). */
 export default function RandomRevealOverlay({
@@ -59,9 +70,23 @@ export default function RandomRevealOverlay({
         useFlipSequencePlayback(rounds);
     const flip = records[shownRound];
 
-    const consequence = choice.realized?.consequence ?? "";
     const nameOf = (id: string) =>
         allPlayers.find((p) => p.id === id)?.name ?? "Opponent";
+    const seatName = (id: string) => (id === playerId ? "You" : nameOf(id));
+    // Several flippers per round (CR 705.2 — "You and target opponent each
+    // flip a coin"): coins side by side, a per-seat table.
+    const allFlips = choice.flips ?? [];
+    const flipperIds = roundFlipperIds(allFlips);
+    const multiSeat = flipperIds.length > 1;
+    const consequence =
+        multiSeat && choice.faceDamage
+            ? roundsDamageConsequence(
+                  allFlips,
+                  choice.faceDamage,
+                  nameOf,
+                  playerId
+              )
+            : (choice.realized?.consequence ?? "");
     const caption = flipCaption(
         flip,
         nameOf(flip.flipperId),
@@ -105,14 +130,14 @@ export default function RandomRevealOverlay({
 
     // The coins that have landed: every earlier round, plus this one once it
     // has.
-    const landedRecords = records.slice(
-        0,
-        landed ? shownRound + 1 : shownRound
-    );
+    const landedRounds = landed ? shownRound + 1 : shownRound;
+    const landedRecords = records.slice(0, landedRounds);
 
     return (
         <div
             data-testid="random-reveal-overlay"
+            role="dialog"
+            aria-label="Coin flip"
             className="absolute inset-0 z-modal flex cursor-pointer items-center justify-center modal-scrim"
             onClick={handleClick}
         >
@@ -128,7 +153,30 @@ export default function RandomRevealOverlay({
                         excerpt={choice.oracleExcerpt}
                     />
                 )}
-                {choice.randomKind === "coin" && (
+                {choice.randomKind === "coin" && multiSeat && (
+                    <div className="flex w-full flex-col items-center gap-3 pt-2">
+                        <FlipRoundCoins
+                            key={shownRound}
+                            round={flipsOfRound(allFlips, shownRound)}
+                            faceDamage={choice.faceDamage}
+                            seatName={seatName}
+                            viewerId={playerId}
+                            durationMs={tossMs(shownRound)}
+                            skipped={skipped}
+                            onLanded={onLanded}
+                        />
+                        <FlipRoundTable
+                            landed={allFlips.filter(
+                                (f) => f.round < landedRounds
+                            )}
+                            flipperIds={flipperIds}
+                            faceDamage={choice.faceDamage}
+                            seatName={seatName}
+                            viewerId={playerId}
+                        />
+                    </div>
+                )}
+                {choice.randomKind === "coin" && !multiSeat && (
                     <div className="flex flex-col items-center gap-3 pt-2">
                         {choice.flipLimit !== undefined && (
                             <p

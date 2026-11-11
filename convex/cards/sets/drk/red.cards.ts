@@ -637,10 +637,21 @@ export const inferno = defineCard(() => ({
 
 // Mana Clash — "You and target opponent each flip a coin. Mana Clash deals 1
 // damage to each player whose coin comes up tails. Repeat this process until
-// both players' coins come up heads on the same flip." (CR 705 coin flips via
-// the seeded `flipCoin`; the loop repeats until BOTH coins are heads in the same
-// round. Synchronous flips — no per-flip reveal pause — keep the loop a single
-// deterministic resolution.)
+// both players' coins come up heads on the same flip." Draw-then-reveal (PRD
+// issue #4433, issue #5520): every round is drawn up front through the Flip
+// Sequence primitive (`requestFlipSequence`, ADR 0023 Amendment I) — two
+// flippers per round, stopping after the first round in which both coins come
+// up heads — and revealed to both seats in ONE suspension. After the ack the
+// damage is dealt round by round, one 1-damage event per tails coin.
+//
+// Pre-drawing changes no outcome. CR 704.3: state-based actions are checked
+// only when a player would get priority, never in the middle of a resolution,
+// so a player at 0 life mid-clash keeps flipping either way. And each tails
+// coin is still its own damage event, and prevention and replacement effects
+// apply as events happen (CR 615.1, CR 614.1), so they see every 1 damage.
+// CR 705.2: these flips only care whether the coin comes up heads or tails,
+// so nobody wins or loses them (`faceOnly`).
+const MANA_CLASH_FACE_DAMAGE = { heads: 0, tails: 1 } as const;
 export const manaClash = defineCard(() => ({
     id: "72955141-d990-459f-adbe-7d3d0f5f6c95",
     rarity: "rare",
@@ -668,19 +679,22 @@ export const manaClash = defineCard(() => ({
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;
-        const you = ctx.controller;
-        const opponent = target.id;
-        // CR 705.2 — repeat: each flips a coin; a tails takes 1 damage; stop
-        // only when BOTH come up heads on the same flip. The seeded PRNG makes
-        // the loop deterministic under replay; each iteration has a 1/4 chance
-        // to terminate, so a 10000-round cap is an unreachable safety bound that
-        // also prevents a degenerate seed from hanging the mutation.
-        for (let i = 0; i < 10000; i++) {
-            const youHeads = ctx.flipCoin();
-            const oppHeads = ctx.flipCoin();
-            if (!youHeads) ctx.dealDamage({ type: "player", id: you }, 1);
-            if (!oppHeads) ctx.dealDamage({ type: "player", id: opponent }, 1);
-            if (youHeads && oppHeads) break;
+        const flips = ctx.requestFlipSequence({
+            choiceId: "mana-clash-rounds",
+            flippers: [ctx.controller, target.id],
+            faceOnly: true,
+            stop: {
+                kind: "until",
+                stop: (round) => round.every((flip) => flip.face === "heads"),
+            },
+            faceDamage: MANA_CLASH_FACE_DAMAGE,
+        });
+        if (flips === undefined) return; // suspended for the reveal
+        // Round by round, in draw order: one damage event per tails coin.
+        for (const flip of flips) {
+            const amount = MANA_CLASH_FACE_DAMAGE[flip.face];
+            if (amount > 0)
+                ctx.dealDamage({ type: "player", id: flip.flipperId }, amount);
         }
     },
 }));
