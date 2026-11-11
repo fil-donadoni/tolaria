@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import {
@@ -55,4 +55,19 @@ export function useCardProfileMutations() {
     const setProfile = useMutation(api.limited.cardProfiles.setCardProfile);
     const clearProfile = useMutation(api.limited.cardProfiles.clearCardProfile);
     return { setProfile, clearProfile };
+}
+
+/** One Card Profile layer, as `exportCardProfileSeedFile` names it. */
+export type CardProfileExportLayer = "capabilities" | "archetypes";
+
+/** Fetches one layer's effective rows (DB over seed) as its seed-file text
+ *  ON DEMAND — an export is a one-shot read on click, never a live
+ *  subscription (issue #8907). Admin-gated server-side. */
+export function useCardProfileExport() {
+    const convex = useConvex();
+    return (layer: CardProfileExportLayer, scope: string | undefined) =>
+        convex.query(api.limited.cardProfiles.exportCardProfileSeedFile, {
+            layer,
+            ...(scope === undefined ? {} : { scope }),
+        });
 }

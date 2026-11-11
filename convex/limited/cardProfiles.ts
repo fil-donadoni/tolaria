@@ -36,7 +36,16 @@ import {
     type ProfileLayerRows,
     type ScopeCardProfile,
     type ScopedCardArchetypes,
+    getCardArchetypeFile,
+    getCardCapabilityFile,
 } from "./cardProfilesCore";
+import {
+    buildArchetypeExportFile,
+    buildCapabilityExportFile,
+    seedFileName,
+    serializeSeedFile,
+    type CardProfileSeedFile,
+} from "./cardProfileSeedFiles";
 
 const comboEdgesValidator = v.optional(
     v.array(v.object({ cardId: v.string(), weight: v.number() }))
@@ -302,5 +311,49 @@ export const listScopeCardProfilesForEditor = query({
         return buildScopeCardProfiles(normalizedScope, cards, db).sort((a, b) =>
             a.name.localeCompare(b.name)
         );
+    },
+});
+
+/** Admin-only export of ONE layer's effective rows (DB over seed) in its
+ *  seed-file format (PRD #8772, issue #8907): `capabilities` → the
+ *  catalogue-wide `capabilities.json`, `archetypes` → `scope`'s
+ *  `archetypes/<scope>.json`, review flags and rationales included. Returns
+ *  the file's name and text; `bun run profiles:promote <file>` takes the
+ *  download back into the repo. `assertIsAdmin` runs FIRST. Read-only. */
+export const exportCardProfileSeedFile = query({
+    args: {
+        layer: v.union(v.literal("capabilities"), v.literal("archetypes")),
+        /** The Archetype layer's scope; the Capability layer has none. */
+        scope: v.optional(v.string()),
+    },
+    returns: v.object({ fileName: v.string(), text: v.string() }),
+    handler: async (ctx, { layer, scope }) => {
+        await assertIsAdmin(ctx);
+        if (layer === "archetypes" && scope === undefined) {
+            throw new Error("An Archetype export needs a scope");
+        }
+        const normalizedScope = (scope ?? "").toLowerCase();
+        const rows = await loadProfileLayerRows(
+            ctx,
+            layer === "archetypes" ? [normalizedScope] : []
+        );
+        const seed: CardProfileSeedFile =
+            layer === "capabilities"
+                ? {
+                      layer,
+                      file: buildCapabilityExportFile(
+                          getCardCapabilityFile(),
+                          rows.capabilities
+                      ),
+                  }
+                : {
+                      layer,
+                      file: buildArchetypeExportFile(
+                          normalizedScope,
+                          getCardArchetypeFile(normalizedScope),
+                          rows.archetypes
+                      ),
+                  };
+        return { fileName: seedFileName(seed), text: serializeSeedFile(seed) };
     },
 });
