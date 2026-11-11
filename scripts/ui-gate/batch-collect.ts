@@ -10,10 +10,14 @@
  *   no outcome (the walk was cut short: infra exit) → nothing touched.
  *
  * Runs on the lane machine (local Convex deployment, ADR 0156 lane slot).
- * Trigger: `ui-batch.yml` — on a `ui-owed` label event, with a slow cron as
- * the fallback — or by hand, no arguments. Exit: the batch's own code.
+ * Trigger: by hand, no arguments (a workflow is a follow-up). `land:ready`
+ * runs in a throwaway worktree of each PR's pushed head. A refusal there is
+ * commented and the label stays off. Exit: the batch's own code.
  */
 import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { FAILED_LABEL, UI_OWED_LABEL } from "../lib/land-labels.ts";
 import { gh } from "../lib/gh.ts";
 import { runBatch, type BatchOutcome } from "./batch-run.ts";
@@ -88,16 +92,51 @@ function apply(action: CollectAction, log: (m: string) => void): void {
         comment(action.pr, action.comment);
         return;
     }
-    const r = spawnSync("bun", ["run", "land:ready", pr], {
-        stdio: "inherit",
-    });
-    if (r.status !== 0) {
-        // Refused: the receipt or another gate says no. Put the marker back so
-        // the PR is visible, and say why in the log (the refusal is above).
-        gh(["pr", "edit", pr, "--add-label", UI_OWED_LABEL]);
-        log(
-            `collect: land:ready ${pr} exited ${r.status} — #${pr} stays ui-owed`
+    const refusal = landFromPrHead(action.pr);
+    if (refusal !== null) {
+        // The walk is done and its receipt is in the body: the label stays
+        // off (it would block the very `land:ready` that fixes the cause).
+        comment(
+            action.pr,
+            `check:ui batch walk: CLEAN, receipt written, but \`land:ready\` refused:\n\n\`\`\`\n${refusal}\n\`\`\`\nFix the cause and run \`bun run land:ready ${pr}\` from the PR's worktree.`
         );
+        log(`collect: land:ready ${pr} refused — commented, #${pr} not queued`);
+    }
+}
+
+/** `land:ready` must run in a checkout of the PR's pushed head: a throwaway
+ *  detached worktree, bootstrapped. Returns the refusal output, or null. */
+function landFromPrHead(pr: number): string | null {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `ui-collect-${pr}-`));
+    const run = (cmd: string, args: string[], cwd: string) =>
+        spawnSync(cmd, args, { cwd, encoding: "utf8" });
+    try {
+        const fetched = run(
+            "git",
+            ["fetch", "--quiet", "origin", `pull/${pr}/head`],
+            process.cwd()
+        );
+        const add =
+            fetched.status === 0
+                ? run(
+                      "git",
+                      ["worktree", "add", "--detach", dir, "FETCH_HEAD"],
+                      process.cwd()
+                  )
+                : fetched;
+        if (add.status !== 0) return `could not check out pull/${pr}/head`;
+        const init = run("bun", ["run", "worktree:init"], dir);
+        if (init.status !== 0) return "worktree:init failed";
+        const r = run("bun", ["run", "land:ready", String(pr)], dir);
+        if (r.status === 0) return null;
+        return `${r.stdout}${r.stderr}`
+            .trim()
+            .split("\n")
+            .slice(-15)
+            .join("\n");
+    } finally {
+        run("git", ["worktree", "remove", "--force", dir], process.cwd());
+        fs.rmSync(dir, { recursive: true, force: true });
     }
 }
 

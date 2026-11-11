@@ -194,6 +194,14 @@ describe("afk-pass outcome", () => {
         labels: ["ready-to-land"],
     };
 
+    it("a PR waiting on the ui-owed batch walk is a hand-off (issue #9122)", () => {
+        expect(
+            passOutcome(
+                facts({ pr: { ...ready, labels: ["ui-owed"] }, exitCode: 0 })
+            )
+        ).toBe("handed-off");
+    });
+
     it("a PR in the queue is a hand-off, whatever else happened", () => {
         expect(
             passOutcome(facts({ pr: ready, usageLimited: true, exitCode: 1 }))
