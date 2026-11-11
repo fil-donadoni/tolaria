@@ -5,6 +5,7 @@ import PickRatingsAdminPanel from "@/components/admin/pick-ratings/pick-ratings-
 export default function AdminPickRatingsRoute() {
     return (
         <AdminPageFrame
+            wide
             title="Pick Ratings"
             description="The Bot Drafter's per-scope card ratings (PRD #1296, ADR 0066): the database layer that overrides the checked-in seed file, per Draftable Set or cube."
         >
