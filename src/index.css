@@ -1660,3 +1660,155 @@
     background: transparent;
     box-shadow: none;
 }
+
+/* ── Priority frame (issue #9160) ──
+ * Split edge: the frame is cut at the board midline and only the half of the
+ * seat that must act is lit (thick edge + gradient glow, semantic signal
+ * tokens). `signal-self` = my half (bottom), `signal-opponent` = theirs (top).
+ * The turn change is announced once by `.turn-sweep`. Motion lives behind
+ * `prefers-reduced-motion: no-preference`; reduced motion keeps the static
+ * half and hides the sweep. */
+.priority-half {
+    position: absolute;
+    inset-inline: 0;
+    height: 50%;
+    border: 8px solid var(--priority-half-color);
+    mask-image: linear-gradient(
+        var(--priority-half-dir),
+        black 55%,
+        transparent
+    );
+    -webkit-mask-image: linear-gradient(
+        var(--priority-half-dir),
+        black 55%,
+        transparent
+    );
+    background: linear-gradient(
+        var(--priority-half-dir),
+        color-mix(in srgb, var(--priority-half-color) 38%, transparent),
+        transparent 55%
+    );
+    transition: opacity var(--motion-base) var(--motion-ease-standard);
+}
+.priority-half-mine {
+    --priority-half-color: var(--color-signal-self);
+    --priority-half-dir: to top;
+    bottom: 0;
+    border-bottom-width: 8px;
+    border-top-width: 0;
+}
+.priority-half-opponent {
+    --priority-half-color: var(--color-signal-opponent);
+    --priority-half-dir: to bottom;
+    top: 0;
+    border-top-width: 8px;
+    border-bottom-width: 0;
+}
+.turn-sweep {
+    display: none;
+}
+@keyframes priority-half-pulse {
+    50% {
+        opacity: 0.6;
+    }
+}
+@keyframes turn-sweep-down {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh);
+        opacity: 0;
+    }
+}
+@keyframes turn-sweep-up {
+    0% {
+        transform: translateY(100vh);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+}
+@keyframes turn-sweep-label {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    18%,
+    70% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.06);
+    }
+}
+.turn-sweep-band {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 10rem;
+}
+.turn-sweep[data-turn-owner="mine"] .turn-sweep-band {
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--color-signal-self) 55%, transparent) 70%,
+        color-mix(in srgb, var(--color-signal-self) 95%, transparent)
+    );
+}
+.turn-sweep[data-turn-owner="opponent"] .turn-sweep-band {
+    background: linear-gradient(
+        to top,
+        transparent,
+        color-mix(in srgb, var(--color-signal-opponent) 55%, transparent) 70%,
+        color-mix(in srgb, var(--color-signal-opponent) 95%, transparent)
+    );
+}
+.turn-sweep-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    white-space: nowrap;
+    border-radius: 0.75rem;
+    padding: 0.75rem 2rem;
+    font-size: 2.25rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-surface-base);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+}
+.turn-sweep[data-turn-owner="mine"] .turn-sweep-label {
+    background: var(--color-signal-self);
+}
+.turn-sweep[data-turn-owner="opponent"] .turn-sweep-label {
+    background: var(--color-signal-opponent);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .priority-half-mine {
+        animation: priority-half-pulse 1.4s ease-in-out infinite;
+    }
+    .turn-sweep {
+        display: block;
+    }
+    .turn-sweep[data-turn-owner="mine"] .turn-sweep-band {
+        animation: turn-sweep-down 900ms ease-in-out both;
+    }
+    .turn-sweep[data-turn-owner="opponent"] .turn-sweep-band {
+        animation: turn-sweep-up 900ms ease-in-out both;
+    }
+    .turn-sweep-label {
+        animation: turn-sweep-label 1500ms ease-out both;
+    }
+}

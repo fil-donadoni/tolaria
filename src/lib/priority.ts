@@ -217,6 +217,17 @@ export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
     return ctx.priorityPlayerId === ctx.playerId ? "mine" : "opponent";
 }
 
+/** Who must act NOW, for the board's priority frame: the owner of a pending
+ *  choice (CR 601.2 / ADR 0007) while one stands — a chooser is mid-resolution
+ *  and nobody holds priority — else the priority state. Never the ACTIVE
+ *  player: a response window on the opponent's turn lights MY half. */
+export function computeActingSeat(ctx: PriorityStateCtx): PriorityState {
+    if (ctx.gameOver) return "none";
+    const choice = ctx.pendingChoices?.[0];
+    if (choice) return choice.playerId === ctx.playerId ? "mine" : "opponent";
+    return computePriorityState(ctx);
+}
+
 /** The stack-blind half of the auto-pass refusal: game over, a standing
  *  server-side **Pass Turn** for this seat (which owns the passing already),
  *  an owed **Pending Choice**, or simply not holding **Priority** —
