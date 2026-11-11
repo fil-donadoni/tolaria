@@ -3,11 +3,13 @@ import { CUBE_SOURCE_KEY } from "@convex/limited/cubeSource";
 import { useDraftableSets } from "~/hooks/useLimitedEvent";
 import {
     useArchetypeCatalogue,
+    useArchetypeCatalogueMutations,
     useCardProfileMutations,
     useScopeCardProfiles,
     type EditableCardProfile,
     type ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
+import { CENSUS_RESIDUE_FILES, residueForScope } from "~/lib/censusResidue";
 import SegmentedControl from "~/components/ui/segmented-control";
 import type { SortState } from "~/lib/adminTableSort";
 import AdminReviewProgress from "../tool/admin-review-progress";
@@ -92,6 +94,7 @@ export default function CardProfilesPage() {
         clearArchetypes,
     } = useCardProfileMutations();
     const archetypeCatalogue = useArchetypeCatalogue();
+    const { createRow, updateRow } = useArchetypeCatalogueMutations();
 
     const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
     const visible = useMemo(
@@ -238,6 +241,12 @@ export default function CardProfilesPage() {
                             toggleFilter("archetype", id)
                         }
                         onSweep={(id) => setSweep({ kind: "archetype", id })}
+                        onCreateRow={(row) => createRow({ row })}
+                        onUpdateRow={(row) => updateRow({ row })}
+                        residues={residueForScope(
+                            CENSUS_RESIDUE_FILES,
+                            resolvedScope
+                        )}
                     />
                     <CardProfilesExportButton
                         layer="archetypes"

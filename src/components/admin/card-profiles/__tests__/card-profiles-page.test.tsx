@@ -114,6 +114,11 @@ vi.mock("~/hooks/useCardProfiles", async () => {
                 };
             };
         },
+
+        useArchetypeCatalogueMutations: () => ({
+            createRow: vi.fn(),
+            updateRow: vi.fn(),
+        }),
         useCardProfileMutations: () => ({
             setCapabilities: (args: { cardId: string }) => {
                 const { cardId, ...profile } = args;

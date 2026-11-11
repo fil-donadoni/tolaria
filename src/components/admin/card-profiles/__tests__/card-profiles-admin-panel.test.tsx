@@ -116,6 +116,8 @@ vi.mock("@convex/_generated/api", () => ({
         limited: {
             archetypeCatalogue: {
                 listArchetypeCatalogue: { _name: "listArchetypeCatalogue" },
+                createArchetypeRow: { _name: "createArchetypeRow" },
+                updateArchetypeRow: { _name: "updateArchetypeRow" },
             },
             cardProfiles: {
                 listScopeCardProfilesForEditor: {
