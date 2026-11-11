@@ -1120,12 +1120,23 @@ describe("Build Invariants (PRD #8772)", () => {
             ...spellWithPips(metaOf("Shivan Dragon"), { R: 1, B: 1 }),
             manaValue: 3,
         };
+        // Six R/B duals give the deck black SOURCES, so the black pip is not
+        // simply uncastable (the castability floor would cut it then): what
+        // keeps the bomb out is that black is not a colour of the deck.
+        // Three {U}{U} spells with no blue source make blue the third-ranked
+        // colour, and the one the mana base cannot pay, so the deck stays
+        // R/G and black is never considered.
         const { pool, getMeta } = invariantPool([
             ...redGreenBase(),
+            ["dual", metaOf("Badlands"), 6],
+            ["air", metaOf("Air Elemental"), 3],
             ["gold", bomb, 2],
         ]);
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
         expect([...built.colors].sort()).toEqual(["G", "R"]);
+        expect(
+            built.cards.filter((c) => c.cardName.startsWith("dual"))
+        ).toHaveLength(6);
         const deck = new Set<Color>(built.colors);
         for (const m of maindeckMetas(built, getMeta)) {
             for (const [c, n] of Object.entries(m.pips) as [Color, number][]) {
