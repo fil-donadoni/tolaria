@@ -6,9 +6,9 @@ import type { EngineViewTree } from "~/lib/engine-view-tree";
  * read this card, mounted inside the slot's `[data-engine-view-tree]` well
  * (`card-preview-engine-view.tsx`, shipped empty by issue #2728).
  *
- * Purely a renderer: every derivation lives in `~/lib/engine-view-tree.ts` and
- * `~/lib/engine-view-report.ts`, so nothing here can become a second reading
- * of a card that drifts from the engine's.
+ * Purely a renderer: every derivation lives in `~/lib/engine-view-tree.ts`
+ * and the preview-body builder, so nothing here can become a second reading of a
+ * card that drifts from the engine's.
  *
  * The well SCROLLS at a fixed max height rather than growing with the card.
  * Ojutai's Command's tree is four modes deep; letting it size the overlay

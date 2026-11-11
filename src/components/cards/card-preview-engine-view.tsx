@@ -14,7 +14,7 @@ import type { EngineViewTree } from "~/lib/engine-view-tree";
 //    all renders NO chip (`EngineViewBadgeChip`) — there is no script to claim.
 //  - the TREE (`[data-engine-view-tree]`) — HOW it read it: keyword / static /
 //    target / effect / triggered / activated nodes with parameter chips, a
-//    declarative-coverage bar,.
+//    declarative-coverage bar.
 //
 // `compact` is the desktop lateral zoom (`CardPreviewDock`, ADR 0103 issue
 // body: "carries an Alt: engine view affordance") — no room there for the

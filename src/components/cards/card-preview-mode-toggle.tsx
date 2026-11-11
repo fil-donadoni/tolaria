@@ -1,19 +1,9 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { acceptsShortcut, isDialogOpen } from "~/lib/keyboard-shortcuts";
 import { cyclePreviewView, previewViewsOf } from "~/lib/preview-views";
 import type { CardPreviewView } from "~/lib/preview-views";
 
 export type { CardPreviewMode, CardPreviewView } from "~/lib/preview-views";
-
-function isTextEntry(target: EventTarget | null): boolean {
-    const el = target as HTMLElement | null;
-    return (
-        !!el &&
-        (el.tagName === "INPUT" ||
-            el.tagName === "TEXTAREA" ||
-            el.tagName === "SELECT" ||
-            el.isContentEditable)
-    );
-}
 
 /** Phase-2 toggle (winner B), reshaped by issue #9162: a bottom segmented
  *  control pinned under the preview, cycled with ←/→ while the preview is
@@ -36,6 +26,7 @@ export default function CardPreviewModeToggle({
     showRulings = false,
     hideComputed = false,
     trailing,
+    compact = false,
 }: {
     mode: CardPreviewView;
     onChange: (mode: CardPreviewView) => void;
@@ -49,14 +40,27 @@ export default function CardPreviewModeToggle({
     className?: string;
     /** Rides the hint row's right edge (the preview's report button). */
     trailing?: ReactNode;
+    /** Just the tab strip, inline: no pinned bar, pager or hint. For a host
+     *  that carries the control inside its own header (Inspect Overlay). */
+    compact?: boolean;
 }) {
+    const barRef = useRef<HTMLDivElement>(null);
     const views = previewViewsOf(showRulings, hideComputed);
     const idx = Math.max(0, views.indexOf(mode));
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
-            if (isTextEntry(e.target)) return;
+            // A key another handler already took stays taken (Draft Room pick
+            // selection, deck-tile focus). With a dialog open the arrows are
+            // the TOP dialog's own: this bar acts only when it lives in it
+            // (Inspect Overlay) and never for a preview underneath one.
+            if (!acceptsShortcut(e, { whileDialogOpen: true })) return;
+            if (e.shiftKey) return;
+            if (isDialogOpen()) {
+                const dialogs = document.querySelectorAll("[role=dialog]");
+                if (!dialogs[dialogs.length - 1]?.contains(barRef.current))
+                    return;
+            }
             const step =
                 e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
             if (!step || views.length < 2) return;
@@ -76,8 +80,13 @@ export default function CardPreviewModeToggle({
 
     return (
         <div
+            ref={barRef}
             data-preview-mode-bar
-            className={`sticky bottom-0 flex flex-col gap-1 border-t border-border-subtle bg-surface-elevated px-3 pb-1.5 pt-2 ${className}`}
+            className={
+                compact
+                    ? className
+                    : `sticky bottom-0 flex flex-col gap-1 border-t border-border-subtle bg-surface-elevated px-3 pb-1.5 pt-2 ${className}`
+            }
         >
             <div
                 role="tablist"
@@ -102,26 +111,28 @@ export default function CardPreviewModeToggle({
                     </button>
                 ))}
             </div>
-            <div className="flex items-center justify-between gap-2 text-[10px] text-text-muted">
-                <span className="flex items-center gap-2">
-                    <span className="flex gap-1" aria-hidden>
-                        {views.map((m, i) => (
-                            <span
-                                key={m}
-                                className={`h-1.5 rounded-full ${
-                                    i === idx
-                                        ? "w-4 bg-accent"
-                                        : "w-1.5 bg-text-muted/50"
-                                }`}
-                            />
-                        ))}
+            {!compact && (
+                <div className="flex items-center justify-between gap-2 text-[10px] text-text-muted">
+                    <span className="flex items-center gap-2">
+                        <span className="flex gap-1" aria-hidden>
+                            {views.map((m, i) => (
+                                <span
+                                    key={m}
+                                    className={`h-1.5 rounded-full ${
+                                        i === idx
+                                            ? "w-4 bg-accent"
+                                            : "w-1.5 bg-text-muted/50"
+                                    }`}
+                                />
+                            ))}
+                        </span>
+                        <span data-preview-mode-hint>
+                            {idx + 1}/{views.length} · ← → to switch
+                        </span>
                     </span>
-                    <span data-preview-mode-hint>
-                        {idx + 1}/{views.length} · ← → to switch
-                    </span>
-                </span>
-                {trailing}
-            </div>
+                    {trailing}
+                </div>
+            )}
         </div>
     );
 }

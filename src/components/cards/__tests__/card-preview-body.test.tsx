@@ -127,6 +127,27 @@ describe("CardPreviewBody tabs and report (issue #9162)", () => {
         expect(selected(container)).toBe("computed");
     });
 
+    it("←/→ already handled by another handler, or with a dialog open elsewhere, leave the view alone", () => {
+        const { container } = render(
+            <CardPreviewBody {...CONTENT} size="sm" />
+        );
+        const handled = new KeyboardEvent("keydown", {
+            key: "ArrowRight",
+            cancelable: true,
+            bubbles: true,
+        });
+        handled.preventDefault();
+        document.dispatchEvent(handled);
+        expect(selected(container)).toBe("computed");
+
+        const dialog = document.createElement("div");
+        dialog.setAttribute("role", "dialog");
+        document.body.appendChild(dialog);
+        fireEvent.keyDown(document, { key: "ArrowRight" });
+        dialog.remove();
+        expect(selected(container)).toBe("computed");
+    });
+
     it("Report a problem renders for a non-admin viewer and opens the in-app report about the card", () => {
         // No EngineViewAccessContext provider = a non-admin viewer.
         const seen: unknown[] = [];
