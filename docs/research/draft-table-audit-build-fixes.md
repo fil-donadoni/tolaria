@@ -1,7 +1,7 @@
 # Draft Table Audit — after the Auto-Build fixes
 
-> **Measured at `f91434748` (2026-11-11)**, the branch of issue #8897 on top of
-> base `a24945ca9`. Compared with the baseline at `762e8d57f`
+> **Measured at `fcc21a6b9` (2026-11-11)**, the branch of issue #8897 on top of
+> base `9e20a5b0c`. Compared with the baseline at `762e8d57f`
 > (`draft-table-audit-baseline.md`). Same script, same seeds, same model.
 
 ## What changed in the build
