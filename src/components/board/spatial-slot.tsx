@@ -100,7 +100,7 @@ export default function SpatialSlot({
                 height: boxH,
                 transform,
                 transition: animate
-                    ? `transform ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}, width ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}, height ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}`
+                    ? `transform ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}`
                     : "none",
                 // The dragged slot rides above every sibling for the whole
                 // gesture (it never reorders in the DOM, so it needs an explicit
