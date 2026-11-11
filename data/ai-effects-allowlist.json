@@ -2482,20 +2482,6 @@
     },
     {
         "class": "ability",
-        "cardId": "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
-        "name": "Venarian Gold",
-        "abilityId": "venarian-gold-etb",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
-        "name": "Venarian Gold",
-        "abilityId": "venarian-gold-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
         "name": "Vesuvan Doppelganger",
         "abilityId": "vesuvan-doppelganger-recopy",

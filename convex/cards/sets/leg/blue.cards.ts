@@ -6,7 +6,7 @@
 
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
-import type { SpellContext, TargetSelection } from "../../types";
+import type { SpellContext } from "../../types";
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -935,21 +935,21 @@ export const venarianGold = defineCard(() => ({
             oracleText:
                 "When this Aura enters, tap enchanted creature and put X sleep counters on it.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045, #852): the tap + X sleep counters
-            // land on the ENCHANTED CREATURE, read via getAttachedToId — there
-            // is no attached-host object selector in the DSL (the recurring aura
-            // getAttachedTo block). Classifier over-count (folds tap + counters +
-            // getX, blind to the attached-host read). Blocked on an attached-host
-            // selector, not on X.
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedToId();
-                if (!hostId) return;
-                const host: TargetSelection = { type: "permanent", id: hostId };
-                ctx.tap(host);
-                // CR 122.1 — X is the value chosen as the Aura was cast.
-                const x = ctx.getX();
-                if (x > 0) ctx.addCounter(host, "sleep", x);
-            },
+            // CR 303.4 — "enchanted creature" is the Aura's attachment host,
+            // read through the `$host` binding (seeded at resolution start, CR
+            // 608.2); an Aura that is no longer attached seeds none and both Ops
+            // skip (CR 608.2b). CR 107.3 — X is the value announced as the
+            // Aura was cast.
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$host" } },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "sleep",
+                    target: { ref: "$host" },
+                    count: { X: true },
+                },
+            ],
         }),
         phaseTrigger({
             id: "venarian-gold-upkeep",
@@ -959,21 +959,16 @@ export const venarianGold = defineCard(() => ({
             // CR 603.6a — fires at the upkeep of the enchanted creature's
             // controller, looked up at resolve time (host-controller scope).
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045): the counter target is the ENCHANTED
-            // creature (`getAttachedToId`), and no `EffectObjectSelector` names
-            // an Aura's attached object (only announced slots, `$source`,
-            // `$each`). The phaseTrigger `effects[]` site is also restricted to
-            // `scope: "your"`; this is `host-controller`. Stays resolve() until
-            // an attached-object selector exists.
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedToId();
-                if (!hostId) return;
-                ctx.removeCounter(
-                    { type: "permanent", id: hostId },
-                    "sleep",
-                    1
-                );
-            },
+            // "That creature" is the Aura's attachment host (`$host`, CR 303.4).
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "sleep",
+                    target: { ref: "$host" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 }));
