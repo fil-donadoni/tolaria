@@ -8,6 +8,8 @@ import {
 } from "./gre/expectedInput";
 import { compactState, expandState } from "./gre/serialize";
 import { internal } from "./_generated/api";
+import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
+import { botSeatId } from "./matches";
 import {
     advanceClock,
     clockExpiresAt,
@@ -133,7 +135,17 @@ export async function saveGameState(
     // cheap wake-up signal coherent with what was just persisted. `state` is
     // already past `refreshExpectedInput` above, so `expectedInput` is the
     // settled, authoritative value for this save.
-    await saveGameTick(ctx, gameId, seq, state as GameState, insertedGame);
+    const vsAi = existing
+        ? existing.vsAi === true
+        : insertedGame?.vsAi === true;
+    await saveGameTick(
+        ctx,
+        gameId,
+        seq,
+        state as GameState,
+        insertedGame,
+        vsAi
+    );
 }
 
 /** Cheap wake-up-signal companion to `gameStates` (~150 bytes vs. 3-9 KB),
@@ -147,7 +159,8 @@ async function saveGameTick(
     gameId: GenericId<"games">,
     seq: number,
     state: GameState,
-    insertedGame: Doc<"games"> | null
+    insertedGame: Doc<"games"> | null,
+    vsAi: boolean
 ) {
     const existing = await ctx.db
         .query("gameTicks")
@@ -166,7 +179,7 @@ async function saveGameTick(
               state.gameOver !== undefined
           )
         : undefined;
-    const fields = {
+    const fields: Omit<Doc<"gameTicks">, "_id" | "_creationTime" | "gameId"> = {
         seq,
         priorityPlayerId: state.priorityPlayerId,
         phase: state.phase,
@@ -182,11 +195,43 @@ async function saveGameTick(
         ...(clock ? { clock } : {}),
         updatedAt: Date.now(),
     };
+    const botDeadlineAt = await armBotDeadline(ctx, gameId, state, vsAi, {
+        ...fields,
+        botDeadlineAt: existing?.botDeadlineAt,
+    });
+    if (botDeadlineAt !== undefined) fields.botDeadlineAt = botDeadlineAt;
     if (existing) {
         await ctx.db.patch(existing._id, fields);
         return;
     }
     await ctx.db.insert("gameTicks", { gameId, ...fields });
+}
+
+/** Arm the Bot server deadline for this save (issue #9004): in a vs-AI game
+ *  whose Bot seat is owed and that has no check pending, schedule the ONE
+ *  `botLiveness.checkDeadline` and return the instant to record on the tick.
+ *  `undefined` when nothing was armed — the tick keeps whatever it had. */
+async function armBotDeadline(
+    ctx: SaveCtx,
+    gameId: GenericId<"games">,
+    state: GameState,
+    vsAi: boolean,
+    tick: BotDeadlineTick
+): Promise<number | undefined> {
+    const now = Date.now();
+    const action = planBotDeadline({
+        tick,
+        botId: botSeatId({ vsAi, players: state.players }),
+        trigger: { kind: "save" },
+        now,
+    });
+    if (action.kind !== "arm") return undefined;
+    await ctx.scheduler.runAfter(
+        Math.max(0, action.at - now),
+        internal.botLiveness.checkDeadline,
+        { gameId, seq: action.seq }
+    );
+    return action.at;
 }
 
 /** The one player a Match Clock charges for this position (issue #2308): the
