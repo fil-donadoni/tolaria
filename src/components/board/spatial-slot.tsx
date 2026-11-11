@@ -70,19 +70,20 @@ export default function SpatialSlot({
 }: SpatialSlotProps) {
     const reduceMotion = useReducedMotion();
 
-    // A card drawn LARGER than its base box (density tiers, issue #9164) grows
-    // the slot's real layout box instead of CSS-scaling it: the image measures
-    // the layout box to pick its rendition, so a transform upscale would stretch
-    // a base-size bitmap (blur). The centre stays on the placement. Shrinking
-    // keeps the transform scale (downscaling a bigger bitmap stays sharp).
-    const grow = Math.max(1, placement.scale);
+    // A card drawn at any size other than its base box (density tiers, shrink
+    // ladder; issue #9164) resizes the slot's real layout box instead of
+    // CSS-scaling it: the image measures the layout box to pick its rendition
+    // by size x DPR, so it is always sharp (an upscale stretches a base-size
+    // bitmap, a promoted layer scaled down reads soft, ADR 0168 § 3). The
+    // centre stays on the placement.
+    const grow = placement.scale;
     // Whole pixels: a fractional box is resampled by the promoted layer (soft).
     const boxW = grow === 1 ? cardWidth : Math.round(cardWidth * grow);
     const boxH = grow === 1 ? cardHeight : Math.round(cardHeight * grow);
     const transform =
         `translate(${placement.x - boxW / 2}px, ` +
         `${placement.y - boxH / 2}px) ` +
-        `rotate(${placement.rotation}deg) scale(${placement.scale / grow})`;
+        `rotate(${placement.rotation}deg) scale(1)`;
 
     // A freshly inserted element paints at its initial computed transform with
     // no transition origin, so a permanent `transition: transform` never causes

@@ -144,7 +144,13 @@ function slots(): { x: number; scale: number }[] {
             const t = el.style.transform;
             const m = /translate\((-?[\d.]+)px,.*scale\(([\d.]+)\)/.exec(t);
             expect(m, `unparsable transform: ${t}`).not.toBeNull();
-            return { x: Number(m![1]) + CARD_WIDTH / 2, scale: Number(m![2]) };
+            // A resized card grows its real box (always sharp), so the drawn
+            // scale is box width over base width times any residual transform.
+            const box = parseFloat(el.style.width);
+            return {
+                x: Number(m![1]) + box / 2,
+                scale: (box / CARD_WIDTH) * Number(m![2]),
+            };
         }
     );
 }

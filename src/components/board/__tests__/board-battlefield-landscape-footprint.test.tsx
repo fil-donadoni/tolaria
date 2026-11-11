@@ -219,7 +219,7 @@ describe("battlefield lays out at the shared landscape footprint (#1768)", () =>
         // the scale-1 assertions above have teeth.
         renderBattlefield(undefined);
         const g = geometryOf("bear-1");
-        expect(g.width).toBe(`${CARD_WIDTH}px`);
-        expect(g.scale).toBeLessThan(1);
+        // The shrink resizes the slot's real box (sharp), not a CSS scale.
+        expect(parseFloat(g.width)).toBeLessThan(CARD_WIDTH);
     });
 });
