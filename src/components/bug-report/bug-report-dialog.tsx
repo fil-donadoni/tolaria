@@ -12,10 +12,14 @@ import { bugReportConsentIsCurrent } from "@convex/bugReportConsent";
 import BugReportConsent from "./bug-report-consent";
 import { collectDiagnosticPayload } from "./diagnostic-payload";
 import { describeSubmitError } from "./describe-submit-error";
+import { describeBugReportSubject } from "./describe-bug-report-subject";
+import type { BugReportSubject } from "~/lib/bug-report-requests";
 
 type BugReportDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** What the report is about (a card, from the preview), or none. */
+    subject?: BugReportSubject | null;
 };
 
 // Upload cap for the optional attachment (5 MB) — keeps a stray large file from
@@ -32,6 +36,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export default function BugReportDialog({
     open,
     onOpenChange,
+    subject,
 }: BugReportDialogProps) {
     const currentUser = useQuery(api.users.currentUser);
     const generateUploadUrl = useMutation(api.bugReports.generateUploadUrl);
@@ -135,7 +140,9 @@ export default function BugReportDialog({
             const result = await submitBugReport({
                 name: nameValue,
                 email: emailValue,
-                description,
+                description: subject
+                    ? `${describeBugReportSubject(subject)}\n\n${description}`
+                    : description,
                 attachmentId,
                 attachmentName,
                 // The gate's answer, and — only when it is yes — the payload it
@@ -212,6 +219,17 @@ export default function BugReportDialog({
                     onSubmit={handleSubmit}
                     className="flex flex-col gap-3"
                 >
+                    {subject && (
+                        <p
+                            data-bug-report-subject
+                            className="rounded-sm bg-surface-elevated/60 px-2 py-1 text-sm text-text-muted"
+                        >
+                            About the card{" "}
+                            <span className="font-semibold text-parchment">
+                                {subject.cardName}
+                            </span>
+                        </p>
+                    )}
                     <label className="flex flex-col gap-1 text-sm font-medium">
                         Name
                         <Input

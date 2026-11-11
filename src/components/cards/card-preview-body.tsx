@@ -5,6 +5,7 @@ import CardPreviewModeToggle, {
     type CardPreviewView,
 } from "./card-preview-mode-toggle";
 import CardPreviewRulings from "./card-preview-rulings";
+import CardPreviewReportButton from "./card-preview-report-button";
 import type { PreviewBodyContent } from "~/lib/preview-body";
 import { getPreviewPreferenceDefault } from "~/lib/preview-preference-store";
 
@@ -88,27 +89,44 @@ export default function CardPreviewBody({
                   ? "printed"
                   : "computed"
               : toggledMode;
+    // "Report a problem" (issue #9162): every viewer, every mode, every host —
+    // it rides the toggle's bottom bar, or stands alone where there is no
+    // toggle (token, Manual Game without a print, a copy's two faces).
+    const report = (
+        <CardPreviewReportButton
+            cardName={content.displayName}
+            cardId={content.engineTree?.cardId}
+        />
+    );
+    const reportBar = (
+        <div className="flex justify-end border-t border-border-subtle px-3 py-1">
+            {report}
+        </div>
+    );
     if (originalBody) {
         return (
-            <div className="flex w-full items-stretch">
-                <div className="flex flex-1 min-w-0 flex-col border-r border-border-subtle">
-                    <div className={LABEL_CLASS}>{primaryFaceLabel}</div>
-                    <CardPreviewFace
-                        {...content}
-                        size={size}
-                        onImageLoaded={onImageLoaded}
-                        imageLoaded={imageLoaded}
-                        compactEngineView={compactEngineView}
-                    />
+            <div className="flex w-full flex-col">
+                <div className="flex w-full items-stretch">
+                    <div className="flex flex-1 min-w-0 flex-col border-r border-border-subtle">
+                        <div className={LABEL_CLASS}>{primaryFaceLabel}</div>
+                        <CardPreviewFace
+                            {...content}
+                            size={size}
+                            onImageLoaded={onImageLoaded}
+                            imageLoaded={imageLoaded}
+                            compactEngineView={compactEngineView}
+                        />
+                    </div>
+                    <div className="flex flex-1 min-w-0 flex-col">
+                        <div className={LABEL_CLASS}>{secondaryFaceLabel}</div>
+                        <CardPreviewFace
+                            {...originalBody}
+                            size={size}
+                            compactEngineView={compactEngineView}
+                        />
+                    </div>
                 </div>
-                <div className="flex flex-1 min-w-0 flex-col">
-                    <div className={LABEL_CLASS}>{secondaryFaceLabel}</div>
-                    <CardPreviewFace
-                        {...originalBody}
-                        size={size}
-                        compactEngineView={compactEngineView}
-                    />
-                </div>
+                {reportBar}
             </div>
         );
     }
@@ -119,13 +137,14 @@ export default function CardPreviewBody({
     if (mode === "rulings" && rulingsPrintId) {
         return (
             <div className="flex w-full flex-col">
+                <CardPreviewRulings printId={rulingsPrintId} />
                 <CardPreviewModeToggle
                     mode={mode}
                     onChange={setToggledMode}
                     showRulings
                     hideComputed={isManualGame}
+                    trailing={report}
                 />
-                <CardPreviewRulings printId={rulingsPrintId} />
             </div>
         );
     }
@@ -133,14 +152,6 @@ export default function CardPreviewBody({
     if (mode === "printed" && content.printedImageId) {
         return (
             <div className="flex w-full flex-col">
-                {(!isManualGame || rulingsPrintId) && (
-                    <CardPreviewModeToggle
-                        mode={mode}
-                        onChange={setToggledMode}
-                        showRulings={!!rulingsPrintId}
-                        hideComputed={isManualGame}
-                    />
-                )}
                 {content.backFaceHalf?.printedImageId ? (
                     // CR 712 (issue #3552) — a double-faced card's printed
                     // BACK beside its front, the way the physical card is
@@ -178,19 +189,23 @@ export default function CardPreviewBody({
                         onLoad={onImageLoaded}
                     />
                 )}
+                {!isManualGame || rulingsPrintId ? (
+                    <CardPreviewModeToggle
+                        mode={mode}
+                        onChange={setToggledMode}
+                        showRulings={!!rulingsPrintId}
+                        hideComputed={isManualGame}
+                        trailing={report}
+                    />
+                ) : (
+                    reportBar
+                )}
             </div>
         );
     }
 
     return (
         <>
-            {content.printedImageSrc && !isManualGame && (
-                <CardPreviewModeToggle
-                    mode={mode}
-                    onChange={setToggledMode}
-                    showRulings={!!rulingsPrintId}
-                />
-            )}
             {showCopyBadge && (
                 <div className="px-3 pt-2">
                     <span className="inline-block rounded-sm bg-accent-strong/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong">
@@ -205,6 +220,16 @@ export default function CardPreviewBody({
                 imageLoaded={imageLoaded}
                 compactEngineView={compactEngineView}
             />
+            {content.printedImageSrc && !isManualGame ? (
+                <CardPreviewModeToggle
+                    mode={mode}
+                    onChange={setToggledMode}
+                    showRulings={!!rulingsPrintId}
+                    trailing={report}
+                />
+            ) : (
+                reportBar
+            )}
         </>
     );
 }

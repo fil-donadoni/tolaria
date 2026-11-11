@@ -13,14 +13,27 @@
 // changes (they close the dialog), so there is nothing here to hold — only the
 // edge of a request.
 
-const listeners = new Set<() => void>();
+/** What a report is ABOUT, when it is opened from a card (issue #9162): the
+ *  card preview's "Report a problem" names the card so the filed issue does
+ *  not start from a blank box. Absent for the generic trigger. */
+export type BugReportSubject = {
+    cardName: string;
+    /** `CardDefinition.id` (a Scryfall print id, ADR 0108), when known. */
+    cardId?: string | null;
+};
+
+type BugReportListener = (subject?: BugReportSubject) => void;
+
+const listeners = new Set<BugReportListener>();
 
 /** Ask the mounted `BugReportHost` to open the dialog. A no-op with no host. */
-export function requestBugReport(): void {
-    for (const listener of [...listeners]) listener();
+export function requestBugReport(subject?: BugReportSubject): void {
+    for (const listener of [...listeners]) listener(subject);
 }
 
-export function subscribeBugReportRequests(listener: () => void): () => void {
+export function subscribeBugReportRequests(
+    listener: BugReportListener
+): () => void {
     listeners.add(listener);
     return () => {
         listeners.delete(listener);
