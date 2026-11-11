@@ -40,6 +40,14 @@ const page = vi.hoisted(() => ({
     onClear: undefined as unknown as (cardId: string) => Promise<unknown>,
     catalogue: null as unknown,
     scopesAsked: [] as (string | undefined)[],
+    exports: [] as [string, string | undefined][],
+    downloads: [] as [string, string][],
+}));
+
+vi.mock("~/lib/downloadTextFile", () => ({
+    downloadTextFile: (fileName: string, text: string) => {
+        page.downloads.push([fileName, text]);
+    },
 }));
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
@@ -65,6 +73,37 @@ vi.mock("~/hooks/useCardProfiles", async () => {
             return page.cards;
         },
         useArchetypeCatalogue: () => page.catalogue ?? seed,
+        // The export query's handler, minus `ctx`: the REAL seed-file
+        // builders over the checked-in seed with no DB override.
+        useCardProfileExport: () => {
+            return async (layer: string, scope: string | undefined) => {
+                page.exports.push([layer, scope]);
+                const core = await import("@convex/limited/cardProfilesCore");
+                const files =
+                    await import("@convex/limited/cardProfileSeedFiles");
+                const seedFile =
+                    layer === "capabilities"
+                        ? {
+                              layer: "capabilities" as const,
+                              file: files.buildCapabilityExportFile(
+                                  core.getCardCapabilityFile(),
+                                  []
+                              ),
+                          }
+                        : {
+                              layer: "archetypes" as const,
+                              file: files.buildArchetypeExportFile(
+                                  scope ?? "",
+                                  core.getCardArchetypeFile(scope ?? ""),
+                                  []
+                              ),
+                          };
+                return {
+                    fileName: files.seedFileName(seedFile),
+                    text: files.serializeSeedFile(seedFile),
+                };
+            };
+        },
         useCardProfileMutations: () => ({
             setProfile: (args: { cardId: string; scope: string }) => {
                 const { cardId, scope, ...profile } = args;
@@ -866,5 +905,39 @@ describe("CardProfilesPage — the sweep board (issue #8905)", () => {
         expect(id).toBe(cardId("Griselbrand"));
         expect(profile.provides).not.toContain("reanimatable");
         expect(profile.archetypes).toEqual(["reanimator"]);
+    });
+
+    it("each rail's Export downloads its tab's layer in seed-file format (issue #8907)", async () => {
+        page.exports.length = 0;
+        page.downloads.length = 0;
+        renderPage(cubeRows(), vi.fn(), vi.fn());
+        fireEvent.click(
+            within(screen.getByLabelText("Scope rail")).getByRole("button", {
+                name: "Export seed file",
+            })
+        );
+        await waitFor(() => expect(page.downloads).toHaveLength(1));
+        expect(page.exports).toEqual([["archetypes", "lea"]]);
+        expect(page.downloads[0][0]).toBe("lea.json");
+        expect(JSON.parse(page.downloads[0][1])).toEqual({
+            scope: "lea",
+            archetypes: {},
+        });
+
+        fireEvent.click(screen.getByRole("radio", { name: "Capabilities" }));
+        fireEvent.click(
+            within(screen.getByLabelText("Catalogue rail")).getByRole(
+                "button",
+                { name: "Export seed file" }
+            )
+        );
+        await waitFor(() => expect(page.downloads).toHaveLength(2));
+        expect(page.exports[1]).toEqual(["capabilities", undefined]);
+        expect(page.downloads[1][0]).toBe("capabilities.json");
+        const { getCardCapabilityFile } =
+            await import("@convex/limited/cardProfilesCore");
+        expect(JSON.parse(page.downloads[1][1])).toEqual(
+            getCardCapabilityFile()
+        );
     });
 });

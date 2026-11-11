@@ -80,6 +80,8 @@ const CATALOGUE = [
 ];
 
 vi.mock("convex/react", () => ({
+    // The rail's Export reads on click (issue #8907); never clicked here.
+    useConvex: () => ({ query: vi.fn() }),
     useQuery: (query: { _name: string }, args: unknown) => {
         useQueryCalls.push({ name: query._name, args });
         if (query._name === "listLimitedDraftableSets") return DRAFTABLE_SETS;
