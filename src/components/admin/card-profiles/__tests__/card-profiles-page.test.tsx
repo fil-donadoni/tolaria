@@ -2,7 +2,7 @@
 // #3597). Drives the editor through the REAL query-projection pure functions
 // (`listScopeCards` + `buildScopeCardProfiles` over the real checked-in
 // census) rather than a hand-built `ScopeCardProfile` stub — the same
-// discipline `pick-rating-editor.test.tsx` states: a synthetic view can't
+// discipline `pick-ratings-page.test.tsx` states: a synthetic view can't
 // catch a field the projection drops.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ReactElement } from "react";

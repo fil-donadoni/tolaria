@@ -22,6 +22,7 @@ import {
     PICK_RATING_MAX,
     getScopeMedianRating,
 } from "../pickRatings";
+import { tryGetCardByName } from "../../cards";
 import { isAdminUser } from "../../auth";
 import { buildCubePool, CUBE_SOURCE_KEY } from "../cube";
 import type { Doc } from "../../_generated/dataModel";
@@ -393,6 +394,13 @@ describe("buildScopeCardRatings — layering annotation (PRD #1296 Slice C, issu
                 seedRating: null,
                 fallbackRating: getScopeMedianRating("lea"),
                 isFallback: true,
+                // An id with no definition carries no descriptive columns.
+                manaCost: null,
+                manaValue: 0,
+                rarity: null,
+                types: [],
+                colours: [],
+                archetypes: [],
             },
         ]);
     });
@@ -546,5 +554,23 @@ describe("listScopeCardRatings returns validator (issue #7652)", () => {
             () => null
         );
         expect(declared).toEqual(Object.keys(row).sort());
+    });
+});
+
+describe("buildScopeCardRatings — descriptive columns (PRD #8772, issue #8908)", () => {
+    it("reads cost, rarity, types and colours off the definition and takes archetypes from the injected layer", () => {
+        const bolt = tryGetCardByName("Lightning Bolt")!;
+        const [row] = buildScopeCardRatings(
+            "vintage-cube",
+            [{ cardId: bolt.id, name: bolt.name }],
+            fakeDb({}),
+            () => ["burn"]
+        );
+        expect(row.manaValue).toBe(1);
+        expect(row.manaCost).toEqual(bolt.manaCost);
+        expect(row.rarity).toBe(bolt.rarity);
+        expect(row.types).toEqual(["Instant"]);
+        expect(row.colours).toEqual(["R"]);
+        expect(row.archetypes).toEqual(["burn"]);
     });
 });
