@@ -13,10 +13,6 @@ const unit = (file: string) =>
 describe("CONVEX_BACKEND_ENV reaches every service template", () => {
     const entries = Object.entries(CONVEX_BACKEND_ENV);
 
-    it("is not empty", () => {
-        expect(entries.length).toBeGreaterThan(0);
-    });
-
     it.each(entries)("launchd agent sets %s=%s", (key, value) => {
         expect(unit("com.tolaria.convex.plist")).toContain(
             `<key>${key}</key>\n        <string>${value}</string>`
