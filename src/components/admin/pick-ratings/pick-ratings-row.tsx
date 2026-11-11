@@ -18,6 +18,8 @@ interface PickRatingsRowProps {
     columns: readonly RatingSortKey[];
     /** Whether this row's card is the one open in the rating dialog. */
     open: boolean;
+    /** Whether ANY row is open: focus returns only when the dialog closes. */
+    dialogOpen: boolean;
     onOpen: () => void;
 }
 
@@ -28,16 +30,17 @@ export default function PickRatingsRow({
     card,
     columns,
     open,
+    dialogOpen,
     onOpen,
 }: PickRatingsRowProps) {
     const wasOpen = useRef(false);
     const openId = `pick-rating-open-${card.cardId}`;
     useEffect(() => {
-        if (!open && wasOpen.current) {
+        if (!open && wasOpen.current && !dialogOpen) {
             document.getElementById(openId)?.focus();
         }
         wasOpen.current = open;
-    }, [open, openId]);
+    }, [open, dialogOpen, openId]);
 
     const cell = (key: RatingSortKey) => {
         switch (key) {

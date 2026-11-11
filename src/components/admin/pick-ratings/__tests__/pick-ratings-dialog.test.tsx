@@ -386,3 +386,38 @@ describe("rating dialog: pack test (issue #8909)", () => {
         expect(dialog.querySelector("[data-pick-rating-cap]")).toBeNull();
     });
 });
+
+describe("rating dialog: keyboard and focus (issue #8909)", () => {
+    it("digit keys rate even while a dialog control holds focus", () => {
+        render(<PickRatingsPage />);
+        const dialog = openRow("Lightning Bolt");
+        const radio = within(dialog).getByRole("radio", { name: "Ladder" });
+        fireEvent.keyDown(radio, { key: "4" });
+        expect(page.setRating).toHaveBeenCalledWith({
+            scope: "vintage-cube",
+            cardId: cardId("Lightning Bolt"),
+            rating: 4,
+        });
+    });
+
+    it("Next hands no focus to a row behind the dialog", () => {
+        render(<PickRatingsPage />);
+        const dialog = openRow(tableOrder()[0]);
+        fireEvent.click(within(dialog).getByRole("button", { name: "Next →" }));
+        expect(document.activeElement?.id.startsWith("pick-rating-open-")).toBe(
+            false
+        );
+    });
+
+    it("shows a failed write instead of swallowing it", async () => {
+        page.setRating = vi.fn().mockRejectedValue(new Error("Not an admin"));
+        render(<PickRatingsPage />);
+        const dialog = openRow("Lightning Bolt");
+        fireEvent.click(
+            within(dialog).getByRole("button", {
+                name: "Rate Lightning Bolt 1.5",
+            })
+        );
+        expect(await screen.findByRole("alert")).toBeTruthy();
+    });
+});

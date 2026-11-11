@@ -27,6 +27,8 @@ interface PickRatingsDialogProps {
     backToName: string | null;
     /** A write is in flight: every rating control waits. */
     saving: boolean;
+    /** The last write's failure, shown until the next write. */
+    saveError: string | null;
     onRate: (card: ScopeCardRating, rating: number) => void;
     onClear: (card: ScopeCardRating) => void;
     onJump: (cardId: string) => void;
@@ -48,6 +50,7 @@ export default function PickRatingsDialog({
     total,
     backToName,
     saving,
+    saveError,
     onRate,
     onClear,
     onJump,
@@ -107,6 +110,14 @@ export default function PickRatingsDialog({
                             >
                                 Clear override
                             </Button>
+                        )}
+                        {saveError !== null && (
+                            <span
+                                role="alert"
+                                className="text-xs text-danger-strong"
+                            >
+                                {saveError}
+                            </span>
                         )}
                         <span className="ml-auto text-xs text-text-muted">
                             0–5 set · +/− nudge · ↵ or j next · k prev · Esc

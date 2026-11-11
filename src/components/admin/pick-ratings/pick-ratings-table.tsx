@@ -57,6 +57,7 @@ export default function PickRatingsTable({
                         card={card}
                         columns={RATING_COLUMNS}
                         open={card.cardId === openCardId}
+                        dialogOpen={openCardId !== null}
                         onOpen={() => onOpen(card.cardId)}
                     />
                 ))}

@@ -20,9 +20,14 @@ export function useRatingKeys(keys: RatingKeys): void {
             const target = event.target;
             if (
                 target instanceof Element &&
-                target.closest(
-                    "input, textarea, select, [contenteditable], button, [role=button], [role=radio]"
-                )
+                target.closest("input, textarea, select, [contenteditable]")
+            )
+                return;
+            // Enter on a focused control activates that control.
+            if (
+                event.key === "Enter" &&
+                target instanceof Element &&
+                target.closest("button, [role=radio]")
             )
                 return;
             const { rating, disabled } = keys;

@@ -31,20 +31,8 @@ export default function PickRatingsLadderRung({
 }: PickRatingsLadderRungProps) {
     return (
         <div
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-            aria-disabled={disabled}
-            aria-label={`Rate ${card.name} ${step.toFixed(1)}`}
-            aria-pressed={here}
             data-pick-rating-rung={step}
             onClick={() => {
-                if (!disabled) onRate(step);
-            }}
-            onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                event.stopPropagation();
                 if (!disabled) onRate(step);
             }}
             className={cn(
@@ -53,9 +41,13 @@ export default function PickRatingsLadderRung({
                 disabled && "cursor-wait opacity-70"
             )}
         >
-            <span
+            <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Rate ${card.name} ${step.toFixed(1)}`}
+                aria-pressed={here}
                 className={cn(
-                    "font-mono text-sm",
+                    "text-left font-mono text-sm",
                     here ? "text-text" : "text-text-muted"
                 )}
             >
@@ -65,7 +57,7 @@ export default function PickRatingsLadderRung({
                         seed
                     </span>
                 )}
-            </span>
+            </button>
             <span>
                 {here && (
                     <PickRatingsThumb
