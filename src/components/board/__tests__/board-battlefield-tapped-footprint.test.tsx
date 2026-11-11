@@ -194,7 +194,9 @@ describe("BoardBattlefield row layout is blind to tap state (#1994 round 2)", ()
             /scale\(([\d.]+)\)/.exec(el.style.transform)![1]
         );
         const drawn = (parseFloat(el.style.width) / CARD_WIDTH) * residual;
-        expect(gap).toBeCloseTo(drawn * (CARD_WIDTH + 12), 3);
+        // The grown box is rounded to whole pixels, so `drawn` is off the
+        // placement's true scale by under half a pixel of box width.
+        expect(Math.abs(gap - drawn * (CARD_WIDTH + 12))).toBeLessThan(1);
     });
 });
 
