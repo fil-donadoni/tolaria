@@ -48,3 +48,33 @@ export function clampAnchoredPreviewPosition(
 
     return { top, left };
 }
+
+// Hover preview dock side (issue #8955). The dock is a fixed panel on the
+// viewport's right edge; a card whose rect intersects that band would be
+// covered by the very panel it opened, so the dock moves to the left edge.
+// Horizontal test only: the band's vertical extent depends on a CSS variable
+// (`--preview-bottom-safe`) that pure layout code cannot read.
+
+export const DOCK_WIDTH = 360;
+/** Gap between the dock and the viewport edge it is docked to. */
+export const DOCK_EDGE_INSET = 8;
+
+export type DockSide = "right" | "left";
+
+/** Dock panel width: a copy permanent shows two faces (Current + Original). */
+export function dockWidth(hasOriginal: boolean): number {
+    return hasOriginal ? DOCK_WIDTH * 2 : DOCK_WIDTH;
+}
+
+/** Side to dock on, decided from the hovered card's rect when the dock opens:
+ *  `left` iff the card intersects the right-edge band, else `right`. */
+export function chooseDockSide(
+    cardRect: Pick<DOMRect, "left" | "right">,
+    width: number,
+    viewport: Viewport
+): DockSide {
+    const bandLeft = viewport.width - DOCK_EDGE_INSET - width;
+    const bandRight = viewport.width;
+    const intersects = cardRect.right > bandLeft && cardRect.left < bandRight;
+    return intersects ? "left" : "right";
+}
