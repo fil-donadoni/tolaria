@@ -1,5 +1,5 @@
 import type { CensusResidueFile } from "@convex/limited/cardProfilesCore";
-import { resolveCardName } from "@convex/cards";
+import { resolveCardName } from "@convex/cards/catalogue";
 
 interface CardProfilesResidueProps {
     residues: readonly CensusResidueFile[];

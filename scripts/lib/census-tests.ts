@@ -146,6 +146,11 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/client-bundle-purity.test.ts",
         admits: /^(src|convex)\//,
     },
+    // src/ imports of the bare `@convex/cards` vs the client entry Vite maps it to (issue #9206)
+    {
+        test: "scripts/__tests__/client-entry-imports.test.ts",
+        admits: /^src\/|^convex\/cards\/(client|registry)\.ts$|^vite\.config\.ts$/,
+    },
     // compiledPool imports over convex/, src/, scripts/
     {
         test: "scripts/__tests__/compiled-pool-client-seam.test.ts",
