@@ -54,6 +54,7 @@ import AssistPlayerDialog from "~/components/board/assist-player-dialog";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import ManualVerbPopover from "~/components/board/manual-verb-popover";
 import PauseMenuDialog from "~/components/board/pause-menu-dialog";
+import RandomRevealRoundsSpecimen from "./random-reveal-rounds-specimen";
 import SideboardingDialog from "~/components/board/sideboarding-dialog";
 import { Section } from "./lib";
 import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
@@ -452,6 +453,14 @@ const SPECIMENS: OverlaySpecimen[] = [
                 match={match("playing", 3)}
             />
         ),
+    },
+    {
+        slug: "random-reveal-rounds",
+        label: "Coin flip rounds (Mana Clash)",
+        file: "board/random-reveal-overlay.tsx",
+        // Two coins per round, seat chips and the You/Rival damage table: a
+        // finished eight-round clash, watched by the seat that does not ack.
+        render: () => <RandomRevealRoundsSpecimen />,
     },
     {
         slug: "sideboarding",

@@ -20,6 +20,7 @@ export default function CoinFlipAnimation({
     caption,
     durationMs = FLIP_ANIM_MS,
     skipped = false,
+    size,
     onLanded,
 }: {
     face: "heads" | "tails";
@@ -27,6 +28,9 @@ export default function CoinFlipAnimation({
     caption: string;
     durationMs?: number;
     skipped?: boolean;
+    /** Coin diameter in px; `Coin3D`'s default when absent. Two coins side by
+     *  side (a two-player round) toss smaller. */
+    size?: number;
     onLanded: () => void;
 }) {
     const reduceMotion = useReducedMotion() ?? false;
@@ -52,6 +56,7 @@ export default function CoinFlipAnimation({
                 face={face}
                 phase={landed ? "landed" : "tossing"}
                 durationMs={durationMs}
+                size={size}
                 tone={tone}
                 reduceMotion={reduceMotion}
             />
