@@ -42,6 +42,7 @@ import { claimFate, pick } from "../lib/picker";
 import { classifyClaims } from "../lib/claim-verdict";
 import {
     ownerWaitLine,
+    planHoldLines,
     priorityHoldLine,
     repairItems,
     type IssueDetail,
@@ -922,12 +923,18 @@ describe("afk-dispatch repairs (issue #6795)", () => {
         );
     });
 
-    it("a P0 behind an owner merge names itself on its own line, not as a hold (issue #9137)", () => {
+    it("a P0 behind an owner merge prints its own line, not a hold (issue #9137)", () => {
         const wait = { number: 9, pr: 77 };
         expect(ownerWaitLine(wait)).toBe(
             "P0 #9 waits on owner merge of PR #77 (merge:manual) — not holding slots"
         );
-        expect(ownerWaitLine(wait)).not.toMatch(/held for P0/);
+        const lines = planHoldLines({ batch: [], ownerWaitP0: wait });
+        expect(lines).toEqual([ownerWaitLine(wait)]);
+        expect(lines.join("\n")).not.toMatch(/held for P0/);
+        const hold = { number: 8, reason: "target files overlap in-flight #1" };
+        expect(planHoldLines({ batch: [], priorityHold: hold })).toEqual([
+            priorityHoldLine(hold),
+        ]);
     });
 
     it("two land-failed PRs naming one issue repair it once", () => {

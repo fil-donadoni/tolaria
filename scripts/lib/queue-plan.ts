@@ -597,6 +597,22 @@ export function ownerWaitLine(w: OwnerWaitP0): string {
     return `P0 #${w.number} waits on owner merge of PR #${w.pr} (${MERGE_MANUAL_LABEL}) — not holding slots`;
 }
 
+/**
+ * The dispatcher's lines for a plan that leaves slots idle on purpose: a real
+ * P0 hold (issue #8920, only when it emptied the batch — a P0 admitted beside
+ * it explains itself) or a P0 waiting on an owner merge (issue #9137), never
+ * both. ONE authority, read by `afk-dispatch`.
+ */
+export function planHoldLines(
+    plan: Pick<BatchPlan, "batch" | "priorityHold" | "ownerWaitP0">
+): string[] {
+    if (plan.priorityHold)
+        return plan.batch.length === 0
+            ? [priorityHoldLine(plan.priorityHold)]
+            : [];
+    return plan.ownerWaitP0 ? [ownerWaitLine(plan.ownerWaitP0)] : [];
+}
+
 /** One warning line per stalled PR — the plan's and the dispatcher's text. */
 export function stalledPrLine(s: {
     pr: number;
