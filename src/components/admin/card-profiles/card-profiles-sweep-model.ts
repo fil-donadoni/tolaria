@@ -7,7 +7,12 @@ import type {
     EditableCardProfile,
     ScopeCardProfile,
 } from "~/hooks/useCardProfiles";
-import { effectiveProfile, profileStatus } from "./card-profiles-model";
+import {
+    effectiveProfile,
+    layerReviewed,
+    profileStatus,
+    type ProfileTab,
+} from "./card-profiles-model";
 
 /** Which profile field a catalogue row lives in: the scoped Archetype layer,
  *  or one direction of the scope-free Capability layer. */
@@ -31,6 +36,13 @@ const SWEEP_FIELD: Record<SweepKind, ProfileField> = {
     provides: "provides",
     requires: "requires",
 };
+
+/** The profile layer a sweep row lives in: an Archetype row tags the
+ *  Archetype layer, a Capability row the Capability layer — so a sweep's
+ *  confirm reviews that layer only (ADR 0167). */
+export function sweepTab(kind: SweepKind): ProfileTab {
+    return kind === "archetype" ? "archetypes" : "capabilities";
+}
 
 export type SweepLane = "reviewed" | "proposed" | "untagged";
 
@@ -65,7 +77,8 @@ export function sweepLanes(
     const lanes: SweepLanes = { reviewed: [], proposed: [], untagged: [] };
     for (const card of cards) {
         if (!carriesRow(card, row)) lanes.untagged.push(card);
-        else if (profileStatus(card) === "reviewed") lanes.reviewed.push(card);
+        else if (profileStatus(card, sweepTab(row.kind)) === "reviewed")
+            lanes.reviewed.push(card);
         else lanes.proposed.push(card);
     }
     return lanes;
@@ -73,7 +86,10 @@ export function sweepLanes(
 
 /** The effective profile as an editable write, or a blank unreviewed one for
  *  a card neither layer covers yet. */
-function baseProfile(card: ScopeCardProfile): EditableCardProfile {
+function baseProfile(
+    card: ScopeCardProfile,
+    kind: SweepKind
+): EditableCardProfile {
     const effective = effectiveProfile(card);
     if (effective === null) {
         return { archetypes: [], provides: [], requires: [], reviewed: false };
@@ -87,7 +103,7 @@ function baseProfile(card: ScopeCardProfile): EditableCardProfile {
             : {
                   comboEdges: effective.comboEdges.map((edge) => ({ ...edge })),
               }),
-        reviewed: effective.reviewed,
+        reviewed: layerReviewed(card, sweepTab(kind)) ?? false,
     };
 }
 
@@ -98,7 +114,7 @@ export function toggleRowTag(
     card: ScopeCardProfile,
     row: SweepRow
 ): EditableCardProfile {
-    const profile = baseProfile(card);
+    const profile = baseProfile(card, row.kind);
     const field = SWEEP_FIELD[row.kind];
     profile[field] = profile[field].includes(row.id)
         ? profile[field].filter((entry) => entry !== row.id)
@@ -107,8 +123,11 @@ export function toggleRowTag(
 }
 
 /** "Confirm": the card's profile unchanged, marked reviewed. */
-export function confirmProfile(card: ScopeCardProfile): EditableCardProfile {
-    return { ...baseProfile(card), reviewed: true };
+export function confirmProfile(
+    card: ScopeCardProfile,
+    kind: SweepKind
+): EditableCardProfile {
+    return { ...baseProfile(card, kind), reviewed: true };
 }
 
 export interface CapabilityCount {

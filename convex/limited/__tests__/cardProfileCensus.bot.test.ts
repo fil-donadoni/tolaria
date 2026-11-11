@@ -19,6 +19,7 @@
 // extracted pure pieces: `cardProfileWriteErrors`, `buildCardProfileRows`).
 import { describe, it, expect } from "vitest";
 import {
+    buildArchetypesRow,
     buildCardProfileRows,
     buildDbProfileLayers,
     buildScopeCardProfiles,
@@ -35,6 +36,7 @@ import {
     validateCardArchetypeFile,
     validateCardCapabilityFile,
     type CardProfile,
+    type CardProfileSave,
     type EditorCardProfile,
     type ProfileLayers,
 } from "../cardProfilesCore";
@@ -196,10 +198,10 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Admin write boundary (`setCardProfile` / `clearCardProfile` pure pieces)
+// Admin write boundary (the per-layer save mutations' pure pieces)
 // ─────────────────────────────────────────────────────────────────────────
 
-const EMPTY: EditorCardProfile = {
+const EMPTY: CardProfileSave = {
     archetypes: [],
     provides: [],
     requires: [],
@@ -339,9 +341,10 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
             dbAfterSaves(dbRows)
         );
         expect(row.dbProfile!.archetypes).toEqual(["control"]);
-        expect(row.dbProfile!.reviewed).toBe(true);
+        expect(row.dbProfile!.archetypesReviewed).toBe(true);
+        expect(row.dbProfile!.capabilitiesReviewed).toBe(true);
         expect(row.seedProfile!.provides).toContain("reanimatable");
-        expect(row.seedProfile!.reviewed).toBe(false);
+        expect(row.seedProfile!.capabilitiesReviewed).toBe(false);
     });
 
     it("the editor row carries the card's colour identity for the rail's colour bar (issue #8903)", () => {
@@ -372,9 +375,69 @@ describe("Admin write boundary (issue #1614): the database layer is held to the 
         );
         expect(row.dbProfile!.archetypes).toEqual(["control"]);
         expect(row.dbProfile!.provides).toEqual(row.seedProfile!.provides);
-        // the seed Capability half is unreviewed, so the card is not
-        // reviewed as a whole
-        expect(row.dbProfile!.reviewed).toBe(false);
+        // each layer keeps its OWN flag (ADR 0167, issue #8904): the
+        // reviewed Archetype override never marks the seed Capability half
+        expect(row.dbProfile!.archetypesReviewed).toBe(true);
+        expect(row.dbProfile!.capabilitiesReviewed).toBe(false);
+    });
+
+    it("each layer carries its OWN census rationale, kept under an Admin override that wrote none (issue #8904)", () => {
+        const id = cardId("Griselbrand");
+        const seed = buildDbProfileLayers({
+            capabilities: [
+                {
+                    cardId: id,
+                    provides: ["reanimatable"],
+                    requires: [],
+                    reviewed: false,
+                    rationale: "oracle: a fatty worth reanimating",
+                },
+            ],
+            archetypes: [
+                {
+                    scope: CUBE_SOURCE_KEY,
+                    cardId: id,
+                    archetypes: ["reanimator"],
+                    reviewed: false,
+                    rationale: "cube-list: the reanimator target",
+                },
+            ],
+        });
+        const db = buildDbProfileLayers({
+            capabilities: [],
+            archetypes: [
+                buildArchetypesRow(CUBE_SOURCE_KEY, id, {
+                    archetypes: ["reanimator", "control"],
+                    reviewed: true,
+                }),
+            ],
+        });
+        const [row] = buildScopeCardProfiles(
+            CUBE_SOURCE_KEY,
+            [{ cardId: id, name: "Griselbrand" }],
+            db,
+            seed
+        );
+        expect(row.seedProfile!.capabilitiesRationale).toBe(
+            "oracle: a fatty worth reanimating"
+        );
+        expect(row.dbProfile!.archetypesRationale).toBe(
+            "cube-list: the reanimator target"
+        );
+        expect(row.dbProfile!.capabilitiesRationale).toBe(
+            "oracle: a fatty worth reanimating"
+        );
+        expect(row.dbProfile!.archetypesReviewed).toBe(true);
+        expect(row.dbProfile!.capabilitiesReviewed).toBe(false);
+    });
+
+    it("a card with no row in a layer reads that layer's flag as null, not unreviewed", () => {
+        const profile = toEditorCardProfile(null, {
+            archetypes: ["aggro"],
+            reviewed: false,
+        })!;
+        expect(profile.capabilitiesReviewed).toBeNull();
+        expect(profile.archetypesReviewed).toBe(false);
     });
 
     it("the editor lists exactly the scope's cards — the SAME enumeration the Pick Rating editor uses", () => {

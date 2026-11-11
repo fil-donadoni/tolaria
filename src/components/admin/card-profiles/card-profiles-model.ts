@@ -54,10 +54,39 @@ export function effectiveProfile(card: ScopeCardProfile) {
     return card.dbProfile ?? card.seedProfile;
 }
 
-export function profileStatus(card: ScopeCardProfile): ProfileStatus {
+/** The review flag of `tab`'s layer (ADR 0167: each layer is reviewed on
+ *  its own), `null` when the card has no row in that layer. */
+export function layerReviewed(
+    card: ScopeCardProfile,
+    tab: ProfileTab
+): boolean | null {
     const effective = effectiveProfile(card);
-    if (effective === null) return "unprofiled";
-    return effective.reviewed ? "reviewed" : "unreviewed";
+    if (effective === null) return null;
+    return tab === "capabilities"
+        ? effective.capabilitiesReviewed
+        : effective.archetypesReviewed;
+}
+
+/** The census's one-line reason for `tab`'s layer, if it gave one. */
+export function layerRationale(
+    card: ScopeCardProfile,
+    tab: ProfileTab
+): string | undefined {
+    const effective = effectiveProfile(card);
+    return tab === "capabilities"
+        ? effective?.capabilitiesRationale
+        : effective?.archetypesRationale;
+}
+
+/** A card's status IN `tab`'s layer — the tab's table, filter and progress
+ *  all read the layer on screen, never the other one. */
+export function profileStatus(
+    card: ScopeCardProfile,
+    tab: ProfileTab
+): ProfileStatus {
+    const reviewed = layerReviewed(card, tab);
+    if (reviewed === null) return "unprofiled";
+    return reviewed ? "reviewed" : "unreviewed";
 }
 
 export interface ProfileFilters {
@@ -79,14 +108,15 @@ export const EMPTY_FILTERS: ProfileFilters = {
 /** OR within a filter, AND across filters (and the name search). */
 export function filterCards(
     cards: readonly ScopeCardProfile[],
-    filters: ProfileFilters
+    filters: ProfileFilters,
+    tab: ProfileTab
 ): ScopeCardProfile[] {
     const query = filters.search.trim().toLowerCase();
     return cards.filter((card) => {
         if (query && !card.name.toLowerCase().includes(query)) return false;
         const effective = effectiveProfile(card);
         return (
-            matchesAny(filters.status, [profileStatus(card)]) &&
+            matchesAny(filters.status, [profileStatus(card, tab)]) &&
             matchesAny(filters.archetype, effective?.archetypes ?? []) &&
             matchesAny(filters.provides, effective?.provides ?? []) &&
             matchesAny(filters.requires, effective?.requires ?? [])
@@ -94,13 +124,17 @@ export function filterCards(
     });
 }
 
-function sortValue(card: ScopeCardProfile, key: ProfileSortKey) {
+function sortValue(
+    card: ScopeCardProfile,
+    key: ProfileSortKey,
+    tab: ProfileTab
+) {
     const effective = effectiveProfile(card);
     switch (key) {
         case "card":
             return card.name;
         case "status":
-            return STATUS_RANK[profileStatus(card)];
+            return STATUS_RANK[profileStatus(card, tab)];
         case "archetypes":
             return (effective?.archetypes ?? []).join(", ");
         case "provides":
@@ -112,18 +146,22 @@ function sortValue(card: ScopeCardProfile, key: ProfileSortKey) {
 
 export function sortCards(
     cards: readonly ScopeCardProfile[],
-    sort: SortState<ProfileSortKey>
+    sort: SortState<ProfileSortKey>,
+    tab: ProfileTab
 ): ScopeCardProfile[] {
-    return sortRows(cards, sort, sortValue);
+    return sortRows(cards, sort, (card, key) => sortValue(card, key, tab));
 }
 
 /** Reviewed / profiled over the WHOLE scope — never the filtered view, or
  *  the denominator would shrink with the filter that hides what is done. */
-export function reviewProgress(cards: readonly ScopeCardProfile[] | undefined) {
+export function reviewProgress(
+    cards: readonly ScopeCardProfile[] | undefined,
+    tab: ProfileTab
+) {
     let profiled = 0;
     let reviewed = 0;
     for (const card of cards ?? []) {
-        const status = profileStatus(card);
+        const status = profileStatus(card, tab);
         if (status === "unprofiled") continue;
         profiled++;
         if (status === "reviewed") reviewed++;
@@ -154,4 +192,65 @@ export function catalogueCounts(
             .length,
         signature: colourSignature(scoped, row.id),
     }));
+}
+
+/** A registry description's two halves, split on its two markers
+ *  (`TAG WHEN:` / `NOT:` for an Archetype row, `PROVIDES:` / `REQUIRES:`
+ *  for a Capability row) — the focus dialog's `?` tooltip shows them apart.
+ *  A missing second marker leaves the whole text in the first half. */
+export function descriptionHalves(
+    description: string,
+    first: string,
+    second: string
+): [string, string] {
+    const firstAt = description.indexOf(first);
+    const body =
+        firstAt === -1
+            ? description
+            : description.slice(firstAt + first.length);
+    const secondAt = body.indexOf(second);
+    if (secondAt === -1) return [body.trim(), ""];
+    return [
+        body.slice(0, secondAt).trim(),
+        body.slice(secondAt + second.length).trim(),
+    ];
+}
+
+export type ProfileField = "archetypes" | "provides" | "requires";
+
+/** What the focus dialog hands the page on a save: the toggles of both
+ *  families and the review flag. The page writes ONLY the tab's layer from
+ *  it (`setCardCapabilities` / `setCardArchetypes`, ADR 0167). */
+export interface LayerSave {
+    archetypes: string[];
+    provides: string[];
+    requires: string[];
+    reviewed: boolean;
+}
+
+/** The cards of the scope that carry `id` in `field` — the dialog line's
+ *  related cards — the open card excluded, reviewed ones first (in the
+ *  field's layer), then by name; at most `limit`. */
+export function relatedCards(
+    cards: readonly ScopeCardProfile[],
+    field: ProfileField,
+    id: string,
+    excludeCardId: string,
+    limit: number
+): ScopeCardProfile[] {
+    const tab: ProfileTab =
+        field === "archetypes" ? "archetypes" : "capabilities";
+    return cards
+        .filter(
+            (card) =>
+                card.cardId !== excludeCardId &&
+                (effectiveProfile(card)?.[field] ?? []).includes(id)
+        )
+        .sort(
+            (a, b) =>
+                Number(layerReviewed(b, tab) === true) -
+                    Number(layerReviewed(a, tab) === true) ||
+                a.name.localeCompare(b.name)
+        )
+        .slice(0, limit);
 }
