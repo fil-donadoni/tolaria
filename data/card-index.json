@@ -65730,6 +65730,14 @@
         "source": "compiled"
     },
     {
+        "name": "Roiling Canopy",
+        "scryfallId": "db61361b-bd12-453e-abc2-bbe09b66e3d9",
+        "oracleId": "c6e87760-4cd0-4281-82d4-7a377ea960ad",
+        "firstSet": "fra",
+        "firstPrintId": "db61361b-bd12-453e-abc2-bbe09b66e3d9",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Rollick of Abandon",
         "scryfallId": "3f1a80c4-8119-437d-bf5b-549c5679c90a",
         "oracleId": "ecda721d-ec5d-484b-a834-f4de96083b08",
