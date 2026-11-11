@@ -4,8 +4,9 @@
  * source-package blobs of the local Convex deployment (issue #3186).
  *
  * SAFE BY DEFAULT: classifies and prints, deletes nothing. `--yes` removes
- * exactly the unreferenced blobs older than 24h. `--auto` is the form the
- * unattended loop driver runs at pass start: at most once per seven days
+ * exactly the unreferenced blobs older than 24h. `--auto` is the form
+ * `post-merge sweep` runs hourly on every machine (issue #9105; the loop
+ * driver that ran it at pass start is gone): at most once per seven days
  * (stamp `.claude/telemetry/convex-blob-gc.stamp`), `--yes` implied, and it
  * ALWAYS exits 0 — a locked database, a missing deployment or an unreadable
  * directory is logged and the host carries on. Rules and why:
