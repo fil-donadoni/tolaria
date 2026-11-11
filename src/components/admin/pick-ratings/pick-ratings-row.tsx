@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { Button } from "~/components/ui/button";
 import { TableCell, TableRow } from "~/components/ui/table";
 import CardImage from "~/components/cards/card-image";
 import type { ScopeCardRating } from "~/hooks/useCardRatings";
@@ -14,11 +16,29 @@ import {
 interface PickRatingsRowProps {
     card: ScopeCardRating;
     columns: readonly RatingSortKey[];
+    /** Whether this row's card is the one open in the rating dialog. */
+    open: boolean;
+    onOpen: () => void;
 }
 
-/** One card of the Pick Ratings table. Read-only until the rating dialog
- *  (a later slice of PRD #8772) turns the row into its click target. */
-export default function PickRatingsRow({ card, columns }: PickRatingsRowProps) {
+/** One card of the Pick Ratings table. The whole row is the click target and
+ *  opens the card in the rating dialog (issue #8909); the Open button is the
+ *  keyboard path and where focus returns when the dialog closes on it. */
+export default function PickRatingsRow({
+    card,
+    columns,
+    open,
+    onOpen,
+}: PickRatingsRowProps) {
+    const wasOpen = useRef(false);
+    const openId = `pick-rating-open-${card.cardId}`;
+    useEffect(() => {
+        if (!open && wasOpen.current) {
+            document.getElementById(openId)?.focus();
+        }
+        wasOpen.current = open;
+    }, [open, openId]);
+
     const cell = (key: RatingSortKey) => {
         switch (key) {
             case "card":
@@ -77,5 +97,23 @@ export default function PickRatingsRow({ card, columns }: PickRatingsRowProps) {
                 );
         }
     };
-    return <TableRow>{columns.map(cell)}</TableRow>;
+    return (
+        <TableRow
+            className={open ? "cursor-pointer bg-accent/15" : "cursor-pointer"}
+            onClick={onOpen}
+        >
+            {columns.map(cell)}
+            <TableCell className="text-right">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    id={openId}
+                    aria-haspopup="dialog"
+                >
+                    Open
+                </Button>
+            </TableCell>
+        </TableRow>
+    );
 }
