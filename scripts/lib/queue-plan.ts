@@ -627,7 +627,7 @@ export function stalledPrLine(s: {
  * radius is unknown (`files: null`). The caller passes ONLY claims that are
  * live or have an open PR — a stale or released claim occupies nothing. A
  * claim whose PR is in `stalledPrs` (issue #8258) occupies nothing either. A
- * claim whose PR is in `ownerWaitPrs` (`merge:manual`, issue #9137) is marked
+ * claim whose PR is in `ownerWaitPrs` (`merge:manual`) is marked
  * `awaitsOwnerPr`.
  */
 export function inFlightSet(
