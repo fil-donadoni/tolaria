@@ -28,7 +28,7 @@ import { goryosVengeance as goryosModuleExport } from "../black.cards";
 // is regenerated post-merge), so register the module's own definition.
 preloadDefinitions([resolveCardExport(goryosModuleExport)!]);
 
-const goryosVengeance = getDefinition("3ea3c681-f0ad-45a2-bc25-2813efd8d560");
+const goryosVengeance = getDefinition("3027e6c5-eed3-44e7-bb12-67569721af99");
 // Legendary creature (APC 11) and a nonlegendary one.
 const gerrardCapashen = getDefinition("ccca800f-e850-4bec-95d0-70280b51b7a7");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");

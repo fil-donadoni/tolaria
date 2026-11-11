@@ -22,7 +22,7 @@ import { defineCard } from "../../types";
 // (CR 702.47d).
 // hand-tail: Return target legendary creature card from your graveyard to the battlefield. That creature gains haste. Exile it at the beginning of the next end step. (#8806)
 export const goryosVengeance = defineCard(() => ({
-    id: "3ea3c681-f0ad-45a2-bc25-2813efd8d560",
+    id: "3027e6c5-eed3-44e7-bb12-67569721af99",
     name: "Goryo's Vengeance",
     rarity: "rare",
     oracleText:
