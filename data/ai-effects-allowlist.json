@@ -795,20 +795,6 @@
     },
     {
         "class": "ability",
-        "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
-        "name": "Cocoon",
-        "abilityId": "cocoon-etb",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
-        "name": "Cocoon",
-        "abilityId": "cocoon-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "13186bc9-8d9c-433b-ba15-121ef94dd68a",
         "name": "Conversion",
         "abilityId": "conversion-upkeep",
@@ -2345,13 +2331,6 @@
         "cardId": "86a27d68-3e58-4ade-976d-36381beed451",
         "name": "The Abyss",
         "abilityId": "the-abyss-upkeep-destroy",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "f9ffb265-872f-47b3-974c-92bcbebd557e",
-        "name": "The Brute",
-        "abilityId": "the-brute-regenerate",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

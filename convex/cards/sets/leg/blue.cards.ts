@@ -936,10 +936,9 @@ export const venarianGold = defineCard(() => ({
                 "When this Aura enters, tap enchanted creature and put X sleep counters on it.",
             scope: "self",
             // CR 303.4 — "enchanted creature" is the Aura's attachment host,
-            // read through the `$host` binding (seeded at resolution start, CR
-            // 608.2); an Aura that is no longer attached seeds none and both Ops
-            // skip (CR 608.2b). CR 107.3 — X is the value announced as the
-            // Aura was cast.
+            // read through the `$host` binding (CR 608.2h); an Aura that is no
+            // longer attached binds none and both Ops skip (CR 609.3).
+            // CR 107.3 — X is the value announced as the Aura was cast.
             effects: [
                 { op: "tapUntap", action: "tap", target: { ref: "$host" } },
                 {
