@@ -9,6 +9,7 @@
 // catalogue, ratings and profiles. The CLI is `scripts/draft-audit.ts`. The
 // per-deck report itself lives in `src/lib/limited/draftTableAudit.ts`, shared
 // with the Draft Lab's Built deck view (issue #8899).
+import { createHash } from "node:crypto";
 import { CURVE_MAX_BUCKET } from "../../convex/limited/botDrafter";
 import { EMPTY_PROFILE_LAYERS } from "../../convex/limited/cardProfilesCore";
 import {
@@ -260,4 +261,37 @@ export function formatVerdict(
             ? "floors: PASS"
             : `floors: FAIL (${broken.map((v) => v.metric).join(", ")})`,
     ];
+}
+
+// ── Receipt (issue #8895) ──────────────────────────────────────────────────
+
+/** The text a receipt digest covers: the aggregate and verdict lines, never
+ *  the sha or the wall-clock, so a re-run on the same tree digests the same. */
+export function receiptDigest(
+    run: DraftAuditRun,
+    verdicts: readonly FloorVerdict[] | null
+): string {
+    const text = [
+        ...formatAggregate(run),
+        ...formatVerdict(run.scope, verdicts),
+    ]
+        .join("\n")
+        .normalize("NFC");
+    return createHash("sha256").update(text).digest("hex");
+}
+
+/** The one line a PR body carries per scope (`land:ready` re-derives it):
+ *  `draft:audit: <scope> seeds 1..8 floors: PASS sha256:<hex>`. `floors` is
+ *  `none` when the scope declares no Floor. */
+export function formatReceiptLine(
+    run: DraftAuditRun,
+    verdicts: readonly FloorVerdict[] | null
+): string {
+    const state =
+        verdicts === null
+            ? "none"
+            : floorsExitCode(verdicts) === 0
+              ? "PASS"
+              : "FAIL";
+    return `draft:audit: ${run.scope} seeds ${run.seeds[0]}..${run.seeds[run.seeds.length - 1]} floors: ${state} sha256:${receiptDigest(run, verdicts)}`;
 }

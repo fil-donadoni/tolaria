@@ -10,6 +10,7 @@
 //   scenario            the `## Preset scenario` block (ADR 0044)
 //   retired-rows        the `## Retired rows` line (ADR 0114 §1)
 //   robustness-baseline a PR that closes a baseline row's owner leaves the row
+//   draft-audit         the `draft:audit:` receipt, re-derived (issue #8895)
 //   repair-proof        a declared repair of the standing RED re-runs the
 //                       verdict's failing tests green (issue #5462)
 //
@@ -41,6 +42,7 @@ import { robustnessBaselineRefusal } from "./lib/robustness-baseline-refusal";
 import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     SKIN_RECEIPT_REFUSAL,
+    safeDraftAuditRefusal,
     safeRetirementRefusal,
     safeScenarioRefusal,
     safeSkinReceiptInvalid,
@@ -58,6 +60,7 @@ export const PR_CHECK_NAMES = [
     "retired-rows",
     "robustness-baseline",
     "repair-proof",
+    "draft-audit",
 ] as const;
 export type PrCheckName = (typeof PR_CHECK_NAMES)[number];
 
@@ -166,6 +169,8 @@ export function runPrCheck(
             return { refusal: safeScenarioRefusal(ctx.cwd, ctx.prBody) };
         case "retired-rows":
             return { refusal: safeRetirementRefusal(ctx.cwd, ctx.prBody) };
+        case "draft-audit":
+            return { refusal: safeDraftAuditRefusal(ctx.cwd, ctx.prBody) };
         case "robustness-baseline":
             return {
                 refusal: robustnessBaselineRefusal(

@@ -221,6 +221,16 @@ export const PR_RECEIPT_GUARDS: Readonly<
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10); 39 green full walks 2026-09-30..10-20, mean ~17 min",
         why: "a PR whose diff can move layout pastes its receipt (`chrome-debug.md`); the full walk found zero tree defects in 52 automated runs (issue #6143)",
     },
+    // The Draft Table Audit (issue #8895, PRD #8772): over 10 s, so not a lane
+    // step. A diff touching the drafter, Auto-Build, the Card Profiles, the
+    // Archetype Catalogue or the Capability registry pastes one `draft:audit:`
+    // line per scope and `pr:checks draft-audit` re-derives it.
+    "draft:audit": {
+        measuredCostS: 14,
+        measured:
+            "`draft:audit --scope vintage-cube` 9 s + `--scope lea` 5 s, eight seeds each, 14 s for the pair a receipt re-derives (2026-11-10, load ~40); baseline 8.9 s + 10.1 s (docs/research/draft-table-audit-baseline.md, issue #8894)",
+        why: "the pair is above the 10 s lane ceiling (issue #4963); the receipt keeps the cost off every diff that cannot move a build",
+    },
 };
 
 /**

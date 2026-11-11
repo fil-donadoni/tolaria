@@ -188,6 +188,7 @@ pull_request_rules:
                 - check-failure=retired-rows
                 - check-failure=robustness-baseline
                 - check-failure=repair-proof
+                - check-failure=draft-audit
       actions:
           label:
               add:
@@ -198,7 +199,7 @@ pull_request_rules:
               message: |
                   **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
 
-                  The red check is one of `pr-check`'s refusal jobs (`ui-receipt`, `scenario`, `retired-rows`, `robustness-baseline`, `repair-proof`): [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/pr-check.yml?query=branch%3A{{ head }}) names which. Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
+                  The red check is one of `pr-check`'s refusal jobs (`ui-receipt`, `scenario`, `retired-rows`, `robustness-baseline`, `repair-proof`, `draft-audit`): [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/pr-check.yml?query=branch%3A{{ head }}) names which. Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
     - name: a red advisory lane under a RED is a hold
       conditions:
           - label=ready-to-land

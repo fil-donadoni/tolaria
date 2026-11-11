@@ -16,6 +16,10 @@ import {
     type ExpectedScope,
 } from "../ui-gate/verify-receipt.ts";
 import { ORIGIN_BASE } from "./branches";
+import {
+    draftAuditRefusal,
+    owesDraftAuditReceipt,
+} from "./draft-audit-receipt";
 import { changedRetiredRows, retirementRefusal } from "./retirement-ack";
 import {
     classifyScenarioSection,
@@ -249,4 +253,41 @@ export function safeRetirementRefusal(
         return null;
     }
     return retirementRefusal(changedRetiredRows(diff), prBody);
+}
+
+/** The receipt line the audit prints for `scope` on this tree. A child
+ *  process, never an import: the audit's module closure must stay out of this
+ *  file's (`fileReadsCorpus`, issue #8895 review). */
+export function deriveDraftAuditLine(scope: string, cwd = "."): string {
+    const r = spawnSync(
+        "bun",
+        ["scripts/draft-audit.ts", "--scope", scope, "--quiet"],
+        { cwd, encoding: "utf8", maxBuffer: 1 << 24 }
+    );
+    const line = r.stdout
+        .split(/\r?\n/)
+        .find((l) => l.startsWith("draft:audit: "));
+    return line ?? "";
+}
+
+/**
+ * The `draft:audit:` receipt refusal (issue #8895), tolerant like the others:
+ * a diff that cannot be classified degrades to "owes nothing" and says so; the
+ * audit itself (about 20 s, `PR_RECEIPT_GUARDS`) runs only for an owing diff.
+ */
+export function safeDraftAuditRefusal(
+    cwd: string,
+    prBody: string,
+    derive: (scope: string) => string = (scope) =>
+        deriveDraftAuditLine(scope, cwd)
+): string | null {
+    let owes = false;
+    try {
+        owes = owesDraftAuditReceipt(changedPaths(ORIGIN_BASE, cwd, true));
+    } catch (err) {
+        console.warn(
+            `pr-refusals: could not classify the landing diff to check the draft:audit receipt (${(err as Error).message}) — proceeding as if it owes none`
+        );
+    }
+    return draftAuditRefusal(owes, prBody, derive);
 }

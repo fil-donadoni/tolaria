@@ -1038,5 +1038,10 @@
         "file": "convex/gre/effects/__tests__/meldGroupExpansion.test.ts",
         "test": "meld group expansion census (CR 712.21c, ADR 0161) > gives every non-expanding row a reason",
         "reason": "Census over every MELD_GROUP_DISPOSITION row: each non-expanding executor must carry a written reason."
+    },
+    {
+        "file": "scripts/__tests__/draft-audit-receipt.test.ts",
+        "test": "wiring > the receipt's scopes and seeds are the audit's own",
+        "reason": "Drift pin between two independently declared lists: the receipt module's scopes/seeds (kept out of the audit's import closure) and DRAFT_AUDIT_FLOORS / DEFAULT_AUDIT_SEEDS."
     }
 ]

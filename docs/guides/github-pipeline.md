@@ -401,7 +401,7 @@ Measured on the same commit (PR #5674, full lane): **hosted `ubuntu-24.04`
 
 ### Required checks
 
-The same `pr-check` workflow also holds `refusals`, a matrix of five jobs —
+The same `pr-check` workflow also holds `refusals`, a matrix of six jobs —
 one per refusal `land` applies before a merge, each `bun run pr:checks <name>`
 (`scripts/pr-checks.ts`). A check calls the SAME pure function `land` calls,
 on the same facts (the PR body from `PR_BODY`, passed through `env:`; the diff
@@ -410,13 +410,14 @@ the same refusal. Those functions keep their tests; the wiring is pinned by
 `scripts/__tests__/pr-checks.test.ts`. Run one by hand with
 `bun run pr:checks <name|all> [--pr <N>]`.
 
-| Check                 | Refuses when                                                                                                    | Function reused                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `ui-receipt`          | the diff can reach the DOM and the body has no `check:ui` receipt matching the diff's scope (or a no-walk line) | `safeSkinReceiptInvalid` (`ui-gate/verify-receipt.ts`) |
-| `scenario`            | a `convex/{cards/sets,gre}/**` diff has no `## Preset scenario` block (ADR 0044)                                | `safeScenarioRefusal` (`lib/scenario-block.ts`)        |
-| `retired-rows`        | retired rows of `data/oracle-compiled.json` change and no `## Retired rows` line names them (ADR 0114 §1)       | `safeRetirementRefusal` (`lib/retirement-ack.ts`)      |
-| `robustness-baseline` | the body closes the owner issue of a `ROBUSTNESS_BASELINE` row the tree still lists                             | `robustnessBaselineRefusal`                            |
-| `repair-proof`        | the PR repairs the standing RED and every failing test file of the verdict still fails on it (issue #7448)      | `repairProofOf`, as `land`'s `repairProofStep`         |
+| Check                 | Refuses when                                                                                                                                                                        | Function reused                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `ui-receipt`          | the diff can reach the DOM and the body has no `check:ui` receipt matching the diff's scope (or a no-walk line)                                                                     | `safeSkinReceiptInvalid` (`ui-gate/verify-receipt.ts`) |
+| `scenario`            | a `convex/{cards/sets,gre}/**` diff has no `## Preset scenario` block (ADR 0044)                                                                                                    | `safeScenarioRefusal` (`lib/scenario-block.ts`)        |
+| `retired-rows`        | retired rows of `data/oracle-compiled.json` change and no `## Retired rows` line names them (ADR 0114 §1)                                                                           | `safeRetirementRefusal` (`lib/retirement-ack.ts`)      |
+| `robustness-baseline` | the body closes the owner issue of a `ROBUSTNESS_BASELINE` row the tree still lists                                                                                                 | `robustnessBaselineRefusal`                            |
+| `repair-proof`        | the PR repairs the standing RED and every failing test file of the verdict still fails on it (issue #7448)                                                                          | `repairProofOf`, as `land`'s `repairProofStep`         |
+| `draft-audit`         | the diff touches the drafter, Auto-Build, Card Profiles, Archetype Catalogue or Capability registry and the body lacks a matching green `draft:audit:` line per scope (issue #8895) | `safeDraftAuditRefusal` (`lib/draft-audit-receipt.ts`) |
 
 `repair-proof` reads the health lineage through the verdict store (the commit status
 needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`
@@ -425,8 +426,8 @@ was moved or deleted by the repair — it cannot decide, and `land` stays the
 authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
 (closing none of the ledger's `/health-fix` issues) owes nothing to it.
 
-The five are not queue conditions: Mergify judges those on the queue's
-draft, whose body is Mergify's, so the four that read the PR body would be
+The six are not queue conditions: Mergify judges those on the queue's
+draft, whose body is Mergify's, so the five that read the PR body would be
 red there and dequeue every PR ([the merge queue](#the-merge-queue), issue
 #5978). They hold at two points instead. `land:ready` runs them before the
 hand-off (issue #5956). After it, a refusal red on a `ready-to-land` PR (its
@@ -434,7 +435,7 @@ body edited, a push) labels it `land-failed` through `.mergify.yml`'s own
 `pull_request_rules` entry, the same repair pick as a dequeue, and
 `-label=land-failed` takes it out of the queue (issue #5960). Their contexts
 are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
-`robustness-baseline` and `repair-proof`; four read the PR body, so
+`robustness-baseline`, `repair-proof` and `draft-audit`; five read the PR body, so
 `pr-check` also runs on `edited`. The refusals judge the PR's merge ref at its last
 push or edit, never the queue's rebased draft — their job skips
 `mergify/merge-queue/**` heads as the lane job does, since on a draft it
