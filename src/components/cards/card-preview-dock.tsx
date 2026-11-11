@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import CardPreviewBody, {
     type CardPreviewBodyProps,
 } from "./card-preview-body";
+import { dockWidth, type DockSide } from "~/lib/card-preview-placement";
 import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 
 // Issue #332 — in-game desktop card preview is a FIXED panel docked to the
@@ -32,10 +33,12 @@ import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 // Desktop dock width (QA): 360px. It was 420px, which ate a wide slice of the
 // board on a laptop screen without adding readability — the face art scales with
 // the panel, so a smaller dock still renders the full oracle text.
-const DOCK_WIDTH = 360;
 const VIEWPORT_PAD = 8;
 
 type CardPreviewDockProps = CardPreviewBodyProps & {
+    /** Edge the dock is docked to (issue #8955): `left` when the hovered card
+     *  sits in the right band, so the dock never covers it. Default `right`. */
+    side?: DockSide;
     /** Pointer entered the dock itself — the hover-intent owner cancels its
      *  close grace so the panel's own controls (the Live text / Printed card
      *  toggle) can actually be clicked. */
@@ -47,14 +50,18 @@ type CardPreviewDockProps = CardPreviewBodyProps & {
 export default function CardPreviewDock({
     onPointerEnter,
     onPointerLeave,
+    side = "right",
     ...props
 }: CardPreviewDockProps) {
     // A copy permanent shows two faces (Current + Original) — double the width.
-    const width = props.originalBody ? DOCK_WIDTH * 2 : DOCK_WIDTH;
+    const width = dockWidth(Boolean(props.originalBody));
     return createPortal(
         <div
             data-card-preview-dock
-            className="pointer-events-none fixed right-2 z-modal flex items-center justify-end"
+            data-card-preview-dock-side={side}
+            className={`pointer-events-none fixed z-modal flex items-center ${
+                side === "left" ? "left-2 justify-start" : "right-2 justify-end"
+            }`}
             style={{
                 top: VIEWPORT_PAD,
                 bottom: "var(--preview-bottom-safe)",

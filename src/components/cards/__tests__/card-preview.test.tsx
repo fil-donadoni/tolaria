@@ -124,6 +124,41 @@ describe("CardPreview — Arena click model (#332)", () => {
         cleanup();
     });
 
+    describe("hover dock side (issue #8955)", () => {
+        const dockSide = () =>
+            dock()?.getAttribute("data-card-preview-dock-side");
+        function hoverCardAt(left: number) {
+            vi.stubGlobal("innerWidth", 1440);
+            const spy = vi
+                .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+                .mockReturnValue({
+                    left,
+                    right: left + 90,
+                    top: 0,
+                    bottom: 120,
+                    width: 90,
+                    height: 120,
+                    x: left,
+                    y: 0,
+                    toJSON: () => ({}),
+                } as DOMRect);
+            const { container } = renderOnBoard();
+            hoverEnter(container.firstElementChild as HTMLElement);
+            dwellPast();
+            spy.mockRestore();
+        }
+
+        it("card in the right band → dock opens on the left", () => {
+            hoverCardAt(1300);
+            expect(dockSide()).toBe("left");
+        });
+
+        it("card elsewhere → dock stays on the right", () => {
+            hoverCardAt(400);
+            expect(dockSide()).toBe("right");
+        });
+    });
+
     it("left-click never opens a preview", () => {
         const { container } = renderOnBoard();
         const root = container.firstElementChild as HTMLElement;
