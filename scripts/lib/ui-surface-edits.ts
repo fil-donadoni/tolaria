@@ -27,6 +27,13 @@
  * cannot be read, or a row with no `slug` leaves the table unparsed, and a
  * hunk there is `shared`, as before.
  *
+ * A row FIELD read outside its own surface is shared machinery (review of
+ * issue #9226): `SPECIMEN_LAYERS` spreads every table and reads each row's
+ * `layer`, which then decides page reuse for EVERY specimen surface. Any
+ * other reference to a table must be a `...TABLE,` spread closed by
+ * `].map((s) => s.<field>)`; that field is shared, and a hunk touching it is
+ * `shared`. A reference of any other shape leaves the table unparsed.
+ *
  * Pure: the caller supplies the NEW source and a `git diff -U0` of the file.
  */
 
@@ -63,6 +70,8 @@ interface Region {
     open: number;
     close: number;
     elements: ElementSpan[];
+    /** Row fields other code reads across rows (a specimen table only). */
+    sharedFields?: ReadonlySet<string>;
 }
 
 const SPECIMEN_TABLE_OPEN = /^const (\w+_SPECIMENS): readonly \w+\[\] = \[$/;
@@ -71,6 +80,10 @@ const SPECIMEN_SPREAD = /^ {4}\.\.\.(\w+_SPECIMENS)\.map\(\(spec\) =>$/;
 const SPECIMEN_SURFACE_CALL = /^ {8}dialogSpecimenSurface\((\w+), spec\)$/;
 const SECTION_OPEN = /^const (\w+): DialogSpecimenSection = \{$/;
 const SECTION_ID_PREFIX = /^ {4}idPrefix: "([^"]+)",$/;
+const SPECIMEN_FIELD = /^ {8}(\w+):/;
+const SPREAD_FIELD_MAP = /^\s*\]\.map\(\((\w+)\) => \1\.(\w+)\),?$/;
+/** How far a cross-row spread may run before its `].map(...)` closes it. */
+const SPREAD_LOOKAHEAD = 8;
 
 /** Elements of the list opened at line `open` (1-indexed), each id read by
  *  `idLine` and passed through `toId`; null when a row has no id or the list
@@ -148,15 +161,55 @@ export function parseSpecimenTables(source: string): Region[] {
         if (table === undefined) return;
         const prefix = prefixes.get(sectionOf.get(table) ?? "");
         if (prefix === undefined) return;
+        const sharedFields = crossRowFields(lines, table);
+        if (sharedFields === null) return;
         const region = parseList(
             lines,
             i + 1,
             SPECIMEN_SLUG,
             (slug) => `${prefix}-${slug}`
         );
-        if (region) regions.push(region);
+        if (region) regions.push({ ...region, sharedFields });
     });
     return regions;
+}
+
+/** The fields of `table`'s rows that code outside its own surface reads:
+ *  every reference other than its declaration and its `dialogSpecimenSurface`
+ *  spread must be a `...TABLE,` spread closed by `].map((s) => s.<field>)`.
+ *  Null when a reference has any other shape: the table cannot be narrowed. */
+function crossRowFields(lines: string[], table: string): Set<string> | null {
+    const fields = new Set<string>();
+    const name = new RegExp(`\\b${table}\\b`);
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!name.test(line)) continue;
+        if (SPECIMEN_TABLE_OPEN.exec(line)?.[1] === table) continue;
+        if (SPECIMEN_SPREAD.exec(line)?.[1] === table) continue;
+        if (line.trim() !== `...${table},`) return null;
+        let field: string | undefined;
+        for (
+            let j = i + 1;
+            j <= i + SPREAD_LOOKAHEAD && j < lines.length;
+            j++
+        ) {
+            field = SPREAD_FIELD_MAP.exec(lines[j])?.[2];
+            if (field !== undefined) break;
+        }
+        if (field === undefined) return null;
+        fields.add(field);
+    }
+    return fields;
+}
+
+/** The row field line `n` belongs to: the nearest `        field:` at or
+ *  above it inside `row`; null on the row's own brace lines. */
+function fieldAt(lines: string[], row: ElementSpan, n: number): string | null {
+    for (let k = n; k > row.start; k--) {
+        const field = SPECIMEN_FIELD.exec(lines[k - 1] ?? "")?.[1];
+        if (field !== undefined) return field;
+    }
+    return null;
 }
 
 /** The `SURFACES` array's bracket lines and its elements, in the NEW source. */
@@ -191,6 +244,32 @@ function parseHunks(diff: string): Hunk[] {
         else if (cur && line.startsWith("-")) cur.removed.push(line.slice(1));
     }
     return hunks;
+}
+
+/** A shared field the hunk adds, removes or edits inside `rows`, else null.
+ *  A pure deletion belongs to the field of the line it follows, and any
+ *  removed line that opens a field names that field too. */
+function sharedFieldTouched(
+    hunk: Hunk,
+    rows: ElementSpan[],
+    newLines: string[],
+    sharedFields: ReadonlySet<string>
+): string | null {
+    const { newStart: c, newCount: d } = hunk;
+    const fields: (string | null)[] = [];
+    for (const row of rows) {
+        const span = d > 0 ? [c, c + d - 1] : [c, c];
+        for (
+            let n = Math.max(span[0], row.start);
+            n <= Math.min(span[1], row.end);
+            n++
+        ) {
+            fields.push(fieldAt(newLines, row, n));
+        }
+    }
+    for (const l of hunk.removed)
+        fields.push(SPECIMEN_FIELD.exec(l)?.[1] ?? null);
+    return fields.find((f) => f !== null && sharedFields.has(f)) ?? null;
 }
 
 const shared = (reason: string, unreadable = false): SurfaceEdits =>
@@ -228,12 +307,26 @@ export function classifySurfaceEdits(
                 `the hunk at line ${c} is outside the SURFACES array and every specimen table (a shared helper, selector or table)`
             );
         }
-        const { elements } = region;
+        const { elements, sharedFields } = region;
         const touched =
             d > 0
                 ? elements.filter((e) => e.start <= c + d - 1 && e.end >= c)
                 : elements.filter((e) => e.start <= c && c < e.end);
         for (const e of touched) ids.add(e.id);
+
+        if (sharedFields && sharedFields.size > 0) {
+            const hit = sharedFieldTouched(
+                hunk,
+                touched,
+                newLines,
+                sharedFields
+            );
+            if (hit !== null) {
+                return shared(
+                    `the hunk at line ${c} edits \`${hit}\`, a specimen field read across every row`
+                );
+            }
+        }
 
         // Lines no element accounts for must move nothing: comments, blanks.
         const inElement = (n: number) =>

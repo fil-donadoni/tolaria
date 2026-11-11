@@ -216,6 +216,7 @@ function specimen(slug: string, body = "label"): string {
         `        slug: "${slug}",`,
         `        // ${body}`,
         "        module: `x.tsx`,",
+        `        layer: "[data-${slug}]",`,
         "    },",
     ].join("\n");
 }
@@ -226,6 +227,8 @@ function specimenSource(opts: {
     rows?: string[];
     prefix?: string;
     spread?: boolean;
+    /** Lines that read the table across rows, after it (`SPECIMEN_LAYERS`). */
+    crossRead?: string[];
 }): string {
     const spread =
         opts.spread === false
@@ -245,6 +248,7 @@ function specimenSource(opts: {
         (opts.rows ?? SPECIMENS).join("\n"),
         "];",
         "",
+        ...(opts.crossRead ?? []),
         "export const SURFACES: readonly Surface[] = [",
         BASE.join("\n"),
         ...spread,
@@ -325,5 +329,51 @@ describe("classifySurfaceEdits — specimen tables (issue #9226)", () => {
     it("removing a whole specimen row is shared", () => {
         const after = specimenSource({ rows: [SPECIMENS[0]] });
         expect(classify(after, before)).toMatchObject({ kind: "shared" });
+    });
+
+    const LAYERS = [
+        "const SPECIMEN_LAYERS = specimenLayerSelector([",
+        "    ...[",
+        "        ...BOARD_SPECIMENS,",
+        "    ].map((s) => s.layer),",
+        "]);",
+        "",
+    ];
+
+    it("a row field another reader spreads across rows is shared (review of issue #9226)", () => {
+        const b = specimenSource({ crossRead: LAYERS });
+        const after = specimenSource({
+            crossRead: LAYERS,
+            rows: [
+                SPECIMENS[0],
+                specimen("beta").replace("[data-beta]", "[x]"),
+            ],
+        });
+        expect(classify(after, b)).toMatchObject({
+            kind: "shared",
+            reason: expect.stringContaining("`layer`"),
+        });
+    });
+
+    it("a field no cross-row reader reads still narrows beside one", () => {
+        const b = specimenSource({ crossRead: LAYERS });
+        const after = specimenSource({
+            crossRead: LAYERS,
+            rows: [SPECIMENS[0], specimen("beta", "cards: true")],
+        });
+        expect(classify(after, b)).toEqual({
+            kind: "surfaces",
+            ids: ["dlg-beta"],
+        });
+    });
+
+    it("a table referenced in any other shape stays shared", () => {
+        const other = ["const N = BOARD_SPECIMENS.length;", ""];
+        const b = specimenSource({ crossRead: other });
+        const after = specimenSource({
+            crossRead: other,
+            rows: [SPECIMENS[0], specimen("beta", "cards: true")],
+        });
+        expect(classify(after, b)).toMatchObject({ kind: "shared" });
     });
 });
