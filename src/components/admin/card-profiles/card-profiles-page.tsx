@@ -50,9 +50,10 @@ type FilterKey = "status" | "archetype" | "provides" | "requires";
  *  out of the way. **Archetypes** is per scope: the rail picks the scope and
  *  its catalogue rows filter the table. Either tab's rail opens the sweep
  *  board on one catalogue row (issue #8905) in the table's place — the
- *  Capabilities tab's rail carries no scope, only the Capability rows. Either rail's Export downloads its layer in
- *  seed-file format (issue #8907). Mounted only by
- *  `CardProfilesAdminPanel` once the admin gate has passed. */
+ *  Capabilities tab's rail carries no scope, only the Capability rows.
+ *  Either rail's Export downloads its layer in seed-file format (issue
+ *  #8907). Mounted only by `CardProfilesAdminPanel` once the admin gate has
+ *  passed. */
 export default function CardProfilesPage() {
     const draftableSets = useDraftableSets();
     // Only a Draftable scope can show up in a bot pick (same gate as the Pick
