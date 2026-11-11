@@ -137,6 +137,11 @@ one `.env.local` in the primary checkout names (`VITE_CONVEX_URL`,
 minted there at the start of each run and destroyed at the end
 (`scripts/ui-gate/lane-account.ts`), so there is nothing to seed.
 
+The unit sets `DOCUMENT_RETENTION_DELAY` from
+`scripts/lib/convex-backend-env.ts` (issue #9105): the backend keeps one day
+of superseded document versions instead of 14, which bounds the sqlite file.
+A unit installed before that change needs the copy below re-run.
+
 It listens on `127.0.0.1` only. That is deliberate: every caller (health, the
 walk, `convex:ensure`) runs on the Huawei, and `convex dev --local` has no bind
 option. Reaching it from the LAN would mean the bare binary on `0.0.0.0` plus
