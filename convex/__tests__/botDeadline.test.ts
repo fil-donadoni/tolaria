@@ -194,6 +194,18 @@ describe("planBotDeadline (issue #9004)", () => {
         ).toEqual({ kind: "arm", at: due + 20_000, seq: 9 });
     });
 
+    it("check: a late check never enforces a newer seq — it arms that version's own check, due at once", () => {
+        const late = T0 + 20_000 + 2 * BOT_SERVER_DEADLINE_MS;
+        expect(
+            planBotDeadline({
+                tick: { ...owed, seq: 9, updatedAt: T0 + 20_000 },
+                botId: BOT,
+                trigger: { kind: "check", seq: 7 },
+                now: late,
+            })
+        ).toEqual({ kind: "arm", at: due + 20_000, seq: 9 });
+    });
+
     it("check: enforces on the same seq past the deadline", () => {
         expect(
             planBotDeadline({
