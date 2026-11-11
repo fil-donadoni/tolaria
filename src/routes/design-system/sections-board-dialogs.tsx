@@ -54,6 +54,8 @@ import AssistPlayerDialog from "~/components/board/assist-player-dialog";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import ManualVerbPopover from "~/components/board/manual-verb-popover";
 import PauseMenuDialog from "~/components/board/pause-menu-dialog";
+import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
+import { CLASH } from "./random-reveal-rounds-fixture";
 import RandomRevealRoundsSpecimen from "./random-reveal-rounds-specimen";
 import SideboardingDialog from "~/components/board/sideboarding-dialog";
 import { Section } from "./lib";
@@ -460,7 +462,15 @@ const SPECIMENS: OverlaySpecimen[] = [
         file: "board/random-reveal-overlay.tsx",
         // Two coins per round, seat chips and the You/Rival damage table: a
         // finished eight-round clash, watched by the seat that does not ack.
-        render: () => <RandomRevealRoundsSpecimen />,
+        render: () => (
+            <RandomRevealRoundsSpecimen>
+                <RandomRevealOverlay
+                    choice={CLASH}
+                    playerId={ME}
+                    gameId={GAME_ID}
+                />
+            </RandomRevealRoundsSpecimen>
+        ),
     },
     {
         slug: "sideboarding",
