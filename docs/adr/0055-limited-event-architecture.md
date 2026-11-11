@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted (2026-07-12). **Amended by ADR 0060** (draft-time Pool becomes the working deck; Auto-Pick honours the Selected Card before the heuristic; timer is on/off on the official descending schedule).
+Accepted (2026-07-12). **Amended by ADR 0060** (draft-time Pool becomes the working deck; Auto-Pick honours the Selected Card before the heuristic; timer is on/off on an Arena-like descending schedule).
 
 ## Context
 
