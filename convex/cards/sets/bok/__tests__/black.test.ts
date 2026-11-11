@@ -85,7 +85,7 @@ describe("Goryo's Vengeance (CR 205.4a legendary, CR 400.7 reanimation, CR 702.1
             targetType: req.type,
             count: 1 as const,
             selected: [],
-            kind: "spell" as const,
+            kind: "cast" as const,
             ...pendingTargetFiltersFromRequirement(req, undefined),
         });
         const accept = setup();
