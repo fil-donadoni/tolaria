@@ -8610,6 +8610,10 @@ export function emitSpellCastEvent(
         casterSpellCountThisTurn,
         casterSpellTypeCountsThisTurn,
         ...(manaSpentToCast !== undefined ? { manaSpentToCast } : {}),
+        // CR 202.3e — the spell's mana value on the stack, X included.
+        ...(def
+            ? { spellManaValue: stackManaValue(def.manaCost, item.chosenX) }
+            : {}),
     };
     // CR 702.33d (issue #1097) — "a player kicks a spell" rides the SAME cast
     // choke point, one event per KICK (a Multikicker paid N times is N kicks).
