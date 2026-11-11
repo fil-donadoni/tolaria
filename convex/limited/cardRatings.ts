@@ -26,6 +26,8 @@ import {
     type ScopeCardRating,
     type ScopedCardRating,
 } from "./cardRatingsCore";
+import { buildDbProfileLayers, SEED_PROFILE_LAYERS } from "./cardProfilesCore";
+import { loadProfileLayerRows } from "./cardProfiles";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Admin write mutations (PRD #1296 Slice B, issue #1298)
@@ -129,6 +131,13 @@ export const listScopeCardRatings = query({
             seedRating: v.union(v.number(), v.null()),
             fallbackRating: v.number(),
             isFallback: v.boolean(),
+            // `ManaCost` has no validator; the shape is the definition's.
+            manaCost: v.union(v.any(), v.null()),
+            manaValue: v.number(),
+            rarity: v.union(v.string(), v.null()),
+            types: v.array(v.string()),
+            colours: v.array(v.string()),
+            archetypes: v.array(v.string()),
         })
     ),
     handler: async (ctx, { scope }): Promise<ScopeCardRating[]> => {
@@ -144,9 +153,23 @@ export const listScopeCardRatings = query({
         const getDbRating: GetDbRating = (_scope, cardId) =>
             dbRatings.get(cardId) ?? null;
 
-        return buildScopeCardRatings(normalizedScope, cards, getDbRating).sort(
-            (a, b) => a.name.localeCompare(b.name)
+        // Effective archetypes = the database row over the census seed (the
+        // Card Profiles editor's `dbProfile ?? seedProfile`).
+        const profiles = buildDbProfileLayers(
+            await loadProfileLayerRows(ctx, [normalizedScope])
         );
+        const getArchetypes = (cardId: string) =>
+            (
+                profiles.getArchetypes(normalizedScope, cardId) ??
+                SEED_PROFILE_LAYERS.getArchetypes(normalizedScope, cardId)
+            )?.archetypes ?? [];
+
+        return buildScopeCardRatings(
+            normalizedScope,
+            cards,
+            getDbRating,
+            getArchetypes
+        ).sort((a, b) => a.name.localeCompare(b.name));
     },
 });
 
