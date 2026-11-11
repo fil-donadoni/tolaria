@@ -150,6 +150,7 @@ export default function CardProfileFocusEditor({
             tabIndex={-1}
             role="group"
             aria-label={`Profile for ${card.name}`}
+            data-card-profile-focus-editor={card.cardId}
             className="flex flex-col gap-4 outline-none"
             onKeyDown={(e) => {
                 // ⌘/Ctrl+Enter — the pass's keyboard loop. Not a bare Enter:
