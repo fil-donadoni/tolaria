@@ -64,18 +64,52 @@ describe("the Viewport Matrix (ADR 0101, ADR 0168)", () => {
             "dlg-convoke",
             "dlg-discard-cost",
             "dlg-cast-exile-cost",
-        ])
-            expect(flagged, id).toContain(id);
-        // Not yet: the surfaces whose DPR 1 cell did not settle on the final
-        // census of issue #8321 (the comment on `Surface.cards`).
-        for (const id of [
-            "auth-sign-in",
-            "settings",
-            "dlg-pause-menu",
             "game-combat",
             "game-choice-prompt",
         ])
+            expect(flagged, id).toContain(id);
+        // Surfaces that draw no printed face stay unflagged. No surface that
+        // does is allowed to: `evaluateRun` reds that (issue #9161).
+        for (const id of ["auth-sign-in", "settings", "dlg-pause-menu"])
             expect(flagged, id).not.toContain(id);
+    });
+});
+
+describe("evaluateRun contradicts a missing `cards` flag (issue #9161)", () => {
+    const viewportIds = ["1440x900x2", "1440x900x1"];
+    const walkOf = (printedFaces: number): SurfaceWalk => ({
+        surface: "mystery",
+        status: "measured",
+        measurements: [
+            {
+                viewport: "1440x900x2",
+                readings: zeroReadings(),
+                printedFaces,
+            },
+        ],
+    });
+    const run = (printedFaces: number, flagged: boolean) =>
+        evaluateRun({
+            knownSurfaceIds: ["mystery"],
+            walks: [walkOf(printedFaces)],
+            definedSurfaceIds: ["mystery"],
+            viewportIds,
+            viewportsOf: () => ["1440x900x2"],
+            drawsCards: () => flagged,
+            unwalked: [],
+        });
+
+    it("reds an unflagged surface whose cell reports printed faces, naming it", () => {
+        const ev = run(3, false);
+        expect(ev.failures).toHaveLength(1);
+        expect(ev.failures[0]).toContain("mystery @ 1440x900x2");
+        expect(ev.failures[0]).toContain("3 printed card face(s)");
+        expect(ev.rows[0]?.verdict).toBe("FAIL");
+    });
+
+    it("passes an unflagged surface with no printed face, and a flagged one with some", () => {
+        expect(run(0, false).failures).toEqual([]);
+        expect(run(3, true).failures).toEqual([]);
     });
 });
 

@@ -60,6 +60,36 @@ export interface SettleSample {
     /** What `inflight` is made of, for the reason an unsettled screen prints. */
     why?: string;
     boxes: string;
+    /** The same boxes, one entry per measured element: `id` names it (selector,
+     *  index, `data-slot`), `box` is its `x,y,w,h,scrollLeft,scrollTop`. Read
+     *  only to NAME what moved when the screen never settles (issue #9161). */
+    items?: readonly SettleItem[];
+}
+
+export interface SettleItem {
+    id: string;
+    box: string;
+}
+
+/** The first element whose box differs between two samples, with both boxes
+ *  — `[data-slot=x] #0 moved 0,0,157,200,0,0 → 0,0,162,200,0,0`. Null when no
+ *  item-level difference is recorded (a URL or window scroll moved). */
+export function movedItem(
+    before: SettleSample | undefined,
+    after: SettleSample
+): string | null {
+    if (!before?.items || !after.items) return null;
+    const prior = new Map(before.items.map((i) => [i.id, i.box] as const));
+    for (const item of after.items) {
+        const was = prior.get(item.id);
+        if (was !== item.box) {
+            return `${item.id} moved ${was ?? "(absent)"} → ${item.box}`;
+        }
+    }
+    for (const id of prior.keys()) {
+        if (!after.items.some((i) => i.id === id)) return `${id} disappeared`;
+    }
+    return null;
 }
 
 export interface SettlePolicy {
@@ -135,7 +165,14 @@ export function settleState(
         const blockers = settleBlockers(last);
         const moving =
             samples.length > 1 && samples.at(-2)!.boxes !== last.boxes;
-        if (moving) blockers.push("a measured box kept moving");
+        if (moving) {
+            const named = movedItem(samples.at(-2), last);
+            blockers.push(
+                named
+                    ? `a measured box kept moving (${named})`
+                    : "a measured box kept moving"
+            );
+        }
         return {
             kind: "unsettled",
             reason:
@@ -314,18 +351,22 @@ export function sampleSource(targets: readonly string[]): string {
         // The URL first: a client-side navigation still resolving is a
         // screen still moving, even before any box has changed.
         const parts = [location.href, Math.round(window.scrollX), Math.round(window.scrollY)];
+        const items = [];
         for (const selector of ["main", "[role=dialog]", ...targets]) {
             const els = document.querySelectorAll(selector);
             parts.push(selector + "#" + els.length);
             for (let i = 0; i < Math.min(els.length, 25); i++) {
                 const r = els[i].getBoundingClientRect();
-                parts.push(
+                const box = [
                     Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height),
                     Math.round(els[i].scrollLeft), Math.round(els[i].scrollTop)
-                );
+                ];
+                parts.push(...box);
+                const slot = els[i].getAttribute("data-slot");
+                items.push({ id: selector + "[" + i + "]" + (slot ? "{data-slot=" + slot + "}" : ""), box: box.join(",") });
             }
         }
-        return { ready, animations, inflight, why, boxes: parts.join(",") };
+        return { ready, animations, inflight, why, boxes: parts.join(","), items };
     })(${JSON.stringify(targets)})`;
 }
 
