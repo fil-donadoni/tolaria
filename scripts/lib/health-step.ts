@@ -221,6 +221,15 @@ export const PR_RECEIPT_GUARDS: Readonly<
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10); 39 green full walks 2026-09-30..10-20, mean ~17 min",
         why: "a PR whose diff can move layout pastes its receipt (`chrome-debug.md`); the full walk found zero tree defects in 52 automated runs (issue #6143)",
     },
+    // The batch collector (issue #9122, #9106): one `check:ui` walk for every
+    // open `ui-owed` PR, the receipts written into their bodies. Needs a
+    // deployment + browser, so never a lane step; run by hand, cost = one walk.
+    "check:ui:batch": {
+        measuredCostS: 879,
+        measured:
+            "one `check:ui` walk for the batch; no separate measurement, same walk as `check:ui` (see above)",
+        why: "writes the `BATCH` receipt `land` re-derives into each clean PR's body; a walk needs a deployment and a browser, so it is never a lane step (issue #9122)",
+    },
     // The Draft Table Audit (issue #8895, PRD #8772): over 10 s, so not a lane
     // step. A diff touching the drafter, Auto-Build, the Card Profiles, the
     // Archetype Catalogue or the Capability registry pastes one `draft:audit:`
