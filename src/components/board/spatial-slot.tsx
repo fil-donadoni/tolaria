@@ -70,10 +70,18 @@ export default function SpatialSlot({
 }: SpatialSlotProps) {
     const reduceMotion = useReducedMotion();
 
+    // A card drawn LARGER than its base box (density tiers, issue #9164) grows
+    // the slot's real layout box instead of CSS-scaling it: the image measures
+    // the layout box to pick its rendition, so a transform upscale would stretch
+    // a base-size bitmap (blur). The centre stays on the placement. Shrinking
+    // keeps the transform scale (downscaling a bigger bitmap stays sharp).
+    const grow = Math.max(1, placement.scale);
+    const boxW = cardWidth * grow;
+    const boxH = cardHeight * grow;
     const transform =
-        `translate(${placement.x - cardWidth / 2}px, ` +
-        `${placement.y - cardHeight / 2}px) ` +
-        `rotate(${placement.rotation}deg) scale(${placement.scale})`;
+        `translate(${placement.x - boxW / 2}px, ` +
+        `${placement.y - boxH / 2}px) ` +
+        `rotate(${placement.rotation}deg) scale(${placement.scale / grow})`;
 
     // A freshly inserted element paints at its initial computed transform with
     // no transition origin, so a permanent `transition: transform` never causes
@@ -88,11 +96,11 @@ export default function SpatialSlot({
             data-card-slot={slotId}
             className="absolute left-0 top-0 will-change-transform"
             style={{
-                width: cardWidth,
-                height: cardHeight,
+                width: boxW,
+                height: boxH,
                 transform,
                 transition: animate
-                    ? `transform ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}`
+                    ? `transform ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}, width ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}, height ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}`
                     : "none",
                 // The dragged slot rides above every sibling for the whole
                 // gesture (it never reorders in the DOM, so it needs an explicit

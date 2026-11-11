@@ -7,6 +7,7 @@ import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import {
     bandedRowsLayout,
+    densityTier,
     stackFootprintWidth,
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
@@ -585,6 +586,9 @@ export default function BoardBattlefield({
     // right control column (opponent piles · stack · pod · viewer piles) and no
     // permanent is hidden under the controller pod. The opponent reserves it for
     // symmetry even though only the viewer side hosts the pod.
+    // Card size by crowding (issue #9164): desktop only — portrait and
+    // landscape-compact budget their own band heights and stay at base size.
+    const tier = densityTier(creatureCount + landCount + otherCount);
     function layout(_count: number, width: number, height: number) {
         return bandedRowsLayout({
             bands: [
@@ -605,6 +609,10 @@ export default function BoardBattlefield({
             cardWidth: compact?.cardWidth,
             cardHeight: compact?.cardHeight,
             bandPad: compact?.bandPad,
+            growth:
+                isPortrait || compact
+                    ? undefined
+                    : [tier.creatureGrowth, tier.backGrowth],
             // Portrait drops the gutter to 0 so both rows span the full width;
             // landscape-compact likewise — its band is already inset past the
             // control strip AND the pile column by the landscape budget, so

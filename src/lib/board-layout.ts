@@ -368,6 +368,7 @@ export function splitRowLayout(opts: {
             width,
             centerY,
             cardWidth,
+            gap,
             maxScale,
             widths: left === 0 ? rw : lw,
         });
@@ -421,6 +422,7 @@ export function splitRowLayout(opts: {
             width,
             centerY,
             cardWidth,
+            gap,
             maxScale,
             widths: [...lw, ...rw],
         });
@@ -477,6 +479,51 @@ export function portraitHandScrolls(count: number): boolean {
     return count > PORTRAIT_HAND_SCROLL_THRESHOLD;
 }
 
+/** One density tier: while a side holds at most `maxFootprints` laid-out
+ *  footprints, its creature row may grow to `creatureGrowth` × the base card and
+ *  its back row (lands + other noncreatures) to `backGrowth` ×. */
+export type DensityTier = {
+    maxFootprints: number;
+    creatureGrowth: number;
+    backGrowth: number;
+};
+
+/** Back row's size relative to the creature row (lands read one step below). */
+export const BACK_ROW_GROWTH_RATIO = 0.7;
+
+/** Discrete battlefield card sizes by crowding (issue #9164, prototype verdict
+ *  B). Ascending `maxFootprints`; a side past the last entry uses
+ *  {@link FULL_BOARD_TIER}. */
+export const DENSITY_TIERS: readonly DensityTier[] = [
+    {
+        maxFootprints: 5,
+        creatureGrowth: 1.45,
+        backGrowth: 1.45 * BACK_ROW_GROWTH_RATIO,
+    },
+    {
+        maxFootprints: 10,
+        creatureGrowth: 1.1,
+        backGrowth: 1.1 * BACK_ROW_GROWTH_RATIO,
+    },
+];
+
+/** Past the last tier: below base size, then the shrink ladder
+ *  ({@link zoneFitScale}) still applies on top. */
+export const FULL_BOARD_TIER: DensityTier = {
+    maxFootprints: Infinity,
+    creatureGrowth: 0.85,
+    backGrowth: 0.85 * BACK_ROW_GROWTH_RATIO,
+};
+
+/** The tier for a side holding `footprints` laid-out footprints (one per card,
+ *  or per stack/fan — the same count {@link zoneFitScale} takes). Pure. */
+export function densityTier(footprints: number): DensityTier {
+    return (
+        DENSITY_TIERS.find((t) => footprints <= t.maxFootprints) ??
+        FULL_BOARD_TIER
+    );
+}
+
 /**
  * Stacks several rows inside ONE full-height zone — the battlefield split into a
  * creature row and a lands+noncreature back row (Arena-style) without clipping.
@@ -504,6 +551,12 @@ export function bandedRowsLayout(opts: {
      *  passes a tighter value because on a ~140px band the desktop padding
      *  costs more card than it buys separation. */
     bandPad?: number;
+    /** Per-band size multiplier on the base card (issue #9164), one entry per
+     *  band (missing → 1). A band may then grow past full size, still capped by
+     *  its height slice. When set, the zone height is split in proportion to the
+     *  multipliers (and each band is centred in its slice, `centerYFrac`
+     *  ignored); omitted → even split, scale ≤ 1, exactly as before. */
+    growth?: number[];
 }): Placement[] {
     const {
         bands,
@@ -513,41 +566,73 @@ export function bandedRowsLayout(opts: {
         cardHeight = CARD_HEIGHT,
         rightGutter = 0,
         bandPad = BAND_V_PAD,
+        growth,
     } = opts;
     if (bands.length === 0 || height <= 0) return [];
     // Reserve the right control column: every band is placed within
     // `[0, usableWidth]`, so the flush-right block stops before the column.
     // Clamp so a degenerate (very narrow) board never goes negative.
     const usableWidth = Math.max(cardWidth, width - rightGutter);
-    // Each band may use at most its even share of the height; cap the card scale
-    // so a full-height card fits that slice (minus padding).
-    const bandHeight = height / bands.length;
-    const maxScale = Math.max(
-        0.1,
-        Math.min(1, (bandHeight - bandPad) / cardHeight)
+    // Each band may use at most its share of the height (even, or proportional
+    // to its growth); cap the card scale so a card fits that slice (minus
+    // padding). A grown band is laid out as if its base card were `g` times
+    // bigger, then `g` is folded back into the scale so the slot keeps its real
+    // base box.
+    const growths = bands.map((_, i) => growth?.[i] ?? 1);
+    // An empty band asks for no height, so the occupied one is not squeezed by
+    // a row with nothing in it (all empty → the plain proportional split).
+    const occupied = bands.map(
+        (b) => (b.count ?? 0) + (b.split ? b.split.left + b.split.right : 0) > 0
     );
-    return bands.flatMap((band) => {
-        const centerY = height * band.centerYFrac;
+    const weights = growths.map((g, i) =>
+        occupied.some(Boolean) && !occupied[i] ? 0 : g
+    );
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let consumed = 0;
+    return bands.flatMap((band, i) => {
+        const g = growths[i];
+        const bandHeight = growth
+            ? (height * weights[i]) / totalWeight
+            : height / bands.length;
+        const centerY = growth
+            ? consumed + bandHeight / 2
+            : height * band.centerYFrac;
+        consumed += bandHeight;
+        // An empty band's slice is 0 and nothing is placed in it.
+        const maxScale = Math.max(
+            0.1,
+            Math.min(g, (bandHeight - bandPad) / cardHeight)
+        );
+        const grown = {
+            cardWidth: cardWidth * g,
+            gap: DEFAULT_GAP * g,
+            maxScale: maxScale / g,
+        };
+        const scaled = (ws?: number[]) => ws?.map((w) => w * g);
+        const fold = (ps: Placement[]) =>
+            g === 1 ? ps : ps.map((p) => ({ ...p, scale: p.scale * g }));
         if (band.split) {
-            return splitRowLayout({
-                left: band.split.left,
-                right: band.split.right,
+            return fold(
+                splitRowLayout({
+                    left: band.split.left,
+                    right: band.split.right,
+                    width: usableWidth,
+                    centerY,
+                    ...grown,
+                    leftWidths: scaled(band.leftWidths),
+                    rightWidths: scaled(band.rightWidths),
+                })
+            );
+        }
+        return fold(
+            rowLayout({
+                count: band.count ?? 0,
                 width: usableWidth,
                 centerY,
-                cardWidth,
-                maxScale,
-                leftWidths: band.leftWidths,
-                rightWidths: band.rightWidths,
-            });
-        }
-        return rowLayout({
-            count: band.count ?? 0,
-            width: usableWidth,
-            centerY,
-            cardWidth,
-            maxScale,
-            widths: band.widths,
-        });
+                ...grown,
+                widths: scaled(band.widths),
+            })
+        );
     });
 }
 
