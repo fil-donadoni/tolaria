@@ -897,7 +897,10 @@ export function useBattlefieldVisualState(
             card.id
         );
         if (isAwaitingAttackTarget) {
-            ringClass = `${cardRingClass("pending")} card-ring-current`;
+            // Pulse as well as the static heavy ring: the banner says "the
+            // highlighted creatures", so the awaiting attacker must read as
+            // live, the way the "Attack with all" cursor below does (issue #9150).
+            ringClass = `${cardRingClass("pending")} card-ring-current card-ring-pulse`;
         } else if (isCurrentSequenceAttacker) {
             ringClass = `${cardRingClass("attacking")} card-ring-current card-ring-pulse`;
         } else if (pendingBlockerId === card.id) {
@@ -991,7 +994,11 @@ export function useBattlefieldVisualState(
         if (!ringClass && isAttackTargetPw && isAttackedPlaneswalker(card)) {
             ringClass = cardRingClass("selected");
         } else if (!ringClass && isAttackTargetPw) {
+            // Same legal-target treatment as a spell target (inset candidate
+            // ring + the nameplate's outer glow), so the planeswalker reads
+            // like the opponent's nameplate beside it (issue #9150).
             ringClass = cardRingClass("candidate");
+            targetGlow = true;
         }
 
         // Tooltip for ineligible creatures
