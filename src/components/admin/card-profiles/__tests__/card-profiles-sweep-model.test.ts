@@ -97,7 +97,7 @@ describe("tile writes (issue #8905)", () => {
         ]);
         expect(tagged.provides).toEqual(before?.provides ?? []);
         expect(tagged.requires).toEqual(before?.requires ?? []);
-        expect(tagged.reviewed).toBe(before?.reviewed ?? false);
+        expect(tagged.reviewed).toBe(before?.archetypesReviewed ?? false);
 
         const griselbrand = rows().find((card) => card.name === "Griselbrand")!;
         const untagged = toggleRowTag(griselbrand, {
@@ -112,8 +112,10 @@ describe("tile writes (issue #8905)", () => {
 
     it("confirm keeps the profile and marks it reviewed", () => {
         const griselbrand = rows().find((card) => card.name === "Griselbrand")!;
-        expect(confirmProfile(griselbrand)).toEqual({
-            ...griselbrand.seedProfile,
+        expect(confirmProfile(griselbrand, "provides")).toEqual({
+            archetypes: griselbrand.seedProfile?.archetypes,
+            provides: griselbrand.seedProfile?.provides,
+            requires: griselbrand.seedProfile?.requires,
             reviewed: true,
         });
     });

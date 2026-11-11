@@ -978,10 +978,9 @@ describe("CardProfilesPage — the sweep board (issue #8905)", () => {
         const bolt = cards.find((card) => card.name === "Lightning Bolt");
         const seed = bolt?.seedProfile;
         expect(onSave).toHaveBeenCalledWith(cardId("Lightning Bolt"), {
+            layer: "archetypes",
             archetypes: [...(seed?.archetypes ?? []), "reanimator"],
-            provides: seed?.provides ?? [],
-            requires: seed?.requires ?? [],
-            reviewed: seed?.reviewed ?? false,
+            reviewed: seed?.archetypesReviewed ?? false,
         });
     });
 
@@ -1007,7 +1006,8 @@ describe("CardProfilesPage — the sweep board (issue #8905)", () => {
         for (const card of proposed) {
             const seed = card.seedProfile;
             expect(onSave).toHaveBeenCalledWith(card.cardId, {
-                ...seed,
+                layer: "archetypes",
+                archetypes: seed?.archetypes,
                 reviewed: true,
             });
         }
@@ -1015,13 +1015,21 @@ describe("CardProfilesPage — the sweep board (issue #8905)", () => {
         expect(written).not.toContain(cardId("Lightning Bolt"));
 
         // The query echoes the writes; the board re-derives its lanes.
-        const saves = onSave.mock.calls.map(([id, profile]) =>
-            buildCardProfileRows(
-                CUBE_SOURCE_KEY,
-                id as string,
-                profile as Parameters<typeof buildCardProfileRows>[2]
-            )
-        );
+        const saves = onSave.mock.calls.map(([id, write]) => {
+            const seed = proposed.find(
+                (card) => card.cardId === id
+            )?.seedProfile;
+            const { archetypes, reviewed } = write as {
+                archetypes: string[];
+                reviewed: boolean;
+            };
+            return buildCardProfileRows(CUBE_SOURCE_KEY, id as string, {
+                archetypes,
+                provides: seed?.provides ?? [],
+                requires: seed?.requires ?? [],
+                reviewed,
+            });
+        });
         rerenderPage(
             rerender,
             cubeRows(dbAfterSaves(...saves)),
@@ -1052,10 +1060,12 @@ describe("CardProfilesPage — the sweep board (issue #8905)", () => {
         await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
         const [id, profile] = onSave.mock.calls[0] as [
             string,
-            { provides: string[]; archetypes: string[] },
+            { layer: string; provides: string[]; archetypes?: string[] },
         ];
         expect(id).toBe(cardId("Griselbrand"));
+        expect(profile.layer).toBe("capabilities");
         expect(profile.provides).not.toContain("reanimatable");
-        expect(profile.archetypes).toEqual(["reanimator"]);
+        // A Capability sweep never touches the Archetype layer.
+        expect(profile.archetypes).toBeUndefined();
     });
 });
