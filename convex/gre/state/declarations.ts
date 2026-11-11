@@ -64,6 +64,7 @@ import type {
     PendingChoiceZone,
     Phase,
     PhaseReturnCondition,
+    FlipFaceDamage,
     FlipRecord,
     RandomKind,
     RandomRevealSource,
@@ -4145,6 +4146,10 @@ export type PendingChoice = {
     /** For a coin `random-reveal` — the most flips the effect announced
      *  (`FlipSequenceRequest.announcedLimit`); absent when it announced none. */
     flipLimit?: number;
+    /** For a coin `random-reveal` — the damage each face deals its flipper
+     *  (`FlipSequenceRequest.faceDamage`); absent when the effect deals none
+     *  per face. */
+    faceDamage?: FlipFaceDamage;
     /** For a coin `random-reveal` — the object the flips come from. */
     source?: RandomRevealSource;
     /** For a coin `random-reveal` — the sentences of the source's Oracle text
