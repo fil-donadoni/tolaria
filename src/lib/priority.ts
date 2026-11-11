@@ -221,7 +221,9 @@ export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
  *  choice (ADR 0007) while one stands — a chooser is mid-resolution
  *  and nobody holds priority — else the priority state. Never the ACTIVE
  *  player: a response window on the opponent's turn lights MY half. */
-export function computeActingSeat(ctx: PriorityStateCtx): PriorityState {
+export function computeActingSeat(
+    ctx: PriorityStateCtx & Pick<AutoPassCoreCtx, "pendingChoices">
+): PriorityState {
     if (ctx.gameOver) return "none";
     const choice = ctx.pendingChoices?.[0];
     if (choice) return choice.playerId === ctx.playerId ? "mine" : "opponent";
