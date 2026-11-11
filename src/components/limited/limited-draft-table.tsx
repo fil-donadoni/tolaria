@@ -61,6 +61,15 @@ import {
 import type { DraftPhonePanesProps } from "./draft-room/draftPhonePanes";
 import { useDraftPackRecall } from "./draft-room/useDraftPackRecall";
 import { useDraftSnapStops } from "./draft-room/useDraftSnapStops";
+// PROTOTYPE — throwaway (player-feedback 2026-11); never merge.
+import { usePrototypeVariant } from "~/components/prototype/prototype-switcher";
+import PrototypeAutopick from "./prototype-feedback/prototype-autopick";
+import PrototypeCountdownFaceDownPack from "./prototype-feedback/prototype-countdown-face-down-pack";
+import { usePrototypeCountdownSeconds } from "./prototype-feedback/prototypeCountdownStore";
+import PrototypeZoomFitModes from "./prototype-feedback/prototype-zoom-fit-modes";
+import PrototypeZoomHoverEnlarge from "./prototype-feedback/prototype-zoom-hover-enlarge";
+import PrototypeZoomTimerRow from "./prototype-feedback/prototype-zoom-timer-row";
+import { usePrototypeZoom } from "./prototype-feedback/usePrototypeZoom";
 
 // Same responsive base size as the shared pool deckbuilder surface / draft
 // pack (`CARD_BASE` in `pool-deck-builder-form.tsx` / `limited-draft-pack.tsx`),
@@ -236,6 +245,13 @@ export default function LimitedDraftTable({
     // "Show autopick" toggle (ADR 0095, issue #2271) — see
     // `useShowAutopick`'s doc comment: default OFF, opt-in only.
     const showAutopick = useShowAutopick();
+    // PROTOTYPE (player-feedback 2026-11): every `null` = the real component.
+    const zoomVariant = usePrototypeVariant("pv-zoom");
+    const autopickVariant = usePrototypeVariant("pv-autopick");
+    const countdownVariant = usePrototypeVariant("pv-countdown");
+    const countdownSeconds = usePrototypeCountdownSeconds();
+    const prototypeZoom = usePrototypeZoom();
+    const packZoom = zoomVariant ? prototypeZoom : boosterZoom;
 
     // The PHONE fork (issue #2588). One derivation, read by everything below,
     // so "are we on a phone" is never asked twice with two different answers.
@@ -783,7 +799,7 @@ export default function LimitedDraftTable({
                 phoneOrientation === null ? undefined : openBoosterContextMenu
             }
             pending={pending}
-            zoom={phoneOrientation === null ? boosterZoom.value : undefined}
+            zoom={phoneOrientation === null ? packZoom.value : undefined}
             columns={
                 phoneOrientation === null
                     ? undefined
@@ -794,8 +810,26 @@ export default function LimitedDraftTable({
 
     const packPane = (
         <>
-            {timer}
-            {packGrid}
+            {zoomVariant === "A" ? (
+                <PrototypeZoomTimerRow timer={timer} zoom={prototypeZoom} />
+            ) : (
+                timer
+            )}
+            {autopickVariant && (
+                <PrototypeAutopick variant={autopickVariant} seat={seat} />
+            )}
+            {zoomVariant === "C" && (
+                <PrototypeZoomHoverEnlarge pack={pack} zoom={prototypeZoom} />
+            )}
+            {countdownVariant === "B" && countdownSeconds !== null ? (
+                <PrototypeCountdownFaceDownPack
+                    count={pack.length}
+                    zoom={packZoom.value}
+                    seconds={countdownSeconds}
+                />
+            ) : (
+                packGrid
+            )}
         </>
     );
 
@@ -965,13 +999,17 @@ export default function LimitedDraftTable({
                         >
                             Show autopick
                         </button>
-                        <CardZoomSlider
-                            value={boosterZoom.value}
-                            min={boosterZoom.min}
-                            max={boosterZoom.max}
-                            onChange={boosterZoom.set}
-                            label="Booster card size"
-                        />
+                        {zoomVariant === "B" ? (
+                            <PrototypeZoomFitModes packSize={pack.length} />
+                        ) : zoomVariant === "A" ? null : (
+                            <CardZoomSlider
+                                value={packZoom.value}
+                                min={packZoom.min}
+                                max={packZoom.max}
+                                onChange={packZoom.set}
+                                label="Booster card size"
+                            />
+                        )}
                     </div>
                 )}
 

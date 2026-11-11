@@ -39,6 +39,8 @@ import BoardArrows from "./board-arrows";
 import BoardMidLine from "./board-mid-line";
 import GameStack from "./game-stack";
 import PriorityIndicator from "./priority-indicator";
+import PrototypeFeedbackSwitchers from "./prototype-feedback/prototype-feedback-switchers";
+import PrototypeTargetArrow from "./prototype-feedback/prototype-target-arrow";
 
 /** Hand: shallow fanned arc, baseline near the bottom of its zone so the dome
  *  lifts upward into view (`fanLayout`, #251). */
@@ -449,6 +451,9 @@ export default function BoardSurface({
                     (#331), by `board.tsx` — NOT this
                     surface (#2165). */}
                         {showPriorityIndicator && <PriorityIndicator />}
+                        {/* PROTOTYPE (player-feedback 2026-11) */}
+                        <PrototypeFeedbackSwitchers />
+                        <PrototypeTargetArrow />
                         {/* Portrait toggles the stack behind a
                     chip (above); landscape-compact gets its
                     OWN chip-triggered right panel, mounted by

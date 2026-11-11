@@ -1,3 +1,6 @@
+import { usePrototypeVariant } from "~/components/prototype/prototype-switcher";
+import PrototypePreviewTabs from "~/components/board/prototype-feedback/prototype-preview-tabs";
+
 /** Which face of a card a preview surface is showing. */
 export type CardPreviewMode = "computed" | "printed";
 
@@ -23,6 +26,7 @@ export default function CardPreviewModeToggle({
     className = "mx-3 mt-2",
     showRulings = false,
     hideComputed = false,
+    rulingsPrintId,
 }: {
     mode: CardPreviewView;
     onChange: (mode: CardPreviewView) => void;
@@ -34,7 +38,30 @@ export default function CardPreviewModeToggle({
     computedLabel?: string;
     printedLabel?: string;
     className?: string;
+    /** PROTOTYPE (player-feedback 2026-11): lets a variant badge the count. */
+    rulingsPrintId?: string | null;
 }) {
+    // PROTOTYPE (player-feedback 2026-11): `?pv-preview-tabs=` swaps the strip.
+    const prototypeTabs = usePrototypeVariant("pv-preview-tabs");
+    if (prototypeTabs) {
+        return (
+            <PrototypePreviewTabs
+                variant={prototypeTabs}
+                mode={mode}
+                onChange={onChange}
+                rulingsPrintId={rulingsPrintId}
+                tabs={[
+                    ...(hideComputed
+                        ? []
+                        : [{ key: "computed" as const, label: computedLabel }]),
+                    { key: "printed" as const, label: printedLabel },
+                    ...(showRulings
+                        ? [{ key: "rulings" as const, label: "Rulings" }]
+                        : []),
+                ]}
+            />
+        );
+    }
     return (
         <div
             className={`flex justify-center gap-1 rounded-sm bg-surface-elevated/60 p-0.5 ${className}`}

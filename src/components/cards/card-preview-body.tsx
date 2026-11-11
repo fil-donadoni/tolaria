@@ -122,6 +122,7 @@ export default function CardPreviewBody({
                 <CardPreviewModeToggle
                     mode={mode}
                     onChange={setToggledMode}
+                    rulingsPrintId={rulingsPrintId}
                     showRulings
                     hideComputed={isManualGame}
                 />
@@ -137,6 +138,7 @@ export default function CardPreviewBody({
                     <CardPreviewModeToggle
                         mode={mode}
                         onChange={setToggledMode}
+                        rulingsPrintId={rulingsPrintId}
                         showRulings={!!rulingsPrintId}
                         hideComputed={isManualGame}
                     />
@@ -188,6 +190,7 @@ export default function CardPreviewBody({
                 <CardPreviewModeToggle
                     mode={mode}
                     onChange={setToggledMode}
+                    rulingsPrintId={rulingsPrintId}
                     showRulings={!!rulingsPrintId}
                 />
             )}

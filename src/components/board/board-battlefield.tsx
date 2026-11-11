@@ -21,6 +21,8 @@ import type { CardVisualState } from "~/types/battlefield";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 import AttachedCardsCluster from "./attached-cards-cluster";
+import { usePrototypeDensity } from "./prototype-feedback/use-prototype-density";
+import { prototypeDensityLayout } from "./prototype-feedback/prototype-density-layout";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
  *  midline), and everything noncreature — lands plus other permanents (artifacts
@@ -585,7 +587,22 @@ export default function BoardBattlefield({
     // right control column (opponent piles · stack · pod · viewer piles) and no
     // permanent is hidden under the controller pod. The opponent reserves it for
     // symmetry even though only the viewer side hosts the pod.
+    // PROTOTYPE (player-feedback 2026-11): `?pv-density=` swaps the row math.
+    const prototypeDensity = usePrototypeDensity(testId, !!mirror);
     function layout(_count: number, width: number, height: number) {
+        if (prototypeDensity)
+            return prototypeDensityLayout({
+                ...prototypeDensity,
+                width,
+                height,
+                cardWidth: compact?.cardWidth,
+                cardHeight: compact?.cardHeight,
+                bandPad: compact?.bandPad,
+                rightGutter: isPortrait || compact ? 0 : RIGHT_GUTTER,
+                creatureWidths,
+                landWidths,
+                otherWidths,
+            });
         return bandedRowsLayout({
             bands: [
                 {

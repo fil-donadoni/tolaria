@@ -1,5 +1,7 @@
 import { useGameContext } from "~/hooks/useGameContext";
 import { computePriorityState, type PriorityState } from "~/lib/priority";
+import { usePrototypeVariant } from "~/components/prototype/prototype-switcher";
+import PrototypeTurnFrame from "./prototype-feedback/prototype-turn-frame";
 
 // Strong, unmissable priority cue (#152). A board-edge glow plus a labelled
 // badge make the three priority states instantly distinguishable — far more
@@ -27,6 +29,9 @@ const STATE_STYLE: Record<
 export default function PriorityIndicator() {
     const ctx = useGameContext();
     const state = computePriorityState(ctx);
+    // PROTOTYPE (player-feedback 2026-11): `?pv-turn=` swaps the whole cue.
+    const prototypeTurn = usePrototypeVariant("pv-turn");
+    if (prototypeTurn) return <PrototypeTurnFrame variant={prototypeTurn} />;
     if (state === "none") return null;
     const style = STATE_STYLE[state];
 

@@ -263,6 +263,8 @@ export default function PlayerNameplate({
         <div
             data-arrow-anchor-player={player.id}
             data-plaque-state={state ?? undefined}
+            // PROTOTYPE (player-feedback 2026-11): read by `?pv-target-arrow=`.
+            data-prototype-targetable={isTargetable ? "" : undefined}
             onClick={interaction.handleClick}
             onWheel={onLifeWheel ? (e) => onLifeWheel(e.deltaY) : undefined}
             style={{ boxShadow }}

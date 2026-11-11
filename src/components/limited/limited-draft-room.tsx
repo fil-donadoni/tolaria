@@ -19,6 +19,9 @@ import LimitedDraftBar from "./limited-draft-bar";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedDraftPool from "./limited-draft-pool";
 import LimitedTableRing from "./limited-table-ring";
+// PROTOTYPE — throwaway (player-feedback 2026-11); never merge.
+import PrototypeCountdown from "./prototype-feedback/prototype-countdown";
+import PrototypeFeedbackSwitchers from "./prototype-feedback/prototype-feedback-switchers";
 
 /**
  * The Draft Room (issue #2587, PRD #2405 slice 8, ADR 0101 §6) — the pick
@@ -258,6 +261,14 @@ export default function LimitedDraftRoom({
                 )}
             </div>
 
+            {draftLive && (
+                <>
+                    <PrototypeCountdown event={event} round={round} />
+                    <PrototypeFeedbackSwitchers
+                        firstPick={round === 0 && pool.length === 0}
+                    />
+                </>
+            )}
             <LimitedTableRing
                 open={tableOpen}
                 onOpenChange={setTableOpen}
