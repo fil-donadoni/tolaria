@@ -151,6 +151,12 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         expect(result.current.canInteract(pw)).toBe(true);
         expect(result.current.getVisualState(pw).interactive).toBe(true);
         expect(result.current.getVisualState(pw).enabled).toBe(true);
+        // Issue #9150 — the legal planeswalker carries the same legal-target
+        // treatment as a spell target: inset candidate ring + outer glow.
+        expect(result.current.getVisualState(pw).ringClass).toContain(
+            "card-ring-candidate"
+        );
+        expect(result.current.getVisualState(pw).targetGlow).toBe(true);
     });
 
     it("a planeswalker under attack (attackTargets) reads with the committed emerald ring", () => {
@@ -254,6 +260,10 @@ describe("useBattlefieldVisualState — awaiting-target ring (issue #8178, CR 50
 
         expect(result.current.getVisualState(atk1).ringClass).toContain(
             "card-ring-current"
+        );
+        // Issue #9150 — the awaiting attacker pulses (reads "highlighted").
+        expect(result.current.getVisualState(atk1).ringClass).toContain(
+            "card-ring-pulse"
         );
         expect(result.current.getVisualState(atk2).ringClass).not.toContain(
             "card-ring-current"
