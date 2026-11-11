@@ -181,3 +181,20 @@ so a required enabler is not cut for weak standalone quality.
 - Weight tuning becomes cheap and safe: Pick Invariants do not move when weights
   do, so a retune produces a Draft Lab diff to read rather than a suite to
   repair.
+
+## Amendment I — plan-first Auto-Build (issue #8898, PRD #8772)
+
+Auto-Build no longer starts from colours. It first finds the **plan**: the
+Archetype the Pool is deepest in, measured by the pick scorer's own
+accumulator (`archetypeCommitment` in `botDrafter.ts`, shared by Archetype
+Fit and the Archetype Signal), so card count decides and an unreviewed
+Archetype layer counts half. The plan's colour signature over the Pool (the
+Archetype Catalogue's `colourSignature`) ranks the colours ahead of
+pip-weighted Colour Commitment, which orders the rest; the colour count is
+still derived by the deficit arithmetic above. The plan's castable core (its
+cards, their Capability partners, the spells producing a deck colour) takes
+its slots before the rated, castability- and Capability-scored rest.
+
+A plan below the depth the pick scorer counts as settled is no plan, and a
+scope with no profiles builds exactly as before. Measurements and the
+ablations behind each choice: `docs/research/draft-table-audit-plan-first.md`.
