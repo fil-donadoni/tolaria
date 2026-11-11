@@ -6,7 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import { tryAutoCommitPendingCast } from "../../../../game";
-import { getCardByName } from "../../..";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import {
@@ -16,9 +15,9 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 
-const CHALICE = getCardByName("Chalice of the Void").id;
-const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id; // {1}{G}, mana value 2
-const BLACK_LOTUS = getCardByName("Black Lotus").id; // {0}, mana value 0
+const CHALICE = "1a02ca71-5e39-4a5f-aaba-a1e3e10a6a3e";
+const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // {1}{G}, mana value 2
+const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // {0}, mana value 0
 
 /** p1 controls a Chalice with `charge` counters; p2 is one commit away from
  *  putting `spellId` on the stack. */
