@@ -2256,6 +2256,7 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
         slug: "selectable-card",
         module: "cards/selectable-card.tsx",
         label: "Selectable card",
+        cards: true,
         layer: "[data-selectable-card-specimen]",
         layerAssert: {
             label: "card specimen",
