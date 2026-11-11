@@ -613,6 +613,8 @@ long as a red stays attributable to the PR that caused it.
     preference to any other banner in the body.
 
 The in-session single-PR walk is unchanged and stays the default; the batch is
-an option a session or the owner takes when several UI PRs wait at once. The
-`ui-owed` label and a runner job that collects those PRs on its own are not
-part of this amendment (follow-up issue).
+an option a session or the owner takes when several UI PRs wait at once. The `ui-owed` label and its collector (`bun run check:ui:batch`) are issue #9122:
+`/next-ticket` §5 labels an owed PR instead of walking it, `land:ready` refuses the
+label, and the collector walks every such PR in one batch. Trigger: by hand /
+attended for now — a cron or label-event workflow is a follow-up once the lane
+slot cost is measured.
