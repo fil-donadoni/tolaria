@@ -288,6 +288,8 @@ describe("editing-surface census closure (issue #2583)", () => {
      *  MID-DRAG and would be the worst possible place to open a preview. */
     const HOLD_PREVIEW_OFF_SITES = [
         "components/admin/card-profiles/card-profile-related-card.tsx",
+        "components/admin/pick-ratings/pick-ratings-pack-card.tsx",
+        "components/admin/pick-ratings/pick-ratings-thumb.tsx",
         "components/deckbuilder/deck-card-tile.tsx",
         "components/deckbuilder/deck-builder-shell.tsx",
         // Issue #9166: the hover-enlarged copy of a pack card — a
