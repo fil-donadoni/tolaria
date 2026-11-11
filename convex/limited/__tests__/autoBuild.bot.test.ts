@@ -376,9 +376,18 @@ function flashFixture() {
         poolCard("flash", flash),
         poolCard("wurm", wurm),
     ];
+    // Half the filler is green (same card, same quality) so the deck runs
+    // enough Forests to cast the Wurm's {G}{G}{G}: the subject here is the
+    // Capability term, not castability.
+    const greenFiller: AutoBuildCardMeta = {
+        ...filler,
+        pips: { G: 1 },
+        colors: ["G"],
+    };
     for (let i = 0; i < 30; i++) {
-        entries[`f${i}`] = filler;
-        pool.push(poolCard(`f${i}`, filler));
+        const meta = i % 2 === 0 ? filler : greenFiller;
+        entries[`f${i}`] = meta;
+        pool.push(poolCard(`f${i}`, meta));
     }
     return { pool, getMeta: metaLookup(entries), flash, wurm, filler };
 }
@@ -1061,5 +1070,168 @@ describe("property: Auto-Built decks are always limited-legal against their own 
             }
         }
         expect(checked).toBeGreaterThan(20);
+    });
+});
+
+// --- Build Invariants (PRD #8772, issue #8897) -----------------------------
+//
+// Pick Invariant style: each asserts the DIRECTION of a build choice on a
+// Pool fixture, never a specific deck.
+
+/** A Pool of `count` copies per row, each copy its own Pool entry
+ *  (`<key><i>`), with the matching meta lookup. */
+function invariantPool(rows: readonly [string, AutoBuildCardMeta, number][]): {
+    pool: LimitedPoolCard[];
+    getMeta: GetAutoBuildCardMeta;
+} {
+    const entries: Record<string, AutoBuildCardMeta> = {};
+    const pool: LimitedPoolCard[] = [];
+    for (const [key, meta, count] of rows) {
+        for (let i = 0; i < count; i++) {
+            entries[`${key}${i}`] = meta;
+            pool.push(poolCard(`${key}${i}`, meta));
+        }
+    }
+    return { pool, getMeta: metaLookup(entries) };
+}
+
+/** The Maindeck's resolved metas (invented basics resolve through the
+ *  registry, Pool cards through the fixture). */
+function maindeckMetas(
+    built: { cards: { cardId: string; cardName: string }[] },
+    getMeta: GetAutoBuildCardMeta
+): AutoBuildCardMeta[] {
+    return built.cards.map((c) => getMeta(c.cardName) ?? metaOf(c.cardName));
+}
+
+/** A red/green Pool deep enough in castable spells to fill every slot. */
+function redGreenBase(): [string, AutoBuildCardMeta, number][] {
+    return [
+        ["ogre", metaOf("Gray Ogre"), 10],
+        ["giant", metaOf("Hill Giant"), 8],
+        ["bears", metaOf("Grizzly Bears"), 10],
+        ["elves", metaOf("Llanowar Elves"), 3],
+    ];
+}
+
+describe("Build Invariants (PRD #8772)", () => {
+    it("no gold card with an unpayable pip: a {R}{B} bomb stays out of a R/G deck", () => {
+        const bomb = {
+            ...spellWithPips(metaOf("Shivan Dragon"), { R: 1, B: 1 }),
+            manaValue: 3,
+        };
+        // Six R/B duals give the deck black SOURCES, so the black pip is not
+        // simply uncastable (the castability floor would cut it then): what
+        // keeps the bomb out is that black is not a colour of the deck.
+        // Three {U}{U} spells with no blue source make blue the third-ranked
+        // colour, and the one the mana base cannot pay, so the deck stays
+        // R/G and black is never considered.
+        const { pool, getMeta } = invariantPool([
+            ...redGreenBase(),
+            ["dual", metaOf("Badlands"), 6],
+            ["air", metaOf("Air Elemental"), 3],
+            ["gold", bomb, 2],
+        ]);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
+        expect([...built.colors].sort()).toEqual(["G", "R"]);
+        expect(
+            built.cards.filter((c) => c.cardName.startsWith("dual"))
+        ).toHaveLength(6);
+        const deck = new Set<Color>(built.colors);
+        for (const m of maindeckMetas(built, getMeta)) {
+            for (const [c, n] of Object.entries(m.pips) as [Color, number][]) {
+                if (n > 0) expect(deck.has(c)).toBe(true);
+            }
+        }
+        // The guard is the PIP rule, not the bomb's value: the same card at
+        // a payable cost is maindecked.
+        const payable = {
+            ...spellWithPips(metaOf("Shivan Dragon"), { R: 1, G: 1 }),
+            manaValue: 3,
+        };
+        const control = invariantPool([
+            ...redGreenBase(),
+            ["gold", payable, 2],
+        ]);
+        const builtControl = autoBuildDeck(
+            control.pool,
+            control.getMeta,
+            resolveBasicLand
+        );
+        expect(
+            builtControl.cards.filter((c) => c.cardName.startsWith("gold"))
+        ).toHaveLength(2);
+    });
+
+    it("castability floor: a {G}{G}{G} splash-depth bomb loses its slot to castable spells", () => {
+        // Green is the light colour (few green pips), so its basics are few:
+        // a triple-green six-drop is rarely payable by turn six.
+        const rows: [string, AutoBuildCardMeta, number][] = [
+            ["ogre", metaOf("Gray Ogre"), 10],
+            ["giant", metaOf("Hill Giant"), 8],
+            ["bolt", metaOf("Lightning Bolt"), 4],
+            ["minotaur", metaOf("Hurloon Minotaur"), 4],
+            ["bears", metaOf("Grizzly Bears"), 6],
+        ];
+        const heavy = spellWithPips(metaOf("Shivan Dragon"), { G: 3 });
+        const strained = invariantPool([...rows, ["bomb", heavy, 1]]);
+        const built = autoBuildDeck(
+            strained.pool,
+            strained.getMeta,
+            resolveBasicLand
+        );
+        expect(built.colors).toContain("G");
+        expect(built.cards.some((c) => c.cardName === "bomb0")).toBe(false);
+        // Discriminating twin: the same bomb at ONE green pip is castable
+        // and plays.
+        const light = spellWithPips(metaOf("Shivan Dragon"), { G: 1 });
+        const castable = invariantPool([...rows, ["bomb", light, 1]]);
+        const builtCastable = autoBuildDeck(
+            castable.pool,
+            castable.getMeta,
+            resolveBasicLand
+        );
+        expect(builtCastable.cards.some((c) => c.cardName === "bomb0")).toBe(
+            true
+        );
+    });
+
+    it("raising a card's Pick Rating moves it into the build", () => {
+        // Lightning Bolt's heuristic value is the Pool's lowest, so unrated
+        // it is cut; rated at the top of the scale it plays.
+        const bolt = metaOf("Lightning Bolt");
+        const { pool, getMeta } = invariantPool([
+            ...redGreenBase(),
+            ["bolt", bolt, 1],
+        ]);
+        const unrated = autoBuildDeck(pool, getMeta, resolveBasicLand);
+        expect(unrated.cards.some((c) => c.cardName === "bolt0")).toBe(false);
+        const rated = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getPickRating: (cardId) => (cardId === bolt.cardId ? 5 : null),
+        });
+        expect(rated.cards.some((c) => c.cardName === "bolt0")).toBe(true);
+        expect(rated.cards).toHaveLength(unrated.cards.length);
+    });
+
+    it("a low-curve Pool plays fewer lands than a high-curve one, never under the format floor", () => {
+        const low = invariantPool([
+            ["elves", metaOf("Llanowar Elves"), 8],
+            ["bolt", metaOf("Lightning Bolt"), 8],
+            ["bears", metaOf("Grizzly Bears"), 8],
+            ["ogre", metaOf("Gray Ogre"), 6],
+        ]);
+        const high = invariantPool([
+            ["giant", metaOf("Hill Giant"), 6],
+            ["wurm", metaOf("Craw Wurm"), 8],
+            ["dragon", metaOf("Shivan Dragon"), 8],
+            ["treefolk", metaOf("Ironroot Treefolk"), 8],
+        ]);
+        const lands = (p: typeof low) => {
+            const built = autoBuildDeck(p.pool, p.getMeta, resolveBasicLand);
+            expect(built.cards.length).toBeGreaterThanOrEqual(40);
+            return maindeckMetas(built, p.getMeta).filter((m) => m.isLand)
+                .length;
+        };
+        expect(lands(low)).toBeLessThan(lands(high));
     });
 });

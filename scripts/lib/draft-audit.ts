@@ -154,23 +154,34 @@ export type FloorMetric =
 
 export type DraftAuditFloors = Partial<Record<FloorMetric, number>>;
 
-/** Floors per scope: the baseline measured on HEAD before any build change
- *  (`docs/research/draft-table-audit-baseline.md`, `1..DEFAULT_AUDIT_SEEDS`),
- *  each rounded DOWN to two decimals so the build ships no worse. Later
- *  slices tighten them; none may loosen one without saying why. A scope with
- *  no profiles declares no plan or Capability Floor. */
+/** Floors per scope, rounded DOWN to two decimals from a measured run on
+ *  `1..DEFAULT_AUDIT_SEEDS`. First set from the baseline before any build
+ *  change (`docs/research/draft-table-audit-baseline.md`), then re-set after
+ *  the Auto-Build fixes of issue #8897
+ *  (`docs/research/draft-table-audit-build-fixes.md`): tightened where the
+ *  build improved, loosened where it traded against the metric — each
+ *  loosening says why below. None may loosen without saying why. A scope
+ *  with no profiles declares no plan or Capability Floor. */
 export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
-        meanCastability: 0.76,
-        worstDeckCastability: 0.55,
-        meanPlanShare: 0.47,
-        meanCapabilityPairs: 12,
+        meanCastability: 0.85,
+        worstDeckCastability: 0.74,
+        // Loosened 0.47 → 0.42: a gold card is now maindecked only when
+        // every pip is payable, and spells are valued by Pick Rating — both
+        // cut plan-tagged cards the old build played. The plan-first build
+        // (issue #8898) is what raises this.
+        meanPlanShare: 0.42,
+        meanCapabilityPairs: 13.82,
     },
     lea: {
         builtShare: 1,
-        meanCastability: 0.79,
-        worstDeckCastability: 0.51,
+        // Loosened 0.79 → 0.76 and 0.51 → 0.49: the land count now follows
+        // the curve and LEA's low curve plays 16 lands, not 17. The
+        // castability model counts sources and not land drops, so one land
+        // fewer always reads lower; it cannot see the spell it buys.
+        meanCastability: 0.76,
+        worstDeckCastability: 0.49,
     },
 };
 

@@ -942,16 +942,17 @@ async function loadSeatDeckBuilder(
         ctx,
         event.packSlots[0] ?? ""
     );
-    // Card Profiles feed Auto-Build's Capability term (ADR 0072, issue
-    // #1615) — the SAME layered seam the Pick Heuristic reads.
+    // Card Profiles feed Auto-Build's Capability term (ADR 0072) and Pick
+    // Ratings its spell base value — the SAME layered seams the pick reads.
     const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
     return (seat) =>
         computeBotAutoBuiltDeck(
             seat,
             eventContext,
             getAutoBuildCardMeta,
             resolveBasicLand,
-            { getCardProfile }
+            { getCardProfile, getPickRating }
         );
 }
 
@@ -1212,7 +1213,8 @@ async function projectEventForViewer(
         : new Map<number, AutoBuiltDeck>();
     // Legacy fallback only: an event whose Pools were final before decks
     // were stored builds on demand. Card Profiles feed Auto-Build's
-    // Capability term (ADR 0072, issue #1615); loaded only when some seat
+    // Capability term (ADR 0072), Pick Ratings its spell value; both loaded
+    // only when some seat
     // actually falls back, so a stored table never pays for the scan.
     const needsFallback =
         isEventPoolFinal(eventContext) &&
@@ -1224,6 +1226,9 @@ async function projectEventForViewer(
         );
     const getCardProfile = needsFallback
         ? await loadEventCardProfile(ctx, event.packSlots)
+        : undefined;
+    const getPickRating = needsFallback
+        ? await loadEventPickRating(ctx, event.packSlots)
         : undefined;
     return {
         ...base,
@@ -1238,7 +1243,7 @@ async function projectEventForViewer(
                       eventContext,
                       getAutoBuildCardMeta,
                       resolveBasicLand,
-                      { getCardProfile }
+                      { getCardProfile, getPickRating }
                   ));
             return {
                 ...seatView,
