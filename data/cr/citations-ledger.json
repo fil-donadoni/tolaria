@@ -53896,6 +53896,7 @@
         {"id":"702.61","line":"// Split second (CR 702.61, issue #4007).","sites":1,"status":"confirmed","ruleHash":"6e4cd89f530c8bb6"},
         {"id":"614.12","line":"// CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,","sites":2,"status":"baseline"},
         {"id":"701.22","line":"// CR 401.4 / 701.22 / 701.25 (issue #885) — look at / reorder the top of a","sites":1,"status":"baseline"},
+        {"id":"603.4","line":"// CR 603.4: the trigger only goes on the stack if the \"if\" holds, so","sites":1,"status":"confirmed","ruleHash":"1cf8dd0b467f3ede"},
         {"id":"601.2f","line":"// CR 601.2f floors the mana component at {0} and the reduction is","sites":1,"status":"baseline"},
         {"id":"113.7a","line":"// CR 113.7a / 608.2h — \"The source can still perform the action even though it","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"* CR 704.5m — if an Aura is attached to an illegal object or player, or is","sites":1,"status":"baseline"},
