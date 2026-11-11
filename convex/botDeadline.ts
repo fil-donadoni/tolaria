@@ -88,7 +88,9 @@ export function planBotDeadline(input: {
     if (botId === null || !botOwed(tick, botId)) return { kind: "clear" };
     const due = tick.updatedAt + BOT_SERVER_DEADLINE_MS;
     if (tick.seq !== trigger.seq || now < due) {
-        return { kind: "arm", at: due, seq: tick.seq };
+        // Never in the past: a check that ran late must not record a marker
+        // a save would already read as orphaned (a second chain).
+        return { kind: "arm", at: Math.max(due, now), seq: tick.seq };
     }
     return { kind: "enforce" };
 }
