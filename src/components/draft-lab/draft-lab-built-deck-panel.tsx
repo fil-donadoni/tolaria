@@ -2,8 +2,10 @@
 // makes it from its Pool, grouped by curve, beside the Draft Table Audit's
 // per-deck fields — the very numbers the audit's Floors hold, read off the
 // shared `DeckAudit` (`draftTableAudit.ts`), never re-measured. Shown once
-// the draft is completed (a Pool is final only then). Writes nothing (ADR
-// 0074).
+// the draft is completed (a Pool is final only then). Writes nothing itself
+// (ADR 0074): the one report action (issue #8900) arrives as `children`, so
+// this panel stays pure.
+import type { ReactNode } from "react";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import type { DraftLabBuiltSeat } from "@/lib/limited/draftLabEngine";
 import {
@@ -14,9 +16,11 @@ import {
 export default function DraftLabBuiltDeckPanel({
     seatLabel,
     built,
+    children,
 }: {
     seatLabel: string;
     built: DraftLabBuiltSeat;
+    children?: ReactNode;
 }) {
     const fields = builtDeckAuditFields(built.audit);
 
@@ -51,6 +55,7 @@ export default function DraftLabBuiltDeckPanel({
                         </section>
                     ))}
                 </div>
+                {children}
             </PanelBody>
         </Panel>
     );

@@ -6,11 +6,13 @@ import type { FunctionReturnType } from "convex/server";
 import type { api } from "@convex/_generated/api";
 import { ConvexError } from "convex/values";
 import {
+    DRAFT_LAB_SOURCE,
     SWEEP_SOURCE,
     countsTowardTotals,
     isSnoozed,
     isTriage,
     isStaleMeasurement,
+    type DraftContext,
 } from "@convex/botFindingsCore";
 import type { EvalTerms, PositionBreakdown } from "@convex/gre";
 import {
@@ -97,6 +99,20 @@ export function filterByVisibility<T extends BotFindingRow>(
  *  Reproducer to hand over (ADR 0141 § 7). */
 export function isCopyable(row: BotFindingRow): boolean {
     return !isTriage(row);
+}
+
+/** Who filed a non-sweep row: a Draft Lab deck report (issue #8900) or a
+ *  human report on a card (issue #4182). */
+export function reportedByText(source: string): string {
+    return source === DRAFT_LAB_SOURCE
+        ? "Reported from the Draft Lab"
+        : "Reported by a human";
+}
+
+/** The line that reruns a Draft Lab report: in the Lab, pick its Pack Source,
+ *  type its seed, Start, run to completion, focus its seat. */
+export function draftContextRerunText(context: DraftContext): string {
+    return `Rerun in the Draft Lab: Pack Source ${context.scope} · seed ${context.seed} · seat ${context.seatIndex + 1} · scorer v${context.scorerVersion}`;
 }
 
 /** A refusal the server raised on purpose (`ConvexError`) reads as its own
