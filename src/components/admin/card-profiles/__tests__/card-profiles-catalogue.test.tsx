@@ -31,7 +31,13 @@ function card(
         name: id,
         colours: ["R"],
         dbProfile: null,
-        seedProfile: { provides: [], requires: [], archetypes, reviewed },
+        seedProfile: {
+            provides: [],
+            requires: [],
+            archetypes,
+            capabilitiesReviewed: reviewed,
+            archetypesReviewed: reviewed,
+        },
     } as unknown as ScopeCardProfile;
 }
 

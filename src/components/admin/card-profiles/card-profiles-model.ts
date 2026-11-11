@@ -190,7 +190,7 @@ export function catalogueCounts(
         return {
             archetypes: effective?.archetypes ?? [],
             colours: card.colours as Color[],
-            reviewed: effective?.reviewed === true,
+            reviewed: layerReviewed(card, "archetypes") === true,
         };
     });
     return activeRows(scoped, catalogue).map((row) => {
