@@ -198,7 +198,7 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Admin write boundary (`setCardProfile` / `clearCardProfile` pure pieces)
+// Admin write boundary (the per-layer save mutations' pure pieces)
 // ─────────────────────────────────────────────────────────────────────────
 
 const EMPTY: CardProfileSave = {

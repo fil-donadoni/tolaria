@@ -129,9 +129,10 @@ export interface ArchetypesWrite {
     reviewed: boolean;
 }
 
-/** Both layers under ONE review flag — the fixture and census-tool form,
- *  composed from the per-layer halves below (`cardProfileWriteErrors`,
- *  `buildCardProfileRows`). The editor never writes it: each tab saves its
+/** Both layers under ONE review flag — the fixture and census-tool form.
+ *  `cardProfileWriteErrors` and `buildCardProfileRows` compose the per-layer
+ *  halves below (`capabilitiesWriteErrors` / `archetypesWriteErrors`,
+ *  `buildCapabilitiesRow` / `buildArchetypesRow`). The editor never writes it: each tab saves its
  *  own layer. */
 export type CardProfileSave = CapabilitiesWrite & ArchetypesWrite;
 

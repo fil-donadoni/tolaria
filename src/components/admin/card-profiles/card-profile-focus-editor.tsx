@@ -128,10 +128,14 @@ export default function CardProfileFocusEditor({
         setError(null);
         try {
             await onClear();
+            // Only the tab's layer was reverted: the other keeps what it had.
             const seed = card.seedProfile;
-            setArchetypes(seed?.archetypes ?? []);
-            setProvides(seed?.provides ?? []);
-            setRequires(seed?.requires ?? []);
+            if (tab === "archetypes") {
+                setArchetypes(seed?.archetypes ?? []);
+            } else {
+                setProvides(seed?.provides ?? []);
+                setRequires(seed?.requires ?? []);
+            }
             setReviewed(
                 (tab === "capabilities"
                     ? seed?.capabilitiesReviewed

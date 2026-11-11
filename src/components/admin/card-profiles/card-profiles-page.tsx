@@ -91,12 +91,13 @@ export default function CardProfilesPage() {
     } = useCardProfileMutations();
     const archetypeCatalogue = useArchetypeCatalogue();
 
+    const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
     const visible = useMemo(
         () =>
             cards
-                ? sortCards(filterCards(cards, filters, tab), sort, tab)
+                ? sortCards(filterCards(cards, filters, tab), sortable, tab)
                 : undefined,
-        [cards, filters, sort, tab]
+        [cards, filters, sortable, tab]
     );
     const progress = reviewProgress(cards, tab);
     const openCardId = walk ? walk.ids[walk.index] : null;
@@ -199,8 +200,6 @@ export default function CardProfilesPage() {
                     ?.description
               : CAPABILITY_REGISTRY.find((row) => row.id === sweep.id)
                     ?.description;
-
-    const sortable = TAB_COLUMNS[tab].includes(sort.key) ? sort : DEFAULT_SORT;
 
     return (
         <div className="flex flex-col gap-4 min-[1500px]:flex-row">
