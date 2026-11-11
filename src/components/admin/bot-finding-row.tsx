@@ -5,6 +5,7 @@ import {
     classDeltaText,
     isCopyable,
     proseSegments,
+    reportedByText,
     type BotFindingClassRow,
     type BotFindingMeasurement,
     type BotFindingRow as FindingRow,
@@ -16,6 +17,7 @@ import {
 import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
 import BotFindingAnnotationForm from "./bot-finding-annotation-form";
 import BotFindingCopyButton from "./bot-finding-copy-button";
+import BotFindingDraftContext from "./bot-finding-draft-context";
 import BotFindingReproducerForm from "./bot-finding-reproducer-form";
 import BotFindingSnoozeControl from "./bot-finding-snooze-control";
 import BotFindingReproducers from "./bot-finding-reproducers";
@@ -32,7 +34,8 @@ import BotFindingTrace from "./bot-finding-trace";
  * line says what the class held at the previous measurement.
  *
  * Human fields (issue #4182): the admin's note, linked issue and snooze reason
- * show on the row and the admin controls sit behind a disclosure. A triage
+ * show on the row and the admin controls sit behind a disclosure. A Draft Lab
+ * report (issue #8900) also shows the context that reruns its draft. A triage
  * row — a human report with no Reproducer — says so and has no copy button.
  */
 export default function BotFindingRow({
@@ -152,10 +155,13 @@ export default function BotFindingRow({
                         data-bot-finding-source=""
                         className="text-xs font-semibold text-text-muted"
                     >
-                        Reported by a human
+                        {reportedByText(finding.source)}
                         {isTriage(finding) &&
                             " — in triage until it names a reproducer"}
                     </p>
+                )}
+                {finding.draftContext !== undefined && (
+                    <BotFindingDraftContext context={finding.draftContext} />
                 )}
                 {finding.note !== undefined && (
                     <p data-bot-finding-note="" className="text-xs text-text">

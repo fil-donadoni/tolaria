@@ -2,7 +2,8 @@
 
 ## Status
 
-accepted (2026-07-26)
+accepted (2026-07-26); amended 2026-11-11 (Amendment I, issue #8900 — one
+write: filing a Bot Finding report)
 
 ## Context
 
@@ -113,3 +114,30 @@ after it has stopped describing what happened is actively misleading.
   (CLAUDE.md) was already contradicted by the client-side Brain; this record
   makes the real rule explicit — **pure engine modules may be imported by the
   client, engine state mutation may not**.
+
+## Amendment I (issue #8900, 2026-11-11) — one write: filing a Bot Finding report
+
+**"The Draft Lab writes nothing" gains exactly one exception: an admin may file
+a Bot Finding (ADR 0141) off a seat's built deck.** Decided by the owner on
+2026-11-08 — the report does not change the substance: it touches no draft, no
+event, no Card Rating and no Card Profile, and no Lab state is ever read back
+from it. A bad build becomes a reproducible record on the Admin Bot Findings
+page instead of a screenshot in a chat.
+
+- **The write.** `botFindings.reportDraftFinding`, `assertIsAdmin`-gated, from
+  `src/components/draft-lab/draft-lab-report-finding-form.tsx`. The row takes
+  its own source (`draft-lab`), so it never meets a sweep row or a human report
+  on a card, and carries a **draft context** — seed, scope (the Pack Source),
+  seat, scorer version — which is everything the Lab needs to deal the same
+  draft again. A deck has no single card: the row's `oracleId` holds the
+  context's key, so one context is reported once. It carries no Reproducer
+  label, so it waits in triage (ADR 0141 § 7) with its rerun line stated.
+- **The guard.** `draft-lab-no-mutation.test.ts` keeps forbidding every write
+  surface on the Lab and allows this one through a single-entry allowlist that
+  the test itself asserts: the named file may hold its `useMutation` import and
+  ONE call to the named mutation. A second call, any other mutation, or the
+  same call in any other Lab file still reds.
+- **What does not change.** No draft log table (the Decision stands); the
+  synthetic and replay engines stay pure; the "nothing about the Draft Lab can
+  regress production behaviour" consequence holds — the one write lands in an
+  admin-only table no gameplay or drafting path reads.

@@ -595,3 +595,40 @@ describe("BotFindingsCardsPanel — human findings (issue #4182)", () => {
         ]);
     });
 });
+
+// ── Draft Lab deck reports (issue #8900) ──────────────────────────────────
+
+const DRAFT_REPORT = {
+    ...HUMAN_BASE,
+    _id: "d-report",
+    source: "draft-lab",
+    oracleId: "draft:cube:42:3:v2",
+    name: "Draft Lab — cube, seed 42, seat 4",
+    note: "three-colour pile",
+    draftContext: { seed: 42, scope: "cube", seatIndex: 3, scorerVersion: 2 },
+};
+
+describe("BotFindingsCardsPanel — a Draft Lab deck report (issue #8900)", () => {
+    beforeEach(() => {
+        answers.listFindings = [...FINDINGS, DRAFT_REPORT];
+    });
+
+    it("states where it came from and everything that reruns its draft", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const report = row("draft:cube:42:3:v2")!;
+        expect(
+            report.querySelector("[data-bot-finding-source]")!.textContent
+        ).toContain("Reported from the Draft Lab");
+        expect(
+            report.querySelector("[data-bot-finding-draft-context]")!
+                .textContent
+        ).toBe(
+            "Rerun in the Draft Lab: Pack Source cube · seed 42 · seat 4 · scorer v2"
+        );
+        expect(report.textContent).toContain("three-colour pile");
+        // A card report shows no draft context.
+        expect(
+            row("o-grist")!.querySelector("[data-bot-finding-draft-context]")
+        ).toBeNull();
+    });
+});

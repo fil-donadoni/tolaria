@@ -14,6 +14,7 @@ import {
     latestMeasurement,
     listClasses,
     listFindings,
+    reportDraftFinding,
     reportFinding,
     seed,
     setFindingReproducers,
@@ -771,6 +772,77 @@ describe("botFindings.reportFinding — human source beside the measured row", (
     });
 });
 
+const DRAFT_CONTEXT = {
+    seed: 42,
+    scope: "cube",
+    seatIndex: 3,
+    scorerVersion: 2,
+};
+
+describe("botFindings.reportDraftFinding — a Draft Lab deck report (issue #8900)", () => {
+    it("stores the draft context under its own source, keyed by that context", async () => {
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-1", "o-a"),
+        ]);
+        const id = await runMutation<unknown, string>(
+            reportDraftFinding,
+            stub.ctx,
+            { draftContext: DRAFT_CONTEXT, note: "  three-colour pile  " }
+        );
+        expect(stub.doc(id)).toMatchObject({
+            oracleId: "draft:cube:42:3:v2",
+            source: "draft-lab",
+            name: "Draft Lab — cube, seed 42, seat 4",
+            draftContext: DRAFT_CONTEXT,
+            note: "three-colour pile",
+            active: true,
+        });
+        expect(stub.writes.filter((w) => w.id !== id)).toEqual([]);
+    });
+
+    it("refuses a second report of the same context", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN]);
+        const args = { draftContext: DRAFT_CONTEXT };
+        await runMutation(reportDraftFinding, stub.ctx, args);
+        await expect(
+            runMutation(reportDraftFinding, stub.ctx, args)
+        ).rejects.toThrow("is already reported");
+    });
+
+    it("refuses a context that cannot rerun a draft", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN]);
+        for (const bad of [
+            { ...DRAFT_CONTEXT, scope: "  " },
+            { ...DRAFT_CONTEXT, seed: 1.5 },
+            { ...DRAFT_CONTEXT, seatIndex: -1 },
+            { ...DRAFT_CONTEXT, scorerVersion: 0 },
+        ])
+            await expect(
+                runMutation(reportDraftFinding, stub.ctx, {
+                    draftContext: bad,
+                })
+            ).rejects.toThrow("needs a seed, a scope, a seat");
+    });
+
+    it("listFindings serves the row with its draft context", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN]);
+        await runMutation(reportDraftFinding, stub.ctx, {
+            draftContext: DRAFT_CONTEXT,
+        });
+        const rows = await runMutation<unknown, Row[]>(
+            listFindings,
+            stub.ctx,
+            {}
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            source: "draft-lab",
+            draftContext: DRAFT_CONTEXT,
+        });
+    });
+});
+
 describe("botFindings human fields — note, issue, reproducers, snooze", () => {
     const seeds = [
         ADMIN,
@@ -924,6 +996,7 @@ describe("botFindings human fields — note, issue, reproducers, snooze", () => 
             ]);
             const calls: [unknown, Row][] = [
                 [reportFinding, { oracleId: "o", name: "n" }],
+                [reportDraftFinding, { draftContext: DRAFT_CONTEXT }],
                 [annotateFinding, { id: "f-1", note: "", linkedIssue: null }],
                 [setFindingReproducers, { id: "f-1", reproducers: [] }],
                 [snoozeFinding, { id: "f-1", reason: "r" }],

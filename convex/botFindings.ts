@@ -7,7 +7,8 @@
 // is `seed`, an INTERNAL mutation `bun run seed:bot-findings` reaches through
 // `convex run`; no public mutation can write a measured field. The public
 // mutations (issue #4182) write HUMAN fields only — a report, a note, a linked
-// issue, Reproducer labels, a snooze — and are `assertIsAdmin`-gated too.
+// issue, Reproducer labels, a snooze, a Draft Lab deck report (issue #8900) —
+// and are `assertIsAdmin`-gated too.
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -18,11 +19,16 @@ import {
 } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import {
+    DRAFT_LAB_SOURCE,
     HUMAN_SOURCE,
     HUMAN_STAMP,
     SWEEP_SOURCE,
+    checkedDraftContext,
     checkedNote,
     classKeysKeptByPlayed,
+    draftContextValidator,
+    draftFindingKey,
+    draftFindingName,
     measuredFindingValidator,
     measurementValidator,
     normalizeReproducers,
@@ -92,6 +98,8 @@ const findingRowValidator = v.object({
     linkedIssue: v.optional(v.number()),
     snoozedAt: v.optional(v.number()),
     snoozeReason: v.optional(v.string()),
+    /** A Draft Lab report's rerun context (issue #8900). */
+    draftContext: v.optional(draftContextValidator),
     status: findingStatusValidator,
 });
 
@@ -147,6 +155,9 @@ export const listFindings = query({
                     ...(row.snoozeReason === undefined
                         ? {}
                         : { snoozeReason: row.snoozeReason }),
+                    ...(row.draftContext === undefined
+                        ? {}
+                        : { draftContext: row.draftContext }),
                     status: computeFindingStatus({
                         outcome: row.outcome,
                         cause: row.cause,
@@ -411,6 +422,51 @@ export const reportFinding = mutation({
             ...(printId ? { printId } : {}),
             ...(note ? { note } : {}),
             ...(reproducers.length > 0 ? { reproducers } : {}),
+        });
+    },
+});
+
+/**
+ * Report a Draft Lab seat's built deck (issue #8900) — the ONE write the
+ * Draft Lab makes (ADR 0074, Amendment I). It touches no draft, event, rating
+ * or profile: it inserts a `draft-lab` row keyed by its context
+ * (`draftFindingKey`), so it never meets a sweep row or a card report, and one
+ * context is reported once. The row carries no Reproducer label: its context
+ * is what reruns it, and it waits in triage like any unlabelled report.
+ */
+export const reportDraftFinding = mutation({
+    args: {
+        draftContext: draftContextValidator,
+        note: v.optional(v.string()),
+    },
+    returns: v.id("botFindings"),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const draftContext = checkedDraftContext(args.draftContext);
+        const key = draftFindingKey(draftContext);
+        const existing = await ctx.db
+            .query("botFindings")
+            .withIndex("by_source_oracle", (q) =>
+                q.eq("source", DRAFT_LAB_SOURCE).eq("oracleId", key)
+            )
+            .first();
+        if (existing !== null)
+            throw new ConvexError(
+                `${draftFindingName(draftContext)} is already reported`
+            );
+        const note = checkedNote(args.note ?? "");
+        return await ctx.db.insert("botFindings", {
+            oracleId: key,
+            source: DRAFT_LAB_SOURCE,
+            name: draftFindingName(draftContext),
+            targets: [],
+            outcome: "ignored",
+            sha: HUMAN_STAMP,
+            botHash: "",
+            measuredAt: new Date().toISOString(),
+            active: true,
+            draftContext,
+            ...(note ? { note } : {}),
         });
     },
 });

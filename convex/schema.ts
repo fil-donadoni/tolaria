@@ -33,6 +33,7 @@ import { botFaultValidator } from "./botFaultReport";
 import {
     botReachTraceValidator,
     compileSourceValidator,
+    draftContextValidator,
     findingBlameValidator,
     findingOutcomeValidator,
     measurementValidator,
@@ -1319,6 +1320,10 @@ export default defineSchema({
         linkedIssue: v.optional(v.number()),
         snoozedAt: v.optional(v.number()),
         snoozeReason: v.optional(v.string()),
+        // ── Draft Lab report (issue #8900): `source: "draft-lab"` only ──
+        // A deck finding has no single card: `oracleId` holds the context's
+        // key (`draftFindingKey`) and this holds what reruns the draft.
+        draftContext: v.optional(draftContextValidator),
     }).index("by_source_oracle", ["source", "oracleId"]),
     // One row per Bot Gap class, keyed by its Bot Gap key — every field is
     // measured (artifact + the committed `gaps:sync` claims), so a seed
