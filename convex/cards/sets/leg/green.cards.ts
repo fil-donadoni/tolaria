@@ -4,12 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import {
-    defineCard,
-    type SpellContext,
-    type PermanentView,
-    type TargetSelection,
-} from "../../types";
+import { defineCard, type SpellContext, type PermanentView } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
@@ -711,20 +706,18 @@ export const cocoon = defineCard(() => ({
             oracleText:
                 "When this Aura enters, tap enchanted creature and put three pupa counters on this Aura.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045): taps the ENCHANTED creature — the
-            // Aura's attached host, read via `getAttachedToId`. The
-            // EffectObjectSelector grammar has no attached-object member.
-            // Blocked on: an attached-object EffectObjectSelector.
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedToId();
-                if (hostId) ctx.tap({ type: "permanent", id: hostId });
-                // CR 122.1 — counters go on the Aura itself.
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "pupa",
-                    3
-                );
-            },
+            // CR 303.4 — "enchanted creature" is the Aura's attachment host
+            // (`$host`); CR 122.1 — the pupa counters go on the Aura itself.
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$host" } },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "pupa",
+                    target: { ref: "$source" },
+                    count: 3,
+                },
+            ],
         }),
         phaseTrigger({
             id: "cocoon-upkeep",
@@ -732,36 +725,47 @@ export const cocoon = defineCard(() => ({
                 "At the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): the hatch branch acts on the
-            // Aura's ENCHANTED creature (host), read via `getAttachedToId` —
-            // the `EffectObjectSelector` grammar has no attached-host ref
-            // (same gap as the sibling `cocoon-etb` trigger above and The
-            // Brute's regenerate ability, `red.ts`). Blocked on: an
-            // attached-host object selector.
-            // The INDEFINITE flying grant ("that creature gains flying", no
-            // duration) is NOT a blocker: omitting `duration` on the
-            // `grantAbility` Op routes to `grantStaticAbilityPermanent`
-            // (CR 611.2b, issue #1746) — the same source-independent primitive
-            // the closure below already calls directly.
-            resolve: (ctx) => {
-                const self: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                const pupa = ctx.getCounterCount(self, "pupa");
-                if (pupa > 0) {
-                    ctx.removeCounter(self, "pupa", 1);
-                    return;
-                }
-                // CR 122.6 — "if you can't" remove a counter: hatch. Snapshot
-                // the host BEFORE sacrificing the Aura (sacrifice detaches it).
-                const hostId = ctx.getAttachedToId();
-                ctx.sacrifice(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const host: TargetSelection = { type: "permanent", id: hostId };
-                ctx.addCounter(host, "+1/+1", 1);
-                ctx.grantStaticAbilityPermanent(host, "flying");
-            },
+            // "If you can't" remove a pupa counter (CR 609.3 — none left):
+            // hatch. `$host` names the enchanted creature as the ability
+            // resolves (CR 608.2h), so it survives sacrificing the Aura (CR
+            // 701.21a). With no duration stated, the flying grant lasts until
+            // the end of the game (CR 611.2a).
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: { of: { ref: "$source" }, type: "pupa" },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "counters",
+                            action: "remove",
+                            counter: "pupa",
+                            target: { ref: "$source" },
+                            count: 1,
+                        },
+                    ],
+                    else: [
+                        { op: "sacrifice", target: { ref: "$source" } },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                        {
+                            op: "grantAbility",
+                            ability: "flying",
+                            target: { ref: "$host" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 }));

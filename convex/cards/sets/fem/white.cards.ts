@@ -72,7 +72,7 @@ export const farrelsMantle = defineCard(() => ({
             // target of an ability" triggers, which the old choice-as-target
             // workaround silently skipped.
             //
-            // DIVERGENCE (tracked-by: #2016): the Oracle "ANOTHER target
+            // DIVERGENCE (tracked-by: #9198): the Oracle "ANOTHER target
             // creature" must exclude the ENCHANTED (attacking) creature — but
             // the source of this trigger is the AURA permanent, not the
             // enchanted creature. `targetRequirement.excludeSource` only

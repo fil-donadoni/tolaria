@@ -795,20 +795,6 @@
     },
     {
         "class": "ability",
-        "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
-        "name": "Cocoon",
-        "abilityId": "cocoon-etb",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
-        "name": "Cocoon",
-        "abilityId": "cocoon-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "13186bc9-8d9c-433b-ba15-121ef94dd68a",
         "name": "Conversion",
         "abilityId": "conversion-upkeep",
@@ -2349,13 +2335,6 @@
     },
     {
         "class": "ability",
-        "cardId": "f9ffb265-872f-47b3-974c-92bcbebd557e",
-        "name": "The Brute",
-        "abilityId": "the-brute-regenerate",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "9d970195-0a09-4cb4-a2c0-c16fcab5c859",
         "name": "Thelon's Chant",
         "abilityId": "thelons-chant-swamp-punish",
@@ -2478,20 +2457,6 @@
         "cardId": "a79e9236-a39e-471a-b18a-2c2ba16e7774",
         "name": "Unstable Mutation",
         "abilityId": "unstable-mutation-decay",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
-        "name": "Venarian Gold",
-        "abilityId": "venarian-gold-etb",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
-        "name": "Venarian Gold",
-        "abilityId": "venarian-gold-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
