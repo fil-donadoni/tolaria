@@ -206,7 +206,7 @@ describe("LimitedDraftTimer — accessible live region does not spam every tick"
     });
 
     it("(bug-fix, blocking finding #1) re-syncs the live region when a NEW PICK starts even if the phase doesn't change across the boundary — catches the frozen-across-picks case, not just a phase transition", () => {
-        // Pick A: 15 cards remaining (40s allowance) — starts "normal".
+        // Pick A: 8 cards remaining (40s allowance) — starts "normal".
         const { container, getByRole, rerender } = render(
             <LimitedDraftTimer pickDeadline={40_000} cardsRemaining={8} />
         );
