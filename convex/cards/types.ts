@@ -12678,6 +12678,12 @@ export interface SpellCastEvent {
      *  tap plan is a coarse mana model — and an absent count fails such a
      *  condition closed rather than reading as zero. */
     manaSpentToCast?: number;
+    /** CR 202.3e — the cast spell's mana value as it sits on the stack: its mana
+     *  cost with each `{X}` valued at the announced X (`stackManaValue`,
+     *  `gre/constants.ts`). Read by a cast trigger's "with mana value equal to …"
+     *  (CR 603.2). ABSENT where the emitter cannot say (a hand-built fixture), so
+     *  a trigger gating on it fails closed. */
+    spellManaValue?: number;
 }
 
 /** "A player copies a spell" (CR 707.10) — one event per copy, emitted by the

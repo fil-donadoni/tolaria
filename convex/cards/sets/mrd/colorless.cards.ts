@@ -8,6 +8,7 @@ import { makeTalisman } from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { affinityForArtifacts } from "../../abilities/affinity";
 import { equipAbility } from "../../abilities/equipment";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 const CHROME_MOX_ID = "6a058e68-70af-4a64-859c-c881e5578368";
 const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
@@ -281,4 +282,44 @@ export const frogmite = defineCard(() => ({
     power: 2,
     toughness: 2,
     ...affinityForArtifacts(),
+}));
+
+// Chalice of the Void — {X}{X} Artifact. "This artifact enters with X charge
+// counters on it." (CR 614.1c / 107.3m — the grammar already reads this line,
+// `entersWith.counters` with the cast X) + "Whenever a player casts a spell
+// with mana value equal to the number of charge counters on this artifact,
+// counter that spell."
+//
+// The trigger is an ordinary any-caster SPELL_CAST ability (CR 603.2). The
+// "mana value equal to" clause is part of the TRIGGER EVENT, so it is decided
+// when the spell is cast (a `matches`-time condition), not on resolution: a
+// Chalice removed in response still counters the spell (CR 113.7a, the trigger
+// is independent of its source once on the stack). The spell's mana value is the
+// stack value, X included (CR 202.3e), carried on `SpellCastEvent.spellManaValue`
+// by the one emitter. The counter is read off the artifact at that same moment;
+// an absent tally is zero (Chalice cast for X=0 counters {0}-value spells).
+// The counter itself is the shared `$event.spell` stack-object Op shape
+// (Decree of Silence, scg/blue.cards.ts).
+// hand-tail: Whenever a player casts a spell with mana value equal to the number of charge counters on this artifact, counter that spell. (#8851)
+export const chaliceOfTheVoid = defineCard(() => ({
+    id: "1a02ca71-5e39-4a5f-aaba-a1e3e10a6a3e",
+    name: "Chalice of the Void",
+    rarity: "rare",
+    oracleText:
+        "This artifact enters with X charge counters on it.\nWhenever a player casts a spell with mana value equal to the number of charge counters on this artifact, counter that spell.",
+    manaCost: { X: "X", xFactor: 2 },
+    types: ["Artifact"],
+    entersWith: { counters: [{ type: "charge", count: "X" }] },
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "chalice-of-the-void-counter",
+            oracleText:
+                "Whenever a player casts a spell with mana value equal to the number of charge counters on this artifact, counter that spell.",
+            scope: "any",
+            condition: (event, self) =>
+                event.spellManaValue !== undefined &&
+                event.spellManaValue === (self.counters?.charge ?? 0),
+            effects: [{ op: "counter", target: { ref: "$event.spell" } }],
+        }),
+    ],
 }));
