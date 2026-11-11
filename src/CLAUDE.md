@@ -58,12 +58,7 @@ and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
 (`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT`/`SCOPED`/`BATCH` (`--batch=`),
 never `DIAGNOSTIC`; never reflow a line.
 
-**A walk owed is batched, not run in-session** (issue #9122): label the PR
-`ui-owed`; `bun run check:ui:batch` (no arguments, lane machine with the local
-Deployment) collects every open `ui-owed` PR, runs
-`check:ui --batch=… --write-receipts`, then per PR: CLEAN → label removed +
-`land:ready`; RED → `land-failed` + the red lines as a comment; DROPPED /
-UNPROVEN → stays `ui-owed` with a comment. `land:ready` refuses a `ui-owed` PR.
+**Owed walk → label `ui-owed`**; `bun run check:ui:batch` walks all in one batch (#9122).
 
 **Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
 desktop `1440x900x2` (and `1440x900x1`, DPR 1 in the full Chromium, on a
