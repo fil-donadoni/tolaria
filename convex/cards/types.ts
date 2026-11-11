@@ -892,7 +892,8 @@ export interface TargetRequirement {
      *  supertypes (CR 205.4a). Read against the LIVE supertype status so
      *  Melting / Arcum's Weathervane mutations are honored. Used by Avalanche
      *  ("X target snow lands"). Single string is shorthand for one supertype.
-     *  Ignored for player / spell / graveyard targets. */
+     *  Honored for graveyard-card targets ("target legendary creature card");
+     *  ignored for player / spell targets. */
     supertypeFilter?: CardSupertype | CardSupertype[];
     /** Excludes legal permanent targets that have ANY of these supertypes
      *  (CR 205.4a — the negative of `supertypeFilter`). Read against the LIVE
