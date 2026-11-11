@@ -13026,6 +13026,14 @@
         "source": "compiled"
     },
     {
+        "name": "Chalice of the Void",
+        "scryfallId": "1a02ca71-5e39-4a5f-aaba-a1e3e10a6a3e",
+        "oracleId": "74027ba4-a6ba-4696-baf1-60ef0b27ee0a",
+        "firstSet": "mrd",
+        "firstPrintId": "1a02ca71-5e39-4a5f-aaba-a1e3e10a6a3e",
+        "firstPrintSet": "mrd"
+    },
+    {
         "name": "Champion of Arashin",
         "scryfallId": "5635c8f2-164c-4a13-965a-9432d07092ed",
         "oracleId": "f688863f-b8eb-4143-8ea5-0b234cc91bd0",

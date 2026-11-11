@@ -149,6 +149,7 @@ export const EVENT_FIELD_KINDS: {
         casterSpellCountThisTurn: "scalar",
         casterSpellTypeCountsThisTurn: "scalar",
         manaSpentToCast: "scalar",
+        spellManaValue: "scalar",
     },
     // CR 702.33d — a Kicker was paid.
     SPELL_KICKED: {
