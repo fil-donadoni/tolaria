@@ -79,8 +79,16 @@ export const roilingCanopy = defineCard(() => ({
             oracleText:
                 "Whenever a Forest you control enters, if you control at least five other Forests, target creature you control gets +3/+3 until end of turn.",
             scope: "yours",
+            // CR 603.4: the trigger only goes on the stack if the "if" holds, so
+            // the count gates `matches` too; `interveningIf` is the re-check on
+            // resolution.
             condition: (event, self, state) =>
-                enteredForestYouControl(state, self, event.instanceId),
+                enteredForestYouControl(state, self, event.instanceId) &&
+                otherForestsControlled(
+                    state,
+                    self.controllerId,
+                    event.instanceId
+                ) >= 5,
             interveningIf: (event, self, state) =>
                 otherForestsControlled(
                     state,
