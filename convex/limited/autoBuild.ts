@@ -4,13 +4,22 @@
 // Limited deck so a human can test their own draft against the table
 // (`docs/adr/0055-limited-event-architecture.md` decision 3). Auto-Build:
 //
-//   1. picks the seat's strongest colors (`chooseDeckColors`) — pip-weighted
-//      Colour Commitment (`botDrafter.ts`'s own `colourAffinityWeights`, ADR
-//      0073), with the color COUNT derived: two by default, three when the
-//      Pool's own mana base pays for the third (`manaBaseSupportsThirdColor`,
-//      the same `max(0, demand − sources)` deficit arithmetic as Fixing
-//      Value);
-//   2. curve-fills a spell base from the Pool's on-colour (+ colourless)
+//   0. finds the PLAN (`choosePlan`, PRD #8772): the Archetype the Pool is
+//      deepest in, by the pick scorer's own accumulator
+//      (`archetypeCommitment`: copies count, an unreviewed Archetype layer
+//      at half weight), so the builder finishes the plan the draft was
+//      heading for. No profiles, or no Archetype deep enough to be settled,
+//      means no plan, and every step below runs exactly as without one;
+//   1. picks the seat's colors (`chooseDeckColors`): the plan's colour
+//      signature in the Pool first (the Archetype Catalogue's
+//      `colourSignature`), then pip-weighted Colour Commitment
+//      (`botDrafter.ts`'s own `colourAffinityWeights`, ADR 0073), with the
+//      color COUNT derived: two by default, three when the Pool's own mana
+//      base pays for the third (`manaBaseSupportsThirdColor`, the same
+//      `max(0, demand − sources)` deficit arithmetic as Fixing Value);
+//   2. takes the plan's castable core first — its own cards, their
+//      Capability partners and the deck's mana-producing spells — then
+//      curve-fills a spell base from the Pool's on-colour (+ colourless)
 //      cards — a gold card is on-colour only when EVERY coloured pip is a
 //      colour of the deck — reusing `botDrafter.ts`'s `CURVE_TARGET` /
 //      `curveBucket` shape so draft-time and build-time curve-awareness never
@@ -29,7 +38,8 @@
 //      by the Maindeck's own pip demand.
 //
 // Every card-quality judgement routes through `botDrafter.ts` —
-// `candidateBaseRating`, `CURVE_TARGET`/`curveBucket`, `colourAffinityWeights`,
+// `archetypeCommitment`, `candidateBaseRating`, `CURVE_TARGET`/`curveBucket`,
+// `colourAffinityWeights`,
 // `pipDemandByColor`, `sourceCountsByColor`, `capabilityFitTerm` —
 // deliberately: ONE card-quality authority for draft time and build time (ADR
 // 0073's "Auto-Build consumes the same seams"), never two that drift apart.
@@ -238,9 +248,8 @@ interface BuildPlan {
  *  Commitment like any colour outside the plan. Without it, a plan spread
  *  thin over five colours (cube `control`) names colours the Pool barely
  *  plays, and a mono-colour plan's one gold card names the second colour.
- *  Measured on the Vintage Cube audit: 0.2 drops the worst deck's
- *  castability to 0.67, 0.3 keeps it at 0.77
- *  (`docs/research/draft-table-audit-plan-first.md`). */
+ *  Chosen on the Vintage Cube audit, where a lower bar costs the worst
+ *  deck's castability (`docs/research/draft-table-audit-plan-first.md`). */
 const PLAN_COLOUR_MIN_SHARE = 0.3;
 
 /** The Pool's deepest Archetype, or `null` when nothing is profiled or no
@@ -471,8 +480,8 @@ export function landCountForCurve(spells: readonly CardEvalMeta[]): number {
  *  a Pool is colour-pure, and a later tier (a strained or off-colour spell)
  *  only plays when every earlier one is in.
  *
- *  `planFirst` cards (the plan's own, `choosePlan`) are taken before any of
- *  that, best score first; they occupy their curve buckets, so the curve
+ *  `planFirst` cards (the plan's core, see `autoBuildDeck`) are taken before
+ *  any of that, best score first; they occupy their curve buckets, so the curve
  *  fill tops up only what the plan left empty. Empty, the selection is the
  *  plan-less one.
  *
@@ -715,6 +724,10 @@ export function autoBuildDeck(
         (r) => !onColorEntries.has(r.entry)
     );
     const base = baseSpellScore(options.getPickRating);
+    // The plan's core: its own cards, the cards `isPartner` names, and every
+    // spell producing a deck colour. A mana source serves whatever plan the
+    // deck plays; cutting one for a plan card costs every other spell its
+    // castability.
     const planCore = (
         rs: readonly ResolvedEntry[],
         isPartner: (r: ResolvedEntry) => boolean
@@ -760,6 +773,8 @@ export function autoBuildDeck(
               options.getCardProfile
           )
         : () => 0;
+    // A Capability partner of the plan: a match with one of the plan's cards
+    // in the provisional Maindeck (the enabler a plan card requires).
     const planFit =
         plan && options.getCardProfile
             ? capabilityFit(
