@@ -1860,7 +1860,7 @@ export const createLimitedEvent = mutation({
         // Per-pick timer on/off (issue #1114, PRD #1107 story 5: "configure
         // the per-pick timer, or disable it"; ADR 0060 / issue #1243
         // replaced the admin-chosen seconds value with a clear on/off — the
-        // actual per-pick length always follows the official descending
+        // actual per-pick length always follows the Arena-like descending
         // schedule). Absent/omitted/false === disabled.
         timerEnabled: v.optional(v.boolean()),
         // Games Format of the event's round matches (PRD #1628 stories 1-2,

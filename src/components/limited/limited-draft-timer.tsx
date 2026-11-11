@@ -18,9 +18,8 @@ const TICK_MS = 1000;
  *  #1114/#1243; unchanged by #2238). Because the bar's fill is always
  *  relative to THIS Pick's own allowance (full at every Pick, regardless of
  *  length), the bar alone can't say "this Pick started short" — the tone is
- *  the only channel left that can, and a Pick whose whole allowance is at or
- *  under this threshold is born urgent for free: `remainingSeconds` can
- *  never exceed the Pick's total, so it starts at/under the threshold too. */
+ *  the only channel left that can; a Pick the Seat opens with at/under this
+ *  many seconds left (late arrival) renders urgent from its first frame. */
 const URGENT_THRESHOLD_SECONDS = 10;
 
 type Phase = "normal" | "urgent" | "expired";
@@ -39,7 +38,7 @@ function announcementFor(phase: Phase, remainingSeconds: number): string {
  *  Booster's card grid, that starts FULL at the beginning of every Pick and
  *  drains to empty by the deadline — so fill level means the same thing at
  *  every Pick regardless of that Pick's own length, and the DRAIN RATE
- *  itself is the signal (a 5s Pick visibly races, a 40s Pick creeps). The
+ *  itself is the signal (a 30s Pick visibly races, a 75s Pick creeps). The
  *  remaining-seconds readout is attached to the bar itself — there is no
  *  second copy of the countdown anywhere else.
  *
@@ -120,9 +119,9 @@ export default function LimitedDraftTimer({
         // Re-sync on a PHASE change (existing behaviour: entering urgent,
         // expiring) OR whenever a NEW PICK STARTS (`pickDeadline` changes),
         // even when the phase doesn't change across that boundary. Without
-        // the second condition, a Pick born `urgent` (the allowance is
-        // <= URGENT_THRESHOLD_SECONDS at 6/5/4/3/2 cards remaining,
-        // `pickTimerSchedule.ts`) that follows another `urgent` Pick never
+        // the second condition, a Pick born `urgent` (a late Seat
+        // picks with <= URGENT_THRESHOLD_SECONDS left on its deadline)
+        // that follows another `urgent` Pick never
         // fires a phase transition at all — `announcement` freezes on
         // whatever it last said and the `role="timer"` live region, the
         // ONLY thing a screen-reader user gets (the visible readout is

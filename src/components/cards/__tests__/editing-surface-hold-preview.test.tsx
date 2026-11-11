@@ -287,6 +287,7 @@ describe("editing-surface census closure (issue #2583)", () => {
      *  ghost tiles (rows 1 and 4), which render a card under the finger
      *  MID-DRAG and would be the worst possible place to open a preview. */
     const HOLD_PREVIEW_OFF_SITES = [
+        "components/admin/card-profiles/card-profile-related-card.tsx",
         "components/deckbuilder/deck-card-tile.tsx",
         "components/deckbuilder/deck-builder-shell.tsx",
         "components/limited/limited-draft-pack-card.tsx",

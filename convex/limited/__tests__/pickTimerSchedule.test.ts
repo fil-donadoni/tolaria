@@ -1,5 +1,5 @@
 // Pure pick-timer schedule tests (ADR 0060, issue #1243). Table-driven
-// against the official MTGO/Wizards descending schedule, indexed by CARDS
+// against the Arena-like descending schedule (issue #9149), indexed by CARDS
 // REMAINING in the pack — the seam the per-pick deadline computation
 // (`draftEngine.ts`'s `assignFreshPack`) and a sub-15 Booster (ARN/ATQ, 8
 // cards) both rely on.
@@ -12,20 +12,20 @@ import {
 
 describe("pickTimerSecondsForCardsRemaining (ADR 0060, issue #1243)", () => {
     it.each([
-        [15, 40],
-        [14, 40],
-        [13, 35],
-        [12, 30],
-        [11, 25],
-        [10, 25],
-        [9, 20],
-        [8, 20],
-        [7, 15],
-        [6, 10],
-        [5, 10],
-        [4, 5],
-        [3, 5],
-        [2, 5],
+        [15, 75],
+        [14, 70],
+        [13, 65],
+        [12, 60],
+        [11, 55],
+        [10, 50],
+        [9, 45],
+        [8, 40],
+        [7, 35],
+        [6, 30],
+        [5, 30],
+        [4, 30],
+        [3, 30],
+        [2, 30],
     ])("cardsRemaining=%i -> %i seconds", (cardsRemaining, expectedSeconds) => {
         expect(pickTimerSecondsForCardsRemaining(cardsRemaining)).toBe(
             expectedSeconds
@@ -36,19 +36,27 @@ describe("pickTimerSecondsForCardsRemaining (ADR 0060, issue #1243)", () => {
         expect(pickTimerSecondsForCardsRemaining(1)).toBeNull();
     });
 
+    it("never goes below the 30 s floor for any scheduled pack size", () => {
+        for (let n = 2; n <= 15; n++) {
+            expect(pickTimerSecondsForCardsRemaining(n)).toBeGreaterThanOrEqual(
+                30
+            );
+        }
+    });
+
     it("returns null for 0 cards remaining (defensive)", () => {
         expect(pickTimerSecondsForCardsRemaining(0)).toBeNull();
     });
 
     it("a sub-15 pack (ARN/ATQ = 8 cards) starts lower on the SAME table, not a separate schedule", () => {
         // The very first pick of an 8-card pack has 8 cards remaining —
-        // indexing the same table gives 20s, exactly like the 8th pick of a
+        // indexing the same table gives 40s, exactly like the 8th pick of a
         // full 15-card Booster would.
-        expect(pickTimerSecondsForCardsRemaining(8)).toBe(20);
+        expect(pickTimerSecondsForCardsRemaining(8)).toBe(40);
     });
 
     it("clamps a larger-than-15 pack to the top of the schedule (defensive)", () => {
-        expect(pickTimerSecondsForCardsRemaining(20)).toBe(40);
+        expect(pickTimerSecondsForCardsRemaining(20)).toBe(75);
     });
 });
 
@@ -75,6 +83,6 @@ describe("autoPickTimeoutSecondsForCardsRemaining (issue #2278)", () => {
     });
 
     it("clamps a larger-than-15 pack to the top of the schedule, like the display half", () => {
-        expect(autoPickTimeoutSecondsForCardsRemaining(20)).toBe(40);
+        expect(autoPickTimeoutSecondsForCardsRemaining(20)).toBe(75);
     });
 });
