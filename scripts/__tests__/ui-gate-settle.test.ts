@@ -118,6 +118,23 @@ describe("settleState — pure over sampled snapshots", () => {
             reason: "2 animation(s) running, 1 backend request(s) in flight, a measured box kept moving",
         });
     });
+
+    it("an unsettled verdict names the moving element and its last two boxes (issue #9161)", () => {
+        const item = (box: string) => [
+            { id: "main[0]", box: "0,0,800,600,0,0" },
+            { id: "[data-picker][0]{data-slot=cards-pile}", box },
+        ];
+        const samples = [
+            sample(1900, { boxes: "a", items: item("10,10,157,200,0,0") }),
+            sample(2000, { boxes: "b", items: item("10,10,162,200,0,0") }),
+        ];
+        const state = settleState(samples, 0, POLICY);
+        expect(state.kind).toBe("unsettled");
+        if (state.kind !== "unsettled") return;
+        expect(state.reason).toContain(
+            "a measured box kept moving ([data-picker][0]{data-slot=cards-pile} moved 10,10,157,200,0,0 → 10,10,162,200,0,0)"
+        );
+    });
 });
 
 /** Just enough of a WebSocket for the instrument: it wraps `send` and listens

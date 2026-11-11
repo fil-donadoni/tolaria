@@ -50,6 +50,10 @@ export interface Measurement {
      *  counted as unevaluated, which is a FAIL — an assertion nobody ran is
      *  not an assertion that passed. */
     asserts?: readonly AssertResult[];
+    /** Printed card faces the raster probe found on the page (decorative art
+     *  excluded). Read by `evaluateRun` to contradict a missing `cards` flag
+     *  (issue #9161); absent when the probe did not run. */
+    printedFaces?: number;
 }
 
 /** A cell (surface × viewport) the machine cut short, standing after the
@@ -239,6 +243,12 @@ export interface EvaluateInput {
      *  attempts is never a missing row. */
     viewportsOf?: (surface: string) => readonly string[];
     unwalked: readonly UnwalkedSurface[];
+    /** Whether a surface declares `cards` (`Surface.cards`). The flag is a
+     *  claim the probe contradicts (issue #9161): a measured cell that reports
+     *  printed faces on a surface answering `false` reds the run, so no surface
+     *  opts out of the DPR 1 viewport by omission. Absent, no contradiction is
+     *  checked. */
+    drawsCards?: (surface: string) => boolean;
     diffScope?: DiffScope | null;
     /** The labels each surface PROMISES, in declaration order
      *  (`assertLabelsBySurface`, issue #3649). The expectation, not the
@@ -354,7 +364,22 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
 
             shapes.push({ surface, viewport, readings: m.readings });
             const broken = brokenFloors(m.readings);
-            if (broken.length > 0) {
+            const undeclaredFaces =
+                input.drawsCards?.(surface) === false
+                    ? (m.printedFaces ?? 0)
+                    : 0;
+            if (undeclaredFaces > 0) {
+                surfaceComplete = false;
+                rows.push({
+                    surface,
+                    viewport,
+                    verdict: "FAIL",
+                    detail: "printed card faces on a surface not flagged `cards`",
+                });
+                failures.push(
+                    `${surface} @ ${viewport}: ${undeclaredFaces} printed card face(s) on a surface not flagged \`cards\` — flag it so it owes the DPR 1 viewport, or list it in UNWALKED_SURFACES with an open issue`
+                );
+            } else if (broken.length > 0) {
                 surfaceComplete = false;
                 const said = broken
                     .map((b) => `${b.floor} ${b.reading}`)

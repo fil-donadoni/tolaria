@@ -153,20 +153,12 @@ export interface Surface {
      * viewport that can show the 1x resampling defect class. A surface
      * without the flag owes that viewport no cell. The flag is a claim the
      * probe can contradict — a flagged surface whose cell reports no printed
-     * face (`rasterN0`, no `printed`), or an unflagged one whose DPR 2 cells
-     * do — and the DPR 1 census that set it is recorded on PR #8321's
-     * thread; `ui-gate-viewports.test.ts` pins the surfaces it must cover.
-     *
-     * NOT YET FLAGGED, with their last DPR 1 reading (issue #8321's final
-     * census, the residue the PR states): `game-choice-prompt` — with the
-     * bitmap path OFF the cell settles and the probe reads the reported
-     * defect itself (`Grizzly Bears 112px grid alias 0.55`); with it ON the
-     * cell reads "a measured box kept moving" for 30 s with no face pending
-     * and no console error, not yet attributed (`docs/findings/`), while the
-     * same walk at DPR 2 settles in 23 s — and `game-combat`, never walked
-     * at DPR 1. `game-board` (hand 120px scaled slot, bitmap 0.18/0.00) and
-     * `game-source-choice` (120px scaled bitmap 0.09/0.00; its 64px stack
-     * face falls to `grid`, 0.06/0.00) joined the flag on that census.
+     * face (`rasterN0`, no `printed`) is read on the line, and an UNFLAGGED
+     * surface whose measured cell reports printed faces reds the run, naming
+     * the surface (`evaluateRun`, issue #9161): no surface opts out of the DPR 1
+     * viewport by omission. A surface that cannot hold the DPR 1 cell is listed
+     * in `UNWALKED_SURFACES` with its reason and an open issue, never left
+     * unflagged. `ui-gate-viewports.test.ts` pins the surfaces it must cover.
      */
     cards?: boolean;
     /**
@@ -5190,6 +5182,7 @@ export const SURFACES: readonly Surface[] = [
         // board.
         id: "game-combat",
         needsGame: true,
+        cards: true,
         // PLAIN CSS, always: a settle target is handed to `querySelectorAll`
         // inside the page (`settle.ts`'s `sampleSource`), which knows nothing
         // of Playwright's `:has-text()` — a pseudo-class here does not narrow
@@ -5281,6 +5274,7 @@ export const SURFACES: readonly Surface[] = [
         // same module as `game-zone-pile`, a different state of it.
         mounts: ["src/components/board/cards-pile.tsx"],
         needsGame: true,
+        cards: true,
         settleTargets: [CHOICE_PICKER],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Card-choice prompt — modal picker over the board",

@@ -275,6 +275,7 @@ export interface ViewportResult {
          *  into the `Measurement` below, so an N=1 and an N=5 run report the
          *  same assertion lines in the same order. */
         asserts?: Measurement["asserts"];
+        printedFaces?: Measurement["printedFaces"];
     }[];
     /** Surfaces this viewport could not reach, with the reason. */
     unreachable: readonly { surface: string; reason: string }[];
@@ -338,6 +339,7 @@ export function collectRun(input: {
                 viewport: result.viewport,
                 readings: m.readings,
                 asserts: m.asserts,
+                printedFaces: m.printedFaces,
             });
             measured.set(m.surface, list);
         }

@@ -390,6 +390,7 @@ function evaluate(
         definedSurfaceIds: SURFACE_IDS,
         viewportIds: matrix.map((v) => v.id),
         viewportsOf,
+        drawsCards: (surface) => SURFACE_BY_ID.get(surface)?.cards === true,
         unwalked: UNWALKED_SURFACES,
         diffScope,
         assertsBySurface: assertLabelsBySurface(SURFACES),
@@ -1369,6 +1370,7 @@ async function main(): Promise<number> {
                         surface: string;
                         readings: Readings;
                         asserts?: readonly AssertResult[];
+                        printedFaces?: number;
                     }[] = [];
                     /**
                      * Surfaces THIS viewport could not reach. It used to be
@@ -1795,6 +1797,7 @@ async function main(): Promise<number> {
                                 surface: surface.id,
                                 readings,
                                 asserts,
+                                printedFaces: probe.raster?.printed ?? 0,
                             });
                             if (outcome.value.shot) {
                                 failedCells.push({
