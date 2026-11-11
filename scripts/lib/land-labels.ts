@@ -19,3 +19,8 @@ export const HELD_LABEL = "queue:held";
  *  carries no marker, and `pr-refresh` treats every
  *  `ready-to-land` PR without it as the queue's. */
 export const MANUAL_LABEL = "merge:manual";
+/** A UI PR whose `check:ui` walk is owed and not yet done (issue #9122):
+ *  `/next-ticket` §5 puts it on a PR instead of walking in-session; the
+ *  collector (`check:ui:batch`) walks every such PR in ONE batch and removes
+ *  it. `land:ready` refuses a PR wearing it. */
+export const UI_OWED_LABEL = "ui-owed";

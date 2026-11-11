@@ -56,6 +56,7 @@
         "check:stubs": "bun scripts/check-stub-coverage.ts",
         "check:ts": "tsc -b --noEmit",
         "check:ui": "bun scripts/ui-gate/index.ts",
+        "check:ui:batch": "bun scripts/ui-gate/batch-collect.ts",
         "combos:import": "bun scripts/combos-import.ts",
         "convex:ensure": "bun scripts/convex-ensure.ts",
         "corpus:repin": "bun scripts/corpus-repin.ts",

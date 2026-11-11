@@ -111,7 +111,12 @@ import {
     readBackVerdict,
     type PrComment,
 } from "./lib/land-requeue";
-import { FAILED_LABEL, MANUAL_LABEL, READY_LABEL } from "./lib/land-labels";
+import {
+    FAILED_LABEL,
+    MANUAL_LABEL,
+    READY_LABEL,
+    UI_OWED_LABEL,
+} from "./lib/land-labels";
 import {
     healTwinBeforeLabel,
     parseTwinCheckRuns,
@@ -932,6 +937,12 @@ function main(): void {
     if (view.baseRefName !== BASE_BRANCH) {
         console.error(
             `✗ land:ready: PR #${pr} targets \`${view.baseRefName}\`, not \`${BASE_BRANCH}\` — \`gh pr edit ${pr} --base ${BASE_BRANCH}\`, then re-run`
+        );
+        process.exit(1);
+    }
+    if (view.labels.some((l) => l.name === UI_OWED_LABEL)) {
+        console.error(
+            `✗ land:ready: PR #${pr} wears \`${UI_OWED_LABEL}\` — its check:ui walk is owed and not done; \`bun run check:ui:batch\` walks every such PR in one batch and lands the clean ones (issue #9122)`
         );
         process.exit(1);
     }

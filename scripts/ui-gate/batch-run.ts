@@ -105,6 +105,18 @@ export function batchReceiptLines(
 
 type Log = (message: string) => void;
 
+/** What one batch settled, per PR — the collector's input (issue #9122). */
+export interface BatchOutcome {
+    /** Receipt-bearing PRs (written with `--write-receipts`). */
+    clean: number[];
+    /** PR → its red lines. */
+    red: Map<number, string[]>;
+    /** PRs the batch could not carry (not open, conflict, FULL scope). */
+    dropped: number[];
+    /** PRs whose scope holds a red surface no PR owns. */
+    unproven: number[];
+}
+
 interface Merged {
     head: BatchHead;
     /** The PR's own changed paths, base…head. */
@@ -374,7 +386,8 @@ export async function runBatch(
     prs: readonly number[],
     argv: readonly string[],
     root: string,
-    log: Log
+    log: Log,
+    onOutcome?: (outcome: BatchOutcome) => void
 ): Promise<number> {
     let passthrough: string[];
     try {
@@ -540,6 +553,12 @@ export async function runBatch(
                 `#${pr}: UNPROVEN — a red surface of its scope stays unattributed`
             );
         }
+        onOutcome?.({
+            clean: [...clean],
+            red: new Map(attribution.red),
+            dropped: [...dropped],
+            unproven,
+        });
         return clean.length === prs.length ? 0 : 1;
     }
 }

@@ -211,6 +211,11 @@ nor wait.
 - PR body: what changed, tests + a `proof` receipt per guarding test for the
   pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
+  An `owed` walk is **not run in-session** (issue #9122): label the PR
+  `ui-owed` (`gh pr edit <PR#> --add-label ui-owed`) and end the pass — `land:ready`
+  refuses it, and `bun run check:ui:batch` walks every `ui-owed` PR in ONE
+  batch, lands the clean ones, labels a red one `land-failed`. Scope
+  `undecided`/`FULL` is unchanged (below).
   `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
 - Drafter/Auto-Build/profile/catalogue diff: paste the `draft:audit:` lines
   (`quality-gates.md`, issue #8895).
