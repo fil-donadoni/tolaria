@@ -89,10 +89,7 @@ input).
 
 Stack resolves one item at a time, top-down; after each resolution priority
 restarts from the active player; both must pass consecutively to proceed.
-No priority timeout. vs-AI only: a Bot server deadline (`BOT_SERVER_DEADLINE_MS`
-60 s, `convex/botDeadline.ts`) — `saveGameState` arms ONE
-`botLiveness.checkDeadline` per game while the Bot is owed; same seq past it →
-force-advance (seq-checked, no cancel).
+No priority timeout; vs-AI Bot server deadline: `convex/botDeadline.ts`.
 BEGINNING (untap/upkeep/draw) → PRECOMBAT_MAIN → COMBAT (5 substeps) →
 POSTCOMBAT_MAIN → ENDING. Untap, cleanup automatic (no priority).
 
