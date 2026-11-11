@@ -35,6 +35,7 @@
         "check:cube-ratings": "bun scripts/check-cube-ratings.ts",
         "draft:audit": "bun scripts/draft-audit.ts",
         "census:check": "bun scripts/profile-census-check.ts",
+        "profiles:promote": "bun scripts/profiles-promote.ts",
         "check:test-hygiene": "bun scripts/check-test-hygiene.ts",
         "check:weight-noise": "bun scripts/check-weight-noise.ts",
         "backlog:triage": "bun scripts/backlog-triage.ts",
