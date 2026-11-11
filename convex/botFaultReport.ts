@@ -178,6 +178,11 @@ export function buildBotFaultIssueRequest(input: BotFaultIssueInput): {
         `**Source card:** ${fault.sourceCardName ?? "—"}`,
         `**Fault class:** \`${fault.faultClass}\``,
         `**Recovered by:** \`${fault.origin}\` → ${botFaultRecovery(fault)}`,
+        // The deadline fires only when no client acted (issue #9004): no
+        // diagnostics exist, and the report must not read as a client bug.
+        fault.origin === "server-deadline"
+            ? "**Note:** no client hand-off — driver dead or tab closed."
+            : null,
     ].filter((l): l is string => l !== null);
     const steps = fault.steps.map(
         (s, i) =>

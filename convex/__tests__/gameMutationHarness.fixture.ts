@@ -8,6 +8,7 @@
 // review flagged: a reimplementation can silently diverge from what's
 // actually deployed and never drives `saveGameState`, so the seq-bump / no-
 // partial-write contract goes untested).
+import { getFunctionName, type FunctionReference } from "convex/server";
 import type { MutationCtx } from "../_generated/server";
 import type { GameState } from "../gre/state";
 import { expandState } from "../gre/serialize";
@@ -39,6 +40,10 @@ export interface MutationStub {
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
+    /** Every `ctx.scheduler.runAfter`, in order — `name` is the scheduled
+     *  function's `getFunctionName` (`"botLiveness:checkDeadline"`). Nothing
+     *  runs: a test that wants the job drives its handler itself. */
+    scheduled: { delayMs: number; name: string; args: unknown }[];
     /** A ctx over the SAME document store, authenticated as another user —
      *  for a flow two players drive in turn (a 2-player Match). */
     asUser: (userId: string | null) => MutationCtx;
@@ -55,6 +60,7 @@ export function makeMutationCtx(
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
     const gets: string[] = [];
     const writes: { id: string; table?: string }[] = [];
+    const scheduled: MutationStub["scheduled"] = [];
     const authAs = (who: string | null) => ({
         getUserIdentity: async () =>
             who === null ? null : { subject: `${who}|session1` },
@@ -136,7 +142,16 @@ export function makeMutationCtx(
                 },
             }),
         },
-        scheduler: { runAfter: async () => undefined },
+        scheduler: {
+            runAfter: async (
+                delayMs: number,
+                fn: FunctionReference<"mutation" | "action", "internal">,
+                args: unknown
+            ) => {
+                scheduled.push({ delayMs, name: getFunctionName(fn), args });
+                return undefined;
+            },
+        },
     };
 
     return {
@@ -144,6 +159,7 @@ export function makeMutationCtx(
         doc: (id) => docs.get(id)!,
         gets,
         writes,
+        scheduled,
         // `saveGameState` persists the COMPACT form (`compactState`) — read
         // it back the same way the mutation's own `getLatestGameState` does
         // (`expandState`), or fields the compactor drops when falsy/default

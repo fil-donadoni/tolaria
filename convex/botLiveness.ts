@@ -1,16 +1,28 @@
 // The server half of the Bot liveness guarantee (PRD issue #8998): a vs-AI
 // game whose Bot is owed input moves on even when the Bot's client cannot
-// move it. Today one entry, `reportStall` — the client driver's HAND-OFF when
-// its escalation ladder ran out: the server force-advances the Bot's window
-// (`forceAdvanceOwedInput`, ADR 0178), saves, and files the fault through the
-// system bug-report channel. The player never clicks anything.
+// move it. Two entries share one enforce path (`enforceBotWindow`): the server
+// force-advances the Bot's window (`forceAdvanceOwedInput`, ADR 0178), files
+// the fault through the system bug-report channel and saves. The player never
+// clicks anything.
+//
+// - `reportStall` — the client driver's HAND-OFF when its escalation ladder
+//   ran out.
+// - `checkDeadline` — the server deadline: the one scheduled
+//   check per game `saveGameState` arms while the Bot is owed
+//   (`convex/botDeadline.ts`). It holds when no client acts at all.
 //
 // The Bot seat comes from `botSeatId` (`matches.ts`), the one derivation every
 // server path shares: no `botId` field exists, the Bot is the non-human seat.
 
 import { ConvexError, v, type Infer } from "convex/values";
-import { mutation } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import {
+    internalMutation,
+    mutation,
+    type MutationCtx,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+import { planBotDeadline } from "./botDeadline";
 import { getCurrentUserId } from "./auth";
 import type { BotFault } from "./botFaultReport";
 import { recordSystemBugReport } from "./bugReports";
@@ -181,27 +193,128 @@ export const reportStall = mutation({
         const owed = botOwedWindow(state, botId);
         if (!owed) return { advanced: false, reason: "not-owed" };
 
-        const result = forceAdvanceOwedInput(state, botId);
-        await recordSystemBugReport(ctx, {
+        const result = await enforceBotWindow(ctx, {
             gameId: args.gameId,
-            fault: botFaultFromForceAdvance({
-                origin: "client-handoff",
-                faultClass: args.cause ?? "ladder-exhausted",
-                state,
-                owed: owed.input,
-                result,
-            }),
-            // The state AT the fault, before the advance is saved over it.
-            snapshot: {
-                seq: gameState.seq,
-                state: state as unknown as Record<string, unknown>,
-            },
+            gameState,
+            botId,
+            owed: owed.input,
+            origin: "client-handoff",
+            faultClass: args.cause ?? "ladder-exhausted",
             clientDiagnostics: boundedDiagnostics(args.diagnostics),
         });
-
-        const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, result.state, gameState);
-        await finalizeGameOver(ctx, args.gameId, nextSeq, result.state);
         return { advanced: true, outcome: result.outcome };
+    },
+});
+
+/**
+ * The one enforce path both entries share: force-advance the Bot's owed
+ * window, file the fault as a system report (the frozen board is the state AT
+ * the fault, before the advance is saved over it), save the next seq and end
+ * the game if the advance did.
+ */
+async function enforceBotWindow(
+    ctx: MutationCtx,
+    input: {
+        gameId: Id<"games">;
+        gameState: Doc<"gameStates">;
+        botId: string;
+        owed: ExpectedInput;
+        origin: BotFault["origin"];
+        faultClass: string;
+        clientDiagnostics?: unknown;
+    }
+): Promise<ForceAdvanceResult> {
+    const { gameId, gameState } = input;
+    const state = gameState.state as GameState;
+    const result = forceAdvanceOwedInput(state, input.botId);
+    await recordSystemBugReport(ctx, {
+        gameId,
+        fault: botFaultFromForceAdvance({
+            origin: input.origin,
+            faultClass: input.faultClass,
+            state,
+            owed: input.owed,
+            result,
+        }),
+        snapshot: {
+            seq: gameState.seq,
+            state: state as unknown as Record<string, unknown>,
+        },
+        clientDiagnostics: input.clientDiagnostics,
+    });
+
+    const nextSeq = gameState.seq + 1;
+    await saveGameState(ctx, gameId, nextSeq, result.state, gameState);
+    await finalizeGameOver(ctx, gameId, nextSeq, result.state);
+    return result;
+}
+
+/** The fault class a server-deadline report carries: no client handed off. */
+export const DEADLINE_FAULT_CLASS = "deadline-expired";
+
+/** The note a server-deadline report keeps where a hand-off keeps the client's
+ *  diagnostics: there are none, because no client acted. */
+export const DEADLINE_DIAGNOSTICS = {
+    note: "no client hand-off — driver dead or tab closed",
+} as const;
+
+/**
+ * The server deadline (issue #9004, PRD issue #8998 layer 3): the ONE check
+ * `saveGameState` scheduled for state version `seq` while the Bot was owed.
+ * Decided by `planBotDeadline` off the tick row: the Bot no longer owed (it
+ * acted, or the game ended) → drop the marker; owed at a newer seq → arm again
+ * for that version's own deadline; same seq past the deadline → the driver is
+ * dead, so the server force-advances the window (origin `server-deadline`).
+ */
+export const checkDeadline = internalMutation({
+    args: { gameId: v.id("games"), seq: v.number() },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+        const tick = await ctx.db
+            .query("gameTicks")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .first();
+        if (!tick) return null;
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        const state = gameState?.state as GameState | undefined;
+        const botId =
+            gameState && state
+                ? botSeatId({ vsAi: gameState.vsAi, players: state.players })
+                : null;
+        const now = Date.now();
+        const action = planBotDeadline({
+            tick,
+            botId,
+            trigger: { kind: "check", seq: args.seq },
+            now,
+        });
+
+        if (action.kind === "arm") {
+            await ctx.scheduler.runAfter(
+                Math.max(0, action.at - now),
+                internal.botLiveness.checkDeadline,
+                { gameId: args.gameId, seq: action.seq }
+            );
+            await ctx.db.patch(tick._id, { botDeadlineAt: action.at });
+            return null;
+        }
+        // Every other outcome ends this check's watch: the marker goes BEFORE
+        // an enforce saves, so the save re-arms if the Bot is owed again.
+        await ctx.db.patch(tick._id, { botDeadlineAt: undefined });
+        if (action.kind !== "enforce" || !gameState || !state || !botId) {
+            return null;
+        }
+        const owed = botOwedWindow(state, botId);
+        if (!owed) return null;
+        await enforceBotWindow(ctx, {
+            gameId: args.gameId,
+            gameState,
+            botId,
+            owed: owed.input,
+            origin: "server-deadline",
+            faultClass: DEADLINE_FAULT_CLASS,
+            clientDiagnostics: DEADLINE_DIAGNOSTICS,
+        });
+        return null;
     },
 });

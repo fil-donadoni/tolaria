@@ -170,12 +170,16 @@ export const debugLoadBladeScenario = mutation({
         // The entry's position may place cards from outside both decks: widen
         // the Definition Manifest too, so the client loads them (issue #5614).
         await widenGameDefinitionManifests(ctx, args.gameId, state);
+        // The row as it now stands: a conversion's save must see `vsAi`, or the
+        // Bot server deadline (issue #9004) is not armed on its first save.
         await saveGameState(
             ctx,
             args.gameId,
             gameState.seq + 1,
             state,
-            gameState
+            convertedToVsAi
+                ? { ...gameState, solo: true, vsAi: true }
+                : gameState
         );
         return { convertedToVsAi, botPlayerId };
     },
