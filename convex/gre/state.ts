@@ -1446,6 +1446,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     spellWouldDestroyLandYouControl: true,
     spellTargetsPermanentFilter: true,
     spellWasKicked: true,
+    spellColorless: true,
 } satisfies Record<FilterKey & keyof PendingTarget, true> &
     Record<SpellFilterKey, true>;
 

@@ -15562,6 +15562,14 @@
         "firstPrintSet": "mid"
     },
     {
+        "name": "Consign to Memory",
+        "scryfallId": "bc95af55-d1dd-4fe6-adb0-3ad6db20d986",
+        "oracleId": "16c39265-72d9-4c86-a961-8dd38ff9adcd",
+        "firstSet": "mh3",
+        "firstPrintId": "bc95af55-d1dd-4fe6-adb0-3ad6db20d986",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Consign to the Pit",
         "scryfallId": "09991fad-4282-4a17-bfb1-03eaa13502df",
         "oracleId": "b0c50079-5376-47ff-82c5-d52dbf49afdf",

@@ -238,3 +238,41 @@ export const tamiyoInquisitiveStudent = defineCard(() => ({
         ],
     },
 }));
+
+// Consign to Memory — {U} Instant (MH3). "Replicate {1} (When you cast this
+// spell, copy it for each time you paid its replicate cost. You may choose new
+// targets for the copies.) Counter target triggered ability or colorless
+// spell."
+//
+// REPLICATE (CR 702.56a) is the `kickers[]` entry Lose Focus
+// (`sets/mh2/blue.cards.ts`) documents; nothing new here. The target is the
+// disjunction "triggered ability or colorless spell": `spellStackKind:
+// "spell-or-triggered-ability"` admits spells and triggered abilities but no
+// activated ones, and `spellColorless` (CR 105.2c) narrows only the spell
+// half. `counter` removes either stack object (CR 701.6a).
+// hand-tail: Counter target triggered ability or colorless spell. (#8821)
+export const consignToMemory = defineCard(() => ({
+    id: "bc95af55-d1dd-4fe6-adb0-3ad6db20d986",
+    name: "Consign to Memory",
+    rarity: "uncommon",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    oracleText:
+        "Replicate {1} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nCounter target triggered ability or colorless spell.",
+    kickers: [
+        {
+            id: "replicate",
+            keyword: "replicate",
+            description: "Replicate {1}",
+            multi: true,
+            mana: { X: 1 },
+        },
+    ],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        spellStackKind: "spell-or-triggered-ability",
+        spellColorless: true,
+    },
+    effects: [{ op: "counter", target: { target: 0 } }],
+}));

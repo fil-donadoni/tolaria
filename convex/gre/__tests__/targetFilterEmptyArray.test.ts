@@ -59,6 +59,7 @@ const SHAPE: Record<FilterKey, "array" | "other"> = {
     spellWouldDestroyLandYouControl: "other",
     spellTargetsPermanentFilter: "other",
     spellWasKicked: "other",
+    spellColorless: "other",
     playerAttackedThisTurn: "other",
     playerControlsMoreThan: "other",
     sameController: "other",
