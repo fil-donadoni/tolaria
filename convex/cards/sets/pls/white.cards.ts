@@ -883,37 +883,23 @@ export const planeswalkersMirth = defineCard(() => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────
-// Not registered: Sunscape Battlemage. Its OWN blocker (issue #1328) is
-// resolved — see its bullet — so it stays documented here for the
-// implementation notes but is no longer a Guard-B divergence; it is
-// intentionally NOT registered (no exported CardDefinition) to keep the card
-// pool honest.
+// Not registered: Sunscape Battlemage. It is intentionally NOT registered (no
+// exported CardDefinition) to keep the card pool honest until someone does the
+// ordinary card work; nothing in the engine blocks it.
 // ─────────────────────────────────────────────────────────────────────────
 //
 //   • Sunscape Battlemage (Creature) — "Kicker {1}{G} and/or {2}{U}\nWhen
 //     this creature enters, if it was kicked with its {1}{G} kicker, destroy
 //     target creature with flying.\nWhen this creature enters, if it was
 //     kicked with its {2}{U} kicker, draw two cards." Each ETB clause is a
-//     SEPARATELY-firing `TriggeredAbility` (CR 603.6a, a new stack item
-//     pushed after the permanent enters) whose `interveningIf` needs to read
-//     WHICH kicker was paid. That was the blocker when this note was
-//     written: nothing persisted a per-Kicker tally onto the entering
-//     permanent for a later-firing trigger to read (issue #1328's gap 1,
-//     "ETB-trigger readability of kicker" — Shivan Emissary / Benalish
-//     Emissary, `inv/*.ts`, the shipped precedent for leaving a card
-//     unshipped rather than working around it). NO LONGER APPLIES, and #1328
-//     itself CLOSED once it shipped: `kickerPayments` is now a typed,
-//     serialized field on `CardInstanceState`/`PermanentView` (#1950), and
-//     `additionalCostPaidCondition` (`abilities/triggers/shared.ts`, issue #2015) is
-//     the shared per-Kicker CHECK-TIME predicate its three shipped cycle
-//     siblings already use — paired, as they all are, with a resolution-time
+//     SEPARATELY-firing `TriggeredAbility` (CR 603.6a) that must know WHICH
+//     kicker was paid. `kickerPayments` on `CardInstanceState` /
+//     `PermanentView` records it, and `additionalCostPaidCondition`
+//     (`abilities/triggers/shared.ts`) is the per-Kicker check-time predicate
+//     its shipped cycle siblings use — paired with a resolution-time
 //     `if { additionalCostPaid: "<id>" }` branch inside the ability's own
-//     `effects[]` rather than an `interveningIf`; see that helper's doc block
-//     for why that branch is the load-bearing one (CR 707.10 ability copies),
-//     and why the blink hazard it used to guard against is gone. The card is
-//     unblocked
-//     and needs only ordinary card work — out of scope for issue #2560
-//     (a stale-reference fix, not a card implementation).
+//     `effects[]` (see that helper's doc block for why that branch is the
+//     load-bearing one, CR 707.10 ability copies).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS C4 — source-scoped prevention shields + divided allocation (#1955,
