@@ -223,9 +223,9 @@ describe("SpatialSlot grown cards (issue #9164)", () => {
         expect(Number(m![2]) + (CARD_HEIGHT * 1.5) / 2).toBeCloseTo(100);
     });
 
-    it("shrinks the layout box instead of CSS-downscaling (always sharp)", () => {
+    it("keeps the base box and a transform scale when shrunk", () => {
         const el = slotOf(place({ scale: 0.5 }));
-        expect(el.style.width).toBe(`${Math.round(CARD_WIDTH * 0.5)}px`);
-        expect(el.style.transform).toContain("scale(1)");
+        expect(el.style.width).toBe(`${CARD_WIDTH}px`);
+        expect(el.style.transform).toContain("scale(0.5)");
     });
 });
