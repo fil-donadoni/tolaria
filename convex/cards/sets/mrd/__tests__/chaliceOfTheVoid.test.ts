@@ -35,9 +35,6 @@ function stateWith(charge: number, spellId: string): GameState {
         ownerId: "p2",
         zone: "hand",
     });
-    const def = getCardByName(
-        spellId === GRIZZLY_BEARS ? "Grizzly Bears" : "Black Lotus"
-    );
     return makeState({
         players: [
             makePlayer("p1", { battlefield: [chalice] }),
@@ -51,7 +48,7 @@ function stateWith(charge: number, spellId: string): GameState {
         pendingCast: {
             playerId: "p2",
             cardInstanceId: "spell",
-            manaCost: def.manaCost,
+            manaCost: spellId === GRIZZLY_BEARS ? { G: 1, generic: 1 } : {},
             tappedLandIds: [],
         },
     });
