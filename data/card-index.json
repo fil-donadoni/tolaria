@@ -59183,6 +59183,14 @@
         "source": "compiled"
     },
     {
+        "name": "Planeswalker's Favor",
+        "scryfallId": "b3387540-93bf-451e-8e7a-fc78caab42b0",
+        "oracleId": "1990753c-06a7-4e1f-bc0e-905a9ba6e293",
+        "firstSet": "pls",
+        "firstPrintId": "b3387540-93bf-451e-8e7a-fc78caab42b0",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Planeswalker's Fury",
         "scryfallId": "6fa09e3a-bc7e-4292-aa5d-ce97c1b1f79f",
         "oracleId": "2e482522-2eef-4f6c-887a-fcc51be61dc2",
@@ -59204,6 +59212,14 @@
         "oracleId": "78e87805-19e3-415b-ad0b-3275183d7297",
         "firstSet": "pls",
         "firstPrintId": "79aa232c-3f16-4c68-99dc-09a7aeef477b",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Planeswalker's Scorn",
+        "scryfallId": "8ed08376-836f-4313-83d0-481895ead9da",
+        "oracleId": "52cebfb0-0302-40d9-9a3f-f875dbf43659",
+        "firstSet": "pls",
+        "firstPrintId": "8ed08376-836f-4313-83d0-481895ead9da",
         "firstPrintSet": "pls"
     },
     {
