@@ -58,6 +58,7 @@ import {
     planBatch,
     planFilename,
     inFlightSet,
+    ownerWaitPrsOf,
     parseStalledPrHours,
     stalledPrLine,
     stalledPrsOf,
@@ -1010,7 +1011,8 @@ function main(): void {
         prs.files,
         (n) => port.issueDetail(n).body,
         config.inferredTargetFiles,
-        new Set(config.stalledPrs.map((p) => p.pr))
+        new Set(config.stalledPrs.map((p) => p.pr)),
+        ownerWaitPrsOf(prs.facts)
     );
 
     const plan = planBatch(
