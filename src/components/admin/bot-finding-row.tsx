@@ -34,8 +34,7 @@ import BotFindingTrace from "./bot-finding-trace";
  * line says what the class held at the previous measurement.
  *
  * Human fields (issue #4182): the admin's note, linked issue and snooze reason
- * show on the row and the admin controls sit behind a disclosure. A Draft Lab
- * report (issue #8900) also shows the context that reruns its draft. A triage
+ * show on the row and the admin controls sit behind a disclosure. A triage
  * row — a human report with no Reproducer — says so and has no copy button.
  */
 export default function BotFindingRow({

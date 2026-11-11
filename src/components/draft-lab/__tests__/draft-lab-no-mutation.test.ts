@@ -195,13 +195,12 @@ describe("the ONE allowed Draft Lab write (ADR 0074 Amendment I, issue #8900)", 
     const source = fs.readFileSync(path.join(REPO_ROOT, allowed.file), "utf-8");
     const call = `useMutation(${allowed.mutation})`;
 
-    it("the allowlist holds exactly the Bot Finding report", () => {
-        expect(ALLOWED_WRITES).toEqual([
-            {
-                file: "src/components/draft-lab/draft-lab-report-finding-form.tsx",
-                mutation: "api.botFindings.reportDraftFinding",
-            },
-        ]);
+    it("the allowlist is one entry, and it is the only Draft Lab file holding a mutation", () => {
+        expect(ALLOWED_WRITES).toHaveLength(1);
+        const holders = collectDraftLabFiles()
+            .filter((f) => /useMutation/.test(fs.readFileSync(f, "utf-8")))
+            .map((f) => path.relative(REPO_ROOT, f));
+        expect(holders).toEqual([allowed.file]);
     });
 
     it("the allowed file makes that one call, once, and is in the scan", () => {

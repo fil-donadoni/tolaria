@@ -7,8 +7,8 @@
 // is `seed`, an INTERNAL mutation `bun run seed:bot-findings` reaches through
 // `convex run`; no public mutation can write a measured field. The public
 // mutations (issue #4182) write HUMAN fields only — a report, a note, a linked
-// issue, Reproducer labels, a snooze, a Draft Lab deck report (issue #8900) —
-// and are `assertIsAdmin`-gated too.
+// issue, Reproducer labels, a snooze, a Draft Lab deck report — and are
+// `assertIsAdmin`-gated too.
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
