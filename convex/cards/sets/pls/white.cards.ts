@@ -833,7 +833,7 @@ export const voiceOfAll = defineCard(() => ({
 // a card at random from their hand. You gain life equal to that card's mana
 // value." Effect Script (ADR 0045): CR 701.20a random reveal (`reveal` with
 // `random: true` — the card stays in the opponent's hand, known to every
-// player) bound as a one-card picks set, then CR 119.1 life gain of the CR
+// player) bound as a one-card picks set, then CR 119.3 life gain of the CR
 // 202.3 mana value read back off that set in the HAND (`sum` with `zone:
 // "hand"`). An empty hand reveals nothing and the sum over the empty set is 0.
 // compiler-gap: Target opponent reveals a card at random from their hand (#4592)

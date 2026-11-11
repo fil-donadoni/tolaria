@@ -1052,7 +1052,7 @@ function resolveValue(
         // CR 701.20a — a card revealed from hand is still in the hand, so a
         // random-reveal binding is looked up there (CR 402); every other
         // picks binding names cards its Op left in the graveyard (CR 404).
-        const cards =
+        const cards: ReadonlyArray<{ id: string; manaValue: number }> =
             value.sum.zone === "hand"
                 ? ctx.getHandCards(playerId)
                 : ctx.getGraveyardCards(playerId);
