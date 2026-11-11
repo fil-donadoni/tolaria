@@ -1,4 +1,10 @@
-import { Table, TableBody, TableHeader, TableRow } from "~/components/ui/table";
+import {
+    Table,
+    TableBody,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "~/components/ui/table";
 import type { ScopeCardRating } from "~/hooks/useCardRatings";
 import { nextSort, type SortState } from "~/lib/adminTableSort";
 import AdminSortableHead from "../tool/admin-sortable-head";
@@ -14,6 +20,9 @@ interface PickRatingsTableProps {
     cards: ScopeCardRating[];
     sort: SortState<RatingSortKey>;
     onSort: (sort: SortState<RatingSortKey>) => void;
+    /** The card open in the rating dialog, highlighted here. */
+    openCardId: string | null;
+    onOpen: (cardId: string) => void;
 }
 
 /** The sortable table: every column header sorts (`aria-sort`). */
@@ -21,6 +30,8 @@ export default function PickRatingsTable({
     cards,
     sort,
     onSort,
+    openCardId,
+    onOpen,
 }: PickRatingsTableProps) {
     return (
         <Table>
@@ -34,6 +45,9 @@ export default function PickRatingsTable({
                             onSort={() => onSort(nextSort(sort, key))}
                         />
                     ))}
+                    <TableHead>
+                        <span className="sr-only">Actions</span>
+                    </TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -42,6 +56,9 @@ export default function PickRatingsTable({
                         key={card.cardId}
                         card={card}
                         columns={RATING_COLUMNS}
+                        open={card.cardId === openCardId}
+                        dialogOpen={openCardId !== null}
+                        onOpen={() => onOpen(card.cardId)}
                     />
                 ))}
             </TableBody>
