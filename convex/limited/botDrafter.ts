@@ -651,6 +651,19 @@ function baseRatingTerm(
     };
 }
 
+/** A candidate's context-free base value on the Pick Rating scale — its Pick
+ *  Rating from the layered lookup when one rates it, else the quality
+ *  heuristic mapped onto the same scale. Exactly the pick's `baseRating`
+ *  term, exported so Auto-Build scores a spell by the value the seat drafted
+ *  it by (PRD #8772: one quality authority for pick time and build time). */
+export function candidateBaseRating(
+    candidate: CardEvalMeta,
+    getPickRating?: GetPickRating
+): number {
+    const rating = getPickRating ? getPickRating(candidate.cardId) : null;
+    return baseRatingTerm(candidate, rating).value;
+}
+
 /** Colour commitment (PRD #1107 story 29; pip-weighted, ADR 0073 issue
  *  #1610): rewards a candidate whose coloured PIPS match a colour the Pool
  *  is already invested in, at a slope that STEEPENS once the seat is

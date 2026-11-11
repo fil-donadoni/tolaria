@@ -454,7 +454,7 @@ export interface DraftLabSeatDeck {
 }
 
 /** Auto-Builds EVERY seat of a completed Lab draft with the server's own
- *  `autoBuildDeck`, the profile lookup the draft scored with (the session's
+ *  `autoBuildDeck`, the rating and profile lookups the draft scored with (the session's
  *  `cardProfileRows` snapshot over the seed) and canonical-printing basics —
  *  the Lab has no drafted Set's `cardPrints` to choose a printing from, and a
  *  basic's printing changes no build decision. Pure: the same state builds the
@@ -469,6 +469,9 @@ export function buildDraftLabSeatDecks(
         );
     }
     const getCardProfile = draftLabSessionCardProfile(state);
+    // The rating lookup the draft picked by (`stepDraftLab`'s), so the build
+    // values each spell as the seat drafted it.
+    const getPickRating = buildDraftLabPickRating(state.packSlots);
     const resolveBasicLand = makeResolveBasicLand("", new Map());
     return state.seats.map((seat) => {
         const pool = seat.pool ?? [];
@@ -479,7 +482,7 @@ export function buildDraftLabSeatDecks(
                 pool,
                 draftLabGetAutoBuildCardMeta,
                 resolveBasicLand,
-                { getCardProfile }
+                { getCardProfile, getPickRating }
             ),
         };
     });
