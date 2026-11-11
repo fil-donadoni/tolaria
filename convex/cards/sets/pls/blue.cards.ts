@@ -267,14 +267,10 @@ export const huntingDrake = defineCard(() => ({
 // sorcery." (CR 701.20a public reveal, CR 701.13 exile, CR 601.3 temporary
 // cast permission, CR 603.7a delayed trigger.)
 //
-// protocol card (gre-development.md § DSL-first authoring): a PUBLIC
-// "reveal a card at random from hand" has no Op skin — only the PRIVATE
-// sibling `lookRandomHand` (a single-knower look) is wired into the
-// interpreter; `SpellContext.revealRandomHandCard` (the public primitive
-// this card needs) has no DSL wrapper. tracked-by: #2003 (opened for
-// Planeswalker's Scorn, the black member of this same "Planeswalker's ___"
-// cycle — the Op this card needs is the identical gap). The exile →
-// grant-cast → conditional-return sequence composes `revealRandomHandCard` +
+// protocol card (gre-development.md § DSL-first authoring): the PUBLIC
+// random reveal alone has a DSL shape (`reveal { zone: "hand", random: true,
+// bind }`, as its cycle siblings Mirth / Favor / Scorn use), but the
+// exile → grant-cast → conditional-return sequence composes `revealRandomHandCard` +
 // `moveCardById` + `grantCastFromExile` + a legacy `delayedTriggers[]`
 // template exactly like the established Elkin Bottle / Ice Cauldron /
 // Robber of the Rich precedent (`ice/colorless.cards.ts`, `eld/red.cards.ts`) — no Op

@@ -16746,13 +16746,14 @@ export type EffectPlayerCountersValue = {
  *
  *  `zone` + `player` say where those ids are looked up, exactly as
  *  `picksMatchFilter` already does for its own predicate, and through the SAME
- *  `SpellContext.getGraveyardCards` reader (CR 404). `"graveyard"` is the only
- *  member today because it is the only zone where a picks binding survives its
- *  own Op: `mill` / `discard` / a graveyard `choice` all leave their cards
- *  there. A single-member union rather than an implicit constant so the axis is
- *  NAMED — widening it is one branch, and the shape of an author's call does
- *  not change when it happens (the precedent is `EffectZonePositionSelector`'s
- *  own `zone: "graveyard"`).
+ *  `SpellContext.getGraveyardCards` / `getHandCards` readers (CR 404 / CR
+ *  402). A picks binding names cards in the zone its Op left them in:
+ *  `"graveyard"` after `mill` / `discard` / a graveyard `choice`, `"hand"`
+ *  after `reveal { zone: "hand", random: true, bind }` — a revealed card stays
+ *  in its owner's hand (CR 701.20a), so "you gain life equal to that card's
+ *  mana value" (Planeswalker's Mirth) is the sum over that one-card set, read
+ *  in the hand. A closed union rather than an implicit constant so the axis is
+ *  NAMED (the precedent is `EffectZonePositionSelector`'s own `zone`).
  *
  *  `read` is likewise a single-member union naming the characteristic axis.
  *  `manaValue` is CR 202.3's printed mana value with `{X}` folded to 0 outside
@@ -16773,7 +16774,7 @@ export type EffectPlayerCountersValue = {
  *  IS 0. Only an unresolvable `player` yields undefined, which skips the
  *  consuming Op the way any missing player ref does.
  *
- *  An id in the binding that is no longer in that graveyard contributes
+ *  An id in the binding that is no longer in that zone contributes
  *  nothing: this value reads the zone LIVE rather than replaying a CR 608.2h
  *  snapshot. That is a deliberate deviation from 608.2h's "determined only
  *  once, when the effect is applied", taken because the alternative — snapshot
@@ -16786,7 +16787,7 @@ export type EffectSumValue = {
     sum: {
         of: EffectRef;
         read: "manaValue";
-        zone: "graveyard";
+        zone: "graveyard" | "hand";
         player: EffectPlayerRef;
     };
 };

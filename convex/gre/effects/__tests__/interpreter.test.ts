@@ -37542,6 +37542,180 @@ describe("random hand reveal gated on the revealed card's name (CR 701.20a, issu
     });
 });
 
+// `sum { zone: "hand" }` over a `reveal { random: true }` binding (CR 701.20a /
+// 202.3, issue #2003) — "Target opponent reveals a card at random from their
+// hand. You gain life equal to that card's mana value." The revealed card stays
+// in the opponent's hand, so the bound set is read THERE. A one-card hand
+// forces the seeded pick.
+describe("life gain equal to a randomly revealed hand card's mana value (CR 701.20a / 202.3, issue #2003)", () => {
+    function gainRevealedManaValue(hand: string[]): GameState {
+        const effects = [
+            {
+                op: "reveal",
+                player: "opponent",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    sum: {
+                        of: { ref: "$revealed" },
+                        read: "manaValue",
+                        zone: "hand",
+                        player: "opponent",
+                    },
+                },
+            },
+        ] as unknown as EffectOp[];
+        expect(validateEffectScript({ effects } as never)).toEqual([]);
+        const id = registerScript(
+            `test-random-reveal-mv-${hand.join("-") || "empty"}`,
+            effects
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: hand.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `p2-hand-${i}`,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        })
+                    ),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("gains life equal to the revealed card's mana value, read in the hand", () => {
+        const state = gainRevealedManaValue([GOLD_CREATURE_ID]);
+        expect(state.players[0].life).toBe(23);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2-hand-0"]);
+        // CR 701.20a — shown to all players, like every other reveal shape.
+        expect(
+            (state.pendingReveals ?? []).map((r) => [
+                r.cards.map((c) => c.instanceId),
+                [...r.audience].sort(),
+            ])
+        ).toEqual([[["p2-hand-0"], ["p1", "p2"]]]);
+    });
+
+    it("an empty hand reveals nothing → gains 0", () => {
+        const state = gainRevealedManaValue([]);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("the gain and the now-known card survive projection (wire format)", () => {
+        const state = gainRevealedManaValue([BEAR_ID]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(22);
+        expect(projected.players[1].hand[0]?.id).toBe("p2-hand-0");
+    });
+
+    it("a plain sum is a legal signed pump amount (+X/+X)", () => {
+        const sumValue = {
+            sum: {
+                of: { ref: "$revealed" },
+                read: "manaValue",
+                zone: "hand",
+                player: "opponent",
+            },
+        };
+        const effects = [
+            {
+                op: "reveal",
+                player: "opponent",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: sumValue,
+                toughness: sumValue,
+                duration: { phase: "end-of-turn" },
+            },
+        ] as unknown as EffectOp[];
+        expect(validateEffectScript({ effects } as never)).toEqual([]);
+        const id = registerScript("test-random-reveal-mv-pump", effects);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p1", id: "bearP" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(GOLD_CREATURE_ID, {
+                            id: "p2-hand-0",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearP" }]);
+        resolveTopOfStack(state);
+        const pumped = state.players[0].battlefield.find(
+            (c) => c.id === "bearP"
+        )!;
+        expect(getEffectivePower(state, pumped)).toBe(5);
+        expect(getEffectiveToughness(state, pumped)).toBe(8);
+    });
+
+    it("the graveyard zone does not see a card still in the hand", () => {
+        const effects = [
+            {
+                op: "reveal",
+                player: "opponent",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    sum: {
+                        of: { ref: "$revealed" },
+                        read: "manaValue",
+                        zone: "graveyard",
+                        player: "opponent",
+                    },
+                },
+            },
+        ] as unknown as EffectOp[];
+        const id = registerScript("test-random-reveal-mv-graveyard", effects);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(GOLD_CREATURE_ID, {
+                            id: "p2-hand-0",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
 // `returnToHandAtNextUntap` (CR 502.3, issue #5509) — the Op's permanent test.
 // The untap-step consumption lives in
 // `gre/__tests__/returnToHandAtNextUntap.test.ts`; here: the Op marks the
