@@ -60,7 +60,7 @@ import {
     normalizeManaCost,
     normalizeMayPayCost,
 } from "../state";
-import { getEffectivePower, getEffectivePT } from "../layers";
+import { beginLayer7Pass, getEffectivePower, getEffectivePT } from "../layers";
 import { instanceManaValue } from "../paymentPicks";
 import { tryGetDefinition } from "../../cards";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
@@ -82,7 +82,11 @@ import {
 import { exileCastPermitted } from "../castCost";
 import { getLegalActions } from "../rules";
 import { isCreature, isLand } from "../constants";
-import { asEntersDiscardPays, isLandDropOpen } from "./asEntersDiscard";
+import {
+    asEntersDiscardPays,
+    isLandDropOpen,
+    LAND_LIGHT_LANDS_IN_PLAY,
+} from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
@@ -125,7 +129,7 @@ import { findTriggeredAbility } from "../copy";
 import { offeredModeLists } from "../modeSelection";
 import { rankModeListsByScriptValue } from "./cardScriptValue";
 import { canPayMiracleCost } from "../miracle";
-import { handLatentLens } from "../evaluate";
+import { cardValue, handLatentLens } from "../evaluate";
 import { withLatentLens } from "./grounding";
 import { landTypeCanMatter } from "./futileShield";
 
@@ -1482,8 +1486,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  position one Op into the resolution: the discard spell spent, the mana
  *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
  *  Answered here with the chooser's own best keep: it sheds its `min` least
- *  valuable cards, ties broken by identity, the same worth-first order the
- *  client's discard policy falls back to (`brain.ts`). The probe's settle asks
+ *  valuable cards in `forcedDiscardShedOrder`. The probe's settle asks
  *  (`answerOpponent`), and since issue #4917 so do the tree walk and the
  *  rollout (`advanceToDecision`, search.ts): no leaf is scored mid-resolution.
  *
@@ -1522,20 +1525,11 @@ export function forcedChoiceAnswer(
     if (min <= 0) return null;
     const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
     const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
-    const shed = (
+    const shed = forcedDiscardShedOrder(
+        state,
+        owner,
         allow ? owner.hand.filter((c) => allow.has(c.id)) : owner.hand
-    )
-        .map((card) => ({
-            card,
-            identity: stableCardIdentity(card),
-            worth: prospectiveCardWorth(state, card),
-        }))
-        .sort(
-            (a, b) =>
-                a.worth - b.worth ||
-                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
-        )
-        .slice(0, min);
+    ).slice(0, min);
     return {
         kind: "resolution-choice",
         stackItemId: choice.stackItemId,
@@ -1543,6 +1537,54 @@ export function forcedChoiceAnswer(
         choiceId: choice.choiceId,
         cardInstanceIds: shed.map((p) => p.card.id),
     };
+}
+
+/** The order a mandatory discard sheds `owner`'s hand cards in, least
+ *  valuable first, ties broken by identity.
+ *
+ *  A card is priced at what `evaluate`'s hand term charges for it — its
+ *  `cardValue` against this board (`handLatentLens`) — because the playout
+ *  that takes this answer is scored by that term: shedding by any other
+ *  ranking leaves the leaf a hand it values less than the one it could have
+ *  kept. The zone-blind `prospectiveCardWorth` is such a ranking: a basic
+ *  held on a flooded board reads 30 there against a 3/3's 28, so the
+ *  cleanup discard (CR 514.1) kept the spare lands and binned the
+ *  creatures, and any line that drew past seven cards — an "any number"
+ *  look-and-keep — scored below the line that drew nothing (issue #9118).
+ *
+ *  One exception, the live Brain's (`discardPriority`, `brain.ts`): a land
+ *  held while its owner has at most `LAND_LIGHT_LANDS_IN_PLAY` lands in play
+ *  is the next land drop, and is shed after every other card. */
+function forcedDiscardShedOrder(
+    state: GameState,
+    owner: PlayerState,
+    cards: CardInstanceState[]
+): { card: CardInstanceState; identity: string }[] {
+    const landLight =
+        owner.battlefield.filter(isLand).length <= LAND_LIGHT_LANDS_IN_PLAY;
+    const pass = beginLayer7Pass(state);
+    const weights = DEFAULT_EVAL_WEIGHTS;
+    return cards
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            protectedLand: landLight && isLand(card) && !isCreature(card),
+            worth: cardValue(
+                state,
+                card,
+                handLatentLens(state, owner.id, card, weights),
+                weights.latent,
+                pass,
+                weights.latentCreatureDiscount,
+                weights.latentFlashCreatureDiscount
+            ),
+        }))
+        .sort(
+            (a, b) =>
+                Number(a.protectedLand) - Number(b.protectedLand) ||
+                a.worth - b.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
 }
 
 /** The search's answer to an as-enters copy off the battlefield (CR 614.1c,
