@@ -23,7 +23,7 @@ import {
     type AnchorMap,
     type AnchorPoint,
 } from "~/lib/target-arrow-geometry";
-import type { StackItem } from "~/types/game";
+import type { Combat, StackItem } from "~/types/game";
 import BoardArrows from "../board-arrows";
 
 function stackItem(id: string, targets?: StackItem["targets"]): StackItem {
@@ -395,5 +395,87 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
             ])
         );
         expect(getByTestId("nodes").textContent).toBe("none");
+    });
+});
+
+describe("BoardArrows — quiet at rest, hovered relationship above a focus veil (issue #9326)", () => {
+    beforeEach(() => cleanup());
+
+    const strengthOf = (root: ParentNode, key: string) =>
+        root
+            .querySelector(`path[data-arrow-key="${key}"]`)
+            ?.getAttribute("data-arrow-strength");
+
+    it("a stack target arrow rests quiet; no veil while nothing is hovered", () => {
+        const { container } = renderHoverBoard(HOVER_STACK, HOVER_ANCHORS);
+        expect(strengthOf(container, "s1->permanent:perm:")).toBe("quiet");
+        expect(document.querySelector("[data-testid='arrow-focus-veil']")).toBe(
+            null
+        );
+    });
+
+    it("hovering the arrow veils the board and redraws it emphasized ABOVE the veil, not in the board layer", () => {
+        const { getByTestId, container } = renderHoverBoard(
+            HOVER_STACK,
+            HOVER_ANCHORS
+        );
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+        });
+        expect(
+            document.querySelector("[data-testid='arrow-focus-veil']")
+        ).toBeTruthy();
+        const focus = document.querySelector(
+            "[data-testid='arrow-focus-arrows']"
+        )!;
+        expect(strengthOf(focus, "s1->permanent:perm:")).toBe("emphasized");
+        const board = container.querySelector("[data-testid='board-arrows']")!;
+        expect(strengthOf(board, "s1->permanent:perm:")).toBeUndefined();
+
+        fireEvent.pointerLeave(getByTestId("board-root"));
+        expect(document.querySelector("[data-testid='arrow-focus-veil']")).toBe(
+            null
+        );
+        expect(strengthOf(container, "s1->permanent:perm:")).toBe("quiet");
+    });
+
+    it("a combat arrow keeps its filament at rest and never raises the veil", () => {
+        const combat = {
+            attackerIds: ["atk"],
+            blockerAssignments: { atk: ["blk"] },
+        } as unknown as Combat;
+        const { container, getByTestId } = render(
+            <div data-board-root data-testid="board-root">
+                <ArrowAnchorProvider>
+                    <ArrowHighlightProvider>
+                        <Publisher
+                            entries={[
+                                {
+                                    kind: "permanent",
+                                    id: "blk",
+                                    point: { x: 0, y: 0 },
+                                },
+                                {
+                                    kind: "permanent",
+                                    id: "atk",
+                                    point: { x: 200, y: 0 },
+                                },
+                            ]}
+                        />
+                        <BoardArrows stack={[]} combat={combat} />
+                    </ArrowHighlightProvider>
+                </ArrowAnchorProvider>
+            </div>
+        );
+        expect(strengthOf(container, "block:blk->atk")).toBe("normal");
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+        });
+        expect(strengthOf(container, "block:blk->atk")).toBe("emphasized");
+        expect(document.querySelector("[data-testid='arrow-focus-veil']")).toBe(
+            null
+        );
     });
 });
