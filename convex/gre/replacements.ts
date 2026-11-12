@@ -249,6 +249,9 @@ export function buildPermanentView(card: CardInstanceState): PermanentView {
         faceDownBy: card.faceDownBy,
         chosenModeId: card.chosenModeId,
         counters: card.counters,
+        // CR 716.2a — a replacement printed in a class level bar reads its own
+        // level (`classLevelOf`); without it every Class reads as level 1.
+        classLevel: card.classLevel,
         card: card.card as Record<string, unknown>,
     };
 }
