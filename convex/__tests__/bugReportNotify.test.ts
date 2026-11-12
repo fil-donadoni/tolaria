@@ -17,7 +17,8 @@ import {
     utcDayStart,
     type NotifyDeps,
 } from "../bugReportNotify";
-import { REPORT_LABELS } from "../bugReports";
+import { buildIssueRequest } from "../bugReports";
+import type { Id } from "../_generated/dataModel";
 
 type Row = Record<string, unknown>;
 type Handler<C, A, R> = { _handler: (ctx: C, args: A) => Promise<R> };
@@ -47,13 +48,17 @@ function indexQuery(table: Row[]) {
     };
 }
 
-describe("REPORT_LABELS (issue #9013)", () => {
-    it("always needs-triage, never ready-for-agent", () => {
-        expect(REPORT_LABELS).toContain("needs-triage");
-        expect(REPORT_LABELS).toContain("user-report");
-        expect(REPORT_LABELS as readonly string[]).not.toContain(
-            "ready-for-agent"
-        );
+describe("filed issue labels (issue #9013)", () => {
+    it("every report is stamped needs-triage and never ready-for-agent", () => {
+        const request = buildIssueRequest({
+            name: "Ada",
+            description: "Freeze",
+            gameSection: null,
+            reportId: "rep1" as Id<"bugReports">,
+        });
+        expect(request.labels).toContain("user-report");
+        expect(request.labels).toContain("needs-triage");
+        expect(request.labels).not.toContain("ready-for-agent");
     });
 });
 
