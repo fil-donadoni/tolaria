@@ -11,11 +11,11 @@
  *     `seed:bot-findings`, then `gaps:sync` — only when the base moved the
  *     Bot's globs since the last successful refresh (`batchTouchesBot`). It
  *     measures the CURRENT `origin/<base>` tip, in a throwaway worktree.
- *   - WEEKLY (`auditsDue`), the blade robustness audit (issue #4875), in
+ *   - WEEKLY (`auditsDue`), the blade robustness audit, in
  *     FULL, on the tip the last health verdict is about — the audit script
  *     follows a GREEN or RED record and never writes one
  *     (`lib/health-robustness-audit.ts`). Held-out pick agreement is no audit
- *     here: it is run by hand after `verdicts:promote` (issue #8698).
+ *     here: it is run by hand after `verdicts:promote`.
  *
  * Neither can red a tip or write the RED marker: a failed refresh leaves the
  * page stale, a failed audit leaves its own record. Every CPU-bound step goes
