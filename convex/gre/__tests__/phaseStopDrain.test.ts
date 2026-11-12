@@ -170,7 +170,7 @@ describe("drainAutoPasses takes Phase Stop skips (ADR 0077)", () => {
 
     it("never passes a response window: a spell on the stack stops the drain", () => {
         const state = upkeep(BOTH_DEFAULT);
-        pushSpell(state, BOLT, "p1", [{ kind: "player", playerId: "p2" }]);
+        pushSpell(state, BOLT, "p1", [{ type: "player", id: "p2" }]);
         passPriorityOnState(state, "p1");
         expect(state.stack).toHaveLength(1);
         expect(state.priorityPlayerId).toBe("p2");
