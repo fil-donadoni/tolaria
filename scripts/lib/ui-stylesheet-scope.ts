@@ -18,7 +18,8 @@
  *     classes / elements, attribute selectors and combinators → its classes;
  *   - `@keyframes NAME` → the classes of every rule in the same sheet that
  *     names NAME (each judged by the same rules), plus NAME itself, so a
- *     module writing it inline is an owner too;
+ *     module writing it inline, or a Tailwind `animate-NAME` /
+ *     `animate-[NAME…]` utility, is an owner too;
  *   - anything else — `:root`, `html`, `*`, a type selector, `&` nesting,
  *     `@theme`, `@font-face`, `@property`, a top-level statement — → `null`:
  *     the stylesheet stays global (`full`), as before.
@@ -305,9 +306,22 @@ export function classOwners(
     files: ReadonlyMap<string, string>
 ): string[] {
     const tokens = [...confinement.classes, ...confinement.keyframes];
+    // Tailwind's `animate-NAME` / `animate-[NAME_…]` utilities play keyframes
+    // NAME (built-ins like `spin` included), so writing one owns NAME.
+    const animateUtilities = [...confinement.keyframes].map(
+        (k) =>
+            new RegExp(
+                `(?<![\\w-])animate-\\[?${escapeRegExp(k)}(?![A-Za-z0-9-])`
+            )
+    );
     const owners: string[] = [];
     for (const [file, source] of files) {
-        if (tokens.some((t) => namesToken(source, t))) owners.push(file);
+        if (
+            tokens.some((t) => namesToken(source, t)) ||
+            animateUtilities.some((re) => re.test(source))
+        ) {
+            owners.push(file);
+        }
     }
     return owners.sort();
 }

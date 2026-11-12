@@ -134,6 +134,8 @@ describe("classOwners", () => {
         ["src/b.tsx", "const c = `frame-${seat}`;"],
         ["src/c.tsx", `<div className="frame-halfway" />`],
         ["src/d.tsx", `style={{ animation: "frame-pulse 1s" }}`],
+        ["src/e.tsx", `<svg className="size-4 animate-spin" />`],
+        ["src/f.tsx", `<i className="animate-[spin_2s_linear]" />`],
     ]);
 
     it("whole tokens and template prefixes own a class; a longer token does not", () => {
@@ -152,6 +154,15 @@ describe("classOwners", () => {
                 files
             )
         ).toEqual(["src/b.tsx", "src/d.tsx"]);
+    });
+
+    it("a Tailwind animate utility owns the keyframes it plays (built-ins included)", () => {
+        expect(
+            classOwners(
+                { classes: new Set(), keyframes: new Set(["spin"]) },
+                files
+            )
+        ).toEqual(["src/e.tsx", "src/f.tsx"]);
     });
 
     it("a class nothing names is dead: no owner", () => {
