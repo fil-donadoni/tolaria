@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { CURVE_MAX_BUCKET } from "../../convex/limited/botDrafter";
 import { EMPTY_PROFILE_LAYERS } from "../../convex/limited/cardProfilesCore";
+import { archetypeScopeShareForPackSlots } from "../../convex/limited/planArchetype";
 import {
     buildDraftLabCardProfile,
     buildDraftLabSeatDecks,
@@ -126,11 +127,17 @@ export function runDraftAudit(
         packSlots,
         EMPTY_PROFILE_LAYERS
     );
+    // `runFullDraftLab` snapshots no DB profile rows, so the build reads the
+    // same seed-only profiles this share is computed from.
+    const scopeShare = archetypeScopeShareForPackSlots(
+        packSlots,
+        getCardProfile
+    );
     const decks: DeckAudit[] = [];
     for (const seed of seeds) {
         const state = runFullDraftLab(seed, packSlots);
         for (const seat of buildDraftLabSeatDecks(state)) {
-            decks.push(auditSeatDeck(seed, seat, getCardProfile));
+            decks.push(auditSeatDeck(seed, seat, getCardProfile, scopeShare));
         }
     }
     return {
@@ -170,7 +177,12 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         meanCastability: 0.86,
         worstDeckCastability: 0.77,
         // The plan-first build raised it past the baseline's 0.47.
-        meanPlanShare: 0.52,
+        // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
+        // control is the plan of 18 seats (was 38) and six plans are built.
+        // Plan share counts spells carrying the plan's tag, so a narrower
+        // plan reads a plan-neutral card (cheap removal) as off-plan and
+        // lowers it by construction (0.526 → 0.505).
+        meanPlanShare: 0.5,
         meanCapabilityPairs: 16.71,
     },
     lea: {

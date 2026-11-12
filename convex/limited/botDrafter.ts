@@ -937,7 +937,7 @@ export interface PoolProfileEntry {
  *  unreviewed layer). Each term reads ITS OWN layer's flag (ADR 0167, issue
  *  #8890): reviewing a card's Capabilities never unlocks its Archetypes.
  *  Read by Archetype Fit and the Archetype Signal. */
-function archetypeLayerWeight(profile: CardProfile): number {
+export function archetypeLayerWeight(profile: CardProfile): number {
     return profile.archetypesReviewed ? 1 : UNREVIEWED_PROFILE_WEIGHT;
 }
 

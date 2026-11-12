@@ -12,10 +12,16 @@ import {
     pipCastability,
 } from "@convex/limited/castability";
 import {
+    archetypeCommitment,
     curveBucket,
     CURVE_MAX_BUCKET,
+    poolProfiles,
     sourceCountsByColor,
 } from "@convex/limited/botDrafter";
+import {
+    choosePlanArchetype,
+    type ArchetypeScopeShare,
+} from "@convex/limited/planArchetype";
 import type {
     CardProfile,
     GetCardProfile,
@@ -95,27 +101,6 @@ export function mean(values: readonly number[]): number | null {
         : values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function deepestArchetype(
-    poolMetas: readonly AutoBuildCardMeta[],
-    getCardProfile: GetCardProfile
-): string | null {
-    const depth = new Map<string, number>();
-    for (const meta of poolMetas) {
-        for (const a of getCardProfile(meta.cardId)?.archetypes ?? []) {
-            depth.set(a, (depth.get(a) ?? 0) + 1);
-        }
-    }
-    let best: string | null = null;
-    let bestDepth = 0;
-    for (const [a, d] of [...depth].sort(([x], [y]) => x.localeCompare(y))) {
-        if (d > bestDepth) {
-            best = a;
-            bestDepth = d;
-        }
-    }
-    return best;
-}
-
 function countCapabilityPairs(
     profiles: ReadonlyMap<string, CardProfile>
 ): number {
@@ -148,7 +133,8 @@ function unreviewedShare(
 export function auditSeatDeck(
     seed: number,
     seat: DraftLabSeatDeck,
-    getCardProfile: GetCardProfile
+    getCardProfile: GetCardProfile,
+    scopeShare: ArchetypeScopeShare | null
 ): DeckAudit {
     const resolved = seat.deck.cards.map((c) =>
         draftLabGetAutoBuildCardMeta(c.cardId)
@@ -172,7 +158,13 @@ export function auditSeatDeck(
     const poolMetas = seat.pool
         .map((c) => draftLabGetAutoBuildCardMeta(c.scryfallId))
         .filter((m): m is AutoBuildCardMeta => m !== null);
-    const planArchetype = deepestArchetype(poolMetas, getCardProfile);
+    // The plan the build chose: the same function, the same scope share
+    // (issue #9298).
+    const planArchetype = choosePlanArchetype(
+        archetypeCommitment(poolProfiles(poolMetas, getCardProfile)),
+        poolMetas.length,
+        scopeShare
+    );
     const planShare =
         planArchetype === null || spells.length === 0
             ? null
