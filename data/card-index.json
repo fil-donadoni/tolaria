@@ -7624,6 +7624,14 @@
         "source": "compiled"
     },
     {
+        "name": "Blade of the Bloodchief",
+        "scryfallId": "7e4b42e5-0e60-4148-907e-456d9f3043be",
+        "oracleId": "8985e545-07c3-45f9-9058-fe3c1f50de04",
+        "firstSet": "zen",
+        "firstPrintId": "7e4b42e5-0e60-4148-907e-456d9f3043be",
+        "firstPrintSet": "zen"
+    },
+    {
         "name": "Blade of the Sixth Pride",
         "scryfallId": "f6ccfe28-ec08-4751-b65c-c40b2bafa955",
         "oracleId": "b7894010-fdba-498e-97de-22bd70332439",
