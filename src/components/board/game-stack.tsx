@@ -3,8 +3,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
-import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
-import { isBarredByRequiredTargetChoice } from "~/lib/targeting";
+import { wantsSpellTarget } from "~/lib/card-utils";
+import { isLegalStackTarget } from "~/lib/target-candidates";
 import { isStackChoiceCandidate } from "~/lib/pending-choice-labels";
 import { PendingChoiceBufferContext } from "~/hooks/usePendingChoiceBuffer";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -454,28 +454,18 @@ export default function GameStack({
                                 } flex-col gap-2 overflow-y-auto p-2`}
                             >
                                 {visible.map((item, i) => {
-                                    // ADR 0068 / issue #1956 — ONE composed predicate
-                                    // covering every client-checked spell filter (the
-                                    // per-filter chain that used to live here is where
-                                    // a newly added filter silently went missing).
+                                    // The shared stack candidate predicate
+                                    // (`target-candidates.ts`, ADR 0068).
                                     const isTargetable =
                                         canTargetSpell &&
-                                        matchesSpellPendingTarget(
+                                        isLegalStackTarget(
                                             item,
                                             pendingTarget,
                                             {
-                                                playerId,
+                                                viewerId: playerId,
                                                 activePlayerId,
-                                                players: allPlayers,
+                                                allPlayers,
                                             }
-                                        ) &&
-                                        // CR 601.2c — a target-choice requirement
-                                        // (Flagbearer) narrows this pick to permanents
-                                        // on the battlefield, so no stack object is a
-                                        // legal choice while one binds.
-                                        !isBarredByRequiredTargetChoice(
-                                            pendingTarget,
-                                            item.id
                                         );
 
                                     const isSourceCandidate =
