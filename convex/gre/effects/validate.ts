@@ -5202,16 +5202,19 @@ const OP_SCHEMAS: OpSchemaTable = {
                     // the graveyard by the delayed trigger that watched it
                     // die. CR 400.7 — and a graveyard card a sweep over the
                     // announced set (`forEach { set: "targets", zone:
-                    // "graveyard" }`) returns to its owner's hand.
+                    // "graveyard" }`) returns to its owner's hand or shuffles
+                    // into its owner's library (CR 701.24a).
                     if (
                         entry.to !== "battlefield" &&
                         !(
                             entry.from === "graveyard" &&
-                            (entry.to === "exile" || entry.to === "hand")
+                            (entry.to === "exile" ||
+                                entry.to === "hand" ||
+                                entry.to === "library")
                         )
                     ) {
                         errors.push(
-                            'field "from" is only valid with "target" and to: "battlefield", or from: "graveyard" with to: "exile" or "hand"'
+                            'field "from" is only valid with "target" and to: "battlefield", or from: "graveyard" with to: "exile", "hand" or "library"'
                         );
                     }
                     const sel = entry.target as
