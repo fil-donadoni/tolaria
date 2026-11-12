@@ -308,3 +308,64 @@ export const tamiyoCollectorOfTales = defineCard(() => ({
         },
     ],
 }));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ashiok, Dream Render — {1}{U/B}{U/B} Legendary Planeswalker — Ashiok,
+// starting loyalty 5 (CR 306.5b).
+//   • STATIC — "Spells and abilities your opponents control can't cause their
+//     controller to search their library." A `player-guard` with the
+//     `opponentsCantSearch` clause (CR 101.2 — the "can't" wins): a search of
+//     the controller's own library by an opponent's spell or ability finds
+//     nothing and opens no prompt (`isOpponentSearchProhibited`,
+//     `gre/permanentGuard.ts`, consulted by the `search-library`
+//     `requestChoice` funnel in `gre/state.ts`; CR 701.23a).
+//   • −1 — "Target player mills four cards. Then exile each opponent's
+//     graveyard." `mill` of the announced player target, then the bulk
+//     `moveZone` graveyard → exile of the controller's opponent (CR 400.7).
+//
+// hand-tail: -1: Target player mills four cards. Then exile each opponent's graveyard. (#8596)
+export const ashiokDreamRender = defineCard(() => ({
+    id: "f2df3258-c053-48a8-974f-d80899b2cd93",
+    name: "Ashiok, Dream Render",
+    rarity: "uncommon",
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["U", "B"],
+            ["U", "B"],
+        ],
+    },
+    types: ["Planeswalker"],
+    subtypes: ["Ashiok"],
+    supertypes: ["Legendary"],
+    loyalty: 5,
+    oracleText:
+        "Spells and abilities your opponents control can't cause their controller to search their library.\n−1: Target player mills four cards. Then exile each opponent's graveyard.",
+    staticEffects: [
+        {
+            kind: "player-guard",
+            id: "ashiok-dream-render-opponents-cant-search",
+            opponentsCantSearch: true,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "ashiok-dream-render-minus1",
+            // CR 606.2 / 606.4 — loyalty ability; `-1` removes one counter.
+            cost: { loyalty: -1 },
+            useStack: true,
+            oracleText:
+                "−1: Target player mills four cards. Then exile each opponent's graveyard.",
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                { op: "mill", player: { target: 0 }, count: 4 },
+                {
+                    op: "moveZone",
+                    player: "opponent",
+                    from: "graveyard",
+                    to: "exile",
+                },
+            ],
+        },
+    ],
+}));
