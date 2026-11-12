@@ -6,7 +6,7 @@
 // unaffected. The −1 (mill four, then exile each opponent's graveyard) is
 // covered through the same real card.
 
-import { describe, it, expect } from "vitest";
+import { describe, it as baseIt, expect } from "vitest";
 import {
     makeInstance,
     makePlayer,
@@ -23,6 +23,11 @@ import { projectPublicState } from "../../gameProjections";
 
 const bears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const ashiok = ashiokDreamRender();
+
+/** Every case registers the real card definition for its extent, so the suite
+ *  never depends on a regenerated catalogue artefact. */
+const it = (name: string, fn: () => void): void =>
+    baseIt(name, () => withTemporaryDefinition(ashiok, fn));
 
 const TUTOR: CardDefinition = {
     id: "test-8596-tutor",
