@@ -53,6 +53,7 @@ import {
     kickedCastOffered,
     altCostCastOffered,
     namesCardAbsentFromLibrary,
+    keepsEveryEligibleCard,
     FORCED_SACRIFICE_BOARD,
     sacrificeKeepsOrder,
     PASSES_TO_OWN_NEXT_MAIN,
@@ -15705,6 +15706,90 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #4895 (issue #4758 review), fixed by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins on the spot (CR 104.2b). The win check is the Op AFTER the trigger's look-and-distribute keep (CR 401.4), and `look-distribute` had no candidate generator, so neither the 1-ply probe nor the tree got past the keep — the search passed on 5/5 seeds. The opponent's library is five cards deep so passing does not win by decking within the horizon: with both libraries at one card, passing ALSO read as a won game and the material tie-break preferred the later win with Thassa still in hand. With the generator 5/5 cast on `mean-reward`; without it 1/5.",
+    },
+    {
+        // Issue #9118 — an "any number" look-and-keep that draws the
+        // hand past seven: Torsten's ETB on a flooded board, six Hill Giants
+        // already in hand, six of the seven looked-at cards creatures or
+        // lands. Keeping all six wins on every axis — the cleanup discard
+        // (CR 514.1) then sheds the worst of twelve, never worse than the six
+        // the empty keep holds.
+        label: "look-distribute: Torsten keeps every eligible card past the hand size",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Torsten, Founder of Benalia",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Hill Giant", owner: "me", zone: "hand", count: 6 },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+                // The looked-at window, top-first: Giant Growth is the one
+                // card the creature/land filter leaves on the bottom.
+                ...[
+                    "Grizzly Bears",
+                    "Forest",
+                    "Giant Growth",
+                    "Hill Giant",
+                    "Plains",
+                    "Craw Wurm",
+                    "Forest",
+                ].map((name, i) => ({
+                    name,
+                    owner: "me" as const,
+                    zone: "library" as const,
+                    position: i + 1,
+                })),
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Shivan Dragon", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Lightning Bolt",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 3,
+                },
+                { name: "Mountain", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 7,
+            libraryCount: 0,
+        },
+        setup: [
+            { kind: "cast", card: "Torsten, Founder of Benalia", by: "me" },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate`: the claim is the WHOLE eligible set, which a
+            // partial `moves` matcher cannot state (two Forests, and a Hill
+            // Giant in hand beside the one in the window).
+            predicate: (move, state) => keepsEveryEligibleCard(move, state, 6),
+            describe: "keeps all six eligible creature and land cards",
+        },
+        note: "Issue #9118. Both keeps read the same saturated rollout reward, so the material tie-break decided on the rollouts' margin — and the rollout's cleanup discard (`forcedChoiceAnswer`) shed by `prospectiveCardWorth`, which prices a flooded basic (30) above a Hill Giant (28): the twelve-card hand kept the spare lands and binned the creatures, landing below the six Hill Giants the empty keep held. The discard now sheds by the hand term's own `cardValue` (Forest 8, Hill Giant 128). Proof-of-failure: restoring `prospectiveCardWorth` as the shed worth reds this entry.",
     },
     // Issue #8709 — the one-turn Thassa's Oracle + Demonic Consultation win,
     // sequenced Oracle first with Consultation in response to the trigger.

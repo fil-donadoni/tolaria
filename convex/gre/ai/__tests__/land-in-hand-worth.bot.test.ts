@@ -1,11 +1,11 @@
 /**
  * A land in hand is priced by its holder's land count (issue #4932).
  *
- * `forcedChoiceAnswer` sheds the chooser's least valuable cards by
- * `prospectiveCardWorth`. A land held in hand used to price flat whatever its
- * holder had in play, so a player with no lands discarded them first and kept
- * spells it could not cast. CR 701.9b: the discarding player chooses, and the
- * bot's choice is the cheapest cards by worth.
+ * A land held in hand used to price flat whatever its holder had in play, so
+ * a player with no lands discarded them first and kept spells it could not
+ * cast. CR 701.9b: the discarding player chooses, and the bot's choice is the
+ * cheapest cards by worth — since issue #9118 the worth `evaluate`'s hand term
+ * charges, with a land-light holder's lands shed last.
  */
 
 import { describe, expect, it } from "vitest";
@@ -74,6 +74,7 @@ function shedIds(s: GameState): string[] {
 const FOREST = getCardByName("Forest").id;
 const ANGEL = getCardByName("Serra Angel").id;
 const COUNTER = getCardByName("Counterspell").id;
+const BEARS = getCardByName("Grizzly Bears").id;
 
 const HAND: SpecCard[] = [
     { name: "Forest", owner: "opp", zone: "hand" },
@@ -114,5 +115,22 @@ describe("forcedChoiceAnswer — a land-light player keeps its land (issue #4932
             inHand
         );
         expect(flat).toBe(30);
+    });
+});
+
+describe("forcedChoiceAnswer — sheds what the hand term values least (issue #9118)", () => {
+    it("CR 701.9b: on a flooded board the discard of two sheds the spare land and the 2/2, never the 3/3", () => {
+        // The zone-blind worth priced a flooded basic (30) above a Hill Giant
+        // (28), so the cleanup discard kept spare lands and binned creatures
+        // the leaf's hand term values far above them.
+        const s = midMindRot(
+            [
+                { name: "Forest", owner: "opp", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                { name: "Hill Giant", owner: "opp", zone: "hand" },
+            ],
+            5
+        );
+        expect(shedIds(s).sort()).toEqual([BEARS, FOREST].sort());
     });
 });
