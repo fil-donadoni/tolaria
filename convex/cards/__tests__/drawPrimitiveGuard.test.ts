@@ -119,6 +119,13 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         classification: "protocol",
     },
     {
+        file: "vow/green.cards.ts",
+        count: 1,
+        cards: "Cultivator Colossus",
+        reason: "unbounded conditional repeat (may put a land, if you do draw and repeat): the DSL's four frozen constructs have no loop, so the loop is a protocol resolve() -- no missing Op.",
+        classification: "protocol",
+    },
+    {
         file: "voc/blue.cards.ts",
         count: 1,
         cards: "Occult Epiphany",
