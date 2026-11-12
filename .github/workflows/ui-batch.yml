@@ -2,8 +2,9 @@
 # #9122). A PR whose diff owes a browser walk wears `ui-owed` and `land:ready`
 # refuses it; `bun run check:ui:batch` walks every such PR in ONE batch, lands
 # the clean ones, labels a red one `land-failed` (the dispatcher's repair
-# pick) and comments a DROPPED / UNPROVEN one, which stays `ui-owed` until a
-# new push (the hold comment names the head it judged).
+# pick) and comments a DROPPED / UNPROVEN one, which stays `ui-owed` (the hold
+# comment names the head it judged — and the base, unless the hold is the
+# head's own: a new push, or a new base for a transient hold, retries it).
 #
 # Two jobs. `probe` (GitHub-hosted, ≈ 30 s, the `lane` runner untouched)
 # counts the owed PRs; with none the run ends there — no worktree, no

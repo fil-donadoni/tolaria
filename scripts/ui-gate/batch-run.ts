@@ -116,12 +116,19 @@ export interface BatchOutcome {
     dropped: DroppedPr[];
     /** PRs whose scope holds a red surface no PR owns. */
     unproven: number[];
+    /** The base sha the batch merged onto (issue #9264: a transient hold is
+     *  retried once the base moves). */
+    base: string;
 }
 
 /** A PR the batch could not carry, and why (issue #9210). */
 export interface DroppedPr {
     pr: number;
     reason: string;
+    /** A property of the head itself (not open against the base, a FULL /
+     *  undecided scope) — true until a new push; otherwise (a fetch error, a
+     *  conflict with a sibling) the next base may carry it (issue #9264). */
+    intrinsic?: boolean;
 }
 
 interface Merged {
@@ -173,9 +180,12 @@ function fetchHead(
         return drop((err as Error).message);
     }
     if (info.state !== "OPEN" || info.baseRefName !== BASE_BRANCH) {
-        return drop(
-            `${info.state}, base ${info.baseRefName} (a batch merges open PRs against ${BASE_BRANCH})`
-        );
+        return {
+            ...drop(
+                `${info.state}, base ${info.baseRefName} (a batch merges open PRs against ${BASE_BRANCH})`
+            ),
+            intrinsic: true,
+        };
     }
     if (!tryGit(["fetch", "--quiet", "origin", `pull/${pr}/head`], root)) {
         return drop(`could not fetch pull/${pr}/head`);
@@ -459,7 +469,7 @@ export async function runBatch(
                     unscoped.push(m);
                     const reason = `its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`;
                     log(`batch: dropped #${m.head.pr} — ${reason}`);
-                    dropped.push({ pr: m.head.pr, reason });
+                    dropped.push({ pr: m.head.pr, reason, intrinsic: true });
                 }
             }
             if (unscoped.length === 0) break;
@@ -479,6 +489,7 @@ export async function runBatch(
                 red: new Map(),
                 dropped: dropped.map((d) => ({ ...d })),
                 unproven: [],
+                base: baseSha,
             });
             return 1;
         }
@@ -580,6 +591,7 @@ export async function runBatch(
             red: new Map(attribution.red),
             dropped: dropped.map((d) => ({ ...d })),
             unproven,
+            base: baseSha,
         });
         return clean.length === prs.length ? 0 : 1;
     }

@@ -759,8 +759,9 @@ itself ~1.4 s, its hosted job ≈ 30 s, the `lane` runner untouched), and only
 when one is owed does the collector run on the `lane` runner, serialised with
 the other lane jobs by the runner label; one batch costs one SCOPED walk, at
 most the full walk's ~15 min (not separately measured: the first scheduled
-runs' job time is the measurement). A PR held at its current head is not
-re-walked until a new push; an infra exit (3, 4, 77) touches no PR and exits
+runs' job time is the measurement). A held PR is not re-walked on the same
+facts: the head's own hold (not open, FULL / undecided scope) waits for a new
+push, any other (a sibling conflict, a fetch error, UNPROVEN) for a new base; an infra exit (3, 4, 77) touches no PR and exits
 0 as INFRA. By hand: `bun run check:ui:batch [PR#…]`.
 
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)

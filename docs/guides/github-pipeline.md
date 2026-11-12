@@ -1208,8 +1208,10 @@ waits for someone at the keyboard.
 | `collect` | `owed` ≠ 0                            | `[self-hosted, lane]` | `bun run check:ui:batch --ci` — one batch walk       |
 
 **What it does.** The probe lists the open `ui-owed` PRs, minus any held
-(DROPPED / UNPROVEN) at its current head — the hold comment names the head it
-judged, so the same head is never re-walked until a new push. With none, the
+(DROPPED / UNPROVEN) on the same facts — the hold comment names the head it
+judged: a hold that is the head's own (not open, a FULL / undecided scope)
+waits for a new push; any other (a conflict with a sibling, a fetch error,
+UNPROVEN) also names the base and is retried once the base moves. With none, the
 run ends on the hosted runner: no worktree, no browser, no `lane` time. Else
 `collect` walks them in one batch from its [job worktree](#g-job-worktree):
 the clean ones get their receipt and `land:ready`, a red one `land-failed`

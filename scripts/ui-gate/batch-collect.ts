@@ -16,9 +16,11 @@
  * head. A refusal there is commented and the label stays off.
  *
  * A held PR (DROPPED / UNPROVEN) keeps `ui-owed`; its comment carries the
- * head it was judged at (`heldMarker`), and a PR held at its CURRENT head is
- * not owed again until a new push: a scheduled run never re-walks the same
- * head forever. Naming PRs on the command line bypasses that filter.
+ * head it was judged at (`heldMarker`), so a scheduled run never re-walks the
+ * same facts forever. A hold that is the head's own (not open, a FULL /
+ * undecided scope) waits for a new push; any other (a conflict with a
+ * sibling, a fetch error, UNPROVEN) also names the base and is retried once
+ * the base moves. Naming PRs on the command line bypasses that filter.
  *
  *   --probe  print the owed PRs, write `owed=<N>` to $GITHUB_OUTPUT; no walk
  *   --ci     an infra exit (`INFRA_EXITS`) that settled nothing exits 0 as
@@ -33,6 +35,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { FAILED_LABEL, UI_OWED_LABEL } from "../lib/land-labels.ts";
 import { gh } from "../lib/gh.ts";
+import { BASE_BRANCH } from "../lib/branches.ts";
 import { INFRA_EXIT } from "../lib/infra-exit.ts";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable.ts";
 import { DEPLOYMENT_SKEW_EXIT } from "../lib/deployment-skew.ts";
@@ -41,7 +44,7 @@ import { runBatch, type BatchOutcome } from "./batch-run.ts";
 export type CollectAction =
     | { kind: "land"; pr: number }
     | { kind: "fail"; pr: number; comment: string }
-    | { kind: "hold"; pr: number; comment: string };
+    | { kind: "hold"; pr: number; comment: string; intrinsic: boolean };
 
 /** The action each PR of a settled batch gets. Pure. */
 export function planCollect(outcome: BatchOutcome): CollectAction[] {
@@ -54,10 +57,11 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
             comment: `check:ui batch walk: RED\n\n\`\`\`\n${red.join("\n")}\n\`\`\``,
         });
     }
-    for (const { pr, reason } of outcome.dropped) {
+    for (const { pr, reason, intrinsic } of outcome.dropped) {
         actions.push({
             kind: "hold",
             pr,
+            intrinsic: intrinsic === true,
             comment: `check:ui batch walk: #${pr} was DROPPED — ${reason}. It stays \`${UI_OWED_LABEL}\`; rebase it, or walk it alone with \`bun run check:ui\`.`,
         });
     }
@@ -65,15 +69,17 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
         actions.push({
             kind: "hold",
             pr,
+            intrinsic: false,
             comment: `check:ui batch walk: #${pr} is UNPROVEN — a red surface of its scope is owned by no single PR. It stays \`${UI_OWED_LABEL}\`; walk it alone with \`bun run check:ui\`.`,
         });
     }
     return actions;
 }
 
-/** The marker a hold comment carries: the head the batch judged. */
-export function heldMarker(sha: string): string {
-    return `<!-- check-ui-batch-held: ${sha} -->`;
+/** The marker a hold comment carries: the head the batch judged, and the
+ *  base for a hold that is not the head's own (a new base retries it). */
+export function heldMarker(head: string, base?: string): string {
+    return `<!-- check-ui-batch-held: ${head}${base ? ` base ${base}` : ""} -->`;
 }
 
 /** An open `ui-owed` PR as `gh pr list` returns it. */
@@ -83,16 +89,16 @@ export interface OwedPr {
     comments: { body: string }[];
 }
 
-/** The PRs a scheduled batch owes a walk: every listed PR except one already
- *  held at its current head (issue #9264). Pure. */
-export function owedFrom(prs: readonly OwedPr[]): number[] {
+/** The PRs a scheduled batch owes a walk: every listed PR except one held
+ *  at its current head — for good, or on the current base (issue #9264).
+ *  Pure. */
+export function owedFrom(prs: readonly OwedPr[], base: string): number[] {
+    const held = (p: OwedPr) =>
+        [heldMarker(p.headRefOid), heldMarker(p.headRefOid, base)].some((m) =>
+            p.comments.some((c) => c.body.includes(m))
+        );
     return prs
-        .filter(
-            (p) =>
-                !p.comments.some((c) =>
-                    c.body.includes(heldMarker(p.headRefOid))
-                )
-        )
+        .filter((p) => !held(p))
         .map((p) => p.number)
         .sort((a, b) => a - b);
 }
@@ -125,6 +131,15 @@ export function summaryRows(outcome: BatchOutcome): string[] {
     ];
 }
 
+function baseTip(): string {
+    return gh([
+        "api",
+        `repos/{owner}/{repo}/branches/${BASE_BRANCH}`,
+        "--jq",
+        ".commit.sha",
+    ]).trim();
+}
+
 function listOwed(): OwedPr[] {
     return JSON.parse(
         gh([
@@ -149,14 +164,18 @@ function comment(pr: number, body: string): void {
 function apply(
     action: CollectAction,
     heads: ReadonlyMap<number, string>,
+    base: string,
     log: (m: string) => void
 ): void {
     const pr = String(action.pr);
     if (action.kind === "hold") {
         const head = heads.get(action.pr);
+        const marker = action.intrinsic
+            ? heldMarker(head ?? "")
+            : heldMarker(head ?? "", base);
         comment(
             action.pr,
-            head ? `${action.comment}\n\n${heldMarker(head)}` : action.comment
+            head ? `${action.comment}\n\n${marker}` : action.comment
         );
         return;
     }
@@ -226,7 +245,7 @@ async function main(): Promise<number> {
     const named = args.filter((a) => /^\d+$/.test(a)).map(Number);
     const listed = named.length > 0 ? [] : listOwed();
     const heads = new Map(listed.map((p) => [p.number, p.headRefOid]));
-    const prs = named.length > 0 ? named : owedFrom(listed);
+    const prs = named.length > 0 ? named : owedFrom(listed, baseTip());
     if (args.includes("--probe")) {
         log(
             `collect: ${prs.length} PR(s) owed${prs.length ? `: ${prs.map((p) => `#${p}`).join(" ")}` : ""}`
@@ -262,7 +281,8 @@ async function main(): Promise<number> {
     const settled: BatchOutcome = outcome;
     if (ci)
         writeTo("GITHUB_STEP_SUMMARY", `${summaryRows(settled).join("\n")}\n`);
-    for (const action of planCollect(settled)) apply(action, heads, log);
+    for (const action of planCollect(settled))
+        apply(action, heads, settled.base, log);
     return code;
 }
 
