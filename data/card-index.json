@@ -17372,6 +17372,14 @@
         "source": "compiled"
     },
     {
+        "name": "Cultivator Colossus",
+        "scryfallId": "62dffe04-c431-440d-a8da-33c74b4bb683",
+        "oracleId": "4d8505d3-c8a1-4850-95d4-5ddb8ad49770",
+        "firstSet": "vow",
+        "firstPrintId": "62dffe04-c431-440d-a8da-33c74b4bb683",
+        "firstPrintSet": "vow"
+    },
+    {
         "name": "Cultivator's Caravan",
         "scryfallId": "b46b3726-4bc8-4e3a-bc6d-402c81663712",
         "oracleId": "c1eb530c-dd36-40ae-8617-6bb6969565e1",
