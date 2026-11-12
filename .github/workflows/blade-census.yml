@@ -1,0 +1,116 @@
+# blade-census — one arm of a blade flip census on GitHub-hosted runners
+# (issue #9276). A Bot experiment's census runs every `must` entry under a
+# search variant; on the owner's machines it competes with the runners and the
+# AFK passes, here it runs on free hosted VMs (the repository is public).
+#
+# Dispatched by hand (writers only): `gh workflow run blade-census.yml -f
+# ref=<branch> -f variant=<name>`. Sixteen slices of the (entry, seed) job list
+# run in parallel, four workers each (`bun run blade:census --slice i/16`);
+# `merge` joins them into one artifact, `blade-census`, and prints the reds in
+# the run summary. Two arms are compared locally with
+# `bun run blade:census --diff base.json variant.json`.
+#
+# GitHub-hosted, no secret, read-only token, `persist-credentials: false`.
+# Every input reaches the shell through `env:`, never interpolated into a
+# script. docs/guides/github-pipeline.md § Workflows.
+name: blade-census
+
+on:
+    workflow_dispatch:
+        inputs:
+            ref:
+                description: "branch, tag or sha to census"
+                required: true
+                default: staging
+            variant:
+                description: "LADDER_VARIANTS name or no-rule:<mechanism>; empty = production defaults"
+                required: false
+                default: ""
+            tier:
+                description: "blade tier"
+                type: choice
+                options: [must, stretch]
+                default: must
+            match:
+                description: "regex over entry labels; empty = the whole tier"
+                required: false
+                default: ""
+            iterations:
+                description: "override every entry's budget; empty = declared budgets"
+                required: false
+                default: ""
+            fail_fast:
+                description: "stop an entry after its first red seed (screening)"
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+jobs:
+    slice:
+        name: census slice ${{ matrix.slice }}/16
+        runs-on: ubuntu-24.04
+        timeout-minutes: 90
+        strategy:
+            fail-fast: false
+            matrix:
+                slice: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ inputs.ref }}
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: blade:census slice
+              env:
+                  SLICE: ${{ matrix.slice }}
+                  VARIANT: ${{ inputs.variant }}
+                  TIER: ${{ inputs.tier }}
+                  MATCH: ${{ inputs.match }}
+                  ITERATIONS: ${{ inputs.iterations }}
+                  FAIL_FAST: ${{ inputs.fail_fast }}
+              shell: bash
+              run: |
+                  args=(--tier "$TIER" --slice "$SLICE/16" --jobs 4 --out "census/slice-$SLICE.json")
+                  [ -n "$VARIANT" ] && args+=(--variant "$VARIANT")
+                  [ -n "$MATCH" ] && args+=(--match "$MATCH")
+                  [ -n "$ITERATIONS" ] && args+=(--iterations "$ITERATIONS")
+                  [ "$FAIL_FAST" = "true" ] && args+=(--fail-fast)
+                  bun run blade:census "${args[@]}"
+            - name: Upload slice
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: census-slice-${{ matrix.slice }}
+                  path: census/slice-${{ matrix.slice }}.json
+                  retention-days: 14
+
+    merge:
+        name: merge slices
+        needs: slice
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ inputs.ref }}
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: Download slices
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  pattern: census-slice-*
+                  path: census
+                  merge-multiple: true
+            - name: blade:census merge
+              shell: bash
+              run: |
+                  bun run blade:census --merge census/blade-census.json census/slice-*.json >census/summary.txt
+                  cat census/summary.txt
+                  { echo '```'; cat census/summary.txt; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+            - name: Upload census
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: blade-census
+                  path: census/blade-census.json
+                  retention-days: 30

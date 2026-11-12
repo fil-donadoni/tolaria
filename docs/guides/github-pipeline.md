@@ -348,6 +348,7 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 | [`corpus-repin`](#corpus-repin)           | Sunday 22:00 UTC, dispatch (`dry_run`)                                                 | `[self-hosted, maint]`                          | re-pins the Card Corpus, regenerates what follows, settles the merge blockers, queues the PR |
 | [`bot-costs-refresh`](#bot-costs-refresh) | daily 04:30 UTC, dispatch                                                              | `[self-hosted, maint, host:macbook]`            | re-derives the bot test cost table from health's walls; a data PR only when a row changed    |
 | [`ui-batch`](#ui-batch)                   | every 30 min, dispatch                                                                 | GitHub-hosted probe, then `[self-hosted, lane]` | one `check:ui` batch walk of every `ui-owed` PR; lands, fails or holds each                  |
+| [`blade-census`](#blade-census)           | dispatch (`ref`, `variant`, `tier`, `match`, `iterations`, `fail_fast`)                | GitHub-hosted `ubuntu-24.04`, 16 slices         | one arm of a Bot flip census, off the owner's machines — a report, never a gate              |
 
 ### pr-check
 
@@ -1751,6 +1752,20 @@ bot:costs:refresh`, on the MacBook's `maint` runner — health writes its
 per-file walls to the primary checkout of the machine it gates on. It stops,
 green, when a `chore/bot-costs-refresh-*` PR is open or no row changed;
 otherwise it commits the table, opens the PR and runs `land:ready`.
+
+### blade-census
+
+`.github/workflows/blade-census.yml` (issue #9276): one arm of a Bot
+[flip census](bot-glossary.md#flip-census) on free GitHub-hosted runners (the
+repository is public), so a census never competes with the queue and the AFK
+passes for the owner's CPUs. Dispatch it by hand:
+`gh workflow run blade-census.yml -f ref=<branch> -f variant=<name>`. Sixteen
+slices of the (entry, seed) job list run `bun run blade:census --slice i/16
+--jobs 4`; `merge` joins them into the `blade-census` artifact and prints the
+reds in the run summary. Compare two arms locally:
+`gh run download <id> -n blade-census`, then
+`bun run blade:census --diff base.json variant.json`. A report, never a gate:
+no status, no label, no merge waits on it.
 
 ### queue:churn
 
