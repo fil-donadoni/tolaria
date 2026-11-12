@@ -646,6 +646,13 @@ const excludeSupertypesDescriptor = defineFilter<string[]>({
             value.some((s) => hasSupertypeLive(card, s))
                 ? `Target must not be ${value.join(" or ")}`
                 : null,
+        // CR 205.4a — a graveyard-zone "target card other than a basic land
+        // card" is a CARD-kind candidate; the supertype is read the same way a
+        // permanent's is, so the offered and accepted sets share one check.
+        card: (card, value) =>
+            value.some((s) => hasSupertypeLive(card, s))
+                ? `Target must not be ${value.join(" or ")}`
+                : null,
     },
 });
 
@@ -2143,6 +2150,7 @@ export const CARD_FILTER_KEYS = [
     "excludeSubtypes",
     "colorFilterAny",
     "supertypeFilter",
+    "excludeSupertypes",
     "sameController",
     "zoneOwnerId",
     "excludeInstanceIds",
@@ -2162,6 +2170,7 @@ export type CardFilterValues = Partial<{
     excludeSubtypes: string[];
     colorFilterAny: ReadonlyArray<Color>;
     supertypeFilter: string[];
+    excludeSupertypes: string[];
     sameController: boolean;
     zoneOwnerId: string;
     excludeInstanceIds: ReadonlyArray<string>;

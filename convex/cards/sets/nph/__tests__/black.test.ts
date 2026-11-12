@@ -8,6 +8,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -17,6 +19,8 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { surgicalExtraction } from "../black.cards";
 
 const dismember = getDefinition("064dfdeb-485f-473e-9fa0-8fdb7638cdc6");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -106,5 +110,85 @@ describe("Dismember (-5/-5, {1}{B/P}{B/P}, CR 107.4f)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(1);
         expect(getEffectiveToughness(projected, slim)).toBe(1);
+    });
+});
+
+// Surgical Extraction (CR 115.1 announced graveyard target, CR 201.2 same-name
+// sweep, CR 701.23a library search, CR 108.3 owner): the sweep follows the
+// OWNER of the targeted graveyard card, never the caster.
+describe("Surgical Extraction", () => {
+    // A clean tree's registry lacks a new hand-written card until the queue
+    // regenerates the catalogue, so the test preloads it.
+    const surgical = surgicalExtraction();
+    preloadDefinitions([surgical]);
+    const bearAt = (
+        id: string,
+        owner: "p1" | "p2",
+        zone: "hand" | "graveyard" | "library"
+    ) =>
+        makeInstance(grizzlyBears.id, {
+            id,
+            controllerId: owner,
+            ownerId: owner,
+            zone,
+        });
+
+    it("exiles every same-named card from the target's owner's graveyard, hand and library, never the caster's", () => {
+        const target = bearAt("se-gy", "p2", "graveyard");
+        const mine = bearAt("se-mine", "p1", "hand");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [mine] }),
+                makePlayer("p2", {
+                    graveyard: [target],
+                    hand: [bearAt("se-hand", "p2", "hand")],
+                    library: [bearAt("se-lib", "p2", "library")],
+                }),
+            ],
+        });
+        pushSpell(state, surgical.id, "p1", [
+            { type: "graveyard-card", id: "se-gy", playerId: "p2" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+
+        const search = state.pendingChoices![0];
+        expect(search.kind).toBe("search-library");
+        expect(search.zoneOwnerId).toBe("p2");
+        expect(search.candidateIds).toEqual(["se-lib"]);
+        submitChoice(state, ["se-lib"]);
+
+        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
+            "se-gy",
+            "se-hand",
+            "se-lib",
+        ]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].library).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["se-mine"]);
+        expect(state.players[0].exile).toHaveLength(0);
+    });
+
+    it("targets the caster's own graveyard card and sweeps the caster's zones", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [bearAt("se-own", "p1", "graveyard")],
+                    hand: [bearAt("se-own-hand", "p1", "hand")],
+                }),
+                makePlayer("p2", { hand: [bearAt("se-theirs", "p2", "hand")] }),
+            ],
+        });
+        pushSpell(state, surgical.id, "p1", [
+            { type: "graveyard-card", id: "se-own", playerId: "p1" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        submitChoice(state, []);
+
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "se-own",
+            "se-own-hand",
+        ]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["se-theirs"]);
     });
 });

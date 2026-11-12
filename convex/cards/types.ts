@@ -899,8 +899,9 @@ export interface TargetRequirement {
      *  (CR 205.4a — the negative of `supertypeFilter`). Read against the LIVE
      *  supertype status, same as `supertypeFilter`. Used by "target nonbasic
      *  land" (Wasteland) — `excludeSupertypes: "Basic"`. Single string is
-     *  shorthand for one supertype. Ignored for player / spell / graveyard
-     *  targets. */
+     *  shorthand for one supertype. Honored for graveyard-card targets
+     *  ("target card other than a basic land card"); ignored for player /
+     *  spell targets. */
     excludeSupertypes?: CardSupertype | CardSupertype[];
     /** Restricts legal permanent targets by tap state (CR 701.26). Used by
      *  "target tapped creature" (Royal Assassin) and "target untapped
@@ -1413,7 +1414,7 @@ export interface TargetRequirement {
      *  `EffectCardFilter.isToken`'s exact-match semantics (a direct
      *  passthrough of `CardInstanceState.isToken`), just exposed on the
      *  ANNOUNCED-target requirement shape those two already cover for a
-     *  `choice`/`count`-selected zone. Ignored for player / spell / graveyard
+     *  `choice`/`count`-selected zone. Ignored for player / spell targets; honored for graveyard-card
      *  targets. Closes the DIVERGENCE Dance of Many's ETB trigger has
      *  documented since #1459 ("TargetRequirement has no token filter
      *  field") — see that card for the fix. */
