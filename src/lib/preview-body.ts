@@ -23,6 +23,7 @@ import {
 import {
     capitalizeKeyword,
     formatTypeLine,
+    grantedSubtypeNames,
     getDisplayAbilities,
     shouldShowOracleText,
     manaCostToString,
@@ -534,7 +535,10 @@ export function buildPreviewBody(
         cardInstance?.types ?? def?.types,
         cardInstance?.subtypes ?? def?.subtypes,
         // CR 707.9b — a copy effect's "except he's legendary" clause.
-        cardInstance ? copiableSupertypesOf(def, cardInstance) : def?.supertypes
+        cardInstance
+            ? copiableSupertypesOf(def, cardInstance)
+            : def?.supertypes,
+        grantedSubtypeNames(cardInstance, def?.subtypes)
     );
     const types = cardInstance?.types ?? def?.types ?? [];
     const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];
