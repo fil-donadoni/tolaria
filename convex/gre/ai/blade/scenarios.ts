@@ -46,7 +46,6 @@ import {
     UNTAPPED_LAND_NEEDED,
     SHOCK_AIMED_AT_EXILER,
     OWN_PERMANENT_CARD_IN_GRAVEYARD,
-    OPPONENT_REACHABLE_GRAVEYARD_CARD,
     answersRaisedTargetLegally,
     submitsSoleTarget,
     boundedGraveyardCastIsOffered,
@@ -27346,10 +27345,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "graveyard exile: exiles the opponent's flashback card over its own instant",
-        pairOf: {
-            anchor: "graveyard exile: never exiles its own instant at the opponent's end step",
-            discriminant: OPPONENT_REACHABLE_GRAVEYARD_CARD,
-        },
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -27375,14 +27371,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [
+            forbidden: [
                 {
                     kind: "activate-ability",
                     card: "Lion Sash",
-                    target: "Think Twice",
+                    target: "Giant Growth",
                 },
             ],
         },
-        note: "Issue #9116, second right-hand half of the same anchor: the opponent holds a flashback card it can cast with its Island, so exiling it removes the opponent's Graveyard Reach — the denial is the payoff, and it is aimed there rather than at the bot's own instant. Not discriminating (5/5 before and after): the guard that the refusal reads payoff per target.",
+        note: "Issue #9116. The opponent holds a flashback card it can cast with its Island, so exiling it removes the opponent's Graveyard Reach — a payoff — while exiling the bot's own instant pays nothing: aiming the exile at its own instant is wrong whatever else is on the board (`absolute`). Twin of `graveyard exile: never exiles its own instant at the opponent's end step` (the same board without the flashback card). Not discriminating (Think Twice on 5/5 seeds before and after): the guard that the payment-only refusal reads payoff per target.",
     },
 ];

@@ -611,13 +611,6 @@ export const OWN_PERMANENT_CARD_IN_GRAVEYARD: Discriminant = {
     detail: "Howling Mine in the bot's own graveyard",
 };
 
-/** Issue #9116 — a card the opponent can still cast from its graveyard
- *  (flashback), so exiling it takes something away. */
-export const OPPONENT_REACHABLE_GRAVEYARD_CARD: Discriminant = {
-    kind: "card",
-    detail: "Think Twice (flashback) in the opponent's graveyard",
-};
-
 export const UNTAPPED_LAND_NEEDED: Discriminant = {
     kind: "card",
     detail: "Giant Spider in hand, castable this turn only off an untapped land drop",

@@ -653,11 +653,6 @@
             "needsSetup": true
         },
         {
-            "label": "graveyard exile: exiles the opponent's flashback card over its own instant",
-            "tier": "must",
-            "needsSetup": false
-        },
-        {
             "label": "graveyard exile: takes the counter off its own permanent card at the end step",
             "tier": "must",
             "needsSetup": false
