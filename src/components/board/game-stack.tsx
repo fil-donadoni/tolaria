@@ -454,10 +454,8 @@ export default function GameStack({
                                 } flex-col gap-2 overflow-y-auto p-2`}
                             >
                                 {visible.map((item, i) => {
-                                    // ADR 0068 / issue #1956 — ONE composed predicate
-                                    // covering every client-checked spell filter, plus
-                                    // the CR 601.2c Flagbearer narrowing; shared with
-                                    // the targeting arrow (issue #9163).
+                                    // The shared stack candidate predicate
+                                    // (`target-candidates.ts`, ADR 0068).
                                     const isTargetable =
                                         canTargetSpell &&
                                         isLegalStackTarget(

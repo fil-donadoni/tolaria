@@ -125,12 +125,8 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
 
     const isTargetable =
         isAttackTargetCandidate ||
-        // CR 109.3 / 115 / 506.2 / 601.2c / 702.18 — the shared player
-        // candidate predicate (`target-candidates.ts`): every player-kind
-        // filter through the target-filter registry (issue #1734), the
-        // shroud / protection-from-everything gate (issues #1128, #674) and
-        // the Flagbearer narrowing — the set the targeting arrow (issue
-        // #9163) snaps to.
+        // The shared player candidate predicate (`target-candidates.ts`):
+        // the set the targeting arrow (issue #9163) snaps to.
         isLegalPlayerTarget(player, pendingTarget, {
             viewerId: playerId,
             activePlayerId,

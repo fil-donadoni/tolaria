@@ -76,7 +76,7 @@ export function isLegalPermanentTarget(
             env.emblems,
             env.combat
         ) &&
-        // CR 702.16b / 702.18 / 611 (issue #1120) — a permanent the server
+        // CR 702.16b / 702.18a (issue #1120) — a permanent the server
         // would reject (shroud, hexproof vs an opponent's source, protection
         // from the source's quality) is not a candidate.
         !isUntargetableByPending(
@@ -103,15 +103,15 @@ export function isLegalPlayerTarget(
     return (
         // Scalar "player"/"any" AND the array form (Lava Spike).
         wantsPlayerTarget(pendingTarget.targetType) &&
-        // CR 109.3 / 115 / 506.2 / 601.2c — every player-kind filter dimension
-        // through the shared registry (issue #1734).
+        // CR 601.2c — every player-kind filter dimension through the shared
+        // registry (issue #1734).
         matchesPlayerTargetFilters(
             player,
             pendingTarget,
             env.activePlayerId,
             env.allPlayers
         ) &&
-        // CR 702.18 via CR 115.4 (issue #1128) / CR 702.16b (issue #674).
+        // CR 702.18a shroud / CR 702.16b protection bar the player.
         !isPlayerUntargetableByPending(
             env.allPlayers,
             player.id,

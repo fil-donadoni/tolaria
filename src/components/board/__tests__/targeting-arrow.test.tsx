@@ -37,11 +37,7 @@ vi.mock("@convex/_generated/api", () => ({
 
 type Ctx = NonNullable<React.ContextType<typeof GameContext>>;
 
-function permanent(
-    id: string,
-    controllerId: string,
-    types: string[]
-): CardInstance {
+function permanent(id: string, controllerId: string, types: string[]): never {
     return {
         id,
         card: { id: `${id}-def` },
@@ -54,7 +50,7 @@ function permanent(
         staticAbilities: [],
         power: types.includes("Creature") ? 2 : undefined,
         toughness: types.includes("Creature") ? 2 : undefined,
-    } as unknown as CardInstance;
+    } as unknown as CardInstance as never;
 }
 
 type Published = { kind: AnchorKind; id: string; point: AnchorPoint };

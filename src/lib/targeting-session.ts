@@ -99,7 +99,7 @@ function onBattlefield(players: readonly Player[], id: string): boolean {
 }
 
 /** Where a pending target's arrow starts: the permanent whose ability it is
- *  (CR 602.2a), a trigger's source permanent when it is still on the
+ *  activating it, a trigger's source permanent when it is still on the
  *  battlefield (else its stack object, CR 603.3d), the stack object being
  *  retargeted (CR 115.7 / 707.10c), or the card being cast (CR 601.2c). */
 function pendingTargetSource(
