@@ -19,18 +19,22 @@ export default function PriorityIndicator() {
     // Solo: a viewing-seat switch counts as becoming `mine` again, so the
     // countdown restarts (`playerId` is a dependency).
     const viewerId = (ctx as { playerId?: string }).playerId;
-    const [elapsed, setElapsed] = useState(false);
+    // The viewer the 5 s elapsed for: a stale lit state never paints for a new one.
+    const [elapsed, setElapsed] = useState<{ id?: string } | null>(null);
 
     useEffect(() => {
         if (!viewerActs) return;
-        const timer = setTimeout(() => setElapsed(true), PRIORITY_CUE_DELAY_MS);
+        const timer = setTimeout(
+            () => setElapsed({ id: viewerId }),
+            PRIORITY_CUE_DELAY_MS
+        );
         return () => {
             clearTimeout(timer);
-            setElapsed(false);
+            setElapsed(null);
         };
     }, [viewerActs, viewerId]);
 
-    if (!viewerActs || !elapsed) return null;
+    if (!viewerActs || elapsed?.id !== viewerId || !elapsed) return null;
 
     return (
         <div
