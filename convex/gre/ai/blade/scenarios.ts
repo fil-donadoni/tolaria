@@ -10763,6 +10763,82 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6761 (RED @ b77aa85e). The find goes from the searcher's own library onto its battlefield, the script only moves it, and the library stays above the decking horizon, so `failToFindIsDominated` (`gre/ai/choiceCandidates.ts`) drops the `search-library:none` branch from the tree. The empty submission stays legal. Proof-of-failure: disabling that prune makes the bot pass on every seed at this budget (it casts again from about 200 iterations, once the visits concentrate on the find).",
     },
     {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #8854). CR 104.3e — a Pact's
+        // delayed upkeep trigger ("pay {2}{G}{G}. If you don't, you lose the
+        // game."). Cast at the opponent's end step, the payment falls inside
+        // the search's horizon, where the `may-pay` node offered the decline
+        // as its own branch: ISMCTS backs the MEAN of a choice node up to the
+        // cast, so the visits the game-losing decline took pulled the cast
+        // below `pass`, and the Bot never cast a tutor Pact.
+        label: "tutor Pact: casts Summoner's Pact at the opponent's end step when it can pay the upkeep",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "lands to pay the Pact's upkeep cost",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Plains", owner: "me", zone: "library", count: 20 },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            activePlayer: "opp",
+            priority: "me",
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Summoner's Pact" }] },
+        note: "Issue #8854. The Bot holds exactly the {2}{G}{G} the upkeep asks for, so the Pact is a free tutor: declining the payment loses the game (`declineLosesGame`, `gre/ai/searchDestination.ts`) while an accept is payable, so `mayPayCandidates` (`gre/ai/choiceCandidates.ts`) drops the decline from the tree. The decline stays legal. Half 2 is the same board one Forest short.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #8854). The board of half 1
+        // one Forest short: the upkeep's {2}{G}{G} cannot be paid, the decline
+        // is the only answer and loses the game, so the Pact stays in hand.
+        label: "tutor Pact: holds Summoner's Pact when it cannot pay the upkeep",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "lands to pay the Pact's upkeep cost",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Plains", owner: "me", zone: "library", count: 20 },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            activePlayer: "opp",
+            priority: "me",
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #8854, half 2. With no payable accept the decline is not pruned (it is the only legal answer), the next upkeep loses the game, and passing keeps the card. The pair proves the prune keys on the payment being in reach, not on the card.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3282).
         // Hand-bound land search: the land leg of `libraryTargetWorth` prices a
         // fetched land by its source quality and by whether it supplies a

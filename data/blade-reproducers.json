@@ -5524,6 +5524,101 @@
         }
     },
     "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)": null,
+    "tutor Pact: casts Summoner's Pact at the opponent's end step when it can pay the upkeep": {
+        "cards": [
+            {
+                "name": "Summoner's Pact",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 0,
+        "activePlayer": "opp",
+        "priority": "me",
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
+    "tutor Pact: holds Summoner's Pact when it cannot pay the upkeep": {
+        "cards": [
+            {
+                "name": "Summoner's Pact",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 0,
+        "activePlayer": "opp",
+        "priority": "me",
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
     "tutor: casts Entomb with a reanimation spell in hand": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,
