@@ -1155,6 +1155,13 @@
             "needsSetup": true
         }
     ],
+    "Summoner's Pact": [
+        {
+            "label": "tutor Pact: casts Summoner's Pact at the opponent's end step when it can pay the upkeep",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Swamp": [
         {
             "label": "charter: fetches the land that makes its removal castable",

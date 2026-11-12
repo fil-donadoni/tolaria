@@ -100,6 +100,7 @@ import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { blinkPose } from "./botReachBlink";
 import { creatureSweepPose } from "./botReachCreatureSweep";
 import { libraryPutPose } from "./botReachLibraryPut";
+import { delayedPaymentLands } from "./botReachDelayedPayment";
 import { outsideGamePose } from "./botReachOutsideGame";
 import { costAlternativesPose } from "./botReachCostAlternatives";
 import { handRefillSpell } from "./botReachHandRefill";
@@ -903,6 +904,8 @@ export function botReachSpec(
     }
     for (const name of kickerLands(def))
         cards.push({ name, owner: "me", zone: "battlefield" });
+    for (const name of delayedPaymentLands(def))
+        cards.push({ name, owner: "me", zone: "battlefield" });
     const shrinks = shrinksEveryCreature(def) || damagesEveryCreature(def);
     const spendsSelf = spendsItselfOnDamageSweep(def);
     const target = targetPose(def);
@@ -1044,6 +1047,14 @@ export function botReachSpec(
         });
     const cost = costPose(def);
     const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
+    // The holder's lands so far — the mana a tutored card is cast with.
+    const holderLands = cards.flatMap((c) =>
+        c.owner === "me" &&
+        c.zone === "battlefield" &&
+        (tryGetCardByName(c.name)?.types.includes("Land") ?? false)
+            ? Array<string>(c.count ?? 1).fill(c.name)
+            : []
+    );
     cards.push(
         ...target.cards,
         ...(blocked?.cards ?? []),
@@ -1063,7 +1074,7 @@ export function botReachSpec(
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
-        ...libraryPutPose(def),
+        ...libraryPutPose(def, holderLands),
         ...costAlternativesPose(def)
     );
     const stack = needsStackTarget(def)
