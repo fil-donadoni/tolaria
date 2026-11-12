@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost:
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import type { PermanentView } from "../../types";
 import { empowerJaceOps } from "../../abilities/empowerJace";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -74,6 +74,55 @@ export const sanctumLurker = defineCard(() => ({
                 { op: "dealDamage", amount: 1, to: { player: "opponent" } },
                 { op: "gainLife", player: "controller", amount: 1 },
             ],
+        },
+    ],
+}));
+
+// Dark Matter Manipulator — {B} Creature — Human Warlock 1/2 (FRA, issue
+// #8613, Modern metagame). "When this creature enters, mill three cards. /
+// This creature gets +2/+0 for every seven cards in your graveyard."
+//
+// Authored DSL-first (ADR 0045), no new Op:
+//   - the ETB is `enteredTrigger` (CR 603.6a) over the shipped `mill` Op
+//     (CR 701.17a — the top three cards of your library into your graveyard);
+//   - the second line is a layer-7c `pt-buff` on itself (CR 613.4c) whose
+//     `computeFor` re-reads the controller's graveyard at every stat read: one
+//     step of +2/+0 per FULL seven cards ("for every seven" counts whole
+//     groups, so the quotient rounds down).
+// hand-tail: This creature gets +2/+0 for every seven cards in your graveyard. (#8613)
+export const darkMatterManipulator = defineCard(() => ({
+    id: "4ec912d5-cbe7-4d07-9ece-b03ac02d3055",
+    name: "Dark Matter Manipulator",
+    rarity: "rare",
+    oracleText:
+        "When this creature enters, mill three cards.\nThis creature gets +2/+0 for every seven cards in your graveyard.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Warlock"],
+    power: 1,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "dark-matter-manipulator-etb-mill",
+            oracleText: "When this creature enters, mill three cards.",
+            scope: "self",
+            effects: [{ op: "mill", player: "controller", count: 3 }],
+        }),
+    ],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: EFFECT_AFFECTS_SELF,
+            computeFor: (source, state) => {
+                const graveyardSize = (
+                    state.players.find((p) => p.id === source.controllerId)
+                        ?.graveyard ?? []
+                ).length;
+                return {
+                    power: 2 * Math.floor(graveyardSize / 7),
+                    toughness: 0,
+                };
+            },
         },
     ],
 }));
