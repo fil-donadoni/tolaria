@@ -51,6 +51,7 @@ import type {
     TextChange,
 } from "../../cards/types";
 import type { GrantedAbilityOrigin } from "../activatedAbilities";
+import type { PhaseSkipPrefs } from "../autoPass";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { DeckColorsBySeat } from "../deckKnowledge";
 import type { FaceDownProducer } from "../faceDown";
@@ -6000,6 +6001,12 @@ export type GameState = {
      *  search's `cloneGameState` deep-copies it once per node. The decklist
      *  itself never rides here for that reason. */
     deckColorKnowledge?: DeckColorsBySeat;
+    /** Phase Stop preferences per seat (ADR 0077), hung on the state by the
+     *  one mutation that hydrates them (`passPriority`) so the drain stays a
+     *  pure function of `state`. NEVER persisted (`TRANSIENT_KEYS`): they
+     *  live in the `gamePrefs` table, and a seat absent here is never
+     *  skipped. */
+    seatSkipPrefs?: Record<string, PhaseSkipPrefs>;
 };
 
 /** Authoritative discriminated union describing what input the game is

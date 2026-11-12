@@ -5,6 +5,7 @@ import { mutation } from "./_generated/server";
 import { getCurrentUser } from "./auth";
 import { asDbRounds, callerOwnsSeat, gameBelongsToUser } from "./gameLifecycle";
 import { applySideboard, matchBelongsToUser } from "./matches";
+import { deleteGamePrefs } from "./gamePrefs";
 import {
     deleteDefinitionManifests,
     deleteGameDecks,
@@ -59,6 +60,8 @@ export const leaveGame = mutation({
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const l of libraries) await ctx.db.delete(l._id);
+        // Phase Stop preferences (ADR 0077) — same key.
+        await deleteGamePrefs(ctx, args.gameId);
         // Tick row companion (PRD #1776 T3, issue #1778) — same defensive
         // cleanup as `gameStates` above, though a "waiting"/"pregame" game
         // has never reached `saveGameState` so this is normally a no-op.

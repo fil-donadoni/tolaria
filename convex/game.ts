@@ -340,6 +340,7 @@ import {
     saveGameState,
 } from "./gameStateStore";
 import { asDbRounds, callerOwnsSeat } from "./gameLifecycle";
+import { loadSeatSkipPrefs } from "./gamePrefs";
 import {
     ACTIVE_GAME_MESSAGE,
     PLAYER_COLORS,
@@ -12663,6 +12664,10 @@ export const passPriority = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        // ADR 0077 — the one mutation that hydrates Phase Stop preferences:
+        // a run of skipped steps starts from a pass, and the drain inside
+        // this call then takes every later window a seat asked to skip.
+        state.seatSkipPrefs = await loadSeatSkipPrefs(ctx, args.gameId);
         // Issue #9001 — the rules are the auth-free core's
         // (`gre/owedInputDeclines.ts`), shared with server-side callers.
         const outcome = passPriorityOnState(state, args.playerId);

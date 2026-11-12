@@ -1643,6 +1643,9 @@ export const TRANSIENT_KEYS = new Set<string>([
     // decklist to every later reader of that row. Listed here rather than in
     // `PERSISTED_OPTIONAL_KEYS` so `compactState` DROPS it.
     "deckColorKnowledge",
+    // Phase Stop preferences (ADR 0077): hydrated from `gamePrefs` for one
+    // mutation, so the row every save rewrites does not grow by them.
+    "seatSkipPrefs",
 ]);
 
 /** Pack a GameState into the slim Convex-storage form. Always writes v2

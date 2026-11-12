@@ -1,8 +1,7 @@
 # 0077 — Phase Stops drain server-side: preferences out of `GameState`, one engine predicate built on the Expected Input
 
-_Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/gre/autoPass.ts` (never built)._
-
-**accepted, not built as of 2026-11-07** (issue #8725): client-side auto-pass remains; the server drain was not built.
+**built (2026-11-12, issue #9318)** — see § Built below for where the code
+departs from the text.
 
 ## Status
 
@@ -188,3 +187,28 @@ real saving has been measured.
   pure and cheap; if it ever shows up in a profile, cache it and refresh after
   `advancePhase`.
 - The 50-iteration safety bound in `drainAutoPasses` is unchanged.
+
+## Built (2026-11-12, issue #9318)
+
+The decisions above are implemented as written, with these readings:
+
+- **Predicate and preference shape** live in `convex/gre/autoPass.ts`
+  (`autoPassBlocked`, `phaseStopSkips`, `PhaseSkipPrefs`,
+  `DEFAULT_SKIP_PREFS`); `src/lib/skip-phase-prefs.ts` re-exports the shape
+  and the defaults. The client's `computeAutoPassBlocked` is unchanged: it
+  reads the projected view, not a `GameState`, and stays the fallback loop's
+  predicate (§ Consequences).
+- **Undeclared attackers block for either seat**, not only the active one:
+  nobody may pass before the declaration.
+- **The Bot seat's row is seeded in `saveGameState`'s insert branch** — the
+  one place every new Game passes through — rather than at each creation
+  site (decision 4).
+- **A vs-AI client sends its own seat only.** § Consequences says "both seat
+  ids" for solo and vs-AI, which would overwrite the seeded Bot row with the
+  human's preferences and contradicts decision 1's reason for the per-game
+  key. Solo sends both; every other mode sends the viewer's seat.
+- **`setSkipPrefs` and `loadSeatSkipPrefs` sanitise** to literal booleans of
+  skippable phases, so a malformed row can lose a skip and never invent one
+  (decision 5).
+- **The drain's safety bound is 200**, raised by issue #3086 after this record
+  was written.

@@ -1,3 +1,4 @@
+import { phaseStopSkips } from "./autoPass";
 import { findPermanent } from "./lookup";
 import { checkStateBasedActions } from "./sba";
 import type { Phase } from "./types";
@@ -4320,10 +4321,15 @@ export function drainAutoPasses(state: GameState): void {
 
         const autoPass = state.autoPassPlayers ?? [];
         const singleShot = state.singleShotAutoPass === state.priorityPlayerId;
+        // A Phase Stop skip (ADR 0077) is the strict arm: `phaseStopSkips`
+        // already implies an empty stack and no open declaration, so none of
+        // the Pass Turn behaviours below (resolving, auto-confirming) is
+        // reachable through it.
         if (
             !autoPass.includes(state.priorityPlayerId) &&
             !isPassingUntilAction(state, state.priorityPlayerId) &&
-            !singleShot
+            !singleShot &&
+            !phaseStopSkips(state, state.priorityPlayerId)
         )
             break;
 

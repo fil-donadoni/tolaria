@@ -18,6 +18,7 @@ import { projectPublicState } from "./gameProjections";
 import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
 import { botSeatId } from "./matches";
+import { seedBotSkipPrefs } from "./gamePrefs";
 import {
     advanceClock,
     clockExpiresAt,
@@ -223,6 +224,12 @@ export async function saveGameState(
         // precisely because this branch never runs again.
         const game = await ctx.db.get(gameId);
         insertedGame = game;
+        // A vs-AI Game's Bot seat gets its Phase Stop row here, the one
+        // place every new Game passes through (ADR 0077 §4).
+        const botId = game
+            ? botSeatId({ vsAi: game.vsAi, players: game.players })
+            : null;
+        if (botId !== null) await seedBotSkipPrefs(ctx, gameId, botId);
         await ctx.db.insert("gameStates", {
             gameId,
             seq,

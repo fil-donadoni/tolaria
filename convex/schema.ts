@@ -138,6 +138,17 @@ export default defineSchema({
         gameId: v.id("games"),
         payload: v.any(),
     }).index("by_gameId", ["gameId"]),
+    // Phase Stop preferences per seat of one Game (ADR 0077): what the server
+    // drain reads to pass a run of skipped steps in one mutation. Outside
+    // `gameStates` on purpose — the hot row does not grow, and a toggle
+    // bumps no `seq`. `skipPrefs` is a `PhaseSkipPrefs`
+    // (`convex/gre/autoPass.ts`), sanitised on both write and read.
+    // `convex/gamePrefs.ts` is the only module that reads or writes it.
+    gamePrefs: defineTable({
+        gameId: v.id("games"),
+        playerId: v.string(),
+        skipPrefs: v.any(),
+    }).index("by_game_player", ["gameId", "playerId"]),
     // Tick row (PRD #1776 T3, issue #1778): a ~150-byte cheap wake-up signal
     // written alongside every `gameStates` write from `saveGameState`
     // (`convex/gameStateStore.ts`) so a subscriber that only needs to know "did

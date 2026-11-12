@@ -100,7 +100,8 @@ Il timeout non è un vincolo reale — l'engine si ferma sempre ad aspettare inp
 umano — ma **il costo di lettura sì**. Convex fattura la lettura per byte del
 documento intero, e ogni scrittura ri-esegue tutte le query sottoscritte. Questo
 ha già prodotto due interventi architetturali visibili nello schema: la tabella
-`gameTicks` (§ 4) e lo split `limitedEvents`/`limitedSeats` (§ 8.3). È il vincolo
+`gameTicks` (§ 4), lo split `gameStates`/`gameLibraries` (§ 4, ADR 0179) e lo
+split `limitedEvents`/`limitedSeats` (§ 8.3). È il vincolo
 non ovvio da tenere presente quando si aggiunge una tabella o una subscription.
 
 ---
@@ -188,12 +189,14 @@ pena leggerlo per intero una volta.
 
 ### Gameplay
 
-| Tabella      | Contenuto                                                                      |
-| ------------ | ------------------------------------------------------------------------------ |
-| `games`      | una partita: giocatori, mazzi, stato del ciclo di vita, vincitore              |
-| `gameStates` | **una riga per partita**: lo snapshot completo (`state: v.any()`) + `seq`      |
-| `gameTicks`  | riga di segnalazione (~150 byte) scritta insieme a ogni `gameStates`           |
-| `matches`    | un Match Bo1/Bo3: punteggio, copia mutabile dei mazzi, sideboarding, play/draw |
+| Tabella         | Contenuto                                                                                |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `games`         | una partita: giocatori, mazzi, stato del ciclo di vita, vincitore                        |
+| `gameStates`    | **una riga calda per partita**: lo snapshot (`state: v.any()`) + `seq`, senza le library |
+| `gameLibraries` | le library di ogni seat, una riga per partita, scritta solo quando cambiano (ADR 0179)   |
+| `gamePrefs`     | i Phase Stop di ogni seat, letti dal drain lato server (ADR 0077)                        |
+| `gameTicks`     | riga di segnalazione (~150 byte) scritta insieme a ogni `gameStates`                     |
+| `matches`       | un Match Bo1/Bo3: punteggio, copia mutabile dei mazzi, sideboarding, play/draw           |
 
 **Non esiste un event log.** Il design iniziale prevedeva una tabella
 `game_events` append-only come source of truth per il replay: non è mai stata

@@ -1,51 +1,31 @@
 import type { Phase } from "@convex/gre/types";
 import {
+    DEFAULT_SKIP_PREFS,
+    SKIPPABLE_PHASES,
+    isPhaseSkipped,
+    isSkippablePhase,
+    type PhaseSkipPrefs,
+    type Side,
+} from "@convex/gre/autoPass";
+import {
     computeAutoPassBlocked,
     type AutoPassBlockedCtx,
 } from "~/lib/priority";
 
-export type Side = "self" | "opponent";
-export type PhaseSkipPrefs = Partial<Record<Phase, Record<Side, boolean>>>;
+// The preference shape, its defaults and the skippable set are the engine's
+// (`convex/gre/autoPass.ts`, ADR 0077): the server drain reads the same rows
+// this file stores, so there is one definition of what a stored `true` means.
+export {
+    DEFAULT_SKIP_PREFS,
+    SKIPPABLE_PHASES,
+    isPhaseSkipped,
+    isSkippablePhase,
+    type PhaseSkipPrefs,
+    type Side,
+};
 
 export const SKIP_PREFS_KEY = "tolaria:skipPhasePrefs:v1";
 export const AUTO_PASS_DELAY_MS = 0;
-
-export const DEFAULT_SKIP_PREFS: PhaseSkipPrefs = {
-    UPKEEP: { self: true, opponent: true },
-    DRAW: { self: true, opponent: true },
-    PRECOMBAT_MAIN: { self: false, opponent: true },
-    POSTCOMBAT_MAIN: { self: false, opponent: true },
-    FIRST_STRIKE_DAMAGE: { self: true, opponent: true },
-    COMBAT_DAMAGE: { self: true, opponent: true },
-    END_OF_COMBAT: { self: true, opponent: true },
-    END_STEP: { self: true, opponent: false },
-};
-
-export const SKIPPABLE_PHASES: readonly Phase[] = [
-    "UPKEEP",
-    "DRAW",
-    "PRECOMBAT_MAIN",
-    "BEGINNING_OF_COMBAT",
-    "DECLARE_ATTACKERS",
-    "DECLARE_BLOCKERS",
-    "FIRST_STRIKE_DAMAGE",
-    "COMBAT_DAMAGE",
-    "END_OF_COMBAT",
-    "POSTCOMBAT_MAIN",
-    "END_STEP",
-] as const;
-
-export function isSkippablePhase(phase: string): phase is Phase {
-    return (SKIPPABLE_PHASES as readonly string[]).includes(phase);
-}
-
-export function isPhaseSkipped(
-    prefs: PhaseSkipPrefs,
-    phase: Phase,
-    side: Side
-): boolean {
-    return prefs[phase]?.[side] === true;
-}
 
 export function shouldAutoPass(
     ctx: AutoPassBlockedCtx,
