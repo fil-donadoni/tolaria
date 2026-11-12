@@ -1,3 +1,4 @@
+import { useProtoZoneCaption } from "./zone-target-prototype/proto-zone-index";
 import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
 import {
     cardHasLegalAction,
@@ -46,6 +47,8 @@ export default function PlayerGraveyard({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }) {
+    // PROTOTYPE zone-target highlight (B) — position numbers while targeted.
+    const protoCaption = useProtoZoneCaption(player, "graveyard");
     const {
         gameId,
         playerId,
@@ -178,6 +181,7 @@ export default function PlayerGraveyard({
 
     const pile = (
         <CardsPile
+            captionFor={isGraveyardChoice ? undefined : protoCaption}
             cards={
                 isGraveyardChoice
                     ? graveyardChoiceCards(head, player, allPlayers)

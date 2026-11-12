@@ -29,7 +29,7 @@ export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
     });
     useEffect(() => () => publishArrows([]), []);
     return (
-        <svg className="pointer-events-none fixed inset-0 z-[900] h-full w-full overflow-visible">
+        <svg className="pointer-events-none fixed inset-0 z-[78] h-full w-full overflow-visible">
             <defs>
                 <marker
                     id="proto-zt-head"

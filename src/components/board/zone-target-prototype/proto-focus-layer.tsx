@@ -9,7 +9,7 @@ const PAD = 4;
 
 export default function ProtoFocusLayer({ holes }: { holes: Rect[] }) {
     return (
-        <svg className="pointer-events-none fixed inset-0 z-[880] h-full w-full">
+        <svg className="pointer-events-none fixed inset-0 z-[75] h-full w-full">
             <defs>
                 <mask id="proto-zt-focus-mask">
                     <rect width="100%" height="100%" fill="white" />

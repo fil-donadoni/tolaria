@@ -10,7 +10,7 @@ export type ZoneProtoParams = { variant: string };
 export function readZoneProto(): ZoneProtoParams | null {
     const q = new URLSearchParams(window.location.search);
     if (!q.has("zoneProto")) return null;
-    return { variant: q.get("variant") ?? "C2" };
+    return { variant: q.get("variant") ?? "B2" };
 }
 
 export function writeZoneProto(p: ZoneProtoParams) {

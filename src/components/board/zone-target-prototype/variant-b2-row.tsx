@@ -19,7 +19,11 @@ export default function VariantB2Row({
         const a = anchors[g.key];
         if (!a?.zone || !g.sourceStackId) continue;
         for (const card of g.cards) {
-            const r = extra[`b2:${g.sourceStackId}:${card.id}`];
+            // Expanded: from the target's own line; collapsed: from the
+            // block's "Targets · N" header.
+            const r =
+                extra[`b2:${g.sourceStackId}:${card.id}`] ??
+                extra[`b2h:${g.sourceStackId}`];
             // Row scrolled out of the stack panel: no line, no arrow (the
             // real layer draws nothing without an anchor either).
             if (!r) continue;

@@ -1,3 +1,4 @@
+import { useProtoZoneCaption } from "./zone-target-prototype/proto-zone-index";
 import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
 import { holdsExileCastPermission } from "@convex/gre/castCost";
 import { cardHasLegalAction, exileActionSources } from "~/lib/card-actionable";
@@ -30,6 +31,8 @@ export default function PlayerExile({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }) {
+    // PROTOTYPE zone-target highlight (B) — position numbers while targeted.
+    const protoCaption = useProtoZoneCaption(player, "exile");
     const { playerId, pendingChoices } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
@@ -119,6 +122,7 @@ export default function PlayerExile({
 
     const pile = (
         <CardsPile
+            captionFor={isExileChoice ? undefined : protoCaption}
             cards={pileCards}
             actionableIds={actionableIds}
             emptyLabel="Exile"

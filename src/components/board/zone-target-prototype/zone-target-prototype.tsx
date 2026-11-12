@@ -11,7 +11,9 @@
 //   - targets are marked as INFORMATION (reticle), never with the white ring
 //     that means "interactable" in our UX vocabulary.
 //
-//   /game?zoneProto=1&variant=<C2|D2|B2>
+//   /game?zoneProto=1&variant=<B2|C2|D2>
+// Overlays sit at z 75-79: above the board, the stack panel (65) and the
+// banners (70), always BELOW context menus / popovers (z-modal, 100).
 // The bar's "load" buttons put a REAL scenario (prototype-scenarios.ts) into
 // the current game: 1-item stack, multi-target, big stack. Dev builds only.
 // Round-1 variants: commit da61fe741.
@@ -34,10 +36,11 @@ import VariantB2Row, { VARIANT_B2_NAME } from "./variant-b2-row";
 import VariantC2Lift, { VARIANT_C2_NAME } from "./variant-c2-lift";
 import VariantD2Peek, { VARIANT_D2_NAME } from "./variant-d2-peek";
 
+// Owner picked B (2026-11-12). C2/D2 stay for comparison.
 const VARIANTS = [
+    { key: "B2", name: VARIANT_B2_NAME, C: VariantB2Row },
     { key: "C2", name: VARIANT_C2_NAME, C: VariantC2Lift },
     { key: "D2", name: VARIANT_D2_NAME, C: VariantD2Peek },
-    { key: "B2", name: VARIANT_B2_NAME, C: VariantB2Row },
 ];
 
 /** Every variant draws its own zone-target arrows (above the focus veil), so

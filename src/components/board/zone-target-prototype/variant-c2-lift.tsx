@@ -69,7 +69,7 @@ export default function VariantC2Lift({
             return (
                 <div
                     key={t.card.id}
-                    className="pointer-events-none fixed z-[910] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5"
+                    className="pointer-events-none fixed z-[79] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5"
                     style={{ left: p.x, top: p.y }}
                 >
                     <ProtoThumb

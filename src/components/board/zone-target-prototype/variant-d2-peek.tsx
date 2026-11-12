@@ -67,7 +67,7 @@ export default function VariantD2Peek({
             <div
                 key={z.zoneKey}
                 data-proto-group={allKeys.join(" ")}
-                className="pointer-events-auto fixed z-[915] w-[300px] rounded-lg border border-border-strong bg-surface/95 p-2.5 text-xs text-text shadow-2xl backdrop-blur transition-opacity"
+                className="pointer-events-auto fixed z-[79] w-[300px] rounded-lg border border-border-strong bg-surface/95 p-2.5 text-xs text-text shadow-2xl backdrop-blur transition-opacity"
                 style={{ ...pos, opacity: panelDim ? 0.35 : 1 }}
             >
                 <div className="mb-2 flex items-baseline justify-between gap-2">
