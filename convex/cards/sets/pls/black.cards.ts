@@ -167,11 +167,9 @@ export const noxiousVapors = defineCard(() => ({
 // the same answer for a one-Kicker card, and `kickerCount` is the
 // established idiom there.
 //
-// DIVERGENCE (issue #1950 review, MINOR 4) — "discards two/three cards" is a
-// MANDATORY discard (CR 701.9a — up to hand size), but `count: { min: 0, max:
-// N }` lets the targeted player submit zero cards even with a full hand. This
-// copies the shipped Hypnotic Cloud idiom verbatim (`inv/black.cards.ts`) — a
-// pre-existing class defect, not introduced here. tracked-by: #2018
+// "Discards two/three cards" is mandatory (no "may"): a fixed `count` clamps
+// down to the hand size when it holds fewer, never lets the chooser decline
+// (issue #2018, the same fixed-count shape as Hypnotic Cloud).
 export const bogDown = defineCard(() => ({
     id: "8752a605-38f8-4d75-b122-063a788dff6e", // PLS 39
     name: "Bog Down",
@@ -202,7 +200,8 @@ export const bogDown = defineCard(() => ({
                     kind: "discard-hand",
                     player: { target: 0 },
                     zone: "hand",
-                    count: { min: 0, max: 3 },
+                    // CR 609.3 / 701.9b — mandatory; clamps to hand size.
+                    count: 3,
                     prompt: "Discard three cards.",
                     bind: "$picked3",
                 },
@@ -218,7 +217,8 @@ export const bogDown = defineCard(() => ({
                     kind: "discard-hand",
                     player: { target: 0 },
                     zone: "hand",
-                    count: { min: 0, max: 2 },
+                    // CR 609.3 / 701.9b — mandatory; clamps to hand size.
+                    count: 2,
                     prompt: "Discard two cards.",
                     bind: "$picked2",
                 },
