@@ -207,6 +207,14 @@ fact dispatches nothing (the next tick is ten minutes away). Both machines
 run it: each tick re-reads the facts right before dispatching, and each
 workflow's concurrency group serialises a double fire.
 
+The tick also **flags**, dispatching nothing (issue #9065): a `pr-gate` or
+`owner-merge` `startup_failure` in the last 3 h with no later success (the run
+URL is named), and a `ready-to-land` PR or `mergify/merge-queue/` draft whose
+head has had no `trusted-author` status for 20 min (the PR is named). A flag
+prints under `queue gate` in `runner status` and exits the tick 1. Cost: 3 `gh`
+calls plus one status read per queued PR. No owner notification: none exists
+for health REDs either.
+
 | Machine | Unit                                                                                     | Log                                              |
 | ------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | MacBook | `com.tolaria.heartbeat` launchd agent, `StartInterval` 600 s                             | `~/.cache/tolaria/heartbeat/agent.log`           |
