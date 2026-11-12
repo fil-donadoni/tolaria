@@ -4501,24 +4501,45 @@ export const OP_EXECUTORS: {
                     // `from: "exile"` (issue #1570) is the same reanimation,
                     // sourced from an exile zone instead — the same primitive
                     // the `target`-shape's departed-object return already uses.
+                    // CR 110.5b — "tapped" rides the entry funnel (authored
+                    // entry), so PERMANENT_ENTERED already reports it.
+                    const authoredEntry = op.tapped
+                        ? { entersTapped: true }
+                        : undefined;
                     const entered =
                         op.from === "hand"
-                            ? ctx.putFromHandOntoBattlefield(playerId, id)
+                            ? ctx.putFromHandOntoBattlefield(
+                                  playerId,
+                                  id,
+                                  authoredEntry
+                              )
                             : op.from === "graveyard"
                               ? ctx.returnToBattlefield(
                                     playerId,
                                     id,
-                                    "graveyard"
+                                    "graveyard",
+                                    undefined,
+                                    authoredEntry
+                                        ? { authoredEntry }
+                                        : undefined
                                 )
                               : op.from === "exile"
-                                ? ctx.returnToBattlefield(playerId, id, "exile")
+                                ? ctx.returnToBattlefield(
+                                      playerId,
+                                      id,
+                                      "exile",
+                                      undefined,
+                                      authoredEntry
+                                          ? { authoredEntry }
+                                          : undefined
+                                  )
                                 : ctx.putFromLibraryOntoBattlefield(
                                       playerId,
-                                      id
+                                      id,
+                                      authoredEntry
+                                          ? { authoredEntry }
+                                          : undefined
                                   );
-                    if (entered && op.tapped) {
-                        ctx.tap({ type: "permanent", id });
-                    }
                     // issue #1151 (closing #1120 gap 3) — snapshot the
                     // permanent that just entered so a follow-up Op (a haste
                     // grant, a `delayedTrigger` capture) can act on it. The
@@ -4781,7 +4802,11 @@ export const OP_EXECUTORS: {
             // land drop and fires ETB triggers normally (CR 603.6).
             const owner = target.playerId;
             if (owner === undefined || op.to !== "battlefield") return;
-            const entered = ctx.putFromHandOntoBattlefield(owner, target.id);
+            const entered = ctx.putFromHandOntoBattlefield(
+                owner,
+                target.id,
+                op.tapped ? { entersTapped: true } : undefined
+            );
             if (!entered) return; // CR 608.2b — a staging redirect or a
             // card no longer in hand
             if (op.bind) {
@@ -4790,9 +4815,6 @@ export const OP_EXECUTORS: {
                     id: target.id,
                 });
             }
-            // CR 110.5a — enter tapped; the same direct `tap` after entry the
-            // graveyard branch below performs.
-            if (op.tapped) ctx.tap({ type: "permanent", id: target.id });
             // CR 506.3c / 702.49c — join the current combat as an attacker,
             // against the defender stamped by the ninjutsu cost payment.
             if ("attacking" in op && op.attacking) {
@@ -4862,13 +4884,20 @@ export const OP_EXECUTORS: {
                     "entersWithCounters" in op && op.entersWithCounters
                         ? op.entersWithCounters
                         : undefined;
-                const entered = ctx.returnToBattlefield(
+                ctx.returnToBattlefield(
                     owner,
                     target.id,
                     recoveredZone,
                     controllerId,
-                    entersAs || attachToId !== undefined || entryCounters
+                    entersAs ||
+                        attachToId !== undefined ||
+                        entryCounters ||
+                        op.tapped
                         ? {
+                              // CR 110.5b — enter tapped, inside the entry funnel.
+                              ...(op.tapped
+                                  ? { authoredEntry: { entersTapped: true } }
+                                  : {}),
                               ...(entersAs ? { entersAs } : {}),
                               ...(attachToId !== undefined
                                   ? { attachTo: attachToId }
@@ -4877,13 +4906,6 @@ export const OP_EXECUTORS: {
                           }
                         : undefined
                 );
-                // CR 110.5a (issue #1469) — enter tapped. Mirrors the
-                // `cards`-shape's own `tapped` handling: a direct `tap`
-                // immediately after entry, a simplification that skips any
-                // "as this enters tapped" replacement interaction.
-                if (entered && op.tapped) {
-                    ctx.tap({ type: "permanent", id: target.id });
-                }
                 return;
             }
             // A plain graveyard/exile → hand/library/exile/graveyard move by

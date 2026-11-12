@@ -8,6 +8,8 @@
 // would pass the fat-state test and still be broken on the client.
 
 import { describe, it, expect } from "vitest";
+import { preloadDefinitions } from "../../../cards";
+import { amuletOfVigor } from "../../../cards/sets/wwk/colorless.cards";
 import type {
     CardDefinition,
     EffectCardFilter,
@@ -136,6 +138,7 @@ function registerScript(
 /** A vanilla 2/5 creature (toughness high enough to survive test burns, so
  *  marked damage stays observable — CR 120.3). */
 const BEAR_ID = "test-effects-bear";
+const AMULET_ID = "997bc933-ac30-477b-a4e1-5333b796a99d";
 registerTokenDefinition({
     id: BEAR_ID,
     name: BEAR_ID,
@@ -6039,6 +6042,32 @@ describe("Effect Script Op: moveZone — departed-object return (CR 400.7 / 608.
             (c) => c.id === "tapBear"
         );
         expect(returned?.isTapped).toBe(true);
+    });
+
+    it("a moveZone-tapped entry is announced as entering tapped (CR 603.6a, 110.5b)", () => {
+        preloadDefinitions([amuletOfVigor()]);
+        const id = sorinShaped("test-mz-return-tapped-event", { tapped: true });
+        const amulet = makeInstance(AMULET_ID, { controllerId: "p1" });
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "tapEventBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [amulet] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "tapEventBear" }]);
+        resolveTopOfStack(state);
+        // Amulet of Vigor's trigger saw `enteredTapped` and is on the stack.
+        expect(state.stack.length).toBe(1);
+        resolveTopOfStack(state);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "tapEventBear"
+        );
+        expect(returned?.isTapped).toBe(false);
     });
 
     // NEGATIVE 1 — the target survived the destroy (CR 702.12). It never
