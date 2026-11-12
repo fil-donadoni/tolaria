@@ -1,18 +1,17 @@
-// Frontend wire-format tests for the stack row's Targets block (issue #9326,
-// superseding the phone-only name line of ADR 0103 / issue #2727).
+// Frontend wire-format tests for the stack row's Targets block (issue #9326).
 //
-// Per the frontend-wiring mandate every SURFACE assertion runs through the real
-// `projectPublicState`: the projection strips fat fields, so a resolver that
-// only works on the engine state passes here while the client breaks.
+// Every SURFACE assertion runs through the real `projectPublicState`: the
+// projection strips fat fields, so a resolver that only works on the engine
+// state passes here while the client breaks.
 //
-// - A graveyard-card target line needs the target's OWNER id and INSTANCE id
-//   (which graveyard, which of three identical copies), and the targeted
-//   graveyard in its viewer order — its position is the line's "#N".
-// - A spell target line needs the targeted STACK ITEM id and the stack order:
-//   "#N on the stack" is the number the stack panel shows on that row.
-// - A face-down permanent target (issue #1735 review round 3) resolves its
-//   display name through `displayCardId`: the controller keeps the real name,
-//   the opponent sees the sentinel.
+// - A graveyard-card line needs the target's OWNER id and INSTANCE id (which
+//   graveyard, which of three identical copies) and the graveyard in viewer
+//   order — its position is the line's "#N".
+// - A spell line needs the targeted STACK ITEM id and the stack order: "#N on
+//   the stack" is the number the stack panel shows on that row.
+// - A face-down permanent target resolves its display name through
+//   `displayCardId`: the controller keeps the real name, the opponent sees the
+//   sentinel.
 
 import { describe, it, expect } from "vitest";
 import { stackTargetLines } from "../stack-target-line";
@@ -119,7 +118,7 @@ describe("stack target lines survive projectPublicState (issue #9326)", () => {
     });
 });
 
-describe("stack target lines resolve a face-down target's display name (issue #1735 review round 3)", () => {
+describe("stack target lines resolve a face-down target's display name", () => {
     // `knownCardId` is a wire-projection-only field (`projectStackItem` /
     // `projectBattlefieldCard`, `convex/gameProjections.ts`) — on the fat
     // engine state `displayCardId` is a correct no-op for every card, face

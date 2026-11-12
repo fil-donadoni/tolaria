@@ -127,8 +127,8 @@ function resolveTargetLine(
         case "permanent": {
             for (const seat of allPlayers) {
                 const hit = seat.battlefield.find((c) => c.id === target.id);
-                // Only a battlefield hit can be face down (CR 708.7);
-                // `displayCardId` resolves its display identity per viewer.
+                // A face-down permanent resolves its display identity per
+                // viewer through `displayCardId`.
                 const title = hit ? cardName(displayCardId(hit)) : null;
                 if (!hit || !title) continue;
                 return {
