@@ -14997,6 +14997,7 @@
         {"id":"119.4","line":"// activated ability with a CR 119.4 life cost (`cost: { life: 1 }`) — no mana,","sites":1,"status":"baseline"},
         {"id":"115.4","line":"// CR 115.4 — the target's controller must control an Island.","sites":1,"status":"baseline"},
         {"id":"105.1","line":"/** `colors` came from ONE \"<colour> or <colour>\" adjective (CR 105.1) —","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
+        {"id":"610.3b","line":"it(\"CR 610.3b — an opponent crowned BEFORE the exile trigger triggered does not count\", () => {","sites":1,"status":"confirmed","ruleHash":"e018a5ca1fa45b0c"},
         {"id":"107.1","line":"* CR 107.1 — \"<player> gains/loses N life for each <set>\". The multiplier is a","sites":1,"status":"confirmed","ruleHash":"124e361bd2bd01cc"},
         {"id":"702.86a","line":"// carries NO filter (CR 702.86a: \"N permanents\", any type, their choice), a","sites":1,"status":"baseline"},
         {"id":"603.6a","line":"// Issue #4758 — CR 603.6a \"When [this object] enters\": a `self`-scoped","sites":1,"status":"confirmed","ruleHash":"626467d194403c4b"},

@@ -19,7 +19,7 @@ const palaceJailer = getDefinition("78cef262-c753-4658-b3ec-fec8db47f944");
 
 /** Cast Palace Jailer over a lone opposing bear and put both ETB triggers on
  *  the stack, then resolve down to the exile trigger, leaving it on top. */
-function jailerExileTriggerOnTop(): GameState {
+function jailerExileTriggerOnTop(priorMonarch?: string): GameState {
     const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
     const victim = makeInstance(bear.id, {
         id: "victim",
@@ -32,6 +32,7 @@ function jailerExileTriggerOnTop(): GameState {
             makePlayer("p2", { battlefield: [victim] }),
         ],
     });
+    if (priorMonarch) becomeMonarch(state, priorMonarch);
     pushSpell(state, palaceJailer.id, "p1");
     resolveTopOfStack(state);
     resolveTriggerOrder(state);
@@ -130,6 +131,15 @@ describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR
         expect(state.monarchReturnWatch).toEqual([
             expect.objectContaining({ controllerId: "p1" }),
         ]);
+    });
+
+    it("CR 610.3b — an opponent crowned BEFORE the exile trigger triggered does not count", () => {
+        const state = jailerExileTriggerOnTop("p2");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(state.monarchId).toBe("p1");
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["victim"]);
+        expect(state.monarchReturnWatch).toHaveLength(1);
     });
 
     it("releases the exiled creature the moment an opponent becomes the monarch", () => {
