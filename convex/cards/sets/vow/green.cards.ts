@@ -55,6 +55,29 @@ export const cultivatorColossus = defineCard(() => ({
             oracleText:
                 "When this creature enters, you may put a land card from your hand onto the battlefield tapped. If you do, draw a card and repeat this process.",
             scope: "self",
+            // AI shadow (never executed): one pass of the loop — a land from
+            // hand onto the battlefield tapped, then a draw.
+            aiEffects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Land" },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a land card from your hand onto the battlefield tapped.",
+                    bind: "$land",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$land" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                    tapped: true,
+                },
+                { op: "draw", player: "controller", count: 1 },
+            ],
             resolve: (ctx) => {
                 const me = ctx.controller;
                 for (let i = 0; ; i++) {
