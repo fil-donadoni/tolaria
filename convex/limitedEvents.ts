@@ -39,6 +39,7 @@ import {
     seatRowNeedsInterning,
 } from "./limitedSeatStore";
 import { loadPrintIdsInSet, loadPrintRows } from "./cardPrintRows";
+import { loadMemberEvents, syncEventMembers } from "./limitedEventMemberStore";
 import { resolveSheetCardMeta } from "./limitedCardMeta";
 import {
     makeResolveCardFromRows,
@@ -610,10 +611,8 @@ const packSourceInfoValidator = v.object({
     sets: v.array(draftableSetInfoValidator),
 });
 
-// Bound on the full-table scan `myLimitedEvents` does (no index can select
-// "seats containing this userId" — seats is an embedded array). An event pod
-// is short-lived and capped at 8 seats; 500 most-recent events comfortably
-// covers every event a user could still be seated in.
+// Bound on the full-table walks the one-shot backfills below do — no index can
+// express "is legacy", so each walks the newest events under an explicit cap.
 const MY_EVENTS_SCAN_LIMIT = 500;
 
 // `resolveCardMeta` used to live here. It moved to `convex/limitedCardMeta.ts`
@@ -1732,33 +1731,23 @@ export const listOpenLimitedEvents = query({
 
 /** Every event (any status) the current user occupies a Seat in — how a
  *  player finds their way back to a started event's Pool view after leaving
- *  the lobby list (which only shows "open" events). No index can select
- *  "seats containing this userId" (seats is an embedded array), so this scans
- *  the `MY_EVENTS_SCAN_LIMIT` most-recently-created events — a bound, not a
- *  true index, but comfortably covers every event a user could still be
- *  seated in.
+ *  the lobby list (which only shows "open" events). Read through the
+ *  `limitedEventMembers` index (`loadMemberEvents`), so it touches only the
+ *  events the viewer sits at and re-runs only when one of THOSE is written —
+ *  not on every pick anywhere, as the old 500-row table scan did.
  *
- *  That scan is affordable only because an event row is SLIM: the per-seat
- *  card payload lives in `limitedSeats` (`convex/schema.ts`) and this query
- *  reads none of it. Before the split each scanned row carried up to 48 KB of
- *  Pools, and since the query re-runs on every write to any event, a single
- *  draft re-read the whole table once per pick. Keep it projecting through
- *  `projectEventSummary` — reaching for `projectEventForViewer` here would
- *  restore exactly that. */
+ *  Keep it projecting through `projectEventSummary`: the per-seat card
+ *  payload lives in `limitedSeats` (`convex/schema.ts`) and this query reads
+ *  none of it; `projectEventForViewer` here would. */
 export const myLimitedEvents = query({
     args: {},
     returns: v.array(limitedEventSummaryValidator),
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
         const userId = user._id;
-        const events = await ctx.db
-            .query("limitedEvents")
-            .order("desc")
-            .take(MY_EVENTS_SCAN_LIMIT);
+        const events = await loadMemberEvents(ctx, userId);
         return Promise.all(
-            events
-                .filter((event) => event.seats.some((s) => s.userId === userId))
-                .map((event) => projectEventSummary(ctx, event, userId))
+            events.map((event) => projectEventSummary(ctx, event, userId))
         );
     },
 });
@@ -1770,7 +1759,7 @@ export const myLimitedEvents = query({
  *  of everything the viewer has ever sat at. `/limited/events`
  *  (`myLimitedEvents`, unchanged) is where a concluded event's record lives.
  *
- *  Same slim scan + `projectEventSummary` as `myLimitedEvents` above — this
+ *  Same membership read + `projectEventSummary` as `myLimitedEvents` above — this
  *  is a NEW query rather than a client-side filter over that one specifically
  *  so the cut is server-side (issue #2357 AC: "no component re-derives it")
  *  and so `myLimitedEvents` itself can keep returning every status: the Draft
@@ -1783,17 +1772,10 @@ export const myCurrentLimitedEvents = query({
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
         const userId = user._id;
-        const events = await ctx.db
-            .query("limitedEvents")
-            .order("desc")
-            .take(MY_EVENTS_SCAN_LIMIT);
+        const events = await loadMemberEvents(ctx, userId);
         return Promise.all(
             events
-                .filter(
-                    (event) =>
-                        event.seats.some((s) => s.userId === userId) &&
-                        !isEventConcluded(event.status)
-                )
+                .filter((event) => !isEventConcluded(event.status))
                 .map((event) => projectEventSummary(ctx, event, userId))
         );
     },
@@ -1996,6 +1978,7 @@ export const joinLimitedEvent = mutation({
             seats: asDbSeats(seats),
             updatedAt: Date.now(),
         });
+        await syncEventMembers(ctx, args.eventId, seats);
         return null;
     },
 });
@@ -2027,6 +2010,7 @@ export const leaveLimitedEvent = mutation({
                 seats: asDbSeats(seats),
                 updatedAt: Date.now(),
             });
+            await syncEventMembers(ctx, args.eventId, seats);
             return null;
         }
         const seat = event.seats.find((s) => s.userId === user._id);
@@ -2984,6 +2968,43 @@ export const migrateCubePool = internalMutation({
             migrated++;
         }
         return { migrated, remaining };
+    },
+});
+
+/** One-shot backfill for the `limitedEventMembers` index (`convex/schema.ts`,
+ *  issue #6076): writes the membership rows of every event created before the
+ *  index existed. Time-sensitive: until it runs, `myLimitedEvents` /
+ *  `myCurrentLimitedEvents` do not list those older events. Run IMMEDIATELY
+ *  after deploying, repeating with the returned `cursor` until `isDone`:
+ *
+ *      bunx convex run --prod limitedEvents:migrateEventMembers '{}'
+ *
+ *  Paginated over the whole table (not the `MY_EVENTS_SCAN_LIMIT` cap): every
+ *  event a User was ever seated in belongs on `/limited/events`. Idempotent —
+ *  `syncEventMembers` writes nothing for an event already in step. */
+export const migrateEventMembers = internalMutation({
+    args: {
+        cursor: v.optional(v.union(v.string(), v.null())),
+        limit: v.optional(v.number()),
+    },
+    returns: v.object({
+        synced: v.number(),
+        cursor: v.string(),
+        isDone: v.boolean(),
+    }),
+    handler: async (ctx, args) => {
+        const page = await ctx.db.query("limitedEvents").paginate({
+            cursor: args.cursor ?? null,
+            numItems: args.limit ?? 100,
+        });
+        for (const event of page.page) {
+            await syncEventMembers(ctx, event._id, event.seats);
+        }
+        return {
+            synced: page.page.length,
+            cursor: page.continueCursor,
+            isDone: page.isDone,
+        };
     },
 });
 
