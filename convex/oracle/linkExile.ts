@@ -16,7 +16,7 @@
  * with NO duration: if the source leaves while the exile trigger is still on
  * the stack, the return finds nothing and the exile then resolves for good.
  * `exileWithAttachments` always applies CR 610.3a/b's guard (the interpreter
- * passes `requireSourceOnBattlefield`), so it would exile nothing there — the
+ * passes `untilEvent: source-leaves`), so it would exile nothing there — the
  * Op has no non-duration form, and lowering the pair onto it is a misread.
  *
  * The hand return ("return the exiled card to its owner's hand") lowers to

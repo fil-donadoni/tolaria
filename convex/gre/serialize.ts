@@ -1034,6 +1034,10 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.spellsCastBefore !== undefined) {
         base.spellsCastBefore = item.spellsCastBefore;
     }
+    // CR 610.3b — the crown-change epoch the trigger was stamped with.
+    if (item.monarchCrowningsAtTrigger !== undefined) {
+        base.monarchCrowningsAtTrigger = item.monarchCrowningsAtTrigger;
+    }
     if (item.castCopyCountReadOnResolution) {
         base.castCopyCountReadOnResolution = true;
     }
@@ -1266,6 +1270,10 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     }
     if (compact.spellsCastBefore !== undefined) {
         item.spellsCastBefore = compact.spellsCastBefore as number;
+    }
+    if (compact.monarchCrowningsAtTrigger !== undefined) {
+        item.monarchCrowningsAtTrigger =
+            compact.monarchCrowningsAtTrigger as number;
     }
     if (compact.castCopyCountReadOnResolution) {
         item.castCopyCountReadOnResolution = true;
@@ -1529,6 +1537,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // the generic optional-key loop with no per-field compaction needed.
     "monarchId",
     "monarchReturnWatch",
+    // CR 725.3 — the crown-change epoch (a plain number) the CR 610.3b
+    // monarch-exile guard reads; a save between the trigger and its
+    // resolution must keep it.
+    "monarchCrownings",
     // CR 702.131 (Ascend, issue #1460) — the City's Blessing designation.
     // `cityBlessingIds` is a plain array of player-id strings (no fat card
     // refs); it round-trips via the generic optional-key loop. MONOTONIC — once

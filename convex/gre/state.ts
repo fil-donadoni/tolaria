@@ -512,6 +512,7 @@ export type {
     DamageTriggeredLifegain,
     PhasedOutBundle,
     ExileReturnBundle,
+    ExileUntilEvent,
     MonarchReturnWatch,
     StagedEntry,
     StagedEntryAnswers,
@@ -551,6 +552,7 @@ import type {
     DamageRedirection,
     PhasedOutBundle,
     ExileReturnBundle,
+    ExileUntilEvent,
     MonarchReturnWatch,
     StagedEntry,
     StagedEntryAnswers,
@@ -8261,6 +8263,43 @@ export function sourceAlreadyLeftBattlefield(
     return !isOwnResolvingSpell;
 }
 
+/** CR 610.3b / 725.3 — whether an opponent of `controllerId` has become the
+ *  monarch since the crown-change epoch read `crowningsAtTrigger`. Every
+ *  crowning `becomeMonarch` counts moves the crown to a DIFFERENT player, so
+ *  of two or more crownings at least one went to someone other than
+ *  `controllerId`; a single one did exactly when the crown now sits elsewhere.
+ *  "An opponent" is any player other than `controllerId`, the reading
+ *  `becomeMonarch`'s return sweep makes. */
+export function monarchEventSince(
+    state: GameState,
+    controllerId: string,
+    crowningsAtTrigger: number
+): boolean {
+    const crownings = (state.monarchCrownings ?? 0) - crowningsAtTrigger;
+    if (crownings <= 0) return false;
+    return crownings >= 2 || state.monarchId !== controllerId;
+}
+
+/** CR 610.3a / 610.3b — whether the specified event of an "until <event>"
+ *  exile has already occurred, so the initial exile must not move the
+ *  object. */
+export function exileUntilEventOccurred(
+    state: GameState,
+    sourceId: string,
+    event: ExileUntilEvent
+): boolean {
+    switch (event.kind) {
+        case "source-leaves":
+            return sourceAlreadyLeftBattlefield(state, sourceId);
+        case "opponent-becomes-monarch":
+            return monarchEventSince(
+                state,
+                event.controllerId,
+                event.crowningsAtTrigger
+            );
+    }
+}
+
 /** CR 603.7a / ADR 0028 — exile `targetId` and every permanent attached to it
  *  (Auras), noting the host's counters when `noteCounters` asks (CR 122.2),
  *  and record an `ExileReturnBundle` keyed
@@ -8290,13 +8329,13 @@ export function exileWithAttachments(
          *  O-Ring destroyed in response to its own ETB trigger exiles nothing,
          *  rather than exiling a card no return trigger can ever restore.
          *
-         *  Set by the "until THIS leaves the battlefield" family alone (the
-         *  `exileWithAttachments` Op — Banishing Light, Leyline Binding,
-         *  Oblivion Ring, Tawnos's Coffin), whose expiry event IS the source's
-         *  departure. Palace Jailer (`exileUntilMonarchChanges`) leaves it
-         *  false on purpose: its specified event is a monarch change, so the
-         *  exile survives the Jailer's own death (CR 720). */
-        requireSourceOnBattlefield?: boolean;
+         *  Names that event (`ExileUntilEvent`). The "until THIS leaves the
+         *  battlefield" family (the `exileWithAttachments` Op — Banishing
+         *  Light, Leyline Binding, Oblivion Ring, Tawnos's Coffin) passes
+         *  `source-leaves`; Palace Jailer (`exileUntilMonarchChanges`) passes
+         *  `opponent-becomes-monarch`, so its exile still survives the
+         *  Jailer's own death. Absent = no guard. */
+        untilEvent?: ExileUntilEvent;
         /** CR 122.2 / 400.7 — counters on an object cease to exist when it
          *  changes zones, so the returning host is a new object with NONE of
          *  them (only whatever its own entry adds, CR 121.6). The counters
@@ -8310,12 +8349,11 @@ export function exileWithAttachments(
 ): string | null {
     const found = findOnBattlefield(state, targetId);
     if (!found) return null;
-    // CR 610.3a / 610.3b — the specified event (this source leaving the
-    // battlefield) has already happened, so the initial one-shot effect does
-    // nothing at all.
+    // CR 610.3a / 610.3b — the specified event has already happened, so the
+    // initial one-shot effect does nothing at all.
     if (
-        opts.requireSourceOnBattlefield &&
-        sourceAlreadyLeftBattlefield(state, opts.sourceId)
+        opts.untilEvent &&
+        exileUntilEventOccurred(state, opts.sourceId, opts.untilEvent)
     ) {
         return null;
     }
@@ -8491,6 +8529,9 @@ export function becomeMonarch(
 ): void {
     if (state.monarchId === playerId) return;
     state.monarchId = playerId;
+    // CR 725.3 — the crown changed hands: advance the epoch the CR 610.3b
+    // monarch-exile guard measures against (`monarchEventSince`).
+    state.monarchCrownings = (state.monarchCrownings ?? 0) + 1;
     // Cosmetic provenance (issue #1305): remember which card crowned them so
     // the end-step draw tile can theme its marker art to that card's own
     // printing. A source-less crown (CR 720.3 combat-damage steal) passes
@@ -8513,18 +8554,28 @@ export function becomeMonarch(
  *  Auras fall to the orphan-aura SBA and Equipment detaches, matching the
  *  O-Ring precedent) keyed to `sourceId`, and arms a watch that returns it
  *  the next time an opponent of `controllerId` becomes the monarch
- *  (`becomeMonarch` above). No-op if the target isn't on the battlefield. */
+ *  (`becomeMonarch` above). No-op if the target isn't on the battlefield.
+ *
+ *  CR 610.3b — `crowningsAtTrigger` is the crown-change epoch when the
+ *  exiling ability triggered: if an opponent was crowned since, the event
+ *  already occurred, so nothing is exiled and no watch is armed. */
 export function exileUntilMonarchChanges(
     state: GameState,
     targetId: string,
     sourceId: string,
     controllerId: string,
+    crowningsAtTrigger: number,
     opts?: { returnTapped?: boolean }
 ): void {
     const bundleId = exileWithAttachments(state, targetId, {
         sourceId,
         returnTapped: opts?.returnTapped ?? false,
         includeAttachments: false,
+        untilEvent: {
+            kind: "opponent-becomes-monarch",
+            controllerId,
+            crowningsAtTrigger,
+        },
     });
     if (bundleId === null) return;
     state.monarchReturnWatch = [
@@ -16306,6 +16357,7 @@ export function buildSpellContext(
                 targetId,
                 ctx.sourceInstanceId,
                 ctx.controller,
+                item.monarchCrowningsAtTrigger ?? 0,
                 opts
             );
         },

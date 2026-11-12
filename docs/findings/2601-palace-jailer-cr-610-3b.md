@@ -1,7 +1,8 @@
 ---
 title: Palace Jailer's exile ignores CR 610.3b when the monarchy changes before its ETB resolves
 discoveredBy: 2601
-status: draft
+status: triaged
+issue: 2948
 confidence: medium
 ---
 
