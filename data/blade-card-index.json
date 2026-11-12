@@ -919,8 +919,8 @@
             "needsSetup": false
         },
         {
-            "label": "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand",
-            "tier": "stretch",
+            "label": "land-type change: Reef Shaman makes a Mountain for the Flame Slash that kills the Hill Giant",
+            "tier": "must",
             "needsSetup": false
         }
     ],

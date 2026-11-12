@@ -3721,7 +3721,8 @@ function iterate(
     actionPriors: ActionPriorConfig | null = null,
     deckKnowledge?: DeckKnowledgeBySeat,
     opponentModel: OpponentModel | null = null,
-    openRootByPolicy = false
+    openRootByPolicy = false,
+    unlockingRootKeys?: ReadonlySet<string>
 ): void {
     const world = determinize(
         rootState,
@@ -3818,6 +3819,9 @@ function iterate(
                     !isOneSidedPutCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
+            if (unlockingRootKeys?.has(path[0]?.key ?? "")) {
+                keyed = withoutMisdirectedVariants(world, pid, keyed);
+            }
         }
         if (keyed.length === 0) break;
 
@@ -3953,6 +3957,51 @@ function iterate(
 
     // Reached a terminal/at-depth leaf without expanding: score it as-is.
     backpropagate(path, scoreLeaf(world, botId, weights, since), botId);
+}
+
+/** True when every target `move` announces is MISDIRECTED for its mover
+ *  (`misdirectedTargetCount`): a harmful slot at the mover's own side, a
+ *  beneficial one at the opponent's. Exported as a test seam. */
+export function isWhollyMisdirectedMove(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+        return false;
+    }
+    return (
+        move.targets.length > 0 &&
+        misdirectedTargetCount(state, move, pid) === move.targets.length
+    );
+}
+
+/** `keyed` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
+ *  of an announcement that keeps a sibling variant (`isCastVariantOf`) aimed
+ *  otherwise; a misdirected variant with no such sibling is the
+ *  announcement's only form and stays. Applied below a root move whose payoff
+ *  is a cast it unlocks (`isCostUnlockingLandTypeChange`, CR 305.7): the tree
+ *  backs up MEAN rewards, and a burn spell's own-side targets are as many
+ *  edges as its real ones, so their visits dragged the activation's mean
+ *  below `pass` with the payoff a few plies deep. Scoped to those subtrees
+ *  because the sign table still misreads some self-targets — a creature
+ *  transform on the mover's own artifact is a free body — and anywhere else
+ *  the lifted means hand ties to the root's variant ranking. */
+function withoutMisdirectedVariants(
+    state: GameState,
+    pid: string,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    const misdirected = keyed.filter((k) =>
+        isWhollyMisdirectedMove(state, pid, k.move)
+    );
+    if (misdirected.length === 0) return keyed;
+    const aimed = keyed.filter((k) => !misdirected.includes(k));
+    return keyed.filter(
+        (k) =>
+            !misdirected.includes(k) ||
+            !aimed.some((a) => isCastVariantOf(a.move, k.move))
+    );
 }
 
 /** Propagate a bot-perspective leaf along the visited edges, each edge storing
@@ -7700,6 +7749,13 @@ function runSearchWithTrace(
     const deniedRootKeys = new Set(
         deniedAtRoot.map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
+    // The root moves whose subtree prunes misdirected variants
+    // (`withoutMisdirectedVariants`), read once on the real root state.
+    const unlockingRootKeys = new Set(
+        moves
+            .filter((m) => isCostUnlockingLandTypeChange(state, m))
+            .map((m) => priorityMoveKey(state, playerId, playerId, m))
+    );
 
     // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
     // structural credit in `selectRootMove` is the ONE full-pool tie-break not
@@ -7742,7 +7798,8 @@ function runSearchWithTrace(
             actionPriors,
             deckKnowledge,
             opponentModel,
-            openRootByPolicy
+            openRootByPolicy,
+            unlockingRootKeys
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
