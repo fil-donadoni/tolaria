@@ -78,12 +78,36 @@ export function deriveGroups(
     return groups;
 }
 
-/** First VISIBLE element matching `sel` (the same anchor can render twice). */
+/** The part of `el` actually visible: its box intersected with every
+ *  ancestor that clips (overflow ≠ visible) — a stack row half scrolled out
+ *  of the stack panel is only its visible slice (round-4 walk: the focus hole
+ *  spilled outside the panel). Null when nothing is visible. */
+export function visibleRect(el: Element): Rect | null {
+    const r = el.getBoundingClientRect();
+    let x1 = r.left;
+    let y1 = r.top;
+    let x2 = r.right;
+    let y2 = r.bottom;
+    for (let p = el.parentElement; p; p = p.parentElement) {
+        const cs = getComputedStyle(p);
+        if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+        const pr = p.getBoundingClientRect();
+        x1 = Math.max(x1, pr.left);
+        y1 = Math.max(y1, pr.top);
+        x2 = Math.min(x2, pr.right);
+        y2 = Math.min(y2, pr.bottom);
+    }
+    return x2 - x1 > 0 && y2 - y1 > 0
+        ? { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+        : null;
+}
+
+/** First VISIBLE element matching `sel` (the same anchor can render twice),
+ *  clipped to what its scroll containers show. */
 export function rectOf(sel: string): Rect | null {
     for (const el of Array.from(document.querySelectorAll(sel))) {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0)
-            return { x: r.left, y: r.top, w: r.width, h: r.height };
+        const r = visibleRect(el);
+        if (r) return r;
     }
     return null;
 }
@@ -147,14 +171,8 @@ export function useAnchors(groups: ZoneTargetGroup[]) {
             for (const el of Array.from(
                 document.querySelectorAll("[data-proto-measure]")
             )) {
-                const r = el.getBoundingClientRect();
-                if (r.width > 0)
-                    ex[el.getAttribute("data-proto-measure")!] = {
-                        x: r.left,
-                        y: r.top,
-                        w: r.width,
-                        h: r.height,
-                    };
+                const r = visibleRect(el);
+                if (r) ex[el.getAttribute("data-proto-measure")!] = r;
             }
             // The stack panel: overlays must not land on it.
             const stackRect = rectOf('[data-testid="game-stack"]');
