@@ -16,16 +16,14 @@
 // Neither is a reimplementation of pack generation, passing, or scoring —
 // those stay entirely inside the shared `draftEngine.ts`/`botDrafter.ts`
 // modules this file's exports are injected into.
+import { limitedSourceColors } from "@convex/limited/manaSourceColors";
 import { tryGetDefinition } from "@convex/cards";
 import { resolveDeckCardMeta } from "@convex/cards/catalogue";
 import {
     getCardColorIdentity,
     getPipCountsFromCost,
 } from "@convex/cards/colors";
-import {
-    getDefinitionProducibleColors,
-    manaValue,
-} from "@convex/gre/constants";
+import { manaValue } from "@convex/gre/constants";
 import type { GetAutoBuildCardMeta } from "@convex/limited/autoBuild";
 import type { GetCardEvalMeta } from "@convex/limited/botDrafter";
 
@@ -55,7 +53,7 @@ export const draftLabGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         manaValue: manaValue(def.manaCost),
         rarity: meta.rarity,
         pips: getPipCountsFromCost(def.manaCost),
-        producedColors: [...getDefinitionProducibleColors(def)],
+        producedColors: limitedSourceColors(def),
     };
 };
 
