@@ -11,6 +11,8 @@ import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { makeMulliganState, recordDeclaration } from "../mulligan";
+import { resolveTopOfStack } from "../state";
+import { devourerOfDestiny } from "../../cards/sets/mh3/colorless.cards";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import type { CardInstanceState, GameState } from "../state";
 import type { Phase } from "../types";
@@ -33,6 +35,25 @@ const LEYLINE: CardDefinition = {
     manaCost: { generic: 2, B: 2 },
     types: ["Enchantment"],
     openingHandAction: "begin-on-battlefield",
+};
+
+/** A card that may be revealed from the opening hand (CR 103.6b): "At the
+ *  beginning of your first upkeep, you gain 3 life." */
+const REVEALER: CardDefinition = {
+    id: "test-8598-revealer",
+    name: "Test Opening-Hand Revealer",
+    rarity: "rare",
+    oracleText:
+        "You may reveal this card from your opening hand. If you do, at the beginning of your first upkeep, you gain 3 life.",
+    manaCost: { X: 3 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+    openingHandAction: "reveal",
+    openingHandReveal: {
+        oracleText: "At the beginning of your first upkeep, you gain 3 life.",
+        effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+    },
 };
 
 /** The same, with a self-ETB trigger (CR 603.6a): "When this enters, you gain
@@ -287,6 +308,140 @@ describe("opening-hand actions (CR 103.6)", () => {
             ]);
             const theirs = projectPublicState(state, 1, "p2");
             expect(theirs.pendingChoices).toBeUndefined();
+        });
+    });
+
+    describe("reveal from the opening hand (CR 103.6b)", () => {
+        it("a revealed card stays in hand, known to every player until the first turn begins", () => {
+            withTemporaryDefinition(REVEALER, () => {
+                const state = makeGame({ p1: [REVEALER.id], p2: [] });
+                keepBoth(state);
+                expect(state.pendingChoices?.[0]?.candidateIds).toEqual([
+                    "p1-hand-0",
+                ]);
+                submit(state, ["p1-hand-0"]);
+
+                // The window has closed (only p1 had an action) and turn 1
+                // began: the reveal is over, the card never left the hand.
+                expect(state.phase).toBe("UPKEEP");
+                const card = state.players[0].hand.find(
+                    (c) => c.id === "p1-hand-0"
+                );
+                expect(card).toBeDefined();
+                expect(card!.knownTo).toBeUndefined();
+            });
+        });
+
+        it("the opponent sees the card revealed while the window is still open", () => {
+            withTemporaryDefinition(REVEALER, () => {
+                const state = makeGame({
+                    p1: [REVEALER.id],
+                    p2: [REVEALER.id],
+                });
+                keepBoth(state);
+                submit(state, ["p1-hand-0"]);
+
+                // p2 has yet to act, so the first turn has not begun.
+                expect(state.phase).toBe("MULLIGAN");
+                const view = projectPublicState(state, 1, "p2");
+                const shown = view.players[0].hand[0];
+                expect(shown).not.toBeNull();
+                expect(shown?.id).toBe("p1-hand-0");
+            });
+        });
+
+        it("the starting player's delayed trigger fires in turn 1's upkeep, once", () => {
+            withTemporaryDefinition(REVEALER, () => {
+                const state = makeGame({ p1: [REVEALER.id], p2: [] });
+                keepBoth(state);
+                submit(state, ["p1-hand-0"]);
+
+                expect(state.phase).toBe("UPKEEP");
+                expect(state.stack).toHaveLength(1);
+                expect(state.delayedTriggers).toBeUndefined();
+                const life = state.players[0].life;
+                resolveTopOfStack(state);
+                expect(state.players[0].life).toBe(life + 3);
+            });
+        });
+
+        it("a player not on the play gets theirs at their own first upkeep, not turn 1's", () => {
+            withTemporaryDefinition(REVEALER, () => {
+                const state = makeGame({ p1: [], p2: [REVEALER.id] });
+                keepBoth(state);
+                submit(state, ["p2-hand-0"]);
+
+                // p1 is on the play: the trigger belongs to p2's upkeep.
+                expect(state.phase).toBe("UPKEEP");
+                expect(state.activePlayerId).toBe("p1");
+                expect(state.stack).toHaveLength(0);
+                expect(state.delayedTriggers).toHaveLength(1);
+                expect(state.delayedTriggers![0].targetPlayerId).toBe("p2");
+            });
+        });
+
+        it("each card is revealed once: it is not offered again, and a refusal reveals nothing", () => {
+            withTemporaryDefinition(REVEALER, () => {
+                const state = makeGame({ p1: [REVEALER.id], p2: [] });
+                keepBoth(state);
+                submit(state, []);
+
+                expect(state.delayedTriggers).toBeUndefined();
+                expect(state.phase).toBe("UPKEEP");
+                expect(state.stack).toHaveLength(0);
+            });
+        });
+
+        it("a reveal and a begin-on-battlefield card are offered in the same choice", () => {
+            withTemporaryDefinition(REVEALER, () =>
+                withTemporaryDefinition(LEYLINE, () => {
+                    const state = makeGame({
+                        p1: [REVEALER.id, LEYLINE.id],
+                        p2: [],
+                    });
+                    keepBoth(state);
+                    expect(state.pendingChoices?.[0]?.candidateIds).toEqual([
+                        "p1-hand-0",
+                        "p1-hand-1",
+                    ]);
+                    submit(state, ["p1-hand-0", "p1-hand-1"]);
+                    expect(onBattlefield(state, 0)).toEqual(["p1-hand-1"]);
+                    expect(state.stack).toHaveLength(1);
+                })
+            );
+        });
+    });
+
+    it("the revealed dig runs at the first upkeep: one card back on top, the other three exiled (CR 103.6b / 701.20-style look)", () => {
+        const card = devourerOfDestiny();
+        withTemporaryDefinition(card, () => {
+            const state = makeGame({ p1: [card.id], p2: [] });
+            keepBoth(state);
+            submit(state, ["p1-hand-0"]);
+
+            expect(state.phase).toBe("UPKEEP");
+            resolveTopOfStack(state);
+            const head = state.pendingChoices![0];
+            expect(head.kind).toBe("look-distribute");
+            expect(head.candidateIds).toEqual([
+                "p1-lib-0",
+                "p1-lib-1",
+                "p1-lib-2",
+                "p1-lib-3",
+            ]);
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["p1-lib-2"],
+            });
+            expect(state.players[0].library[0].id).toBe("p1-lib-2");
+            expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+                "p1-lib-0",
+                "p1-lib-1",
+                "p1-lib-3",
+            ]);
         });
     });
 });

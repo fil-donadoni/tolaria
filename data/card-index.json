@@ -20486,6 +20486,14 @@
         "source": "compiled"
     },
     {
+        "name": "Devourer of Destiny",
+        "scryfallId": "560debcd-feb4-4534-991e-a7aa1cca2409",
+        "oracleId": "89215e6d-ebe7-4eb0-9999-11ee2e6eb1d2",
+        "firstSet": "mh3",
+        "firstPrintId": "560debcd-feb4-4534-991e-a7aa1cca2409",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Devouring Deep",
         "scryfallId": "0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59",
         "oracleId": "e0f18302-5ccf-47d2-a8a1-bb7aeaca9a53",
