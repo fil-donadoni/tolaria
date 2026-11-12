@@ -79960,6 +79960,14 @@
         "source": "compiled"
     },
     {
+        "name": "Surgical Extraction",
+        "scryfallId": "dca7e072-edb5-4f7e-bdec-a3a393053c80",
+        "oracleId": "3bfa088c-9a47-4123-aee5-4de44e355bef",
+        "firstSet": "nph",
+        "firstPrintId": "dca7e072-edb5-4f7e-bdec-a3a393053c80",
+        "firstPrintSet": "nph"
+    },
+    {
         "name": "Surgical Skullbomb",
         "scryfallId": "98c2b2af-739f-413c-8c36-da6f78df0acb",
         "oracleId": "6d364283-617a-4661-865d-abd9c304b2f9",

@@ -25,6 +25,7 @@ import {
     checkSpellTargetFilters,
     checkPlayerTargetFilters,
     checkCardTargetFilters,
+    lowerCardFilters,
     lowerPermanentFilters,
     PERMANENT_FILTER_KEYS,
     REGISTRY,
@@ -2800,6 +2801,46 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
             expect(
                 checkCardTargetFilters(baseCtx, stale, { controller: "you" })
             ).toBeNull();
+        });
+    });
+
+    describe("excludeSupertypes (CR 205.4a — Surgical Extraction's 'other than a basic land card')", () => {
+        // `makeCard` keeps only `id`/`manaCost` of its `card` reference, so
+        // the embedded `supertypes` (read by `hasSupertypeLive`) is set after.
+        const gyLand = (supertypes: string[]): CardInstanceState => ({
+            ...makeCard({
+                id: `gy-land-${supertypes.join("-") || "plain"}`,
+                types: ["Land"],
+                zone: "graveyard",
+            }),
+            card: { id: "test-gy-land", supertypes } as never,
+        });
+
+        it("rejects a basic land card, accepts a nonbasic land and a nonland card", () => {
+            const values = { excludeSupertypes: ["Basic"] };
+            expect(
+                checkCardTargetFilters(baseCtx, gyLand(["Basic"]), values)
+            ).toBe("Target must not be Basic");
+            expect(
+                checkCardTargetFilters(baseCtx, gyLand([]), values)
+            ).toBeNull();
+            expect(
+                checkCardTargetFilters(baseCtx, gyCard("p2"), values)
+            ).toBeNull();
+        });
+
+        it("is carried from a requirement through lowerCardFilters", () => {
+            expect(
+                lowerCardFilters(
+                    {
+                        type: "card",
+                        count: 1,
+                        zone: "graveyard",
+                        excludeSupertypes: "Basic",
+                    },
+                    undefined
+                ).excludeSupertypes
+            ).toEqual(["Basic"]);
         });
     });
 
