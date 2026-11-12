@@ -3886,7 +3886,8 @@ function lowerSentenceBody(
             // player among the earlier picks, so a body that already
             // announced a target (a player, or "any target" that may be one)
             // is refused rather than bound to the wrong player.
-            if (slots.requirements().length > 0)
+            const announcedEarlier = slots.requirements().length > 0;
+            if (announcedEarlier)
                 return unlowerable(
                     '"their graveyard" may name an earlier announced player (CR 601.2c)'
                 );
