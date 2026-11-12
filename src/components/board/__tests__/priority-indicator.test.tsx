@@ -85,6 +85,19 @@ describe("PriorityIndicator split edge (#9160, #9295)", () => {
         expect(lit()).not.toBeNull();
     });
 
+    it("a lit half goes dark when the seat leaves `mine` and relights after 5 s", () => {
+        const { rerender } = render(<PriorityIndicator />);
+        advance(PRIORITY_CUE_DELAY_MS);
+        expect(lit()).not.toBeNull();
+        h.ctx = { ...base, priorityPlayerId: "opp" };
+        rerender(<PriorityIndicator />);
+        h.ctx = { ...base };
+        rerender(<PriorityIndicator />);
+        expect(lit()).toBeNull();
+        advance(PRIORITY_CUE_DELAY_MS);
+        expect(lit()).not.toBeNull();
+    });
+
     it("staying `mine` across priority -> pending choice keeps the elapsed time", () => {
         const { rerender } = render(<PriorityIndicator />);
         advance(3000);
