@@ -55,6 +55,7 @@ export const CAPABILITY_CLUSTERS = [
     "Cheat into play",
     "Artifacts",
     "Spells",
+    "Bodies",
 ] as const;
 
 export type CapabilityCluster = (typeof CAPABILITY_CLUSTERS)[number];
@@ -266,6 +267,21 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         example: { provider: "Lightning Bolt", requirer: "Snapcaster Mage" },
         description:
             "PROVIDES: an instant or sorcery with mana value 2 or less — cheap enough that a deck casts it, often more than one a turn, across a normal game, and worth its card on resolution (Lightning Bolt deals its 3 damage and feeds a prowess trigger on the way). Distinct from `value-on-cast`, which pays the moment it is cast whether or not it resolves (the storm/cascade feeder): Lightning Bolt does not provide that row, yet it is exactly what this row's requirers want. REQUIRES: a card that pays off CASTING instants and sorceries or noncreature spells (prowess, magecraft, a 'whenever you cast a noncreature spell' trigger) or that replays or copies them (Snapcaster Mage granting one flashback, Lutri copying one on the stack) requires this from the spells beside it — it is worth its cost only with cheap instants and sorceries in the deck, whatever plan the deck carries.",
+    },
+
+    // ── Bodies cluster ───────────────────────────────────────────────────
+    {
+        id: "go-wide",
+        cluster: "Bodies",
+        gloss: {
+            provides:
+                "Puts two or more creature bodies onto the battlefield, at once or over turns.",
+            requires:
+                "A payoff that scales with the number of creatures its controller has.",
+        },
+        example: { provider: "Lingering Souls", requirer: "Gaea's Cradle" },
+        description:
+            "PROVIDES: a card that puts two or more creature bodies onto the battlefield under its controller's control — at once (a spell or enters trigger creating two or more creature tokens, Lingering Souls) or over turns (a repeating trigger or activated ability creating one each time, Third Path Iconoclast; a creature that leaves bodies behind when it dies, Worldspine Wurm). One creature, however large, does not provide it. REQUIRES: a payoff whose amount reads the NUMBER of creatures its controller has — mana per creature (Gaea's Cradle), power or damage per creature, an anthem or team pump that is worth more the more bodies it touches, convoke — requires this from the cards around it. The bodies must STAY: a sacrifice outlet that wants expendable bodies to throw away is not a requirer of this row, even though the same token makers feed it.",
     },
 ];
 
