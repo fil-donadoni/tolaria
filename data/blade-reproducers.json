@@ -223,6 +223,44 @@
             }
         ]
     },
+    "attacks with the saddlers rather than saddle its Mount when their damage outweighs the drain": {
+        "cards": [
+            {
+                "name": "Caustic Bronco",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "library",
+                "count": 6
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 6
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 0
+    },
     "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla": null,
     "audit: cast-blink: Flickerwisp flickers its own Flametongue Kavu for the permanent kill": null,
     "battle cry: swings for exactly-lethal only the pump provides": {

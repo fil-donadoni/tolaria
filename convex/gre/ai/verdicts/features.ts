@@ -168,7 +168,7 @@ export const EVAL_TERM_KEYS = Object.keys(
  *     Growth (issue #3401). That is the symptom that sent us looking; the
  *     sampling argument is why it stays out.
  *   - every search-side constant (`ucbC`, the rollout knobs, the reward
- *     banding, `visitTol`, `outcomeEps`, `extraTurnValue`,
+ *     banding, `visitTol`, `outcomeEps`, `saturationPriorC`, `extraTurnValue`,
  *     `misdirectionWeight`, `blockWorldSamples`) — out of scope by ADR.
  * Anything absent still shows up: it lands in `residual`, which the
  * reconstruction identity keeps honest.

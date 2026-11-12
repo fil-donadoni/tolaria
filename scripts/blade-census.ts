@@ -2,7 +2,7 @@
  * `bun run blade:census` — one arm of a blade flip census, run by a pool of
  * workers over (entry, seed) jobs (issue #9276).
  *
- *   bun run blade:census --variant no-tie-margin --jobs 7 --out base.json
+ *   bun run blade:census --variant no-saturation-prior --jobs 7 --out base.json
  *   bun run blade:census --match "Caustic Bronco" --iterations 2000
  *   bun run blade:census --entries sensitive.txt --fail-fast --out screen.json
  *   bun run blade:census --diff base.json variant.json
