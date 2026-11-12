@@ -1693,6 +1693,22 @@ function isAdditionalCostPaidValue(value: unknown): boolean {
     return typeof id === "string" && id.length > 0;
 }
 
+/** `{ spellKickerCount: { of: { target: n } } }` — SHAPE of the targeted
+ *  spell's kicker-count value construct (CR 702.33d). `of` is an announced
+ *  target slot ONLY: the resolving spell's own count is `kickerCount`, and a
+ *  binding or `$each` names no stack item, so any other selector would read
+ *  nothing, silently. No other keys are permitted. */
+function isSpellKickerCountValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "spellKickerCount") return false;
+    const spec = (value as { spellKickerCount: unknown }).spellKickerCount;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isTargetRef(s.of);
+}
+
 /** `{ manaValue: { of } }` — SHAPE of the mana-value value construct (CR 202.3,
  *  Overload). `of` is an object selector (an announced target slot, `$source`,
  *  or a permanents-set forEach `$each`) — the ref inside it is family-checked as
@@ -2142,6 +2158,7 @@ function isDivideValue(value: unknown): boolean {
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X`, a `counters` count
  *  on a selected object, a selected object's `manaValue`, a characteristic of the cost-`sacrificed` permanent,
+ *  a targeted spell's `spellKickerCount`,
  *  a player's `domain`, an object's `escaped` flag, the resolving triggered ability's `abilityResolutionCount`,
  *  the `difference` of two terminals, a
  *  terminal `scaled` by a fixed multiplier, a terminal
@@ -2160,6 +2177,7 @@ function isEffectValue(value: unknown): boolean {
         isKickerCountValue(value) ||
         isColorsSpentToCastValue(value) ||
         isAdditionalCostPaidValue(value) ||
+        isSpellKickerCountValue(value) ||
         isManaValueValue(value) ||
         isSacrificedValue(value) ||
         isDomainValue(value) ||
