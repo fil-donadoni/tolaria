@@ -23,7 +23,7 @@
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { DERIVED_LATE_MARK } from "./derive-sync";
-import { isBrowserStep } from "./health-verdict";
+import { infraCause, isBrowserStep, type InfraCause } from "./health-verdict";
 
 export interface HealthStep {
     /** 1-based position in the run, and the run's step count. */
@@ -307,7 +307,33 @@ export type DerivedTipVerdict =
     /** Stale within the grace: nothing gated, re-judged next run. */
     | { kind: "pending"; reason: string }
     /** Stale past the grace: RED at `derive:sync`. */
-    | { kind: "red"; reason: string };
+    | { kind: "red"; reason: string }
+    /** The predicate was cut short by the machine (a sleep): not the tree's
+     *  fault, no RED (issue #9292). */
+    | { kind: "infra"; cause: InfraCause; reason: string };
+
+/**
+ * The verdict on a derive:sync predicate that gave no answer (`broken`):
+ * `infra` when the machine slept at or after the predicate started — the
+ * same classification a gate step gets (`infraCause`) — else RED, the
+ * predicate itself being broken on an awake machine (issue #9292).
+ */
+export function brokenPredicateVerdict(input: {
+    why: string;
+    startedAt: number;
+    lastSleepAt: number | null;
+}): Extract<DerivedTipVerdict, { kind: "red" | "infra" }> {
+    const reason = `derive:sync --settled gave no verdict (${input.why}) — the predicate itself is broken on this tip, not waited on`;
+    const cause = infraCause({
+        ok: false,
+        startedAt: input.startedAt,
+        lastSleepAt: input.lastSleepAt,
+        step: "derive:sync",
+    });
+    return cause === null
+        ? { kind: "red", reason }
+        : { kind: "infra", cause, reason };
+}
 
 /** One `post-merge` run as `gh run list` / `gh run view --json` report it. */
 export interface PostMergeRunView {
