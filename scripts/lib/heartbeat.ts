@@ -19,8 +19,8 @@
  * not fire": the next tick is ten minutes away.
  *
  * A third, read-only check flags a queue that stalls silently (issue #9065):
- * a `startup_failure` of `pr-gate` / `owner-merge` (GitHub's
- * `pull_request_target` brownout, issue #9056) or a `ready-to-land` PR / queue
+ * a `startup_failure` of `pr-gate` / `owner-merge` (a `pull_request_target`
+ * brownout) or a `ready-to-land` PR / queue
  * draft whose head has had no `trusted-author` status for
  * `TRUSTED_AUTHOR_MISSING_MS` — the `staging` ruleset requires that status, so
  * each draft waits and nothing turns red. It dispatches nothing; a flag makes
