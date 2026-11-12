@@ -6,6 +6,8 @@
 // convex-test harness (the project has none — see
 // `convex/__tests__/adminAuth.test.ts`).
 import {
+    fetchTargetsOf,
+    landTypesOf,
     limitedSourceColors,
     oneShotSourceColors,
 } from "./limited/manaSourceColors";
@@ -654,6 +656,8 @@ const makeCardEvalMeta =
             pips: getPipCountsFromCost(def.manaCost),
             producedColors: limitedSourceColors(def),
             oneShotColors: oneShotSourceColors(def),
+            landTypes: landTypesOf(def),
+            fetch: fetchTargetsOf(def) ?? undefined,
         };
     };
 
@@ -814,6 +818,8 @@ const makeAutoBuildCardMeta =
             pips: getPipCountsFromCost(def.manaCost),
             producedColors: limitedSourceColors(def),
             oneShotColors: oneShotSourceColors(def),
+            landTypes: landTypesOf(def),
+            fetch: fetchTargetsOf(def) ?? undefined,
             isLand: def.types.includes("Land"),
             isBasicLand:
                 def.types.includes("Land") &&

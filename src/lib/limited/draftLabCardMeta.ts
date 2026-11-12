@@ -17,6 +17,8 @@
 // those stay entirely inside the shared `draftEngine.ts`/`botDrafter.ts`
 // modules this file's exports are injected into.
 import {
+    fetchTargetsOf,
+    landTypesOf,
     limitedSourceColors,
     oneShotSourceColors,
 } from "@convex/limited/manaSourceColors";
@@ -58,6 +60,8 @@ export const draftLabGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
         pips: getPipCountsFromCost(def.manaCost),
         producedColors: limitedSourceColors(def),
         oneShotColors: oneShotSourceColors(def),
+        landTypes: landTypesOf(def),
+        fetch: fetchTargetsOf(def) ?? undefined,
     };
 };
 

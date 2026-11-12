@@ -82,6 +82,7 @@ import {
     type ColourSignature,
 } from "./archetypeCatalogueCore";
 import { pipCastability } from "./castability";
+import { resolveFetchSources } from "./manaSourceColors";
 import type { GetCardProfile } from "./cardProfilesCore";
 import { isAutoDrivenSeat } from "./droppedSeat";
 import type { LimitedPoolCard } from "./eventTypes";
@@ -221,11 +222,21 @@ interface ResolvedEntry {
     meta: AutoBuildCardMeta | null;
 }
 
+/** Resolves every Pool entry's meta, a fetch land's colours widened by the
+ *  Pool lands it can find (issue #9348): the build counts a Polluted Delta
+ *  beside a Tropical Island as a green source too. */
 function resolvePool(
     pool: readonly LimitedPoolCard[],
     getMeta: GetAutoBuildCardMeta
 ): ResolvedEntry[] {
-    return pool.map((entry) => ({ entry, meta: getMeta(entry.scryfallId) }));
+    const raw = pool.map((entry) => getMeta(entry.scryfallId));
+    const known = raw.filter((m): m is AutoBuildCardMeta => m !== null);
+    const resolved = resolveFetchSources(known);
+    const byRaw = new Map(known.map((m, i) => [m, resolved[i]]));
+    return pool.map((entry, i) => {
+        const meta = raw[i];
+        return { entry, meta: meta === null ? null : byRaw.get(meta)! };
+    });
 }
 
 function resolvedMetas(
