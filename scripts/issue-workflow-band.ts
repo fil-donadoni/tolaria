@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * `bun run issue:workflow-band <N>` — a workflow bug is `P0` (issue #6902),
- * and so is a system-filed Bot fault (issue #9000) and a user Bug Report
- * (issue #9013). The rules are one table: `scripts/lib/p0-label-rules.ts`.
+ * and so is a system-filed Bot fault and a user Bug Report. The rules are one
+ * table: `scripts/lib/p0-label-rules.ts`.
  *
  * A bug in the pipeline itself holds every issue behind it, so it must not
  * wait at an inherited or missing band. The owner's ruling (2026-10-25,
