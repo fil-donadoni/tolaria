@@ -60,7 +60,7 @@ export const noMoreLies = defineCard(() => ({
 // is derived from the live subtypes (CR 305.6).
 // hand-tail: Each nonland permanent you control is all colors. (#9275)
 export const leylineOfTheGuildpact = defineCard(() => ({
-    id: "6b2e6a51-b9e6-4848-b7d7-98f02f2b897f",
+    id: "bf6e59be-f959-4f4a-8c2d-b7c441e88135",
     rarity: "rare",
     name: "Leyline of the Guildpact",
     oracleText:
@@ -78,7 +78,6 @@ export const leylineOfTheGuildpact = defineCard(() => ({
     staticEffects: [
         {
             kind: "color-grant",
-            reads: [{ characteristic: "types", values: ["Land"] }],
             applies: (target, source) =>
                 !target.types.includes("Land") &&
                 target.controllerId === source.controllerId,
