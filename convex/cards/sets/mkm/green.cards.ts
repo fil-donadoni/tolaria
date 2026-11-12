@@ -15,7 +15,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // land enters tapped (CR 110.5b); cards return under their owner's control.
 // hand-tail: {3}{G}, Sacrifice this creature: Return all land cards from your graveyard to the battlefield tapped. (#8605)
 export const aftermathAnalyst = defineCard(() => ({
-    id: "374e54d8-8e73-4268-9dde-c28c77bbbf32",
+    id: "1c1aa6f8-2d34-4f4b-9184-0eab2e4745f7",
     rarity: "uncommon",
     name: "Aftermath Analyst",
     oracleText:
