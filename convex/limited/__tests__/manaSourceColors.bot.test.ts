@@ -46,6 +46,13 @@ describe("Limited mana-source colours: produced ∪ fetched (issue #9334)", () =
         // A tutor finds a card for the hand; a non-land puts a creature in.
         expect([...fetchableColors(def("Demonic Tutor"))]).toEqual([]);
         expect([...fetchableColors(def("Natural Order"))]).toEqual([]);
+        // The very ability of a fetch land, on a creature: not a land's.
+        const delta = def("Polluted Delta");
+        const onACreature = {
+            ...def("Grizzly Bears"),
+            activatedAbilities: delta.activatedAbilities,
+        };
+        expect([...fetchableColors(onACreature)]).toEqual([]);
     });
 
     it("the Draft Lab's card meta reads it: a fetch land is a source of its colours", () => {
