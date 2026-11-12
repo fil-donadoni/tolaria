@@ -6,6 +6,7 @@
 import type { EffectOp, TargetRequirement } from "../../types";
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { WARRIOR_TOKEN } from "../../sharedTokens";
 
 // Ugin, Eye of the Storms — {7} Legendary Planeswalker — Ugin, loyalty 7
 // (TDM, issue #3229).
@@ -186,6 +187,86 @@ export const uginEyeOfTheStorms = defineCard(() => ({
                     player: "controller",
                     window: "this-turn",
                     withoutPayingManaCost: true,
+                },
+            ],
+        },
+    ],
+}));
+
+// Dalkovan Encampment — Land. "This land enters tapped unless you control a
+// Swamp or a Mountain. {T}: Add {W}. {2}{W}, {T}: Whenever you attack this
+// turn, create two 1/1 red Warrior creature tokens that are tapped and
+// attacking. Sacrifice them at the beginning of the next end step." The entry
+// clause is the compiled form (CR 614.1d). The activated ability schedules a
+// REPEATING delayed trigger on the controller's own declarations
+// (`this-turn-you-attack`, CR 508.3a / 603.7b): it fires once per declaration
+// this turn, so an extra combat fires it again, and the tokens it makes enter
+// attacking without declaring (CR 508.3a) and so never re-trigger it. Each
+// firing's body is the Mobilize shape (`abilities/mobilize.ts`): two Warriors,
+// then a next-end-step sacrifice of exactly those tokens.
+// hand-tail: This land enters tapped unless you control a Swamp or a Mountain. (#8597)
+export const dalkovanEncampment = defineCard(() => ({
+    id: "98ad5f0c-8775-4e89-8e92-84a6ade93e35",
+    name: "Dalkovan Encampment",
+    rarity: "rare",
+    oracleText:
+        "This land enters tapped unless you control a Swamp or a Mountain.\n{T}: Add {W}.\n{2}{W}, {T}: Whenever you attack this turn, create two 1/1 red Warrior creature tokens that are tapped and attacking. Sacrifice them at the beginning of the next end step.",
+    types: ["Land"],
+    entersTappedUnlessControls: {
+        kind: "controls",
+        filter: { types: ["Land"], subtypes: ["Swamp", "Mountain"] },
+        atLeast: 1,
+    },
+    activatedAbilities: [
+        {
+            id: "dalkovan-encampment-mana",
+            oracleText: "{T}: Add {W}.",
+            cost: { tap: true },
+            useStack: false,
+            manaProduced: { W: 1 },
+        },
+        {
+            id: "dalkovan-encampment-warriors",
+            oracleText:
+                "{2}{W}, {T}: Whenever you attack this turn, create two 1/1 red Warrior creature tokens that are tapped and attacking. Sacrifice them at the beginning of the next end step.",
+            cost: { mana: { X: 2, W: 1 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "this-turn-you-attack",
+                    oracleText:
+                        "Whenever you attack this turn, create two 1/1 red Warrior creature tokens that are tapped and attacking. Sacrifice them at the beginning of the next end step.",
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                ...WARRIOR_TOKEN,
+                                entersTapped: true,
+                                entersAttacking: true,
+                            },
+                            controller: "controller",
+                            count: 2,
+                            bindAll: "$warriors",
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Sacrifice them at the beginning of the next end step.",
+                            capture: {
+                                $warriors: {
+                                    select: { set: "bound", ref: "$warriors" },
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "sacrifice",
+                                    permanents: { ref: "$warriors" },
+                                },
+                            ],
+                        },
+                    ],
                 },
             ],
         },

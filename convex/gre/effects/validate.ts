@@ -4228,6 +4228,10 @@ const DELAYED_TIMINGS = new Set([
     // REPEATING across combats, purged at CLEANUP. Its body reads the creature
     // through a `capture`; `$event` stays illegal.
     "this-turn-watched-creature-attacks-monarch",
+    // Repeating attack watch over the controller's own declarations (CR 508.3a
+    // / 603.7b) — "Whenever you attack this turn, …" (Dalkovan Encampment).
+    // Rejects `targetPlayer` and `watch`, purged at CLEANUP.
+    "this-turn-you-attack",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -9675,7 +9679,7 @@ function validateOpSchema(
     at: string,
     errors: string[],
     inForEach = false,
-    inDelayed = false
+    inDelayed: boolean | "repeating" = false
 ): void {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         errors.push(`${at}: each Op must be a plain object`);
@@ -9692,7 +9696,11 @@ function validateOpSchema(
         );
         return;
     }
-    if (entry.op === "delayedTrigger" && inDelayed) {
+    // A REPEATING timing's body runs once per firing, each a fresh resolution
+    // (CR 603.7b), so it may schedule ONE nested delayed trigger — "Whenever
+    // you attack this turn, create … Sacrifice them at the beginning of the
+    // next end step" (Dalkovan Encampment). Every other body stays one level.
+    if (entry.op === "delayedTrigger" && inDelayed === true) {
         errors.push(
             `${at}: delayedTrigger must not nest inside a delayedTrigger body — one scheduling level per script (ADR 0048)`
         );
@@ -9834,8 +9842,12 @@ function validateOpSchema(
     // new script's single construct level) and `inDelayed` is set so a nested
     // delayedTrigger is rejected.
     if (entry.op === "delayedTrigger" && Array.isArray(entry.effects)) {
+        const nested =
+            inDelayed === false && entry.timing === "this-turn-you-attack"
+                ? "repeating"
+                : true;
         entry.effects.forEach((op, j) => {
-            validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
+            validateOpSchema(op, `${at}: effects[${j}]`, errors, false, nested);
         });
     }
     // Recurse into a `reflexiveTrigger` body (CR 603.12) — same contract as

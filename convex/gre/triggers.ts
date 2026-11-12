@@ -1006,6 +1006,24 @@ export function collectTriggers(
         }
     }
 
+    // CR 508.3a / 603.7b — a `timing: "this-turn-you-attack"` instance fires
+    // once per declaration its controller makes ("Whenever you attack this
+    // turn, …", Dalkovan Encampment). Repeating: stays queued after firing and
+    // is purged at CLEANUP (phases.ts), so an extra combat fires it again.
+    if (state.delayedTriggers?.length) {
+        for (const event of events) {
+            if (event.type !== "ATTACKERS_DECLARED") continue;
+            for (const t of state.delayedTriggers) {
+                if (t.timing !== "this-turn-you-attack") continue;
+                if (t.controller !== event.attackingPlayerId) continue;
+                out.push({
+                    ...buildDelayedTriggerStackItem(state, t),
+                    triggerEvent: event,
+                });
+            }
+        }
+    }
+
     // CR 720.2 (Forth Eorlingas!, issue #1199) — repeating combat-damage-to-
     // player delayed triggers: a `timing:
     // "this-turn-creature-deals-combat-damage-to-player"` instance fires AT

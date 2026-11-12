@@ -3119,6 +3119,7 @@ export function finalizeCleanup(state: GameState): void {
                 t.timing !== "this-turn-creature-blocks" &&
                 t.timing !== "this-turn-watched-creature-deals-combat-damage" &&
                 t.timing !== "this-turn-watched-creature-attacks-monarch" &&
+                t.timing !== "this-turn-you-attack" &&
                 t.timing !== "this-turn-creature-deals-combat-damage-to-player"
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;
