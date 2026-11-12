@@ -28,6 +28,8 @@ export default function LimitedDraftPack({
     pack,
     selectedPickId,
     defaultPickId,
+    autopickPickId = null,
+    autopickSeconds = null,
     onSelect,
     onPick,
     onOpenMenu,
@@ -45,6 +47,10 @@ export default function LimitedDraftPack({
      *  (`limited-draft-table.tsx`) so this component stays a pure "which
      *  tile gets which ring" renderer, same discipline as `selectedPickId`. */
     defaultPickId: string | null;
+    /** The tile the clock will take once the last-seconds cue is live (issue
+     *  #9165) — independent of the toggle; `null` outside the cue window. */
+    autopickPickId?: string | null;
+    autopickSeconds?: number | null;
     onSelect: (pickId: string) => void;
     /** See `LimitedDraftPackCard`'s own doc comment (issue #2861): absent on
      *  desktop, retiring double-click-to-pick there. */
@@ -128,6 +134,11 @@ export default function LimitedDraftPack({
                         card={card}
                         selected={card.pickId === selectedPickId}
                         isDefault={card.pickId === defaultPickId}
+                        autopickSeconds={
+                            card.pickId === autopickPickId
+                                ? autopickSeconds
+                                : null
+                        }
                         onSelect={onSelect}
                         onPick={onPick}
                         onOpenMenu={onOpenMenu}

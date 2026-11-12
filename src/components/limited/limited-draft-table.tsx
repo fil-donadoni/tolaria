@@ -29,6 +29,8 @@ import type { DeckZoneSelection } from "~/components/deckbuilder/deckZoneSelecti
 import { cardBase } from "~/lib/cardSizing";
 import { useDraftKeyboardPicks } from "~/hooks/useDraftKeyboardPicks";
 import LimitedDraftPack from "./limited-draft-pack";
+import { autopickTargetId } from "./draft-room/autopickTarget";
+import { useAutopickCountdown } from "./draft-room/useAutopickCountdown";
 import LimitedDraftTimer from "./limited-draft-timer";
 import LimitedDraftPool from "./limited-draft-pool";
 import LimitedPickContextMenu, {
@@ -810,9 +812,23 @@ export default function LimitedDraftTable({
         />
     );
 
+    // Last-5-seconds cue (issue #9165): the tile the clock will take, whatever
+    // the "Show autopick" toggle says.
+    const autopickSeconds = useAutopickCountdown(seat.pickDeadline ?? null);
+    const autopickPickId =
+        autopickSeconds === null
+            ? null
+            : autopickTargetId({
+                  pack,
+                  selectedPickId: seat.selectedPickId ?? null,
+                  defaultPickId: seat.defaultPickId ?? null,
+              });
+
     const packGrid = (
         <LimitedDraftPack
             pack={pack}
+            autopickPickId={autopickPickId}
+            autopickSeconds={autopickSeconds}
             selectedPickId={seat.selectedPickId ?? null}
             defaultPickId={
                 showAutopick.value ? (seat.defaultPickId ?? null) : null
