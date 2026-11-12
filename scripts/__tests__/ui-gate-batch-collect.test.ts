@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { planCollect } from "../ui-gate/batch-collect.ts";
+import {
+    ciExit,
+    heldMarker,
+    owedFrom,
+    planCollect,
+    summaryRows,
+} from "../ui-gate/batch-collect.ts";
 
 // Issue #9122: the collector's per-PR decision after one batch walk.
 describe("planCollect", () => {
@@ -9,6 +15,7 @@ describe("planCollect", () => {
             red: new Map([[11, ["board@desktop: stranded 2"]]]),
             dropped: [],
             unproven: [],
+            base: "b",
         });
         expect(
             actions.filter((a) => a.kind === "land").map((a) => a.pr)
@@ -28,6 +35,7 @@ describe("planCollect", () => {
                 { pr: 20, reason: "its head conflicts with the batch so far" },
             ],
             unproven: [21],
+            base: "b",
         });
         expect(actions.map((a) => [a.kind, a.pr])).toEqual([
             ["hold", 20],
@@ -63,11 +71,99 @@ describe("planCollect — drop reasons (issue #9210)", () => {
                 },
             ],
             unproven: [],
+            base: "b",
         });
         expect(actions.map((a) => a.kind === "hold" && a.comment)).toEqual([
             expect.stringContaining("src/index.css is a stylesheet"),
             expect.stringContaining("conflicts with the batch"),
             expect.stringContaining("CLOSED, base main"),
+        ]);
+    });
+});
+
+// Issue #9264: the scheduled collector — which PRs a tick owes, and what an
+// infra exit does to the workflow.
+describe("owedFrom — a held head is not re-walked (issue #9264)", () => {
+    it("skips a PR held at its current head, keeps one pushed since", () => {
+        expect(
+            owedFrom(
+                [
+                    {
+                        number: 52,
+                        headRefOid: "bbb",
+                        comments: [{ body: `held\n\n${heldMarker("aaa")}` }],
+                    },
+                    {
+                        number: 51,
+                        headRefOid: "aaa",
+                        comments: [{ body: `held\n\n${heldMarker("aaa")}` }],
+                    },
+                    { number: 50, headRefOid: "ccc", comments: [] },
+                ],
+                "base1"
+            )
+        ).toEqual([50, 52]);
+    });
+
+    it("retries a transient hold (conflict, fetch error, UNPROVEN) once the base moves", () => {
+        const pr = {
+            number: 70,
+            headRefOid: "aaa",
+            comments: [{ body: `held\n\n${heldMarker("aaa", "base1")}` }],
+        };
+        expect(owedFrom([pr], "base1")).toEqual([]);
+        expect(owedFrom([pr], "base2")).toEqual([70]);
+    });
+});
+
+describe("planCollect — which holds wait for a push (issue #9264)", () => {
+    it("marks only a drop that is the head's own as intrinsic", () => {
+        const actions = planCollect({
+            clean: [],
+            red: new Map(),
+            dropped: [
+                { pr: 80, reason: "its scope is full", intrinsic: true },
+                { pr: 81, reason: "its head conflicts with the batch so far" },
+            ],
+            unproven: [82],
+            base: "b",
+        });
+        expect(
+            actions.map((a) => a.kind === "hold" && [a.pr, a.intrinsic])
+        ).toEqual([
+            [80, true],
+            [81, false],
+            [82, false],
+        ]);
+    });
+});
+
+describe("ciExit — INFRA never reds the workflow (issue #9264)", () => {
+    it("turns an unsettled deployment-down, skew or 77 exit into 0", () => {
+        expect([3, 4, 77].map((c) => ciExit(c, false))).toEqual([0, 0, 0]);
+    });
+    it("keeps a red batch, a usage error and any settled exit", () => {
+        expect(ciExit(1, true)).toBe(1);
+        expect(ciExit(2, false)).toBe(2);
+        expect(ciExit(3, true)).toBe(3);
+    });
+});
+
+describe("summaryRows — the run's per-PR record (issue #9264)", () => {
+    it("names every PR with its batch verdict", () => {
+        expect(
+            summaryRows({
+                clean: [60],
+                red: new Map([[61, ["x"]]]),
+                dropped: [{ pr: 62, reason: "conflict" }],
+                unproven: [63],
+                base: "b",
+            }).slice(2)
+        ).toEqual([
+            "| #60 | CLEAN |",
+            "| #61 | RED |",
+            "| #62 | DROPPED — conflict |",
+            "| #63 | UNPROVEN |",
         ]);
     });
 });

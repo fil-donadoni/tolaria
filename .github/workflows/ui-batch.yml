@@ -1,0 +1,81 @@
+# ui-batch — the check:ui batch collector on its own (issue #9264, issue
+# #9122). A PR whose diff owes a browser walk wears `ui-owed` and `land:ready`
+# refuses it; `bun run check:ui:batch` walks every such PR in ONE batch, lands
+# the clean ones, labels a red one `land-failed` (the dispatcher's repair
+# pick) and comments a DROPPED / UNPROVEN one, which stays `ui-owed` (the hold
+# comment names the head it judged — and the base, unless the hold is the
+# head's own: a new push, or a new base for a transient hold, retries it).
+#
+# Two jobs. `probe` (GitHub-hosted, ≈ 30 s, the `lane` runner untouched)
+# counts the owed PRs; with none the run ends there — no worktree, no
+# browser. `collect` runs only when a PR is owed, on the `lane` runner: the
+# walk needs the machine's local Convex deployment and the lane slot (ADR
+# 0156, ADR 0160). One `lane` runner runs one job at a time, so the walk is
+# serialised with `queue-lane`, health's `gate` and `release` by the runner
+# label — never a `concurrency` group, which would cancel a pending gate
+# (docs/guides/github-pipeline.md § Serialising heavy work). Two ticks
+# queued behind a long gate run one after the other; the second re-reads
+# the owed list and finds nothing left.
+#
+# `--ci`: a walk the machine cut short (exit 3 deployment down, 4 skew, 77)
+# touches no PR and exits 0 as INFRA, logged and in the job summary; the
+# next tick retries. A settled batch keeps its own exit (1: a PR red, dropped
+# or unproven). The per-PR verdicts are in the log and the job summary.
+#
+# Every 30 min: a UI PR waits at most one tick plus one walk, and a tick
+# with nothing owed costs the hosted probe alone. A schedule fires from the
+# DEFAULT branch only, and a dispatch needs the file there: it starts once a
+# release carries it (docs/guides/github-pipeline.md § ui-batch).
+name: ui-batch
+
+on:
+    schedule:
+        - cron: "25,55 * * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    probe:
+        name: probe (owed PRs)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            pull-requests: read
+        outputs:
+            owed: ${{ steps.owed.outputs.owed }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: ./.github/actions/job-setup
+            - name: Owed PRs
+              id: owed
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bun scripts/ui-gate/batch-collect.ts --probe
+
+    collect:
+        name: collect (one batch walk)
+        needs: probe
+        if: ${{ needs.probe.outputs.owed != '0' }}
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 120
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            # The owner's gh login on the runner (no GH_TOKEN): the labels,
+            # comments, receipts and `land:ready` it writes are the owner's,
+            # so `ready-to-land` fires the workflows a bot token would not.
+            - name: check:ui:batch
+              run: bun run check:ui:batch --ci
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

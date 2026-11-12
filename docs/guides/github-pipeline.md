@@ -328,25 +328,26 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 
 ## Workflows
 
-| Workflow                                  | Trigger                                                                                | Runner                                         | What it proves                                                                               |
-| ----------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                                            | GitHub-hosted `ubuntu-24.04`                   | the PR's full `check:lane`, on the merge ref — advisory                                      |
-| [`pr-check`](#required-checks) `refusals` | same                                                                                   | same                                           | one job per `land` refusal (five), `scripts/pr-checks.ts`                                    |
-| [`release`](#release)                     | dispatch (`dry_run`)                                                                   | `[self-hosted, lane]`                          | the full gate + walk on the base tip, then the release fast-forward, under an Environment    |
-| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch                                   | `[self-hosted, maint, host:<machine>]`         | the same lane on an owner's machine, to compare timings (phase 0)                            |
-| [`pr-refresh`](#pr-refresh)               | push to the base branch                                                                | `[self-hosted, maint]`                         | rebases the queued PRs the push conflicts with or touches                                    |
-| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                                       | `maint` per machine, `seed`                    | fast-forward, worktree cleanup, seed, housekeeping, nightly                                  |
-| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                                        | `[self-hosted, pass]`, one at a time           | picks, claims and dispatches AFK passes, or holds                                            |
-| [`afk-pass`](#afk-pass)                   | dispatch (`issue`, `model`, `resume`, `host`) — from the dispatcher                    | `[self-hosted, pass]` (+ `host:` for a resume) | one `/next-ticket` pass, its WIP push and its record                                         |
-| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch                       | GitHub-hosted `ubuntu-24.04`                   | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses       |
-| [`owner-merge`](#owner-merge)             | `pull_request_target`, `labeled` (`ready-to-land` only)                                | GitHub-hosted `ubuntu-24.04`                   | fails on purpose for a PR the queue refuses: the failed-run email is the owner's cue         |
-| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                                              | `[self-hosted, lane]`                          | the lane on the queue's rebased draft, one flaky re-run                                      |
-| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand                                  | `[self-hosted, maint]`                         | regenerates a stale generated artefact and pushes it                                         |
-| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)                                 | `[self-hosted, lane]`                          | the base tip's `health` verdict; a RED's flake check and bisect                              |
-| [`health-early`](#health)                 | push to the base branch, one run at a time (a declared repair's tip has its own group) | GitHub-hosted `ubuntu-24.04`                   | the offline gate after a merge batch — its RED only                                          |
-| [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself                                     | `[self-hosted, pass, host:<machine>]`          | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop          |
-| [`corpus-repin`](#corpus-repin)           | Sunday 22:00 UTC, dispatch (`dry_run`)                                                 | `[self-hosted, maint]`                         | re-pins the Card Corpus, regenerates what follows, settles the merge blockers, queues the PR |
-| [`bot-costs-refresh`](#bot-costs-refresh) | daily 04:30 UTC, dispatch                                                              | `[self-hosted, maint, host:macbook]`           | re-derives the bot test cost table from health's walls; a data PR only when a row changed    |
+| Workflow                                  | Trigger                                                                                | Runner                                          | What it proves                                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                                            | GitHub-hosted `ubuntu-24.04`                    | the PR's full `check:lane`, on the merge ref — advisory                                      |
+| [`pr-check`](#required-checks) `refusals` | same                                                                                   | same                                            | one job per `land` refusal (five), `scripts/pr-checks.ts`                                    |
+| [`release`](#release)                     | dispatch (`dry_run`)                                                                   | `[self-hosted, lane]`                           | the full gate + walk on the base tip, then the release fast-forward, under an Environment    |
+| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch                                   | `[self-hosted, maint, host:<machine>]`          | the same lane on an owner's machine, to compare timings (phase 0)                            |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch                                                                | `[self-hosted, maint]`                          | rebases the queued PRs the push conflicts with or touches                                    |
+| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                                       | `maint` per machine, `seed`                     | fast-forward, worktree cleanup, seed, housekeeping, nightly                                  |
+| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                                        | `[self-hosted, pass]`, one at a time            | picks, claims and dispatches AFK passes, or holds                                            |
+| [`afk-pass`](#afk-pass)                   | dispatch (`issue`, `model`, `resume`, `host`) — from the dispatcher                    | `[self-hosted, pass]` (+ `host:` for a resume)  | one `/next-ticket` pass, its WIP push and its record                                         |
+| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch                       | GitHub-hosted `ubuntu-24.04`                    | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses       |
+| [`owner-merge`](#owner-merge)             | `pull_request_target`, `labeled` (`ready-to-land` only)                                | GitHub-hosted `ubuntu-24.04`                    | fails on purpose for a PR the queue refuses: the failed-run email is the owner's cue         |
+| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                                              | `[self-hosted, lane]`                           | the lane on the queue's rebased draft, one flaky re-run                                      |
+| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand                                  | `[self-hosted, maint]`                          | regenerates a stale generated artefact and pushes it                                         |
+| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)                                 | `[self-hosted, lane]`                           | the base tip's `health` verdict; a RED's flake check and bisect                              |
+| [`health-early`](#health)                 | push to the base branch, one run at a time (a declared repair's tip has its own group) | GitHub-hosted `ubuntu-24.04`                    | the offline gate after a merge batch — its RED only                                          |
+| [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself                                     | `[self-hosted, pass, host:<machine>]`           | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop          |
+| [`corpus-repin`](#corpus-repin)           | Sunday 22:00 UTC, dispatch (`dry_run`)                                                 | `[self-hosted, maint]`                          | re-pins the Card Corpus, regenerates what follows, settles the merge blockers, queues the PR |
+| [`bot-costs-refresh`](#bot-costs-refresh) | daily 04:30 UTC, dispatch                                                              | `[self-hosted, maint, host:macbook]`            | re-derives the bot test cost table from health's walls; a data PR only when a row changed    |
+| [`ui-batch`](#ui-batch)                   | every 30 min, dispatch                                                                 | GitHub-hosted probe, then `[self-hosted, lane]` | one `check:ui` batch walk of every `ui-owed` PR; lands, fails or holds each                  |
 
 ### pr-check
 
@@ -1194,6 +1195,49 @@ Orders that hold:
 - **A release the Huawei is gating.** Health dedups by sha on the store: a
   tip already GREEN runs only `check:game-download` (~34 s), never the
   offline gate again.
+
+### ui-batch
+
+`.github/workflows/ui-batch.yml` (issue #9264): the check:ui batch collector
+(`bun run check:ui:batch`, issue #9122) on its own, so a `ui-owed` PR never
+waits for someone at the keyboard.
+
+| Job       | When                                  | Runner                | Runs                                                 |
+| --------- | ------------------------------------- | --------------------- | ---------------------------------------------------- |
+| `probe`   | every 30 min (`:25`, `:55`), dispatch | `ubuntu-24.04`        | `batch-collect.ts --probe`: the owed PRs, `owed=<N>` |
+| `collect` | `owed` ≠ 0                            | `[self-hosted, lane]` | `bun run check:ui:batch --ci` — one batch walk       |
+
+**What it does.** The probe lists the open `ui-owed` PRs, minus any held
+(DROPPED / UNPROVEN) on the same facts — the hold comment names the head it
+judged: a hold that is the head's own (not open, a FULL / undecided scope)
+waits for a new push; any other (a conflict with a sibling, a fetch error,
+UNPROVEN) also names the base and is retried once the base moves. With none, the
+run ends on the hosted runner: no worktree, no browser, no `lane` time. Else
+`collect` walks them in one batch from its [job worktree](#g-job-worktree):
+the clean ones get their receipt and `land:ready`, a red one `land-failed`
+(the [dispatcher](#g-dispatcher)'s repair pick), a held one a comment. It
+writes as the owner (the runner's gh login, no `GH_TOKEN`), so the
+`ready-to-land` label fires what a bot token would not.
+
+**Serialised by the label.** One [`lane`](#g-lane) runner runs one job at a
+time: the walk never overlaps `queue-lane`, health's `gate` or `release`, and
+two ticks queued behind a long gate run in turn, the second finding nothing
+left (§ Serialising heavy work — no group).
+
+**INFRA.** `--ci`: a walk the machine cut short — exit 3 (deployment down,
+`bun run convex:ensure`), 4 (skew), 77 — touches no PR and exits 0, said in
+the log and the job summary; the next tick retries. A settled batch keeps its
+exit (1: a PR red, dropped or unproven), its per-PR verdicts in the summary.
+
+**Cost.** An empty tick: the hosted job (≈ 30 s), the probe itself ~1.4 s. A
+batch: one SCOPED walk, at most the full walk's ~15 min.
+
+- **Schedule and dispatch need the default branch.** It starts once a release
+  carries `ui-batch.yml`; until then `bun run check:ui:batch` by hand.
+
+```bash
+gh workflow run ui-batch.yml    # one tick now
+```
 
 ### lane-timing
 
@@ -2196,7 +2240,8 @@ session per job. Their count is the machine's concurrency cap.
 ### <a id="g-lane"></a>`lane`
 
 The [label](#g-label) of a [runner](#g-runner) for the gates a merge or a
-verdict waits on: queue checks, batch health, release — `LANE_JOBS` of the
+verdict waits on: queue checks, batch health, release, the `ui-owed` batch
+walk — `LANE_JOBS` of the
 [structure guard](#g-structure-guard), rule `lane-role`. One, on the MacBook
 (ADR 0160): the Huawei's, 4–5× slower, set the queue's pace.
 

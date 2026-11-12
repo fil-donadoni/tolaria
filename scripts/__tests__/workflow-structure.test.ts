@@ -893,6 +893,7 @@ describe("workflow structure guard", () => {
             ".github/workflows/queue-lane.yml#queue-lane",
             ".github/workflows/health.yml#gate",
             ".github/workflows/release.yml#release",
+            ".github/workflows/ui-batch.yml#collect",
         ]);
         const onLane = (runsOn: string) =>
             edit(SELF_HOSTED, "runs-on: [self-hosted, maint]", runsOn);
