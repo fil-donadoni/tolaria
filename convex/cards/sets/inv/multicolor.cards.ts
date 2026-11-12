@@ -1452,10 +1452,15 @@ export const shivanEmissary = defineCard(() => ({
 // graveyard scan variant exists" premise was wrong, not merely stale, and it
 // is a live `CardDefinition` below.
 //
+// Also served since, with no hand-written definition: Cinder Shade, which
+// the Oracle compiler emits `ready` — `cost.sacrifice` stamps the source's
+// layer-applied characteristics onto the stack item before it leaves, and
+// "damage equal to its power" reads them as `{ sacrificed: { read: "power" } }`
+// (CR 608.2h), so a pumped Shade deals its pumped power.
+//
 // Still deferred: Cauldron Dance (#1418), whose engine blocker turned out to
-// be already closed — plain card work now; Cinder Shade (#1417), the one
-// genuine surviving engine gap; and Void (#1421 + #2150), which needs two
-// capabilities that do not exist yet.
+// be already closed — plain card work now; and Void (#1421 + #2150), which
+// needs two capabilities that do not exist yet.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Cauldron Dance — {4}{B}{R} Instant. "Cast this spell only during combat.
@@ -1475,22 +1480,6 @@ export const shivanEmissary = defineCard(() => ({
 // `delayedTrigger(capture)`. Sneak Attack (`usg/red.cards.ts`) is the same shape
 // with the sacrifice flavour of the delayed trigger. The graveyard half was
 // always free (Spinal Embrace, this file). Assembly, not design.
-
-// Cinder Shade — {1}{B}{R} Creature — Shade, 1/1. "{B}: This creature gets
-// +1/+1 until end of turn. {R}, Sacrifice this creature: It deals damage
-// equal to its power to target creature." tracked-by: #1417 — the one gap of
-// the #1077 tranche still genuinely open, re-verified @ 5ef6930c. The first
-// ability alone is a free self-pump; the second needs the SACRIFICED
-// creature's own power as last-known information (CR 608.2h). `resolveValue`
-// reads `power`/`toughness` purely off a live binding with no LKI fallback,
-// and `$source` is not even bound when the source paid itself as a cost
-// (`runEffectScript` gates the snapshot on the source still having an owner)
-// — so `{ ref: "$source.power" }` is a silent CR 608.2b no-op. The `counters`
-// value member has exactly this fallback (Powder Keg, issue #997) and is the
-// shape to copy. The snapshot itself already exists
-// (`ctx.getAdditionalSacrificePower()`), with one consumer: Freyalise
-// Supplicant `ice/green.cards.ts`, `resolve()`-only for want of a DSL skin.
-// "Never ship silent partials" means the whole card waits.
 
 // Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1 (INV 261). Both halves are
 // Effect Scripts (ADR 0045) over already-exercised Ops.
@@ -1512,9 +1501,7 @@ export const shivanEmissary = defineCard(() => ({
 //   * Sacrifice-for-damage — Mogg Fanatic's shape (`tmp/red.cards.ts`): the mana leg
 //     plus `sacrifice: true` as the activation cost (CR 602.1), then a single
 //     `dealDamage` to the announced any-target (CR 120.1). The amount is a
-//     FIXED 2 — it never reads the sacrificed creature's own power, so this
-//     half never touched the Cinder Shade last-known-information gap above
-//     (#1417), which the original roll-up had bundled it with.
+//     FIXED 2 — it never reads the sacrificed creature's own power.
 //
 // compiler-gap: "At the beginning of your upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you do, return it to your hand." (#8504)
 export const pyreZombie = defineCard(() => ({
