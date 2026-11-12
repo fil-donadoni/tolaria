@@ -6005,7 +6005,7 @@ describe("Effect Script Op: moveZone — departed-object return (CR 400.7 / 608.
         expect(returned?.isTapped).toBe(true);
     });
 
-    it("a moveZone-tapped entry is announced as entering tapped (CR 603.6a, 110.5a)", () => {
+    it("a moveZone-tapped entry is announced as entering tapped (CR 603.6a, 110.5b)", () => {
         preloadDefinitions([amuletOfVigor()]);
         const id = sorinShaped("test-mz-return-tapped-event", { tapped: true });
         const amulet = makeInstance(AMULET_ID, { controllerId: "p1" });

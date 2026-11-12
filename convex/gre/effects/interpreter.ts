@@ -4501,7 +4501,7 @@ export const OP_EXECUTORS: {
                     // `from: "exile"` (issue #1570) is the same reanimation,
                     // sourced from an exile zone instead — the same primitive
                     // the `target`-shape's departed-object return already uses.
-                    // CR 110.5a — "tapped" rides the entry funnel (authored
+                    // CR 110.5b — "tapped" rides the entry funnel (authored
                     // entry), so PERMANENT_ENTERED already reports it.
                     const authoredEntry = op.tapped
                         ? { entersTapped: true }
@@ -4894,7 +4894,7 @@ export const OP_EXECUTORS: {
                         entryCounters ||
                         op.tapped
                         ? {
-                              // CR 110.5a — enter tapped, inside the entry funnel.
+                              // CR 110.5b — enter tapped, inside the entry funnel.
                               ...(op.tapped
                                   ? { authoredEntry: { entersTapped: true } }
                                   : {}),

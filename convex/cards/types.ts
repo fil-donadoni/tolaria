@@ -5401,7 +5401,7 @@ export interface SpellContext {
             entersAs?: EntryTypeLine;
             attachTo?: string;
             entryCounters?: Readonly<Record<string, number>>;
-            /** CR 110.5a — the effect's own "enters tapped", applied inside
+            /** CR 110.5b — the effect's own "enters tapped", applied inside
              *  the entry funnel so PERMANENT_ENTERED sees `enteredTapped`. */
             authoredEntry?: AuthoredEntryState;
         }
@@ -5456,7 +5456,7 @@ export interface SpellContext {
         cardInstanceId: string,
         opts?: {
             faceDown?: FaceDownProducer;
-            /** CR 110.5a — see `returnToBattlefield`'s `authoredEntry`. */
+            /** CR 110.5b — see `returnToBattlefield`'s `authoredEntry`. */
             authoredEntry?: AuthoredEntryState;
         }
     ) => boolean;
@@ -5472,7 +5472,7 @@ export interface SpellContext {
     putFromHandOntoBattlefield: (
         playerId: string,
         cardInstanceId: string,
-        /** CR 110.5a — see `returnToBattlefield`'s `authoredEntry`. */
+        /** CR 110.5b — see `returnToBattlefield`'s `authoredEntry`. */
         authoredEntry?: AuthoredEntryState
     ) => boolean;
     /** PLAYS a land from `playerId`'s hand under their control "if able"
