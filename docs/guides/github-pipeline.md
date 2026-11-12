@@ -998,7 +998,9 @@ any PR `queue:held` holds.
   headless fixer as today, and one issue
   `Contained RED with no culprit, since <first RED sha8>`, once per episode
   (dedup on that title, any state; an unread answer files nothing). Its `bug` +
-  `area:workflow` labels raise it to `P0` through `issue-band.yml`,
+  `area:workflow` labels raise it to `P0` through `issue-band.yml` (the rules
+  are one table, `scripts/lib/p0-label-rules.ts`; a `user-report` issue is a
+  rule of it too, ADR 0143 Amendment XII),
   `ready-for-agent` hands it to the dispatcher, and it is declared a repair of
   the RED. Never a `## Band` line.
 - **Inheritance**: a new RED whose names are a subset of the standing Contained
