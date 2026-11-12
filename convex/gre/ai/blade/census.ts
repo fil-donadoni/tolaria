@@ -128,7 +128,11 @@ export function buildCensusJobs(
     const jobs: Omit<CensusJob, "id">[] = [];
     for (const e of entries) {
         const iterations = config.iterations ?? e.budget.iterations;
-        for (const seed of e.seeds ?? [DEFAULT_CENSUS_SEED]) {
+        const seeds = e.seeds ?? [DEFAULT_CENSUS_SEED];
+        if (seeds.length === 0) {
+            throw new Error(`census: "${e.label}" declares an empty seed list`);
+        }
+        for (const seed of seeds) {
             jobs.push({ label: e.label, seed, iterations });
         }
     }
@@ -205,6 +209,7 @@ export function mergeCensusResults(
             "variant",
             "iterations",
             "match",
+            "failFast",
         ] as const) {
             if (p.meta[field] !== first.meta[field]) {
                 throw new Error(

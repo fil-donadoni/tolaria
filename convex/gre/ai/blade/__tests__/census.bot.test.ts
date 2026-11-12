@@ -125,6 +125,20 @@ describe("blade census — selection and job list", () => {
         expect(new Set(jobs.map((j) => j.iterations))).toEqual(new Set([2000]));
     });
 
+    it("refuses an entry that declares an empty seed list, as the runner does", () => {
+        const empty = [
+            {
+                label: "no seeds",
+                tier: "must",
+                budget: { iterations: 100 },
+                seeds: [],
+            },
+        ];
+        expect(() => buildCensusJobs(empty, { tier: "must" })).toThrow(
+            /empty seed list/
+        );
+    });
+
     it("partitions the job list into disjoint, exhaustive slices", () => {
         const config = { tier: "must" as const };
         const jobs = buildCensusJobs(
@@ -186,6 +200,13 @@ describe("blade census — verdicts, merge, diff", () => {
         };
         expect(() => mergeCensusResults([a, other])).toThrow(
             /disagree on variant/
+        );
+        const screened: CensusResult = {
+            meta: meta({ failFast: true }),
+            rows: [row(1, "x", 2, true)],
+        };
+        expect(() => mergeCensusResults([a, screened])).toThrow(
+            /disagree on failFast/
         );
     });
 

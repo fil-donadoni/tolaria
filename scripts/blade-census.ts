@@ -216,8 +216,11 @@ async function runArm(args: Args): Promise<void> {
             jobs: number[];
         }
     ).jobs;
-    if (plan.length === 0)
-        fail("the selection holds no job (check --match / --tier / --slice)");
+    // An empty slice is legal (a small selection over many slices): it
+    // writes an empty arm the merge sums. An empty unsliced selection is a
+    // typo'd --match, never a census.
+    if (plan.length === 0 && !args.config.slice)
+        fail("the selection holds no job (check --match / --tier)");
     const rows: CensusRow[] = [];
     const missing: number[] = [];
     for (const id of plan) {
