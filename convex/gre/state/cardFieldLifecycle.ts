@@ -99,7 +99,6 @@ export type CardFieldLifecycleRow = {
 };
 
 const NONE = [] as const;
-const TURN = ["turn"] as const;
 const ZONE = ["zone-change"] as const;
 const STACK = ["stack"] as const;
 const TURN_ZONE = ["turn", "zone-change"] as const;
@@ -117,16 +116,17 @@ export const CARD_FIELD_LIFECYCLE = {
     // Cleared at the untap step for the active player (`gre/phases.ts`).
     isSummoningSick:            { codec: "flag",    reset: ["custom:turn", "zone-change"] },
     enteredOnTurn:              { codec: "defined", reset: ZONE },
-    echoPending:                { codec: "flag",    reset: NONE },
+    // Re-armed by `armEchoOnArrival` on every arrival, after the reset.
+    echoPending:                { codec: "flag",    reset: ZONE },
     isAttacking:                { codec: "flag",    reset: ZONE },
     isBlocking:                 { codec: "flag",    reset: ZONE },
     hasAttackedThisTurn:        { codec: "flag",    reset: TURN_ZONE },
     hasBlockedThisTurn:         { codec: "flag",    reset: TURN_ZONE },
     // Rolled forward from `hasAttackedThisTurn` at cleanup, once per turn.
-    attackedDuringLastTurn:     { codec: "flag",    reset: ["custom:turn"] },
-    dealtDamageToOpponentThisTurn: { codec: "flag", reset: TURN },
+    attackedDuringLastTurn:     { codec: "flag",    reset: ["custom:turn", "zone-change"] },
+    dealtDamageToOpponentThisTurn: { codec: "flag", reset: TURN_ZONE },
     // Re-stamped at every untap step.
-    startedTurnUntapped:        { codec: "flag",    reset: ["custom:turn"] },
+    startedTurnUntapped:        { codec: "flag",    reset: ["custom:turn", "zone-change"] },
     chosenModeId:               { codec: "scalar",  reset: STACK },
     chosenName:                 { codec: "scalar",  reset: ZONE },
     manaCommitted:              { codec: "flag",    reset: ZONE },
@@ -192,7 +192,7 @@ export const CARD_FIELD_LIFECYCLE = {
     returnToHandAtUntapOf:      { codec: "scalar",  reset: ZONE },
     // Cleared when the permanent untaps (untap step or otherwise).
     exertedThisTap:             { codec: "flag",    reset: ["custom:turn", "zone-change"] },
-    canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN },
+    canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN_ZONE },
     counters:                   { codec: "record",  reset: ZONE },
     countersAtLeave:            { codec: "record",  reset: ZONE },
     keywordsAtLeave:            { codec: "list",    reset: ZONE },
@@ -226,14 +226,14 @@ export const CARD_FIELD_LIFECYCLE = {
     exileOnDeath:               { codec: "flag",    reset: TURN_ZONE },
     damageLockThisTurn:         { codec: "flag",    reset: TURN_ZONE },
     exileOnLeave:               { codec: "flag",    reset: ZONE },
-    cantBeRegeneratedThisTurn:  { codec: "flag",    reset: TURN },
-    mustAttackThisTurn:         { codec: "flag",    reset: TURN },
-    canBlockAdditional:         { codec: "defined", reset: TURN },
-    mustBlockAllThisTurn:       { codec: "flag",    reset: TURN },
+    cantBeRegeneratedThisTurn:  { codec: "flag",    reset: TURN_ZONE },
+    mustAttackThisTurn:         { codec: "flag",    reset: TURN_ZONE },
+    canBlockAdditional:         { codec: "defined", reset: TURN_ZONE },
+    mustBlockAllThisTurn:       { codec: "flag",    reset: TURN_ZONE },
     mustBlockAttackersThisTurn: { codec: "list",    reset: TURN_ZONE },
     mustBlockAttackersThisCombat: { codec: "list",  reset: TURN_ZONE },
-    cantBlockThisTurn:          { codec: "flag",    reset: TURN },
-    cantAttackThisTurn:         { codec: "flag",    reset: TURN },
+    cantBlockThisTurn:          { codec: "flag",    reset: TURN_ZONE },
+    cantAttackThisTurn:         { codec: "flag",    reset: TURN_ZONE },
     cantBeBlockedThisTurn:      { codec: "flag",    reset: TURN_ZONE },
     cantBeBlockedBySubtypesThisTurn: { codec: "list", reset: TURN_ZONE },
     cantBeBlockedExceptByThisTurn: { codec: "list", reset: TURN_ZONE },

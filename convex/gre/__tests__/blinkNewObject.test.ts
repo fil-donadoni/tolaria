@@ -30,7 +30,15 @@ import { buildStateView } from "../replacements";
 import { checkStateBasedActions } from "../sba";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { compactState, expandState } from "../serialize";
-import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
+import { collectTriggers } from "../triggers";
+import type { GameEvent } from "../../cards/types";
+import { whirlingDervish } from "../../cards/sets/leg/green.cards";
+import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor.cards";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import type { CardDefinition } from "../../cards/types";
 import { getDefinition } from "../../cards";
@@ -402,5 +410,97 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
             loyalty
         );
         expect(state.players[1].life).toBe(oppLife);
+    });
+});
+
+// CR 400.7 — the returned object inherits no fact the previous one earned.
+// `resetBattlefieldTransientState` deletes every `zone-change` row of
+// `CARD_FIELD_LIFECYCLE`; these two facts are read by an intervening-if
+// (CR 603.4), so a fact surviving the blink fires a trigger the new object
+// never earned.
+describe("a blinked permanent inherits no per-object fact (CR 400.7)", () => {
+    function setup(definitionId: string, fact: Partial<CardInstanceState>) {
+        const blinked = makeInstance(definitionId, {
+            id: "blinked",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...fact,
+        });
+        const stayed = makeInstance(definitionId, {
+            id: "stayed",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...fact,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [blinked, stayed] }),
+                makePlayer("p2"),
+            ],
+        });
+        return state;
+    }
+
+    const live = (state: GameState, id: string) =>
+        state.players[0].battlefield.find((c) => c.id === id)!;
+
+    it("Whirling Dervish blinked after dealing damage to an opponent gets no end-step counter", () => {
+        const state = setup(whirlingDervish().id, {
+            dealtDamageToOpponentThisTurn: true,
+        });
+        blink(state, "blinked");
+        expect(
+            live(state, "blinked").dealtDamageToOpponentThisTurn
+        ).toBeUndefined();
+        // The one that never left keeps the fact and still triggers.
+        expect(live(state, "stayed").dealtDamageToOpponentThisTurn).toBe(true);
+        const fired = collectTriggers(state, [
+            {
+                type: "PHASE_BEGIN",
+                phase: "END_STEP",
+                activePlayerId: "p1",
+            } as GameEvent,
+        ])
+            .filter((t) => t.triggeredAbilityId === "whirling-dervish-end-step")
+            .map((t) => t.triggerSourceId);
+        expect(fired).toEqual(["stayed"]);
+    });
+
+    it("Rasputin Dreamweaver blinked mid-turn does not read as having started the turn untapped", () => {
+        const state = setup(rasputinDreamweaver().id, {
+            counters: { dream: 4 },
+            startedTurnUntapped: true,
+        });
+        blink(state, "blinked");
+        expect(live(state, "blinked").startedTurnUntapped).toBeUndefined();
+        expect(live(state, "stayed").startedTurnUntapped).toBe(true);
+        const fired = collectTriggers(state, [
+            {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as GameEvent,
+        ])
+            .filter((t) => t.triggeredAbilityId === "rasputin-upkeep-regrow")
+            .map((t) => t.triggerSourceId);
+        expect(fired).toEqual(["stayed"]);
+    });
+
+    it("an effect that ended at the departure does not follow the new object (can't attack / must attack this turn)", () => {
+        const state = setup(whirlingDervish().id, {
+            cantAttackThisTurn: true,
+            mustAttackThisTurn: true,
+            attackedDuringLastTurn: true,
+        });
+        blink(state, "blinked");
+        const back = live(state, "blinked");
+        expect(back.cantAttackThisTurn).toBeUndefined();
+        expect(back.mustAttackThisTurn).toBeUndefined();
+        expect(back.attackedDuringLastTurn).toBeUndefined();
+        const kept = live(state, "stayed");
+        expect(kept.cantAttackThisTurn).toBe(true);
+        expect(kept.mustAttackThisTurn).toBe(true);
+        expect(kept.attackedDuringLastTurn).toBe(true);
     });
 });
