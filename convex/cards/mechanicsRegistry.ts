@@ -3000,6 +3000,16 @@ const OPENING_HAND_ACTIONS: MechanicRow[] = [
             'CardDefinition.openingHandAction: "begin-on-battlefield" (cards/types.ts OpeningHandAction) + gre/mulligan.ts (finalizeMulligan opens the window; advanceOpeningHandWindow raises one privateToChooser "opening-hand-action" PendingChoice per player with an eligible card, starting player first; applyOpeningHandChoice puts the picks through putHandCardOntoBattlefield; finalizeAsEnters resumes the window after an as-enters choice) + submitResolutionChoice (convex/game.ts) + the Bot\'s chooseResolution (src/lib/ai/brain.ts: put every eligible card).',
         note: 'CR 103.6: "Once the mulligan process (see rule 103.5) is complete, the starting player may take any such actions in any order. Then each other player in turn order may do the same." CR 103.6a: "If a card allows a player to begin the game with that card on the battlefield, the player taking this action puts that card onto the battlefield." The Leylines: "If this card is in your opening hand, you may begin the game with it on the battlefield." A player with no eligible card is skipped without a prompt. Putting is not casting or playing: no cast triggers, no land drop; entry replacements and ETB triggers apply, the triggers going on the stack in the first turn\'s upkeep, when a player first receives priority.',
     },
+    {
+        id: "reveal-from-opening-hand",
+        name: "Reveal from the Opening Hand",
+        kind: "opening-hand-action",
+        cr: "103.6b",
+        status: "implemented",
+        binding:
+            'CardDefinition.openingHandAction: "reveal" + CardDefinition.openingHandReveal (cards/types.ts OpeningHandAction, OpeningHandRevealTrigger) + gre/mulligan.ts (openingHandActionCards offers a not-yet-revealed card in the same "opening-hand-action" PendingChoice as the begin-on-battlefield cards; applyOpeningHandChoice reveals it through revealOpeningHandCard: knownTo every player, OpeningHandWindow.revealed, and an inline "next-upkeep" delayed trigger scoped to the revealing player via targetPlayerId; startFirstTurn ends the reveal) + the Bot\'s chooseResolution (src/lib/ai/brain.ts: take every offered action).',
+        note: "CR 103.6b: \"If a card allows a player to reveal it from their opening hand, the player taking this action does so. The card remains revealed until the first turn begins. Each card may be revealed this way only once.\" The card stays in hand. The delayed triggered ability (CR 603.7) the reveal creates fires at the beginning of THAT player's first upkeep: the starting player's in turn 1, any other player's at their own first turn.",
+    },
 ];
 
 export const MECHANICS_REGISTRY: MechanicRow[] = [

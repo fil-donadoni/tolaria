@@ -41,9 +41,28 @@ const LEYLINE: CardDefinition = {
     openingHandAction: "begin-on-battlefield",
 };
 
+const REVEALER: CardDefinition = {
+    id: "synthetic-opening-hand-reveal-bot",
+    name: "Synthetic Opening-Hand Revealer",
+    rarity: "rare",
+    oracleText:
+        "You may reveal this card from your opening hand. If you do, at the beginning of your first upkeep, you gain 3 life.",
+    manaCost: { X: 3 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+    openingHandAction: "reveal",
+    openingHandReveal: {
+        oracleText: "At the beginning of your first upkeep, you gain 3 life.",
+        effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+    },
+};
+
 /** Both seats kept; the Bot (not the starting player) holds two copies of the
  *  opening-hand card beside five Bears, the human holds none. */
-function windowOwedToBot(): GameState {
+function windowOwedToBot(
+    botCards: [string, string] = [LEYLINE.id, LEYLINE.id]
+): GameState {
     const hand = (owner: string, defs: string[]) =>
         defs.map((cardId, i) =>
             makeInstance(cardId, {
@@ -70,9 +89,9 @@ function windowOwedToBot(): GameState {
             }),
             makePlayer(BOT, {
                 hand: hand(BOT, [
-                    LEYLINE.id,
+                    botCards[0],
                     BEARS,
-                    LEYLINE.id,
+                    botCards[1],
                     ...Array(4).fill(BEARS),
                 ]),
                 library: library(BOT),
@@ -133,6 +152,36 @@ describe("Bot — opening-hand actions (CR 103.6a)", () => {
                 `${BOT}-hand-2`,
             ]);
             expect(state.mulligan).toBeUndefined();
+            expect(state.phase).toBe("UPKEEP");
+        });
+    });
+
+    it("reveals every offered opening-hand card (CR 103.6b), scheduling its first-upkeep trigger", async () => {
+        await withTemporaryDefinitionAsync(REVEALER, async () => {
+            const state = windowOwedToBot([REVEALER.id, REVEALER.id]);
+            const projected = projectPublicState(state, 1, BOT);
+            const action = decideBotAction(buildBotView(projected, BOT));
+            const move = botActionToMove(action, projected, BOT);
+            if (move?.kind !== "resolution-choice")
+                throw new Error("expected a resolution choice");
+            expect([...move.cardInstanceIds].sort()).toEqual([
+                `${BOT}-hand-0`,
+                `${BOT}-hand-2`,
+            ]);
+
+            await executeMove(move, {
+                gameId: "g" as never,
+                botId: BOT,
+                mutations: engineMutations(state),
+            });
+            const bot = state.players[1];
+            // Revealed, not put onto the battlefield; the trigger waits for the
+            // Bot's own first upkeep (the human is on the play).
+            expect(bot.battlefield).toHaveLength(0);
+            expect(bot.hand).toHaveLength(7);
+            expect(state.delayedTriggers?.map((t) => t.targetPlayerId)).toEqual(
+                [BOT, BOT]
+            );
             expect(state.phase).toBe("UPKEEP");
         });
     });
