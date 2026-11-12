@@ -752,7 +752,19 @@ then lands the clean, labels a red one `land-failed`, and leaves DROPPED /
 UNPROVEN PRs `ui-owed` with a comment (a DROPPED one's names the logged reason).
 A surface red in the batch and reached by several PRs is re-walked on each
 alone; only a measured `FAIL` there blames a PR — an `UNWALKED` / `INFRA` solo
-row leaves it UNPROVEN, never `land-failed` (issue #9210). It needs the local Convex deployment and
+row leaves it UNPROVEN, never `land-failed` (issue #9210). A surface still
+owned by no single PR — green on every candidate alone, or reached by no PR's
+scope — is settled on merge-order prefixes (issue #9265): the base alone, then
+base + head₁, base + head₁ + head₂, … , every open orphan in one `--surface=`
+DIAGNOSTIC walk per prefix (linear, at most heads + 1 walks of the orphan
+surfaces only). The first prefix that measures `FAIL` blames its last head:
+`land-failed`, its comment naming the surface, viewports, red lines and the
+heads merged before it ("in combination with #…"); those earlier heads are
+cleared of the surface (they land if the rest of their scope passed, the
+surface in their receipt), the heads after it stay `ui-owed` for the next
+batch. A `FAIL` on the base alone is the base's; an `UNWALKED` / `INFRA`
+prefix row settles nothing; an orphan green on every prefix, the full set
+included, stays UNPROVEN, reported non-reproducible. It needs the local Convex deployment and
 the lane slot (ADR 0156). Trigger (issue #9264): the `ui-batch` workflow every
 30 min and on dispatch — a GitHub-hosted probe counts the owed PRs (the probe
 itself ~1.4 s, its hosted job ≈ 30 s, the `lane` runner untouched), and only
