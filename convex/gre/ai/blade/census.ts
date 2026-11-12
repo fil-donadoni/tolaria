@@ -180,7 +180,7 @@ export function censusVerdicts(
             byKey.set(key, v);
         }
         v.ms += r.ms;
-        if (r.skipped) continue;
+        // A fail-fast skip is written `ok: true`: it never reds the entry.
         if (!r.ok) {
             v.ok = false;
             v.redSeeds.push(r.seed);
