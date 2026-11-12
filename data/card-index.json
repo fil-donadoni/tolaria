@@ -64406,6 +64406,14 @@
         "source": "compiled"
     },
     {
+        "name": "Rest in Peace",
+        "scryfallId": "37c2b1d1-faa0-40fd-82f4-216604ce7635",
+        "oracleId": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+        "firstSet": "rtr",
+        "firstPrintId": "37c2b1d1-faa0-40fd-82f4-216604ce7635",
+        "firstPrintSet": "rtr"
+    },
+    {
         "name": "Restless Apparition",
         "scryfallId": "dc6480d0-17c5-4ac2-afb2-4d44f089de22",
         "oracleId": "fbd6dda7-ccee-4640-805d-78a9d60f45ef",
