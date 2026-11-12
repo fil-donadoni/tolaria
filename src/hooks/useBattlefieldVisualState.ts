@@ -736,11 +736,8 @@ export function useBattlefieldVisualState(
         const creature = isCreature(card);
         const manaSource = hasManaAbility(card, manaGateView, manaPlayers);
 
-        // CR 601.2c — the shared candidate predicate (`target-candidates.ts`):
-        // the requirement + the target-filter registry (issue #1697), the
-        // untargetable gate (issue #1120) and the Flagbearer narrowing — the
-        // same set the click handler fires on and the targeting arrow
-        // (issue #9163) snaps to.
+        // The shared permanent candidate predicate (`target-candidates.ts`):
+        // the set the click handler fires on and the targeting arrow snaps to.
         const isValidTarget =
             isSelectingTarget &&
             isLegalPermanentTarget(card, pendingTarget, {
