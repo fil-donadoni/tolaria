@@ -1,4 +1,10 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import {
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+    type ReactNode,
+} from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
@@ -193,7 +199,7 @@ type CardsPileProps = {
      *  attachment cluster for the "Attached to: X" line (CR 303.4 / 301.5), where
      *  the pile TITLE names one host but individual cards may enchant each other
      *  (Power Leak on Holy Strength). Return null for cards with no caption. */
-    captionFor?: (card: CardInstance) => string | null;
+    captionFor?: (card: CardInstance) => ReactNode;
 };
 
 /** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
@@ -305,7 +311,7 @@ function FanLayout({
     onClose: () => void;
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
-    captionFor?: (card: CardInstance) => string | null;
+    captionFor?: (card: CardInstance) => ReactNode;
     /** Library ordering: put the TOP of the library on the RIGHT, each card
      *  overlapping its left neighbour so the topmost sits highest (matches the
      *  scry drag picker). The input is top→bottom; rendering it reversed makes
@@ -516,7 +522,7 @@ function GridCard({
     onClose: () => void;
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
-    captionFor?: (card: CardInstance) => string | null;
+    captionFor?: (card: CardInstance) => ReactNode;
     /** Computed once per dialog open by `GridLayout` (not per-card — a 60-card
      *  library browse would otherwise subscribe 60 `resize` listeners) via
      *  `gridImageSizing`. */
@@ -651,7 +657,7 @@ function GridLayout({
      *  plus a trailing "not keepable" section for cards matching none. Omit for
      *  an ordinary flat grid. */
     categories?: PileCategory[];
-    captionFor?: (card: CardInstance) => string | null;
+    captionFor?: (card: CardInstance) => ReactNode;
     /** Segmented type filter (issue #2729) — `CardsPile` owns the filter
      *  STATE and renders the `SegmentedControl` itself (sticky, syntactically
      *  inside its own `<GameDialog>` — `shell-height-claims.guard.test.tsx`'s

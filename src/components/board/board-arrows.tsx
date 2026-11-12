@@ -19,6 +19,10 @@ import {
 } from "~/hooks/arrowHighlightContext";
 import { useDomAnchorPublisher } from "~/hooks/useDomAnchorPublisher";
 import type { Combat } from "~/types/game";
+import type { ArrowStrength } from "~/lib/board-arrow-style";
+import ArrowDefs from "./board-arrow-defs";
+import BoardArrowPath from "./board-arrow-path";
+import ArrowFocusLayer from "./arrow-focus-layer";
 
 type BoardArrowsProps = {
     stack: StackItem[];
@@ -44,14 +48,20 @@ type BoardArrowsProps = {
     extraArrows?: ManualArrowPair[];
 };
 
-/** Gold accent tokens (ADR 0007). The arrow is a metallic gold filament: a soft
- *  gold aura, a gradient core, and a bright hairline highlight on top — no dark
- *  channel, no heavy glow. */
-const ACCENT = "var(--color-accent)";
-const STRONG = "var(--color-accent-strong)";
-
 /** Opacity of arrows / nodes outside the hovered relationship. */
 const DIM = 0.14;
+
+const BOARD_DEF_IDS = {
+    grad: "board-arrow-grad",
+    head: "board-arrowhead",
+    shadow: "board-arrow-shadow",
+};
+
+/** A stack target arrow (issue #9326) — drawn quiet at rest. Combat and
+ *  Manual Mode arrows carry no stack item and keep today's filament. */
+function restStrength(arrow: TargetArrow): ArrowStrength {
+    return arrow.stackItemId ? "quiet" : "normal";
+}
 
 /**
  * SVG arrow layer for the spatial board (PRD #249, slices #257 / combat-read).
@@ -94,7 +104,7 @@ export default function BoardArrows({
     const stackKey = useMemo(() => stack.map((s) => s.id).join(","), [stack]);
     useDomAnchorPublisher(
         svgRef,
-        ["stack", "player", "graveyard"],
+        ["stack", "player", "graveyard", "stackTarget"],
         `${stackKey}|${anchorRevision ?? ""}`,
         // The portrait bottom bar mounts as a sibling of the board root
         // (`board.tsx`), outside where this scan would otherwise look — the
@@ -177,6 +187,18 @@ export default function BoardArrows({
         publishNodes?.(highlight ? highlight.nodes : null);
     }, [publishNodes, highlight]);
 
+    // A targeting relationship in focus (issue #9326) veils the board; its
+    // lit arrows are drawn above the veil by the focus layer, so this layer
+    // skips them (a blurred copy under the veil would halo the sharp one).
+    const targetFocus = highlight?.focus === "target" ? highlight : null;
+    const focusArrows = useMemo(
+        () =>
+            targetFocus
+                ? arrows.filter((a) => targetFocus.keys.has(a.key))
+                : [],
+        [arrows, targetFocus]
+    );
+
     return (
         <svg
             ref={svgRef}
@@ -184,91 +206,36 @@ export default function BoardArrows({
             aria-hidden
             data-testid="board-arrows"
         >
-            <defs>
-                <linearGradient
-                    id="board-arrow-grad"
-                    x1="0"
-                    y1="0"
-                    x2="1"
-                    y2="1"
-                >
-                    <stop offset="0%" stopColor={ACCENT} />
-                    <stop offset="100%" stopColor={STRONG} />
-                </linearGradient>
-                {/* Crisp ornamental arrowhead, bright filament colour. */}
-                <marker
-                    id="board-arrowhead"
-                    markerWidth="9"
-                    markerHeight="9"
-                    refX="6"
-                    refY="4"
-                    orient="auto"
-                    markerUnits="userSpaceOnUse"
-                >
-                    <path d="M0,0.5 L8.5,4 L0,7.5 Q3,4 0,0.5 Z" fill={STRONG} />
-                </marker>
-                <filter
-                    id="board-arrow-shadow"
-                    x="-20%"
-                    y="-20%"
-                    width="140%"
-                    height="140%"
-                >
-                    <feDropShadow
-                        dx="0"
-                        dy="1"
-                        stdDeviation="1.6"
-                        floodColor="#000"
-                        floodOpacity="0.4"
-                    />
-                </filter>
-            </defs>
+            <ArrowDefs ids={BOARD_DEF_IDS} />
             {arrows.map((arrow) => {
+                if (targetFocus?.keys.has(arrow.key)) return null;
                 const active = highlight ? highlight.keys.has(arrow.key) : true;
                 // When a relationship is hovered, EVERY arrow in it is
                 // emphasized together (not just the one under the cursor), so a
-                // combat cluster lights up as a single unit.
-                const emphasized = active && highlight !== null;
+                // combat cluster lights up as a single unit. Nothing hovered:
+                // a stack target arrow rests quiet (issue #9326).
+                const strength: ArrowStrength =
+                    active && highlight !== null
+                        ? "emphasized"
+                        : restStrength(arrow);
                 return (
-                    <g
+                    <BoardArrowPath
                         key={arrow.key}
-                        opacity={active ? 1 : DIM}
-                        style={{ transition: "opacity 140ms ease" }}
-                        filter="url(#board-arrow-shadow)"
-                    >
-                        {/* Soft gold aura (no dark channel, no heavy glow). */}
-                        <path
-                            d={arrow.path}
-                            fill="none"
-                            stroke={ACCENT}
-                            strokeWidth={emphasized ? 9 : 6}
-                            strokeLinecap="round"
-                            opacity={emphasized ? 0.32 : 0.18}
-                        />
-                        {/* Gradient core + arrowhead — the body of the wire. */}
-                        <path
-                            data-arrow-key={arrow.key}
-                            data-arrow-kind={arrow.kind}
-                            d={arrow.path}
-                            fill="none"
-                            stroke="url(#board-arrow-grad)"
-                            strokeWidth={emphasized ? 3.4 : 2.4}
-                            strokeLinecap="round"
-                            markerEnd="url(#board-arrowhead)"
-                        />
-                        {/* Bright hairline highlight along the top — gives the
-                            filament its metallic catch-light. */}
-                        <path
-                            d={arrow.path}
-                            fill="none"
-                            stroke={STRONG}
-                            strokeWidth={emphasized ? 1.1 : 0.8}
-                            strokeLinecap="round"
-                            opacity={0.9}
-                        />
-                    </g>
+                        arrow={arrow}
+                        strength={strength}
+                        dimmed={!active}
+                        dimOpacity={DIM}
+                        ids={BOARD_DEF_IDS}
+                    />
                 );
             })}
+            {targetFocus && (
+                <ArrowFocusLayer
+                    boardRef={svgRef}
+                    nodes={targetFocus.nodes}
+                    arrows={focusArrows}
+                />
+            )}
         </svg>
     );
 }
