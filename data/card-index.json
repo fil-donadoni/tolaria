@@ -2562,6 +2562,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Ancient Stirrings",
+        "scryfallId": "97ac2766-a597-4949-882d-c5e61e6dd268",
+        "oracleId": "82f18e7d-5c42-47c4-8e74-3fccc9b7b1f0",
+        "firstSet": "roe",
+        "firstPrintId": "97ac2766-a597-4949-882d-c5e61e6dd268",
+        "firstPrintSet": "roe"
+    },
+    {
         "name": "Ancient Tomb",
         "scryfallId": "30e401e3-282b-4524-87e1-c6cd50cd6d00",
         "oracleId": "23467047-6dba-4498-b783-1ebc4f74b8c2",
