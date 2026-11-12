@@ -7,6 +7,7 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
+import { applyPlayLand } from "../playLand";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     makeInstance,
@@ -81,5 +82,36 @@ describe("Echoing Deeps (CR 614.1c, 707.9b)", () => {
         const card = onBoard(state);
         expect(card.isTapped).toBeFalsy();
         expect(card.subtypes).toEqual(["Cave"]);
+    });
+
+    it("played from hand, copying a land still enters tapped (CR 305.1)", () => {
+        const yard = makeInstance(forest().id, {
+            id: "yardForest",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(echoingDeeps().id, {
+                            id: "deeps",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { graveyard: [yard] }),
+            ],
+        });
+        applyPlayLand(state, state.players[0], "deeps");
+        answer(state, ["yardForest"]);
+        const card = onBoard(state);
+        expect(card.isTapped).toBe(true);
+        expect(card.subtypes).toEqual(
+            expect.arrayContaining(["Forest", "Cave"])
+        );
     });
 });
