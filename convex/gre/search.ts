@@ -7281,8 +7281,9 @@ export function activationBuysNothing(
  *
  * The premise the `last-window-deferral` hold needs before it may hold an
  * action THROUGH a stack that is not inert to the mover (`isDeferrableAction`
- * clause 3). Priority comes back to the mover after each resolution
- * (CR 117.3b / 117.4), so an action that the objects on the stack neither
+ * clause 3). Priority comes back to the mover after each resolution — to
+ * the active player first, then through its pass (CR 117.3b, CR 117.3d) —
+ * so an action that the objects on the stack neither
  * enable, disable nor change is not a response at all: it can be taken after
  * them on the same board. Read off two settled worlds:
  *
@@ -7311,7 +7312,8 @@ export function actionCommutesWithStack(
         const before = settledWholeStack(cloneGameState(state), pid, weights);
         if (!now || !before || now.gameOver || before.gameOver) return false;
         const later = cloneGameState(before);
-        // CR 117.3b — the mover gets priority back on the resolved board.
+        // CR 117.3b, CR 117.3d — the mover gets priority back on the
+        // resolved board.
         later.priorityPlayerId = pid;
         const key = planlessKey(move);
         const again = enumerateMoves(later, pid).find(
