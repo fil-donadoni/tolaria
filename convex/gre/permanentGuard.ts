@@ -328,9 +328,23 @@ export function isOpponentSearchProhibited(
     searcherId: string | undefined
 ): boolean {
     if (searcherId === undefined) return false;
-    return state.players.some(
-        (p) =>
-            p.id !== searcherId &&
-            playerGuardsOf(state, p.id).some((g) => g.opponentsCantSearch)
-    );
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const effects = liveStaticDefinition(source)?.staticEffects;
+            if (!effects) continue;
+            for (const effect of effects) {
+                if (effect.kind !== "player-guard") continue;
+                if (!effect.opponentsCantSearch) continue;
+                const guardedId =
+                    (effect.appliesTo ?? "controller") === "controller"
+                        ? source.controllerId
+                        : source.chosenPlayerId;
+                // The guarded player's own searches are never barred.
+                if (guardedId !== undefined && guardedId !== searcherId) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
