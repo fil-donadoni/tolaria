@@ -4848,6 +4848,10 @@ export function emitPermanentEntered(
                 ? { manaValue: manaValueOnEntry }
                 : {}),
             ...(isToken ? { isToken: true } : {}),
+            // CR 603.6a — tapped status as it entered ("enters tapped"). Read
+            // off the battlefield instance, which the entry funnel has already
+            // tapped (entersTapped / replacement) before this emit.
+            ...(entered?.isTapped === true ? { enteredTapped: true } : {}),
         },
     ];
 }

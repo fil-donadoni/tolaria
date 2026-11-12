@@ -7,6 +7,7 @@ import {
     type ActivatedAbilityContext,
     type PermanentView,
 } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Creeping Tar Pit — the manland cycle (CR 611.1 animate). DSL-first (ADR
 // 0045): the `animate` Op (issue #1317) skins `animateAsCreature` and the
@@ -183,5 +184,37 @@ export const everflowingChalice = defineCard(() => ({
                 C: source.counters?.charge ?? 0,
             }),
         },
+    ],
+}));
+
+// Amulet of Vigor — DSL-first (ADR 0045): an `enteredTrigger` (CR 603.6a) over
+// any permanent its controller controls that entered tapped (the event's
+// `enteredTapped`, snapshotted by `emitPermanentEntered`), whose script untaps
+// the entering permanent through `$event.instanceId` (CR 701.26b). The trigger
+// resolves after the permanent is already on the battlefield, so the untap is
+// a plain untap, not a replacement of "enters tapped" (CR 614.12 does not apply).
+// hand-tail: Whenever a permanent you control enters tapped, untap it. (#8606)
+export const amuletOfVigor = defineCard(() => ({
+    id: "997bc933-ac30-477b-a4e1-5333b796a99d",
+    rarity: "rare",
+    name: "Amulet of Vigor",
+    oracleText: "Whenever a permanent you control enters tapped, untap it.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "amulet-of-vigor-untap",
+            oracleText:
+                "Whenever a permanent you control enters tapped, untap it.",
+            scope: "yours",
+            condition: (event) => event.enteredTapped === true,
+            effects: [
+                {
+                    op: "tapUntap",
+                    action: "untap",
+                    target: { ref: "$event.instanceId" },
+                },
+            ],
+        }),
     ],
 }));

@@ -27,12 +27,17 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
-import { getDefinition } from "../../../index";
+import { getDefinition, preloadDefinitions } from "../../../index";
+import { amuletOfVigor as amuletOfVigorCard } from "../colorless.cards";
 
 const creepingTarPit = getDefinition("0f427f0b-034c-4821-8758-e395c0042d8a");
 const celestialColonnade = getDefinition(
     "f6929259-2903-4f6f-9b06-42048fd55c6a"
 );
+// A new hand-written card is not in the clean-tree registry: preload it.
+preloadDefinitions([amuletOfVigorCard()]);
+const amuletOfVigor = getDefinition("997bc933-ac30-477b-a4e1-5333b796a99d");
+const plainsId = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
 const everflowingChalice = getDefinition(
     "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd"
 );
@@ -373,5 +378,38 @@ describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
             (e) => e.op === "animate"
         )! as { colors?: string[] };
         expect(live.colorOverride).not.toBe(declared.colors);
+    });
+});
+
+describe("Amulet of Vigor (CR 603.6a — untap a permanent that entered tapped)", () => {
+    function setup(landId: string) {
+        const amulet = makeInstance(amuletOfVigor.id, { controllerId: "p1" });
+        const land = makeInstance(landId, { zone: "hand" });
+        const player = makePlayer("p1", {
+            hand: [land],
+            battlefield: [amulet],
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        return { state, player, land };
+    }
+
+    it("untaps a land that entered tapped", () => {
+        const { state, player, land } = setup(creepingTarPit.id);
+        const played = applyPlayLand(state, player, land.id)!;
+        expect(played.isTapped).toBe(true);
+        expect(state.stack.length).toBe(1);
+
+        resolveTopOfStack(state);
+
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === land.id
+        )!;
+        expect(live.isTapped).toBe(false);
+    });
+
+    it("does not trigger for a permanent that entered untapped", () => {
+        const { state, player, land } = setup(plainsId);
+        applyPlayLand(state, player, land.id);
+        expect(state.stack.length).toBe(0);
     });
 });

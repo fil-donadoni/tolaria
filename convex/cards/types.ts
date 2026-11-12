@@ -12531,6 +12531,10 @@ export interface PermanentEnteredEvent {
      *  deserializes as "not from graveyard" (a condition reading it simply
      *  sees `undefined` — fail-closed). */
     enteredFromGraveyard?: boolean;
+    /** CR 603.6a — true iff the permanent entered the battlefield tapped
+     *  ("whenever a permanent you control enters tapped" — Amulet of Vigor).
+     *  Snapshotted at `emitPermanentEntered`; absent = entered untapped. */
+    enteredTapped?: boolean;
     /** Effective power/toughness (CR 613.4) of the entering permanent,
      *  snapshotted at `emitPermanentEntered` — present ONLY when `types`
      *  includes "Creature" (a noncreature has no meaningful P/T). Read by an
