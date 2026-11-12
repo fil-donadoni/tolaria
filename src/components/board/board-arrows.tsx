@@ -9,6 +9,7 @@ import {
     hitTestArrows,
     resolveArrowHighlight,
     type AnchorPoint,
+    type ArrowHighlight,
     type ManualArrowPair,
     type TargetArrow,
 } from "~/lib/target-arrow-geometry";
@@ -180,10 +181,16 @@ export default function BoardArrows({
         () => (hoveredKey ? { key: hoveredKey } : channelSeed),
         [hoveredKey, channelSeed]
     );
-    const highlight = useMemo(
+    const highlight = useMemo<ArrowHighlight | null>(
         () =>
             targetingNodeIds
-                ? { keys: new Set<string>(), nodes: targetingNodeIds }
+                ? {
+                      keys: new Set<string>(),
+                      nodes: new Set(targetingNodeIds),
+                      // plain dimming: the targeting overlay draws its own
+                      // arrow, no focus veil
+                      focus: "combat",
+                  }
                 : resolveArrowHighlight(arrows, seed),
         [arrows, seed, targetingNodeIds]
     );
