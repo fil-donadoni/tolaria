@@ -1190,9 +1190,10 @@
             "reviewed": false
         },
         "a55c4d47-5252-40af-961d-c08bc688028a": {
-            "provides": ["value-on-etb"],
+            "provides": ["value-on-etb", "discard-outlet"],
             "requires": ["cheap-artifact"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its ETB searches the library for an artifact card and puts it into the graveyard (a chosen card to the graveyard), and its sacrifice ability reanimates a cheap artifact"
         },
         "2ba70366-b6ae-423a-a8d8-29d2b8afd939": {
             "provides": ["value-on-etb", "discard-outlet"],
@@ -2010,10 +2011,10 @@
             "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
         },
         "f60a2091-fb97-4f04-911b-fce9b6351044": {
-            "provides": ["cheap-spell"],
+            "provides": ["cheap-spell", "discard-outlet"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause; oracle: searches the library for any card and puts it into the graveyard, a chosen reanimation target on demand (discard-outlet)"
         },
         "b5e81649-9954-424c-89d1-f87d73b66047": {
             "provides": ["cheap-spell"],
