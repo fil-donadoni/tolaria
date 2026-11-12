@@ -36,12 +36,7 @@ import {
     type BladeTier,
 } from "..";
 import { BLADE_SHARDS, bladeShardSlice } from "../shard";
-import {
-    LADDER_VARIANTS,
-    NO_RULE_VARIANT_PREFIX,
-    noRuleVariant,
-    type SearchVariant,
-} from "../../searchVariant";
+import { resolveBladeVariant } from "../variant";
 
 const TIER = (process.env.BLADE_TIER ?? "must") as BladeTier;
 
@@ -72,18 +67,7 @@ if (TIER !== "must" && TIER !== "stretch") {
 // deleted alongside its rule. An unknown or structural
 // mechanism throws exactly as an unknown registry name does.
 const VARIANT_NAME = process.env.BLADE_VARIANT;
-const VARIANT: SearchVariant | null = VARIANT_NAME
-    ? VARIANT_NAME.startsWith(NO_RULE_VARIANT_PREFIX)
-        ? noRuleVariant(VARIANT_NAME)
-        : (LADDER_VARIANTS[VARIANT_NAME] ??
-          (() => {
-              throw new Error(
-                  `BLADE_VARIANT "${VARIANT_NAME}" is not in LADDER_VARIANTS — known: ${Object.keys(
-                      LADDER_VARIANTS
-                  ).join(", ")}`
-              );
-          })())
-    : null;
+const VARIANT = resolveBladeVariant(VARIANT_NAME);
 const VARIANT_SUFFIX = VARIANT ? ` [variant: ${VARIANT.name}]` : "";
 
 const tierScenarios = bladeScenariosForTier(TIER);

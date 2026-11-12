@@ -412,6 +412,20 @@ position the gate does not yet require. Both tiers are read by the weight fit
 — by rule, never by the [held-out](#held-out-agreement) hash — so the fit can
 never drift away from a position the gate demands.
 
+<a id="flip-census"></a>**Flip census** — a Bot experiment's proof that a
+search variant breaks no test position: every entry of a tier run under the
+variant (one ARM), compared with the base arm, and the **new reds** (green in
+the base, red under the variant) counted with their seeds.
+`bun run blade:census` runs one arm as a pool of workers over (entry, seed)
+jobs, so its wall is the total work over the workers. `--variant <name>`,
+`--match <regex>` / `--entries <file>`, `--iterations <n>` (a budget sweep),
+`--fail-fast` (screening: an entry stops at its first red seed),
+`--jobs <n>`, `--out <file>`; `--diff base.json variant.json` prints the
+flips. Off the owner's machines: the
+[`blade-census`](github-pipeline.md#blade-census) workflow runs the same arm
+on sixteen GitHub-hosted slices. Code: `scripts/blade-census.ts`,
+`convex/gre/ai/blade/census.ts`.
+
 <a id="admission"></a>**Admission** — a human's decision that a test position
 joins `must`, made against the ADR 0070 criterion: the wrong move loses
 something _forced by the rules_, never merely "worse on average". Tooling only
