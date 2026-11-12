@@ -45735,12 +45735,32 @@
         "source": "compiled"
     },
     {
+        "name": "Leyline Axe",
+        "scryfallId": "b9c03336-a321-4c06-94d1-809f328fabd8",
+        "oracleId": "4f597675-0f6d-438c-990c-337171927a5e",
+        "firstSet": "fdn",
+        "firstPrintId": "b9c03336-a321-4c06-94d1-809f328fabd8",
+        "firstPrintSet": "fdn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Leyline Binding",
         "scryfallId": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
         "oracleId": "b49642f6-20bd-468d-9dac-e578f9ac3091",
         "firstSet": "dmu",
         "firstPrintId": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
         "firstPrintSet": "dmu"
+    },
+    {
+        "name": "Leyline of Anticipation",
+        "scryfallId": "d7dbb092-3bb0-445e-ab26-d939cac92a73",
+        "oracleId": "9dc65ffe-17fc-4280-b4bd-78073ac7e12b",
+        "firstSet": "m11",
+        "firstPrintId": "d7dbb092-3bb0-445e-ab26-d939cac92a73",
+        "firstPrintSet": "m11",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Leyline Prowler",

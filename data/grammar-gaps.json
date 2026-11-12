@@ -4111,6 +4111,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Leyline of the Guildpact",
+            "issue": 9275
+        },
+        {
+            "kind": "hand-tail",
             "key": "Lightning Dart",
             "issue": 4596
         },
