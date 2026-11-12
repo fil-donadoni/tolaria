@@ -58,8 +58,8 @@ export function batchTouchesBot(changed: readonly string[] | null): boolean {
 
 /**
  * Are the weekly audits owed tonight? On `AUDIT_WEEKDAY` unless they already
- * ran within the day (a cron re-fired, a by-hand run), and on ANY night once
- * the last audit is more than a week and a day old — a machine asleep on the
+ * ran within the day (a cron re-fired, a by-hand run), and on ANY night when
+ * never audited or once the last audit is more than a week and a day old — a machine asleep on the
  * weekly night slips the audit by a day, never by a week. `force` is the
  * by-hand `--audits`.
  */
@@ -71,15 +71,18 @@ export function auditsDue(input: {
 }): { due: boolean; reason: string } {
     const { now, lastAuditAt, weekday = AUDIT_WEEKDAY, force } = input;
     if (force) return { due: true, reason: "asked for (--audits)" };
-    const age = lastAuditAt === null ? null : now.getTime() - lastAuditAt;
-    if (age !== null && age > 8 * DAY_MS)
+    // `null` = never audited: due on any night (a weekday-only rule never
+    // fires when the weekly cron is dropped and nothing stamps `auditedAt`).
+    if (lastAuditAt === null) return { due: true, reason: "never audited" };
+    const age = now.getTime() - lastAuditAt;
+    if (age > 8 * DAY_MS)
         return {
             due: true,
             reason: `last audit ${Math.floor(age / DAY_MS)} days ago — the weekly night was missed`,
         };
     if (now.getDay() !== weekday)
         return { due: false, reason: "not the weekly audit night" };
-    if (age !== null && age < DAY_MS)
+    if (age < DAY_MS)
         return { due: false, reason: "already audited within the day" };
     return { due: true, reason: "the weekly audit night" };
 }
