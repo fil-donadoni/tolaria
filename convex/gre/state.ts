@@ -4707,7 +4707,7 @@ export function landPlayLockActive(state: GameState): boolean {
     return false;
 }
 
-/** CR 614 — true when a battlefield permanent declaring
+/** CR 614.17 — true when a battlefield permanent declaring
  *  `blocksBattlefieldEntryFrom` forbids `card` (in its current zone) from
  *  entering the battlefield. Live scan, like `landPlayLockActive`. */
 export function battlefieldEntryBlockedFrom(
@@ -10913,7 +10913,7 @@ function stageReanimatedOnBattlefield(
         getPlayer(state, card.ownerId).graveyard.push(card);
         return false;
     }
-    // CR 614 — "Creature cards in graveyards and libraries can't enter the
+    // CR 614.17 — "Creature cards in graveyards and libraries can't enter the
     // battlefield" (`blocksBattlefieldEntryFrom`): the card stays where it is,
     // exactly like the CR 712.14b case below (callers restore it).
     if (battlefieldEntryBlockedFrom(state, card)) {

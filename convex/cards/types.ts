@@ -24337,7 +24337,7 @@ export interface CardDefinition {
      *  serialization/observability, but the consumption sites read the live
      *  helper, so the cache can never cause an incorrect ruling. */
     preventsLandPlayAndETB?: boolean;
-    /** CR 614 prohibition: while a permanent with this declaration is on the
+    /** CR 614.17 "can't" effect: while a permanent with this declaration is on the
      *  battlefield, a card of one of `types` that would be put onto the
      *  battlefield from one of `zones` can't enter — it stays in that zone
      *  (the CR 712.14b "stays in its current zone" answer, not a redirect).
