@@ -3,6 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { defineCard } from "../../../../convex/cards/types";
+import { equipAbility } from "../../../../convex/cards/abilities/equipment";
+import { diedTrigger } from "../../../../convex/cards/abilities/triggers/diedTrigger";
 
 // Fetchland family (issue #677) — "{T}, Pay 1 life, Sacrifice this land:
 // Search your library for a [Subtype] or [Subtype] card, put it onto the
@@ -254,5 +256,73 @@ export const expeditionMap = defineCard(() => ({
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ],
         },
+    ],
+}));
+
+// Blade of the Bloodchief (issue #8883). Two Oracle lines: the death trigger
+// and Equip {1} (CR 702.6a, via the shared `equipAbility`).
+//
+// CR 700.4 — "dies" is battlefield → graveyard, for ANY creature of either
+// player, so the trigger is `scope: "any"` (the Equipment itself is not a
+// creature, so there is no self-death case to exclude).
+// CR 301.5 — "equipped creature" is named by the text, not targeted
+// (CR 115.10), so the counters go on `{ ref: "$host" }`, the Equipment's
+// `attachedTo`; the Op skips when it is unattached (CR 608.2b).
+// CR 614.15 — "put two +1/+1 counters on it INSTEAD" is read as the ONE effect
+// the trigger has, branched on the host's live subtype (CR 613 layer 4: a
+// granted Vampire type counts): `if` Vampire → two counters, else → one. The
+// check runs at resolution, so a host that stopped being a Vampire since the
+// trigger went on the stack gets one counter.
+// hand-tail: Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead. (#8883)
+export const bladeOfTheBloodchief = defineCard(() => ({
+    id: "7e4b42e5-0e60-4148-907e-456d9f3043be",
+    name: "Blade of the Bloodchief",
+    rarity: "rare",
+    oracleText:
+        "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
+    manaCost: { generic: 1 },
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+    triggeredAbilities: [
+        diedTrigger({
+            id: "blade-of-the-bloodchief-counter",
+            oracleText:
+                "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.",
+            scope: "any",
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: { ref: "$host" },
+                        filter: { subtype: "Vampire" },
+                    },
+                    then: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$host" },
+                            count: 2,
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        equipAbility({
+            id: "blade-of-the-bloodchief-equip",
+            cost: { generic: 1 },
+            oracleText: "Equip {1}",
+        }),
     ],
 }));
