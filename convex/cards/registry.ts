@@ -12,8 +12,10 @@ import type {
     EffectOp,
     GameEventType,
     ManaCost,
+    AsEntersChoice,
     StaticEffect,
     TokenSpec,
+    TokenStaticEffectKey,
     TriggeredAbility,
 } from "./types";
 import { backFaceAsTokenSpec } from "./backFaceSpec";
@@ -1466,6 +1468,80 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     };
     setRegistryEntry(cardId, def);
     return def;
+}
+
+/** Decode a content-derived token definition id back into the `TokenSpec`
+ *  that mints it (CR 111 / 707.2) — the spec-shaped inverse of
+ *  {@link tokenDefinitionId}, for a caller that must CREATE the token again
+ *  (a scenario rebuilt from a lowered board) rather than only display it.
+ *
+ *  Characteristics come off the UNEXPANDED registry entry — the live
+ *  registration's real closures when this process created the token, else the
+ *  {@link maybeSynthesizeToken} decode — so a closure-built triggered ability
+ *  survives exactly as far as the codec lets it. The fields a definition does
+ *  not carry in spec form (colours, CR 611 static-effect KEYS, as-enters
+ *  choices, a specified mana cost) are read off their own segments.
+ *
+ *  Returns undefined for a non-token id, and for one whose decoded spec does
+ *  not re-encode to the SAME id: a token re-created from this spec is then the
+ *  identical definition, never a near miss. */
+export function tokenSpecFromDefinitionId(
+    defId: string
+): TokenSpec | undefined {
+    if (!defId.startsWith("token:")) return undefined;
+    const def = resolveRaw(defId);
+    if (!def) return undefined;
+    const parts = defId.slice("token:".length).split("|");
+    const decodeJson = <T>(raw: string | undefined): T | undefined =>
+        raw ? (JSON.parse(decodeURIComponent(raw)) as T) : undefined;
+    const colors = (parts[6] ?? "").split("").filter(Boolean) as Color[];
+    const staticEffectKeys = (parts[9] ?? "")
+        .split(",")
+        .filter(Boolean) as TokenStaticEffectKey[];
+    const asEnters = decodeJson<AsEntersChoice[]>(parts[15]);
+    const manaCost = decodeJson<ManaCost>(parts[17]);
+    const spec: TokenSpec = {
+        name: def.name,
+        types: [...def.types],
+        ...(def.subtypes?.length ? { subtypes: [...def.subtypes] } : {}),
+        ...(def.supertypes?.length ? { supertypes: [...def.supertypes] } : {}),
+        ...(def.power !== undefined ? { power: def.power } : {}),
+        ...(def.toughness !== undefined ? { toughness: def.toughness } : {}),
+        ...(colors.length > 0 ? { colors } : {}),
+        ...(def.staticAbilities?.length
+            ? { staticAbilities: [...def.staticAbilities] }
+            : {}),
+        ...(def.imagePrintId ? { imagePrintId: def.imagePrintId } : {}),
+        ...(def.imagePrintFace ? { imagePrintFace: def.imagePrintFace } : {}),
+        ...(staticEffectKeys.length > 0 ? { staticEffectKeys } : {}),
+        ...(def.activatedAbilities?.length
+            ? { activatedAbilities: def.activatedAbilities }
+            : {}),
+        ...(def.triggeredAbilities?.length
+            ? { triggeredAbilities: def.triggeredAbilities }
+            : {}),
+        ...(def.backFace ? { backFace: def.backFace } : {}),
+        ...(def.loyalty !== undefined ? { loyalty: def.loyalty } : {}),
+        ...(def.crewPowerBonus !== undefined
+            ? { crewPowerBonus: def.crewPowerBonus }
+            : {}),
+        ...(manaCost ? { manaCost } : {}),
+        ...(def.chapterAbilities?.length
+            ? { chapterAbilities: def.chapterAbilities }
+            : {}),
+        ...(asEnters?.length ? { entersWith: { asEnters } } : {}),
+    };
+    return tokenDefinitionId(spec) === defId ? spec : undefined;
+}
+
+/** A token definition id with its art segment (index 8, `imagePrintId`)
+ *  emptied: the token's SHAPE, shared by every producer of the same
+ *  characteristics whatever token printing each pins. Equal to
+ *  `tokenDefinitionId({ ...spec, imagePrintId: undefined })`. */
+export function tokenShapeId(defId: string): string {
+    const parts = defId.split("|");
+    if (parts.length > 8) parts[8] = "";
+    return parts.join("|");
 }
 
 /** Reads the mana cost off a `CardInstanceState`-shaped object — the SINGLE
