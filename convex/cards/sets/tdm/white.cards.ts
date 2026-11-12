@@ -199,3 +199,37 @@ export const elspethStormSlayer = defineCard(() => ({
         },
     ],
 }));
+
+// Clarion Conqueror — {2}{W} Creature — Dragon 3/3. "Flying\nActivated abilities
+// of artifacts, creatures, and planeswalkers can't be activated."
+//
+// CR 602.5: a player can't begin to activate a prohibited ability. Declared as
+// an `activation-restriction` static over every artifact, creature and
+// planeswalker on the battlefield (CR 109.2; `types` is an OR list), read live
+// by `activationRestrictionViolation` — the Cursed Totem / Null Rod shape. No
+// mana-ability exemption: a mana ability is an activated ability (CR 605.1a), so
+// Clarion Conqueror itself locks mana creatures, mana rocks and loyalty
+// abilities (CR 606.1), its own controller's included.
+// hand-tail: Activated abilities of artifacts, creatures, and planeswalkers can't be activated. (#8610)
+export const clarionConqueror = defineCard(() => ({
+    id: "f892d156-371c-4391-8ae6-25513c5032b0",
+    rarity: "rare",
+    name: "Clarion Conqueror",
+    oracleText:
+        "Flying\nActivated abilities of artifacts, creatures, and planeswalkers can't be activated.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    staticEffects: [
+        {
+            kind: "activation-restriction",
+            id: "clarion-conqueror-activation-lock",
+            filter: { types: ["Artifact", "Creature", "Planeswalker"] },
+            oracleText:
+                "Activated abilities of artifacts, creatures, and planeswalkers can't be activated.",
+        },
+    ],
+}));

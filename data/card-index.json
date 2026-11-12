@@ -14152,6 +14152,14 @@
         "source": "compiled"
     },
     {
+        "name": "Clarion Conqueror",
+        "scryfallId": "f892d156-371c-4391-8ae6-25513c5032b0",
+        "oracleId": "f1266a1b-bae6-4ded-b4d5-7586a5b6c5d0",
+        "firstSet": "tdm",
+        "firstPrintId": "f892d156-371c-4391-8ae6-25513c5032b0",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Clarion Spirit",
         "scryfallId": "86a4c348-1012-4339-960a-c7bc7fd84fbb",
         "oracleId": "dec20b18-afe6-405e-b47d-a757a5645c63",
