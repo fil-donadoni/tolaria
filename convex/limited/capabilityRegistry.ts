@@ -114,7 +114,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         },
         example: { provider: "Griselbrand", requirer: "Animate Dead" },
         description:
-            "PROVIDES: a creature/permanent that is disproportionately powerful put onto the battlefield directly from a graveyard, and that will actually still BE in the graveyard when a reanimation effect looks for it — no ability that removes it from the graveyard on its own (e.g. shuffling itself into its library on death, the reason Worldspine Wurm does not provide this). REQUIRES: a graveyard-to-battlefield effect (Animate Dead, Reanimate) requires this from its target; a target lacking it scores nothing from the effect regardless of shared archetype.",
+            "PROVIDES: a creature/permanent that is disproportionately powerful put onto the battlefield directly from a graveyard (the graveyard subset of `cheat-target`), and that will actually still BE in the graveyard when a reanimation effect looks for it — no ability that removes it from the graveyard on its own (e.g. shuffling itself into its library on death, the reason Worldspine Wurm does not provide this). REQUIRES: a graveyard-to-battlefield effect (Animate Dead, Reanimate) requires this from its target; a target lacking it scores nothing from the effect regardless of shared archetype.",
     },
     {
         id: "reanimatable-mv-2",
@@ -170,6 +170,19 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     },
 
     // ── Cheat-into-play cluster (ADR 0072's motivating example) ─────────
+    {
+        id: "cheat-target",
+        cluster: "Cheat into play",
+        gloss: {
+            provides:
+                "A permanent worth having for good without paying its cost.",
+            requires:
+                "A permanent cheat from hand or library (Show and Tell) needs this from its target.",
+        },
+        example: { provider: "Griselbrand", requirer: "Show and Tell" },
+        description:
+            "PROVIDES: a permanent (creature, artifact or enchantment) far more powerful than its mana value lets the deck cast on curve — in practice mana value 7 or more — and worth having PERMANENTLY on the battlefield without paying its cost (Griselbrand, an eight-drop that draws seven). Every card providing `reanimatable` on its size also provides this; the converse does not hold — Emrakul, the Aeons Torn, Worldspine Wurm and Blightsteel Colossus never stay in a graveyard, so they provide this and not `reanimatable`. REQUIRES: an effect that puts a permanent onto the battlefield from HAND or LIBRARY for good, with no sacrifice or return clause (Show and Tell, Natural Order, Oath of Druids) requires this from its target. The one-shot cheats (Sneak Attack, Through the Breach, Flash) do NOT require it: their target is sacrificed, so they keep requiring `value-on-etb` / `value-on-attack` / `value-on-death`. Accepted imprecision: the row carries no colour or type axis, so a requirer restricted to a subset (Natural Order finds only a GREEN creature) also matches a provider it can never fetch (Griselbrand).",
+    },
     {
         id: "value-on-etb",
         cluster: "Cheat into play",
