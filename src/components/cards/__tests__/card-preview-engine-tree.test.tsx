@@ -27,13 +27,8 @@ function realDefinition(name: string): CardDefinition {
     return def;
 }
 
-function renderTree(def: CardDefinition, gameId?: string) {
-    return render(
-        <CardPreviewEngineTree
-            tree={buildEngineViewTree(def)}
-            reportContext={{ gameId }}
-        />
-    );
+function renderTree(def: CardDefinition) {
+    return render(<CardPreviewEngineTree tree={buildEngineViewTree(def)} />);
 }
 
 describe("CardPreviewEngineTree (issue #2704)", () => {
@@ -182,18 +177,9 @@ describe("CardPreviewEngineTree (issue #2704)", () => {
         expect(container.textContent).toContain("tapUntap");
     });
 
-    it("the report action links to a pre-filled draft carrying name, id, game and tree", () => {
-        const def = realDefinition("Lightning Bolt");
-        const { container } = renderTree(def, "game-abc123");
-        const link = container.querySelector(
-            "[data-engine-view-report]"
-        ) as HTMLAnchorElement;
-        expect(link).toBeTruthy();
-        expect(link.getAttribute("target")).toBe("_blank");
-        const href = decodeURIComponent(link.getAttribute("href")!);
-        expect(href).toContain("Lightning Bolt");
-        expect(href).toContain(def.id);
-        expect(href).toContain("game-abc123");
-        expect(href).toContain("EFF dealDamage");
+    it("carries no GitHub report link: Report a problem lives outside the tree (issue #9162)", () => {
+        const { container } = renderTree(realDefinition("Lightning Bolt"));
+        expect(container.querySelector("[data-engine-view-report]")).toBeNull();
+        expect(container.querySelector("a[href*='github.com']")).toBeNull();
     });
 });

@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAnomalyReportRequests } from "~/hooks/useAnomalyReport";
 import { clearAnomalyReport } from "~/lib/ai/anomaly-report";
-import { subscribeBugReportRequests } from "~/lib/bug-report-requests";
+import {
+    subscribeBugReportRequests,
+    type BugReportSubject,
+} from "~/lib/bug-report-requests";
 import BugReportDialog from "./bug-report-dialog";
 
 /**
@@ -14,8 +17,18 @@ import BugReportDialog from "./bug-report-dialog";
  */
 export default function BugReportHost() {
     const [open, setOpen] = useState(false);
+    // What the report is about (a card, from the preview's "Report a problem",
+    // issue #9162). Set with the open edge, dropped with the close.
+    const [subject, setSubject] = useState<BugReportSubject | null>(null);
 
-    useEffect(() => subscribeBugReportRequests(() => setOpen(true)), []);
+    useEffect(
+        () =>
+            subscribeBugReportRequests((next) => {
+                setSubject(next ?? null);
+                setOpen(true);
+            }),
+        []
+    );
 
     // "Report anomaly", from a decision in the AI box (issue #3405). The debug
     // sheet is in another subtree, so the ask arrives through the anomaly store.
@@ -26,8 +39,17 @@ export default function BugReportHost() {
     // NEXT report, filed from somewhere else entirely.
     const handleOpenChange = (next: boolean) => {
         setOpen(next);
-        if (!next) clearAnomalyReport();
+        if (!next) {
+            setSubject(null);
+            clearAnomalyReport();
+        }
     };
 
-    return <BugReportDialog open={open} onOpenChange={handleOpenChange} />;
+    return (
+        <BugReportDialog
+            open={open}
+            onOpenChange={handleOpenChange}
+            subject={subject}
+        />
+    );
 }

@@ -148,6 +148,32 @@ describe("BugReportDialog", () => {
         expect(generateUploadUrl).not.toHaveBeenCalled();
     });
 
+    it("a report opened from a card names the card and files it with the description (issue #9162)", async () => {
+        const { getByRole, getByPlaceholderText, container } = render(
+            <BugReportDialog
+                open
+                onOpenChange={() => {}}
+                subject={{ cardName: "Lightning Bolt", cardId: "bolt-id" }}
+            />
+        );
+        expect(
+            document.querySelector("[data-bug-report-subject]")!.textContent
+        ).toContain("Lightning Bolt");
+        fireEvent.change(
+            getByPlaceholderText("What happened? What did you expect?"),
+            { target: { value: "Deals 2" } }
+        );
+        fireEvent.click(getByRole("button", { name: "Submit" }));
+        await waitFor(() => expect(submitBugReport).toHaveBeenCalledTimes(1));
+        const sent = submitBugReport.mock.calls[0][0] as {
+            description: string;
+        };
+        expect(sent.description).toContain("Lightning Bolt");
+        expect(sent.description).toContain("bolt-id");
+        expect(sent.description).toContain("Deals 2");
+        void container;
+    });
+
     it("surfaces a submit error without leaving the form", async () => {
         submitBugReport.mockRejectedValue(new Error("GitHub API error (403)"));
         const { getByRole, getByPlaceholderText, findByText } = render(

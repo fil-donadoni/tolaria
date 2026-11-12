@@ -1,8 +1,4 @@
 import CardPreviewEngineNode from "./card-preview-engine-node";
-import {
-    buildEngineViewReportUrl,
-    type EngineViewReportContext,
-} from "~/lib/engine-view-report";
 import type { EngineViewTree } from "~/lib/engine-view-tree";
 
 /**
@@ -10,9 +6,9 @@ import type { EngineViewTree } from "~/lib/engine-view-tree";
  * read this card, mounted inside the slot's `[data-engine-view-tree]` well
  * (`card-preview-engine-view.tsx`, shipped empty by issue #2728).
  *
- * Purely a renderer: every derivation lives in `~/lib/engine-view-tree.ts` and
- * `~/lib/engine-view-report.ts`, so nothing here can become a second reading
- * of a card that drifts from the engine's.
+ * Purely a renderer: every derivation lives in `~/lib/engine-view-tree.ts`
+ * and the preview-body builder, so nothing here can become a second reading of a
+ * card that drifts from the engine's.
  *
  * The well SCROLLS at a fixed max height rather than growing with the card.
  * Ojutai's Command's tree is four modes deep; letting it size the overlay
@@ -21,13 +17,8 @@ import type { EngineViewTree } from "~/lib/engine-view-tree";
  */
 export default function CardPreviewEngineTree({
     tree,
-    reportContext,
 }: {
     tree: EngineViewTree;
-    /** Forwarded verbatim into the "Report a problem" draft. Optional — every
-     *  out-of-game preview surface (deck builder, Draft Lab) has no game id
-     *  and the draft simply omits the line. */
-    reportContext?: EngineViewReportContext;
 }) {
     const { declarative, total } = tree.coverage;
     const complete = total > 0 && declarative === total;
@@ -72,16 +63,6 @@ export default function CardPreviewEngineTree({
                     reads.
                 </div>
             )}
-
-            <a
-                data-engine-view-report
-                href={buildEngineViewReportUrl(tree, reportContext)}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-block rounded-sm border border-border-subtle px-1.5 py-0.5 text-[10px] text-text-muted hover:text-text"
-            >
-                Report a problem ↗
-            </a>
         </div>
     );
 }

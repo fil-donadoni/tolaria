@@ -75,7 +75,6 @@ export default function CardPreviewFace({
     abilityWordCounters,
     engineView,
     engineTree,
-    engineReportGameId,
     insetHalf,
     backFaceHalf,
     splitHalves,
@@ -233,7 +232,6 @@ export default function CardPreviewFace({
                 <CardPreviewEngineView
                     badge={engineView}
                     tree={engineTree}
-                    reportContext={{ gameId: engineReportGameId }}
                     compact={compactEngineView}
                 />
                 {hasPT && (

@@ -9,6 +9,7 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import CardPreviewBody from "../card-preview-body";
+import { subscribeBugReportRequests } from "~/lib/bug-report-requests";
 import { getCardByName } from "@convex/cards";
 import { buildPreviewBody, type PreviewBodyContent } from "~/lib/preview-body";
 import {
@@ -78,9 +79,90 @@ describe("CardPreviewBody seeds its toggle from the saved preview default (issue
         const { container, getByRole } = render(
             <CardPreviewBody {...CONTENT} size="sm" />
         );
-        fireEvent.click(getByRole("button", { name: /live text/i }));
+        fireEvent.click(getByRole("tab", { name: /live text/i }));
         const img = container.querySelector("img")!;
         expect(img.getAttribute("alt")).toBe(CONTENT.cardName);
+    });
+});
+
+// Issue #9162 — the bottom segmented control, ←/→, and the report CTA.
+describe("CardPreviewBody tabs and report (issue #9162)", () => {
+    beforeEach(() => {
+        setPreviewPreferenceDefault("computed");
+    });
+    afterEach(cleanup);
+
+    function selected(container: HTMLElement): string | null {
+        return container
+            .querySelector('[role="tab"][aria-selected="true"]')!
+            .getAttribute("data-preview-mode");
+    }
+
+    it("←/→ cycle the views, and the bar sits AFTER the content", () => {
+        const { container } = render(
+            <CardPreviewBody {...CONTENT} size="sm" />
+        );
+        expect(selected(container)).toBe("computed");
+        fireEvent.keyDown(document, { key: "ArrowRight" });
+        expect(selected(container)).toBe("printed");
+        fireEvent.keyDown(document, { key: "ArrowLeft" });
+        expect(selected(container)).toBe("computed");
+        const bar = container.querySelector("[data-preview-mode-bar]")!;
+        expect(bar.nextElementSibling).toBeNull();
+        expect(
+            container.querySelector("[data-preview-mode-hint]")!.textContent
+        ).toContain("1/3");
+    });
+
+    it("an arrow typed into a text field does not switch the view", () => {
+        const { container } = render(
+            <div>
+                <input data-testid="field" />
+                <CardPreviewBody {...CONTENT} size="sm" />
+            </div>
+        );
+        fireEvent.keyDown(container.querySelector("input")!, {
+            key: "ArrowRight",
+        });
+        expect(selected(container)).toBe("computed");
+    });
+
+    it("←/→ already handled by another handler, or with a dialog open elsewhere, leave the view alone", () => {
+        const { container } = render(
+            <CardPreviewBody {...CONTENT} size="sm" />
+        );
+        const handled = new KeyboardEvent("keydown", {
+            key: "ArrowRight",
+            cancelable: true,
+            bubbles: true,
+        });
+        handled.preventDefault();
+        document.dispatchEvent(handled);
+        expect(selected(container)).toBe("computed");
+
+        const dialog = document.createElement("div");
+        dialog.setAttribute("role", "dialog");
+        document.body.appendChild(dialog);
+        fireEvent.keyDown(document, { key: "ArrowRight" });
+        dialog.remove();
+        expect(selected(container)).toBe("computed");
+    });
+
+    it("Report a problem renders for a non-admin viewer and opens the in-app report about the card", () => {
+        // No EngineViewAccessContext provider = a non-admin viewer.
+        const seen: unknown[] = [];
+        const off = subscribeBugReportRequests((subject) => seen.push(subject));
+        const { container } = render(
+            <CardPreviewBody {...CONTENT} size="sm" />
+        );
+        const button = container.querySelector(
+            "[data-preview-report]"
+        ) as HTMLElement;
+        expect(button).not.toBeNull();
+        fireEvent.click(button);
+        off();
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toMatchObject({ cardName: "Lightning Bolt" });
     });
 });
 

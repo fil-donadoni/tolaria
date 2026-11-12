@@ -284,6 +284,9 @@ describe("InspectOverlay — Engine View slot (issue #2728)", () => {
         expect(
             content().querySelector("[data-engine-view-slot]")
         ).not.toBeNull();
+        // Collapsed on open (issue #9162); the header toggle expands it.
+        expect(content().querySelector("[data-engine-view-tree]")).toBeNull();
+        fireEvent.click(content().querySelector("[data-engine-view-toggle]")!);
         expect(
             content().querySelector("[data-engine-view-tree]")
         ).not.toBeNull();

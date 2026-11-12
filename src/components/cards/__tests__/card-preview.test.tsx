@@ -1055,6 +1055,9 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(panel.textContent).toContain("Engine view");
         expect(panel.textContent).not.toContain("Alt: engine view");
         expect(panel.querySelector("[data-engine-view-slot]")).not.toBeNull();
+        // Collapsed on open (issue #9162): no well until the viewer expands.
+        expect(panel.querySelector("[data-engine-view-tree]")).toBeNull();
+        fireEvent.click(panel.querySelector("[data-engine-view-toggle]")!);
         const well = panel.querySelector("[data-engine-view-tree]")!;
         expect(well).not.toBeNull();
         // Lightning Bolt's real definition: one target group, one `dealDamage`
@@ -1063,13 +1066,7 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(well.textContent).toContain("target #0");
         expect(well.textContent).toContain("dealDamage");
         expect(well.textContent).toContain("1/1 declarative");
-        const report = well.querySelector(
-            "[data-engine-view-report]"
-        ) as HTMLAnchorElement | null;
-        expect(report).not.toBeNull();
-        expect(report!.getAttribute("href")).toContain(
-            encodeURIComponent("Lightning Bolt")
-        );
+        expect(well.querySelector("[data-engine-view-report]")).toBeNull();
     });
 
     it("a non-admin gets no engine view on the dock (no slot, no Alt hint) or the long-press overlay (issue #7430)", () => {
@@ -1109,6 +1106,8 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(overlay.textContent).toContain("Engine view");
         expect(overlay.textContent).not.toContain("Alt: engine view");
         expect(overlay.querySelector("[data-engine-view-slot]")).not.toBeNull();
+        expect(overlay.querySelector("[data-engine-view-tree]")).toBeNull();
+        fireEvent.click(overlay.querySelector("[data-engine-view-toggle]")!);
         expect(overlay.querySelector("[data-engine-view-tree]")).not.toBeNull();
     });
 });

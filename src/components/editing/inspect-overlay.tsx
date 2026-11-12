@@ -208,6 +208,7 @@ export default function InspectOverlay({
                             printedLabel="Printed"
                             showRulings={!!rulingsPrintId}
                             className="mx-0 shrink-0"
+                            compact
                         />
                     )}
                     {onStep && (

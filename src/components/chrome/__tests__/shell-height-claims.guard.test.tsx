@@ -369,6 +369,13 @@ const STICKY_SITES: Record<
         },
         why: "The scenario form's head group (title + label + Save/Update) pins to the DEBUG SHEET's own body — `[data-debug-sheet-body]`, `overflow-y-auto` inside the portaled sheet popup — never to `<main>` (issue #3494). `DebugSheet` renders `<DebugPanel` inside that port and `DebugPanel` renders this form; the pin is OPT-IN (`pinnedHead`) and only that path passes it, because `/admin/scenarios` mounts the same form in a `PanelBody` in normal page flow, where a sticky WOULD pin against the shell scroller.",
     },
+    "components/cards/card-preview-mode-toggle.tsx": {
+        ownedBy: {
+            rel: "components/cards/card-preview-dock.tsx",
+            usage: "<CardPreviewBody",
+        },
+        why: "The preview's bottom tab bar pins to the preview dock's own `data-card-preview-scroll` scroller (`min-h-0 overflow-y-auto`, issue #5664), which the dock portals to `document.body` — never to `<main>` (issue #9162). The anchored pin supplies the same scroller.",
+    },
     "components/board/cards-pile.tsx": {
         portaledBy: {
             rel: "components/ui/game-dialog.tsx",
