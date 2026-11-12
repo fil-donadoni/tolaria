@@ -3,6 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { defineCard } from "../../../../convex/cards/types";
+import { equipAbility } from "../../../../convex/cards/abilities/equipment";
+import { diedTrigger } from "../../../../convex/cards/abilities/triggers/diedTrigger";
 
 // Fetchland family (issue #677) — "{T}, Pay 1 life, Sacrifice this land:
 // Search your library for a [Subtype] or [Subtype] card, put it onto the
@@ -275,7 +277,7 @@ export const expeditionMap = defineCard(() => ({
 export const bladeOfTheBloodchief = defineCard(() => ({
     id: "7e4b42e5-0e60-4148-907e-456d9f3043be",
     name: "Blade of the Bloodchief",
-    rarity: "uncommon",
+    rarity: "rare",
     oracleText:
         "Whenever a creature dies, put a +1/+1 counter on equipped creature. If equipped creature is a Vampire, put two +1/+1 counters on it instead.\nEquip {1}",
     manaCost: { generic: 1 },
