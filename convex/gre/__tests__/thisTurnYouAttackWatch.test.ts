@@ -10,7 +10,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { validateEffectScript } from "../effects/validate";
+import { validateAbilityEffectScript } from "../effects/validate";
 import {
     emitAttackersDeclaredEvents,
     finalizeCleanup,
@@ -89,7 +89,9 @@ const warriors = (state: GameState, owner: string) =>
 
 describe("this-turn-you-attack (CR 508.3a / 603.7b)", () => {
     it("validates as a delayed trigger body", () => {
-        expect(validateEffectScript(ability().effects!)).toEqual([]);
+        expect(
+            validateAbilityEffectScript(ability(), "Dalkovan Encampment")
+        ).toEqual([]);
     });
 
     it("fires once per own declaration: two tapped, attacking Warriors", () => {
