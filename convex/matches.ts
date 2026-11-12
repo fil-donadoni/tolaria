@@ -780,6 +780,12 @@ export async function deleteGameCascade(
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .collect();
     for (const s of snapshots) await ctx.db.delete(s._id);
+    // Library companion (ADR 0179) — keyed by the same game id.
+    const libraries = await ctx.db
+        .query("gameLibraries")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const l of libraries) await ctx.db.delete(l._id);
     // Tick row companion (PRD #1776 T3, issue #1778) — deleted alongside
     // its `gameStates` row so a finished game leaves no orphan.
     const ticks = await ctx.db

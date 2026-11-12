@@ -53,6 +53,12 @@ export const leaveGame = mutation({
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const s of states) await ctx.db.delete(s._id);
+        // Library companion (ADR 0179) — keyed by the same game id.
+        const libraries = await ctx.db
+            .query("gameLibraries")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .collect();
+        for (const l of libraries) await ctx.db.delete(l._id);
         // Tick row companion (PRD #1776 T3, issue #1778) — same defensive
         // cleanup as `gameStates` above, though a "waiting"/"pregame" game
         // has never reached `saveGameState` so this is normally a no-op.

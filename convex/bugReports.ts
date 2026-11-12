@@ -12,7 +12,7 @@ import {
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUserId, assertIsAdmin } from "./auth";
-import { expandState } from "./gre/serialize";
+import { getLatestGameState } from "./gameStateStore";
 import {
     describeOwedInput,
     summarizeGameSnapshot,
@@ -748,17 +748,11 @@ async function readGameSnapshot(
     ctx: QueryCtx,
     gameId: Id<"games">
 ): Promise<{ seq: number; state: Record<string, unknown> } | null> {
-    const row = await ctx.db
-        .query("gameStates")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .order("desc")
-        .first();
+    const row = await getLatestGameState(ctx, gameId);
     if (!row) return null;
     return {
         seq: row.seq,
-        state: expandState(
-            row.state as Record<string, unknown>
-        ) as unknown as Record<string, unknown>,
+        state: row.state as unknown as Record<string, unknown>,
     };
 }
 

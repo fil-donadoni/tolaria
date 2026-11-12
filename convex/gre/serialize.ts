@@ -611,7 +611,9 @@ type CompactPlayer = {
     bgColor: string;
     life: number;
     hand: CompactCard[];
-    library: LibraryEntry[];
+    /** Absent on the hot half of a split document (`splitCompactState`):
+     *  the libraries then live in the `CompactLibraries` companion. */
+    library?: LibraryEntry[];
     graveyard: CompactCard[];
     exile: CompactCard[];
     battlefield: CompactCard[];
@@ -780,7 +782,11 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     return out;
 }
 
-function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
+function expandPlayer(
+    player: CompactPlayer,
+    ctx?: ExpandCtx,
+    splitLibrary?: CardInstanceState[]
+): PlayerState {
     const result: PlayerState = {
         id: player.id,
         name: player.name,
@@ -789,7 +795,8 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
         hand: player.hand.map((c) =>
             expandCard(c, { ownerId: player.id, zone: "hand" }, ctx)
         ),
-        library: expandLibrary(player.library, player.id, ctx),
+        library:
+            splitLibrary ?? expandLibrary(player.library ?? [], player.id, ctx),
         graveyard: player.graveyard.map((c) =>
             expandCard(c, { ownerId: player.id, zone: "graveyard" }, ctx)
         ),
@@ -1757,11 +1764,121 @@ export function compactState(state: GameState): Record<string, unknown> {
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// Split document (ADR 0179). The row every save rewrites and every public-view
+// subscriber re-reads is the HOT half: the whole compact document minus the
+// libraries, which change on a draw or a shuffle and are otherwise dead weight
+// on both paths. The libraries travel as a `CompactLibraries` companion with
+// their OWN cardId table, so the hot half's `cardPool` holds no library card
+// and the companion is byte-identical across every save that leaves the
+// libraries alone — which is what lets the writer skip it.
+// ---------------------------------------------------------------------------
+
+/** The libraries of a split document: one `LibraryEntry[]` per player, in
+ *  `players` order, indexed into this companion's own tables. */
+export type CompactLibraries = {
+    v: 2;
+    libraries: LibraryEntry[][];
+    cardPool: string[];
+    tokenSpecs?: Record<string, string>;
+};
+
+/** Expand a split document's hot half WITHOUT its libraries: every library
+ *  card becomes an identity-less placeholder, so the result holds exactly the
+ *  library facts the hot half carries (the sizes) and nothing a viewer must
+ *  not see. Only for a reader the writer has proven indifferent to library
+ *  contents (`gameStates.publicViewNeedsLibrary`); never persisted. */
+export const OPAQUE_LIBRARIES = "opaque-libraries" as const;
+
+const OPAQUE_LIBRARY_ID_PREFIX = "opaque-library:";
+
+/** True for a hot half — a document whose libraries live in a companion. */
+export function isSplitCompactState(data: Record<string, unknown>): boolean {
+    return Array.isArray(data.libraryCounts);
+}
+
+/** True when `state` was expanded with `OPAQUE_LIBRARIES`: it is a read-only
+ *  view, and persisting it would replace every library with placeholders. */
+export function hasOpaqueLibraries(state: GameState): boolean {
+    return state.players.some((p) =>
+        p.library.some((c) => c.id.startsWith(OPAQUE_LIBRARY_ID_PREFIX))
+    );
+}
+
+/** Compact `state` as a split document. `expandState(hot, libraries)` is the
+ *  inverse, and equals `expandState(compactState(state))`. */
+export function splitCompactState(state: GameState): {
+    hot: Record<string, unknown>;
+    libraries: CompactLibraries;
+} {
+    const hot = compactState({
+        ...state,
+        players: state.players.map((p) => ({ ...p, library: [] })),
+    });
+    for (const player of hot.players as CompactPlayer[]) delete player.library;
+    hot.libraryCounts = state.players.map((p) => p.library.length);
+    const ctx: CompactCtx = {
+        pool: makeCardPool(),
+        tokens: makeTokenSpecPool(),
+    };
+    const libraries: CompactLibraries = {
+        v: 2,
+        libraries: state.players.map((p) => compactLibrary(p.library, ctx)),
+        cardPool: ctx.pool.list,
+    };
+    if (ctx.tokens.count > 0) libraries.tokenSpecs = ctx.tokens.map;
+    return { hot, libraries };
+}
+
+/** The per-player libraries of a split document, or `undefined` for a
+ *  single-row document (which carries them inline). A hot half expanded with
+ *  neither its companion nor the explicit opaque request is a reader that
+ *  forgot the companion exists — refused, never silently emptied. */
+function expandSplitLibraries(
+    data: Record<string, unknown>,
+    libraries: CompactLibraries | typeof OPAQUE_LIBRARIES | undefined
+): CardInstanceState[][] | undefined {
+    if (!isSplitCompactState(data)) return undefined;
+    const players = data.players as CompactPlayer[];
+    if (libraries === undefined) {
+        throw new Error(
+            "expandState: split document expanded without its libraries"
+        );
+    }
+    if (libraries === OPAQUE_LIBRARIES) {
+        const counts = data.libraryCounts as number[];
+        return players.map((p, playerIndex) =>
+            Array.from({ length: counts[playerIndex] ?? 0 }, (_, i) => ({
+                id: `${OPAQUE_LIBRARY_ID_PREFIX}${playerIndex}:${i}`,
+                card: { id: "" },
+                controllerId: p.id,
+                ownerId: p.id,
+                zone: "library" as const,
+                types: [],
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+            }))
+        );
+    }
+    const ctx: ExpandCtx = {
+        pool: libraries.cardPool,
+        tokens: libraries.tokenSpecs ?? {},
+    };
+    return players.map((p, i) =>
+        expandLibrary(libraries.libraries[i] ?? [], p.id, ctx)
+    );
+}
+
 /** Expand the slim Convex-storage form back into a full GameState. A `v: 2`
  *  document (issue #1780) resolves `card.id` through the per-document
  *  cardPool/tokenSpecs tables; a legacy document (no `v` field) is expanded
  *  exactly as before this change — `card.id` is already the real string. */
-export function expandState(data: Record<string, unknown>): GameState {
+export function expandState(
+    data: Record<string, unknown>,
+    libraries?: CompactLibraries | typeof OPAQUE_LIBRARIES
+): GameState {
+    const splitLibraries = expandSplitLibraries(data, libraries);
     const ctx: ExpandCtx | undefined =
         data.v === 2
             ? {
@@ -1771,8 +1888,8 @@ export function expandState(data: Record<string, unknown>): GameState {
                       {},
               }
             : undefined;
-    const players = (data.players as CompactPlayer[]).map((p) =>
-        expandPlayer(p, ctx)
+    const players = (data.players as CompactPlayer[]).map((p, i) =>
+        expandPlayer(p, ctx, splitLibraries?.[i])
     );
     const result: GameState = {
         players,

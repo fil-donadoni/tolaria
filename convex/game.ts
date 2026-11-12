@@ -334,7 +334,11 @@ import { buildActivationSacrificeSelection } from "./gre/activationCostPicks";
 // same way.
 import { isTapOtherPaid, tapOtherContribution } from "./gre/owedPayment";
 import { projectFullState, projectPublicState } from "./gameProjections";
-import { getLatestGameState, saveGameState } from "./gameStateStore";
+import {
+    getGameStateForPublicView,
+    getLatestGameState,
+    saveGameState,
+} from "./gameStateStore";
 import { asDbRounds, callerOwnsSeat } from "./gameLifecycle";
 import {
     ACTIVE_GAME_MESSAGE,
@@ -2712,7 +2716,23 @@ export const getPublicState = query({
         debugAllActions: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
+        // ADR 0179 — the hot row alone when the writer proved no seat's
+        // projection reads library contents; the proof covers a seat's own
+        // normal view, so anything else re-reads with the libraries.
+        const debugAllActions = args.debugAllActions ?? false;
+        const viewState = debugAllActions
+            ? await getLatestGameState(ctx, args.gameId)
+            : await getGameStateForPublicView(ctx, args.gameId);
+        if (!viewState) return null;
+        const opaqueLibraries =
+            "opaqueLibraries" in viewState && viewState.opaqueLibraries;
+        const gameState =
+            opaqueLibraries &&
+            !(viewState.state as GameState).players.some(
+                (p) => p.id === args.playerId
+            )
+                ? await getLatestGameState(ctx, args.gameId)
+                : viewState;
         if (!gameState) return null;
         // Mode flags come off the `gameStates` row this query already read —
         // reading the `games` row for them cost 8.3 KB per execution, 7.33 KB
@@ -2758,7 +2778,7 @@ export const getPublicState = query({
             state,
             gameState.seq,
             viewerId,
-            args.debugAllActions ?? false
+            debugAllActions
         );
     },
 });
