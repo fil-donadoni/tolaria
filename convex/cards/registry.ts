@@ -1489,6 +1489,16 @@ export function tokenSpecFromDefinitionId(
     defId: string
 ): TokenSpec | undefined {
     if (!defId.startsWith("token:")) return undefined;
+    // A malformed reference (a hand-typed scenario name) is "no such token",
+    // never a JSON/URI decode crash.
+    try {
+        return decodeTokenSpec(defId);
+    } catch {
+        return undefined;
+    }
+}
+
+function decodeTokenSpec(defId: string): TokenSpec | undefined {
     const def = resolveRaw(defId);
     if (!def) return undefined;
     const parts = defId.slice("token:".length).split("|");
