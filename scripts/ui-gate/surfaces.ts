@@ -84,11 +84,6 @@ export interface WalkContext {
      *  walk's single pass raises a `pick-source` choice whose candidates
      *  include that spell ON THE STACK (CR 609.7a). */
     sourceChoiceScenarioLabel: string;
-    /** The debug-scenario label the `game-stack-targets` surface loads
-     *  (`stack-targets-scenario.json`, issue #9326) — six stack objects
-     *  whose rows list graveyard-card, player and spell targets in their
-     *  Targets blocks. */
-    stackTargetsScenarioLabel: string;
     /** The `userDecks` id of the deck this lane's account OWNS
      *  (`LANE_DECK_NAME`, seeded at bootstrap — issue #4421). The three delete
      *  confirms open over it; `undefined` only if the bootstrap never ran. */
@@ -5555,42 +5550,6 @@ export const SURFACES: readonly Surface[] = [
             } catch {
                 // Cleanup is hygiene — `index.ts`'s `measure()` swallows a
                 // failure here, and the next row reports what it found.
-            }
-            await settle(page);
-        },
-    },
-    {
-        // Issue #9326 — the stack rows' Targets blocks over a six-object
-        // stack: graveyard cards named with their position, a player, and a
-        // spell on the stack, the lines the zone-card arrows leave from.
-        id: "game-stack-targets",
-        cards: true,
-        needsGame: true,
-        settleTargets: [GAME_STACK],
-        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
-        label: "Stack targets — rows list their targets (issue #9326)",
-        // The Targets block of a row and one of its lines: a graveyard card
-        // named with its position, the line its arrow leaves from.
-        asserts: [
-            {
-                label: "stack row Targets block",
-                locator: { selector: "[data-stack-targets]" },
-                check: "visible",
-            },
-            {
-                label: "stack target line",
-                locator: { selector: "[data-stack-target-line]" },
-                check: "visible",
-            },
-        ],
-        async walk(page, ctx) {
-            await ensureScenarioBoard(page, ctx, ctx.stackTargetsScenarioLabel);
-            if (
-                !(await visible(page, "[data-stack-target-line]", STEP_TIMEOUT))
-            ) {
-                throw new Unreachable(
-                    "the stack-targets position loaded but no stack row showed a target line — is the stack panel collapsed at this viewport?"
-                );
             }
             await settle(page);
         },

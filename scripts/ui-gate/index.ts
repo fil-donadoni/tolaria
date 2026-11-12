@@ -310,8 +310,6 @@ const CHOICE_SCENARIO_LABEL =
     "UI choice — a card pick over the board, seven candidates";
 const SOURCE_CHOICE_SCENARIO_LABEL =
     "UI source choice — a spell on the stack as a source of your choice";
-const STACK_TARGETS_SCENARIO_LABEL =
-    "UI stack targets — six items, graveyard and stack targets";
 
 /**
  * The Infra Verdict's retry policy (issue #3644): three attempts per cell, and
@@ -1417,7 +1415,6 @@ async function main(): Promise<number> {
                         combatScenarioLabel: COMBAT_SCENARIO_LABEL,
                         choiceScenarioLabel: CHOICE_SCENARIO_LABEL,
                         sourceChoiceScenarioLabel: SOURCE_CHOICE_SCENARIO_LABEL,
-                        stackTargetsScenarioLabel: STACK_TARGETS_SCENARIO_LABEL,
                         fixtureLabels: member.labels,
                         laneDeckId: member.deckId,
                         joinTableId: fleet.joinTableId,

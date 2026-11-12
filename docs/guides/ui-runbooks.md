@@ -166,7 +166,7 @@ never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR body and `land` seeds it post-merge.
 
 **The scenarios the `check:ui` lane itself needs** are its game surfaces'
-DECLARED POSITIONS (ADR 0132 §4) — seven payloads that ship in the repo, not as
+DECLARED POSITIONS (ADR 0132 §4) — six payloads that ship in the repo, not as
 a second source of truth for scenarios, but because a lane that cannot reach a
 surface reports a coverage hole, and re-deriving a position by hand on every
 deployment is how that hole stays open:
@@ -179,9 +179,8 @@ deployment is how that hole stays open:
 | `scripts/ui-gate/combat-scenario.json`        | `UI combat — blocks owed on a confirmed attack`                      | `game-combat`                      |
 | `scripts/ui-gate/choice-scenario.json`        | `UI choice — a card pick over the board, seven candidates`           | `game-choice-prompt`               |
 | `scripts/ui-gate/source-choice-scenario.json` | `UI source choice — a spell on the stack as a source of your choice` | `game-source-choice`               |
-| `scripts/ui-gate/stack-targets-scenario.json` | `UI stack targets — six items, graveyard and stack targets`          | `game-stack-targets`               |
 
-**The lane seeds all seven itself, at bootstrap** (issue #3652), beside the
+**The lane seeds all six itself, at bootstrap** (issue #3652), beside the
 Limited fixtures — so a fresh deployment needs no hand-seeding. Unlike the
 fixtures they are not run-scoped: `seedScenarioDirect` upserts by label and the
 payload is a constant, so two concurrent runs write the same bytes to the same
