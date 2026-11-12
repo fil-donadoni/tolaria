@@ -64,6 +64,7 @@ import {
     scaledBudgetBytes,
     type ScaledBudget,
 } from "./lib/bundle-budget";
+import { uiSeamMarkerViolations } from "./lib/ui-seam-bundle";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const DIST_ASSETS = join(ROOT, "dist", "assets");
@@ -236,6 +237,19 @@ function main(): void {
     // Issue #5617: the Brain worker downloads nothing the game route did not.
     for (const v of brainWorkerViolations(distDir)) {
         failures.push(`brain worker: ${v.chunk} — ${v.reason}`);
+    }
+
+    // Issue #9271 (ADR 0179): the check:ui seam is ABSENT in production — its
+    // routes are registered under `import.meta.env.DEV` only, so no emitted
+    // asset may carry the namespace marker.
+    const seamHits = uiSeamMarkerViolations(distDir);
+    console.log(
+        `[check:bundle] check:ui seam marker in production assets: ${seamHits.length} file(s)`
+    );
+    for (const v of seamHits) {
+        failures.push(
+            `ui seam: ${v.file} carries the seam namespace marker ${v.count}× — seam code reached a production bundle (ADR 0179: register it under import.meta.env.DEV only, never import convex/lib/uiSeamNamespace.ts from product code)`
+        );
     }
 
     if (failures.length > 0) {
