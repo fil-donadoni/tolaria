@@ -11,7 +11,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { validateEffectScript } from "../effects/validate";
-import { emitAttackersDeclaredEvents } from "../phases";
+import {
+    emitAttackersDeclaredEvents,
+    finalizeCleanup,
+    fireDelayedTriggers,
+} from "../phases";
 import { resolveTopOfStack } from "../state";
 import type { GameState } from "../state";
 
@@ -127,5 +131,27 @@ describe("this-turn-you-attack (CR 508.3a / 603.7b)", () => {
                 .find((p) => p.id === "p1")!
                 .battlefield.filter((c) => c.subtypes.includes("Warrior"))
         ).toHaveLength(2);
+    });
+
+    it("sacrifices exactly the Warriors it made at the next end step", () => {
+        const state = board();
+        openWindow(state, "p1");
+        declare(state, "p1", ["a"]);
+        expect(warriors(state, "p1")).toHaveLength(2);
+        fireDelayedTriggers(state, "next-end-step");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(warriors(state, "p1")).toHaveLength(0);
+        expect(state.players[0].battlefield.some((c) => c.id === "a")).toBe(
+            true
+        );
+    });
+
+    it("is gone after cleanup: a later declaration makes nothing", () => {
+        const state = board();
+        openWindow(state, "p1");
+        finalizeCleanup(state);
+        expect(state.delayedTriggers).toBeUndefined();
+        declare(state, "p1", ["a"]);
+        expect(warriors(state, "p1")).toHaveLength(0);
     });
 });
