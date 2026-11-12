@@ -38,19 +38,17 @@ export const dismember = defineCard(() => ({
 // Phyrexian `{B/P}` (CR 107.4f) is paid in the cost system, as Dismember's.
 //
 // CR 115.1 — the card is a real announced target (a response can remove it),
-// restricted by `excludeSupertypes: "Basic"` (CR 205.4a: only lands are basic,
-// so "other than a basic land card" is exactly "not basic"). The first Op
-// exiles the target and snapshots it (`bind`, CR 608.2h last-known
-// information) BEFORE it leaves: the owner is the graveyard's owner (CR 108.3 /
-// 404.1), which no live ref can name once the card is gone, and its name keys
-// the rest of the sweep (CR 201.2). The target is itself one of the same-named
-// cards to exile.
+// restricted by `excludeSupertypes: "Basic"` (CR 205.4a lists basic as a
+// supertype; CR 205.4c makes it a land's; no nonland card is basic).
+// `{ ownerOf: { target: 0 } }` is the owner of the zone the card was chosen in
+// (CR 404.1) and `{ ref: "$target0.name" }` its live name (CR 201.2).
 //
-// CR 701.23a — the library leg is an explicit `search-library` choice so the
-// searcher looks at the owner's library, as Lobotomy's does (`count.min: 0`:
-// CR 701.23b, the searcher is never compelled to find a card). The graveyard
-// and hand legs sweep every same-named card in one filtered pass. CR 701.24a —
-// the shuffle ends the instruction.
+// CR 701.23a / 701.23b — "any number" is the searcher's choice in each of the
+// three zones, so each leg is a `count.min: 0` choice: the graveyard (which
+// includes the targeted card itself), the owner's hand (looked at, as
+// searching a hidden zone shows it), and the library. All three picks are made
+// before anything is exiled, so the name stays readable. CR 701.24a — the
+// owner then shuffles.
 //
 // hand-tail: Choose target card in a graveyard other than a basic land card. Search its owner's graveyard, hand, and library for any number of cards with the same name as that card and exile them. Then that player shuffles. (#8604)
 export const surgicalExtraction = defineCard(() => ({
@@ -70,40 +68,63 @@ export const surgicalExtraction = defineCard(() => ({
     },
     effects: [
         {
-            op: "moveZone",
-            target: { target: 0 },
-            to: "exile",
-            bind: "$t",
+            op: "choice",
+            kind: "choose-graveyard-card",
+            player: "controller",
+            zone: "graveyard",
+            zoneOwnerId: { ownerOf: { target: 0 } },
+            filter: { name: { ref: "$target0.name" } },
+            count: { min: 0, max: 999 },
+            prompt: "Exile any number of cards with that name from the graveyard",
+            bind: "$fromGraveyard",
+        },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            zoneOwnerId: { ownerOf: { target: 0 } },
+            filter: { name: { ref: "$target0.name" } },
+            count: { min: 0, max: 999 },
+            prompt: "Exile any number of cards with that name from the hand",
+            bind: "$fromHand",
         },
         {
             op: "choice",
             kind: "search-library",
             player: "controller",
             zone: "library",
-            zoneOwnerId: { ref: "$t.owner" },
-            filter: { name: { ref: "$t.name" } },
+            zoneOwnerId: { ownerOf: { target: 0 } },
+            filter: { name: { ref: "$target0.name" } },
             count: { min: 0, max: 999 },
-            prompt: "Search their library and exile every copy",
+            prompt: "Search their library and exile any number of copies",
             bind: "$fromLibrary",
         },
         {
             op: "moveZone",
-            cards: { ref: "$fromLibrary" },
-            player: { ref: "$t.owner" },
-            from: "library",
+            cards: { ref: "$fromGraveyard" },
+            player: { ownerOf: { target: 0 } },
+            from: "graveyard",
             to: "exile",
         },
         {
             op: "moveZone",
-            player: { ref: "$t.owner" },
-            fromZones: ["graveyard", "hand"],
-            filter: { name: { ref: "$t.name" } },
+            cards: { ref: "$fromHand" },
+            player: { ownerOf: { target: 0 } },
+            from: "hand",
+            to: "exile",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$fromLibrary" },
+            player: { ownerOf: { target: 0 } },
+            from: "library",
             to: "exile",
         },
         {
             op: "libraryLook",
             action: "shuffle",
-            player: { ref: "$t.owner" },
+            player: { ownerOf: { target: 0 } },
         },
     ],
 }));

@@ -2290,12 +2290,17 @@ function resolvePlayerRef(
         const target = ctx.targets[ref.controllerOf.target];
         return target ? ctx.findController(target) : undefined;
     }
-    // `{ ownerOf: { target: n } }` (issue #3242) — CR 108.3 "its owner". Read
-    // off the battlefield, so a player slot or a departed permanent skips.
+    // `{ ownerOf: { target: n } }` (issue #3242) — CR 108.3 "its owner". A
+    // permanent is read off the battlefield, so a departed one skips; a card
+    // in a graveyard or hand is owned by the owner of the zone it was chosen
+    // in (CR 404.1 / 400.3), which the selection carries as `playerId`. A
+    // player slot skips.
     if ("ownerOf" in ref) {
         const target = ctx.targets[ref.ownerOf.target];
-        return target && target.type === "permanent"
-            ? ctx.getOwnerId(target.id)
+        if (!target) return undefined;
+        if (target.type === "permanent") return ctx.getOwnerId(target.id);
+        return target.type === "graveyard-card" || target.type === "hand-card"
+            ? target.playerId
             : undefined;
     }
     const target = ctx.targets[ref.target];

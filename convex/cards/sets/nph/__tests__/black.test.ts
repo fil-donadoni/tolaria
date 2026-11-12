@@ -149,8 +149,14 @@ describe("Surgical Extraction", () => {
         pushSpell(state, surgical.id, "p1", [
             { type: "graveyard-card", id: "se-gy", playerId: "p2" },
         ]);
-        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the picks
 
+        // Graveyard (the targeted card itself is a candidate), then hand,
+        // then the library search, all of the target's OWNER.
+        expect(state.pendingChoices![0].candidateIds).toEqual(["se-gy"]);
+        submitChoice(state, ["se-gy"]);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["se-hand"]);
+        submitChoice(state, ["se-hand"]);
         const search = state.pendingChoices![0];
         expect(search.kind).toBe("search-library");
         expect(search.zoneOwnerId).toBe("p2");
@@ -183,12 +189,37 @@ describe("Surgical Extraction", () => {
             { type: "graveyard-card", id: "se-own", playerId: "p1" },
         ]);
         expect(resolveTopOfStack(state)).toBeNull();
-        submitChoice(state, []);
+        submitChoice(state, ["se-own"]);
+        submitChoice(state, ["se-own-hand"]);
+        submitChoice(state, []); // the (empty) library search still opens
 
         expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
             "se-own",
             "se-own-hand",
         ]);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["se-theirs"]);
+    });
+
+    it('"any number" — declining every pick exiles nothing (CR 701.23b)', () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    graveyard: [bearAt("se-keep-gy", "p2", "graveyard")],
+                    hand: [bearAt("se-keep-hand", "p2", "hand")],
+                }),
+            ],
+        });
+        pushSpell(state, surgical.id, "p1", [
+            { type: "graveyard-card", id: "se-keep-gy", playerId: "p2" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        submitChoice(state, []);
+        submitChoice(state, []);
+        submitChoice(state, []);
+
+        expect(state.players[1].exile).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(1);
+        expect(state.players[1].hand).toHaveLength(1);
     });
 });

@@ -15335,7 +15335,10 @@ export type EffectPlayerRef =
      *  All-Knowing) — a stolen creature's choice belongs to the player it goes
      *  home to. Resolves through `SpellContext.getOwnerId`, which reads the
      *  battlefield, so it is skipped (CR 608.2b) when the slot is missing, is a
-     *  player, or the permanent has already left. */
+     *  player, or the permanent has already left. A `graveyard-card` /
+     *  `hand-card` slot resolves to the owner of the zone the card was chosen
+     *  in ("search its owner's graveyard, hand, and library", Surgical
+     *  Extraction). */
     | { ownerOf: EffectTargetRef }
     /** The controller-relative complement of an ARBITRARY resolved player ref
      *  (issue #1568) — "each player OTHER THAN <ref>", generalizing
