@@ -18,7 +18,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
-    useMyCurrentLimitedEvents,
+    useMyCurrentLimitedEventsForChrome,
     type LimitedEventSummaryView,
 } from "~/hooks/useLimitedEvent";
 
@@ -74,16 +74,17 @@ const NOT_ASKED: ActiveSession = { game: null, event: null, loading: false };
  * renders no header, no bottom nav, no contextual bar and no return banner —
  * every consumer of this value is suppressed there, so subscribing would be
  * two live Convex subscriptions held open on the app's hottest surface for an
- * answer nothing can read. `myCurrentLimitedEvents` in particular scans the
- * fat `limitedEvents` table and re-runs on every draft pick anywhere in the
- * app (issue #2582 review). Passing `false` skips BOTH reads: this repo bills
+ * answer nothing can read. Passing `false` skips BOTH reads: this repo bills
  * a read by the whole document, so an unused subscription is cost, not style.
+ *
+ * The events read never throws into the shell (`useMyCurrentLimitedEventsForChrome`):
+ * a failed answer reads as "no event", and the routed page still renders.
  */
 export function useActiveSession(enabled: boolean): ActiveSession {
     const pageVisible = usePageVisible();
     const live = enabled && pageVisible;
     const activeGame = useQuery(api.gameReads.myActiveGame, live ? {} : "skip");
-    const events = useMyCurrentLimitedEvents(enabled);
+    const events = useMyCurrentLimitedEventsForChrome(enabled);
 
     if (!enabled) return NOT_ASKED;
     if (activeGame === undefined || events === undefined) return NOTHING;

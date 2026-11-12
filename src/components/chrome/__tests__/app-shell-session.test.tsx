@@ -95,6 +95,18 @@ vi.mock("convex/react", () => ({
         h.calls.push({ path: ref.__path, args });
         return args === "skip" ? undefined : h.results[ref.__path];
     },
+    // The real `useQueries` contract: a skipped query is simply absent from
+    // the request, and a query that threw comes back as its `Error` VALUE
+    // rather than being re-thrown into the render (issue #6076).
+    useQueries: (
+        queries: Record<string, { query: { __path: string }; args: unknown }>
+    ) =>
+        Object.fromEntries(
+            Object.entries(queries).map(([key, { query, args }]) => {
+                h.calls.push({ path: query.__path, args });
+                return [key, h.results[query.__path]];
+            })
+        ),
 }));
 
 vi.mock("~/hooks/useViewportMode", () => ({
@@ -218,7 +230,8 @@ describe("no dead subscriptions on the board (#2619 review)", () => {
         const { container } = render(<AppShell />);
 
         expect(argsFor(GAME_QUERY)).toEqual(["skip"]);
-        expect(argsFor(EVENTS_QUERY)).toEqual(["skip"]);
+        // Read through `useQueries`, where skipping means not asking at all.
+        expect(argsFor(EVENTS_QUERY)).toEqual([]);
         // ...and the render is unchanged by the skip, because nothing on the
         // board could read the answer in the first place.
         expect(
@@ -332,5 +345,28 @@ describe("the band the shell reserved is the band it renders (#2619 review)", ()
         expect(banner!.textContent).toContain(
             "Limited Edition Alpha Sealed is in progress."
         );
+    });
+});
+
+describe("a failed events read never blanks the routed page (issue #6076)", () => {
+    it("renders the outlet, and the game band, when myCurrentLimitedEvents throws", () => {
+        h.pathname = "/decks/goblins";
+        h.results[GAME_QUERY] = RUNNING_GAME;
+        h.results[EVENTS_QUERY] = new Error(
+            "Function execution timed out (maximum duration: 1s)"
+        );
+        h.outlet = <p data-testid="routed-page">Deck builder</p>;
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const { container } = render(<AppShell />);
+
+        expect(
+            container.querySelector('[data-testid="routed-page"]')
+        ).not.toBeNull();
+        expect(resumeAffordances(container)).toEqual(["Return to game"]);
+        expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining("Function execution timed out")
+        );
+        warn.mockRestore();
     });
 });

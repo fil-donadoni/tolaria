@@ -248,14 +248,15 @@ tramite `nameRegistry` quando serve. Conseguenza: una carta implementata domani
 
 ### Limited
 
-| Tabella              | Contenuto                                                                                                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `limitedEvents`      | un evento: tipo, stato, seat (identità), round di Swiss, config booster                                                             |
-| `limitedSeats`       | il **payload pesante** di un seat: pool, pack corrente, coda pack                                                                   |
-| `cardRatings`        | Pick Rating per `(scope, cardId)`, override Admin sui file seed (ADR 0066)                                                          |
-| `cardCapabilities`   | Card Capabilities per `cardId` (provides/requires, Combo Edge), override Admin su `data/card-profiles/capabilities.json` (ADR 0167) |
-| `cardArchetypes`     | Card Archetypes per `(scope, cardId)`, override Admin su `data/card-profiles/archetypes/<scope>.json` (ADR 0167)                    |
-| `archetypeCatalogue` | righe dell'Archetype Catalogue create/modificate da Admin, sopra `data/archetype-catalogue.json` (ADR 0167)                         |
+| Tabella               | Contenuto                                                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `limitedEvents`       | un evento: tipo, stato, seat (identità), round di Swiss, config booster                                                             |
+| `limitedSeats`        | il **payload pesante** di un seat: pool, pack corrente, coda pack                                                                   |
+| `limitedEventMembers` | indice `(userId, eventId)`: in quali eventi siede un utente (issue #6076)                                                           |
+| `cardRatings`         | Pick Rating per `(scope, cardId)`, override Admin sui file seed (ADR 0066)                                                          |
+| `cardCapabilities`    | Card Capabilities per `cardId` (provides/requires, Combo Edge), override Admin su `data/card-profiles/capabilities.json` (ADR 0167) |
+| `cardArchetypes`      | Card Archetypes per `(scope, cardId)`, override Admin su `data/card-profiles/archetypes/<scope>.json` (ADR 0167)                    |
+| `archetypeCatalogue`  | righe dell'Archetype Catalogue create/modificate da Admin, sopra `data/archetype-catalogue.json` (ADR 0167)                         |
 
 Lo split `limitedEvents`/`limitedSeats` merita attenzione perché è **l'esempio
 canonico del vincolo di costo Convex**. I payload dei seat erano il 99% del
@@ -263,6 +264,13 @@ documento evento (fino a 48 KB). `myLimitedEvents` scansiona ogni evento in cui
 il viewer siede e legge solo l'identità dei seat — ma pagava ~315 KB per
 esecuzione, e si ri-eseguiva a **ogni pick di draft**. Separare il payload rende
 quasi gratis l'elenco eventi, e un pick riscrive solo i seat che tocca.
+
+Restava la **scansione**: Convex non indicizza gli elementi di un array, quindi
+`myLimitedEvents` / `myCurrentLimitedEvents` leggevano i 500 eventi più recenti
+e filtravano `seats` in memoria — ogni pick di qualunque tavolo le rieseguiva
+per ogni sottoscrittore. `limitedEventMembers` è l'indice derivato da
+`seats[].userId` (scritto da `convex/limitedEventMemberStore.ts`): le due query
+leggono solo gli eventi in cui il viewer siede.
 
 ADR 0076 fa la scelta **opposta** per i round di Swiss: restano embedded nel
 documento evento. Al massimo 12 pairing minuscoli — la simmetria con i `seats`

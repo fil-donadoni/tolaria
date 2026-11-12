@@ -34,6 +34,10 @@ import type {
 import { resolveSheetCardMeta } from "./limitedCardMeta";
 import { loadPrintRows } from "./cardPrintRows";
 import { deleteAutoBuiltDecks } from "./limitedAutoBuiltDeckStore";
+import {
+    deleteEventMembers,
+    syncEventMembers,
+} from "./limitedEventMemberStore";
 import { makeResolveCardMetaFromRows } from "./cards/printRows";
 import type { ResolveCardMeta } from "./limited/eventLogic";
 
@@ -541,6 +545,10 @@ export async function saveSeats(
         ...extraPatch,
         seats: seats.map(toStoredSeat),
     });
+    // The full seat array is in hand, so the membership index is brought in
+    // step here too — a no-write read of the event's few rows when no User
+    // joined or left, which is every pick.
+    await syncEventMembers(ctx, eventId, seats);
 }
 
 /** Does this event row still carry its payload inline (written before the
@@ -645,8 +653,9 @@ export async function internSeatRow(
     });
 }
 
-/** Deletes every `limitedSeats` row of an event — for the event's own
- *  deletion (cancel / GC), which would otherwise orphan the payload. */
+/** Deletes every child row of an event (`limitedSeats`, selections,
+ *  Auto-Built decks, membership) — for the event's own deletion (cancel /
+ *  GC), which would otherwise orphan them. */
 export async function deleteSeats(
     ctx: MutationCtx,
     eventId: Id<"limitedEvents">
@@ -662,4 +671,5 @@ export async function deleteSeats(
         .collect();
     for (const row of selections) await ctx.db.delete(row._id);
     await deleteAutoBuiltDecks(ctx, eventId);
+    await deleteEventMembers(ctx, eventId);
 }

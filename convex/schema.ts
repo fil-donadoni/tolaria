@@ -1201,6 +1201,29 @@ export default defineSchema({
         // that used to live on the event row.
         pool: v.array(v.string()),
     }).index("by_event", ["eventId"]),
+    // Who is seated at which event: one row per (User, event) pair, the
+    // indexable mirror of `limitedEvents.seats[].userId`.
+    //
+    // "Which events am I seated in?" is asked by the app shell on every page
+    // (`myCurrentLimitedEvents`) and by `/limited/events` (`myLimitedEvents`).
+    // Convex cannot index the elements of an embedded array, so before this
+    // table both queries scanned the newest 500 event rows and filtered
+    // `seats` in memory: every viewer paid for every event in the table, and
+    // every pick anywhere re-ran the scan for every subscriber (issue #6076).
+    // With the index the read is O(events the viewer sits at), and a write to
+    // an event the viewer is not seated in no longer touches their read set.
+    //
+    // A row exists while the User holds a Seat — a Dropped Seat keeps its
+    // User, so it keeps its row. `convex/limitedEventMemberStore.ts` is the
+    // ONLY module that reads or writes it; `syncEventMembers` is called by
+    // every mutation that changes which Users hold a Seat, and
+    // `deleteSeats` removes an event's rows with the event.
+    limitedEventMembers: defineTable({
+        userId: v.id("users"),
+        eventId: v.id("limitedEvents"),
+    })
+        .index("by_user", ["userId"])
+        .index("by_event", ["eventId"]),
     // An auto-driven Seat's Auto-Built deck, DECIDED once (issue #8896): when
     // the seat's Pool is final, or when a seat with no submitted deck drops
     // after that. Owner rule: a review never changes a choice already made —
