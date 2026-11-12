@@ -17061,9 +17061,15 @@ export function buildSpellContext(
         // CR 702.33 / 702.33e — times this spell's Kicker cost was paid, read
         // back off the stack item (0 = not kicked). `> 0` is "if this spell was
         // kicked"; the raw count is the Multikicker tally (Everflowing Chalice).
-        getKickerCount(): number {
-            return totalKickerCount(item.kickerPayments);
-        },
+        // Given a spell target, the same read off THAT stack item (CR 702.33d —
+        // "counter target spell if it was kicked"); no such spell on the stack
+        // any more is no value at all (CR 608.2b), never a silent 0.
+        getKickerCount: ((spell?: TargetSelection): number | undefined => {
+            if (!spell) return totalKickerCount(item.kickerPayments);
+            if (spell.type !== "spell") return undefined;
+            const target = state.stack.find((s) => s.id === spell.id);
+            return target ? totalKickerCount(target.kickerPayments) : undefined;
+        }) as SpellContext["getKickerCount"],
         // CR 702.33 — the PER-KICKER read a two-Kicker card's intervening-ifs
         // need ("if it was kicked with its {2}{U} kicker"): a total cannot say
         // WHICH of two Kickers was paid (ADR 0079). Read across BOTH payment

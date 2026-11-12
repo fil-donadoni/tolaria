@@ -940,34 +940,32 @@ export const confound = defineCard(() => ({
 }));
 
 // Ertai's Trickery — {U} Instant. "Counter target spell if it was kicked."
-// (CR 608.2a / 702.33a, issue #1956, parent PRD #1935.)
-//
-// Left as a TRACKED STUB, not shipped. Oracle's "if it was kicked" is a
-// resolution-time INTERVENING CONDITION (CR 608.2a), not a targeting
-// restriction (CR 115.2) — "target spell" is unqualified, so any spell on
-// the stack is a legal target and the kicker check happens on resolution.
-// The obvious shortcut (`targetRequirement.spellWasKicked: true`) is
-// materially wrong, not cosmetic: it makes the card uncastable while no
-// kicked spell is on the stack, which removes real legal plays — this engine
-// implements Storm / spells-cast-this-turn (ADR 0052), so casting Trickery at
-// an unkicked spell purely to raise the storm count or feed a cast-trigger is
-// a live line. #1956's acceptance criteria asked for the filter shape; an AC
-// does not outrank the Comprehensive Rules, so the card waits.
-//
-// The correct shape needs vocabulary that does not exist yet: an Effect
-// Script value that reads a TARGET stack item's kicker payments at
-// resolution. Today's `{ kickerCount: true }` / `{ additionalCostPaid: id }`
-// (`gre/effects/interpreter.ts`) read `ctx.getKickerCount()` — the RESOLVING
-// spell's own payments, never a target's. That is the stop-and-issue case
-// (an unbuilt capability is NOT a valid `resolve()` justification), so the
-// card ships as a stub and #2044 owns building the value plus
-// `targetRequirement: { type: "spell", count: 1 }` and a conditional counter.
-// tracked-by: #2044
-// export const ertaisTrickery: CardDefinition = {
-//     id: "544e3575-9fb6-41f7-a4e6-f8460dfae344", // PLS 24
-//     name: "Ertai's Trickery",
-//     rarity: "uncommon",
-//     oracleText: "Counter target spell if it was kicked.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// "Target spell" is unqualified (CR 115.1a): every spell on the stack is a
+// legal target, kicked or not, so the card is castable at an unkicked spell
+// (raising the storm count, feeding a cast trigger). "If it was kicked" is a
+// condition checked as the instructions are followed (CR 608.2c), read off the
+// TARGET's own payment record — a spell whose controller declared a kicker
+// cost "has been kicked" (CR 702.33d). Unkicked, it resolves and does nothing.
+// The `spellWasKicked` target filter would be the wrong shape: it removes the
+// unkicked spells from the legal targets.
+// hand-tail: Counter target spell if it was kicked. (#4595)
+export const ertaisTrickery = defineCard(() => ({
+    id: "544e3575-9fb6-41f7-a4e6-f8460dfae344", // PLS 24
+    name: "Ertai's Trickery",
+    rarity: "uncommon",
+    oracleText: "Counter target spell if it was kicked.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                left: { spellKickerCount: { of: { target: 0 } } },
+                op: "ge",
+                right: 1,
+            },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+}));

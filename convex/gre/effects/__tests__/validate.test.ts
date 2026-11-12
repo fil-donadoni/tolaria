@@ -9212,3 +9212,66 @@ describe("validateEffectScript — createToken token.crewPowerBonus (CR 702.122b
         expect(pilotWith(bad).length).toBeGreaterThan(0);
     });
 });
+
+describe("spellKickerCount — a targeted spell's kicker count (CR 702.33d)", () => {
+    const counterIfKicked = (of: unknown): EffectOp[] => [
+        {
+            op: "if",
+            predicate: {
+                left: { spellKickerCount: { of } },
+                op: "ge",
+                right: 1,
+            },
+            then: [{ op: "counter", target: { target: 0 } }],
+        } as unknown as EffectOp,
+    ];
+
+    it("accepts an announced target slot", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: counterIfKicked({ target: 0 }) })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a bare ref — only a target slot names another spell's stack item", () => {
+        // `$each` of a permanents sweep is a legal object ref everywhere else,
+        // so the shape check is the only thing that can refuse it here.
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "permanents", zone: "battlefield" },
+                        effects: counterIfKicked({ ref: "$each" }),
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.some((e) => /spellKickerCount/.test(e))).toBe(true);
+    });
+
+    it("rejects an extra key beside `of`", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: {
+                                spellKickerCount: {
+                                    of: { target: 0 },
+                                    kicker: "k",
+                                },
+                            },
+                            op: "ge",
+                            right: 1,
+                        },
+                        then: [{ op: "counter", target: { target: 0 } }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});

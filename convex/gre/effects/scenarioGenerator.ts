@@ -876,6 +876,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // spellKickerCount (CR 702.33d): the amount reads a TARGETED spell's kicker
+    // count — a cast-time decision of a spell the canned generator never casts.
+    if ("spellKickerCount" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            "amount reads a targeted spell's kicker count — the canned generator casts no kicked spell"
+        );
+        return;
+    }
     // manaValue (CR 202.3): the amount reads a selected object's mana value. The
     // canned generator's filler permanents have no controlled mana value the
     // predictor can size a declared outcome against; skip-with-reason — the
