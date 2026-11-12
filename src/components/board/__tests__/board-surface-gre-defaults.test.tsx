@@ -17,7 +17,7 @@
 // underneath. Only Convex, the viewport hooks and the chrome that is irrelevant
 // here are stubbed.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, act } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 
 vi.mock("~/hooks/useIsPortrait", () => ({ useIsPortrait: () => false }));
@@ -139,11 +139,21 @@ function renderGreBoard() {
     );
 }
 
+import { PRIORITY_CUE_DELAY_MS } from "../priority-indicator";
+
 beforeEach(cleanup);
 
 describe("BoardSurface's GRE defaults (#2169)", () => {
     it("the GRE board mounts the priority indicator (showPriorityIndicator defaults to true)", () => {
-        renderGreBoard();
+        vi.useFakeTimers();
+        try {
+            renderGreBoard();
+            // The cue lights only after the viewer has been owed an action for
+            // PRIORITY_CUE_DELAY_MS (#9295).
+            act(() => void vi.advanceTimersByTime(PRIORITY_CUE_DELAY_MS));
+        } finally {
+            vi.useRealTimers();
+        }
         // `board.tsx` passes no `showPriorityIndicator`; the viewer holds
         // priority, so the real `PriorityIndicator` renders its "mine" glow.
         expect(screen.getByTestId("priority-indicator")).toBeTruthy();
