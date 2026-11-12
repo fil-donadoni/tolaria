@@ -26842,6 +26842,14 @@
         "source": "compiled"
     },
     {
+        "name": "Faithful Mending",
+        "scryfallId": "50752ca9-ea85-4c4b-9bf5-4f8759a7dcec",
+        "oracleId": "b997a982-09e1-4ae1-a972-3c2e5f101e8c",
+        "firstSet": "mid",
+        "firstPrintId": "50752ca9-ea85-4c4b-9bf5-4f8759a7dcec",
+        "firstPrintSet": "mid"
+    },
+    {
         "name": "Faithful Watchdog",
         "scryfallId": "b9afac99-a094-41a8-8323-90dec29691c4",
         "oracleId": "139fb542-89fd-4b9e-87e6-ec925bcca93a",
