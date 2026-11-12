@@ -4733,6 +4733,37 @@ export type PileChoiceNotice = {
     cardNames: string[];
 };
 
+/** Issue #8956 — the most recent answered `name-card` / `order-top` choice, so
+ *  EVERY seat can read what was announced. One slot beside
+ *  {@link PileChoiceNotice}, overwritten by the next answer — never a log. A
+ *  chosen card name is announced to every seat; a scry / surveil split is
+ *  public as COUNTS only, because the library half stays hidden information
+ *  (CR 701.22a / 701.25a, CR 401.2). `chooserNames` is the chooser-only part — the names of the cards
+ *  left in the library — and `projectPublicState` strips it for every other
+ *  viewer. A graveyard destination is public, so `graveyardNames` crosses to
+ *  both seats. */
+export type ChoiceAnnouncement = {
+    /** `${seq}:${stackItemId}:${step}:${choiceId}` — the client announces each
+     *  new key once. */
+    key: string;
+    /** 1 + the previous announcement's `seq`, so `key` stays unique when the
+     *  same spell resolves again. */
+    seq: number;
+    chooserId: string;
+    kind: "named-card" | "top-split";
+    /** `named-card` — the canonical name chosen. */
+    cardName?: string;
+    /** `top-split` — cards looked at, kept on top, and sent to the second zone. */
+    looked?: number;
+    onTop?: number;
+    second?: number;
+    secondZone?: "library-bottom" | "graveyard";
+    /** `top-split` into the graveyard — public names of the binned cards. */
+    graveyardNames?: string[];
+    /** `top-split` — names left in the library, chooser-only. */
+    chooserNames?: { top: string[]; bottom: string[] };
+};
+
 /** CR 508.1c/1g — a parked per-attacker MANA attack tax awaiting the attacking
  *  player's payment (Propaganda / Ghostly Prison / Windborn Muse / Collective
  *  Restraint). Set at declare-attackers confirmation once the aggregated tax is
@@ -5278,6 +5309,9 @@ export type GameState = {
     /** ADR 0053 (issue #5661) — the last pile picked; see
      *  {@link PileChoiceNotice}. Written by `submitPilePick` only. */
     lastPileChoice?: PileChoiceNotice;
+    /** Issue #8956 — see {@link ChoiceAnnouncement}. Written by the `name-card`
+     *  and `order-top` submit handlers only. */
+    lastChoiceAnnouncement?: ChoiceAnnouncement;
     /** CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values of every
      *  permanent that has left the battlefield recently, keyed by the instance
      *  id it had there. Written at the single battlefield-departure funnel

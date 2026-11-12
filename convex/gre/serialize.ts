@@ -1595,6 +1595,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // can confirm a pick it did not submit. Plain scalars and strings; it
     // must survive the save that follows the pick or no seat ever sees it.
     "lastPileChoice",
+    // Issue #8956 — the last named card / scry split, read only by the client's
+    // notice toast; it must survive the save that follows the answer.
+    "lastChoiceAnnouncement",
 ] as const;
 
 /** Issue #1917 — persisted keys renamed from the card that introduced them to
