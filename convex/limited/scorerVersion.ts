@@ -17,4 +17,6 @@
 // v2 (issue #8890, ADR 0167): Card Capabilities are scope-free, so a
 // cube-profiled card drafted in a set now earns Capability terms it had none
 // of; each synergy term reads its own layer's review flag.
-export const SCORER_VERSION = 2;
+// v3 (issue #9317): the `land-enters` Capability — fetch lands and extra
+// land plays now pair with landfall payoffs.
+export const SCORER_VERSION = 3;
