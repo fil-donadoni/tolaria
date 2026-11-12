@@ -2,6 +2,7 @@
 // coordinates, styled like BoardArrows. Variants pass the paths they want;
 // `dim` paths sit outside the hovered relationship.
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { publishArrows } from "./proto-arrow-registry";
 import type { CurveGeo } from "./use-zone-target-model";
 
@@ -28,8 +29,8 @@ export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
         );
     });
     useEffect(() => () => publishArrows([]), []);
-    return (
-        <svg className="pointer-events-none fixed inset-0 z-[78] h-full w-full overflow-visible">
+    return createPortal(
+        <svg className="pointer-events-none fixed inset-0 z-[101] h-full w-full overflow-visible">
             <defs>
                 <marker
                     id="proto-zt-head"
@@ -73,6 +74,7 @@ export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
                     />
                 </g>
             ))}
-        </svg>
+        </svg>,
+        document.body
     );
 }

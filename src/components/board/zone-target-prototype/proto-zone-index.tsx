@@ -50,7 +50,7 @@ export function useProtoZoneCaption(
         const sources = sourcesOf.get(card.id);
         if (!sources) return `#${n}`;
         return (
-            <span className="inline-flex items-center gap-1 text-text">
+            <span className="inline-flex items-start gap-1 text-text">
                 <span className="font-semibold">#{n}</span>
                 <span className="text-accent-strong">
                     <Crosshair size={10} />
@@ -59,9 +59,9 @@ export function useProtoZoneCaption(
                     <span
                         key={s.id}
                         title={`Targeted by ${protoName(s)} (#${stackNumber(stackItems, s.id)} on the stack)`}
-                        className="inline-flex items-center gap-0.5"
+                        className="inline-flex flex-col items-center gap-0.5"
                     >
-                        <ProtoThumb card={s} width={20} />
+                        <ProtoThumb card={s} width={40} />
                         <span className="text-[9px] text-text-muted">
                             #{stackNumber(stackItems, s.id)}
                         </span>

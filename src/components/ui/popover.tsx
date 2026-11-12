@@ -32,12 +32,12 @@ function PopoverContent({
                 side={side}
                 sideOffset={sideOffset}
                 anchor={anchor}
-                className="isolate z-modal"
+                className="isolate z-modal-peak"
             >
                 <PopoverPrimitive.Popup
                     data-slot="popover-content"
                     className={cn(
-                        "z-modal w-fit origin-(--transform-origin) rounded-md border border-border-subtle bg-surface p-3 text-xs text-text shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+                        "z-modal-peak w-fit origin-(--transform-origin) rounded-md border border-border-subtle bg-surface p-3 text-xs text-text shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
                         className
                     )}
                     {...props}
