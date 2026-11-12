@@ -14,7 +14,7 @@ export default function BugReportButton({ className }: { className: string }) {
             type="button"
             aria-label="Report a bug"
             title="Report a bug"
-            onClick={requestBugReport}
+            onClick={() => requestBugReport()}
             className={className}
         >
             <Bug className="h-4 w-4" aria-hidden />

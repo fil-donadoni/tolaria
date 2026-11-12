@@ -12,7 +12,11 @@
 // `getByText` itself throws when nothing matches, so a bare call already
 // proves presence.
 import { describe, it, expect, afterEach } from "vitest";
-import { render as rtlRender, cleanup } from "@testing-library/react";
+import {
+    fireEvent,
+    render as rtlRender,
+    cleanup,
+} from "@testing-library/react";
 import CardPreviewEngineView from "../card-preview-engine-view";
 import { EngineViewAccessContext } from "~/hooks/engineViewAccessContext";
 
@@ -39,6 +43,7 @@ describe("CardPreviewEngineView (issue #2728)", () => {
         getByText("DSL · 3");
         const slot = container.querySelector("[data-engine-view-slot]");
         expect(slot).not.toBeNull();
+        fireEvent.click(container.querySelector("[data-engine-view-toggle]")!);
         // The tree well #2704 mounts into — present and EMPTY.
         const tree = container.querySelector("[data-engine-view-tree]");
         expect(tree).not.toBeNull();
@@ -66,6 +71,25 @@ describe("CardPreviewEngineView (issue #2728)", () => {
         getByText("Engine view");
         expect(queryByText("DSL")).toBeNull();
         expect(queryByText("Protocol")).toBeNull();
+        fireEvent.click(container.querySelector("[data-engine-view-toggle]")!);
+        expect(
+            container.querySelector("[data-engine-view-tree]")
+        ).not.toBeNull();
+    });
+
+    it("full slot: COLLAPSED on open — header and chip, no tree well — and expands on click (issue #9162)", () => {
+        const { container } = rtlRender(
+            <EngineViewAccessContext value>
+                <CardPreviewEngineView badge={{ kind: "dsl", opCount: 3 }} />
+            </EngineViewAccessContext>
+        );
+        const toggle = container.querySelector(
+            "[data-engine-view-toggle]"
+        ) as HTMLElement;
+        expect(toggle.getAttribute("aria-expanded")).toBe("false");
+        expect(container.querySelector("[data-engine-view-tree]")).toBeNull();
+        fireEvent.click(toggle);
+        expect(toggle.getAttribute("aria-expanded")).toBe("true");
         expect(
             container.querySelector("[data-engine-view-tree]")
         ).not.toBeNull();

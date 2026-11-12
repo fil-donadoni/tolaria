@@ -302,13 +302,13 @@ describe("SideboardingDialog hover preview keep-alive (issue #3195)", () => {
             fireEvent.pointerEnter(getByTestId("sideboard-preview-column"));
             settle();
             expect(queryByText("Hover a card to preview it")).toBeNull();
-            const printed = getByRole("button", { name: /printed card/i });
+            const printed = getByRole("tab", { name: /printed card/i });
             fireEvent.click(printed);
             expect(queryByText("Hover a card to preview it")).toBeNull();
             // The selected segment carries the active style; the mode survived
             // the click instead of resetting on a remount.
             expect(
-                getByRole("button", { name: /printed card/i }).className
+                getByRole("tab", { name: /printed card/i }).className
             ).toContain("bg-accent-soft/50");
         }
     );
