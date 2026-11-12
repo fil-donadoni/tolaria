@@ -33,6 +33,7 @@ import {
 // The one wait before a measurement (issue #3644): no fixed sleep remains in
 // this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
 import { waitForSettledScreen } from "./settle.ts";
+import { chargeSub, presence, walkLedgerOf } from "./phase-timing.ts";
 import type { NamedAssertion } from "./assertions.ts";
 import {
     CENSUS_PATH,
@@ -263,28 +264,36 @@ async function settle(
     await waitForSettledScreen(page, { targets });
 }
 
+/** Charged to the walk's `goto` sub-phase (issue #9268). */
 async function goto(page: Page, ctx: WalkContext, path: string): Promise<void> {
-    await page.goto(`${ctx.baseUrl}${path}`, {
-        waitUntil: "domcontentloaded",
-        timeout: NAV_TIMEOUT,
+    await chargeSub(walkLedgerOf(page), "goto", async () => {
+        await page.goto(`${ctx.baseUrl}${path}`, {
+            waitUntil: "domcontentloaded",
+            timeout: NAV_TIMEOUT,
+        });
+        await settle(page);
     });
-    await settle(page);
 }
 
+/** A miss — the element never appeared within `timeout` — is charged to the
+ *  walk's `absentWait` sub-phase (issue #9268): that is where a conditional
+ *  `clickIfVisible` on a prompt the screen is already past pays its timeout. */
 async function visible(
     page: Page,
     selector: string,
     timeout = STEP_TIMEOUT
 ): Promise<boolean> {
-    try {
-        await page
-            .locator(selector)
-            .first()
-            .waitFor({ state: "visible", timeout });
-        return true;
-    } catch {
-        return false;
-    }
+    return presence(walkLedgerOf(page), async () => {
+        try {
+            await page
+                .locator(selector)
+                .first()
+                .waitFor({ state: "visible", timeout });
+            return true;
+        } catch {
+            return false;
+        }
+    });
 }
 
 /** Name whatever the browser hit-tests at a selector's own centre — the one
@@ -418,14 +427,17 @@ async function fixtureRowsRendered(
     page: Page,
     selector: string
 ): Promise<boolean> {
-    return await page
-        .locator(selector)
-        .first()
-        .waitFor({ state: "attached", timeout: NAV_TIMEOUT })
-        .then(
-            () => true,
-            () => false
-        );
+    // A miss is an `absentWait` (issue #9268), like `visible`'s.
+    return presence(walkLedgerOf(page), () =>
+        page
+            .locator(selector)
+            .first()
+            .waitFor({ state: "attached", timeout: NAV_TIMEOUT })
+            .then(
+                () => true,
+                () => false
+            )
+    );
 }
 
 /** A pack tile in the Draft Room. Two traps in one selector:
@@ -1035,6 +1047,18 @@ async function openFixtureEvent(
     ctx: WalkContext,
     label: string
 ): Promise<"event" | "draft" | null> {
+    // Loading the seeded fixture is the walk's `position` sub-phase
+    // (issue #9268); its own navigation stays `goto`.
+    return chargeSub(walkLedgerOf(page), "position", () =>
+        openFixtureEventSteps(page, ctx, label)
+    );
+}
+
+async function openFixtureEventSteps(
+    page: Page,
+    ctx: WalkContext,
+    label: string
+): Promise<"event" | "draft" | null> {
     await goto(page, ctx, `/limited?label=${label}`);
     const row = page.locator(fixtureRow(label));
     if (!(await fixtureRowsRendered(page, fixtureRow(label)))) {
@@ -1268,6 +1292,16 @@ async function ensureScenarioBoard(
  *  two can never drift on the sheet's own selectors. The CALLER checks that
  *  the lane created the game it is about to overwrite. */
 async function loadScenarioOnBoard(page: Page, label: string): Promise<void> {
+    // The walk's `position` sub-phase (issue #9268).
+    await chargeSub(walkLedgerOf(page), "position", () =>
+        loadScenarioOnBoardSteps(page, label)
+    );
+}
+
+async function loadScenarioOnBoardSteps(
+    page: Page,
+    label: string
+): Promise<void> {
     // The debug surface is a SHEET behind a slim « / » edge tab since issue
     // #3403 — `button:has-text('Debug')` addressed the retired seven-button
     // rail and had silently stopped matching anything.
