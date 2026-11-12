@@ -4,6 +4,9 @@ import {
     clockDue,
     HEALTH_GATE_STALE_MS,
     HEARTBEAT_DEAD_MS,
+    queueGateFlags,
+    STARTUP_FAILURE_WINDOW_MS,
+    TRUSTED_AUTHOR_MISSING_MS,
     healthGateDue,
     heartbeatLines,
     settlesTip,
@@ -148,6 +151,7 @@ describe("tick — reads, then dispatches only what is due", () => {
                 active: true,
                 runs: [done(AFK_DISPATCH_STALE_MS + 1)],
             }),
+            queueGateFacts: () => ({ workflows: [], prs: [] }),
             healthFacts: () => ({
                 active: true,
                 runs: [done(60_000)],
@@ -185,6 +189,138 @@ describe("tick — reads, then dispatches only what is due", () => {
         const { d, fired } = deps({ dryRun: true });
         expect(tick(d).afkDispatch.fire).toBe(true);
         expect(fired).toEqual([]);
+    });
+});
+
+describe("queueGateFlags — a silent queue stall (issue #9065)", () => {
+    const run = (msAgo: number, conclusion: string, url = "https://run/1") => ({
+        createdAt: at(msAgo),
+        status: "completed",
+        conclusion,
+        url,
+    });
+    const facts = (
+        runs: ReturnType<typeof run>[],
+        prs: Parameters<typeof queueGateFlags>[0]["prs"] = []
+    ) => ({ workflows: [{ workflow: "pr-gate.yml", runs }], prs });
+    const pr = (msAgo: number, hasTrustedAuthor: boolean) => ({
+        number: 77,
+        sha: "abcdef12",
+        hasTrustedAuthor,
+        updatedAt: at(msAgo),
+    });
+
+    it("a recent startup_failure is flagged with its run URL", () => {
+        const f = queueGateFlags(
+            facts([run(30 * 60_000, "startup_failure", "https://run/9")]),
+            NOW
+        );
+        expect(f).toHaveLength(1);
+        expect(f[0]).toMatch(/pr-gate.yml startup_failure/);
+        expect(f[0]).toMatch(/https:\/\/run\/9/);
+    });
+
+    it("a later success ends the brownout; a cancelled run does not", () => {
+        expect(
+            queueGateFlags(
+                facts([
+                    run(10 * 60_000, "success"),
+                    run(30 * 60_000, "startup_failure"),
+                ]),
+                NOW
+            )
+        ).toEqual([]);
+        expect(
+            queueGateFlags(
+                facts([
+                    run(10 * 60_000, "cancelled"),
+                    run(30 * 60_000, "startup_failure"),
+                ]),
+                NOW
+            )
+        ).toHaveLength(1);
+    });
+
+    it("a startup_failure older than the window is history", () => {
+        expect(
+            queueGateFlags(
+                facts([
+                    run(STARTUP_FAILURE_WINDOW_MS + 60_000, "startup_failure"),
+                ]),
+                NOW
+            )
+        ).toEqual([]);
+    });
+
+    it("a queued PR with no trusted-author past the threshold is named", () => {
+        const f = queueGateFlags(
+            facts([], [pr(TRUSTED_AUTHOR_MISSING_MS + 60_000, false)]),
+            NOW
+        );
+        expect(f).toHaveLength(1);
+        expect(f[0]).toMatch(/PR #77/);
+    });
+
+    it("a healthy queue is quiet: gated, or still inside the threshold", () => {
+        expect(
+            queueGateFlags(
+                facts(
+                    [run(60_000, "success")],
+                    [
+                        pr(60 * 60_000, true),
+                        pr(TRUSTED_AUTHOR_MISSING_MS - 60_000, false),
+                    ]
+                ),
+                NOW
+            )
+        ).toEqual([]);
+    });
+
+    it("tick records the flags; an unreadable read records the error only", () => {
+        const base = {
+            host: "mac",
+            now: () => NOW,
+            afkDispatchClock: () => ({ active: false, runs: [] }),
+            healthFacts: () => ({
+                active: false,
+                runs: [],
+                tip: "abcdef12",
+                tipHasVerdict: true,
+                pivotInFlight: false,
+            }),
+            dispatchAfk: () => undefined,
+            dispatchHealthGate: () => undefined,
+        };
+        const flagged = tick({
+            ...base,
+            queueGateFacts: () => facts([run(60_000, "startup_failure")]),
+        });
+        expect(flagged.queueGate?.flags).toHaveLength(1);
+        const broken = tick({
+            ...base,
+            queueGateFacts: () => {
+                throw new Error("gh: HTTP 502");
+            },
+        });
+        expect(broken.queueGate).toEqual({
+            flags: [],
+            error: "gh: HTTP 502",
+        });
+    });
+
+    it("heartbeatLines prints a flag and reads an old state file", () => {
+        const s = {
+            at: at(60_000),
+            host: "mac",
+            afkDispatch: { fire: false, reason: "r" },
+            health: { fire: false, reason: "r" },
+        };
+        const flagged = heartbeatLines(
+            JSON.stringify({ ...s, queueGate: { flags: ["PR #77 stalled"] } }),
+            NOW
+        );
+        expect(flagged.join("\n")).toMatch(/FLAGGED — PR #77 stalled/);
+        expect(heartbeatLines(JSON.stringify(s), NOW)).toHaveLength(3);
     });
 });
 
