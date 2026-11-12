@@ -21,7 +21,10 @@
 //      reproducibility guard is red on a checkout holding one without the
 //      other;
 //   5. the blade `must` tier runs on the rewritten weights, and its result is
-//      the report's last section.
+//      the report's last section — followed by one line pointing at
+//      `bun run verdicts:pick-agreement` (issue #8698): promotion is when
+//      held-out pick agreement can move, and at ≈ 7 minutes it is run by hand,
+//      never by `promote` itself.
 //
 // Every step is a port, so the order and the refusals are exercised against
 // the in-memory store (`scripts/__tests__/verdict-promotion-run.bot.test.ts`);
@@ -231,11 +234,16 @@ export async function runVerdictsPromote(
 
     const blade = await ports.runBladeMust();
     return {
-        text: `${output.text}\n\n${formatBladeMust(blade)}`,
+        text: `${output.text}\n\n${formatBladeMust(blade)}\n\n${PICK_AGREEMENT_POINTER}`,
         wrote: true,
         bladePassed: blade.passed,
     };
 }
+
+/** The report's last line after a write (issue #8698): the held-out number
+ *  (ADR 0138) can only have moved now, so the operator runs it now. */
+export const PICK_AGREEMENT_POINTER =
+    "next: run `bun run verdicts:pick-agreement` (≈ 7 min) — held-out pick agreement on the new lock; its block is the held-out receipt a strength claim owes (ADR 0138)";
 
 export function formatBladeMust(result: BladeMustResult): string {
     return [

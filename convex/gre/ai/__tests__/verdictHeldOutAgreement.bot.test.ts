@@ -9,6 +9,7 @@ import {
     formatHeldOutEvalAgreement,
     formatHeldOutPickAgreement,
     heldOutEvalAgreement,
+    heldOutReceiptRefusals,
     heldOutVerdicts,
     searchHeldOutVerdicts,
     verdictSideOf,
@@ -188,5 +189,25 @@ describe("held-out pick agreement (issue #3982)", () => {
                 "    pass             : 1/1 (100.0%)  n = 1, indicative, not a claim  [seeds 2/2]",
             ].join("\n")
         );
+    });
+
+    it("is a receipt only when it searched a verdict and every one it searched (issue #8698)", () => {
+        const row = (id: string, agreed: number): VerdictSearchRow => ({
+            verdictId: id,
+            class: "cast",
+            timing: false,
+            agreed,
+            seeds: 2,
+            picks: [],
+        });
+        // Disagreement is a reading, never a refusal.
+        expect(heldOutReceiptRefusals([row("a", 2), row("b", 0)])).toEqual([]);
+        expect(heldOutReceiptRefusals([])).toHaveLength(1);
+        expect(
+            heldOutReceiptRefusals([
+                row("a", 2),
+                { ...row("b", 0), error: "no rebuild" },
+            ])
+        ).toEqual(["unsearchable: b — no rebuild"]);
     });
 });

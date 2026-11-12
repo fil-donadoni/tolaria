@@ -55,6 +55,7 @@ import {
 } from "../../convex/verdictStoreMemory";
 import {
     parseBladeMust,
+    PICK_AGREEMENT_POINTER,
     runVerdictsPromote,
     runVerdictsTesters,
     snapshotVerdictStore,
@@ -186,6 +187,7 @@ describe("verdicts:promote — writes (issue #3583)", () => {
         expect(calls).toEqual({ writePack: 1, blade: 1 });
         expect(outcome.text).toContain("blade `must`");
         expect(outcome.text).toContain("PASSED — Tests  1 passed (1)");
+        expect(outcome.text.split("\n").pop()).toBe(PICK_AGREEMENT_POINTER);
     });
 
     it("rewrites nothing and runs nothing when re-run with no new verdicts", async () => {
@@ -382,6 +384,19 @@ describe("verdicts:testers — the snapshot it hands the engine (issue #3585)", 
                 engineStep: async () => ({ mode: "validate", text: "x" }),
             })
         ).rejects.toThrow(/not a per-tester report/);
+    });
+});
+
+describe("the pick agreement pointer (issue #8698)", () => {
+    it("names a package script that runs the held-out side", () => {
+        const pkg = JSON.parse(
+            readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        const step = /`bun run ([\w:-]+)`/.exec(PICK_AGREEMENT_POINTER)?.[1];
+        expect(step).toBe("verdicts:pick-agreement");
+        expect(pkg.scripts[step!]).toContain(
+            "BLADE_VERDICT_SEARCH_SIDE=held-out"
+        );
     });
 });
 

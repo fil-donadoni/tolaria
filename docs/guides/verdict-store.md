@@ -318,8 +318,13 @@ holding the writer's [key](#g-key):
 4. The blade `must` tier runs on the new weights.
 
 It prints the report the PR carries: new Eval Pairs, the pairs the fit could
-not satisfy, how far each weight moved, and the blade `must` result.
-Re-running with nothing new is a no-op and rewrites nothing.
+not satisfy, how far each weight moved, and the blade `must` result. Its last
+line says to run `bun run verdicts:pick-agreement` next (≈ 7 minutes, by
+hand, never part of `promote`): a promotion is when held-out pick agreement
+can change, and the block that run prints is the held-out receipt a strength
+claim owes (ADR 0138). The run exits 0 only when it searched every held-out
+verdict it found. Re-running with nothing new is a no-op, rewrites nothing and
+prints no such line.
 
 `verdictsPack:writePack` ships with a release: a [promotion](#g-promotion)
 never pushes code to the deployment.

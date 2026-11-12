@@ -64,10 +64,11 @@
  * `lib/health-step.ts` owns that.
  *
  * The Bot Findings refresh (`bot:reach`, `seed:bot-findings`, `gaps:sync`)
- * and the blade robustness / held-out pick agreement audits are NOT part of
- * this run: they keep a view of the Bot fresh and prove nothing
- * about the tree, so `bun run health:nightly` (`scripts/health-nightly.ts`, a
- * cron entry point) runs the refresh nightly and the audits weekly. Nor is
+ * and the blade robustness audit are NOT part of this run: they keep a view
+ * of the Bot fresh and prove nothing about the tree, so
+ * `bun run health:nightly` (`scripts/health-nightly.ts`, a cron entry point)
+ * runs the refresh nightly and the audit weekly. Held-out pick agreement is
+ * run by hand after `verdicts:promote`. Nor is
  * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
  * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
@@ -85,8 +86,7 @@
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
  * `lib/deployment-skew.ts` (builtins),
- * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
- * (their records, for `--status`), `lib/test-headroom.ts` (builtins), and
+ * `lib/health-robustness-audit.ts` (its record, for `--status`), `lib/test-headroom.ts` (builtins), and
  * through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`),
  * `lib/health-verdict-job.ts` and `lib/corpus-exclusion.ts` (builtins) — same
@@ -136,10 +136,6 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
-import {
-    describePickRecord,
-    readPickRecord,
-} from "./lib/health-pick-agreement-audit";
 import {
     describeAuditRecord,
     readAuditRecord,
@@ -496,11 +492,6 @@ function status(root: string): never {
     if (audit)
         console.log(
             `  blade audit: ${describeAuditRecord(audit, pidAlive(audit.pid))}`
-        );
-    const pick = readPickRecord(dir);
-    if (pick)
-        console.log(
-            `  held-out pick agreement: ${describePickRecord(pick, pidAlive(pick.pid))}`
         );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
