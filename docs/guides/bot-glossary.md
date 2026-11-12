@@ -233,6 +233,24 @@ search can revisit a good child before it has touched every bad one. Built
 beside PUCT (`config.fpu`, parent mean minus a reduction), ON in live play at
 `fpu = 0.15` (issue #8700).
 
+<a id="saturation-prior"></a>**Saturation Prior** — a selection term added
+at the Bot's own attack and block declarations below the [root](#root), once
+every child is opened and when they all carry the same mean
+[reward](#reward): the child with the best one-ply policy value scores
+`saturationPriorC` above the worst, linearly between. Past the reward clip
+(`materialFull`) every leaf scores the same, so [UCB1](#ucb1) has nothing to
+exploit and the [action priors](#puct), built from the clipped reward, are
+uniform: a root move with eight continuations is read through all eight
+averaged while one with two is read deeper, and the root's material tie-break
+then prefers the move with fewer continuations. The prior deepens the line the
+Bot would play instead. It reads the cached policy value, never the children's
+sampled [margins](#margin). It stays off wherever the Bot may `pass`: the even
+spread over a priority window's moves is what prices waiting below acting. Off
+at an opponent's node and at the root too. Measured in
+[reward-saturation-selection](../research/reward-saturation-selection.md)
+(issue #9095). Code: `saturationPriorTerms` in `convex/gre/search.ts`; the
+`no-saturation-prior` variant turns it off.
+
 <a id="beam"></a>**Beam / beam search** — keeping only the K best-looking
 candidates at each level and discarding the rest outright. Cheap, but it
 throws away lines whose payoff comes later than their cost — in MTG that is

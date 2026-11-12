@@ -22,6 +22,7 @@ import {
 } from "../decisionTelemetry";
 import {
     EMPTY_DISABLED_RULES,
+    LADDER_VARIANTS,
     NO_RULE_VARIANT_PREFIX,
     noRuleVariant,
     resolveDisabledRootRules,
@@ -403,15 +404,20 @@ describe("a blade entry that depends on a rule flips when the rule is disabled",
             throw new Error(`${LABEL}: entry declares no seed`);
         }
         const oneSeed = { ...entry, seeds: [seed] };
+        // Both arms run with the Saturation Prior off (issue #9095): with it
+        // the search holds the engine on its own on every seed of the entry,
+        // so the rule would no longer be what the difference measures. The
+        // plumbing under test is the same either way.
+        const priorOff = LADDER_VARIANTS["no-saturation-prior"];
 
-        const baseline = runBladeScenario(oneSeed, null);
+        const baseline = runBladeScenario(oneSeed, priorOff);
         expect(baseline.ok, baseline.failureMessage).toBe(true);
         expect(baseline.seeds[0]?.move?.kind).toBe("pass");
 
-        const withoutRule = runBladeScenario(
-            oneSeed,
-            noRuleVariant(`${NO_RULE_VARIANT_PREFIX}hold-trick`)
-        );
+        const withoutRule = runBladeScenario(oneSeed, {
+            ...noRuleVariant(`${NO_RULE_VARIANT_PREFIX}hold-trick`),
+            evalWeights: priorOff.evalWeights,
+        });
         expect(withoutRule.ok).toBe(false);
         expect(withoutRule.seeds[0]?.move?.kind).toBe("activate-ability");
     });
