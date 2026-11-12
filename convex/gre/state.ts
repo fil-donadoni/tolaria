@@ -12492,6 +12492,13 @@ function applyAsEntersAnswer(
             // "enters, then becomes a copy" shape outright).
             if (source) {
                 applyCopy(state, card, source, choice.opts ?? {});
+                // CR 614.1c — "enter tapped as a copy": read by `tapOnEntry`.
+                if (choice.entersTappedAsCopy) {
+                    entry.authoredEntry = {
+                        ...entry.authoredEntry,
+                        entersTapped: true,
+                    };
+                }
                 // CR 707.9g — only the copy effect applied LAST keeps its
                 // linked trigger: a later one (a copied Clone's own clause,
                 // CR 707.6) replaces this, and declining it leaves this alone.
