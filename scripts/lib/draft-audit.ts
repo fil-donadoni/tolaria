@@ -168,10 +168,16 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
         meanCastability: 0.86,
-        worstDeckCastability: 0.77,
-        // The plan-first build raised it past the baseline's 0.47.
-        meanPlanShare: 0.52,
-        meanCapabilityPairs: 16.71,
+        // Loosened 0.77 → 0.74, 0.52 → 0.42 and 16.71 → 16.68 by the first
+        // Profile Census (issue #8902): fourteen narrower Archetypes and
+        // `control` taken off cheap one-for-one interaction. Plan share counts
+        // spells carrying the plan's tag, so a plan-neutral removal spell
+        // reads as off-plan: the narrower vocabulary lowers it by
+        // construction while the table gets more varied (control the plan of
+        // 40 seats of 64, was 50). The plan choice itself is issue #9298's.
+        worstDeckCastability: 0.74,
+        meanPlanShare: 0.42,
+        meanCapabilityPairs: 16.68,
     },
     lea: {
         builtShare: 1,

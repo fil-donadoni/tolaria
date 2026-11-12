@@ -7,14 +7,14 @@
             "rationale": "oracle: free mana rock"
         },
         "720fbd87-b1c1-4b3b-97a1-46b943b115e3": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flash O-ring style removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "84319dfb-eaf7-4b98-8c4f-30f5e779591b": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flexible removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f": {
             "archetypes": ["artifacts"],
@@ -87,9 +87,9 @@
             "rationale": "oracle+rubric: payoff whose case is being cheated in"
         },
         "059e8447-6b1c-4651-a734-a8fea2cbf7b2": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: scalable removal for creatures and planeswalkers"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "f0192cf7-3391-4720-b9c8-72dec5dde01e": {
             "archetypes": ["aggro", "control"],
@@ -102,9 +102,9 @@
             "rationale": "oracle+rubric: storm count payoff, mills"
         },
         "8d42d7aa-7f53-4cfc-842a-086aab2448d1": {
-            "archetypes": ["spells", "control"],
+            "archetypes": ["spells"],
             "reviewed": false,
-            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "3dea5b45-925c-4732-8e9d-fa8232792736": {
             "archetypes": ["artifacts", "blink"],
@@ -162,9 +162,9 @@
             "rationale": "oracle: land producing two mana"
         },
         "a211d505-4d40-4914-a9da-220770d6ddbc": {
-            "archetypes": ["spells", "graveyard", "control"],
+            "archetypes": ["spells", "graveyard"],
             "reviewed": false,
-            "rationale": "oracle+rubric: cheap cantrip with surveil, fuels graveyard; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "c2c794b9-09da-49be-b258-b0e21f1663e3": {
             "archetypes": ["control"],
@@ -227,14 +227,14 @@
             "rationale": "oracle: tutor that assembles a win piece"
         },
         "064dfdeb-485f-473e-9fa0-8fdb7638cdc6": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal held for threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "ca367f49-0f4a-4b7f-8104-851893fbcd8a": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap discard on noncreature spells"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5": {
             "archetypes": ["control", "graveyard"],
@@ -262,9 +262,9 @@
             "rationale": "oracle: tutors any card into graveyard for reanimation; no registry fit"
         },
         "32e670da-7563-4f6a-a7db-4c126a440eb8": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: one-mana creature or planeswalker removal held for threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd": {
             "archetypes": ["ramp", "artifacts"],
@@ -302,9 +302,9 @@
             "rationale": "oracle+rubric: extra land plays"
         },
         "b5e81649-9954-424c-89d1-f87d73b66047": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap conditional removal for early threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "9d48aaff-46ab-411b-9456-171d4709f951": {
             "archetypes": ["aggro", "graveyard"],
@@ -327,9 +327,9 @@
             "rationale": "oracle: cheap burn with late flashback"
         },
         "006d2bf1-20f7-4b09-8d98-8233d91682bd": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap sorcery removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "63af3c26-5b1f-46f6-9aa2-036c615bf5ea": {
             "archetypes": ["cheat"],
@@ -382,9 +382,9 @@
             "rationale": "oracle: land accelerating with creatures"
         },
         "32aa6e33-221f-414c-9b51-850d97a7e051": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal for creatures and planeswalkers"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "995486ce-58bb-4753-a812-0ca73ef1a235": {
             "archetypes": ["storm", "spells"],
@@ -477,14 +477,14 @@
             "rationale": "oracle: sorcery tutor setting up a combo piece"
         },
         "17824929-f131-4b8d-addb-66c25323155e": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: unconditional instant removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap discard of small spells"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd": {
             "archetypes": ["aggro", "graveyard"],
@@ -512,9 +512,9 @@
             "rationale": "oracle: haste attacker with exile card advantage"
         },
         "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d": {
-            "archetypes": ["spells", "control"],
+            "archetypes": ["spells"],
             "reviewed": false,
-            "rationale": "oracle+rubric: second-spell trigger named in spells clause; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "d573ef03-4730-45aa-93dd-e45ac1dbaf4a": {
             "archetypes": ["aggro"],
@@ -637,9 +637,9 @@
             "rationale": "oracle: scalable random discard"
         },
         "56e2e8b5-660d-4469-a4fe-2367dfadb709": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: free removal by sacrificing a Mountain"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "928036c9-11b8-493e-b9f2-8fbd3487cd19": {
             "archetypes": ["aggro", "tokens"],
@@ -772,9 +772,9 @@
             "rationale": "oracle+rubric: temporary exile and return of permanents, also removal"
         },
         "29b7a8b1-b98e-483a-87a4-73bd831c03d4": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: one-mana exile removal held for threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "55707746-da6e-46e5-a5ca-7ac843fdc38e": {
             "archetypes": ["blink", "aggro"],
@@ -792,19 +792,19 @@
             "rationale": "oracle: artifact clone filling the artifact column"
         },
         "ba6b6fc5-5077-4812-b8e9-906783dbaf67": {
-            "archetypes": ["spells", "control"],
+            "archetypes": ["spells"],
             "reviewed": false,
-            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "80fca8c0-ae3e-439e-b202-228b9f360e9a": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal for low-cost permanents"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "e3868c3d-4fcd-444b-866f-0f8e50ce7b67": {
-            "archetypes": ["spells", "control"],
+            "archetypes": ["spells"],
             "reviewed": false,
-            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "68924203-c3d9-41ce-8ca8-c6dd491eb3ca": {
             "archetypes": ["aggro", "graveyard"],
@@ -852,9 +852,9 @@
             "rationale": "oracle+rubric: landfall counters on a trampler"
         },
         "aeb4612c-758b-4492-ba03-eb6741b4176e": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: efficient removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "d67be074-cdd4-41d9-ac89-0a0456c4e4b2": {
             "archetypes": ["control", "reanimator"],
@@ -862,9 +862,9 @@
             "rationale": "oracle: drain engine that wins a long game; prime reanimation target"
         },
         "a9225cc3-90f0-448f-a8d9-7c6c2796d077": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flexible edict removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "059164e1-894d-4586-9800-e60d6fbd6eb6": {
             "archetypes": ["graveyard"],
@@ -892,9 +892,9 @@
             "rationale": "oracle+rubric: Sneak Attack is the cheat example"
         },
         "18a3cca1-e50e-49b6-9e1a-f86640e3b177": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: free removal for nonblack creatures"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "c4300d24-1cae-4dd5-be7e-38cc677cf5bd": {
             "archetypes": ["ramp", "artifacts"],
@@ -952,14 +952,14 @@
             "rationale": "oracle: menace body that grows whenever any permanent leaves play"
         },
         "f61693a2-7042-44e0-85ba-9bf12ab94e7e": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flexible removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "386ea9eb-abc1-4862-aa2d-8fb808d79490": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: one-mana exile removal held for threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "f1b8413f-c9fc-4cea-b416-a1fcf651b009": {
             "archetypes": ["lands"],
@@ -992,9 +992,9 @@
             "rationale": "oracle: one-mana burn"
         },
         "629aa907-9533-4681-9bf2-9e56450a4cc2": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flexible exile removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "5cb76266-ae50-4bbc-8f96-d98f309b02d3": {
             "archetypes": ["control"],
@@ -1012,14 +1012,14 @@
             "rationale": "oracle+rubric: rubric names it; tokens per noncreature spell"
         },
         "88bf1ebb-9d85-4b9b-a614-c7f965c0893d": {
-            "archetypes": ["spells", "graveyard", "control"],
+            "archetypes": ["spells", "graveyard"],
             "reviewed": false,
-            "rationale": "oracle+rubric: cheap cantrip that mills two; card selection a long-game deck also plays (control clause: card draw)"
+            "rationale": "oracle+rubric: cheap cantrip a spells deck plays for the count; selection replaces itself, not control's card advantage"
         },
         "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap hand disruption"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "d140c3b7-ca78-483d-baeb-307b624fea8b": {
             "archetypes": ["blink", "aggro"],
@@ -1087,9 +1087,9 @@
             "rationale": "oracle: returns a creature with mana value 3 or less; cycling"
         },
         "2b73d294-6ab1-4051-9b0f-d8e335d37674": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal boosted by delirium"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "9e201229-34a6-48c8-a07c-d8aefcf5f8a7": {
             "archetypes": ["control"],
@@ -1257,9 +1257,9 @@
             "rationale": "oracle: tutors artifact or enchantment, assembling a combo piece"
         },
         "522aa72b-2b8c-484c-872b-f082101cee35": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: efficient removal for creature, enchantment or planeswalker"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db": {
             "archetypes": ["control"],
@@ -1267,19 +1267,19 @@
             "rationale": "oracle: tempo counter that draws a card"
         },
         "6dff437b-ef68-48f7-afd3-3b72d3c56187": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: instant-speed answer to any nonland permanent"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal that buys time"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "825969b9-3c70-4fca-8cab-696e9ca7cdb2": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap flexible exile removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "3bb17913-fe4d-4acd-9b75-71f5a90f898b": {
             "archetypes": ["control"],
@@ -1287,9 +1287,9 @@
             "rationale": "oracle: removal with overload one-sided sweeper"
         },
         "17f28b16-da65-41a8-ba4f-f1c5e104aad6": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: unconditional exile removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "c9262000-e6f3-4da1-ad1c-038f65d3bef6": {
             "archetypes": ["artifacts", "aggro"],
@@ -1297,14 +1297,14 @@
             "rationale": "oracle: Equipment that arrives with a body and draws when attacking"
         },
         "975dcfab-0281-4fee-92aa-021ea6c524c7": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: pseudo-removal turning a creature into a Vehicle"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "3c3ac3dd-35db-447f-8674-37b4680a1ef7": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: flash exile removal with cost reduction"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9": {
             "archetypes": ["tokens"],
@@ -1442,9 +1442,9 @@
             "rationale": "oracle: flexible counter, bounce and draw spell"
         },
         "17ab958a-abc6-472e-ad6a-97c731d89c74": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap tempo bounce"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "ab47a37b-b66d-4f70-9bf0-4d5ed6b518f3": {
             "archetypes": ["artifacts"],
@@ -1477,9 +1477,9 @@
             "rationale": "oracle: wins via hideaway when a library is nearly empty"
         },
         "5358b87a-1a29-426d-b165-40c97da2c14d": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: tempo bounce spell or permanent"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1": {
             "archetypes": ["control"],
@@ -1542,14 +1542,14 @@
             "rationale": "oracle: cheap-to-bin fatty that cycles itself; reanimation target"
         },
         "753db072-5d6a-4f37-8f7d-255572ecd3bd": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal held up against small threats"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap unconditional removal; discard as additional cost"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "d5c782cc-c951-4c6f-a93f-774ae6c1c214": {
             "archetypes": ["reanimator"],
@@ -1582,9 +1582,9 @@
             "rationale": "oracle: Death half is a reanimation spell; Life half is minor"
         },
         "992bd991-7cfb-459f-bafd-9a44f3c925c5": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: removal with planeswalker mode"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "5b3c6d87-9383-450b-bba5-33435b6b0d08": {
             "archetypes": ["combo"],
@@ -1742,9 +1742,9 @@
             "rationale": "oracle: one-sided sweeper"
         },
         "96fd8d8e-8f2a-4240-bcb7-18f73fd47bd5": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal or bounce"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "6da09e6a-2965-4855-bd41-41b41ba188fb": {
             "archetypes": ["cheat"],
@@ -1752,9 +1752,9 @@
             "rationale": "oracle+rubric: Through the Breach is a named cheat example"
         },
         "39a816b4-39b8-421c-b828-68db901d34b7": {
-            "archetypes": ["control"],
+            "archetypes": [],
             "reviewed": false,
-            "rationale": "oracle: cheap removal"
+            "rationale": "oracle+rubric: cheap one-for-one interaction every plan plays; control's TAG WHEN asks one-for-more"
         },
         "7b61c9bc-16e8-417f-99e7-8bd83d4666c5": {
             "archetypes": ["control"],
