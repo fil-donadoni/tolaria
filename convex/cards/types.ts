@@ -11350,6 +11350,14 @@ export interface StaticPlayerGuard {
      *  (CR 514.1 cleanup, CR 704.1 SBAs). Read by `isOpponentCauseProhibited`
      *  (`convex/gre/permanentGuard.ts`). */
     opponentsCantCause?: readonly PlayerGuardAction[];
+    /** CR 701.23 / CR 101.2 — "Spells and abilities your opponents control
+     *  can't cause their controller to search their library" (Ashiok, Dream
+     *  Render). Inverse of `opponentsCantCause`: the BARRED player is the one
+     *  whose spell or ability would search, not the guarded one. Any search of
+     *  the spell's or ability's own controller's library, caused by an
+     *  opponent of the guard's protected player, finds nothing. Read by
+     *  `isOpponentSearchProhibited` (`convex/gre/permanentGuard.ts`). */
+    opponentsCantSearch?: boolean;
     /** Whose shroud this is. Defaults to `"controller"` (the source
      *  permanent's controller — "You have shroud", read directly off the
      *  card that grants it). `"chosen-player"` mirrors

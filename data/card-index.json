@@ -4306,6 +4306,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Ashiok, Dream Render",
+        "scryfallId": "f2df3258-c053-48a8-974f-d80899b2cd93",
+        "oracleId": "93723b12-db34-4047-885e-8606415b1553",
+        "firstSet": "war",
+        "firstPrintId": "f2df3258-c053-48a8-974f-d80899b2cd93",
+        "firstPrintSet": "war"
+    },
+    {
         "name": "Ashnod's Altar",
         "scryfallId": "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
         "oracleId": "4d18bcba-a346-445e-a182-6cc30b7e066d",
