@@ -5,9 +5,10 @@ import { defineCard, type GameEvent } from "../../types";
 // zone-change trigger). Oracle (three clauses):
 //   1. "Target player shuffles up to three target cards from their graveyard
 //      into their library." — the Krosan Reclamation composition (jud/green):
-//      a caster-made `choose-graveyard-card` pick (min 0, max 3) scoped to the
-//      target player's graveyard, `moveZone` graveyard→library, then a trailing
-//      `libraryLook` shuffle (CR 701.24) randomizes that player's library.
+//      the player and up to three cards from THAT player's graveyard are
+//      announced targets (CR 601.2c, `zoneOwnerOfPriorPlayerTarget`), each
+//      still-legal card moves graveyard→library, then a trailing `libraryLook`
+//      shuffle (CR 701.24) randomizes that player's library.
 //   2. "Draw a card." — the resolving controller draws (CR 121.1).
 //   3. "When this card is put into your graveyard from your library, shuffle
 //      your graveyard into your library." — a `zone: "graveyard"` triggered
@@ -32,23 +33,27 @@ export const gaeasBlessing = defineCard(() => ({
     manaCost: { X: 1, G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
+    additionalTargetRequirements: [
+        {
+            type: "card",
+            count: { min: 0, max: 3 },
+            zone: "graveyard",
+            controller: "any",
+            zoneOwnerOfPriorPlayerTarget: true,
+        },
+    ],
     effects: [
         {
-            op: "choice",
-            kind: "choose-graveyard-card",
-            player: "controller",
-            zoneOwnerId: { target: 0 },
-            zone: "graveyard",
-            count: { min: 0, max: 3 },
-            prompt: "Shuffle up to three target cards from that player's graveyard into their library.",
-            bind: "$reclaimed",
-        },
-        {
-            op: "moveZone",
-            cards: { ref: "$reclaimed" },
-            player: { target: 0 },
-            from: "graveyard",
-            to: "library",
+            op: "forEach",
+            select: { set: "targets", zone: "graveyard" },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$each" },
+                    from: "graveyard",
+                    to: "library",
+                },
+            ],
         },
         { op: "libraryLook", action: "shuffle", player: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
