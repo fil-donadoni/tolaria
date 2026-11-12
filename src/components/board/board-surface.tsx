@@ -1,3 +1,4 @@
+import ZoneTargetPrototype from "~/components/board/zone-target-prototype/zone-target-prototype";
 import { useState, type CSSProperties } from "react";
 import { LayoutGroup } from "motion/react";
 import type { Combat, Player, StackItem } from "~/types/game";
@@ -485,6 +486,12 @@ export default function BoardSurface({
                                 )?.id ?? null
                             }
                             anchorRevision={`${me?.id ?? ""}:${opponent?.id ?? ""}`}
+                        />
+                        {/* PROTOTYPE zone-target highlight — throwaway */}
+                        <ZoneTargetPrototype
+                            stack={stackItems}
+                            players={orderedPlayers}
+                            viewerId={viewerId}
                         />
                     </div>
                 </LayoutGroup>
