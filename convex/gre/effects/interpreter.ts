@@ -997,6 +997,15 @@ function resolveValue(
     // gate (Overload, Burst Lightning, Bloodchief's Thirst, Tear Asunder,
     // Consult the Star Charts). One execution path, no arithmetic.
     if ("kickerCount" in value) return ctx.getKickerCount();
+    // spellKickerCount — the same tally read off a TARGETED spell's stack item
+    // (CR 702.33d), so "counter target spell if it was kicked" checks the
+    // condition as the instructions are followed (CR 608.2c) instead of
+    // restricting what may be targeted. A slot that is not a spell still on
+    // the stack is unresolvable (CR 608.2b): the comparison reads false.
+    if ("spellKickerCount" in value) {
+        const spell = resolveObjectRef(ctx, value.spellKickerCount.of);
+        return spell ? ctx.getKickerCount(spell) : undefined;
+    }
     // colorsSpentToCast (issue #7211) — how many distinct COLORS of mana were
     // spent to cast the resolving spell (CR 105.1: colorless never counts), the
     // number the Converge ability word (CR 207.2c) names. A thin skin over the

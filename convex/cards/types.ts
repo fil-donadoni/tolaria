@@ -6112,8 +6112,16 @@ export interface SpellContext {
      *  Multikicker, CR 702.33e). A DERIVED sum over the per-Kicker payment
      *  record snapshotted on the stack item (`StackItem.kickerPayments`) at cast
      *  commit (ADR 0079). Read in DSL via the `{ kickerCount: true }` value;
-     *  `> 0` is the "was it kicked at all" test (Overload, Burst Lightning, …). */
-    getKickerCount: () => number;
+     *  `> 0` is the "was it kicked at all" test (Overload, Burst Lightning, …).
+     *
+     *  Given a `spell` target, the same total for THAT stack item instead
+     *  (`{ spellKickerCount: { of } }` — "counter target spell if it was
+     *  kicked"); `undefined` when the selection is not a spell still on the
+     *  stack (CR 608.2b). */
+    getKickerCount: {
+        (): number;
+        (spell: TargetSelection): number | undefined;
+    };
     /** CR 702.33 — how many times the NAMED Kicker was paid as this spell was
      *  cast (0 = that Kicker was not paid). The per-Kicker read a two-Kicker
      *  card's intervening-ifs need ("if it was kicked with its {2}{U} kicker",
@@ -16205,6 +16213,32 @@ export type EffectColorsSpentToCastValue = { colorsSpentToCast: true };
  *  id at authoring time. */
 export type EffectAdditionalCostPaidValue = { additionalCostPaid: string };
 
+/** spellKickerCount — how many times a TARGETED SPELL's Kicker costs were paid
+ *  as it was cast (CR 702.33d: a spell whose controller declared the intention
+ *  to pay a kicker cost "has been kicked"), read off THAT stack item's payment
+ *  record at resolution. The other-spell sibling of
+ *  {@link EffectKickerCountValue}, which reads only the RESOLVING spell's own
+ *  record, and a skin over the same `SpellContext.getKickerCount`, given the
+ *  target. Like `kickerCount` it is NOT an Op and NOT a new STRUCTURAL
+ *  construct: it reads back one number, nothing composes it.
+ *
+ *  It exists so a condition on another spell's kicked state is checked as the
+ *  instructions are followed (CR 608.2c), not baked into the target set: "Counter
+ *  target spell if it was kicked" (Ertai's Trickery) targets ANY spell
+ *  (CR 115.1a — "target spell" is unqualified) and is an `if` whose comparison
+ *  reads this value `gt` 0. The `spellWasKicked` target FILTER is the other
+ *  shape, for a card whose target itself is restricted.
+ *
+ *  `of` is an announced target slot (`{ target: N }`) and nothing else —
+ *  `validateEffectScript` refuses any other selector: the resolving spell's own
+ *  count is `kickerCount`, and only a stack item carries the record. Unresolvable
+ *  (the caller skips, CR 608.2b) when the slot is not a spell or the spell has
+ *  left the stack. Reads `kickerPayments` only, never `unkickedCostPayments`
+ *  (ADR 0085): a replicate, squad or offspring payment is not a kick. */
+export type EffectSpellKickerCountValue = {
+    spellKickerCount: { of: EffectTargetRef };
+};
+
 /** manaValue — the mana value (CR 202.3) of a selected object, a thin JSON-pure
  *  skin over `SpellContext.getManaValue`. An eighth `EffectValue` grammar
  *  member; like `counters` (issue #1015) it is NOT an Op and NOT a new
@@ -16588,6 +16622,7 @@ export type EffectValue =
     | EffectKickerCountValue
     | EffectColorsSpentToCastValue
     | EffectAdditionalCostPaidValue
+    | EffectSpellKickerCountValue
     | EffectManaValueValue
     | EffectSacrificedValue
     | EffectDomainValue
