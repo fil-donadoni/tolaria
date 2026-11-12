@@ -662,13 +662,13 @@ export const freyaliseSupplicant = defineCard(() => ({
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            // NOT DSL-migratable (ADR 0045): the damage amount is HALF the
-            // sacrificed creature's snapshotted power, rounded down — the
-            // `EffectValue` grammar (literal / ref / count / X) has no
-            // arithmetic (ADR 0045 "there is still no arithmetic"), and the
-            // snapshot itself (`getAdditionalSacrificePower`, CR 608.2h) is
-            // not exposed as an `EffectValue` source. Blocked on: arithmetic
-            // over an `EffectValue` / an `additionalSacrificePower` ref.
+            // Still a closure: the damage is HALF the sacrificed creature's
+            // snapshotted power, rounded down (CR 107.1a). Both halves exist
+            // in the DSL — `{ sacrificed: { read: "power" } }` reads the
+            // CR 608.2h snapshot, `{ divide: { by: 2, rounding: "down" } }`
+            // halves — but `divide`'s operand admits only a literal, a
+            // `count` or the cast-time X, never a `sacrificed` value, so the
+            // two cannot compose yet. tracked-by: #9238
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target) return;
