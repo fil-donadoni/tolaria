@@ -11,10 +11,11 @@
  *     `seed:bot-findings`, then `gaps:sync` — only when the base moved the
  *     Bot's globs since the last successful refresh (`batchTouchesBot`). It
  *     measures the CURRENT `origin/<base>` tip, in a throwaway worktree.
- *   - WEEKLY (`auditsDue`), the blade robustness audit (issue #4875) and the
- *     held-out pick agreement audit (issue #3982), each in FULL, on the tip
- *     the last health verdict is about — the audit scripts follow a GREEN or
- *     RED record and never write one (`lib/health-robustness-audit.ts`).
+ *   - WEEKLY (`auditsDue`), the blade robustness audit (issue #4875), in
+ *     FULL, on the tip the last health verdict is about — the audit script
+ *     follows a GREEN or RED record and never writes one
+ *     (`lib/health-robustness-audit.ts`). Held-out pick agreement is no audit
+ *     here: it is run by hand after `verdicts:promote` (issue #8698).
  *
  * Neither can red a tip or write the RED marker: a failed refresh leaves the
  * page stale, a failed audit leaves its own record. Every CPU-bound step goes
@@ -50,10 +51,6 @@ import {
     type NightlyRecord,
 } from "./lib/health-bot-refresh";
 import {
-    pickRequestFile,
-    writePickRequest,
-} from "./lib/health-pick-agreement-audit";
-import {
     auditRequestFile,
     writeAuditRequest,
 } from "./lib/health-robustness-audit";
@@ -74,10 +71,6 @@ import {
 const HEALTH_DIR = join(".claude", "telemetry", "health");
 const GATE = resolve(__dirname, "gate.ts");
 const ROBUSTNESS_AUDIT = resolve(__dirname, "health-robustness-audit.ts");
-const PICK_AGREEMENT_AUDIT = resolve(
-    __dirname,
-    "health-pick-agreement-audit.ts"
-);
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
@@ -262,8 +255,8 @@ async function file(
     }
 }
 
-/** The two audits, in full, on the tip the last verdict is about — each in
- *  the foreground under `gate.ts yield`, so a queued `land` goes first. */
+/** The blade robustness audit, in full, on the tip the last verdict is about —
+ *  in the foreground under `gate.ts yield`, so a queued `land` goes first. */
 function audits(
     root: string,
     dir: string,
@@ -283,34 +276,31 @@ function audits(
     }
     const mode = { kind: "full" as const, reason: `weekly: ${reason}` };
     writeAuditRequest(dir, sha, mode, true);
-    writePickRequest(dir, sha, mode.reason, true);
     const env: NodeJS.ProcessEnv = { ...process.env };
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
     delete env.TOLARIA_VITEST_WORKERS;
-    let ok = true;
-    const requests = [auditRequestFile(sha), pickRequestFile(sha)];
-    for (const script of [ROBUSTNESS_AUDIT, PICK_AGREEMENT_AUDIT]) {
-        console.log(
-            `health-nightly: ${script.split("/").pop()} on ${sha.slice(0, 12)} (${reason})`
-        );
-        const r = spawnSync(
-            "bun",
-            [GATE, "yield", `bun ${JSON.stringify(script)} --sha=${sha}`],
-            { cwd: root, env, stdio: "inherit" }
-        );
-        if (r.status !== 0) ok = false;
-    }
-    // Each audit CLAIMS its request (deletes it) once it runs. One left on
+    console.log(
+        `health-nightly: ${ROBUSTNESS_AUDIT.split("/").pop()} on ${sha.slice(0, 12)} (${reason})`
+    );
+    const r = spawnSync(
+        "bun",
+        [GATE, "yield", `bun ${JSON.stringify(ROBUSTNESS_AUDIT)} --sha=${sha}`],
+        { cwd: root, env, stdio: "inherit" }
+    );
+    const ok = r.status === 0;
+    // The audit CLAIMS its request (deletes it) once it runs. One left on
     // disk was not claimed — a health run flipped `last.json` to `running`
-    // meanwhile — so that audit did not run, and is owed on a later night.
-    const unclaimed = requests.filter((f) => existsSync(join(dir, f)));
-    for (const f of unclaimed) rmSync(join(dir, f), { force: true });
-    if (unclaimed.length > 0)
+    // meanwhile — so the audit did not run, and is owed on a later night.
+    const request = auditRequestFile(sha);
+    const unclaimed = existsSync(join(dir, request));
+    if (unclaimed) {
+        rmSync(join(dir, request), { force: true });
         console.error(
-            `health-nightly: ${unclaimed.join(", ")} not claimed — the verdict moved under the audits; owed on a later night`
+            `health-nightly: ${request} not claimed — the verdict moved under the audit; owed on a later night`
         );
-    return { ran: unclaimed.length === 0, ok };
+    }
+    return { ran: !unclaimed, ok };
 }
 
 async function main(): Promise<number> {

@@ -192,6 +192,23 @@ export function searchHeldOutVerdicts(
     );
 }
 
+/** Why a held-out run is no receipt (issue #8698), or `[]` when it is: the
+ *  `verdicts:pick-agreement` runner fails on any line, so a run that exits 0
+ *  searched at least one verdict and could search every one of them — its
+ *  block is the held-out receipt a strength claim owes (ADR 0138). Agreement
+ *  itself is never a refusal: the number is a reading, not a gate. */
+export function heldOutReceiptRefusals(
+    rows: readonly VerdictSearchRow[]
+): string[] {
+    if (rows.length === 0)
+        return [
+            "no held-out verdict was searched — an empty split measures nothing",
+        ];
+    return rows
+        .filter((r) => r.error !== undefined)
+        .map((r) => `unsearchable: ${r.verdictId} — ${r.error}`);
+}
+
 /** Held-out pick agreement: aggregate and per Decision Class, each over `n`
  *  searched VERDICTS (a verdict that could not be searched is not one) with the
  *  seed tally beside it, flagged `indicative` under `INDICATIVE_BELOW`. Timing

@@ -16,7 +16,9 @@
 //     common budget) on the blade's five seeds.
 //     BLADE_VERDICT_SEARCH_SIDE=held-out restricts the run to the Verdicts the
 //     Weight Fit never read and prints held-out pick agreement (issue #3982):
-//     `bun run verdicts:pick-agreement`, the post-verdict health audit's step.
+//     `bun run verdicts:pick-agreement`, run by hand after `verdicts:promote`.
+//     That run fails unless it searched a verdict and every one searched
+//     (`heldOutReceiptRefusals`), so its exit 0 makes the block a receipt.
 //     Options: BLADE_VERDICT_SEARCH_LABEL=<substring> (filter verdict ids),
 //     BLADE_VERDICT_SEARCH_OUT=<path>.json (write rows + text),
 //     BLADE_VARIANT=<name from LADDER_VARIANTS> (the A/B arm).
@@ -32,6 +34,7 @@ import {
     burnedCountOf,
     formatHeldOutPickAgreement,
     formatVerdictSearchReport,
+    heldOutReceiptRefusals,
     searchHeldOutVerdicts,
     searchVerdict,
     testPositionKeysOf,
@@ -143,6 +146,7 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
                 JSON.stringify({ text, rows }, null, 2) + "\n"
             );
         }
-        if (!heldOut) expect(rows.length).toBe(selected.length);
+        if (heldOut) expect(heldOutReceiptRefusals(rows)).toEqual([]);
+        else expect(rows.length).toBe(selected.length);
     }, 3_600_000);
 });
