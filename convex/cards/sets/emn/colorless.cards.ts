@@ -13,7 +13,7 @@ import { hanweirWrithingTownshipFace } from "./hanweirWrithingTownshipFace.cards
 //
 // The half of the meld pair that carries the meld ability (CR 712.4a). "If you
 // both own and control" is read on resolution by the `meld` Op, never at
-// activation (CR 701.42a). The melded permanent's attack trigger lives on the
+// activation; the Op refuses a token or a non-pair card (CR 701.42b). The melded permanent's attack trigger lives on the
 // combined back face (`hanweirWrithingTownshipFace`), where the grammar's
 // fragment below is printed.
 // hand-tail: Whenever {self} attacks, create two 3/2 colorless Eldrazi Horror creature tokens that are tapped and attacking. (#8600)

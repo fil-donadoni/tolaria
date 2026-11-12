@@ -36562,6 +36562,14 @@
         "source": "compiled"
     },
     {
+        "name": "Hanweir Battlements",
+        "scryfallId": "1d743ad6-6ca2-409a-9773-581cc195dbf2",
+        "oracleId": "0e735ba6-7fd1-4d12-b20c-21525dc1e2b5",
+        "firstSet": "emn",
+        "firstPrintId": "1d743ad6-6ca2-409a-9773-581cc195dbf2",
+        "firstPrintSet": "emn"
+    },
+    {
         "name": "Hapless Researcher",
         "scryfallId": "22ed0ee7-6749-4f38-8e53-c11b46b17e5d",
         "oracleId": "240a349a-79f8-4e11-9a05-a78148e70a62",
