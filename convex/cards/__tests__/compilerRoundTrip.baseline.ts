@@ -191,7 +191,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Blight",
     "Blizzard",
     "Blood Lust",
-    "Blood Moon",
     "Bloodtithe Harvester",
     "Blooming Marsh",
     "Blue Mana Battery",

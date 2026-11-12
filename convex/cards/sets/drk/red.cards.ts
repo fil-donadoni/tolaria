@@ -59,7 +59,7 @@ export const goblinHero = defineCard(() => ({
 // The `IS_NONBASIC_LAND` predicate both halves scan lives in `cards/types.ts`:
 // Magus of the Moon (`sets/fut/red.cards.ts`) prints the identical Oracle line, so
 // the set is shared rather than restated once per card.
-
+// hand-tail: Nonbasic lands are Mountains. (#8594)
 export const bloodMoon = defineCard(() => ({
     id: "78373616-e2d6-4ccf-998f-09f02bea45b4",
     rarity: "rare",
