@@ -3891,11 +3891,38 @@ export function capitalizeKeyword(k: string): string {
 export function formatTypeLine(
     types: string[] | undefined,
     subtypes: string[] | undefined,
-    supertypes: string[] | undefined
+    supertypes: string[] | undefined,
+    grantedSubtypes?: ReadonlySet<string>
 ): string {
     const left = [...(supertypes ?? []), ...(types ?? [])].join(" ");
-    const right = displaySubtypes(subtypes ?? []).join(" ");
+    // Same "[+] " marker the keyword rows use for a granted ability (issue
+    // #3324): a subtype a static effect added reads apart from printed ones.
+    const right = displaySubtypes(subtypes ?? [])
+        .map((s) => (grantedSubtypes?.has(s) ? `[+] ${s}` : s))
+        .join(" ");
     return right ? `${left} — ${right}` : left;
+}
+
+/** CR 613.1d — subtypes a layer-4 effect ADDED to this permanent: those the
+ *  wire's provenance rows (`grantedSubtypes`, `grantedSubtypesAdd`) name and
+ *  the printed definition does not. Empty without an instance (issue #3324). */
+export function grantedSubtypeNames(
+    instance:
+        | {
+              grantedSubtypes?: { subtypes: string[] }[];
+              grantedSubtypesAdd?: { subtype: string }[];
+          }
+        | undefined,
+    printed: readonly string[] | undefined
+): Set<string> {
+    const out = new Set<string>();
+    if (!instance) return out;
+    const native = new Set(printed ?? []);
+    for (const row of instance.grantedSubtypes ?? [])
+        for (const s of row.subtypes) if (!native.has(s)) out.add(s);
+    for (const row of instance.grantedSubtypesAdd ?? [])
+        if (!native.has(row.subtype)) out.add(row.subtype);
+    return out;
 }
 
 const MANA_DISPLAY_COLORS = ["W", "U", "B", "R", "G", "C"] as const;

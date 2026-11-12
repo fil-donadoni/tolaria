@@ -1073,3 +1073,56 @@ describe("buildPreviewBody — tap-for-mana self-damage rider is rendered", () =
         }
     );
 });
+
+// Issue #3324 — Conspiracy names its own choice; a subtype a static effect
+// granted reads apart from the printed ones (CR 613.1d, CR 205.3m).
+describe("buildPreviewBody — chosen / granted subtypes (issue #3324)", () => {
+    const CONSPIRACY = getCardByName("Conspiracy");
+    const SERRA_ANGEL = getCardByName("Serra Angel");
+
+    function instance(def: typeof CONSPIRACY, extra: object): CardInstance {
+        return {
+            id: "x-1",
+            card: { id: def.id },
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            staticAbilities: def.staticAbilities ?? [],
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            ...extra,
+        } as unknown as CardInstance;
+    }
+
+    it("each Conspiracy preview shows its own chosen type", () => {
+        const ctx = { allPlayers: [], playerId: "p1" };
+        const a = buildPreviewBody(
+            CONSPIRACY.id,
+            instance(CONSPIRACY, { chosenSubtypes: ["Shaman"] }),
+            ctx
+        );
+        const b = buildPreviewBody(
+            CONSPIRACY.id,
+            instance(CONSPIRACY, { chosenSubtypes: ["Wizard"] }),
+            ctx
+        );
+        expect((a.oracleParagraphs ?? []).join("\n")).toContain("(Shaman)");
+        expect((b.oracleParagraphs ?? []).join("\n")).toContain("(Wizard)");
+        expect((a.oracleParagraphs ?? []).join("\n")).not.toContain("Wizard");
+    });
+
+    it("marks a granted subtype in the type line, not a printed one", () => {
+        const body = buildPreviewBody(
+            SERRA_ANGEL.id,
+            instance(SERRA_ANGEL, {
+                subtypes: ["Angel", "Shaman"],
+                grantedSubtypesAdd: [{ subtype: "Shaman", auraId: "c-1" }],
+            }),
+            { allPlayers: [], playerId: "p1" }
+        );
+        expect(body.typeLine).toContain("[+] Shaman");
+        expect(body.typeLine).not.toContain("[+] Angel");
+    });
+});
