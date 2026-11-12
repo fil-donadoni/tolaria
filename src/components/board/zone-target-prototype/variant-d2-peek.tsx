@@ -37,12 +37,14 @@ export default function VariantD2Peek({
             if (!r) continue;
             const top = { x: r.x + r.w / 2, y: r.y - 8 };
             for (const gk of t.groupKeys)
-                paths.push({
-                    key: `${gk}:${t.card.id}`,
-                    d: curve(anchors[gk].source, top),
-                    dim: isDim(focus, [gk]),
-                    emphasized: isLit(focus, [gk]),
-                });
+                if (anchors[gk].sourceRect)
+                    paths.push({
+                        key: `${gk}:${t.card.id}`,
+                        geo: curve(anchors[gk].source, top),
+                        groups: [gk],
+                        dim: isDim(focus, [gk]),
+                        emphasized: isLit(focus, [gk]),
+                    });
         }
         // Grow the panel INTO the board from the pile's corner.
         const pos: React.CSSProperties = {};

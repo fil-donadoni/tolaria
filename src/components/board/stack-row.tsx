@@ -303,6 +303,7 @@ export default function StackRow({
                     <ProtoStackRowTargets
                         item={item}
                         allPlayers={allPlayers}
+                        stack={stack}
                         viewerId={viewerId}
                     />
 

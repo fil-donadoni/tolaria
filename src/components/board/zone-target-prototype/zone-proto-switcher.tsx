@@ -1,23 +1,21 @@
-// PROTOTYPE (zone-target highlight) — floating switcher: ← variant →,
-// scenario picker, live state readout. Dev-only (mounted behind DEV).
+// PROTOTYPE (zone-target highlight) — floating switcher: ← variant →, a
+// REAL scenario loader (loads into the current game), live state readout.
+// Dev-only (mounted behind DEV).
 import { useEffect } from "react";
-import { SCENARIOS } from "./use-zone-target-model";
+import { PROTO_SCENARIOS } from "./prototype-scenarios";
 import { notifyZoneProto } from "./zone-proto-store";
 
-export type ZoneProtoParams = { variant: string; scenario: string };
+export type ZoneProtoParams = { variant: string };
 
 export function readZoneProto(): ZoneProtoParams | null {
     const q = new URLSearchParams(window.location.search);
     if (!q.has("zoneProto")) return null;
-    return {
-        variant: q.get("variant") ?? "C2",
-        scenario: q.get("zoneProto") || "real",
-    };
+    return { variant: q.get("variant") ?? "C2" };
 }
 
 export function writeZoneProto(p: ZoneProtoParams) {
     const q = new URLSearchParams(window.location.search);
-    q.set("zoneProto", p.scenario);
+    q.set("zoneProto", "1");
     q.set("variant", p.variant);
     window.history.replaceState(null, "", `${window.location.pathname}?${q}`);
     notifyZoneProto();
@@ -27,11 +25,15 @@ export default function ZoneProtoSwitcher({
     variants,
     params,
     onChange,
+    onLoad,
+    loading,
     status,
 }: {
     variants: Array<{ key: string; name: string }>;
     params: ZoneProtoParams;
     onChange: (p: ZoneProtoParams) => void;
+    onLoad: (scenarioKey: string) => void;
+    loading: string | null;
     status: string;
 }) {
     const idx = Math.max(
@@ -40,7 +42,6 @@ export default function ZoneProtoSwitcher({
     );
     const cycle = (d: number) =>
         onChange({
-            ...params,
             variant:
                 variants[(idx + d + variants.length) % variants.length].key,
         });
@@ -73,19 +74,21 @@ export default function ZoneProtoSwitcher({
             <button onClick={() => cycle(1)} className="px-1">
                 →
             </button>
-            <select
-                className="rounded bg-white/10 px-1"
-                value={params.scenario}
-                onChange={(e) =>
-                    onChange({ ...params, scenario: e.target.value })
-                }
-            >
-                {SCENARIOS.map((s) => (
-                    <option key={s.key} value={s.key} className="text-black">
-                        {s.label}
-                    </option>
-                ))}
-            </select>
+            <span className="text-white/50">load:</span>
+            {PROTO_SCENARIOS.map((s) => (
+                <button
+                    key={s.key}
+                    title={s.label}
+                    disabled={loading !== null}
+                    onClick={(e) => {
+                        (e.currentTarget as HTMLButtonElement).blur();
+                        onLoad(s.key);
+                    }}
+                    className="rounded bg-white/15 px-2 disabled:opacity-40"
+                >
+                    {loading === s.key ? "loading…" : s.key}
+                </button>
+            ))}
             <span className="text-white/60">{status}</span>
         </div>
     );

@@ -1,11 +1,12 @@
 // PROTOTYPE (zone-target highlight) — the hover FOCUS every variant shares
 // (owner feedback 2026-11-12): pointing at a targeting relationship — the
-// source stack row, the source permanent, a drawn target card, or the zone
-// pile — focuses that relationship; everything else dims.
+// source stack row, the source permanent, a drawn target card, the zone pile
+// or the ARROW itself — focuses that relationship; everything else dims.
 //
 // Returns the focused group keys, or null when nothing is hovered.
 import { useEffect, useState } from "react";
 import type { ZoneTargetGroup } from "./use-zone-target-model";
+import { hitTestArrows } from "./proto-arrow-registry";
 
 export function useProtoFocus(groups: ZoneTargetGroup[]): Set<string> | null {
     const [focus, setFocus] = useState<Set<string> | null>(null);
@@ -41,6 +42,12 @@ export function useProtoFocus(groups: ZoneTargetGroup[]): Set<string> | null {
                 if (ex && g.zone === "exile" && g.ownerId === ex)
                     keys.add(g.key);
             }
+            // Nothing under the pointer: an ARROW within reach focuses its
+            // relationship (the layer is pointer-events:none, issue #5853).
+            if (keys.size === 0)
+                for (const k of hitTestArrows({ x: e.clientX, y: e.clientY }) ??
+                    [])
+                    keys.add(k);
             const sig = Array.from(keys).sort().join(",");
             if (sig === last) return;
             last = sig;

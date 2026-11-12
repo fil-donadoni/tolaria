@@ -2,9 +2,8 @@
 // prototype/zone-target-highlight). Derives "which cards in which zone are
 // targeted by which stack item" + live viewport geometry for the overlays.
 //
-// Real mode: reads `graveyard-card` targets off the real stack (the only zone
-// target type the engine has today). Simulated scenarios: synthesize targets
-// from the real graveyards / exile so every case is viewable without casting.
+// Reads `graveyard-card` targets off the REAL stack (the only zone target type
+// the engine has today); the scenarios in prototype-scenarios.ts build it.
 import { useEffect, useState } from "react";
 import { tryGetDefinition } from "@convex/cards";
 import { displayCardId } from "~/lib/card-utils";
@@ -33,15 +32,6 @@ export type ZoneTargetGroup = {
     zoneCards: CardInstance[];
 };
 
-export type Scenario = { key: string; label: string };
-export const SCENARIOS: Scenario[] = [
-    { key: "real", label: "real stack" },
-    { key: "one", label: "sim · 1 card, opp graveyard" },
-    { key: "three", label: "sim · 3 cards, one graveyard" },
-    { key: "split", label: "sim · 1 card in EACH graveyard" },
-    { key: "exile", label: "sim · 1 card in exile" },
-];
-
 function ownerLabel(p: Player, viewerId: string) {
     return p.id === viewerId ? "your" : `${p.name}'s`;
 }
@@ -52,82 +42,40 @@ function sourcePermanentOf(item: StackItem): string | null {
 }
 
 export function deriveGroups(
-    scenario: string,
     stack: StackItem[],
     players: Player[],
     viewerId: string
 ): ZoneTargetGroup[] {
     const byId = new Map(players.map((p) => [p.id, p]));
-    if (scenario === "real") {
-        const groups: ZoneTargetGroup[] = [];
-        for (const item of stack) {
-            const perOwner = new Map<string, CardInstance[]>();
-            for (const t of item.targets ?? []) {
-                if (t.type !== "graveyard-card" || !t.playerId) continue;
-                const owner = byId.get(t.playerId);
-                const card = owner?.graveyard.find((c) => c.id === t.id);
-                if (!card) continue;
-                perOwner.set(t.playerId, [
-                    ...(perOwner.get(t.playerId) ?? []),
-                    card,
-                ]);
-            }
-            for (const [ownerId, cards] of perOwner) {
-                const owner = byId.get(ownerId)!;
-                groups.push({
-                    key: `${item.id}:${ownerId}`,
-                    sourceLabel: protoName(item),
-                    sourceStackId: item.id,
-                    sourcePermanentId: sourcePermanentOf(item),
-                    zone: "graveyard",
-                    ownerId,
-                    ownerLabel: ownerLabel(owner, viewerId),
-                    cards,
-                    zoneCards: owner.graveyard,
-                });
-            }
+    const groups: ZoneTargetGroup[] = [];
+    for (const item of stack) {
+        const perOwner = new Map<string, CardInstance[]>();
+        for (const t of item.targets ?? []) {
+            if (t.type !== "graveyard-card" || !t.playerId) continue;
+            const owner = byId.get(t.playerId);
+            const card = owner?.graveyard.find((c) => c.id === t.id);
+            if (!card) continue;
+            perOwner.set(t.playerId, [
+                ...(perOwner.get(t.playerId) ?? []),
+                card,
+            ]);
         }
-        return groups;
+        for (const [ownerId, cards] of perOwner) {
+            const owner = byId.get(ownerId)!;
+            groups.push({
+                key: `${item.id}:${ownerId}`,
+                sourceLabel: protoName(item),
+                sourceStackId: item.id,
+                sourcePermanentId: sourcePermanentOf(item),
+                zone: "graveyard",
+                ownerId,
+                ownerLabel: ownerLabel(owner, viewerId),
+                cards,
+                zoneCards: owner.graveyard,
+            });
+        }
     }
-    const top = stack[stack.length - 1] ?? null;
-    const src = {
-        sourceLabel: top ? protoName(top) : "Simulated spell",
-        sourceStackId: top?.id ?? null,
-        sourcePermanentId: top ? sourcePermanentOf(top) : null,
-    };
-    const me = players.find((p) => p.id === viewerId) ?? players[0];
-    const opp = players.find((p) => p.id !== me?.id) ?? me;
-    const mk = (
-        p: Player | undefined,
-        zone: ZoneKind,
-        n: number
-    ): ZoneTargetGroup | null => {
-        if (!p) return null;
-        const zoneCards = zone === "graveyard" ? p.graveyard : p.exile;
-        // Pick from the MIDDLE of the zone, never just the top card: the
-        // interesting case is a target the pile's face doesn't show.
-        const start = Math.max(0, Math.floor((zoneCards.length - n) / 2));
-        const cards = zoneCards.slice(start, start + n);
-        if (cards.length === 0) return null;
-        return {
-            key: `sim:${p.id}:${zone}`,
-            ...src,
-            zone,
-            ownerId: p.id,
-            ownerLabel: ownerLabel(p, viewerId),
-            cards,
-            zoneCards,
-        };
-    };
-    const out =
-        scenario === "one"
-            ? [mk(opp, "graveyard", 1)]
-            : scenario === "three"
-              ? [mk(opp, "graveyard", 3) ?? mk(me, "graveyard", 3)]
-              : scenario === "split"
-                ? [mk(opp, "graveyard", 1), mk(me, "graveyard", 1)]
-                : [mk(opp, "exile", 1) ?? mk(me, "exile", 1)];
-    return out.filter((g): g is ZoneTargetGroup => g !== null);
+    return groups;
 }
 
 /** First VISIBLE element matching `sel` (the same anchor can render twice). */
@@ -234,12 +182,14 @@ export function inward(p: Pt): Pt {
     return { x: dx / len, y: dy / len };
 }
 
-export function curve(a: Pt, b: Pt, bend = 0.18): string {
+export type CurveGeo = { d: string; a: Pt; c: Pt; b: Pt };
+
+/** Quadratic arrow curve + its control points (kept for the hover hit-test). */
+export function curve(a: Pt, b: Pt, bend = 0.18): CurveGeo {
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2;
-    const cx = mx - (b.y - a.y) * bend;
-    const cy = my + (b.x - a.x) * bend;
-    return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+    const c = { x: mx - (b.y - a.y) * bend, y: my + (b.x - a.x) * bend };
+    return { d: `M ${a.x} ${a.y} Q ${c.x} ${c.y} ${b.x} ${b.y}`, a, c, b };
 }
 
 export type ZoneCluster = {

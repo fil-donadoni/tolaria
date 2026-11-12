@@ -20,11 +20,14 @@ export default function VariantB2Row({
         if (!a?.zone || !g.sourceStackId) continue;
         for (const card of g.cards) {
             const r = extra[`b2:${g.sourceStackId}:${card.id}`];
-            // Fallback (row not rendered / sim mode): from the arrow source.
-            const from = r ? { x: r.x, y: r.y + r.h / 2 } : a.source;
+            // Row scrolled out of the stack panel: no line, no arrow (the
+            // real layer draws nothing without an anchor either).
+            if (!r) continue;
+            const from = { x: r.x, y: r.y + r.h / 2 };
             paths.push({
                 key: `${g.key}:${card.id}`,
-                d: curve(from, a.zone, -0.22),
+                geo: curve(from, a.zone, -0.22),
+                groups: [g.key],
                 dim: isDim(focus, [g.key]),
                 emphasized: isLit(focus, [g.key]),
             });

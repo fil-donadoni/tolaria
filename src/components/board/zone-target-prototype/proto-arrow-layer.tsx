@@ -1,9 +1,18 @@
 // PROTOTYPE (zone-target highlight) — gold filament arrows in viewport
 // coordinates, styled like BoardArrows. Variants pass the paths they want;
 // `dim` paths sit outside the hovered relationship.
+import { useEffect } from "react";
+import { publishArrows } from "./proto-arrow-registry";
+import type { CurveGeo } from "./use-zone-target-model";
+
 export type ProtoPath = {
     key: string;
-    d: string;
+    /** A straight/dashed path (tethers) — not hover-testable. */
+    d?: string;
+    /** A targeting arrow — drawn from its geometry and hover-testable. */
+    geo?: CurveGeo;
+    /** The relationship(s) this arrow belongs to (hover focus). */
+    groups?: string[];
     dashed?: boolean;
     thin?: boolean;
     dim?: boolean;
@@ -11,6 +20,14 @@ export type ProtoPath = {
 };
 
 export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
+    useEffect(() => {
+        publishArrows(
+            paths.flatMap((p) =>
+                p.geo && p.groups ? [{ geo: p.geo, groups: p.groups }] : []
+            )
+        );
+    });
+    useEffect(() => () => publishArrows([]), []);
     return (
         <svg className="pointer-events-none fixed inset-0 z-[900] h-full w-full overflow-visible">
             <defs>
@@ -37,7 +54,7 @@ export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
                 >
                     {!p.thin && (
                         <path
-                            d={p.d}
+                            d={p.geo?.d ?? p.d}
                             fill="none"
                             stroke="var(--color-accent)"
                             strokeWidth={p.emphasized ? 9 : 6}
@@ -46,7 +63,7 @@ export default function ProtoArrowLayer({ paths }: { paths: ProtoPath[] }) {
                         />
                     )}
                     <path
-                        d={p.d}
+                        d={p.geo?.d ?? p.d}
                         fill="none"
                         stroke="var(--color-accent-strong)"
                         strokeWidth={p.thin ? 1.4 : p.emphasized ? 3.2 : 2.4}

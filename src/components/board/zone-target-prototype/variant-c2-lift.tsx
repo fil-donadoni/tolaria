@@ -48,10 +48,13 @@ export default function VariantC2Lift({
             const dim = isDim(focus, t.groupKeys);
             for (const gk of t.groupKeys) {
                 const a = anchors[gk];
+                // Source not visible (stack row scrolled out): no arrow.
+                if (!a.sourceRect) continue;
                 const lit = isLit(focus, [gk]);
                 paths.push({
                     key: `${gk}:${t.card.id}`,
-                    d: curve(a.source, top),
+                    geo: curve(a.source, top),
+                    groups: [gk],
                     dim: isDim(focus, [gk]),
                     emphasized: lit,
                 });

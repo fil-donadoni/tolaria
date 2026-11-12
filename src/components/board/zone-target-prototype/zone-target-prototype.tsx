@@ -11,9 +11,16 @@
 //   - targets are marked as INFORMATION (reticle), never with the white ring
 //     that means "interactable" in our UX vocabulary.
 //
-//   /game?zoneProto=<real|one|three|split|exile>&variant=<B2|C2|D2>
-// Dev builds only. Round-1 variants: commit da61fe741.
+//   /game?zoneProto=1&variant=<C2|D2|B2>
+// The bar's "load" buttons put a REAL scenario (prototype-scenarios.ts) into
+// the current game: 1-item stack, multi-target, big stack. Dev builds only.
+// Round-1 variants: commit da61fe741.
 import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { normalizeScenarioSpec } from "@convex/debugScenarioSpec";
+import { useGameContext } from "~/hooks/useGameContext";
+import { PROTO_SCENARIOS } from "./prototype-scenarios";
 import type { Player, StackItem } from "~/types/game";
 import { deriveGroups, useAnchors, type Rect } from "./use-zone-target-model";
 import { useProtoFocus } from "./use-proto-focus";
@@ -49,11 +56,32 @@ export default function ZoneTargetPrototype({
     const [params, setParams] = useState<ZoneProtoParams | null>(() =>
         import.meta.env.DEV ? readZoneProto() : null
     );
-    const scenario = params?.scenario ?? "real";
     const groups = useMemo(
-        () => deriveGroups(scenario, stack, players, viewerId),
-        [scenario, stack, players, viewerId]
+        () => deriveGroups(stack, players, viewerId),
+        [stack, players, viewerId]
     );
+    const { gameId } = useGameContext();
+    const setupScenario = useMutation(api.game.debugSetupScenario);
+    const [loading, setLoading] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const load = async (key: string) => {
+        const sc = PROTO_SCENARIOS.find((x) => x.key === key);
+        if (!sc) return;
+        setLoading(key);
+        setLoadError(null);
+        try {
+            await setupScenario({
+                gameId,
+                ...normalizeScenarioSpec(
+                    sc.spec as Parameters<typeof normalizeScenarioSpec>[0]
+                ),
+            });
+        } catch (e) {
+            setLoadError((e as Error).message.slice(0, 160));
+        } finally {
+            setLoading(null);
+        }
+    };
     const { anchors, extra } = useAnchors(groups);
     const focus = useProtoFocus(groups);
     if (!params) return null;
@@ -86,12 +114,14 @@ export default function ZoneTargetPrototype({
                 variants={VARIANTS}
                 params={params}
                 onChange={change}
+                onLoad={load}
+                loading={loading}
                 status={`${groups.length} group(s) · ${groups.reduce(
                     (n, g) => n + g.cards.length,
                     0
                 )} card(s)${missing ? ` · ${missing} pile anchor(s) unmeasured` : ""}${
                     focus ? ` · focus ${focus.size}` : ""
-                }`}
+                }${loadError ? ` · LOAD FAILED: ${loadError}` : ""}`}
             />
         </>
     );
