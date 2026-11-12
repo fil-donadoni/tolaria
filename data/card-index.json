@@ -17780,6 +17780,14 @@
         "source": "compiled"
     },
     {
+        "name": "Dalkovan Encampment",
+        "scryfallId": "98ad5f0c-8775-4e89-8e92-84a6ade93e35",
+        "oracleId": "33a90122-7280-4481-9b97-5879194cae40",
+        "firstSet": "tdm",
+        "firstPrintId": "98ad5f0c-8775-4e89-8e92-84a6ade93e35",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Dalkovan Packbeasts",
         "scryfallId": "4df7b253-6107-47d6-b650-cb4d3e0aec6b",
         "oracleId": "cdd1a043-bd47-4197-be26-e2f7d3f1d209",
