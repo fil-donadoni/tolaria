@@ -149,7 +149,7 @@ describe("begin the game on the battlefield (CR 103.6a)", () => {
         ).toBeUndefined();
     });
 
-    it("refuses a gated, countered begin-on-battlefield — Gemstone Caverns", () => {
+    it("refuses a gated begin-on-battlefield with a counter rider — Gemstone Caverns", () => {
         const line =
             "If this card is in your opening hand and you're not the starting player, you may begin the game with Gemstone Caverns on the battlefield with a luck counter on it. If you do, exile a card from your hand.";
         const outcome = compileCard(
