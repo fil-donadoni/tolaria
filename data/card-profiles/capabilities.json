@@ -3,3259 +3,1732 @@
         "160cf235-6463-4e16-a426-8b5be76b10d2": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cantrip artifact named in cheap-artifact clause"
+            "reviewed": false
         },
         "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "8fd7861d-925f-4b4c-a4ab-60be6f43d50b": {
             "provides": [],
             "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: returns a creature card from graveyard; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "1be9d9a4-d7ee-4854-abc2-85cabf993ec9": {
             "provides": ["reanimatable", "value-on-etb", "value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enter and attack triggers both pay off at once"
+            "reviewed": false
         },
         "16c8d2fa-54a7-46e8-980c-905258497c90": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "4a1f905f-1d55-4d02-9d24-e58070793d3f": {
-            "provides": ["value-on-etb", "reanimatable"],
+            "provides": ["reanimatable", "value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB dig; stays in graveyard to return"
+            "reviewed": false
         },
         "340c5799-4964-44dd-8c48-8f3f3aba5211": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger pays off at once"
+            "reviewed": false
         },
         "62090c97-7e3e-4854-bc44-c4a900133ec5": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters draws a card"
+            "reviewed": false
         },
         "f979fc86-2c7e-49b3-965e-607a203cbfb1": {
             "provides": ["self-mills"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: combat-damage mill provides random fuel; its size requires fuel"
+            "reviewed": false
         },
         "b0faa7f2-b547-42c4-a810-839da50dadfe": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox-style artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "68c72226-6f52-4322-8b14-18737293dfa0": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "f0192cf7-3391-4720-b9c8-72dec5dde01e": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: Blood token loots"
+            "reviewed": false
         },
         "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f": {
             "provides": ["self-mills"],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: storm needs spells cast; mills three"
+            "reviewed": false
         },
         "8d42d7aa-7f53-4cfc-842a-086aab2448d1": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "3dea5b45-925c-4732-8e9d-fa8232792736": {
             "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB tutor pays even if it leaves"
+            "requires": ["cheap-artifact"],
+            "reviewed": false
         },
         "5403b49d-03a7-4cc3-af3c-df098c1c9c2e": {
             "provides": ["value-on-cast"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: threshold scales with graveyard size"
+            "reviewed": false
         },
         "35a335bf-7358-460f-b7c9-1e8bc4300f64": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "1d7a1357-debd-49b0-9fd5-560d5b3f589e": {
             "provides": ["cheap-artifact", "value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself when put into graveyard"
+            "reviewed": false
         },
         "6a058e68-70af-4a64-859c-c881e5578368": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox-style artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "bf220c06-3cce-4bdd-aa58-83940c223e9c": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "a211d505-4d40-4914-a9da-220770d6ddbc": {
             "provides": ["value-on-cast", "self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: replaces itself on resolution; surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "490eb213-9ae2-4b45-abec-6f1dfc83792a": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: flurry triggers on second spell cast"
+            "reviewed": false
         },
         "187b6719-e5ed-4615-a00b-3313ceca055b": {
-            "provides": ["cheap-artifact", "discard-outlet"],
+            "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: loot is a discard outlet"
+            "reviewed": false
         },
         "ebb6664d-23ca-456e-9916-afcd6f26aa7f": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana burst whose value comes on cast"
+            "reviewed": false
         },
         "d03bff25-0d5e-4dcf-8d75-6df846afea3b": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5": {
             "provides": [],
             "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle: flashback needs graveyard fuel"
+            "reviewed": false
         },
         "72c6d541-e2cb-4d6e-acac-90a8f53b7006": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a": {
             "provides": ["self-mills", "value-on-etb"],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: ETB mill four, affinity wants cheap artifacts"
+            "reviewed": false
         },
         "eb0e0404-4846-4891-acfa-bd0951ecf9c6": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger pays off at once"
+            "reviewed": false
         },
         "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap mana artifact"
+            "reviewed": false
         },
         "a88b23ce-ce19-47da-b9f2-055a4d6bdc79": {
             "provides": [],
             "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: returns a creature from graveyard to play; needs fatty; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "c55bee97-593f-441f-b96c-a998d5212a55": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "b841bfa8-7c17-4df2-8466-780ab9a4a53a": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "a1b0da17-d595-441d-811c-a2d28d2bb232": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discard two cards is a chosen outlet"
+            "reviewed": false
         },
         "9d48aaff-46ab-411b-9456-171d4709f951": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: enters discard then draw; delirium needs fuel"
+            "reviewed": false
         },
         "b1eb5b2c-1f02-48a6-a287-88eb189d6780": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: free spell contributes to spell count"
+            "reviewed": false
         },
         "d5e45005-dd81-4d80-b043-02f719aca929": {
             "provides": [],
             "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: scales with or spends graveyard cards, so names its enabler"
+            "reviewed": false
         },
         "63af3c26-5b1f-46f6-9aa2-036c615bf5ea": {
             "provides": [],
-            "requires": ["value-on-etb"],
-            "reviewed": false,
-            "rationale": "oracle: cheat from hand, can sacrifice if unpaid"
+            "requires": ["value-on-death", "value-on-etb"],
+            "reviewed": false
         },
         "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB flicker pays even if it leaves"
+            "reviewed": false
         },
         "b4e3d844-d3b4-41d8-921d-c1cb3af343f8": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "e9be371c-c688-44ad-ab71-bd4c9f242d58": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "017c415b-d635-43c6-92b8-8c95d1c4ff8d": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "9a879b60-4381-447d-8a5a-8e0b6a1d49ca": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "265522eb-4f6a-40e7-b374-3833fa63c80b": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: may discard a chosen card; enters trigger"
+            "reviewed": false
         },
         "1904db14-6df7-424f-afa5-e3dfab31300a": {
             "provides": ["discard-outlet", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discards two chosen cards, replaces itself"
+            "reviewed": false
         },
         "bd281158-8180-40b9-a5b7-03cfc712d81a": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters divided damage is immediate value"
+            "reviewed": false
         },
         "995486ce-58bb-4753-a812-0ca73ef1a235": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cantrip replaces itself"
+            "reviewed": false
         },
         "179e954f-1d90-4ef4-b800-25845cc338e2": {
             "provides": [],
             "requires": ["value-on-death"],
-            "reviewed": false,
-            "rationale": "oracle: sacrifice outlet wants fodder"
+            "reviewed": false
         },
         "e6befbc4-1320-4f26-bd9f-b1814fedda10": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger takes a card even if it leaves right away"
+            "reviewed": false
         },
         "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280": {
-            "provides": ["value-on-cast"],
+            "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "b51666ae-2aef-4cb1-9cd4-44aec81530f8": {
             "provides": ["reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: pay-life draw seven; no attack or enter trigger"
+            "reviewed": false
         },
         "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4": {
             "provides": ["value-on-attack"],
             "requires": ["reanimatable"],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger returns permanent; needs graveyard target"
+            "reviewed": false
         },
         "76c3cad2-1e25-4abe-878d-9194de6fcc27": {
-            "provides": [],
+            "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: energy payoff, no registry capability"
+            "reviewed": false
         },
         "e755bbef-bf34-49c0-ae72-d70e3599de52": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "a3012af9-621d-4fae-b00d-079a89ae35fe": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: -2/-2 sweep on enter is immediate value"
+            "reviewed": false
         },
         "847a175e-ead1-4596-baf3-5f7f57859e0b": {
             "provides": ["value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: dies trigger gains life, pays off on any death"
+            "reviewed": false
         },
         "be77b98a-dd79-477c-8ab2-7ebf5637a89e": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger is immediate"
+            "reviewed": false
         },
         "5260f8ae-805b-4eae-badf-62de0f768867": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "d9482aab-6ddf-48e1-84fa-b13d5ff81e69": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: landfall mills a card"
+            "reviewed": false
         },
         "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd": {
             "provides": ["value-on-attack", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger discards a card; pays when attacking"
+            "reviewed": false
         },
         "9e0140b2-0185-4adb-b365-2611ce89a0e2": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: discard-for-effect puts a chosen hand card into the graveyard"
+            "reviewed": false
         },
         "85a89077-b384-4fca-9d26-7297962c1541": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: scales with artifacts controlled"
+            "reviewed": false
         },
         "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger exiles and plays a card"
+            "reviewed": false
         },
         "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d": {
-            "provides": ["discard-outlet"],
+            "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: connive loots; needs spells cast"
+            "reviewed": false
         },
         "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: +1 discard a card as an on-demand outlet"
+            "reviewed": false
         },
         "891a92d7-9ccf-4de1-8286-aa5254f27ba9": {
             "provides": [],
             "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle: flashback needs graveyard fuel"
+            "reviewed": false
         },
         "63bacc32-d6ba-420c-9b49-299c08e5fb39": {
-            "provides": ["cheap-artifact", "discard-outlet", "value-on-cast"],
+            "provides": ["cheap-artifact", "value-on-cast", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: discards hand on demand; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "59faa45d-868b-4bc7-934c-0e077642e129": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB destroy independent of survival"
+            "reviewed": false
         },
         "6c877da3-68fa-41d0-8a24-8c79fcd8ecc1": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "c17816e8-28b1-4295-a637-efb0e5c18873": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "a178cfe8-f9fa-4255-88d0-54a0bed079f5": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mills the unchosen cards"
+            "reviewed": false
         },
         "19499cb7-eccb-4e69-af32-6002d447a160": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "715e637a-dfd8-45a0-b1ea-53e4abd29307": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "45026d57-0324-4312-8b86-2e7d4f581ee9": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "652236c2-84ef-45e4-b5fc-ed6170bc3d6c": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "56e2e8b5-660d-4469-a4fe-2367dfadb709": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "928036c9-11b8-493e-b9f2-8fbd3487cd19": {
-            "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: makes Boo on enter, payoff even if it leaves"
+            "provides": [],
+            "requires": ["value-on-death"],
+            "reviewed": false
         },
         "8a720448-017f-4f4a-9501-678245eaed17": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cantrip artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "2573e694-eaa0-42ca-b470-2ab507cbcec1": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: counters come off only as cards enter graveyard; needs both fuel types"
+            "reviewed": false
         },
         "b0e1427c-05cd-465b-be59-97ed6e39f7ba": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "92bcd1ce-19b1-4d78-8b09-95242ca08d76": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "6be9b1d5-9ab8-4adb-ba54-2c0117e842fa": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Metalcraft payoff and cheap artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "8ebe4be7-e12a-4596-a899-fbd5b152e879": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "8945585f-4773-493d-a0fe-d707db910b38": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "82da0972-b17b-4600-9efd-e9430a0db04b": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "5d98101f-e32a-4a4a-a649-faa920d111ee": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: does not replace itself; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "3ee3945e-5089-4751-b7b3-5961c39d2a33": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: power and escape scale with graveyard size; requires fuel"
+            "reviewed": false
         },
         "6920c895-bc98-4871-a53f-219fa27a74e5": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discard X lets chosen cards go to graveyard"
+            "reviewed": false
         },
         "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB draw pays on enter"
+            "reviewed": false
         },
         "78cef262-c753-4658-b3ec-fec8db47f944": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB exile and monarch independent of survival"
+            "reviewed": false
         },
         "55707746-da6e-46e5-a5ca-7ac843fdc38e": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger flickers a permanent"
+            "reviewed": false
         },
         "e419cd0b-2449-4cc5-9ead-b9e45e271700": {
             "provides": ["value-on-etb", "value-on-attack"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: ETB and attack triggers; escape scales with graveyard"
+            "reviewed": false
         },
         "0f7585c8-9e21-4eef-afc1-2852de23db2f": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "ba6b6fc5-5077-4812-b8e9-906783dbaf67": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "e3868c3d-4fcd-444b-866f-0f8e50ce7b67": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "e37da81e-be12-45a2-9128-376f1ad7b3e8": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "68924203-c3d9-41ce-8ca8-c6dd491eb3ca": {
             "provides": ["discard-outlet"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: discard outlet; exiles graveyard cards; scales with or spends graveyard cards, so names its enabler"
+            "reviewed": false
         },
         "f60be310-4461-4b84-95f0-b2095108bd79": {
             "provides": ["value-on-etb"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: size scales with graveyard; enters damage"
+            "reviewed": false
         },
         "db2a5e85-6cbc-43c1-9362-4056ad017ef0": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "b598c93e-dae1-4d71-a9e4-917abf76d2d0": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "ae1ef31c-8ca5-444c-8f39-e1d1827318f5": {
             "provides": [],
             "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: graveyard-to-battlefield effect requires a worthy target; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "327cf118-cc92-4073-85d0-94d2a0a6989a": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "69c1b656-1d67-499c-bf0f-417682a86c7d": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "059164e1-894d-4586-9800-e60d6fbd6eb6": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: delirium scales with graveyard types"
+            "reviewed": false
         },
         "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB grants flashback regardless of survival"
+            "reviewed": false
         },
         "d07dc95d-82a8-4a58-8ea2-d4513bd7316d": {
             "provides": [],
             "requires": ["value-on-etb", "value-on-attack"],
-            "reviewed": false,
-            "rationale": "oracle: creature is sacrificed at end step"
+            "reviewed": false
         },
         "18a3cca1-e50e-49b6-9e1a-f86640e3b177": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "c4300d24-1cae-4dd5-be7e-38cc677cf5bd": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "47a6234f-309f-4e03-9263-66da48b57153": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB exile independent of survival"
+            "reviewed": false
         },
         "7c850b94-75c9-4457-8b5e-1193352d6fcb": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "74b4c336-5d4c-4bc5-b82a-35084a6ad808": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB tutor independent of survival"
+            "reviewed": false
         },
         "ab1d1461-1625-4163-aacd-a939f4871fad": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB token pays immediately"
+            "reviewed": false
         },
         "19557351-b65f-4b04-b971-66abdc07000a": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB tutors even if it leaves"
+            "reviewed": false
         },
         "701256d5-1389-48b7-9581-d6037209bd06": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB independent of survival"
+            "reviewed": false
         },
         "4d9dbadd-c1b6-44fe-92ac-6f69d7178342": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Signet-shape low-mv artifact"
+            "reviewed": false
         },
         "fd52688a-39fd-430f-b950-cb56e0004396": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Signet-shape low-mv artifact"
+            "reviewed": false
         },
         "991037a2-fea2-49f5-8ace-ebbf9f678cff": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "41ff849e-2439-4690-8aa4-769039b6da4c": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "0559352e-95c1-403b-bd8f-d0679717cfa2": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: storm count requires spells cast before it"
+            "reviewed": false
         },
         "f1a21287-e244-4960-84fb-c4f6e5c346d9": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger wants spells cast"
+            "reviewed": false
         },
         "88bf1ebb-9d85-4b9b-a614-c7f965c0893d": {
             "provides": ["self-mills", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mills and replaces itself"
+            "reviewed": false
         },
         "d140c3b7-ca78-483d-baeb-307b624fea8b": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: investigate pays off even if it leaves at once"
+            "reviewed": false
         },
         "17260fff-b239-4af4-9306-3236ae3fa5a5": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "f3d62dbd-63db-4ac9-950f-9852627f23f2": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "7da23b15-dfb8-4267-9b33-d7a4c035c434": {
             "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: sacrifices any artifact to fetch a big one — not an artifact-count payoff; big-artifact need sits in the residue"
+            "requires": ["cheap-artifact"],
+            "reviewed": false
         },
         "224d904a-5972-4152-878a-9a922e7a55b6": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger returns a land"
+            "reviewed": false
         },
         "ad7ac9a5-340f-4509-826c-7b9416d47887": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: artifact-count payoff needs cheap artifacts"
+            "reviewed": false
         },
         "0783b426-a527-42c1-9271-be28b229e1c6": {
             "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB dig and death tokens; stays in graveyard to return"
+            "reviewed": false
         },
         "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: delve needs graveyard fuel"
+            "reviewed": false
         },
         "2b5801fb-2026-4f25-98bc-ebb2f99684b9": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "f6ca59cd-8779-4a84-a54b-e863b79c61f0": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "0e51d796-7279-4c06-87f0-37adbdaa41df": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs a loaded graveyard"
+            "reviewed": false
         },
         "b6cb2549-e485-44d6-9d65-7605c568909e": {
-            "provides": ["discard-outlet"],
+            "provides": [],
             "requires": ["reanimatable-mv-3"],
-            "reviewed": false,
-            "rationale": "oracle: mana value 3 ceiling; cycling is a chosen discard outlet"
+            "reviewed": false
         },
         "2b73d294-6ab1-4051-9b0f-d8e335d37674": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: delirium needs graveyard card types"
+            "reviewed": false
         },
         "a0b6a71e-56cb-4d25-8f2b-7a4f1b60900d": {
             "provides": ["value-on-etb", "value-on-attack"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: ETB and attack triggers; escape scales with graveyard"
+            "reviewed": false
         },
         "58c9e9a7-e170-4361-b7d5-22fc0771c489": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cantrip artifact; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "7abd2723-2851-4f1a-b2d0-dfcb526472c3": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "ecc1027a-8c07-44a0-bdde-fa2844cff694": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger wants spells cast"
+            "reviewed": false
         },
         "ae154e64-f626-45fb-bd52-840c1c27b2d3": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters damage; Blood token discards a card on demand"
+            "reviewed": false
         },
         "67b369c4-faa8-45c8-a1b9-98f228b69682": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discards the whole hand"
+            "reviewed": false
         },
         "7a7c5941-9c8a-4a40-9efb-a84f05c58e53": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: the self-mills clause names a fetch land's crack-back"
+            "reviewed": false
         },
         "543d55cb-3a6b-4620-af25-10ae74ed32c4": {
             "provides": ["value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: death trigger; shuffles itself, so not reanimatable"
+            "reviewed": false
         },
         "6d3e3c3a-d351-4d91-8884-312d4b6f540d": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs a loaded graveyard to be worthwhile"
+            "reviewed": false
         },
         "3a9d1082-a862-45d4-9e5e-392e879fead6": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: sacrificed lands hit the graveyard"
+            "reviewed": false
         },
         "0d16e8e0-31b2-4389-afd6-783c501f6fa0": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: makes a Cat token on enter regardless of sticking"
+            "reviewed": false
         },
         "2c695df6-6bf2-4e6b-8500-e3116137ca27": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger makes tokens even if it dies after"
+            "reviewed": false
         },
         "3199907b-9f24-4554-942a-8ab5a7701717": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB returns card to hand even if it leaves"
+            "reviewed": false
         },
         "ec3de5f4-bb55-4ab9-995f-f3e0dc22c1bb": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mobilize tokens made on attack"
+            "reviewed": false
         },
         "18092f68-b96e-4084-9eba-b240d2195d81": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger makes tokens regardless of survival"
+            "reviewed": false
         },
         "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB peek and tax is independent of sticking"
+            "reviewed": false
         },
         "08f79439-b8f8-418f-9772-26d81844749e": {
             "provides": ["value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: death trigger returns it regardless of cause"
+            "reviewed": false
         },
         "6ade6918-6d1d-448d-ab56-93996051e9a9": {
             "provides": ["value-on-cast"],
-            "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger needs spells cast first, realised on cast"
+            "requires": [],
+            "reviewed": false
         },
         "269ddd84-fdc4-4c94-b183-32ecec56967c": {
             "provides": ["value-on-etb", "value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: token on enter and on death"
+            "reviewed": false
         },
         "b83cfbaa-7890-4f6f-878b-4edb45677371": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB exile pays even if it leaves"
+            "reviewed": false
         },
         "09c9cd1b-9260-4f98-ac7a-25bb5ae3e06d": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: wants cheap artifacts in its graveyard"
+            "reviewed": false
         },
         "ce295f1e-fb31-4275-a5d3-8c6f29afff40": {
             "provides": [],
-            "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: plays a land or cheap permanent from the graveyard once a turn; land need sits in the residue; scales with or spends graveyard cards, so names its enabler"
+            "requires": ["self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB pump is immediate"
+            "reviewed": false
         },
         "6bcafc2e-cef6-412d-8c5d-1658c3337292": {
-            "provides": ["value-on-etb", "value-on-attack"],
+            "provides": ["value-on-etb", "value-on-attack", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: tokens on enter and attack independent of survival"
+            "reviewed": false
         },
         "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
+            "reviewed": false
         },
         "c9262000-e6f3-4da1-ad1c-038f65d3bef6": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB makes a Rebel token"
+            "reviewed": false
         },
         "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB destroy independent of survival"
+            "reviewed": false
         },
         "2a717b98-cdac-416d-bf6c-f6b6638e65d1": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: investigate on attack independent of survival"
+            "reviewed": false
         },
         "484c7f83-8339-4ae1-8350-68ce1f7d05a3": {
             "provides": ["value-on-attack"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs fuelled graveyard"
+            "reviewed": false
         },
         "02d6d693-f1f3-4317-bcc0-c21fa8490d38": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: looting lets chosen card be discarded"
+            "reviewed": false
         },
         "726e8b29-13e9-4138-b6a9-d2a0d8188d1c": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB wins or fizzles regardless of survival"
+            "reviewed": false
         },
         "484e80a4-1d5f-4c27-98a8-ee2ef9d6cbdc": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB tap and ability loss immediate"
+            "reviewed": false
         },
         "ff84ea71-e477-44f7-a3f8-77fef708efeb": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB steal pays immediately"
+            "reviewed": false
         },
         "9cf3af94-b7c8-415c-a5a1-d89967fd0bba": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB dig independent of survival"
+            "reviewed": false
         },
         "e20da6b5-1057-4a28-9e85-07de714e262f": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB counters and draw independent of survival"
+            "reviewed": false
         },
         "d2705b43-a94a-44c0-8740-82e0b296820c": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: scales with graveyard, needs fuel"
+            "reviewed": false
         },
         "97d08a15-e61c-4421-a541-c68a4f87cb74": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: payoff scaling with artifacts cast"
+            "reviewed": false
         },
         "51d86875-420d-4e82-b69c-4feeb99c9428": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB loot pays immediately"
+            "reviewed": false
         },
         "907b3d1d-8c85-4707-80b5-c4d832df9846": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB counter independent of survival"
+            "reviewed": false
         },
         "c7a401b8-29fb-46ef-a663-427f66724d5c": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: triggers off noncreature spells cast"
+            "reviewed": false
         },
         "08ffbd51-2bd3-4262-8809-09576ce2b6f5": {
             "provides": ["value-on-attack", "value-on-death", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: loot on attack, copy on death"
+            "reviewed": false
         },
         "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567": {
             "provides": ["value-on-etb"],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: ETB token and artifact payoff"
+            "reviewed": false
         },
         "75961d36-acf6-425f-9698-0bf52af74f31": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: scales with graveyard size, needs fuel"
+            "reviewed": false
         },
         "120be808-ff3b-4fca-96a1-4db6b9825856": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB draw independent of survival"
+            "reviewed": false
         },
         "777fcc21-2856-4181-8ecd-c272f9769e36": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB removal immediate"
+            "reviewed": false
         },
         "6adb7d73-4482-4930-8497-cffd169b57e2": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: +1 mills target player two cards"
+            "reviewed": false
         },
         "17e50157-bf49-4c5f-9b8a-bf73484e63a5": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: wants cheap artifacts returned"
+            "reviewed": false
         },
         "ab47a37b-b66d-4f70-9bf0-4d5ed6b518f3": {
             "provides": ["value-on-etb", "cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cheap artifact; tap/untap ETB immediate"
+            "reviewed": false
         },
         "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6": {
             "provides": ["value-on-etb"],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: payoff for casting; ETB makes a Hero"
+            "reviewed": false
         },
         "7bfb33b6-e2bf-498f-8c58-ae21a840cf75": {
             "provides": ["value-on-etb", "cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: draws immediately; cheap artifact"
+            "reviewed": false
         },
         "a36e682d-b43d-4e08-bf5b-70d7e924dbe5": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB token pays immediately"
+            "reviewed": false
         },
         "af5b29b3-974c-4200-8df8-b072c11e1600": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB draw independent of survival"
+            "reviewed": false
         },
         "e9a268ba-c442-4fe4-90b4-2810c8474f4e": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger pays off the moment it attacks"
+            "reviewed": false
         },
         "df9d9075-2d1e-4848-b661-816d539e05eb": {
             "provides": [],
-            "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "requires": ["reanimatable", "self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "7c024bae-5631-4e20-ac69-df392ac9e109": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger deals damage and makes an army even if it dies"
+            "reviewed": false
         },
         "2185c08f-bb4d-49d5-8b6c-c629a48bb61c": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters creating a Jace token pays off immediately"
+            "reviewed": false
         },
         "e900c1eb-968b-4046-b824-c167a7a5b682": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: magecraft trigger requires spells cast to feed it"
+            "reviewed": false
         },
         "9b911653-7b96-4cf3-a907-13c5c53a14f7": {
             "provides": ["value-on-etb", "value-on-attack", "self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enter/attack trigger mills four; pays off on each attack"
+            "reviewed": false
         },
         "f328d6e0-d808-4abe-b6a2-cc557b27c329": {
-            "provides": ["value-on-etb"],
+            "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger steals cards immediately"
+            "reviewed": false
         },
         "16448d95-ee21-4def-b880-26f6f159c213": {
-            "provides": ["value-on-etb"],
-            "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: returns a creature card on enter; wants a fat graveyard target; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "provides": ["value-on-etb", "reanimatable"],
+            "requires": ["reanimatable", "self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "a6539e26-b63b-4725-9407-caaf451de084": {
-            "provides": ["reanimatable", "discard-outlet"],
+            "provides": ["reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: swampcycling is cycling, a chosen-card discard outlet"
+            "reviewed": false
         },
         "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discard a card cost puts a chosen card in graveyard"
+            "reviewed": false
         },
         "d5c782cc-c951-4c6f-a93f-774ae6c1c214": {
             "provides": [],
             "requires": [
                 "reanimatable",
-                "value-on-etb",
                 "value-on-attack",
-                "discard-outlet",
-                "self-mills"
+                "self-mills",
+                "discard-outlet"
             ],
-            "reviewed": false,
-            "rationale": "oracle+rubric: target is exiled after one turn; needs enter/attack value; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c": {
             "provides": [],
             "requires": [
                 "reanimatable",
-                "value-on-etb",
                 "value-on-attack",
-                "discard-outlet",
-                "self-mills"
+                "self-mills",
+                "discard-outlet"
             ],
-            "reviewed": false,
-            "rationale": "oracle+rubric: returned creature leaves at end step; needs one-combat value; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "1ee98955-4c47-4d45-9377-608dfa755337": {
             "provides": ["discard-outlet"],
-            "requires": ["value-on-death"],
-            "reviewed": false,
-            "rationale": "oracle: sacrifice or discard additional cost; fodder wants death value"
+            "requires": [],
+            "reviewed": false
         },
         "6bfe64f9-8b03-41f6-a47b-fade397ad9d1": {
-            "provides": [],
+            "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
+            "reviewed": false
         },
         "cb94a02f-4660-45b6-8a39-941b710cf8f3": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: escalate cost discards a chosen card"
+            "reviewed": false
         },
         "7ab75cdb-93a1-4f78-b404-37566295c321": {
             "provides": [],
-            "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Death returns a creature from graveyard; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "requires": ["reanimatable", "self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "311a6257-dd77-4bb6-81cb-c8e7862350f3": {
             "provides": [],
-            "requires": ["reanimatable", "discard-outlet", "self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: returns a creature card from graveyard; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "requires": ["reanimatable", "self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "c8173030-1c33-417c-b8e9-79231b6a85a7": {
             "provides": [],
             "requires": [
                 "reanimatable",
-                "value-on-death",
-                "discard-outlet",
-                "self-mills"
+                "value-on-etb",
+                "self-mills",
+                "discard-outlet"
             ],
-            "reviewed": false,
-            "rationale": "oracle+rubric: sacrifice cost wants fodder; returns a graveyard creature; needs a target binned first — discard-outlet's clause names the known reanimation target, self-mills the random one"
+            "reviewed": false
         },
         "19e1224f-82cb-4f41-8739-f880cba61bbb": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
+            "reviewed": false
         },
         "4ced112a-e775-4f97-97b3-74877e9dce12": {
             "provides": ["self-mills"],
             "requires": ["value-on-cast", "self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: noncreature cast trigger; delirium wants graveyard fuel; surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "6171e136-1167-4329-acb2-6853d3a814e5": {
             "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
+            "requires": ["cheap-artifact"],
+            "reviewed": false
         },
         "b81c6c8b-a9cf-4866-89ba-7f8ad077b836": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: prowess needs noncreature spells cast"
+            "reviewed": false
         },
         "aa0f77ac-741a-444a-8bf0-a42c644726bf": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: prowess needs noncreature spells cast"
+            "reviewed": false
         },
         "a8003786-6e2a-4e2d-a915-f23293c7273a": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: prowess needs noncreature spells cast"
+            "reviewed": false
         },
         "e34e33ea-042e-409c-b304-52644ec5b1f5": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters damage is immediate value"
+            "reviewed": false
         },
         "89175ce1-0746-4ba1-970e-617d134b0527": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger pays off when it attacks"
+            "reviewed": false
         },
         "4c6cf93a-d073-48ac-88db-c46bf3e10beb": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger deals damage"
+            "reviewed": false
         },
         "a55c4d47-5252-40af-961d-c08bc688028a": {
             "provides": ["value-on-etb"],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: sacrifices artifacts to return small ones"
+            "reviewed": false
         },
         "2ba70366-b6ae-423a-a8d8-29d2b8afd939": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters Blood token; token discards a card"
+            "reviewed": false
         },
         "7054012b-4f9d-44a0-aaf9-7fd3bddc7b2d": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: gets +2/+0 on noncreature casts"
+            "reviewed": false
         },
         "2d8e8e5f-3bf5-490d-aa9c-9df2b26f1460": {
-            "provides": [],
-            "requires": ["discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs an instant or sorcery in graveyard"
+            "provides": ["value-on-etb"],
+            "requires": [],
+            "reviewed": false
         },
         "ec9df172-9fdb-4b0c-a23a-865b83c8fa40": {
             "provides": [],
             "requires": ["value-on-death"],
-            "reviewed": false,
-            "rationale": "oracle: boast sacrifice wants expendable permanents"
+            "reviewed": false
         },
         "e2a01edd-dbc0-4ed4-b827-9b608290e9a1": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: bestow from graveyard needs fuel"
+            "reviewed": false
         },
         "9b0d29a1-7da9-4fb3-8536-8ff8d8acae0b": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger payoff"
+            "reviewed": false
         },
         "3d8ca18d-9099-4f1e-95c1-f04da58a26bd": {
             "provides": ["value-on-attack"],
             "requires": ["value-on-death"],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger; sacrifice wants fodder"
+            "reviewed": false
         },
         "2e139ad1-1079-49e9-babd-6399c44ad333": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters discard-draw and tokens; exile ability"
+            "reviewed": false
         },
         "6989018c-37b1-4282-a4af-9cc97f160b4d": {
-            "provides": ["value-on-attack", "discard-outlet"],
+            "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger; cycling discards a chosen card"
+            "reviewed": false
         },
         "95c14c4d-6c16-4826-8d93-d89ad04aee09": {
             "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger casts free spells at once"
+            "reviewed": false
         },
         "1b832fda-d7c4-4566-884c-2a8b6da15488": {
             "provides": [],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs an instant or sorcery in the yard"
+            "reviewed": false
         },
         "6da09e6a-2965-4855-bd41-41b41ba188fb": {
             "provides": [],
             "requires": ["value-on-etb", "value-on-attack"],
-            "reviewed": false,
-            "rationale": "oracle: creature is sacrificed at end step; needs one-combat value"
+            "reviewed": false
         },
         "97b9bab9-12ee-4da5-9d53-d0b82d9279cd": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: one-mana cantrip artifact"
+            "reviewed": false
         },
         "5a077de0-1893-40d0-a499-ee2e6e2258f1": {
             "provides": ["value-on-etb"],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: enters damage; sacrifices artifacts for golems"
+            "reviewed": false
         },
         "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: chapter I token and chapter II rummage"
+            "reviewed": false
         },
         "1b406cc5-75c9-430a-83a2-de0f2a8aeae6": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: Moloid tokens mill on attack"
+            "reviewed": false
         },
         "eeeffc0b-dc92-458e-ad58-86ff6077a508": {
             "provides": ["value-on-etb", "value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters and attack triggers pay off at once"
+            "reviewed": false
         },
         "f9246b68-580f-4f53-883d-7900880e4b0d": {
             "provides": ["value-on-attack", "self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger mills three"
+            "reviewed": false
         },
         "73cc6df4-3564-4ace-bf8a-eac3e62d725a": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mills a card each combat"
+            "reviewed": false
         },
         "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger pays off even if countered"
+            "reviewed": false
         },
         "85d22d5d-3875-42ff-b51e-c6e21db201f5": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger makes Food"
+            "reviewed": false
         },
         "62b3f560-262b-4bc3-9aef-535fd7082c28": {
-            "provides": ["reanimatable", "value-on-etb", "value-on-death"],
+            "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters draw, death copy, stays in graveyard"
+            "reviewed": false
         },
         "43aa7e35-55ee-4e02-a8aa-ea2b267055d1": {
-            "provides": ["reanimatable", "value-on-etb", "value-on-death"],
+            "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: destroy-on-enters, persist death value"
+            "reviewed": false
         },
         "4034e5ba-9974-43e3-bde7-8d9b4586c3a4": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cantrip replaces itself on resolution"
+            "reviewed": false
         },
         "a87606cc-fbf0-4e2c-9798-f1c935d0573d": {
             "provides": ["value-on-etb", "value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters and attack triggers make tokens"
+            "reviewed": false
         },
         "cf14de50-d123-400c-862e-2c95fd2aa23f": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: reveals library into graveyard"
+            "reviewed": false
         },
         "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
+            "reviewed": false
         },
         "f4ff6bf9-89a9-4c2a-84a2-d4ceb7168adf": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger gives monarch"
+            "reviewed": false
         },
         "b0ae94ed-7314-470b-baba-f2f58bbc894a": {
             "provides": ["value-on-etb", "value-on-attack", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters and attack triggers; strong target"
+            "reviewed": false
         },
         "67600383-bbb8-411c-b8e6-2296650bc747": {
             "provides": ["value-on-attack", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: annihilator attack and cast trigger"
+            "reviewed": false
         },
         "02e8e540-8aa3-4e6a-9a11-c3949cab5f0f": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: wants cheap artifacts"
+            "reviewed": false
         },
         "07a3d9e8-8597-498b-869c-cff79e0df516": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: Construct scales with artifacts"
+            "reviewed": false
         },
         "64a5d494-efa1-446b-bebe-2ad36e154376": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger exiles a permanent"
+            "reviewed": false
         },
         "af2d23da-70a1-49ba-91bf-c110cc4bbedc": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cast count contribution"
+            "reviewed": false
         },
         "8492a272-e595-4f94-a6eb-08d29f211fd6": {
-            "provides": [],
+            "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
+            "reviewed": false
         },
         "28028830-83ed-45e2-b495-3b9ad9d3e988": {
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: Mox; free or near-free cast adds to the storm count and fires cast triggers, countered or not"
+            "reviewed": false
         },
         "f4459187-de64-456f-bb66-56dea40d5c3e": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mills target player"
+            "reviewed": false
         },
         "4a08ca06-58db-4ce6-b490-be4bea8956a1": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "deadb6d8-3eea-4261-a07c-8536df89e85c": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cheap artifact"
+            "reviewed": false
         },
         "672b9b16-daef-44e6-9a3a-cfd9f3c78bc7": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheap artifact"
+            "reviewed": false
         },
         "7832abb5-5107-4603-904e-491b221bd3e3": {
             "provides": ["value-on-attack", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: loot on attack"
+            "reviewed": false
         },
         "e9f13705-6ede-4c29-a2b4-a082bf69e9c5": {
             "provides": ["cheap-artifact"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cheap artifact"
+            "reviewed": false
         },
         "d71d250f-c0e0-44b2-877c-76f3bcab4f34": {
-            "provides": ["value-on-etb", "discard-outlet"],
+            "provides": ["value-on-etb", "cheap-artifact", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters loot"
+            "reviewed": false
         },
         "361c2f3b-f04e-446b-a683-9195e238daf0": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: scales with artifact count"
+            "reviewed": false
         },
         "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: scales with artifact count"
+            "reviewed": false
         },
         "6efb6a69-562c-4d95-858d-b067444cfd7e": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mills X cards"
+            "reviewed": false
         },
         "ed0beb69-8441-4104-9990-81bd82f81f9a": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast triggers want spells cast"
+            "reviewed": false
         },
         "924a24e7-91b8-4ceb-a136-7a765d98c994": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: wants artifacts"
+            "reviewed": false
         },
         "02aea379-b444-46a3-82f4-3038f698d4f4": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger pays off at once"
+            "reviewed": false
         },
         "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab": {
             "provides": ["value-on-etb"],
             "requires": ["reanimatable"],
-            "reviewed": false,
-            "rationale": "oracle: enters edict; reanimates creatures"
+            "reviewed": false
         },
         "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters trigger pays off at once"
+            "reviewed": false
         },
         "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9": {
             "provides": ["discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: loots every turn"
+            "reviewed": false
         },
         "55a14f30-4ff9-4472-90a6-c3139f1c18e5": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: surveil bins unseen top-of-library cards, the closest self-mills clause"
+            "reviewed": false
         },
         "ad4adc3e-ec41-4406-8ff2-59ba8067cf4e": {
             "provides": [],
             "requires": ["reanimatable", "self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: needs a creature in graveyard"
+            "reviewed": false
         },
         "f6fb576e-a4a4-496b-b553-3f81cc651210": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: discards hand on enters"
+            "reviewed": false
         },
         "50283122-b8c4-4fb3-8eba-6252b72222f4": {
             "provides": ["value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cantrip replaces itself"
+            "reviewed": false
         },
         "4a706ecf-3277-40e3-871c-4ba4ead16e20": {
             "provides": [],
             "requires": ["self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: wants lands in graveyard; scales with or spends graveyard cards, so names its enabler"
+            "reviewed": false
         },
         "fbca967e-578f-4b05-b697-2e2ee1a40dfb": {
             "provides": ["value-on-cast"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: cascade pays on cast; escape scales with graveyard"
+            "reviewed": false
         },
         "b9f71c3b-0840-475f-9c17-fdacbc7f3213": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB burn/tutor pays even if evoked away"
+            "reviewed": false
         },
         "ad8b8518-c09e-4cb7-95b2-08e4e370d89c": {
             "provides": [],
             "requires": ["self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: scales with or spends graveyard cards, so names its enabler"
+            "reviewed": false
         },
         "18ee486e-dc25-4de7-a71f-f11fdf100176": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: becomes monarch on enter, payoff independent of body"
+            "reviewed": false
         },
         "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: cast trigger wants spells cast"
+            "reviewed": false
         },
         "70496f16-c4c0-4c03-beef-454eb4824cd1": {
             "provides": [],
             "requires": ["self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: scales with or spends graveyard cards, so names its enabler"
+            "reviewed": false
         },
         "a15570c0-4210-4959-8584-987ec85f8283": {
             "provides": [],
-            "requires": ["self-mills"],
-            "reviewed": false,
-            "rationale": "oracle+rubric: scales with or spends graveyard cards, so names its enabler"
+            "requires": ["self-mills", "discard-outlet"],
+            "reviewed": false
         },
         "7f80a11b-188b-464c-b00d-c9d1cfb8ddee": {
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: magecraft wants spells cast"
+            "reviewed": false
         },
         "69af2825-18c2-4463-b6ba-42eaa070ccc1": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: +1 mills cards from the top"
+            "reviewed": false
         },
         "ca4c8b04-66af-4cb3-8003-9088d8344b20": {
             "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB destroy pays on enter; big body stays in graveyard"
+            "reviewed": false
         },
         "80c72839-0fa6-4b5f-83b7-6553ebf09bef": {
             "provides": ["value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: attack trigger makes tokens at once"
+            "reviewed": false
         },
         "76776b24-a2e1-4590-88e7-8a421baf2fc4": {
             "provides": ["self-mills"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: +1 puts unchosen top cards in graveyard"
+            "reviewed": false
         },
         "db9aa986-ac2a-44bb-a88b-04c5d0d502b2": {
             "provides": ["value-on-etb", "discard-outlet"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB draw-then-discard loots; ETB pays on enter"
+            "reviewed": false
         },
         "42b8d797-b01d-49cf-9818-d84bba17029d": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: needs cheap artifacts to feed it"
+            "reviewed": false
         },
         "c28aea19-2a39-4934-afda-909e234fa3ba": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "99939b90-e88c-4c2f-ba78-56d455611703": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "e530388b-eb19-4211-abd8-8a4c3c38c3af": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "ff76ac86-8a8a-47fe-9388-8950ca3e26c3": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "139b90cd-8272-457a-be32-1298145345be": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "717f6d10-9144-4ade-9ac6-a481cc66b875": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "3d71be5f-0fd7-4a88-8041-f4d6bc4cc9ac": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "d151c8e2-d715-470d-868a-f45191db9fa0": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "f281e16f-0fe1-4095-bd63-0a4479f75c11": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "28f1d784-f286-418d-a712-bc07ad10d4a2": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "a2773d8f-f906-475d-aaff-b7ca3b01f188": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "7e1cdc03-6faa-4138-9a52-caafbe34fb59": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "d5dfc25d-a17b-4ead-9484-e8a18b8fa176": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "345e053a-3178-485c-8602-1624bbf2f064": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "94f7e24c-2546-41b6-81ad-5e920b07e64e": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "794a2b79-8c55-4423-8843-7e6e96f84071": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "52dcdabd-a186-45fe-9fee-6c0f1afeaf16": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "c8769e97-aee8-4466-a9d7-0f4245ae4a97": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "be010c2f-06db-47e3-80bd-df3f2a21ca34": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "bebe39d4-21fb-46a4-a1ec-b97102e46c15": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "57a93a71-d77c-417f-85d0-cd420f573331": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "4e587ea7-0632-4789-ba75-3c410da2bb96": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "054f2276-2dd5-43da-bb26-c57c560861fe": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "0324641d-af55-4c53-b4dc-c8262e967da5": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "412ceddd-2b9a-4551-a6bf-ae2830a2010a": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "90da33d4-fe9c-42fe-b326-2fe337dc3ecd": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "fce07335-cc78-4683-b2f0-9c98a06ea1d8": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "5ceacc7d-d407-4f82-af58-9bdf8426924e": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "160ac412-005f-48ca-a204-10207307c6c2": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "6eafa00b-c628-40f6-86eb-88e1361fc7a0": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "168ef687-5797-4b45-b75b-393d8117cebd": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "c36820fa-ee86-4206-9a0d-737a67cf5208": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "8744471b-a528-47d9-84d0-4526273f55e9": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "b98b2a35-ec2b-47fe-903d-dd292e469a3c": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "a9c6c759-aabf-44e7-ba8c-33c5df232b56": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "7363f1fb-9af3-4212-921f-d59533faf0e5": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "a2c56479-4bee-4edb-80d7-4af010b7c793": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "54f449ff-4025-465e-9ec5-a5cf42c4c9d3": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "75fdce80-e338-4a50-bdc6-786511feaeef": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "26d40e03-6de4-4373-9fbf-04c1dd79e995": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "748e6a61-9c1f-4225-9f04-e54002f63ac3": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "a249b1f4-2b22-4b67-a207-e0c4ae95d2e1": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "2b74bb81-fb9a-40e5-a941-e517430b52f5": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "02138fbb-3962-4348-8d31-faaefba0b8b2": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "cc520518-2063-4b57-a0d4-10cf62a7175e": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "504a69eb-3c2d-4bb1-b117-252b15acf0c2": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "f5fb426a-5618-4dd4-9c51-0cc847be8c1d": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "fc7d1912-7e27-49ef-bd98-375d975a42b0": {
             "provides": [],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         },
         "c1e0f201-42cb-46a1-901a-65bb4fc18f6c": {
             "provides": [],
             "requires": ["cheap-artifact"],
-            "reviewed": false,
-            "rationale": "oracle: artifact-count payoff needs cheap artifacts"
+            "reviewed": false
         },
         "e2b826be-4256-4fd6-ad4d-6c80933ee940": {
             "provides": ["reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters-from-graveyard payoff; powerful from graveyard"
+            "reviewed": false
         },
         "fa01d35f-1064-4a7c-9475-4504566df850": {
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB exile pays on enter"
-        },
-        "4e117771-5a8b-4812-b487-32ba34b7f724": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: protection ability only, no card-to-card relation"
-        },
-        "0b1a46ab-95cb-4c24-924f-fc2afd4fcac7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: protection ability only, no card-to-card relation"
-        },
-        "89cf6f57-230f-497e-a14e-ad1e8737fd42": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "98cbc1c2-b76e-4da3-aa43-00e10b2ce532": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation"
-        },
-        "c2c794b9-09da-49be-b258-b0e21f1663e3": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: static hate, no registry capability"
-        },
-        "61237530-ad49-469c-a952-67c92315708e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3e1766e9-2fa7-4446-a255-7beea1467ece": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "fe964e7e-e2c5-4263-889d-0a531eb51442": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "fab2d8a9-ab4c-4225-a570-22636293c17d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "73a065e3-b530-4e62-ab3c-4f6f908184ec": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "cbac1d27-15e2-4e2f-82ab-625a16e096cb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: tutor does not replace itself, no capability"
-        },
-        "32e670da-7563-4f6a-a7db-4c126a440eb8": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "7d48d622-f397-4f31-b1a5-0c23f60aa71c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "29b7a8b1-b98e-483a-87a4-73bd831c03d4": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "386ea9eb-abc1-4862-aa2d-8fb808d79490": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "522aa72b-2b8c-484c-872b-f082101cee35": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "6dff437b-ef68-48f7-afd3-3b72d3c56187": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "825969b9-3c70-4fca-8cab-696e9ca7cdb2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "6f9ea46a-411f-40ce-a873-a905180093f4": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3bb17913-fe4d-4acd-9b75-71f5a90f898b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "17f28b16-da65-41a8-ba4f-f1c5e104aad6": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "80fca8c0-ae3e-439e-b202-228b9f360e9a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "975dcfab-0281-4fee-92aa-021ea6c524c7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "720fbd87-b1c1-4b3b-97a1-46b943b115e3": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "cef789e8-e4cc-4f61-bc15-debc2487777f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3c3ac3dd-35db-447f-8674-37b4680a1ef7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "52d3005f-a1c7-4ef5-911f-ccc0752f4181": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "19d6834d-afa3-4747-a62d-0654f4d9729f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: loot is conditional, no capability"
-        },
-        "98e7bf8f-dba7-4005-8cee-634c9153931d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "c2089ec9-0665-448f-bfe9-d181de127814": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "4df8aabc-7fcb-4b7b-980b-18f499e6c170": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "0e606072-a3aa-4300-ba90-ec92a721fa76": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "0df55e3f-14de-46ef-b6b1-616618724d9e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "e691adef-3027-4e6a-889f-9f4e2df36a7c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "abcaf16d-aa02-43e2-aa38-bb1835d47a05": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3d2cc591-3a81-468a-91a4-3c3aac83a21a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "4b4956a2-9a39-4152-9c98-70e4b2acfa26": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "581f3780-c480-48c6-b15c-1618f2feccb9": {
-            "provides": ["value-on-cast"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: replaces itself on resolution"
-        },
-        "81bbffc2-6f58-4baa-8f95-168eab106b15": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "17ab958a-abc6-472e-ad6a-97c731d89c74": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "e0139f60-d48e-46fb-9f5a-1e3d7558c834": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "4b851c17-55ed-4671-b471-dc7b34944432": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle+rubric: cheats permanently, requires nothing"
-        },
-        "0a786855-6eb4-42c0-a528-4842db46809d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "9a49dc44-616e-4bdd-8220-0bb71eccc512": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "0ce44270-a684-4489-9077-521456e6dfaa": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "9e201229-34a6-48c8-a07c-d8aefcf5f8a7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "486d7edc-d983-41f0-8b78-c99aecd72996": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "4216656e-90e8-45fc-a0f6-0d0d79d0a021": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "5358b87a-1a29-426d-b165-40c97da2c14d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "63ce0909-7d7d-410d-ab6c-c87fa3e23877": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "69c68c95-b788-43b1-9f22-1b22c5a00b25": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "37a497b8-e908-4ddc-996e-a8470df72afb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "d67be074-cdd4-41d9-ac89-0a0456c4e4b2": {
-            "provides": ["reanimatable"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: powerful body with no self-exile clause"
-        },
-        "753db072-5d6a-4f37-8f7d-255572ecd3bd": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "f60a2091-fb97-4f04-911b-fce9b6351044": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: chosen library-to-graveyard enabler is not hand discard or random mill"
-        },
-        "b5e81649-9954-424c-89d1-f87d73b66047": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "17824929-f131-4b8d-addb-66c25323155e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "a9225cc3-90f0-448f-a8d9-7c6c2796d077": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "059e8447-6b1c-4651-a734-a8fea2cbf7b2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "ca367f49-0f4a-4b7f-8104-851893fbcd8a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "822e30db-40c5-4099-868b-185ad9b7c7dc": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "eee9e106-a248-49d2-b8c8-6bbcd56ce739": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "711d4d54-5520-4de8-9b93-79902ed8e562": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "eb9273ea-9a41-42e3-8c9c-0d50b127a818": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "61f0c6f6-b90d-4eb1-a5db-86e0a3997501": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "992bd991-7cfb-459f-bafd-9a44f3c925c5": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "5b3c6d87-9383-450b-bba5-33435b6b0d08": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "564caf57-4ba5-4993-a35e-945699c94eb7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "26c68473-70ca-40ba-b5c6-71ec30f88a2c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "07c17b01-ee5d-491a-8403-b3f819b778c4": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "d2124603-d20e-40eb-97f0-a66323397ac2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "21ef13e3-658c-43a3-a290-4c5dde8e8b55": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "a9738cda-adb1-47fb-9f4c-ecd930228c4d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "6cc73d16-5ed7-4104-91f6-0997a2080e2e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "ba920f23-f05c-410e-8516-c93abedf1d4d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "ff984a4c-1818-4f8f-a9d7-fce57e77937d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "ce35e6fb-ff54-44c4-a216-7ddd37f46882": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "ff8086cd-b868-4f4e-823e-2635ad7ebc07": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "2dc16614-5cf8-444d-a5ae-cac25018af68": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "32aa6e33-221f-414c-9b51-850d97a7e051": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "865bb1d3-5b7d-40e9-87cc-96be9524a105": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "d13a898e-6a97-4fd9-980e-3bfd8d755386": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "84319dfb-eaf7-4b98-8c4f-30f5e779591b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "aeb4612c-758b-4492-ba03-eb6741b4176e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "400c76c6-f677-4e7e-87ad-2e526d4b498a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "96fd8d8e-8f2a-4240-bcb7-18f73fd47bd5": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "b5883762-ca0a-4932-8d2a-41a45796a5f8": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "006d2bf1-20f7-4b09-8d98-8233d91682bd": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "39a816b4-39b8-421c-b828-68db901d34b7": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "f61693a2-7042-44e0-85ba-9bf12ab94e7e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "7b61c9bc-16e8-417f-99e7-8bd83d4666c5": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "dd148edc-9e43-41aa-bb50-f912115d3e72": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "55fe6449-1f23-43dc-adee-d144cd505b5c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana dork"
-        },
-        "71384418-173a-4f77-adab-56e52fa23692": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "60d0e6a6-629a-45a7-bfcb-25ba7156788b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation in the registry"
-        },
-        "39c431d7-d94b-46c4-bb89-f3db56214ab4": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: land-sacrifice fetch"
-        },
-        "89f5cc05-5d9d-4709-b3c5-a6249c294acc": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no card-to-card relation"
-        },
-        "aba51852-af8f-49d8-8fb6-22d52a1742b8": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana dork only"
-        },
-        "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana dork only"
-        },
-        "6adfe928-1305-444d-b709-1e714544daaf": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana dork only"
-        },
-        "56efe72c-6d7f-44f6-ac74-01af9305c4b6": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "f1b8413f-c9fc-4cea-b416-a1fcf651b009": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation; lands go to graveyard"
-        },
-        "52eef0d6-24b7-40b7-8403-e8e863d0cd55": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "79dd5c54-5ea5-47b5-8f9b-50ed57a5ea45": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: wants lands in graveyard"
-        },
-        "820e2f07-f637-4144-b45a-0e1430dcf55e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: mana dork only"
-        },
-        "1f9fb33a-3b39-4aff-93b8-aedafe0ea694": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "8cf33d80-0704-4dc4-8e8d-1dcbcbc35add": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "90f33f99-7bc5-42e1-815e-bfb4c2b74107": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: recurs land cards from graveyard"
-        },
-        "b3dd3c7d-4685-4579-b483-14ddaaaddf5b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "54a3ea87-005e-4985-b2a5-21711d0b71c0": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "ac095763-6f4e-4d4e-9c99-414646368f8d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "ee8e9928-d9b2-4570-adb8-44b34115decd": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "209c591a-4ab2-4e89-9523-a7b766cf4e51": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "e41cf82d-3213-47ce-a015-6e51a8b07e4f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "90ca5812-ceb5-46bd-b049-aed7ff10e6af": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "f857bbe4-5619-4733-a0c7-69700f2ef4f3": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "6563f790-862c-465a-b963-7a61f2385516": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: sacrifices a land to graveyard"
-        },
-        "fd4b7ee2-de65-4288-872d-486065a4f226": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "02335747-54e3-4827-ae19-4e362863da9b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "4720b4f2-e6af-4223-9250-a0ed21ed5693": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "0845f0b0-9413-4ddd-861d-9607636bebc6": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cost sacrifices a green creature"
-        },
-        "a575a9af-e1de-4a1d-91d8-440585377e4f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "2135ac5a-187b-4dc9-8f82-34e8d1603416": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "329a8738-3e17-403a-857a-0ba529ce8cd1": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "be407a81-b25a-4e5d-845e-be0cc0d18db8": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "d2e27911-87cb-49a0-a34f-6afe4bddd592": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "7928bb14-7631-4830-a756-26d1ea832ba2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: shuffles itself away, so not reanimatable"
-        },
-        "064dfdeb-485f-473e-9fa0-8fdb7638cdc6": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "5da578b8-19e6-4068-9336-e7cd33c585f1": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: makes expendable tokens"
-        },
-        "55318397-de3c-47ea-a088-72a24df5c8fa": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: wants cheap bodies to clamp"
-        },
-        "019b51b0-e5c6-4208-922b-7736686dddcd": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "61a28870-cf78-4323-9d82-cee764067764": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "3b6e5956-f795-451b-bb24-56462d1ced27": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "66a74c89-6f86-4ec8-af17-391cd5026054": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "7a7c98b0-d64d-4d0a-b284-1187a8e7095e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "d5806e68-1054-458e-866d-1f2470f682b2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "a15d33d6-7213-4482-a1be-ac0a73644af6": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "f83ed433-fae3-4fa5-acad-bb8a5b535ce3": {
-            "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: enters draws three"
-        },
-        "87cc2855-6b14-44dd-a398-7dc2bbae081f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "1e0c695d-62f9-4805-9e2f-7032e8464136": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "5cb76266-ae50-4bbc-8f96-d98f309b02d3": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "5d10b752-d9cb-419d-a5c4-d4ee1acb655e": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "900c9dfd-ece1-4b09-a801-0fa05e1994b9": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "6a0139c2-ad86-4c71-ab6d-4840c37d5d20": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "7c884e1e-fecb-4330-b3de-5fc2a60f7173": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry relation"
-        },
-        "3e26c10b-179f-4a6e-bc8d-3ec1d6783fb9": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "efeae088-9ac5-4d2f-a15c-d8675a471ac5": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "1abecc77-07f2-43e4-8585-0a8199cdcf01": {
-            "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: ETB hand disruption pays on enter"
-        },
-        "5ad36fb2-c44e-4085-ba0d-54277841ad3a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "31b770cc-09e7-4c0b-b2a4-462ab4f7200d": {
-            "provides": ["value-on-cast"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: cantrip replaces itself on resolution"
-        },
-        "2a812fa7-4599-4e25-97db-20ffc6bc0b26": {
-            "provides": ["value-on-cast", "discard-outlet"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: draw-then-discard loots a chosen card"
-        },
-        "3fcb7810-1054-4001-855c-6e17939b3d3f": {
-            "provides": ["discard-outlet"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: +1 discards chosen cards from hand"
-        },
-        "04779a7e-b453-48b9-b392-6d6fd0b8d283": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "fb1189c9-7842-466e-8238-1e02677d8494": {
-            "provides": [],
-            "requires": ["value-on-cast"],
-            "reviewed": false,
-            "rationale": "oracle: copy trigger wants a spell cast"
-        },
-        "fa3b415f-7901-4ab4-84fe-60b90d40ac90": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "629aa907-9533-4681-9bf2-9e56450a4cc2": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "6fa9cd18-3181-4373-ab65-49bf9de9487f": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "0da69523-cece-425a-b08a-fb27fac29374": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "06c053d3-028e-4961-93a5-5b7bb5a8601c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "1bd8e61c-2ee8-4243-a848-7008810db8a0": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "5905995b-7a20-4602-a7cc-90aa5089a082": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "7114ef87-53ff-43e9-864c-9faa455d86ef": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "94b67489-5eb0-4406-9bf3-27e50dc632eb": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "3462a3d0-5552-49fa-9eb7-100960c55891": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "175b3d28-5c74-4972-9b5c-5e39762c78f4": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "f6929259-2903-4f6f-9b06-42048fd55c6a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "0f427f0b-034c-4821-8758-e395c0042d8a": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "30e401e3-282b-4524-87e1-c6cd50cd6d00": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "a7a8b6b8-b95f-4014-b17a-a6d44d965995": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "92409c3a-fb1a-4205-9fe1-0f5affc7b21d": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "25b0b816-0583-44aa-9dc5-f3ff48993a51": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "ee266113-34ce-4189-84e7-ee2c86a2722c": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "135de5c7-6ac9-4b68-8f1a-97f120a4b125": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "e7880157-7f27-4f1b-9cdc-ab36a6252376": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "de92facf-762b-4a23-8d5e-bb673b0500c0": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "b6f27909-e5cd-44c0-91c4-21624f692fd9": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
-        },
-        "99ff731b-8399-40c8-b539-ba6ba5783771": {
-            "provides": [],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: no registry capability"
+            "reviewed": false
         }
     }
 }

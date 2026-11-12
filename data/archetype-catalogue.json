@@ -19,24 +19,6 @@
             "example": "Emry, Lurker of the Loch"
         },
         {
-            "id": "blink",
-            "description": "TAG WHEN: the card exiles and returns a permanent (flicker), or bounces and replays it, to re-buy an enters-the-battlefield effect — Flickerwisp, Phelia, Displacer Kitten, Ephemerate — or it is a creature whose enters trigger is the reason a flicker deck drafts it (Skyclave Apparition, Thraben Inspector, Solitude). NOT: an enters trigger on a card that only ever enters once and is drafted for its rate (tag the plan its effect serves — `control` for a removal body, `aggro` for a cheap threat), and NOT a cheat that puts a creature from hand into play — that is `cheat`.",
-            "gloss": {
-                "when": "Flickers or re-buys enters triggers, or is the trigger a flicker deck wants.",
-                "not": "A one-time enters trigger drafted for rate, or a cheat from hand (cheat)."
-            },
-            "example": "Flickerwisp"
-        },
-        {
-            "id": "cheat",
-            "description": "TAG WHEN: the card puts a big creature or artifact onto the battlefield from HAND or LIBRARY without paying its cost — Sneak Attack, Show and Tell, Through the Breach, Tinker, Natural Order, Oath of Druids — or it is a payoff whose whole draft case is being cheated that way (Emrakul, the Aeons Torn, Blightsteel Colossus, Atraxa). NOT: a graveyard-to-battlefield effect or its enablers (`reanimator`, a sibling plan sharing the fatties), and NOT mana acceleration that CASTS the big card early (`ramp`) — the axis is skipping the cost, not paying it sooner.",
-            "gloss": {
-                "when": "Puts a fatty into play from hand or library for free, or is that fatty.",
-                "not": "Graveyard-to-battlefield (reanimator) or casting it early (ramp)."
-            },
-            "example": "Sneak Attack"
-        },
-        {
             "id": "combo",
             "description": "TAG WHEN: the card's ceiling is being one named half of an intentional two-card loop, or the tutor/protection that assembles and defends one (Painter's Servant, Grindstone, a tutor whose best target is a combo piece). NOT: a card that merely wins a long game on its own (`control`), and NOT a critical-mass engine where no single partner is named — that is `storm`. A SPECIFIC, signed two-card pairing is a Combo Edge on the profile, not an archetype tag; this tag says the card LIVES in that kind of deck.",
             "gloss": {
@@ -64,17 +46,8 @@
             "example": "Barrowgoyf"
         },
         {
-            "id": "lands",
-            "description": "TAG WHEN: the card treats LANDS as a resource beyond one drop a turn — extra land plays, lands played or returned from the graveyard, landfall payoffs, lands sacrificed for value, a payoff scaling with land cards in the graveyard (Fastbond, Crop Rotation, Knight of the Reliquary, Mole Man, Titania). NOT: a card that only ramps by fetching a land onto the battlefield once (`ramp`), and NOT a fetch or dual land drafted for its colours — the type line alone is not the plan.",
-            "gloss": {
-                "when": "Lands as a resource: extra plays, landfall, land recursion, land sacrifice.",
-                "not": "A one-shot land fetch (ramp) or a land drafted for colours."
-            },
-            "example": "Knight of the Reliquary"
-        },
-        {
             "id": "ramp",
-            "description": "TAG WHEN: the card either produces mana ahead of the curve (mana rock, mana dork, land fetch, a cost reducer) or is a payoff expensive enough that a deck only casts it because it ramped. NOT: a cheap artifact whose value is the artifact COUNT rather than the mana (`artifacts`), and NOT a card that skips paying the cost entirely by putting a creature into play from hand or graveyard — cheating is `cheat`/`reanimator`, not acceleration.",
+            "description": "TAG WHEN: the card either produces mana ahead of the curve (mana rock, mana dork, land fetch, a cost reducer) or is a payoff expensive enough that a deck only casts it because it ramped. NOT: a cheap artifact whose value is the artifact COUNT rather than the mana (`artifacts`), and NOT a card that skips paying the cost entirely by putting a creature into play from hand or graveyard — cheating is `reanimator`/`combo`, not acceleration.",
             "gloss": {
                 "when": "Mana ahead of the curve, or a payoff only castable after ramping.",
                 "not": "A cheap artifact counted for its type (artifacts), or cheating a cost entirely (reanimator/combo)."
@@ -83,30 +56,12 @@
         },
         {
             "id": "reanimator",
-            "description": "TAG WHEN: the card is one end of the put-a-fatty-into-play-early plan — a graveyard-to-battlefield effect, a discard/self-mill enabler chosen FOR that plan, or a creature whose whole draft case is being cheated in. NOT: generic graveyard value, recursion of small cards, or flashback (`graveyard`, the wider plan), and NOT a cheat from hand or library (`cheat`). The card-to-card half of this — whether a specific fatty is actually retrievable — is the `reanimatable` Capability, not this tag.",
+            "description": "TAG WHEN: the card is one end of the put-a-fatty-into-play-early plan — a graveyard-to-battlefield effect, a discard/self-mill enabler chosen FOR that plan, or a creature whose whole draft case is being cheated in. NOT: generic graveyard value, recursion of small cards, or flashback (`graveyard`, the wider plan). The card-to-card half of this — whether a specific fatty is actually retrievable — is the `reanimatable` Capability, not this tag.",
             "gloss": {
                 "when": "One end of putting a fatty into play early from the graveyard.",
                 "not": "Generic graveyard value, small-card recursion or flashback (graveyard)."
             },
             "example": "Animate Dead"
-        },
-        {
-            "id": "sacrifice",
-            "description": "TAG WHEN: the card is a free or repeatable sacrifice OUTLET that turns its own permanents into value (Goblin Bombardment, Carnage Interpreter's investigate, Bone Shards' cost), or a payoff that rewards permanents dying or being sacrificed (Skullclamp, a Blood Artist shape). NOT: a creature that merely has a death trigger — that is the `value-on-death` Capability, a card-to-card fact, not a plan — and NOT an edict that makes the OPPONENT sacrifice (`control`).",
-            "gloss": {
-                "when": "A sacrifice outlet or a payoff for your own permanents dying.",
-                "not": "A lone death trigger (Capability) or an edict on the opponent (control)."
-            },
-            "example": "Goblin Bombardment"
-        },
-        {
-            "id": "spells",
-            "description": "TAG WHEN: the card pays off CASTING instants and sorceries or several spells a turn across a normal game — prowess, flurry, a second-spell trigger, magecraft, cost reduction for noncreature spells (Monastery Swiftspear, Ledger Shredder, Cori-Steel Cutter, Third Path Iconoclast) — or it is a cheap cantrip such a deck plays for the count. NOT: a critical mass of spells to win in ONE turn (`storm`), and NOT a counterspell or removal spell drafted to answer threats (`control`) — the axis is a steady stream of triggers, not one big turn.",
-            "gloss": {
-                "when": "Pays off casting instants/sorceries or two spells a turn.",
-                "not": "One explosive turn (storm) or interaction drafted to answer threats (control)."
-            },
-            "example": "Monastery Swiftspear"
         },
         {
             "id": "storm",
@@ -116,15 +71,6 @@
                 "not": "A named two-card loop (combo) or acceleration for one big spell (ramp)."
             },
             "example": "Cabal Ritual"
-        },
-        {
-            "id": "tokens",
-            "description": "TAG WHEN: the card creates two or more creature tokens, or keeps making them, so a deck accumulating it goes WIDE — Lingering Souls, Forth Eorlingas!, Elspeth, Legion Extruder — or it is an anthem/payoff counting creatures or tokens. NOT: a single token as a side effect of a removal or card-draw spell (tag the plan the main effect serves), and NOT an investigate/Treasure/Clue token — those are not creatures and feed `artifacts` or `ramp`.",
-            "gloss": {
-                "when": "Makes several creature tokens, or pays off going wide.",
-                "not": "One incidental token, or non-creature Clue/Treasure tokens."
-            },
-            "example": "Lingering Souls"
         }
     ]
 }
