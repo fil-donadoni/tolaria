@@ -140,7 +140,13 @@ describe("auditsDue — the weekly audits (issue #5458)", () => {
         expect(
             auditsDue({ now, lastAuditAt: now.getTime() - 3 * DAY })
         ).toEqual({ due: false, reason: "not the weekly audit night" });
-        expect(auditsDue({ now, lastAuditAt: null }).due).toBe(false);
+    });
+
+    it("is due on any night when never audited (issue #9293)", () => {
+        for (let wd = 0; wd < 7; wd++) {
+            const v = auditsDue({ now: on(wd), lastAuditAt: null });
+            expect(v).toEqual({ due: true, reason: "never audited" });
+        }
     });
 
     it("does not re-run on the weekly night once it ran within the day", () => {
