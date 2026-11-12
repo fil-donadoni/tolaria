@@ -80,17 +80,17 @@ function serverMutations(ctx: Ctx, calls: string[]): MoveMutations {
     ) as unknown as MoveMutations;
 }
 
-/** Drive one seat's real mutation over the persisted row, returning the next
- *  row. The row is carried COMPACT, exactly as `saveGameState` wrote it: a
+/** Drive one seat's real mutation over the persisted rows, returning the next
+ *  ones. The position is carried COMPACT, exactly as `saveGameState` wrote it: a
  *  re-seeded expanded state would be read back as if it were compact. */
 async function step(
-    row: Row,
+    rows: Row[],
     act: (ctx: Ctx) => Promise<unknown>,
     as: string
-): Promise<{ row: Row; state: GameState }> {
-    const stub = makeMutationCtx(as, [row]);
+): Promise<{ rows: Row[]; state: GameState }> {
+    const stub = makeMutationCtx(as, rows);
     await act(stub.ctx);
-    return { row: { ...stub.doc("gs-1") }, state: stub.state() };
+    return { rows: stub.savedRows(), state: stub.state() };
 }
 
 const pool = (state: GameState) =>
@@ -100,7 +100,7 @@ const defIdOf = (c: { card: unknown }) => (c.card as { id?: string }).id;
 describe("the Bot floats a doomed source's mana through the real mutations (CR 605.3a / 106.4, issue #8355)", () => {
     it("tapUntap floats {C}{C} with the trigger on the stack, the mana survives the sacrifice, and the cast spends it", async () => {
         let state = position();
-        let row = gameStateSeed(state);
+        let rows = [gameStateSeed(state)];
         const bot = state.players[0].id;
         const opp = state.players[1].id;
         const calls: string[] = [];
@@ -109,8 +109,8 @@ describe("the Bot floats a doomed source's mana through the real mutations (CR 6
             (m) => m.kind === "activate-mana-ability"
         );
         expect(float).toBeDefined();
-        ({ row, state } = await step(
-            row,
+        ({ rows, state } = await step(
+            rows,
             (ctx) =>
                 executeMove(float!, {
                     gameId: GAME_ID,
@@ -125,8 +125,8 @@ describe("the Bot floats a doomed source's mana through the real mutations (CR 6
 
         // Both seats pass: the sacrifice trigger resolves (CR 117.4).
         for (const pid of [bot, opp]) {
-            ({ row, state } = await step(
-                row,
+            ({ rows, state } = await step(
+                rows,
                 (ctx) =>
                     runMutation(
                         passPriority as unknown as Handler<
@@ -150,8 +150,8 @@ describe("the Bot floats a doomed source's mana through the real mutations (CR 6
             (m) => m.kind === "cast-spell"
         );
         expect(cast).toBeDefined();
-        ({ row, state } = await step(
-            row,
+        ({ rows, state } = await step(
+            rows,
             (ctx) =>
                 executeMove(cast!, {
                     gameId: GAME_ID,

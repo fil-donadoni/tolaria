@@ -370,9 +370,14 @@ describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue
             playerId: "alice-p2",
         });
 
-        const state = stub.doc("gs-1").state as GameState;
-        const bot = state.players.find((p) => p.id === "alice-p2")!;
-        expect(bot.library).toHaveLength(0);
+        // The saved row is the hot half of a split document (ADR 0179): the
+        // library is its count there, the contents are in the companion.
+        const state = stub.doc("gs-1").state as GameState & {
+            libraryCounts: number[];
+        };
+        const botIndex = state.players.findIndex((p) => p.id === "alice-p2");
+        const bot = state.players[botIndex];
+        expect(state.libraryCounts[botIndex]).toBe(0);
         expect(bot.graveyard).toHaveLength(1);
     });
 });
@@ -496,9 +501,12 @@ describe("mill — a seat-addressed mutation the caller must own (issue #1645 re
             playerId: "bob",
         });
 
-        const state = stub.doc("gs-1").state as GameState;
-        const self = state.players.find((p) => p.id === "bob")!;
-        expect(self.library).toHaveLength(0);
+        const state = stub.doc("gs-1").state as GameState & {
+            libraryCounts: number[];
+        };
+        const selfIndex = state.players.findIndex((p) => p.id === "bob");
+        const self = state.players[selfIndex];
+        expect(state.libraryCounts[selfIndex]).toBe(0);
         expect(self.graveyard).toHaveLength(1);
     });
 });

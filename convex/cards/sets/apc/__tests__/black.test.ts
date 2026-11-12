@@ -639,7 +639,7 @@ describe("Suppress — target player exiles their hand face down; it returns at 
             const pid = live.priorityPlayerId;
             const authed = makeMutationCtx(pid, [gameStateSeed(live, 99)]);
             await pass(authed.ctx, pid);
-            harness.doc("gs-1").state = authed.doc("gs-1").state;
+            harness.doc("gs-1").state = authed.state();
         };
         // Both players pass: Suppress resolves.
         for (let i = 0; i < 4 && harness.state().stack.length > 0; i++) {

@@ -64,7 +64,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { beginApplyingStaticEffects } from "../state";
 import { checkStateBasedActions } from "../sba";
 import type { GameState, CardInstanceState } from "../state";
-import { expandState } from "../serialize";
+import { expandSavedState } from "../../__tests__/gameMutationHarness.fixture";
 import { registerTokenDefinition } from "../../cards";
 import type {
     CardDefinition,
@@ -377,6 +377,7 @@ function makeCtx(userId: string, seeds: Row[]) {
     return {
         ctx: ctx as unknown as MutationCtx,
         doc: (id: string) => docs.get(id)!,
+        state: () => expandSavedState(docs.values(), docs.get("gs-1")!),
     };
 }
 
@@ -439,9 +440,7 @@ describe("hand-size-gated menace survives the REAL cast path (issue #1379 review
 
         const persisted = stub.doc("gs-1");
         expect(persisted.seq).toBe(2);
-        const persistedState = expandState(
-            persisted.state as Record<string, unknown>
-        );
+        const persistedState = stub.state();
 
         const p1Persisted = persistedState.players.find((p) => p.id === "p1")!;
         // The hand shrank hand→stack: only the padding card is left.
