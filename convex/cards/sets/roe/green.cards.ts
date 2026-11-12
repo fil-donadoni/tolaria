@@ -65,3 +65,33 @@ export const vengevine = defineCard(() => ({
         },
     ],
 }));
+
+// Ancient Stirrings — {G} Sorcery. "Look at the top five cards of your library.
+// You may reveal a colorless card from among them and put it into your hand.
+// Then put the rest on the bottom of your library in any order." (CR 401.4
+// ordering the bottomed cards, CR 701.20a reveal.) Narset's shape (`lookDistribute`, look 5 / take 1,
+// optional, `reveal: "kept"`). "Colorless" is `excludeColor` over all five
+// colors: a card with any colour is out, a colourless one (CR 105.2c) passes
+// — lands included, which are colourless too (CR 202.2).
+// hand-tail: Look at the top five cards of your library. You may reveal a colorless card from among them and put it into your hand. Then put the rest on the bottom of your library in any order. (#8607)
+export const ancientStirrings = defineCard(() => ({
+    id: "97ac2766-a597-4949-882d-c5e61e6dd268", // ROE 174
+    name: "Ancient Stirrings",
+    rarity: "common",
+    oracleText:
+        "Look at the top five cards of your library. You may reveal a colorless card from among them and put it into your hand. Then put the rest on the bottom of your library in any order.",
+    manaCost: { G: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "lookDistribute",
+            player: "controller",
+            look: 5,
+            take: 1,
+            keepTo: "hand",
+            filter: { excludeColor: ["W", "U", "B", "R", "G"] },
+            optional: true,
+            reveal: "kept",
+        },
+    ],
+}));
