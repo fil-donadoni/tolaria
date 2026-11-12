@@ -339,9 +339,10 @@ function describeAge(record: AuditRecord, now: Date): string {
     const ms = Date.parse(at);
     const on = record.machine ? ` on ${record.machine}` : "";
     if (Number.isNaN(ms)) return ` — recorded at an unknown time${on}`;
-    const days = Math.floor((now.getTime() - ms) / 86_400_000);
+    const ageMs = now.getTime() - ms;
+    const days = Math.floor(ageMs / 86_400_000);
     const stale =
-        days > AUDIT_STALE_DAYS
+        ageMs > AUDIT_STALE_DAYS * 86_400_000
             ? ` — STALE: older than ${AUDIT_STALE_DAYS} d, the weekly audit has not run since`
             : "";
     return ` — ${at.slice(0, 10)}${on}, ${days} d ago${stale}`;

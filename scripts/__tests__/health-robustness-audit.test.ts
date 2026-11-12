@@ -378,6 +378,16 @@ describe("the status line states the record's age (issue #9294)", () => {
         expect(line).not.toContain("STALE");
     });
 
+    it("8 days and an hour is past the 8-day bound", () => {
+        expect(
+            describeAuditRecord(
+                record,
+                true,
+                new Date("2026-10-19T04:00:00.000Z")
+            )
+        ).toContain("STALE");
+    });
+
     it("9 days is past the 8-day bound", () => {
         expect(
             describeAuditRecord(
