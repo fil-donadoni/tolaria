@@ -9,6 +9,7 @@ import {
     hitTestArrows,
     resolveArrowHighlight,
     type AnchorPoint,
+    type ArrowHighlight,
     type ManualArrowPair,
     type TargetArrow,
 } from "~/lib/target-arrow-geometry";
@@ -46,6 +47,10 @@ type BoardArrowsProps = {
      *  ONE non-GRE-shaped input, resolved through the same anchor registry as
      *  every other arrow. */
     extraArrows?: ManualArrowPair[];
+    /** While the viewer chooses a target (issue #9163): the source + legal
+     *  target node ids. Overrides hover — they stay lit, every other card,
+     *  stack row and arrow dims, so the choice reads at a glance. */
+    targetingNodeIds?: ReadonlySet<string> | null;
 };
 
 /** Opacity of arrows / nodes outside the hovered relationship. */
@@ -94,6 +99,7 @@ export default function BoardArrows({
     defenderId,
     anchorRevision,
     extraArrows,
+    targetingNodeIds,
 }: BoardArrowsProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const registry = useArrowAnchors();
@@ -175,9 +181,18 @@ export default function BoardArrows({
         () => (hoveredKey ? { key: hoveredKey } : channelSeed),
         [hoveredKey, channelSeed]
     );
-    const highlight = useMemo(
-        () => resolveArrowHighlight(arrows, seed),
-        [arrows, seed]
+    const highlight = useMemo<ArrowHighlight | null>(
+        () =>
+            targetingNodeIds
+                ? {
+                      keys: new Set<string>(),
+                      nodes: new Set(targetingNodeIds),
+                      // plain dimming: the targeting overlay draws its own
+                      // arrow, no focus veil
+                      focus: "combat",
+                  }
+                : resolveArrowHighlight(arrows, seed),
+        [arrows, seed, targetingNodeIds]
     );
 
     // Publish the resolved node set so battlefield cards illuminate (or dim) in

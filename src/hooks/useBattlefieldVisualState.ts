@@ -8,6 +8,7 @@ import { unleashForbidsBlock } from "@convex/cards/abilities/unleash";
 import { combatDeclarationCap } from "@convex/cards/attackRestrictions";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { effectivePower } from "~/lib/effective-stats";
+import { isLegalPermanentTarget } from "~/lib/target-candidates";
 import {
     isCreature,
     isPlaneswalker,
@@ -735,43 +736,20 @@ export function useBattlefieldVisualState(
         const creature = isCreature(card);
         const manaSource = hasManaAbility(card, manaGateView, manaPlayers);
 
+        // The shared permanent candidate predicate (`target-candidates.ts`):
+        // the set the click handler fires on and the targeting arrow snaps to.
         const isValidTarget =
             isSelectingTarget &&
-            pendingTarget &&
-            matchesTargetRequirement(card, pendingTarget.targetType) &&
-            matchesPermanentTargetFilters(
-                card,
-                pendingTarget,
-                allPlayers,
+            isLegalPermanentTarget(card, pendingTarget, {
+                viewerId: playerId,
                 activePlayerId,
+                allPlayers,
+                stackItems,
                 controlContinuity,
                 emblems,
-                combat
-            ) &&
-            // CR 702.16b / 702.18 / 611 (issue #1120) — a permanent the server
-            // would reject must not GLOW as a target either. This is the same
-            // gate the click handler (`useBattlefieldInteraction`) and
-            // `canInteract` above already apply; folding it in here keeps the
-            // faded-gold "valid target" ring and the click in agreement, so a
-            // creature with protection from the source's quality (Tsabo
-            // Tavoc's "protection from legendary creatures") reads as the
-            // non-target it is instead of glowing and doing nothing.
-            !isUntargetableByPending(
-                allPlayers,
-                card,
-                pendingTarget.cardInstanceId,
-                pendingTarget.kind,
-                stackItems,
-                pendingTarget.playerId
-            ) &&
-            // CR 601.2c — same reasoning one layer up: a permanent the
-            // Flagbearer requirement bars is not a target, so it must not glow
-            // as one.
-            !isBarredByRequiredTargetChoice(
-                pendingTarget,
-                card.id,
-                divideBuffer.assignedIds
-            );
+                combat,
+                assignedIds: divideBuffer.assignedIds,
+            });
 
         const isTargetSelected =
             isSelectingTarget &&
