@@ -9235,10 +9235,20 @@ describe("spellKickerCount — a targeted spell's kicker count (CR 702.33d)", ()
     });
 
     it("rejects a bare ref — only a target slot names another spell's stack item", () => {
+        // `$each` of a permanents sweep is a legal object ref everywhere else,
+        // so the shape check is the only thing that can refuse it here.
         const errors = validateEffectScript(
-            host({ effects: counterIfKicked({ ref: "$source" }) })
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "permanents", zone: "battlefield" },
+                        effects: counterIfKicked({ ref: "$each" }),
+                    } as unknown as EffectOp,
+                ],
+            })
         );
-        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => /spellKickerCount/.test(e))).toBe(true);
     });
 
     it("rejects an extra key beside `of`", () => {
