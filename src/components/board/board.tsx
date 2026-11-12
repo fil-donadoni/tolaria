@@ -560,6 +560,13 @@ export default function Board({
                                                 )}
                                                 <AutoPassController
                                                     solo={solo}
+                                                    skipPrefSeatIds={
+                                                        solo && !vsAi
+                                                            ? allPlayers.map(
+                                                                  (p) => p.id
+                                                              )
+                                                            : [playerId]
+                                                    }
                                                 />
                                                 {vsAi && (
                                                     <VsAiDriver

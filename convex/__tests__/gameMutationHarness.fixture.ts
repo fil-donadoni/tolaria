@@ -11,7 +11,7 @@
 import { getFunctionName, type FunctionReference } from "convex/server";
 import type { MutationCtx } from "../_generated/server";
 import type { GameState } from "../gre/state";
-import { expandState } from "../gre/serialize";
+import { expandState, type CompactLibraries } from "../gre/serialize";
 
 export type Row = Record<string, unknown>;
 
@@ -27,6 +27,9 @@ export interface MutationStub {
      *  the reader in that document's invalidation path. Nothing result-shaped
      *  can see it. */
     gets: string[];
+    /** The table of every `ctx.db.query(table)`, in order — the read set of
+     *  the indexed reads, as `gets` is of the point reads. */
+    queried: string[];
     /** Every `ctx.db.patch` / `ctx.db.insert`, in order — `table` is set only
      *  for an insert.
      *
@@ -40,6 +43,9 @@ export interface MutationStub {
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
+    /** The `gs-1` row and its library companion (ADR 0179), as persisted —
+     *  the seeds that carry a saved position into another stub ctx. */
+    savedRows: () => Row[];
     /** Every `ctx.scheduler.runAfter`, in order — `name` is the scheduled
      *  function's `getFunctionName` (`"botLiveness:checkDeadline"`). Nothing
      *  runs: a test that wants the job drives its handler itself. */
@@ -47,6 +53,29 @@ export interface MutationStub {
     /** A ctx over the SAME document store, authenticated as another user —
      *  for a flow two players drive in turn (a 2-player Match). */
     asUser: (userId: string | null) => MutationCtx;
+}
+
+/** The library companion row (ADR 0179) of a saved `gameStates` row, among
+ *  `rows` — `undefined` for a single-row document or a never-saved seed. */
+function companionOf(rows: Iterable<Row>, row: Row): Row | undefined {
+    return [...rows].find(
+        (d) => d.__table === "gameLibraries" && d.gameId === row.gameId
+    );
+}
+
+/** A persisted `gameStates` row expanded the way `getLatestGameState` does
+ *  it: a saved position is a SPLIT document, the hot row joined with the
+ *  game's `gameLibraries` companion found among `rows`. */
+export function expandSavedState(rows: Iterable<Row>, row: Row): GameState {
+    return expandState(
+        row.state as Record<string, unknown>,
+        companionOf(rows, row)?.payload as CompactLibraries | undefined
+    );
+}
+
+function savedRows(rows: Iterable<Row>, row: Row): Row[] {
+    const companion = companionOf(rows, row);
+    return companion ? [{ ...row }, { ...companion }] : [{ ...row }];
 }
 
 /** A stub `MutationCtx`, authenticated as `userId` (or unauthenticated when
@@ -59,12 +88,24 @@ export function makeMutationCtx(
     const docs = new Map<string, Row>();
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
     const gets: string[] = [];
+    const queried: string[] = [];
     const writes: { id: string; table?: string }[] = [];
     const scheduled: MutationStub["scheduled"] = [];
     const authAs = (who: string | null) => ({
         getUserIdentity: async () =>
             who === null ? null : { subject: `${who}|session1` },
     });
+
+    const scheduler = {
+        runAfter: async (
+            delayMs: number,
+            fn: FunctionReference<"mutation" | "action", "internal">,
+            args: unknown
+        ) => {
+            scheduled.push({ delayMs, name: getFunctionName(fn), args });
+            return undefined;
+        },
+    };
 
     const ctx = {
         auth: authAs(userId),
@@ -91,73 +132,69 @@ export function makeMutationCtx(
                 docs.set(id, { ...value, _id: id, __table: table });
                 writes.push({ id });
             },
-            query: (table: string) => ({
-                // A FULL SCAN — `.query(table).collect()` with no index, which
-                // is what a small admin-facing listing does. Kept beside
-                // `withIndex` rather than in place of it: the two read
-                // differently in a handler and a stub that answered both the
-                // same way would hide an index that does not exist.
-                collect: async () =>
-                    [...docs.values()].filter((d) => d.__table === table),
-                order: () => ({
-                    collect: async () =>
-                        [...docs.values()].filter((d) => d.__table === table),
-                }),
-                withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
-                    const eqs: [string, unknown][] = [];
-                    const builder = {
-                        eq: (field: string, value: unknown) => {
-                            eqs.push([field, value]);
-                            return builder;
-                        },
-                    };
-                    fn?.(builder);
-                    const rows = [...docs.values()].filter(
-                        (d) =>
-                            d.__table === table &&
-                            eqs.every(([f, v]) => d[f] === v)
-                    );
-                    // `.order(...)` returns the same row set: the stub has no
-                    // index ordering to apply, so a handler that orders
-                    // explicitly is exercised for its READ, not its sort (that
-                    // is the database's job). `collect` is here so such a
-                    // handler runs at all.
-                    const ordered = {
-                        first: async () => rows[0] ?? null,
-                        collect: async () => rows,
-                    };
-                    return {
-                        collect: async () => rows,
-                        first: async () => rows[0] ?? null,
-                        // Convex's `unique()`: at most one row, else it throws.
-                        unique: async () => {
-                            if (rows.length > 1)
-                                throw new Error(
-                                    `unique() matched ${rows.length} ${table} rows`
-                                );
-                            return rows[0] ?? null;
-                        },
-                        order: () => ordered,
-                    };
-                },
-            }),
-        },
-        scheduler: {
-            runAfter: async (
-                delayMs: number,
-                fn: FunctionReference<"mutation" | "action", "internal">,
-                args: unknown
-            ) => {
-                scheduled.push({ delayMs, name: getFunctionName(fn), args });
-                return undefined;
+            query: (table: string) => {
+                queried.push(table);
+                return queryTable(table);
             },
         },
+        scheduler,
     };
-
+    function queryTable(table: string) {
+        return {
+            // A FULL SCAN — `.query(table).collect()` with no index, which
+            // is what a small admin-facing listing does. Kept beside
+            // `withIndex` rather than in place of it: the two read
+            // differently in a handler and a stub that answered both the
+            // same way would hide an index that does not exist.
+            collect: async () =>
+                [...docs.values()].filter((d) => d.__table === table),
+            order: () => ({
+                collect: async () =>
+                    [...docs.values()].filter((d) => d.__table === table),
+            }),
+            withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
+                const eqs: [string, unknown][] = [];
+                const builder = {
+                    eq: (field: string, value: unknown) => {
+                        eqs.push([field, value]);
+                        return builder;
+                    },
+                };
+                fn?.(builder);
+                const rows = [...docs.values()].filter(
+                    (d) =>
+                        d.__table === table && eqs.every(([f, v]) => d[f] === v)
+                );
+                // `.order(...)` returns the same row set: the stub has no
+                // index ordering to apply, so a handler that orders
+                // explicitly is exercised for its READ, not its sort (that
+                // is the database's job). `collect` is here so such a
+                // handler runs at all.
+                const ordered = {
+                    first: async () => rows[0] ?? null,
+                    collect: async () => rows,
+                };
+                return {
+                    collect: async () => rows,
+                    first: async () => rows[0] ?? null,
+                    // Convex's `unique()`: at most one row, else it throws.
+                    unique: async () => {
+                        if (rows.length > 1)
+                            throw new Error(
+                                `unique() matched ${rows.length} ${table} rows`
+                            );
+                        return rows[0] ?? null;
+                    },
+                    order: () => ordered,
+                };
+            },
+        };
+    }
     return {
         ctx: ctx as unknown as MutationCtx,
         doc: (id) => docs.get(id)!,
         gets,
+        queried,
         writes,
         scheduled,
         // `saveGameState` persists the COMPACT form (`compactState`) — read
@@ -167,8 +204,11 @@ export function makeMutationCtx(
         // real default. `expandState` round-trips a never-compacted fixture
         // fine too (falls back to the card registry for anything absent),
         // so this is safe to call both before and after a mutation runs.
-        state: () =>
-            expandState(docs.get("gs-1")!.state as Record<string, unknown>),
+        // A saved position is a SPLIT document (ADR 0179): the hot row plus
+        // the game's `gameLibraries` companion, joined here the way
+        // `getLatestGameState` joins them.
+        state: () => expandSavedState(docs.values(), docs.get("gs-1")!),
+        savedRows: () => savedRows(docs.values(), docs.get("gs-1")!),
         asUser: (who) =>
             ({ ...ctx, auth: authAs(who) }) as unknown as MutationCtx,
     };

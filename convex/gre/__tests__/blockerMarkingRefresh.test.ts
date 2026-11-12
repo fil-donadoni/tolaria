@@ -39,7 +39,7 @@ import { confirmBlockers } from "../../game";
 import { advancePhase } from "../phases";
 import { beginApplyingStaticEffects } from "../state";
 import type { CardInstanceState, GameState } from "../state";
-import { expandState } from "../serialize";
+import { expandSavedState } from "../../__tests__/gameMutationHarness.fixture";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 import {
     makeInstance,
@@ -216,6 +216,7 @@ function makeCtx(userId: string, seeds: Row[]) {
     return {
         ctx: ctx as unknown as MutationCtx,
         doc: (id: string) => docs.get(id)!,
+        state: () => expandSavedState(docs.values(), docs.get("gs-1")!),
     };
 }
 
@@ -253,9 +254,7 @@ describe("confirmBlockers refreshes isBlocking-conditioned statics before draini
             playerId: "p2",
         });
 
-        const persisted = expandState(
-            stub.doc("gs-1").state as Record<string, unknown>
-        );
+        const persisted = stub.state();
         const p1 = persisted.players.find((p) => p.id === "p1")!;
         const p2 = persisted.players.find((p) => p.id === "p2")!;
 
@@ -371,9 +370,7 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
         // Read the PERSISTED doc back through `expandState`, so the flag is
         // also proven to survive the serialize round-trip (`serialize.ts`
         // drops any card field it does not explicitly carry).
-        const persisted = expandState(
-            stub.doc("gs-1").state as Record<string, unknown>
-        );
+        const persisted = stub.state();
         expect(persisted.combat?.blockersConfirmed).toBe(true);
         expect(boltCanTarget(persisted)).toBe(true);
     });

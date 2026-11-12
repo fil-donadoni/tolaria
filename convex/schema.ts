@@ -122,8 +122,35 @@ export default defineSchema({
         // (`convex/gameReads.ts`) stamps the rows that predate this.
         solo: v.optional(v.boolean()),
         vsAi: v.optional(v.boolean()),
+        // ADR 0179 — written with every save of a SPLIT document (libraries in
+        // `gameLibraries`): `false` is the writer's proof that no seat's public
+        // projection reads library contents, so `getPublicState` may skip the
+        // companion row. Absent on a single-row document, which carries its
+        // libraries inline and has nothing to skip.
+        publicViewNeedsLibrary: v.optional(v.boolean()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId", "seq"]),
+    // Library companion of `gameStates` (ADR 0179): one row per game holding
+    // every seat's library in compact form (`CompactLibraries`,
+    // `convex/gre/serialize.ts`). Libraries are a third or more of a position
+    // and change only on a draw or a shuffle, so they stay out of the row
+    // every save rewrites and every public-view subscriber re-reads.
+    // `convex/gameStateStore.ts` is the only module that reads or writes it.
+    gameLibraries: defineTable({
+        gameId: v.id("games"),
+        payload: v.any(),
+    }).index("by_gameId", ["gameId"]),
+    // Phase Stop preferences per seat of one Game (ADR 0077): what the server
+    // drain reads to pass a run of skipped steps in one mutation. Outside
+    // `gameStates` on purpose — the hot row does not grow, and a toggle
+    // bumps no `seq`. `skipPrefs` is a `PhaseSkipPrefs`
+    // (`convex/phaseStopPrefs.ts`), sanitised on both write and read.
+    // `convex/gamePrefs.ts` is the only module that reads or writes it.
+    gamePrefs: defineTable({
+        gameId: v.id("games"),
+        playerId: v.string(),
+        skipPrefs: v.any(),
+    }).index("by_game_player", ["gameId", "playerId"]),
     // Tick row (PRD #1776 T3, issue #1778): a ~150-byte cheap wake-up signal
     // written alongside every `gameStates` write from `saveGameState`
     // (`convex/gameStateStore.ts`) so a subscriber that only needs to know "did

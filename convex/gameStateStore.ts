@@ -6,10 +6,19 @@ import {
     computeOwedPlayerIds,
     refreshExpectedInput,
 } from "./gre/expectedInput";
-import { compactState, expandState } from "./gre/serialize";
+import {
+    expandState,
+    hasOpaqueLibraries,
+    isSplitCompactState,
+    OPAQUE_LIBRARIES,
+    splitCompactState,
+    type CompactLibraries,
+} from "./gre/serialize";
+import { projectPublicState } from "./gameProjections";
 import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
 import { botSeatId } from "./matches";
+import { seedBotSkipPrefs } from "./gamePrefs";
 import {
     advanceClock,
     clockExpiresAt,
@@ -27,35 +36,127 @@ type SaveCtx = Pick<GenericMutationCtx<DataModel>, "db" | "scheduler">;
 // `debugBlade.ts` — shares the one writer instead of importing the mutation
 // file that registers every gameplay endpoint.
 
-export async function getLatestGameState(
-    ctx: Pick<GenericQueryCtx<DataModel>, "db">,
+/** A `gameStates` row as the loader hands it out: `state` expanded, plus the
+ *  library companion it was expanded with (ADR 0179) so `saveGameState` can
+ *  tell an untouched library from a changed one without reading it again.
+ *  `null` = the game has no companion yet (a single-row document). */
+export type LoadedGameState = Doc<"gameStates"> & {
+    libraryRow?: Doc<"gameLibraries"> | null;
+};
+
+type ReadCtx = Pick<GenericQueryCtx<DataModel>, "db">;
+
+async function readGameStateRow(
+    ctx: ReadCtx,
     gameId: GenericId<"games">
 ): Promise<Doc<"gameStates"> | null> {
-    const doc = await ctx.db
+    return ctx.db
         .query("gameStates")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .order("desc")
         .first();
+}
+
+async function readLibraryRow(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">
+): Promise<Doc<"gameLibraries"> | null> {
+    return ctx.db
+        .query("gameLibraries")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .first();
+}
+
+/** The whole position: the hot row plus its library companion. Every
+ *  mutation, and every reader that needs library contents, loads through
+ *  here. */
+export async function getLatestGameState(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">
+): Promise<LoadedGameState | null> {
+    const doc = await readGameStateRow(ctx, gameId);
     if (!doc) return null;
+    const stored = doc.state as Record<string, unknown>;
+    if (!isSplitCompactState(stored)) {
+        return { ...doc, state: expandState(stored), libraryRow: null };
+    }
+    const libraryRow = await readLibraryRow(ctx, gameId);
+    if (!libraryRow) {
+        throw new Error(`Game ${gameId} has no library companion row`);
+    }
     return {
         ...doc,
-        state: expandState(doc.state as Record<string, unknown>),
+        state: expandState(stored, libraryRow.payload as CompactLibraries),
+        libraryRow,
     };
 }
 
-/** Save a game state. We keep exactly one row per game and patch it in
- *  place — there's no server-side undo history. Convex read bandwidth was
- *  dominated by snapshot reads, so collapsing to a single row plus a patch
- *  cuts per-mutation cost to 1 read (the handler's `getLatestGameState`) +
- *  1 write. Callers pass that already-fetched doc as `existing` so we don't
- *  re-query. Pass `null` for first-time inserts (game creation paths). */
+/** The position as the PUBLIC projection needs it (ADR 0179). When the writer
+ *  proved that no seat's projection reads library contents
+ *  (`publicViewNeedsLibrary === false`), only the hot row is read and the
+ *  libraries come back as identity-less placeholders — `opaqueLibraries` says
+ *  so, and such a state may be projected for a SEAT only, exactly what the
+ *  proof covered. Every other case is the full `getLatestGameState` read. */
+export async function getGameStateForPublicView(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">
+): Promise<(LoadedGameState & { opaqueLibraries: boolean }) | null> {
+    const doc = await readGameStateRow(ctx, gameId);
+    if (!doc) return null;
+    const stored = doc.state as Record<string, unknown>;
+    if (isSplitCompactState(stored) && doc.publicViewNeedsLibrary === false) {
+        return {
+            ...doc,
+            state: expandState(stored, OPAQUE_LIBRARIES),
+            opaqueLibraries: true,
+        };
+    }
+    const full = await getLatestGameState(ctx, gameId);
+    return full ? { ...full, opaqueLibraries: false } : null;
+}
+
+/** Whether any seat's public projection differs once the libraries are
+ *  replaced by placeholders — decided by projecting both, never by a census
+ *  of the projection's library readers (search and peek piles, the revealed
+ *  or known top card, a play-from-top affordance, a characteristic a library
+ *  card contributes). Both sides are the STORED document expanded, so the
+ *  comparison is exactly what a reader will compute. A projection that
+ *  throws on placeholders needs the libraries by definition. */
+export function publicViewNeedsLibrary(
+    hot: Record<string, unknown>,
+    libraries: CompactLibraries,
+    seq: number
+): boolean {
+    try {
+        const full = expandState(hot, libraries);
+        const opaque = expandState(hot, OPAQUE_LIBRARIES);
+        return full.players.some(
+            (p) =>
+                JSON.stringify(projectPublicState(full, seq, p.id, false)) !==
+                JSON.stringify(projectPublicState(opaque, seq, p.id, false))
+        );
+    } catch {
+        return true;
+    }
+}
+
+/** Save a game state. We keep exactly one hot row per game and patch it in
+ *  place — there's no server-side undo history — plus one library companion
+ *  row, written only on a save that changed a library (ADR 0179). Callers
+ *  pass the doc `getLatestGameState` handed them as `existing` so neither row
+ *  is re-queried. Pass `null` for first-time inserts (game creation paths). */
 export async function saveGameState(
     ctx: SaveCtx,
     gameId: GenericId<"games">,
     seq: number,
     state: GameState | Record<string, unknown>,
-    existing: Doc<"gameStates"> | null
+    existing: LoadedGameState | null
 ) {
+    if (hasOpaqueLibraries(state as GameState)) {
+        throw new Error(
+            "saveGameState: refusing a state with opaque libraries"
+        );
+    }
     // Issue #1379 review finding — `checkStateBasedActions` is NOT on every
     // path that reaches here: `announceCast`/`tryAutoCommitPendingCast` move a
     // card hand→stack, `summonCompanion` pushes one into hand, and
@@ -95,7 +196,9 @@ export async function saveGameState(
     // here keeps the persisted + projected field coherent with the settled
     // pending* / priority fields without touching every engine call site.
     refreshExpectedInput(state as GameState);
-    const stored = compactState(state as GameState);
+    const { hot: stored, libraries } = splitCompactState(state as GameState);
+    await saveLibraryRow(ctx, gameId, libraries, existing);
+    const needsLibrary = publicViewNeedsLibrary(stored, libraries, seq);
     // The owning `games` row, read only on the insert branch below (once per
     // Game) — the tick writer seeds a clocked Match's Game clock from it.
     let insertedGame: Doc<"games"> | null = null;
@@ -107,6 +210,7 @@ export async function saveGameState(
         await ctx.db.patch(existing._id, {
             seq,
             state: stored,
+            publicViewNeedsLibrary: needsLibrary,
             updatedAt: Date.now(),
         });
     } else {
@@ -120,10 +224,17 @@ export async function saveGameState(
         // precisely because this branch never runs again.
         const game = await ctx.db.get(gameId);
         insertedGame = game;
+        // A vs-AI Game's Bot seat gets its Phase Stop row here, the one
+        // place every new Game passes through (ADR 0077 §4).
+        const botId = game
+            ? botSeatId({ vsAi: game.vsAi, players: game.players })
+            : null;
+        if (botId !== null) await seedBotSkipPrefs(ctx, gameId, botId);
         await ctx.db.insert("gameStates", {
             gameId,
             seq,
             state: stored,
+            publicViewNeedsLibrary: needsLibrary,
             solo: game?.solo === true,
             vsAi: game?.vsAi === true,
             updatedAt: Date.now(),
@@ -146,6 +257,31 @@ export async function saveGameState(
         insertedGame,
         vsAi
     );
+}
+
+/** Write the library companion row iff this save changed a library. The
+ *  payload is a pure function of the libraries (`splitCompactState`), so an
+ *  equal serialisation is an untouched library and costs no write. An
+ *  `existing` that did not come from the loader carries no `libraryRow`, and
+ *  the companion is then read here. */
+async function saveLibraryRow(
+    ctx: SaveCtx,
+    gameId: GenericId<"games">,
+    libraries: CompactLibraries,
+    existing: LoadedGameState | null
+) {
+    const row =
+        existing === null
+            ? null
+            : existing.libraryRow !== undefined
+              ? existing.libraryRow
+              : await readLibraryRow(ctx, gameId);
+    if (!row) {
+        await ctx.db.insert("gameLibraries", { gameId, payload: libraries });
+        return;
+    }
+    if (JSON.stringify(row.payload) === JSON.stringify(libraries)) return;
+    await ctx.db.patch(row._id, { payload: libraries });
 }
 
 /** Cheap wake-up-signal companion to `gameStates` (~150 bytes vs. 3-9 KB),

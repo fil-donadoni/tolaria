@@ -33,6 +33,7 @@ const CARD_FREE_MODULES = [
     "convex/gameTable.ts",
     "convex/gameSeats.ts",
     "convex/gameLifecycle.ts",
+    "convex/gamePrefs.ts",
 ];
 
 /** The `game*` / `debug*` siblings that DO carry the engine, named so a new
