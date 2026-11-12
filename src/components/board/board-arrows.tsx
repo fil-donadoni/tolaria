@@ -42,6 +42,10 @@ type BoardArrowsProps = {
      *  ONE non-GRE-shaped input, resolved through the same anchor registry as
      *  every other arrow. */
     extraArrows?: ManualArrowPair[];
+    /** While the viewer chooses a target (issue #9163): the source + legal
+     *  target node ids. Overrides hover — they stay lit, every other card,
+     *  stack row and arrow dims, so the choice reads at a glance. */
+    targetingNodeIds?: ReadonlySet<string> | null;
 };
 
 /** Gold accent tokens (ADR 0007). The arrow is a metallic gold filament: a soft
@@ -84,6 +88,7 @@ export default function BoardArrows({
     defenderId,
     anchorRevision,
     extraArrows,
+    targetingNodeIds,
 }: BoardArrowsProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const registry = useArrowAnchors();
@@ -166,8 +171,11 @@ export default function BoardArrows({
         [hoveredKey, channelSeed]
     );
     const highlight = useMemo(
-        () => resolveArrowHighlight(arrows, seed),
-        [arrows, seed]
+        () =>
+            targetingNodeIds
+                ? { keys: new Set<string>(), nodes: targetingNodeIds }
+                : resolveArrowHighlight(arrows, seed),
+        [arrows, seed, targetingNodeIds]
     );
 
     // Publish the resolved node set so battlefield cards illuminate (or dim) in

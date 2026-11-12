@@ -35,7 +35,7 @@ import BoardHand from "./board-hand";
 import BoardHandPortrait from "./board-hand-portrait";
 import BoardPiles from "./board-piles";
 import BoardPortraitChips from "./board-portrait-chips";
-import BoardArrows from "./board-arrows";
+import BoardArrowLayers from "./board-arrow-layers";
 import BoardMidLine from "./board-mid-line";
 import GameStack from "./game-stack";
 import PriorityIndicator from "./priority-indicator";
@@ -475,7 +475,7 @@ export default function BoardSurface({
                     arrow-anchor registry, so arrows
                     stay glued through the spring/tilt
                     motion. */}
-                        <BoardArrows
+                        <BoardArrowLayers
                             stack={stackItems}
                             combat={combat}
                             extraArrows={extraArrows}
