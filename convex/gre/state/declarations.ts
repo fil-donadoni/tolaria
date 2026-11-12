@@ -2770,6 +2770,13 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  spell, a delayed trigger) is never mistaken for one whose source has
      *  not transformed. */
     stackTransformStamp?: StackTransformStamp;
+    /** CR 610.3b / 725.3 — `GameState.monarchCrownings` at the moment this
+     *  triggered ability triggered, stamped by `buildTriggerItem` (absent =
+     *  0). An "exile until an opponent becomes the monarch" reads it at
+     *  resolution to tell whether its specified event already occurred
+     *  (`monarchEventSince`). Only a triggered ability carries it: no spell or
+     *  activated ability exiles until a monarch change. */
+    monarchCrowningsAtTrigger?: number;
     /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
@@ -5936,6 +5943,12 @@ export type GameState = {
      *  with no card source (the CR 720.3 combat-damage steal) so that draw
      *  falls back to the global `MONARCH_DESIGNATION.imagePrintId`. */
     monarchSourceCardId?: string;
+    /** CR 725.3 — how many times the crown has changed hands this game: the
+     *  epoch an "until an opponent becomes the monarch" exile measures its
+     *  specified event against (CR 610.3b, `monarchEventSince`). Advanced only
+     *  by `becomeMonarch`, in the branch that actually moves the crown, so a
+     *  same-player re-crowning never counts. Undefined = 0. */
+    monarchCrownings?: number;
     /** CR 720 (Palace Jailer, issue #1199) — pending "return the exiled
      *  creature the next time an opponent of `controllerId` becomes the
      *  monarch" watches, armed by `SpellContext.exileUntilMonarchChanges`.
@@ -6322,6 +6335,24 @@ export interface ExileReturnBundle {
     /** The host returns tapped (Tawnos's Coffin: "tapped"). */
     returnTapped: boolean;
 }
+
+/** CR 610.3a / 610.3b — the specified event of an "until <event>" exile,
+ *  checked as the initial exile would occur: when it has ALREADY occurred
+ *  since the ability triggered (or was put onto the stack), the object doesn't
+ *  move at all (`exileUntilEventOccurred`).
+ *
+ *  - `source-leaves` — "until this leaves the battlefield" (the
+ *    `exileWithAttachments` Op): the exiling ability's source is gone.
+ *  - `opponent-becomes-monarch` — "until an opponent becomes the monarch"
+ *    (CR 725.3): an opponent of `controllerId` was crowned after the crown-change
+ *    epoch read `crowningsAtTrigger` (`StackItem.monarchCrowningsAtTrigger`). */
+export type ExileUntilEvent =
+    | { kind: "source-leaves" }
+    | {
+          kind: "opponent-becomes-monarch";
+          controllerId: string;
+          crowningsAtTrigger: number;
+      };
 
 /** CR 720 (Palace Jailer, issue #1199) — a pending "return the exiled creature
  *  the next time an opponent of `controllerId` becomes the monarch" watch. See

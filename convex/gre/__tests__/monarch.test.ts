@@ -360,7 +360,7 @@ describe("Monarch — Palace Jailer's exile-until-monarch-changes primitive (CR 
             ],
         });
 
-        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1");
+        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1", 0);
 
         expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
         expect(getPlayer(state, "p2").exile).toHaveLength(1);
@@ -380,7 +380,7 @@ describe("Monarch — Palace Jailer's exile-until-monarch-changes primitive (CR 
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1");
+        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1", 0);
 
         becomeMonarch(state, "p1");
 
@@ -399,13 +399,98 @@ describe("Monarch — Palace Jailer's exile-until-monarch-changes primitive (CR 
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1");
+        exileUntilMonarchChanges(state, "victim", "jailer-src", "p1", 0);
 
         becomeMonarch(state, "p2");
 
         expect(getPlayer(state, "p2").exile).toHaveLength(0);
         expect(getPlayer(state, "p2").battlefield).toHaveLength(1);
         expect(state.monarchReturnWatch).toBeUndefined();
+    });
+});
+
+describe("Monarch — the exile re-checks its own event at resolution (CR 610.3b)", () => {
+    function boardWithVictim(): GameState {
+        const victim = creature("victim", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+    }
+
+    it("counts only crownings that move the crown", () => {
+        const state = boardWithVictim();
+        becomeMonarch(state, "p1");
+        becomeMonarch(state, "p1");
+        becomeMonarch(state, "p2");
+        expect(state.monarchCrownings).toBe(2);
+    });
+
+    it("an opponent crowned since the trigger: nothing exiled, no watch armed", () => {
+        const state = boardWithVictim();
+        const atTrigger = state.monarchCrownings ?? 0;
+        becomeMonarch(state, "p2");
+
+        exileUntilMonarchChanges(
+            state,
+            "victim",
+            "jailer-src",
+            "p1",
+            atTrigger
+        );
+
+        expect(getPlayer(state, "p2").battlefield.map((c) => c.id)).toEqual([
+            "victim",
+        ]);
+        expect(getPlayer(state, "p2").exile).toHaveLength(0);
+        expect(state.exileHeld ?? []).toHaveLength(0);
+        expect(state.monarchReturnWatch).toBeUndefined();
+    });
+
+    it("an opponent crowned and then the controller crowned back: the event still occurred", () => {
+        const state = boardWithVictim();
+        becomeMonarch(state, "p1");
+        const atTrigger = state.monarchCrownings ?? 0;
+        becomeMonarch(state, "p2");
+        becomeMonarch(state, "p1");
+
+        exileUntilMonarchChanges(
+            state,
+            "victim",
+            "jailer-src",
+            "p1",
+            atTrigger
+        );
+
+        expect(getPlayer(state, "p2").exile).toHaveLength(0);
+        expect(state.monarchReturnWatch).toBeUndefined();
+    });
+
+    it("only the controller crowned since the trigger: exiles normally", () => {
+        const state = boardWithVictim();
+        becomeMonarch(state, "p2");
+        const atTrigger = state.monarchCrownings ?? 0;
+        becomeMonarch(state, "p1");
+
+        exileUntilMonarchChanges(
+            state,
+            "victim",
+            "jailer-src",
+            "p1",
+            atTrigger
+        );
+
+        expect(getPlayer(state, "p2").exile.map((c) => c.id)).toEqual([
+            "victim",
+        ]);
+        expect(state.monarchReturnWatch).toEqual([
+            { sourceId: "jailer-src", controllerId: "p1" },
+        ]);
     });
 });
 

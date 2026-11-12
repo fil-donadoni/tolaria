@@ -4344,7 +4344,7 @@ export const OP_EXECUTORS: {
             // ETB trigger), the object doesn't move at all — exiling it here
             // would strand it, since the return trigger has already come and
             // gone with nothing held.
-            requireSourceOnBattlefield: true,
+            untilEvent: { kind: "source-leaves" },
         });
     },
     // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
