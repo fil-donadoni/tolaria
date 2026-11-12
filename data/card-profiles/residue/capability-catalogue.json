@@ -1,0 +1,141 @@
+{
+    "pass": "capability",
+    "scope": "catalogue",
+    "candidates": [
+        {
+            "name": "big-artifact",
+            "providers": [
+                "85a89077-b384-4fca-9d26-7297962c1541",
+                "b0ae94ed-7314-470b-baba-f2f58bbc894a",
+                "7928bb14-7631-4830-a756-26d1ea832ba2",
+                "87cc2855-6b14-44dd-a398-7dc2bbae081f",
+                "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab"
+            ],
+            "requirers": [
+                "7da23b15-dfb8-4267-9b33-d7a4c035c434",
+                "6171e136-1167-4329-acb2-6853d3a814e5",
+                "a55c4d47-5252-40af-961d-c08bc688028a"
+            ],
+            "why": "oracle: Tinker, Goblin Welder and Goblin Engineer put an artifact onto the battlefield and want an expensive one; reanimatable speaks of graveyards, cheap-artifact of the artifact count"
+        },
+        {
+            "name": "equipment",
+            "providers": [
+                "3e1766e9-2fa7-4446-a255-7beea1467ece",
+                "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
+                "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6",
+                "deadb6d8-3eea-4261-a07c-8536df89e85c",
+                "55318397-de3c-47ea-a088-72a24df5c8fa",
+                "61a28870-cf78-4323-9d82-cee764067764",
+                "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
+                "3b6e5956-f795-451b-bb24-56462d1ced27",
+                "361c2f3b-f04e-446b-a683-9195e238daf0",
+                "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba"
+            ],
+            "requirers": ["19557351-b65f-4b04-b971-66abdc07000a"],
+            "why": "oracle: Stoneforge Mystic tutors and cheats Equipment; one requirer in the cube, so it stays evidence"
+        },
+        {
+            "name": "graveyard-tutor",
+            "providers": ["f60a2091-fb97-4f04-911b-fce9b6351044"],
+            "requirers": [
+                "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
+                "ae1ef31c-8ca5-444c-8f39-e1d1827318f5",
+                "a88b23ce-ce19-47da-b9f2-055a4d6bdc79",
+                "311a6257-dd77-4bb6-81cb-c8e7862350f3"
+            ],
+            "why": "oracle: Entomb puts a CHOSEN card from the library into the graveyard — neither discard-outlet (from hand) nor self-mills (unchosen); one provider in the cube"
+        },
+        {
+            "name": "lands-in-graveyard",
+            "providers": [
+                "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
+                "865bb1d3-5b7d-40e9-87cc-96be9524a105",
+                "56e2e8b5-660d-4469-a4fe-2367dfadb709",
+                "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
+                "39c431d7-d94b-46c4-bb89-f3db56214ab4",
+                "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
+                "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b",
+                "6563f790-862c-465a-b963-7a61f2385516",
+                "3a9d1082-a862-45d4-9e5e-392e879fead6",
+                "b4e3d844-d3b4-41d8-921d-c1cb3af343f8",
+                "0f7585c8-9e21-4eef-afc1-2852de23db2f",
+                "68c72226-6f52-4322-8b14-18737293dfa0",
+                "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53",
+                "7a7c5941-9c8a-4a40-9efb-a84f05c58e53",
+                "45026d57-0324-4312-8b86-2e7d4f581ee9",
+                "327cf118-cc92-4073-85d0-94d2a0a6989a",
+                "7abd2723-2851-4f1a-b2d0-dfcb526472c3",
+                "16c8d2fa-54a7-46e8-980c-905258497c90",
+                "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787",
+                "b841bfa8-7c17-4df2-8466-780ab9a4a53a",
+                "e37da81e-be12-45a2-9128-376f1ad7b3e8",
+                "e7880157-7f27-4f1b-9cdc-ab36a6252376",
+                "99ff731b-8399-40c8-b539-ba6ba5783771"
+            ],
+            "requirers": [
+                "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
+                "39c431d7-d94b-46c4-bb89-f3db56214ab4",
+                "79dd5c54-5ea5-47b5-8f9b-50ed57a5ea45",
+                "90f33f99-7bc5-42e1-815e-bfb4c2b74107",
+                "1b406cc5-75c9-430a-83a2-de0f2a8aeae6",
+                "d9482aab-6ddf-48e1-84fa-b13d5ff81e69",
+                "224d904a-5972-4152-878a-9a922e7a55b6",
+                "4a706ecf-3277-40e3-871c-4ba4ead16e20",
+                "ad8b8518-c09e-4cb7-95b2-08e4e370d89c",
+                "70496f16-c4c0-4c03-beef-454eb4824cd1"
+            ],
+            "why": "oracle: fetch lands, Wasteland and land sacrifice put LAND cards in the graveyard; Knight of the Reliquary, Titania and Wrenn and Six count or replay them — self-mills says nothing of card type"
+        },
+        {
+            "name": "repeatable-etb",
+            "providers": [
+                "d140c3b7-ca78-483d-baeb-307b624fea8b",
+                "b83cfbaa-7890-4f6f-878b-4edb45677371",
+                "47a6234f-309f-4e03-9263-66da48b57153",
+                "265522eb-4f6a-40e7-b374-3833fa63c80b",
+                "62090c97-7e3e-4854-bc44-c4a900133ec5",
+                "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
+                "3dea5b45-925c-4732-8e9d-fa8232792736",
+                "1abecc77-07f2-43e4-8585-0a8199cdcf01",
+                "fa01d35f-1064-4a7c-9475-4504566df850",
+                "db9aa986-ac2a-44bb-a88b-04c5d0d502b2",
+                "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617"
+            ],
+            "requirers": [
+                "55707746-da6e-46e5-a5ca-7ac843fdc38e",
+                "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
+                "cef789e8-e4cc-4f61-bc15-debc2487777f",
+                "c7a401b8-29fb-46ef-a663-427f66724d5c",
+                "c8173030-1c33-417c-b8e9-79231b6a85a7"
+            ],
+            "why": "oracle: flicker effects re-buy enters triggers, but value-on-etb's REQUIRES clause covers only one-shot cheats — maybe a REQUIRES-side widening of that row rather than a new row"
+        },
+        {
+            "name": "sacrifice-fodder",
+            "providers": [
+                "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
+                "2e139ad1-1079-49e9-babd-6399c44ad333",
+                "4720b4f2-e6af-4223-9250-a0ed21ed5693",
+                "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
+                "5da578b8-19e6-4068-9336-e7cd33c585f1",
+                "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9",
+                "69af2825-18c2-4463-b6ba-42eaa070ccc1",
+                "06c053d3-028e-4961-93a5-5b7bb5a8601c"
+            ],
+            "requirers": [
+                "1ee98955-4c47-4d45-9377-608dfa755337",
+                "c8173030-1c33-417c-b8e9-79231b6a85a7",
+                "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
+                "3d8ca18d-9099-4f1e-95c1-f04da58a26bd",
+                "179e954f-1d90-4ef4-b800-25845cc338e2",
+                "0845f0b0-9413-4ddd-861d-9607636bebc6",
+                "55318397-de3c-47ea-a088-72a24df5c8fa",
+                "928036c9-11b8-493e-b9f2-8fbd3487cd19",
+                "a15570c0-4210-4959-8584-987ec85f8283",
+                "42b8d797-b01d-49cf-9818-d84bba17029d"
+            ],
+            "why": "oracle: sacrifice outlets and costs want cheap or token bodies; value-on-death covers a death trigger on the fodder, not expendability"
+        }
+    ]
+}
