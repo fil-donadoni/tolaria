@@ -6,6 +6,9 @@
 //
 //   bun run heartbeat [--dry-run]
 //
+// Also flags a silent queue stall (issue #9065): a pr-gate / owner-merge
+// `startup_failure`, or a queued PR with no `trusted-author` status.
+//
 // Writes the tick to ~/.cache/tolaria/heartbeat/last.json (`bun run runner status`
 // prints it). Exits 1 when a read or a dispatch
 // failed, so the service manager's status shows it; otherwise 0.
@@ -23,8 +26,10 @@ import {
 import {
     HEARTBEAT_STATE,
     heartbeatLines,
+    QUEUE_GATE_WORKFLOWS,
     settlesTip,
     tick,
+    type QueuedPrFact,
     type RunFact,
     type WorkflowClock,
 } from "./lib/heartbeat";
@@ -59,6 +64,70 @@ function clock(workflow: string): WorkflowClock {
     return { active: state === "active", runs };
 }
 
+/** Per tick: 2 run lists + 1 PR list + 1 status read per queued PR. */
+function queueGateFacts() {
+    const workflows = QUEUE_GATE_WORKFLOWS.map((workflow) => ({
+        workflow,
+        runs: JSON.parse(
+            gh([
+                "run",
+                "list",
+                "--repo",
+                repo,
+                "--workflow",
+                workflow,
+                "--limit",
+                "30",
+                "--json",
+                "createdAt,status,conclusion,url",
+            ])
+        ) as RunFact[],
+    }));
+    const open = JSON.parse(
+        gh([
+            "pr",
+            "list",
+            "--repo",
+            repo,
+            "--state",
+            "open",
+            "--limit",
+            "100",
+            "--json",
+            "number,headRefName,headRefOid,labels,updatedAt",
+        ])
+    ) as {
+        number: number;
+        headRefName: string;
+        headRefOid: string;
+        labels: { name: string }[];
+        updatedAt: string;
+    }[];
+    const prs: QueuedPrFact[] = open
+        .filter(
+            (p) =>
+                p.headRefName.startsWith("mergify/merge-queue/") ||
+                p.labels.some((l) => l.name === "ready-to-land")
+        )
+        .map((p) => {
+            const contexts = gh([
+                "api",
+                `repos/${repo}/commits/${p.headRefOid}/statuses?per_page=100`,
+                "--jq",
+                '[.[].context] | join("\\n")',
+            ])
+                .trim()
+                .split("\n");
+            return {
+                number: p.number,
+                sha: p.headRefOid.slice(0, 8),
+                hasTrustedAuthor: contexts.includes("trusted-author"),
+                updatedAt: p.updatedAt,
+            };
+        });
+    return { workflows, prs };
+}
+
 const state = tick({
     host: machineName(),
     now: Date.now,
@@ -80,6 +149,7 @@ const state = tick({
                 null,
         };
     },
+    queueGateFacts,
     // No `--ref`: the default branch, as afk-pass.yml dispatches it.
     dispatchAfk: () =>
         void gh(["workflow", "run", "afk-dispatch.yml", "--repo", repo]),
@@ -104,4 +174,12 @@ if (!dryRun) {
 }
 for (const line of heartbeatLines(text, Date.parse(state.at)))
     console.log(line.trimStart());
-process.exit(state.afkDispatch.error || state.health.error ? 1 : 0);
+// A flag is a failure too (issue #9065): the service status shows a stalled queue.
+process.exit(
+    state.afkDispatch.error ||
+        state.health.error ||
+        state.queueGate?.error ||
+        state.queueGate?.flags.length
+        ? 1
+        : 0
+);
