@@ -59202,6 +59202,7 @@
         {"id":"702.149a","line":"/** CR 702.149a — another declared attacker, through the layers on both sides, has","sites":1,"status":"confirmed","ruleHash":"eb0658ae262c67bf"},
         {"id":"603.2","line":"// (CR 201.5, 603.2). No corpus card printing one of these forms compiles whole","sites":1,"status":"confirmed","ruleHash":"97fdf542ef7c8a43"},
         {"id":"208.1","line":"* effective toughness (CR 208.1, CR 613.4c) — \"target creature with total","sites":1,"status":"confirmed","ruleHash":"6399174f480cbfa1"},
+        {"id":"103.6b","line":"it(\"reveals every offered opening-hand card (CR 103.6b), scheduling its first-upkeep trigger\", async () => {","sites":1,"status":"confirmed","ruleHash":"e4eaa9d18553e957"},
         {"id":"509.1","line":"* CR 508.1 / 509.1): that pose is spread over the window's, so the end-step","sites":1,"status":"confirmed","ruleHash":"8c52cfe674d51d4e"},
         {"id":"400.11a","line":"// CR 400.11a — the cards each seat owns outside the game, a LIST of","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"702.126","line":"// CR 702.126 — Improvise (issue #1313).","sites":1,"status":"baseline"},
