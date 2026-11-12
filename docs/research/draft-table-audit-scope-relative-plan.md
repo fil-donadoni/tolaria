@@ -1,7 +1,8 @@
 # Draft Table Audit — the plan read against its scope
 
-> **Measured at `538a391b3` (2026-11-12)**, rebased onto `d03e898b7` (the first
-> Profile Census, PR #9124). Issue #9298, PRD #8772.
+> **Measured at `d3a4b6c33` (2026-11-12)**, rebased onto `668f4beb7` (the
+> revert of the first Profile Census, PR #9343: the Vintage Cube reads its seed
+> profiles again). Issue #9298, PRD #8772.
 
 ## What changed
 
@@ -21,31 +22,33 @@ two cards of a small scope, while a surplus needs real cards behind it.
 bun run draft:audit -- --scope vintage-cube   # seeds 1..8, 64 decks
 ```
 
-| Measure                      | Raw depth `d03e898b7`                                  | Scope-relative `538a391b3`                                                                |
-| ---------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Decks built at ≥ 40          | 64 / 64                                                | 64 / 64                                                                                   |
-| Mean castability             | 0.867                                                  | 0.865                                                                                     |
-| Worst deck's castability     | 0.744                                                  | 0.721                                                                                     |
-| Mean plan share              | 0.422                                                  | 0.415                                                                                     |
-| Mean Capability pairs / deck | 16.69                                                  | 16.53                                                                                     |
-| Plans                        | control 40, aggro 13, artifacts 6, ramp 4, graveyard 1 | control 23, aggro 15, artifacts 10, ramp 10, graveyard 3, lands 1, reanimator 1, spells 1 |
+The seed profiles tag 517 cards: control 172, aggro 127, artifacts 100,
+ramp 74, graveyard 70, combo 43, storm 30, reanimator 29.
 
-On the seed data before the census (same code, measured during the work on the
-branch), the change moved control 38 → 18 and ramp 5 → 13, with castability
-0.866 / 0.772 and Capability pairs 17.63: the effect does not depend on the
-census.
+| Measure                      | Raw depth `668f4beb7`                                  | Scope-relative `d3a4b6c33`                                            |
+| ---------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
+| Decks built at ≥ 40          | 64 / 64                                                | 64 / 64                                                               |
+| Mean castability             | 0.865                                                  | 0.866                                                                 |
+| Worst deck's castability     | 0.772                                                  | 0.772                                                                 |
+| Mean plan share              | 0.526                                                  | 0.505                                                                 |
+| Mean Capability pairs / deck | 16.72                                                  | 17.63                                                                 |
+| Plans                        | control 38, aggro 19, ramp 5, graveyard 1, artifacts 1 | aggro 21, control 18, ramp 13, artifacts 9, graveyard 2, reanimator 1 |
+
+An earlier measurement on the census profiles (PR #9124, since reverted) moved
+control 40 → 23 and built eight plans, `lands` and `spells` among them: the
+effect does not depend on the census.
 
 ## Reading
 
-- **The table is no longer one plan.** Control falls from 40 seats to 23 and
-  eight plans are built. Two of the census's new Archetypes (`lands`, `spells`)
-  are chosen for the first time; `blink`, `tokens`, `sacrifice` and `cheat`
-  still never are — no Pool in eight seeds holds four units of them.
-- **The three small losses come with a narrower plan.** A narrow plan has fewer
-  tagged spells (plan share) and fewer Capability partners in the Maindeck.
-  The worst castability is one deck, a GR `ramp` seat (seed 8 seat 5) at 0.721;
-  the next is 0.744. The Floors are re-baselined to these values, rounded down
-  to two decimals, with the reason beside them in `scripts/lib/draft-audit.ts`.
+- **The table is no longer one plan.** Control falls from 38 seats to 18 and
+  six plans are built; `artifacts` goes from 1 seat to 9 and `ramp` from 5
+  to 13. `combo` and `storm` are still never chosen: no Pool in eight seeds
+  holds four units of them.
+- **Plan share falls by construction.** It counts the spells carrying the
+  plan's tag, so a narrower plan reads a plan-neutral card (cheap removal) as
+  off-plan. The Floor is loosened 0.52 → 0.50 with the reason beside it in
+  `scripts/lib/draft-audit.ts`. Castability holds (the worst deck is the same
+  seat, now built as `ramp`) and Capability pairs rise.
 - **The pick scorer is unchanged.** Archetype commitment while drafting
   (`botDrafter.ts#archetypeCommitment`) still accumulates raw units, so a
   drafter still drifts toward broad tags; only the build reads the scope.
