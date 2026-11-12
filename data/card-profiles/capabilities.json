@@ -87,8 +87,9 @@
         },
         "3dea5b45-925c-4732-8e9d-fa8232792736": {
             "provides": ["value-on-etb"],
-            "requires": ["cheap-artifact"],
-            "reviewed": false
+            "requires": ["cheap-artifact-mv-1"],
+            "reviewed": false,
+            "rationale": "oracle: finds or returns an artifact with mana value 1 or less, so it requires cheap-artifact-mv-1, not plain cheap-artifact"
         },
         "5403b49d-03a7-4cc3-af3c-df098c1c9c2e": {
             "provides": ["value-on-cast", "cheap-spell"],
@@ -306,9 +307,10 @@
             "reviewed": false
         },
         "847a175e-ead1-4596-baf3-5f7f57859e0b": {
-            "provides": ["value-on-death"],
+            "provides": ["value-on-death", "cheap-artifact"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: an artifact with mana value 1 or less, so an artifact tutor capped at mana value 1 (Urza's Saga) can fetch it"
         },
         "be77b98a-dd79-477c-8ab2-7ebf5637a89e": {
             "provides": ["value-on-etb"],
@@ -849,8 +851,9 @@
         },
         "09c9cd1b-9260-4f98-ac7a-25bb5ae3e06d": {
             "provides": [],
-            "requires": ["cheap-artifact"],
-            "reviewed": false
+            "requires": ["cheap-artifact-mv-1"],
+            "reviewed": false,
+            "rationale": "oracle: finds or returns an artifact with mana value 1 or less, so it requires cheap-artifact-mv-1, not plain cheap-artifact"
         },
         "ce295f1e-fb31-4275-a5d3-8c6f29afff40": {
             "provides": [],
@@ -1858,9 +1861,9 @@
         },
         "c1e0f201-42cb-46a1-901a-65bb4fc18f6c": {
             "provides": ["go-wide"],
-            "requires": ["cheap-artifact"],
+            "requires": ["cheap-artifact-mv-1"],
             "reviewed": false,
-            "rationale": "oracle: chapter II grants a repeatable ability creating a Construct token each activation"
+            "rationale": "oracle: chapter II grants a repeatable ability creating a Construct token each activation; finds an artifact with mana cost {0} or {1}, so it requires cheap-artifact-mv-1, not plain cheap-artifact"
         },
         "e2b826be-4256-4fd6-ad4d-6c80933ee940": {
             "provides": ["reanimatable"],
@@ -2311,22 +2314,28 @@
             "rationale": "oracle: landfall — empowers Jace per land entering"
         },
         "5da578b8-19e6-4068-9336-e7cd33c585f1": {
-            "provides": ["sacrifice-fodder"],
+            "provides": ["sacrifice-fodder", "cheap-artifact"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: makes a 1/1 Servo token every activation"
+            "rationale": "oracle: makes a 1/1 Servo token every activation; an artifact with mana value 1 or less, so an artifact tutor capped at mana value 1 (Urza's Saga) can fetch it"
         },
         "55318397-de3c-47ea-a088-72a24df5c8fa": {
-            "provides": [],
+            "provides": ["cheap-artifact"],
             "requires": ["sacrifice-fodder"],
             "reviewed": false,
-            "rationale": "oracle: draws two cards whenever the equipped creature dies — a 1-toughness token dies on equip"
+            "rationale": "oracle: draws two cards whenever the equipped creature dies — a 1-toughness token dies on equip; an artifact with mana value 1 or less, so an artifact tutor capped at mana value 1 (Urza's Saga) can fetch it"
         },
         "cef789e8-e4cc-4f61-bc15-debc2487777f": {
             "provides": [],
             "requires": ["value-on-etb"],
             "reviewed": false,
             "rationale": "oracle: removes fade counters to exile creatures and returns them when it leaves, re-buying their enters triggers"
+        },
+        "80fca8c0-ae3e-439e-b202-228b9f360e9a": {
+            "provides": ["cheap-artifact"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: an artifact with mana value 1 or less, so an artifact tutor capped at mana value 1 (Urza's Saga) can fetch it"
         }
     }
 }

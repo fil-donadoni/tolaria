@@ -254,6 +254,19 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         description:
             "PROVIDES: a low mana-value artifact whose primary draft value is filling the artifact-count column for an artifact-count payoff (Moxen, Signets, cantrip artifacts) rather than its standalone rate. REQUIRES: an artifact-count/Metalcraft payoff card (its cost or effect scales with artifacts controlled) declares this directly, by name, in ITS OWN `requires` array — there is no separate 'artifact-payoff' capability name, matching the `self-mills`/`discard-outlet` discipline above.",
     },
+    {
+        id: "cheap-artifact-mv-1",
+        cluster: "Artifacts",
+        gloss: {
+            provides:
+                "Never set by hand: a `cheap-artifact` card with mana value ≤ 1 satisfies it.",
+            requires: "An artifact tutor or recursion capped at mana value 1.",
+        },
+        example: { provider: null, requirer: "Urza's Saga" },
+        bound: { capability: "cheap-artifact", maxManaValue: 1 },
+        description:
+            "PROVIDES: nothing directly — a card providing `cheap-artifact` satisfies this row exactly when its mana value is 1 or less (see `cheap-artifact` for the provider side). REQUIRES: an effect that finds or returns an artifact with mana value 1 or less (a tutor for an artifact costing {0} or {1}, a recursion of an artifact card with mana value 1 or less) requires this instead of `cheap-artifact`: a two-mana Signet or Talisman can never be fetched, so that pair scores nothing. Accepted imprecision: a tutor reading mana COST ({0} or {1}) also misses an `{X}` artifact whose mana value is 0, which this bound would accept; no such artifact provides `cheap-artifact`, so the bound loses nothing.",
+    },
 
     // ── Spells cluster ───────────────────────────────────────────────────
     {
