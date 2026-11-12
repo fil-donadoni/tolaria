@@ -56,6 +56,7 @@ const DISCARD_LAND = "Plains";
 const X_DISCARD_FODDER = 3;
 /** The opponent's land a land-targeting spell is posed against. */
 const TARGET_LAND = "Forest";
+const SNOW_TARGET_LAND = "Snow-Covered Forest";
 /** The artifact card a graveyard-recursion spell returns: a big body, worth
  *  more than the recursion spell it costs the holder (a card in hand) and than
  *  the position's own artifact filler (Ornithopter), which a recursion that
@@ -317,10 +318,21 @@ function landPose(
 ): TargetPose {
     const owner = favoursItsTarget(def, req, modeId) ? "me" : "opp";
     const named = asList(req.subtypeFilter).find((s) => s in LAND_SUBTYPE_MANA);
+    // "that is snow or could produce {C}" (`supertypeOrProducesFilter`): a plain
+    // Forest is not a legal target, so pose the snow basic that satisfies it.
+    const snowOnly = req.supertypeOrProducesFilter?.supertype === "Snow";
     return {
         cards:
             owner === "opp"
-                ? [{ name: named ?? TARGET_LAND, owner, zone: "battlefield" }]
+                ? [
+                      {
+                          name: snowOnly
+                              ? SNOW_TARGET_LAND
+                              : (named ?? TARGET_LAND),
+                          owner,
+                          zone: "battlefield",
+                      },
+                  ]
                 : [],
         omitToughnessBoost: false,
         position: {},
