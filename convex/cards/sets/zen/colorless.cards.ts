@@ -268,7 +268,7 @@ export const expeditionMap = defineCard(() => ({
 // CR 301.5 — "equipped creature" is named by the text, not targeted
 // (CR 115.10), so the counters go on `{ ref: "$host" }`, the Equipment's
 // `attachedTo`; the Op skips when it is unattached (CR 608.2b).
-// CR 614.1a — "put two +1/+1 counters on it INSTEAD" is read as the ONE effect
+// CR 614.15 — "put two +1/+1 counters on it INSTEAD" is read as the ONE effect
 // the trigger has, branched on the host's live subtype (CR 613 layer 4: a
 // granted Vampire type counts): `if` Vampire → two counters, else → one. The
 // check runs at resolution, so a host that stopped being a Vampire since the
