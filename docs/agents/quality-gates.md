@@ -1571,6 +1571,33 @@ settle self-check) plus a handful of cells and lands well under 5 min. The
 `walk` phase still owns 58 % of cell time, most of it in the game surfaces'
 navigation and scenario dealing — the next lever, if one is ever needed.
 
+**The walk, split (issue #9268).** `walk` is no longer one number: every cell
+line closes with ` [goto… pos… absent… act…]` — navigation + route ready,
+declared-position / fixture load, waits on an element that never appeared (a
+conditional `clickIfVisible` miss), and the rest — exclusive by nesting, so
+the four sum to the cell's `walk`. The diagnostic block adds a sub-phase table
+shaped like the phase table and a `fixed floor:` block whose steps (fleet
+bootstrap, serve, browser launches, settle self-check, warm-up, the slowest
+lane sign-in) are each measured where they run, never inferred as wall minus
+phases (`scripts/ui-gate/phase-timing.ts`). Diagnostic only: `land` re-derives
+none of it.
+
+First measured `--all`, sha `937d1854e`, 2026-11-12, load 46.8 → 52.6 on
+8 cpus (contended: backend function timeouts, 2 of 414 cells red — a timing
+record, not a receipt). Wall 1682 s, 414 cells, `walk` 81 % of phase time:
+
+| Sub-phase    | Total    | Share | Mean  | Worst cell                             |
+| ------------ | -------- | ----- | ----- | -------------------------------------- |
+| `goto`       | 2353.3 s | 46 %  | 5.7 s | 109.0 s design-system @ 844x390x3      |
+| `position`   | 796.5 s  | 16 %  | 1.9 s | 39.1 s game-source-choice @ 390x844x3  |
+| `absentWait` | 523.7 s  | 10 %  | 1.3 s | 39.7 s game-source-choice @ 820x1180x2 |
+| `interact`   | 1411.9 s | 28 %  | 3.4 s | 94.1 s game-source-choice @ 820x1180x2 |
+
+Fixed floor 124.2 s: fleet bootstrap 73.1 s, serve (`vite build` + preview)
+36.6 s, sign-ins 7.6 s slowest of 6 (42.5 s summed), the other four steps
+under 2.1 s each. Under that load navigation, not the declared position, is
+the largest share; an uncontended run is owed before a lever is ranked on it.
+
 ## Hooks, and why they are tracked in git
 
 `.husky/pre-commit` — lint-staged/prettier on staged files. A convenience;

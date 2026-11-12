@@ -108,8 +108,10 @@ load and never a leaked measurement. The diagnostic block lists every row that
 had to re-navigate and why.
 
 **Every cell prints where its time went** (issue #4687). A measured cell line
-ends in `| t walk… settle… probe… axe… shot… assert… clean… =Ns`, and the
-diagnostic block closes with a per-phase total, share, mean and worst cell
+ends in `| t walk… settle… probe… axe… shot… assert… clean… =Ns` and the
+walk's split `[goto… pos… absent… act…]` (issue #9268), and the diagnostic
+block closes with a per-phase and a per-sub-phase total, share, mean and worst
+cell, then the measured `fixed floor:` steps
 (`scripts/ui-gate/phase-timing.ts`). Every lever above was ranked on those
 numbers: `docs/agents/quality-gates.md` § Affordability.
 
