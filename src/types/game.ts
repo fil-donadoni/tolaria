@@ -6,6 +6,7 @@ import type {
     RestrictedMana,
     AttackManaTaxPayment,
     PileChoiceNotice,
+    ChoiceAnnouncement,
 } from "@convex/gre/state";
 import type {
     CopyExcept,
@@ -13,7 +14,7 @@ import type {
     TargetSelection,
 } from "@convex/cards/types";
 
-export type { AttackManaTaxPayment, PileChoiceNotice };
+export type { AttackManaTaxPayment, PileChoiceNotice, ChoiceAnnouncement };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { FaceDownProducer } from "@convex/gre/faceDown";
 import type { WireCharacteristics } from "@convex/gre/wireCharacteristics";

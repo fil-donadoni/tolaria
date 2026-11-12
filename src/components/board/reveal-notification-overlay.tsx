@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { Panel } from "~/components/ui/panel";
 import CardImage from "~/components/cards/card-image";
+import NoticeToast from "./notice-toast";
 
 /** Auto-dismiss window for a one-shot look/reveal popup. The server clears
  *  `pendingReveals` on its next resolution, but that can be many priority
@@ -24,7 +25,20 @@ const REVEAL_NOTIFICATION_MS = 5000;
  *  library peeks are the callers. The persistent visibility of a looked card
  *  (it stays face-up in its zone) is the separate `knownTo` grant the caller
  *  also performs — this overlay is only the momentary "here is what you saw". */
-export default function RevealNotificationOverlay() {
+export default function RevealNotificationOverlay({
+    notice = null,
+    noticeHidden = false,
+    onNoticeDismiss,
+}: {
+    /** Issue #8956 — an announcement from the same resolution (Tamiyo: the
+     *  name, then the reveal). Shown as a line in the reveal panel while a
+     *  reveal is up, and dismissed together with it; with no reveal it is the
+     *  ordinary notice toast. */
+    notice?: { message: string; key: string } | null;
+    /** Yield the toast anchor (to the error toast). */
+    noticeHidden?: boolean;
+    onNoticeDismiss?: () => void;
+} = {}) {
     const { pendingReveals, pendingChoices, playerId } = useGameContext();
     const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
         () => new Set()
@@ -53,11 +67,21 @@ export default function RevealNotificationOverlay() {
         : (pendingReveals ?? []).filter((r) => !dismissed.has(r.id)).at(-1);
 
     const activeId = active?.id;
+    // One dismissal for the reveal AND the announcement shown beside it.
+    const dismissActive = (id: string) => {
+        setDismissed((prev) => new Set(prev).add(id));
+        onNoticeDismiss?.();
+    };
+    const dismissRef = useRef(dismissActive);
+    useEffect(() => {
+        dismissRef.current = dismissActive;
+    });
     useEffect(() => {
         if (activeId === undefined) return;
-        const timer = setTimeout(() => {
-            setDismissed((prev) => new Set(prev).add(activeId));
-        }, REVEAL_NOTIFICATION_MS);
+        const timer = setTimeout(
+            () => dismissRef.current(activeId),
+            REVEAL_NOTIFICATION_MS
+        );
         return () => clearTimeout(timer);
     }, [activeId]);
 
@@ -75,15 +99,25 @@ export default function RevealNotificationOverlay() {
             if (e.repeat) return;
             e.preventDefault();
             e.stopPropagation();
-            setDismissed((prev) => new Set(prev).add(activeId!));
+            dismissRef.current(activeId!);
         }
         window.addEventListener("keydown", onKeyDown, true);
         return () => window.removeEventListener("keydown", onKeyDown, true);
     }, [activeId]);
 
-    if (!active) return null;
+    if (!active) {
+        return notice ? (
+            <NoticeToast
+                message={notice.message}
+                noticeKey={notice.key}
+                hidden={noticeHidden}
+                keysSuppressed={prompted}
+                onDismiss={() => onNoticeDismiss?.()}
+            />
+        ) : null;
+    }
 
-    const dismiss = () => setDismissed((prev) => new Set(prev).add(active.id));
+    const dismiss = () => dismissActive(active.id);
 
     const multiple = active.cards.length > 1;
     // CR 701.23b — the fail-to-find notice carries NO cards: the whole message
@@ -116,6 +150,15 @@ export default function RevealNotificationOverlay() {
                 density="compact"
                 className="flex flex-col items-center gap-4 px-8 py-6"
             >
+                {notice && (
+                    <p
+                        role="status"
+                        aria-live="polite"
+                        className="max-w-lg text-center text-sm text-text"
+                    >
+                        {notice.message}
+                    </p>
+                )}
                 <p className="text-display text-sm text-text">{heading}</p>
                 {active.kind === "fail-to-find" ? (
                     <p className="max-w-64 text-center text-sm text-text-muted">

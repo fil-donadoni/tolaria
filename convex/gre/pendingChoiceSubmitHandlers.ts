@@ -775,6 +775,39 @@ export function submitOutsideGamePick(
     submitMidResolutionPick(state, head, queue, args);
 }
 
+/** Issue #8956 — record the `order-top` answer for every seat: counts for all,
+ *  graveyard names public, the names left in the library chooser-only. Read
+ *  BEFORE the answer moves any card. An order-only look (no second zone) hides
+ *  nothing worth announcing and records nothing. */
+function announceTopSplit(
+    state: GameState,
+    head: PendingChoice,
+    args: SubmitChoiceArgs
+): void {
+    const zone = head.destination;
+    if (zone !== "library-bottom" && zone !== "graveyard") return;
+    const second = args.secondZoneIds ?? [];
+    const seq = (state.lastChoiceAnnouncement?.seq ?? 0) + 1;
+    state.lastChoiceAnnouncement = {
+        key: `${seq}:${head.stackItemId}:${head.step}:${head.choiceId}`,
+        seq,
+        chooserId: head.playerId,
+        kind: "top-split",
+        looked: args.cardInstanceIds.length + second.length,
+        onTop: args.cardInstanceIds.length,
+        second: second.length,
+        secondZone: zone,
+        ...(zone === "graveyard"
+            ? { graveyardNames: pileCardNames(state, second) }
+            : {}),
+        chooserNames: {
+            top: pileCardNames(state, args.cardInstanceIds),
+            bottom:
+                zone === "library-bottom" ? pileCardNames(state, second) : [],
+        },
+    };
+}
+
 export function submitMidResolutionPick(
     state: GameState,
     head: PendingChoice,
@@ -782,6 +815,7 @@ export function submitMidResolutionPick(
     args: SubmitChoiceArgs
 ): void {
     const key = `${head.step}:${head.choiceId}`;
+    if (head.kind === "order-top") announceTopSplit(state, head, args);
     commitChoiceAnswer(
         state,
         head,

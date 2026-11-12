@@ -95,8 +95,14 @@ import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
 import NoticeToast from "./notice-toast";
-import { usePileChoiceNotice } from "~/hooks/usePileChoiceNotice";
-import { formatPileChoiceNotice } from "~/lib/pile-choice-notice";
+import {
+    useChoiceAnnouncement,
+    usePileChoiceNotice,
+} from "~/hooks/usePileChoiceNotice";
+import {
+    formatChoiceAnnouncement,
+    formatPileChoiceNotice,
+} from "~/lib/pile-choice-notice";
 import BoardConnectionError from "./board-connection-error";
 import VsAiDriver from "./vs-ai-driver";
 import VerdictProposalCapture from "./verdict-proposal-capture";
@@ -356,6 +362,12 @@ export default function Board({
         state?.lastPileChoice
     );
 
+    // Named-card / scry-split announcement (issue #8956), same baseline rule.
+    const choiceNotice = useChoiceAnnouncement(
+        state !== undefined,
+        state?.lastChoiceAnnouncement
+    );
+
     // Coin-flip summary toast (PRD issue #4433) for EVERY seat: once a Random
     // Reveal stops being the prompt (the flipper's ack, or a viewer's lingering
     // overlay closing), a one-line "source — tally — consequence" recap.
@@ -477,6 +489,9 @@ export default function Board({
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== viewerId);
     const me = allPlayers.find((p) => p.id === viewerId);
+    // A pending choice addressed to the viewer owns the keyboard: the notice
+    // toasts leave Space alone (the reveal popup's rule, issue #3425).
+    const viewerPrompted = state.pendingChoices?.[0]?.playerId === viewerId;
     const orderedPlayers = [opponent, me].filter(
         (p): p is Player => p !== undefined
     );
@@ -891,7 +906,29 @@ export default function Board({
                                                 <HandCardPick />
                                                 <OutsideGameCardPick />
                                                 <RevealHandView />
-                                                <RevealNotificationOverlay />
+                                                <RevealNotificationOverlay
+                                                    notice={
+                                                        choiceNotice.confirm
+                                                            ? {
+                                                                  key: choiceNotice
+                                                                      .confirm
+                                                                      .key,
+                                                                  message:
+                                                                      formatChoiceAnnouncement(
+                                                                          choiceNotice.confirm,
+                                                                          allPlayers
+                                                                      ),
+                                                              }
+                                                            : null
+                                                    }
+                                                    noticeHidden={
+                                                        !!pendingChoiceBuffer.lastError ||
+                                                        !!pileNotice.confirm
+                                                    }
+                                                    onNoticeDismiss={
+                                                        choiceNotice.dismiss
+                                                    }
+                                                />
                                                 <PutBackPicker />
 
                                                 {mulligan &&
@@ -951,6 +988,9 @@ export default function Board({
                                                     hidden={
                                                         !!pendingChoiceBuffer.lastError
                                                     }
+                                                    keysSuppressed={
+                                                        viewerPrompted
+                                                    }
                                                     onDismiss={
                                                         pileNotice.dismiss
                                                     }
@@ -969,7 +1009,11 @@ export default function Board({
                                                     }
                                                     hidden={
                                                         !!pendingChoiceBuffer.lastError ||
-                                                        !!pileNotice.confirm
+                                                        !!pileNotice.confirm ||
+                                                        !!choiceNotice.confirm
+                                                    }
+                                                    keysSuppressed={
+                                                        viewerPrompted
                                                     }
                                                     onDismiss={
                                                         revealSummary.dismiss
