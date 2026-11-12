@@ -64,10 +64,11 @@
  * `lib/health-step.ts` owns that.
  *
  * The Bot Findings refresh (`bot:reach`, `seed:bot-findings`, `gaps:sync`)
- * and the blade robustness / held-out pick agreement audits are NOT part of
- * this run: they keep a view of the Bot fresh and prove nothing
- * about the tree, so `bun run health:nightly` (`scripts/health-nightly.ts`, a
- * cron entry point) runs the refresh nightly and the audits weekly. Nor is
+ * and the blade robustness audit are NOT part of this run: they keep a view
+ * of the Bot fresh and prove nothing about the tree, so
+ * `bun run health:nightly` (`scripts/health-nightly.ts`, a cron entry point)
+ * runs the refresh nightly and the audit weekly. Held-out pick agreement is
+ * run by hand after `verdicts:promote` (issue #8698). Nor is
  * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
  * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
