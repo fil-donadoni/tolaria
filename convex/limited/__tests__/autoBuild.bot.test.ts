@@ -1530,6 +1530,21 @@ describe("plan depth read against the scope (issue #9298)", () => {
         ).toBe("aggro");
     });
 
+    it("a settled plan below its expectation is still chosen when every settled one is: the least diluted", () => {
+        // aggro 11 − 16.5 = −5.5, control 8 − 9.9 = −1.9.
+        const commitment = new Map([
+            ["aggro", 11],
+            ["control", 8],
+        ]);
+        const bothBroad = new Map([
+            ["aggro", 0.5],
+            ["control", 0.3],
+        ]);
+        expect(choosePlanArchetype(commitment, POOL_SIZE, bothBroad)).toBe(
+            "control"
+        );
+    });
+
     it("with no scope share the plan is the raw deepest, ties by Archetype id", () => {
         const commitment = new Map([
             ["control", 8],

@@ -50,21 +50,46 @@ export function archetypeScopeShareOf(
 
 /** The scope share of an event's pack sources: the union of their cards
  *  (`listScopeCards`, a Draftable Set's sheets or the cube pool). `null` for
- *  sources with no listable cards — the plan then reads raw depth. */
+ *  sources with no listable cards — the plan then reads raw depth.
+ *
+ *  Every card counts once, so the expectation is exact for a singleton cube
+ *  and an approximation for a Draftable Set, whose packs draw commons more
+ *  often than rares (sheet weights are not read). The build and the audit
+ *  read the same share, so the approximation never splits them. */
 export function archetypeScopeShareForPackSlots(
     packSlots: readonly string[],
     getCardProfile: GetCardProfile
 ): ArchetypeScopeShare | null {
-    const cardIds = [...new Set(packSlots)].flatMap((slot) =>
-        listScopeCards(slot).map((c) => c.cardId)
-    );
+    const cardIds = [...new Set(packSlots)].flatMap(scopeCardIds);
     return archetypeScopeShareOf(cardIds, getCardProfile);
 }
+
+/** A scope's card ids, listed once per process: the list is static checked-in
+ *  data (Booster Config sheets, the cube pool), while the profiles read over
+ *  it are not and are never cached here. */
+const SCOPE_CARD_IDS = new Map<string, readonly string[]>();
+
+function scopeCardIds(slot: string): readonly string[] {
+    const key = slot.toLowerCase();
+    let ids = SCOPE_CARD_IDS.get(key);
+    if (!ids) {
+        ids = listScopeCards(slot).map((c) => c.cardId);
+        SCOPE_CARD_IDS.set(key, ids);
+    }
+    return ids;
+}
+
+/** Two depths closer than this are a tie, broken by Archetype id: the
+ *  expectation is a float product, and rounding noise must not decide. */
+const DEPTH_EPSILON = 1e-9;
 
 /** The Pool's plan: among Archetypes at or above the settle bar, the one with
  *  the largest surplus over its scope expectation (`poolCardCount × share`);
  *  with no scope share, the largest raw depth. Ties break by Archetype id.
- *  `null` when no Archetype is settled. */
+ *  `null` when no Archetype is settled. A settled Archetype is the plan even
+ *  at a negative surplus when every settled one sits below its expectation:
+ *  the Pool reached the settle bar, and the least-diluted plan beats none —
+ *  as the raw-depth plan did. */
 export function choosePlanArchetype(
     commitment: ReadonlyMap<string, number>,
     poolCardCount: number,
@@ -80,7 +105,7 @@ export function choosePlanArchetype(
             ? poolCardCount * (scopeShare.get(archetype) ?? 0)
             : 0;
         const depth = units - expected;
-        if (depth > bestDepth) {
+        if (depth > bestDepth + DEPTH_EPSILON) {
             best = archetype;
             bestDepth = depth;
         }

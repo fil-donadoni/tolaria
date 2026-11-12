@@ -127,6 +127,8 @@ export function runDraftAudit(
         packSlots,
         EMPTY_PROFILE_LAYERS
     );
+    // `runFullDraftLab` snapshots no DB profile rows, so the build reads the
+    // same seed-only profiles this share is computed from.
     const scopeShare = archetypeScopeShareForPackSlots(
         packSlots,
         getCardProfile
