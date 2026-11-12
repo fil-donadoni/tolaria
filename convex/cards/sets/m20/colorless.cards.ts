@@ -87,3 +87,37 @@ export const mysticForge = defineCard(() => ({
         },
     ],
 }));
+
+// Grafdigger's Cage — {1} Artifact (issue #8599). Two read-time clauses, both
+// declared on the permanent and scanned live, so each lifts the instant the
+// Cage leaves the battlefield:
+// - "Creature cards in graveyards and libraries can't enter the battlefield."
+//   is `blocksBattlefieldEntryFrom` (CR 614.17: a "can't" effect, not a
+//   replacement), consulted at the shared non-cast entry chokepoint; the card
+//   stays in its zone.
+// - "Players can't cast spells from graveyards or libraries." is a
+//   `cast-restriction` static (CR 601.3a) keyed on the cast subject's zone.
+// hand-tail: Players can't cast spells from graveyards or libraries. (#8599)
+export const grafdiggersCage = defineCard(() => ({
+    id: "2a6240e7-d3aa-40e9-a627-58e7bf62525c",
+    name: "Grafdigger's Cage",
+    rarity: "rare",
+    oracleText:
+        "Creature cards in graveyards and libraries can't enter the battlefield.\nPlayers can't cast spells from graveyards or libraries.",
+    manaCost: { generic: 1 },
+    types: ["Artifact"],
+    blocksBattlefieldEntryFrom: {
+        zones: ["graveyard", "library"],
+        types: ["Creature"],
+    },
+    staticEffects: [
+        {
+            kind: "cast-restriction",
+            id: "grafdiggers-cage-no-cast-from-graveyard-or-library",
+            forbids: (_caster, spell) =>
+                spell.zone === "graveyard" || spell.zone === "library",
+            oracleText:
+                "Players can't cast spells from graveyards or libraries.",
+        },
+    ],
+}));

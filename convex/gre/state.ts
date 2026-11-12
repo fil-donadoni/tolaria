@@ -4708,6 +4708,29 @@ export function landPlayLockActive(state: GameState): boolean {
     return false;
 }
 
+/** CR 614.17 — true when a battlefield permanent declaring
+ *  `blocksBattlefieldEntryFrom` forbids `card` (in its current zone) from
+ *  entering the battlefield. Live scan, like `landPlayLockActive`. */
+export function battlefieldEntryBlockedFrom(
+    state: GameState,
+    card: Pick<CardInstanceState, "zone" | "types">
+): boolean {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const block =
+                liveStaticDefinition(source)?.blocksBattlefieldEntryFrom;
+            if (
+                block &&
+                (block.zones as readonly string[]).includes(card.zone) &&
+                block.types.some((t) => card.types.includes(t))
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** Mirrors the live `landPlayLockActive` derivation into the serializable
  *  `state.landPlayLocked` cache. Called from `checkStateBasedActions` so the
  *  flag tracks the battlefield at every stable point; the flag is dropped when
@@ -10889,6 +10912,14 @@ function stageReanimatedOnBattlefield(
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
+        return false;
+    }
+    // CR 614.17 — "Creature cards in graveyards and libraries can't enter the
+    // battlefield" (`blocksBattlefieldEntryFrom`): the card stays where it is,
+    // exactly like the CR 712.14b case below (callers restore it).
+    if (battlefieldEntryBlockedFrom(state, card)) {
+        discardEntryTypeLine(card);
+        restoreToCurrentZone(state, card);
         return false;
     }
     // CR 712.14b (ADR 0122 §3) — "if a player is instructed to put a modal
