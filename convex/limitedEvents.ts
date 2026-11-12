@@ -624,14 +624,14 @@ const MY_EVENTS_SCAN_LIMIT = 500;
 // seam can never drift from the producer that wrote the row.
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics the Bot
- *  Drafter's Pick Heuristic scores on (issue #1113, PRD #1107 story 29) — the
+ *  Drafter's Pick Heuristic scores on — the
  *  only place `convex/limited/botDrafter.ts` needs the card registry, kept
  *  out of that module the same way `resolveCardMeta` above is kept out of
  *  `eventLogic.ts`. Rarity comes from the exact printing (`resolveDeckCardMeta`,
  *  CR 206 — a reprint can carry a different rarity than its home set); colors
  *  and mana value come from the resolved `CardDefinition`.
  *
- *  `pips`/`producedColors` (ADR 0073, issue #1610) are the mana-base fix:
+ *  `pips`/`producedColors` (ADR 0073) are the mana-base fix:
  *  `colors` is mana-cost-derived (CR 202.2) so a dual land, a Mox, a Signet
  *  all read `[]` there — `producedColors` (`limitedSourceColors`, issue #9334)
  *  reads what the card PRODUCES or FETCHES instead, and `pips` (`getPipCountsFromCost`)
