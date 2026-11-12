@@ -7,6 +7,7 @@ import type { MutationCtx } from "../_generated/server";
 import {
     beginDraft,
     DRAFT_COUNTDOWN_SECONDS,
+    leaveLimitedEvent,
     startDraftNow,
     startLimitedEvent,
 } from "../limitedEvents";
@@ -25,6 +26,7 @@ const T0 = 1_800_000_000_000;
 type Handler<A> = { _handler: (ctx: MutationCtx, args: A) => Promise<null> };
 const startH = (startLimitedEvent as unknown as Handler<unknown>)._handler;
 const beginH = (beginDraft as unknown as Handler<unknown>)._handler;
+const leaveH = (leaveLimitedEvent as unknown as Handler<unknown>)._handler;
 const nowH = (startDraftNow as unknown as Handler<unknown>)._handler;
 
 function setup(identity: string) {
@@ -158,6 +160,18 @@ describe("draft start countdown (issue #9167)", () => {
         await startH(t.ctx, { eventId: EVENT_ID });
         expect(t.event().draftStartsAt).toBeUndefined();
         expect(t.event().draftRound).toBe(0);
+        expect(t.botPicks()).toBe(7);
+    });
+
+    it("leaving during the intro does not end it: round 0 still deals at the start", async () => {
+        const t = setup("u1|s");
+        await startH(t.ctx, { eventId: EVENT_ID, withCountdown: true });
+        await leaveH(t.ctx, { eventId: EVENT_ID });
+        expect(t.event().draftRound).toBeUndefined();
+        expect(t.humanPackSize()).toBe(0);
+        vi.setSystemTime(t.event().draftStartsAt as number);
+        await beginH(t.ctx, { eventId: EVENT_ID });
+        expect(t.event().draftRound).toBeDefined();
         expect(t.botPicks()).toBe(7);
     });
 });

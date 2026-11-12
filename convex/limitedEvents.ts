@@ -2039,7 +2039,12 @@ export const leaveLimitedEvent = mutation({
         if (
             event.type === "draft" &&
             areDraftPicksLegal(event.status) &&
-            event.draftCompletedAt === undefined
+            event.draftCompletedAt === undefined &&
+            // Table intro (issue #9167): nothing is dealt yet, so there is no
+            // pick to run. Only mark the seat; `endDraftIntro` deals to it as
+            // an auto-driven seat. Running the pick loop now would stamp
+            // `draftRound` and end the intro with every pack empty.
+            !isDraftIntroPending(event)
         ) {
             await dropSeatInDraft(ctx, event, user._id, now);
         } else {
