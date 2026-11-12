@@ -435,6 +435,7 @@ export const limitedEventViewValidator = v.object({
     draftRound: v.optional(v.number()),
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
+    draftStartsAt: v.optional(v.number()),
     timerEnabled: v.optional(v.boolean()),
     // Open Decklists (issue #5386) — DEFINITE on the wire (a legacy row with
     // no stored value reads `false`), so the review banner and the Join
@@ -2038,7 +2039,12 @@ export const leaveLimitedEvent = mutation({
         if (
             event.type === "draft" &&
             areDraftPicksLegal(event.status) &&
-            event.draftCompletedAt === undefined
+            event.draftCompletedAt === undefined &&
+            // Table intro (issue #9167): nothing is dealt yet, so there is no
+            // pick to run. Only mark the seat; `endDraftIntro` deals to it as
+            // an auto-driven seat. Running the pick loop now would stamp
+            // `draftRound` and end the intro with every pack empty.
+            !isDraftIntroPending(event)
         ) {
             await dropSeatInDraft(ctx, event, user._id, now);
         } else {
@@ -2242,6 +2248,155 @@ export const cancelLimitedEvent = mutation({
     },
 });
 
+/** Seconds of table intro between "Start" and the first pick (issue #9167). */
+export const DRAFT_COUNTDOWN_SECONDS = 12;
+
+/** Deals round 0, lets every Bot seat pick, stamps the human seats' pick
+ *  deadlines from `now` and schedules their Auto-Picks. The one body behind
+ *  an immediate start and the end of the table-intro countdown, so both stamp
+ *  deadlines identically. `patch` carries whatever else the caller persists
+ *  in the same write (status/seed on an immediate start, nothing after the
+ *  countdown). */
+async function dealDraftRound0(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    packSlots: readonly string[],
+    seats: LimitedEventSeat[],
+    opts: {
+        seed: number;
+        timerEnabled: boolean | undefined;
+        now: number;
+        patch: Partial<Omit<Doc<"limitedEvents">, "_id" | "seats">>;
+    }
+): Promise<void> {
+    const { seed, timerEnabled, now } = opts;
+    const timerConfig = buildTimerConfig(timerEnabled, now);
+    const getPickRating = await loadEventPickRating(ctx, packSlots);
+    const getCardProfile = await loadEventCardProfile(ctx, packSlots);
+    const cardResolvers = await loadEventCardResolvers(ctx, packSlots);
+    const botChoosePick = makeBotChoosePick(
+        getPickRating,
+        getCardProfile,
+        cardResolvers.getCardEvalMeta
+    );
+    // The cube pool is FROZEN here, once, and persisted on the event
+    // (ADR 0062): every later round is dealt from THIS array, never from a
+    // `buildCubePool()` re-read.
+    const cubePool = packSlots.some(isCubeSource) ? buildCubePool() : undefined;
+    const observePack = makeObservePack(
+        packSlots,
+        cubePool,
+        getPickRating,
+        getCardProfile,
+        cardResolvers.getCardEvalMeta
+    );
+    const dealt = startDraft(
+        seats,
+        packSlots,
+        seed,
+        getRuntimeBoosterConfig,
+        cardResolvers.resolveCardMeta,
+        timerConfig,
+        cubePool,
+        botChoosePick,
+        observePack
+    );
+    const afterBots = runBotAutoPicks(
+        dealt.seats,
+        dealt.draftRound,
+        dealt.draftPacksRemaining,
+        packSlots,
+        seed,
+        getRuntimeBoosterConfig,
+        cardResolvers.resolveCardMeta,
+        botChoosePick,
+        false,
+        timerConfig,
+        cubePool,
+        observePack
+    );
+    // The frozen pool goes in its own row, not on the event
+    // (`convex/limitedCubePoolStore.ts`).
+    if (cubePool) await saveCubePool(ctx, eventId, cubePool);
+    await saveSeats(ctx, eventId, afterBots.seats, {
+        ...opts.patch,
+        draftRound: afterBots.draftRound,
+        draftPacksRemaining: afterBots.draftPacksRemaining,
+        updatedAt: now,
+        ...(afterBots.completed ? { draftCompletedAt: now } : {}),
+    });
+    await scheduleSeatTimers(ctx, eventId, timerEnabled, now, [
+        ...dealt.timerUpdates,
+        ...afterBots.timerUpdates,
+    ]);
+    // An ALL-BOT table finishes here: `runBotAutoPicks` drives the whole draft
+    // to `draftCompletedAt` in this same mutation. Self-gating, so a no-op for
+    // a table with a human still to build.
+    await openPlayPhaseIfReady(ctx, eventId, now);
+}
+
+/** An event whose table-intro countdown has not yet dealt round 0 (issue
+ *  #9167): started, a `draftStartsAt` stamped, no `draftRound` yet. */
+function isDraftIntroPending(event: Doc<"limitedEvents">): boolean {
+    return (
+        event.type === "draft" &&
+        event.status === "started" &&
+        event.draftStartsAt !== undefined &&
+        event.draftRound === undefined &&
+        event.seed !== undefined
+    );
+}
+
+/** Ends the intro at `startsAt`: deals round 0 and lets the Bots pick. */
+async function endDraftIntro(
+    ctx: MutationCtx,
+    event: Doc<"limitedEvents">,
+    startsAt: number
+): Promise<void> {
+    const seats = await hydrateSeats(ctx, event);
+    await dealDraftRound0(ctx, event._id, event.packSlots, seats, {
+        seed: event.seed!,
+        timerEnabled: event.timerEnabled,
+        now: startsAt,
+        patch: { draftStartsAt: startsAt },
+    });
+}
+
+/** Scheduled at `draftStartsAt` by `startLimitedEvent`. A no-op when "Start
+ *  now" (or a cancel) got there first — the state, not the schedule, decides. */
+export const beginDraft = internalMutation({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const event = await ctx.db.get(args.eventId);
+        if (!event || !isDraftIntroPending(event)) return null;
+        await endDraftIntro(ctx, event, event.draftStartsAt!);
+        return null;
+    },
+});
+
+/** "Start now" (issue #9167): the creator skips the rest of the intro. Host
+ *  only — with 2+ humans the table must not be hurried by a guest. Round-0
+ *  deadlines are stamped from this instant, which is `draftStartsAt` moved
+ *  to now. */
+export const startDraftNow = mutation({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.createdBy !== user._id) {
+            throw new Error("Only the event's creator can start it now.");
+        }
+        // Idempotent: a double Space press or a race with the scheduled
+        // `beginDraft` finds the draft already begun.
+        if (!isDraftIntroPending(event)) return null;
+        await endDraftIntro(ctx, event, Date.now());
+        return null;
+    },
+});
+
 /** The event's creator starts it (PRD #1107 story 1). Sealed: every
  *  still-empty Seat becomes a Bot Drafter (story 8), then every Seat's Pool
  *  is dealt in full (story 17, ADR 0055). Draft: every still-empty Seat ALSO
@@ -2254,7 +2409,11 @@ export const cancelLimitedEvent = mutation({
  *  Both paths use a fresh `seed` stored on the event row so either is
  *  reproducible/replayable. */
 export const startLimitedEvent = mutation({
-    args: { eventId: v.id("limitedEvents") },
+    args: {
+        eventId: v.id("limitedEvents"),
+        /** Draft only: open with the table-intro countdown (issue #9167). */
+        withCountdown: v.optional(v.boolean()),
+    },
     returns: v.null(),
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
@@ -2287,91 +2446,36 @@ export const startLimitedEvent = mutation({
                 event.timerEnabled,
                 seats
             );
-            const timerConfig = buildTimerConfig(timerEnabled, now);
-            const getPickRating = await loadEventPickRating(
-                ctx,
-                event.packSlots
-            );
-            const getCardProfile = await loadEventCardProfile(
-                ctx,
-                event.packSlots
-            );
-            const cardResolvers = await loadEventCardResolvers(
-                ctx,
-                event.packSlots
-            );
-            const botChoosePick = makeBotChoosePick(
-                getPickRating,
-                getCardProfile,
-                cardResolvers.getCardEvalMeta
-            );
-            // The cube pool is FROZEN here, once, and persisted on the event
-            // (ADR 0062): every later round is dealt from THIS array, never
-            // from a `buildCubePool()` re-read. Rounds 1+ are dealt in later
-            // `submitPick` mutations, and implementing one cube card between
-            // them would otherwise change the pool size, reshuffle the whole
-            // permutation, and re-deal cards seats had already picked.
-            const cubePool = event.packSlots.some(isCubeSource)
-                ? buildCubePool()
-                : undefined;
-            const observePack = makeObservePack(
-                event.packSlots,
-                cubePool,
-                getPickRating,
-                getCardProfile,
-                cardResolvers.getCardEvalMeta
-            );
-            const dealt = startDraft(
-                seats,
-                event.packSlots,
-                seed,
-                getRuntimeBoosterConfig,
-                cardResolvers.resolveCardMeta,
-                timerConfig,
-                cubePool,
-                botChoosePick,
-                observePack
-            );
-            const afterBots = runBotAutoPicks(
-                dealt.seats,
-                dealt.draftRound,
-                dealt.draftPacksRemaining,
-                event.packSlots,
-                seed,
-                getRuntimeBoosterConfig,
-                cardResolvers.resolveCardMeta,
-                botChoosePick,
-                false,
-                timerConfig,
-                cubePool,
-                observePack
-            );
-            // The frozen pool goes in its own row, not on the event
-            // (`convex/limitedCubePoolStore.ts`) — every later reader of the
-            // event row would otherwise be billed for 11.7 KB only the round
-            // deal consumes.
-            if (cubePool) await saveCubePool(ctx, args.eventId, cubePool);
-            await saveSeats(ctx, args.eventId, afterBots.seats, {
-                status: "started",
+            const seatPatch = {
+                status: "started" as const,
                 seed,
                 ...(timerEnabled !== undefined ? { timerEnabled } : {}),
                 scorerVersion: SCORER_VERSION,
-                draftRound: afterBots.draftRound,
-                draftPacksRemaining: afterBots.draftPacksRemaining,
-                updatedAt: now,
-                ...(afterBots.completed ? { draftCompletedAt: now } : {}),
+            };
+            // Table intro (issue #9167): with a human to watch it, nothing is
+            // dealt and no Bot picks until `draftStartsAt`. Round-0 deadlines
+            // are stamped from that instant by `beginDraft`, so the intro never
+            // eats a pick's time. An all-Bot table has nobody to wait for.
+            if (args.withCountdown && seats.some((s) => !isAutoDrivenSeat(s))) {
+                const draftStartsAt = now + DRAFT_COUNTDOWN_SECONDS * 1000;
+                await saveSeats(ctx, args.eventId, seats, {
+                    ...seatPatch,
+                    draftStartsAt,
+                    updatedAt: now,
+                });
+                await ctx.scheduler.runAt(
+                    draftStartsAt,
+                    internal.limitedEvents.beginDraft,
+                    { eventId: args.eventId }
+                );
+                return null;
+            }
+            await dealDraftRound0(ctx, args.eventId, event.packSlots, seats, {
+                seed,
+                timerEnabled,
+                now,
+                patch: seatPatch,
             });
-            await scheduleSeatTimers(ctx, args.eventId, timerEnabled, now, [
-                ...dealt.timerUpdates,
-                ...afterBots.timerUpdates,
-            ]);
-            // An ALL-BOT table finishes here: `runBotAutoPicks` drives the
-            // whole draft to `draftCompletedAt` in this same mutation, so
-            // completion flips inside `startLimitedEvent` and none of the
-            // other call sites (`userDecks.create`, `submitPick`,
-            // `autoPickSeatTimeout`) will ever run. Self-gating, so this is a
-            // no-op for a normal table with a human still to build.
-            await openPlayPhaseIfReady(ctx, args.eventId, now);
             return null;
         }
 
@@ -2566,6 +2670,9 @@ export const submitPick = mutation({
         }
         if (!areDraftPicksLegal(event.status)) {
             throw new Error("This event has not started yet.");
+        }
+        if (isDraftIntroPending(event)) {
+            throw new Error("The draft has not begun yet.");
         }
         if (event.draftCompletedAt !== undefined) {
             throw new Error("The draft has already finished.");
