@@ -6336,9 +6336,6 @@ export interface ExileReturnBundle {
     returnTapped: boolean;
 }
 
-/** CR 720 (Palace Jailer, issue #1199) — a pending "return the exiled creature
- *  the next time an opponent of `controllerId` becomes the monarch" watch. See
- *  {@link GameState.monarchReturnWatch}. */
 /** CR 610.3a / 610.3b — the specified event of an "until <event>" exile,
  *  checked as the initial exile would occur: when it has ALREADY occurred
  *  since the ability triggered (or was put onto the stack), the object doesn't
@@ -6357,6 +6354,9 @@ export type ExileUntilEvent =
           crowningsAtTrigger: number;
       };
 
+/** CR 720 (Palace Jailer, issue #1199) — a pending "return the exiled creature
+ *  the next time an opponent of `controllerId` becomes the monarch" watch. See
+ *  {@link GameState.monarchReturnWatch}. */
 export interface MonarchReturnWatch {
     /** `exileHeld` bundle key (the exiling ability's source instance id). */
     sourceId: string;
