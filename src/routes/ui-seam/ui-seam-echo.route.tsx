@@ -3,7 +3,7 @@
 // account carries. Rendering a value proves the client gate (this route exists
 // only in a DEV bundle) and both server gates (local deployment, lane account)
 // end to end; a refusal surfaces as the query's error. Registered only by
-// `ui-seam-routes.ts`.
+// `src/lib/uiSeam/ui-seam-routes.ts`.
 import { useQuery } from "convex/react";
 import { useSearch } from "@tanstack/react-router";
 import { api } from "@convex/_generated/api";

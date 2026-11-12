@@ -28,7 +28,9 @@ export function buildUiSeamRoutes(rootRoute: AnyRoute): AnyRoute[] {
         staticData: { lightSurface: true },
         validateSearch: (search: Record<string, unknown>) =>
             pickUiSeamParams(search),
-        component: lazyRouteComponent(() => import("./ui-seam-echo.route")),
+        component: lazyRouteComponent(
+            () => import("~/routes/ui-seam/ui-seam-echo.route")
+        ),
     });
     return [echoRoute as unknown as AnyRoute];
 }

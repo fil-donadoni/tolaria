@@ -18,7 +18,7 @@ import AppShell from "./components/chrome/app-shell";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
-import { buildUiSeamRoutes } from "./routes/ui-seam/ui-seam-routes";
+import { buildUiSeamRoutes } from "./lib/uiSeam/ui-seam-routes";
 
 // Route components are fetched on first navigation, never bundled into the
 // entry (issue #4854): `lazyRouteComponent` for a bare route component,

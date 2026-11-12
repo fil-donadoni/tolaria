@@ -25,7 +25,7 @@ become a production hole. The building blocks already existed, separately:
 The module has no dependencies, so the lane's `scripts/` can import it too:
 
 - client routes live under `UI_SEAM_ROUTE_PREFIX` (`/__uiseam/…`) and are
-  listed in `src/routes/ui-seam/ui-seam-routes.ts`;
+  listed in `src/lib/uiSeam/ui-seam-routes.ts`;
 - query parameters use keys under `UI_SEAM_PARAM_PREFIX` (`__uiseam_…`). A seam
   route's `validateSearch` is `pickUiSeamParams`, which keeps only string values
   under that prefix;

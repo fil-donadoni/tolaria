@@ -6,7 +6,7 @@
  * state instead of clicking through the lobby — lives here or nowhere:
  *
  * - client routes under {@link UI_SEAM_ROUTE_PREFIX}, registered by the router
- *   only under `import.meta.env.DEV` (`src/routes/ui-seam/ui-seam-routes.ts`);
+ *   only under `import.meta.env.DEV` (`src/lib/uiSeam/ui-seam-routes.ts`);
  * - query parameters whose key starts with {@link UI_SEAM_PARAM_PREFIX}, read
  *   only by those routes ({@link pickUiSeamParams});
  * - server functions in ONE module, `convex/uiSeam.ts`, each opening on the
