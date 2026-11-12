@@ -9087,6 +9087,10 @@ export interface PermanentView {
     id: string;
     controllerId: string;
     ownerId: string;
+    /** The zone the object is in. Set on a card read as a CAST SUBJECT (a
+     *  `CardInstanceState`), where a `cast-restriction` predicate keys on it
+     *  (CR 601.3: "from graveyards or libraries"); absent on bare views. */
+    zone?: Zone;
     types: CardType[];
     subtypes: string[];
     isTapped: boolean;
@@ -24333,6 +24337,19 @@ export interface CardDefinition {
      *  serialization/observability, but the consumption sites read the live
      *  helper, so the cache can never cause an incorrect ruling. */
     preventsLandPlayAndETB?: boolean;
+    /** CR 614 prohibition: while a permanent with this declaration is on the
+     *  battlefield, a card of one of `types` that would be put onto the
+     *  battlefield from one of `zones` can't enter — it stays in that zone
+     *  (the CR 712.14b "stays in its current zone" answer, not a redirect).
+     *  Read live off the battlefield, so it lifts the instant the source
+     *  leaves play or loses its abilities. Consulted at the shared non-cast
+     *  entry chokepoint (`putOntoBattlefieldFromEffect` family in `state.ts`:
+     *  reanimation, tutor-to-battlefield, the graveyard-set batch). A spell
+     *  resolving from the stack is never from these zones. */
+    blocksBattlefieldEntryFrom?: {
+        zones: ("graveyard" | "library")[];
+        types: CardType[];
+    };
     /** Continuous land-mana colour substitution (CR 614). While ANY permanent
      *  with this declaration is on the battlefield, a LAND tapped for mana has
      *  its produced colours rewritten per the substitution before the mana
