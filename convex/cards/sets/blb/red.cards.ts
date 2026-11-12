@@ -17,7 +17,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // CR 614.5 — each damage event is a separate event, so +2 applies to each.
 // hand-tail: If a source you control would deal noncombat damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead. (#8595)
 export const artistsTalent = defineCard(() => ({
-    id: "ea734863-5793-49d6-b10e-109432aec0a3", // BLB
+    id: "8b9e51d9-189b-4dd6-87cb-628ea6373e81", // BLB 124
     rarity: "rare",
     name: "Artist's Talent",
     oracleText:
