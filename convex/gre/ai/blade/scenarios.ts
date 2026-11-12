@@ -15708,7 +15708,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4895 (issue #4758 review), fixed by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins on the spot (CR 104.2b). The win check is the Op AFTER the trigger's look-and-distribute keep (CR 401.4), and `look-distribute` had no candidate generator, so neither the 1-ply probe nor the tree got past the keep — the search passed on 5/5 seeds. The opponent's library is five cards deep so passing does not win by decking within the horizon: with both libraries at one card, passing ALSO read as a won game and the material tie-break preferred the later win with Thassa still in hand. With the generator 5/5 cast on `mean-reward`; without it 1/5.",
     },
     {
-        // Issue #9118 — an "any number" look-and-keep (CR 401.4) that draws the
+        // Issue #9118 — an "any number" look-and-keep that draws the
         // hand past seven: Torsten's ETB on a flooded board, six Hill Giants
         // already in hand, six of the seven looked-at cards creatures or
         // lands. Keeping all six wins on every axis — the cleanup discard

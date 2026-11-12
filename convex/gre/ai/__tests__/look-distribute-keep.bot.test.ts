@@ -1,5 +1,5 @@
 /**
- * An "any number" look-and-keep (CR 401.4) whose window holds no
+ * An "any number" look-and-keep whose window holds no
  * keep-eligible card raises no choice (issue #9118): the looked-at cards go
  * straight to the bottom, so there is no empty keep for the Bot to submit.
  * The blade entry "look-distribute: Torsten keeps every eligible card past the
@@ -12,7 +12,7 @@ import { buildPositionFromSpec } from "../blade/build";
 
 const idOf = (c: { card: unknown }) => (c.card as { id?: string }).id;
 
-describe("look-distribute with no eligible card (CR 401.4, issue #9118)", () => {
+describe("look-distribute with no eligible card (issue #9118)", () => {
     it("Torsten's ETB over a window of seven noncreature, nonland cards raises no keep", () => {
         const s = buildPositionFromSpec(
             {
