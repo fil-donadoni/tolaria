@@ -540,9 +540,9 @@ function additionalCostPaidTimes(
  *  into an empty branch. So: no reason to add one, and no reason to churn the
  *  existing call sites onto it.
  *
- *  The mirror image — a one-shot fact the new object must NOT inherit
- *  (`echoPending`, `startedTurnUntapped`, …) — is the `zone-change` scope of
- *  `CARD_FIELD_LIFECYCLE`, cleared by `resetBattlefieldTransientState`. */
+ *  The mirror-image bug — a one-shot fact `resetBattlefieldTransientState`
+ *  fails to clear, so the new object INHERITS it (`echoPending`,
+ *  `startedTurnUntapped`, …) — is a separate gap, #2223. */
 export function additionalCostPaidCondition(
     kickerId: string
 ): (self: PermanentView) => boolean {
