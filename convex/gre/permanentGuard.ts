@@ -317,3 +317,20 @@ export function isOpponentCauseProhibited(
         (g) => g.opponentsCantCause?.includes(action) ?? false
     );
 }
+
+/** CR 701.23 / CR 101.2 — true when a spell or ability controlled by
+ *  `searcherId` can't cause its controller to search their library, because a
+ *  `player-guard` with `opponentsCantSearch` protects a player who is that
+ *  controller's opponent (Ashiok, Dream Render). The "can't" wins over the
+ *  search instruction. An undefined causer (a game rule) is never barred. */
+export function isOpponentSearchProhibited(
+    state: BattlefieldView,
+    searcherId: string | undefined
+): boolean {
+    if (searcherId === undefined) return false;
+    return state.players.some(
+        (p) =>
+            p.id !== searcherId &&
+            playerGuardsOf(state, p.id).some((g) => g.opponentsCantSearch)
+    );
+}

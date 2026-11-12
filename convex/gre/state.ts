@@ -402,6 +402,7 @@ import {
 import {
     isGuardedAgainst,
     isOpponentCauseProhibited,
+    isOpponentSearchProhibited,
     playerHasShroud,
 } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -19286,6 +19287,20 @@ export function buildSpellContext(
                     req.zoneOwnerId ?? req.playerId,
                     item.castById
                 )
+            ) {
+                item.collectedChoices = {
+                    ...(item.collectedChoices ?? {}),
+                    [key]: [],
+                };
+                return [];
+            }
+            // CR 701.23 / CR 101.2 — a search of the controller's own library
+            // that an opponent's guard bars is answered empty: nothing is
+            // found, no prompt opens (Ashiok, Dream Render).
+            if (
+                req.kind === "search-library" &&
+                (req.zoneOwnerId ?? req.playerId) === item.castById &&
+                isOpponentSearchProhibited(state, item.castById)
             ) {
                 item.collectedChoices = {
                     ...(item.collectedChoices ?? {}),
