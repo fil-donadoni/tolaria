@@ -18,7 +18,16 @@
  * (the kill switch) is never dispatched. Every unreadable fact answers "do
  * not fire": the next tick is ten minutes away.
  *
- * The decisions are pure (`clockDue`, `healthGateDue`); `tick` reads and acts
+ * A third, read-only check flags a queue that stalls silently (issue #9065):
+ * a `startup_failure` of `pr-gate` / `owner-merge` (GitHub's
+ * `pull_request_target` brownout, issue #9056) or a `ready-to-land` PR / queue
+ * draft whose head has had no `trusted-author` status for
+ * `TRUSTED_AUTHOR_MISSING_MS` — the `staging` ruleset requires that status, so
+ * each draft waits and nothing turns red. It dispatches nothing; a flag makes
+ * the tick exit 1 and shows in `runner status`.
+ *
+ * The decisions are pure (`clockDue`, `healthGateDue`, `queueGateFlags`);
+ * `tick` reads and acts
  * through injected effects; the last tick is written to `HEARTBEAT_STATE` so
  * `bun run runner status` shows a dead heartbeat.
  */
@@ -39,6 +48,16 @@ export const AFK_DISPATCH_STALE_MS = 30 * 60 * 1000;
 /** `health.yml`'s cron period: the gate is owed when the tip has had no
  *  verdict and no run this long. */
 export const HEALTH_GATE_STALE_MS = 2 * 60 * 60 * 1000;
+
+/** A `ready-to-land` PR or queue draft with no `trusted-author` status on its
+ *  head this long is stalled: pr-gate's `*\/15` sweep plus slack. */
+export const TRUSTED_AUTHOR_MISSING_MS = 20 * 60 * 1000;
+
+/** A `startup_failure` this recent, with no later success, is flagged. */
+export const STARTUP_FAILURE_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+/** The workflows whose failure to start stalls the queue. */
+export const QUEUE_GATE_WORKFLOWS = ["pr-gate.yml", "owner-merge.yml"] as const;
 
 export const HEARTBEAT_STATE = join(
     homedir(),
@@ -65,6 +84,8 @@ export interface RunFact {
     createdAt: string;
     status: string;
     conclusion?: string | null;
+    /** The run's page, named in a startup-failure flag. */
+    url?: string;
 }
 
 /** A health verdict that settles the tip: GREEN or RED. An INFRA is
@@ -148,11 +169,79 @@ export function healthGateDue(
     };
 }
 
+/** A workflow's newest runs, for the startup-failure check. */
+export interface GateWorkflowRuns {
+    workflow: string;
+    runs: readonly RunFact[];
+}
+
+/** A PR the queue is waiting on: `ready-to-land`, or a Mergify draft. */
+export interface QueuedPrFact {
+    number: number;
+    /** The head sha's short form, for the flag line. */
+    sha: string;
+    /** The head carries a `trusted-author` status, in any state. */
+    hasTrustedAuthor: boolean;
+    /** When the PR last changed (`updatedAt`): a push or label restarts the
+     *  wait, so the check can only err quiet. */
+    updatedAt: string;
+}
+
+export interface QueueGateFacts {
+    workflows: readonly GateWorkflowRuns[];
+    prs: readonly QueuedPrFact[];
+}
+
+/**
+ * The silent-stall rule, pure (issue #9065): one line per problem, empty on a
+ * healthy queue.
+ *
+ *  - a workflow's newest `startup_failure` inside `STARTUP_FAILURE_WINDOW_MS`
+ *    is flagged unless a later run succeeded (the brownout is over);
+ *  - a queued PR with no `trusted-author` on its head, unchanged for
+ *    `TRUSTED_AUTHOR_MISSING_MS`, is flagged by number.
+ */
+export function queueGateFlags(
+    facts: QueueGateFacts,
+    now: number,
+    missingMs: number = TRUSTED_AUTHOR_MISSING_MS
+): string[] {
+    const flags: string[] = [];
+    for (const { workflow, runs } of facts.workflows) {
+        const at = (r: RunFact) => Date.parse(r.createdAt);
+        const failed = runs
+            .filter((r) => r.conclusion === "startup_failure")
+            .filter((r) => now - at(r) < STARTUP_FAILURE_WINDOW_MS)
+            .sort((a, b) => at(b) - at(a))[0];
+        if (!failed) continue;
+        if (runs.some((r) => r.conclusion === "success" && at(r) > at(failed)))
+            continue;
+        flags.push(
+            `${workflow} startup_failure ${ago(now - at(failed))}${failed.url ? ` — ${failed.url}` : ""}`
+        );
+    }
+    for (const pr of facts.prs) {
+        if (pr.hasTrustedAuthor) continue;
+        const age = now - Date.parse(pr.updatedAt);
+        if (age >= missingMs)
+            flags.push(
+                `PR #${pr.number} (${pr.sha}) has no trusted-author status for ${ago(age)}`
+            );
+    }
+    return flags;
+}
+
 /** One clock's outcome in a tick. */
 export interface ClockOutcome extends ClockDecision {
     /** The dispatch ran and `gh` accepted it. */
     dispatched?: boolean;
     /** The read or the dispatch failed. */
+    error?: string;
+}
+
+/** The queue-gate check's outcome: what to look at, or why it could not read. */
+export interface QueueGateOutcome {
+    flags: string[];
     error?: string;
 }
 
@@ -162,12 +251,15 @@ export interface HeartbeatState {
     host: string;
     afkDispatch: ClockOutcome;
     health: ClockOutcome;
+    /** Absent in a state file written before issue #9065. */
+    queueGate?: QueueGateOutcome;
 }
 
 /** The effects a tick needs — `scripts/heartbeat.ts` wires them to `gh`. */
 export interface HeartbeatDeps {
     afkDispatchClock(): WorkflowClock;
     healthFacts(): HealthFacts;
+    queueGateFacts(): QueueGateFacts;
     dispatchAfk(): void;
     dispatchHealthGate(): void;
     now(): number;
@@ -203,6 +295,14 @@ function settle(
     }
 }
 
+function readQueueGate(deps: HeartbeatDeps): QueueGateOutcome {
+    try {
+        return { flags: queueGateFlags(deps.queueGateFacts(), deps.now()) };
+    } catch (e) {
+        return { flags: [], error: (e as Error).message.split("\n")[0] };
+    }
+}
+
 /** One heartbeat: read both clocks, dispatch the stale ones. Total. */
 export function tick(deps: HeartbeatDeps): HeartbeatState {
     const dryRun = deps.dryRun ?? false;
@@ -224,6 +324,7 @@ export function tick(deps: HeartbeatDeps): HeartbeatState {
             deps.dispatchHealthGate,
             dryRun
         ),
+        queueGate: readQueueGate(deps),
     };
 }
 
@@ -237,6 +338,13 @@ function outcomeLine(o: ClockOutcome): string {
                 ? "due (dry run)"
                 : "quiet";
     return `${act} — ${o.reason}${o.error ? ` (${o.error})` : ""}`;
+}
+
+function queueGateLines(g: QueueGateOutcome | undefined): string[] {
+    if (!g) return [];
+    const lines = g.flags.map((f) => `    queue gate     FLAGGED — ${f}`);
+    if (g.error) lines.push(`    queue gate     unreadable (${g.error})`);
+    return lines.length ? lines : ["    queue gate     quiet"];
 }
 
 /** The lines `machine` and `runner status` print: the last tick, flagged
@@ -258,5 +366,6 @@ export function heartbeatLines(text: string | null, now: number): string[] {
         `  heartbeat        last fire ${Number.isFinite(age) ? ago(age) : s.at}${dead ? " — DEAD (the fallback clock is stopped)" : ""}`,
         `    afk-dispatch   ${outcomeLine(s.afkDispatch)}`,
         `    health gate    ${outcomeLine(s.health)}`,
+        ...queueGateLines(s.queueGate),
     ];
 }
