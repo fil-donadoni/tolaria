@@ -7241,9 +7241,17 @@ function settledWholeStack(
  * saturated reward band reads as a tie, and the material tie-break then took
  * on subtree noise every time.
  *
+ * SCOPED to an activation whose every target is a card in a graveyard
+ * (CR 115.1, CR 404.1): what it buys is a zone change of a card the
+ * evaluation prices where it lands (`graveyardReach`, the rider's own board
+ * change). A target on the battlefield or the stack can pay in a way the
+ * settled stack does not show — combat damage still to be dealt, an effect
+ * that lasts until end of turn and is worth only its window — so those stay
+ * the search's, as they were.
+ *
  * Asked at the root only (`hold-trick`, and the `last-window-deferral` fire
  * half): two settles per call, where the rollout policy's per-move probe
- * would pay them on every ply. FAIL-CLOSED: a move that is not an
+ * would pay them on every ply. FAIL-CLOSED: a move that is not such an
  * activation, an unsettleable stack, an ended game or a throwing probe all
  * answer `false`, leaving the pick to the search.
  */
@@ -7254,6 +7262,12 @@ export function activationBuysNothing(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): boolean {
     if (move.kind !== "activate-ability") return false;
+    if (
+        move.targets.length === 0 ||
+        !move.targets.every((t) => t.type === "graveyard-card")
+    ) {
+        return false;
+    }
     try {
         const held = settledWholeStack(cloneGameState(state), pid, weights);
         const probe = cloneGameState(state);
