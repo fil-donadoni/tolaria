@@ -24,6 +24,7 @@ import type {
     ManaCost,
     MayPayCost,
     ModeSelection,
+    OpeningHandAction,
     SelfCostReduction,
     SpellMode,
     SpliceAbility,
@@ -210,6 +211,8 @@ interface Accumulator {
     exemptFromProtectionDetach?: true;
     /** CR 113.6g — "This spell can't be countered." */
     cantBeCountered?: true;
+    /** CR 103.6a — the card's opening-hand action. */
+    openingHandAction?: OpeningHandAction;
     /** Every id this card has handed out, so a second one is never minted. */
     mintedIds: Set<string>;
     spellModes?: SpellMode[];
@@ -699,6 +702,8 @@ function lowerLine(
             if (out.exemptFromProtectionDetach === true)
                 acc.exemptFromProtectionDetach = true;
             if (out.cantBeCountered === true) acc.cantBeCountered = true;
+            if (out.openingHandAction !== undefined)
+                acc.openingHandAction = out.openingHandAction;
             // CR 702.1 — see `lowerStatic.ts`: a granted keyword is censused
             // exactly like a printed one, so an unimplemented grant
             // quarantines instead of shipping an inert card.
@@ -1828,6 +1833,8 @@ export function lowerCard(
     if (acc.exemptFromProtectionDetach === true)
         definition.exemptFromProtectionDetach = true;
     if (acc.cantBeCountered === true) definition.cantBeCountered = true;
+    if (acc.openingHandAction !== undefined)
+        definition.openingHandAction = acc.openingHandAction;
     if (acc.enchantRequirement !== undefined) {
         // CR 702.5a / 303.4a — enchant restricts an AURA; on any other object
         // it restricts nothing the engine would ever ask about, so a card that
