@@ -4268,6 +4268,9 @@ export type PendingTarget = {
     /** If set, restricts to tapped / untapped permanents (CR 701.26).
      *  Propagated from TargetRequirement.tappedFilter. */
     tappedFilter?: "tapped" | "untapped";
+    /** CR 205.4a / 106.7 — "that is [supertype] or could produce [mana type]".
+     *  Propagated from TargetRequirement.supertypeOrProducesFilter. */
+    supertypeOrProducesFilter?: { supertype: CardSupertype; produces: Color };
     /** If set, restricts to permanents in the named combat role(s) (CR 508.1 /
      *  509.1, "target attacking/blocking creature"). Propagated from
      *  TargetRequirement.combatRoleFilter. */

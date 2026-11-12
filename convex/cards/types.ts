@@ -895,6 +895,13 @@ export interface TargetRequirement {
      *  Honored for graveyard-card targets ("target legendary creature card");
      *  ignored for player / spell targets. */
     supertypeFilter?: CardSupertype | CardSupertype[];
+    /** Restricts legal permanent targets to those that have `supertype` (read
+     *  LIVE, CR 205.4a) OR could produce one mana of type `produces` (CR 106.7,
+     *  read against the board). A disjunction of two axes the other
+     *  filters only express as a conjunction: Break the Ice's "target land
+     *  that is snow or could produce {C}". `{C}` counts as a TYPE of mana
+     *  (CR 106.1b), so a Wastes qualifies. */
+    supertypeOrProducesFilter?: { supertype: CardSupertype; produces: Color };
     /** Excludes legal permanent targets that have ANY of these supertypes
      *  (CR 205.4a — the negative of `supertypeFilter`). Read against the LIVE
      *  supertype status, same as `supertypeFilter`. Used by "target nonbasic
