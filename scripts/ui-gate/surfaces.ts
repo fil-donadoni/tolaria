@@ -344,6 +344,52 @@ async function clickIfVisible(
     return true;
 }
 
+/** The board is on screen with no dialog over it: the state that proves a
+ *  conditional prompt (coin toss, mulligan) is not coming. */
+const BOARD_SETTLED = "text=/Pass|YOUR GO|Untap|Upkeep|Library/i";
+const ANY_DIALOG = "[role=dialog]";
+
+/** `clickIfVisible` for a CONDITIONAL prompt (issue #9269): races the prompt
+ *  against the board being up with no dialog over it, and returns as soon as
+ *  either settles — a game already past its pregame pays ~0 s instead of the
+ *  whole `timeout`. A board that shows while a dialog is still mounted is not
+ *  proof of absence (the mulligan dialog sits over the board), so that case
+ *  falls back to waiting out the remaining `timeout` for the prompt. The race
+ *  decides only whether to click, never whether the screen is measured. */
+async function clickPromptIfPresent(
+    page: Page,
+    selector: string,
+    timeout = STEP_TIMEOUT
+): Promise<boolean> {
+    const started = Date.now();
+    const raced = await presence(walkLedgerOf(page), async () => {
+        const winner = await Promise.race([
+            page
+                .locator(selector)
+                .first()
+                .waitFor({ state: "visible", timeout })
+                .then(
+                    () => "prompt" as const,
+                    () => "timeout" as const
+                ),
+            page
+                .locator(BOARD_SETTLED)
+                .first()
+                .waitFor({ state: "visible", timeout })
+                .then(
+                    () => "board" as const,
+                    () => "timeout" as const
+                ),
+        ]);
+        return (
+            winner !== "board" || (await page.locator(ANY_DIALOG).count()) > 0
+        );
+    });
+    if (!raced) return false;
+    const left = Math.max(timeout - (Date.now() - started), 500);
+    return clickIfVisible(page, selector, left);
+}
+
 /* Prompt buttons matched EXACTLY, never by substring. `:has-text()` is a
  * case-insensitive SUBSTRING match, so `button:has-text('Keep')` also matches
  * the phase bar's `Upkeep (UPKEEP)` stop — measured at 390x844x3 on issue
@@ -1235,9 +1281,9 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
     // mulligan dialog open, and every later click on the board timed out
     // against its modal scrim. That is what had `game-board` and `game-stress`
     // sitting on stale `unwalked` rows.
-    await clickIfVisible(page, "button:text-is('Play')", 6000);
+    await clickPromptIfPresent(page, "button:text-is('Play')", 6000);
     for (let seat = 0; seat < 2; seat++) {
-        if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
+        if (!(await clickPromptIfPresent(page, MULLIGAN_KEEP, 6000))) break;
         await settle(page);
     }
     await settle(page);
@@ -4914,9 +4960,10 @@ export const SURFACES: readonly Surface[] = [
         // if this fails (cleanup failures are swallowed) — it clicks the same
         // two prompts — so this is hygiene, not a dependency.
         async cleanup(page) {
-            await clickIfVisible(page, PREGAME_PLAY, 6000);
+            await clickPromptIfPresent(page, PREGAME_PLAY, 6000);
             for (let seat = 0; seat < 2; seat++) {
-                if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
+                if (!(await clickPromptIfPresent(page, MULLIGAN_KEEP, 6000)))
+                    break;
                 await settle(page);
             }
             await settle(page);
