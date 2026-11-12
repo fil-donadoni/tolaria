@@ -76,3 +76,60 @@ describe("bot enumeration — zoneOwnerOfPriorPlayerTarget (issue #2912)", () =>
         }
     });
 });
+
+describe("bot enumeration — an up-to-N graveyard-card group after a player (issue #9328)", () => {
+    // Krosan Reclamation: "Target player shuffles up to two target cards from
+    // their graveyard into their library" (CR 601.2c).
+    const KROSAN_RECLAMATION = "5b3c5144-7e15-46c6-b819-d729ecb30bb1";
+    const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+    function reclamationBoard() {
+        const state = board();
+        const p1 = state.players[0]!;
+        p1.hand = [
+            makeInstance(KROSAN_RECLAMATION, {
+                id: "reclaim",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            }),
+        ];
+        p1.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 2, C: 0 };
+        state.players[1]!.graveyard.push(
+            makeInstance(BEARS, {
+                id: "theirs-2",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        return state;
+    }
+
+    it("casts it announcing cards from the chosen player's graveyard only", () => {
+        const casts = enumerateMoves(reclamationBoard(), "p1").filter(
+            (m): m is CastMove =>
+                m.kind === "cast-spell" && m.cardInstanceId === "reclaim"
+        );
+        const withCards = casts.filter((m) =>
+            m.targets.some((t) => t.type === "graveyard-card")
+        );
+        expect(withCards.length).toBeGreaterThan(0);
+        for (const m of withCards) {
+            const player = m.targets.find((t) => t.type === "player")!;
+            for (const t of m.targets.filter(
+                (t) => t.type === "graveyard-card"
+            )) {
+                expect(t.playerId).toBe(player.id);
+            }
+        }
+        // Both of p2's cards may be announced together (up to two).
+        expect(
+            withCards.some(
+                (m) =>
+                    m.targets.filter((t) => t.type === "graveyard-card")
+                        .length === 2
+            )
+        ).toBe(true);
+    });
+});

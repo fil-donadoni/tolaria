@@ -1757,7 +1757,8 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
     it('rejects from: "exile" or "graveyard" with any other non-battlefield destination', () => {
         for (const [from, to] of [
             ["exile", "hand"],
-            ["graveyard", "library"],
+            ["exile", "library"],
+            ["graveyard", "library-top"],
         ] as const) {
             const errors = validateAbilityEffectScript(
                 host({
@@ -1774,6 +1775,23 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
             );
             expect(errors.some((e) => /field "from"/.test(e))).toBe(true);
         }
+    });
+
+    it('admits from: "graveyard" into the library — a swept target shuffled back (CR 701.24a)', () => {
+        const errors = validateAbilityEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$source" },
+                        from: "graveyard",
+                        to: "library",
+                    },
+                ],
+            }),
+            "Test Card"
+        );
+        expect(errors.filter((e) => /field "from"/.test(e))).toEqual([]);
     });
 
     it("rejects attacking outside the target shape into the battlefield", () => {

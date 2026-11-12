@@ -38,7 +38,7 @@ function compiled(card: ReturnType<typeof oracleCard>) {
 }
 
 describe("Library shuffle — golden fixtures", () => {
-    it("up to two cards from their graveyard into their library: Krosan Reclamation", () => {
+    it("up to two cards from their graveyard into their library: Krosan Reclamation (CR 601.2c — the cards are announced targets)", () => {
         const text =
             "Target player shuffles up to two target cards from their graveyard into their library.";
         expect(
@@ -50,23 +50,27 @@ describe("Library shuffle — golden fixtures", () => {
                 manaCost: { G: 1, X: 1 },
                 oracleText: text,
                 targetRequirement: { type: "player", count: 1 },
+                additionalTargetRequirements: [
+                    {
+                        type: "card",
+                        count: { min: 0, max: 2 },
+                        zone: "graveyard",
+                        controller: "any",
+                        zoneOwnerOfPriorPlayerTarget: true,
+                    },
+                ],
                 effects: [
                     {
-                        op: "choice",
-                        kind: "choose-graveyard-card",
-                        player: "controller",
-                        zoneOwnerId: { target: 0 },
-                        zone: "graveyard",
-                        count: { min: 0, max: 2 },
-                        prompt: "Shuffle up to two target cards from that player's graveyard into their library.",
-                        bind: "$reclaimed1",
-                    },
-                    {
-                        op: "moveZone",
-                        cards: { ref: "$reclaimed1" },
-                        player: { target: 0 },
-                        from: "graveyard",
-                        to: "library",
+                        op: "forEach",
+                        select: { set: "targets", zone: "graveyard" },
+                        effects: [
+                            {
+                                op: "moveZone",
+                                target: { ref: "$each" },
+                                from: "graveyard",
+                                to: "library",
+                            },
+                        ],
                     },
                     {
                         op: "libraryLook",
@@ -86,10 +90,25 @@ describe("Library shuffle — golden fixtures", () => {
                 "Target player shuffles up to three target cards from their graveyard into their library."
             )
         );
-        expect(definition.effects?.[0]).toMatchObject({
-            op: "choice",
+        expect(definition.additionalTargetRequirements?.[0]).toMatchObject({
+            type: "card",
             count: { min: 0, max: 3 },
+            zoneOwnerOfPriorPlayerTarget: true,
         });
+    });
+
+    it("refuses the clause after an earlier announced player: the directive would bind the first one (CR 601.2c)", () => {
+        const outcome = compileCard(
+            sorcery(
+                "Shuffle Probe",
+                "{1}{G}",
+                "Target player draws a card. Target player shuffles up to two target cards from their graveyard into their library."
+            )
+        );
+        if (outcome.state !== "unparsed") throw new Error("compiled");
+        expect(outcome.gaps.map((g) => g.reason)).toContain(
+            '"their graveyard" may name an earlier announced player (CR 601.2c)'
+        );
     });
 
     it("look at target player's library, reorder, you may have that player shuffle: Portent's first line", () => {

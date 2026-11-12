@@ -5645,26 +5645,30 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
             effects: [
                 {
-                    op: "choice",
-                    kind: "choose-graveyard-card",
-                    player: "controller",
-                    zoneOwnerId: { target: 0 },
-                    zone: "graveyard",
-                    count: { min: 0, max: 3 },
-                    prompt: "Shuffle up to three target cards from that player's graveyard into their library.",
-                    bind: "$reclaimed1",
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$reclaimed1" },
-                    player: { target: 0 },
-                    from: "graveyard",
-                    to: "library",
+                    op: "forEach",
+                    select: { set: "targets", zone: "graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "graveyard",
+                            to: "library",
+                        },
+                    ],
                 },
                 { op: "libraryLook", action: "shuffle", player: { target: 0 } },
                 { op: "draw", player: "controller", count: 1 },
             ],
             targetRequirement: { type: "player", count: 1 },
+            additionalTargetRequirements: [
+                {
+                    type: "card",
+                    count: { min: 0, max: 3 },
+                    zone: "graveyard",
+                    controller: "any",
+                    zoneOwnerOfPriorPlayerTarget: true,
+                },
+            ],
         },
     },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a basic

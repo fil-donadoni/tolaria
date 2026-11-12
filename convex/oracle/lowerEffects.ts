@@ -3879,30 +3879,47 @@ function lowerSentenceBody(
             ]);
         }
         case "shuffle-graveyard-into-library": {
-            // CR 404.1 + CR 701.24a — the controller picks up to N cards from
-            // the player's graveyard, they go into that player's library,
-            // and that library is shuffled. The pick is a `choice` (the
-            // cards are not announced targets), its bind read by the move.
+            // CR 601.2c + CR 404.1 + CR 701.24a — the cards are TARGETS,
+            // announced with the player: a second group of up to N cards whose
+            // zone owner is the player the first group named
+            // (`zoneOwnerOfPriorPlayerTarget`). The directive reads the FIRST
+            // player among the earlier picks, so a body that already
+            // announced one is refused rather than bound to the wrong player.
+            if (slots.requirements().some((r) => r.type === "player"))
+                return unlowerable(
+                    '"their graveyard" may name an earlier announced player (CR 601.2c)'
+                );
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
-            const bind = walk.nextBind("reclaimed");
+            // The width is a fact about the cast: the group takes no
+            // positional slot and the move reads the announced graveyard set.
+            const cards = slots.allocate(
+                {
+                    type: "card",
+                    count: { min: 0, max: sentence.max },
+                    zone: "graveyard",
+                    controller: "any",
+                    zoneOwnerOfPriorPlayerTarget: true,
+                },
+                false,
+                "narrowed"
+            );
+            if (!cards.ok) return cards;
+            // CR 608.2b — a card that left the graveyard is an illegal target
+            // and the sweep skips it; CR 400.3 — each card goes to its
+            // owner's library, which is that player's.
             return lowered([
                 {
-                    op: "choice",
-                    kind: "choose-graveyard-card",
-                    player: "controller",
-                    zoneOwnerId: player.value,
-                    zone: "graveyard",
-                    count: { min: 0, max: sentence.max },
-                    prompt: `Shuffle up to ${sentence.word} target cards from that player's graveyard into their library.`,
-                    bind,
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: bind },
-                    player: player.value,
-                    from: "graveyard",
-                    to: "library",
+                    op: "forEach",
+                    select: { set: "targets", zone: "graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "graveyard",
+                            to: "library",
+                        },
+                    ],
                 },
                 { op: "libraryLook", action: "shuffle", player: player.value },
             ]);

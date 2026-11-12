@@ -1602,15 +1602,14 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.24a + CR 404.1 — "Target player shuffles up to N target
-           * cards from their graveyard into their library": that player's
-           * graveyard cards are chosen (up to N, the controller picks), moved
-           * into their library, and the library is shuffled.
+           * CR 601.2c + CR 701.24a + CR 404.1 — "Target player shuffles up
+           * to N target cards from their graveyard into their library": the
+           * player and up to N cards from THAT player's graveyard are all
+           * announced targets; the cards move into their library, and the
+           * library is shuffled.
            */
           readonly kind: "shuffle-graveyard-into-library";
           readonly player: PlayerRefIR;
-          /** The printed count word ("two"), kept for the choice prompt. */
-          readonly word: string;
           readonly max: number;
       }
     | {
@@ -10047,7 +10046,6 @@ function effectSentence(
         return ok({
             kind: "shuffle-graveyard-into-library" as const,
             player,
-            word,
             max: count.value,
         } satisfies EffectSentenceIR);
     }
