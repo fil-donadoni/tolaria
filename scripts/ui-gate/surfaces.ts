@@ -381,8 +381,9 @@ async function clickPromptIfPresent(
                     () => "timeout" as const
                 ),
         ]);
+        if (winner === "timeout") return false;
         return (
-            winner !== "board" || (await page.locator(ANY_DIALOG).count()) > 0
+            winner === "prompt" || (await page.locator(ANY_DIALOG).count()) > 0
         );
     });
     if (!raced) return false;
