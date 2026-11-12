@@ -4,6 +4,7 @@ import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cn } from "~/lib/utils";
 import CardImage from "~/components/cards/card-image";
 import { openedPrintId } from "@convex/limited/poolArrangement";
+import DraftAutopickBadge from "./draft-room/draft-autopick-badge";
 import type { BoosterDragData } from "./limitedDraftDrag";
 import {
     DOUBLE_CLICK_INTERVAL_MS,
@@ -55,6 +56,7 @@ export default function LimitedDraftPackCard({
     onOpenMenu,
     onOpenContextMenu,
     pending,
+    autopickSeconds = null,
 }: {
     card: DraftPackCard;
     /** True when this card is the seat's current Selected Card
@@ -80,6 +82,10 @@ export default function LimitedDraftPackCard({
      *  to the ordinary `CardPreview` pin, same as everywhere else. */
     onOpenContextMenu?: (pickId: string, x: number, y: number) => void;
     pending: boolean;
+    /** Seconds left when THIS tile is what the clock will take and the last
+     *  seconds have begun (issue #9165) — pulsing ring + centred badge,
+     *  regardless of the "Show autopick" toggle. `null` otherwise. */
+    autopickSeconds?: number | null;
 }) {
     // The printing this booster actually contained (issue #5473) — the face
     // the tile, and the drag overlay lifted from it, show.
@@ -294,6 +300,15 @@ export default function LimitedDraftPackCard({
                     data-testid="selection-ring"
                     className="pointer-events-none absolute inset-0 card-ring card-ring-selected [--card-ring-w:4px]"
                 />
+            )}
+            {autopickSeconds !== null && (
+                <>
+                    <div
+                        data-testid="autopick-ring"
+                        className="pointer-events-none absolute inset-0 card-ring [--card-ring-color:var(--color-signal-pending)] [--card-ring-w:6px] motion-safe:animate-pulse"
+                    />
+                    <DraftAutopickBadge seconds={autopickSeconds} />
+                </>
             )}
         </div>
     );
