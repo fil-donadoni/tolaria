@@ -434,6 +434,79 @@ describe("LimitedDraftTable — 'Show autopick' toggle (ADR 0095, issue #2271)",
     });
 });
 
+describe("LimitedDraftTable — last-5-seconds Auto-Pick cue (issue #9165)", () => {
+    beforeEach(() => window.localStorage.clear());
+    afterEach(() => window.localStorage.clear());
+
+    const badgeHost = (el: HTMLElement) => el.closest('[role="button"]');
+
+    it("badges the Selected Card at 5 s, toggle off", () => {
+        const { getByTestId } = renderTable({
+            selectedPickId: "r0-p0-c1",
+            defaultPickId: "r0-p0-c0",
+            pickDeadline: Date.now() + 5000,
+        });
+        const badge = getByTestId("autopick-badge");
+        expect(badge.textContent).toBe("AUTO-PICK IN 5s");
+        expect(badgeHost(badge)?.getAttribute("data-pick-id")).toBe("r0-p0-c1");
+        expect(getByTestId("autopick-ring")).toBeTruthy();
+    });
+
+    it("falls back to the Default Pick when nothing is selected", () => {
+        const { getByTestId } = renderTable({
+            defaultPickId: "r0-p0-c0",
+            pickDeadline: Date.now() + 5000,
+        });
+        expect(
+            badgeHost(getByTestId("autopick-badge"))?.getAttribute(
+                "data-pick-id"
+            )
+        ).toBe("r0-p0-c0");
+    });
+
+    it("renders nothing at 6 s", () => {
+        const { queryByTestId } = renderTable({
+            selectedPickId: "r0-p0-c1",
+            pickDeadline: Date.now() + 6000,
+        });
+        expect(queryByTestId("autopick-badge")).toBeNull();
+        expect(queryByTestId("autopick-ring")).toBeNull();
+    });
+
+    it("appears when the clock crosses into the last 5 s", () => {
+        vi.useFakeTimers();
+        const { queryByTestId } = renderTable({
+            selectedPickId: "r0-p0-c1",
+            pickDeadline: Date.now() + 6000,
+        });
+        expect(queryByTestId("autopick-badge")).toBeNull();
+        act(() => {
+            vi.advanceTimersByTime(1500);
+        });
+        expect(queryByTestId("autopick-badge")?.textContent).toBe(
+            "AUTO-PICK IN 5s"
+        );
+    });
+
+    it("marks nothing when there is no Selected Card and no Default Pick", () => {
+        const { queryByTestId } = renderTable({
+            pickDeadline: Date.now() + 3000,
+        });
+        expect(queryByTestId("autopick-badge")).toBeNull();
+    });
+
+    it("also paints on the phone regime", () => {
+        const { getByTestId } = renderTable(
+            { selectedPickId: "r0-p0-c0", pickDeadline: Date.now() + 2000 },
+            undefined,
+            "phone-portrait"
+        );
+        expect(getByTestId("autopick-badge").textContent).toBe(
+            "AUTO-PICK IN 2s"
+        );
+    });
+});
+
 describe("LimitedDraftTable Booster gestures — phone regime (unchanged, ADR 0060/#2588)", () => {
     it("a single click on a Booster card SELECTS it and never commits", () => {
         const { getAllByRole } = renderTable({}, undefined, "phone-portrait");
