@@ -1,8 +1,8 @@
 /**
  * The blade robustness audit as a POST-VERDICT drift filer (issue #5079).
  *
- * `blade:robustness` (issue #4875) used to be an offline gate of the health
- * run, ~16 min under the heavy mutex. Since issue #5016 it can red the tip
+ * `blade:robustness` used to be an offline gate of the health
+ * run, ~16 min under the heavy mutex. It can red the tip
  * only on `wrong` — an entry failing its OWN seeds — and that is exactly what
  * `test:blade` runs in every health run: `auditBladeScenario`'s own leg is
  * `runBladeScenario(scenario)` over `bladeScenariosForTier("must")` at the
@@ -22,9 +22,9 @@
  *     (`robustnessOutcome` / `fileDriftIssues`, unchanged) and leaves ONE
  *     record that `health:status` shows.
  *
- * The record is SHARED state (issue #9294: the `robustness` key of
+ * The record is SHARED state (the `robustness` key of
  * `refs/tolaria/state`, `lib/shared-state.ts`), like the nightly record it
- * runs under (issue #5873): the audit runs on whichever `maint` runner is
+ * runs under: the audit runs on whichever `maint` runner is
  * free, so a machine-local file showed each machine its OWN last audit,
  * however old, as current. A `robustness-audit.json` beside `last.json` from
  * before is read once, as the first shared record, when the ref holds none.
