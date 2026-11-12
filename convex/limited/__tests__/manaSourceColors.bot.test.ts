@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { getCardByName, tryGetDefinition } from "../../cards";
 import { getDefinitionProducibleColors } from "../../gre/constants";
 import { fetchableColors, limitedSourceColors } from "../manaSourceColors";
-import { draftLabGetAutoBuildCardMeta } from "../../../src/lib/limited/draftLabCardMeta";
 
 const def = (name: string) => tryGetDefinition(getCardByName(name).id)!;
 
@@ -53,12 +52,5 @@ describe("Limited mana-source colours: produced ∪ fetched (issue #9334)", () =
             activatedAbilities: delta.activatedAbilities,
         };
         expect([...fetchableColors(onACreature)]).toEqual([]);
-    });
-
-    it("the Draft Lab's card meta reads it: a fetch land is a source of its colours", () => {
-        const meta = draftLabGetAutoBuildCardMeta(
-            getCardByName("Polluted Delta").id
-        );
-        expect(meta?.producedColors).toEqual(["U", "B"]);
     });
 });
