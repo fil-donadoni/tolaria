@@ -3011,6 +3011,12 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
         controller: { req: { controller: "opponent" } },
         subtypeFilter: { req: { subtypeFilter: "Wall" } },
         supertypeFilter: { req: { supertypeFilter: "Basic" } },
+        // SUBJECT is a non-snow creature that produces no mana.
+        supertypeOrProducesFilter: {
+            req: {
+                supertypeOrProducesFilter: { supertype: "Snow", produces: "C" },
+            },
+        },
         excludeSubtypes: { req: { excludeSubtypes: "Bear" } },
         excludeSupertypes: { req: { excludeSupertypes: "Legendary" } },
         excludeTypes: { req: { excludeTypes: "Creature" } },

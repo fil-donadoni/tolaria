@@ -68,6 +68,7 @@ import {
 import { hasSupertypeLive } from "./snow";
 import { totalKickerCount } from "./kicker";
 import {
+    getProducibleColorsOnBoard,
     isLand,
     isSpellStackItem,
     manaValue,
@@ -635,6 +636,33 @@ const supertypeFilterDescriptor = defineFilter<string[]>({
             value.every((s) => hasSupertypeLive(card, s))
                 ? null
                 : `Target must be ${value.join(" and ")}`,
+    },
+});
+
+// CR 205.4a / 106.7 — "target land that is snow or could produce {C}".
+// The producible TYPES are read against the live board the check runs on
+// (`ctx.state.players`), so the offered, accepted and client-highlighted sets
+// agree; a permanent that is neither snow nor a source of that type fails.
+const supertypeOrProducesFilterDescriptor = defineFilter<
+    NonNullable<TargetRequirement["supertypeOrProducesFilter"]>
+>({
+    lower: (req) => req.supertypeOrProducesFilter,
+    checks: {
+        permanent: (card, value, ctx) => {
+            if (hasSupertypeLive(card, value.supertype)) return null;
+            const produced = getProducibleColorsOnBoard(
+                card,
+                ctx.state.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield: p.battlefield,
+                })),
+                0,
+                true
+            );
+            return produced.has(value.produces)
+                ? null
+                : `Target must be ${value.supertype.toLowerCase()} or able to produce {${value.produces}}`;
+        },
     },
 });
 
@@ -1579,6 +1607,7 @@ export const PERMANENT_FILTER_KEYS = [
     "subtypeFilter",
     "typeOrSubtypeFilter",
     "supertypeFilter",
+    "supertypeOrProducesFilter",
     "excludeSubtypes",
     "excludeSupertypes",
     "excludeTypes",
@@ -1658,6 +1687,8 @@ export const REGISTRY = {
     typeOrSubtypeFilter:
         typeOrSubtypeFilterDescriptor as FilterDescriptor<unknown>,
     supertypeFilter: supertypeFilterDescriptor as FilterDescriptor<unknown>,
+    supertypeOrProducesFilter:
+        supertypeOrProducesFilterDescriptor as FilterDescriptor<unknown>,
     excludeSubtypes: excludeSubtypesDescriptor as FilterDescriptor<unknown>,
     excludeSupertypes: excludeSupertypesDescriptor as FilterDescriptor<unknown>,
     excludeTypes: excludeTypesDescriptor as FilterDescriptor<unknown>,
@@ -1720,6 +1751,7 @@ export type PermanentFilterValues = Partial<{
     subtypeFilter: string[];
     typeOrSubtypeFilter: TypeOrSubtypeFilter;
     supertypeFilter: string[];
+    supertypeOrProducesFilter: TargetRequirement["supertypeOrProducesFilter"];
     excludeSubtypes: string[];
     excludeSupertypes: string[];
     excludeTypes: CardType[];

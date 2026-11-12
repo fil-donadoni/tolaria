@@ -31,6 +31,7 @@ const SHAPE: Record<FilterKey, "array" | "other"> = {
     subtypeFilter: "array",
     typeOrSubtypeFilter: "other",
     supertypeFilter: "array",
+    supertypeOrProducesFilter: "other",
     excludeSubtypes: "array",
     excludeSupertypes: "array",
     excludeTypes: "array",
