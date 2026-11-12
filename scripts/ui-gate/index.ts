@@ -275,12 +275,22 @@ import {
     spawnGh,
 } from "./publish-shots.ts";
 import {
+    bindWalkLedger,
     cellTimingSuffix,
     emptyTimings,
+    emptyWalkSplit,
+    floorLines,
+    newWalkLedger,
     phaseSummaryLines,
     timed,
+    timedWalk,
+    unbindWalkLedger,
+    walkSplitSuffix,
+    walkSplitSummaryLines,
     type CellTiming,
+    type FloorStep,
     type PhaseTimings,
+    type WalkSplit,
 } from "./phase-timing.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1247,25 +1257,67 @@ async function main(): Promise<number> {
         skew: deploymentSkewNow,
     });
 
+    /** The fixed per-run floor (issue #9268): each step measured where it
+     *  runs, printed as its own diagnostic line — never "wall minus phases". */
+    const floor: FloorStep[] = [];
+    /** Each viewport's sign-in, pushed as it finishes; the floor reports the
+     *  slowest (the pool's critical path) and the sum. */
+    const signInMs: number[] = [];
+    const floorStep = async <T>(
+        label: string,
+        detail: string,
+        fn: () => Promise<T>
+    ): Promise<T> => {
+        const t0 = Date.now();
+        try {
+            return await fn();
+        } finally {
+            floor.push({ label, ms: Date.now() - t0, detail });
+        }
+    };
+    const bootstrapStartedAt = Date.now();
+
     try {
         return await withLaneFleet(fleet, async () => {
+            floor.push({
+                label: "fleet bootstrap",
+                ms: Date.now() - bootstrapStartedAt,
+                detail: `sign-up of ${uncappedSize} lane account(s) + host, fixture/deck/table/scenario seeding`,
+            });
             try {
                 log(`ui-gate: serving the app (${opts.serve}) on ${baseUrl}`);
-                server = await startAppServer(opts.serve, port);
-                log(`ui-gate: ${server.line}`);
-                await waitForServer(baseUrl, 90_000);
+                const servingServer = await floorStep(
+                    "serve",
+                    `${opts.serve === "build" ? "vite build + vite preview" : "vite dev server"} until it answers`,
+                    async () => {
+                        const started = await startAppServer(opts.serve, port);
+                        server = started;
+                        log(`ui-gate: ${started.line}`);
+                        await waitForServer(baseUrl, 90_000);
+                        return started;
+                    }
+                );
+                server = servingServer;
 
                 // Const-bound for the viewport walks: the outer `browser` is a
                 // `let` the `finally` closes, and a closure that read it would
                 // see `Browser | null`.
-                const openBrowser = await launchBrowser(opts.headed);
+                const openBrowser = await floorStep(
+                    "shell launch",
+                    "the headless shell the DPR 2/3 viewports walk in",
+                    () => launchBrowser(opts.headed)
+                );
                 browser = openBrowser;
                 // The full binary, for the viewports that ask for it (ADR
                 // 0168): a second instance beside the shell, closed with it.
                 const openChrome = VIEWPORTS.some(
                     (v) => rendererOf(v) === "chrome"
                 )
-                    ? await launchBrowser(opts.headed, "chrome")
+                    ? await floorStep(
+                          "chrome launch",
+                          "the full binary the DPR 1 viewport walks in",
+                          () => launchBrowser(opts.headed, "chrome")
+                      )
                     : null;
                 chrome = openChrome;
                 const browserFor = (viewport: Viewport): Browser =>
@@ -1277,7 +1329,10 @@ async function main(): Promise<number> {
                 // reading depends on it (issue #3644): a predicate that returns
                 // early would turn every measurement back into a flap.
                 try {
-                    log(`ui-gate: ${await runSettleSelfCheck(browser)}`);
+                    const selfCheckBrowser = browser;
+                    log(
+                        `ui-gate: ${await floorStep("settle self-check", "the settle predicate proven in this Chromium", () => runSettleSelfCheck(selfCheckBrowser))}`
+                    );
                 } catch (err) {
                     throw new FatalError(
                         `settle self-check failed — ${(err as Error).message}`
@@ -1292,17 +1347,21 @@ async function main(): Promise<number> {
                 // and the first surface of the run reported UNWALKED on a screen that
                 // renders fine. Warming here keeps which surface goes first from
                 // deciding whether the run is green.
-                {
-                    const warm = await browser.newPage();
-                    await warm
-                        .goto(baseUrl, {
-                            waitUntil: "domcontentloaded",
-                            timeout: 90_000,
-                        })
-                        .catch(() => {});
-                    await warm.waitForTimeout(1500);
-                    await warm.close();
-                }
+                await floorStep(
+                    "warm-up",
+                    "one navigation to compile/serve the app before any cell",
+                    async () => {
+                        const warm = await openBrowser.newPage();
+                        await warm
+                            .goto(baseUrl, {
+                                waitUntil: "domcontentloaded",
+                                timeout: 90_000,
+                            })
+                            .catch(() => {});
+                        await warm.waitForTimeout(1500);
+                        await warm.close();
+                    }
+                );
 
                 /**
                  * One viewport, in its own browser context, signed in as its
@@ -1495,7 +1554,8 @@ async function main(): Promise<number> {
                      */
                     const attemptCell = async (
                         surface: Surface,
-                        t: PhaseTimings
+                        t: PhaseTimings,
+                        split: WalkSplit
                     ): Promise<AttemptResult<MeasuredCell>> => {
                         await ensurePage();
                         // The attempt's OWN page, never the `let`: an attempt
@@ -1509,7 +1569,19 @@ async function main(): Promise<number> {
                         // so none can land in this attempt's signature.
                         await p.evaluate("0").catch(() => {});
                         attemptConsole.clear();
-                        await timed(t, "walk", () => surface.walk(p, ctx));
+                        // The walk's sub-phases (issue #9268): the helpers
+                        // find this ledger through `p`, and only while the
+                        // walk runs — the same helpers in cleanup charge
+                        // nothing.
+                        const ledger = newWalkLedger(split);
+                        bindWalkLedger(p, ledger);
+                        try {
+                            await timedWalk(t, ledger, () =>
+                                surface.walk(p, ctx)
+                            );
+                        } finally {
+                            unbindWalkLedger(p, ledger);
+                        }
                         await timed(t, "settle", () =>
                             waitForSettledScreen(p, {
                                 targets: surface.settleTargets,
@@ -1651,16 +1723,18 @@ async function main(): Promise<number> {
                      */
                     const measure = async (surface: Surface): Promise<void> => {
                         const t = emptyTimings();
+                        const split = emptyWalkSplit();
                         timings.push({
                             surface: surface.id,
                             viewport: viewport.id,
                             ms: t,
+                            walk: split,
                         });
                         setProgress(viewport.id, surface.id);
                         const cellStartedAt = Date.now();
                         const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
                         const outcome = await runCellAttempts<MeasuredCell>({
-                            attempt: () => attemptCell(surface, t),
+                            attempt: () => attemptCell(surface, t, split),
                             attemptConsole: () => attemptConsole.lines(),
                             reasonOf: (err) => {
                                 const message = (err as Error).message;
@@ -1858,7 +1932,7 @@ async function main(): Promise<number> {
                         // failed assertions, then the cleanup's failure.
                         if (cellDetail !== null) {
                             lines.push(
-                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${cellDetail}${cellTimingSuffix(t)}`
+                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${cellDetail}${cellTimingSuffix(t)}${walkSplitSuffix(split)}`
                             );
                             lines.push(...assertLines);
                         }
@@ -1893,12 +1967,14 @@ async function main(): Promise<number> {
 
                     setProgress(viewport.id, "signing in");
                     await ensurePage();
+                    const signInStartedAt = Date.now();
                     await ensureSignedIn(
                         page,
                         baseUrl,
                         member.account.email,
                         member.account.password
                     );
+                    signInMs.push(Date.now() - signInStartedAt);
                     lines.push(
                         `ui-gate: ${viewport.id} (${viewport.label}) — signed in`
                     );
@@ -2112,6 +2188,15 @@ async function main(): Promise<number> {
                             .map((line) => `  ${line}`),
                         `failure shots: ${failedCells.length === 0 ? "none" : `${failedCells.length} in ${path.relative(REPO_ROOT, shotDir)}/`}`,
                         ...phaseSummaryLines(collected.timings, wallMs),
+                        ...walkSplitSummaryLines(collected.timings),
+                        ...floorLines([
+                            ...floor,
+                            {
+                                label: "lane sign-ins",
+                                ms: Math.max(0, ...signInMs),
+                                detail: `slowest of ${signInMs.length} viewport(s), in parallel; sum ${(signInMs.reduce((n, ms) => n + ms, 0) / 1000).toFixed(1)}s`,
+                            },
+                        ]),
                         `wall time: ${Math.round(wallMs / 1000)}s`,
                     ],
                     ""
