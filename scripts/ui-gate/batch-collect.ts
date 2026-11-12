@@ -43,18 +43,32 @@ import { runBatch, type BatchOutcome } from "./batch-run.ts";
 
 export type CollectAction =
     | { kind: "land"; pr: number }
-    | { kind: "fail"; pr: number; comment: string }
+    | { kind: "fail"; pr: number; comment: string; partners: number[] }
     | { kind: "hold"; pr: number; comment: string; intrinsic: boolean };
 
 /** The action each PR of a settled batch gets. Pure. */
 export function planCollect(outcome: BatchOutcome): CollectAction[] {
     const actions: CollectAction[] = [];
     for (const pr of outcome.clean) actions.push({ kind: "land", pr });
+    const combination = outcome.combination ?? [];
     for (const [pr, red] of outcome.red) {
+        // A combination break's culprit (issue #9265): the repair pass reads
+        // the neighbours it breaks together with.
+        const breaks = combination.filter((c) => c.culprit === pr);
+        const partners = [...new Set(breaks.flatMap((c) => c.partners))].sort(
+            (a, b) => a - b
+        );
+        const combo = breaks
+            .map(
+                (c) =>
+                    `\n\n\`${c.surface}\` is red only in combination: green on the batch's merge-order prefix before #${pr}, red once #${pr} is merged${c.partners.length ? ` in combination with ${c.partners.map((p) => `#${p}`).join(", ")}` : ""}. Read ${c.partners.length ? "their diffs" : "the base"} beside this one before repairing.`
+            )
+            .join("");
         actions.push({
             kind: "fail",
             pr,
-            comment: `check:ui batch walk: RED\n\n\`\`\`\n${red.join("\n")}\n\`\`\``,
+            partners,
+            comment: `check:ui batch walk: RED${combo}\n\n\`\`\`\n${red.join("\n")}\n\`\`\``,
         });
     }
     for (const { pr, reason, intrinsic } of outcome.dropped) {
@@ -66,6 +80,17 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
         });
     }
     for (const pr of outcome.unproven) {
+        const behind = combination.filter((c) => c.after.includes(pr));
+        if (behind.length > 0) {
+            const culprits = [...new Set(behind.map((c) => `#${c.culprit}`))];
+            actions.push({
+                kind: "hold",
+                pr,
+                intrinsic: false,
+                comment: `check:ui batch walk: #${pr} rides the next batch — it was merged after ${culprits.join(", ")}, which breaks ${behind.map((c) => `\`${c.surface}\``).join(", ")} in combination, so it is unproven against a base that will change. It stays \`${UI_OWED_LABEL}\`.`,
+            });
+            continue;
+        }
         actions.push({
             kind: "hold",
             pr,

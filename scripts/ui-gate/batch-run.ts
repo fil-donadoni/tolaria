@@ -18,7 +18,10 @@
  *   5. attribute every red surface to the PRs whose scope holds it
  *      (`attributeBatch`); a surface several PRs reach is re-walked on each
  *      candidate ALONE (base + that head, `--surface=` — a DIAGNOSTIC, never
- *      a receipt) and settled (`settleAmbiguous`);
+ *      a receipt) and settled (`settleAmbiguous`); a surface still owned
+ *      by no PR (an orphan) is walked on merge-order prefixes — the base,
+ *      base + head₁, … — and the first prefix measuring `FAIL` blames its
+ *      last head (`settleOrphans`, issue #9265);
  *   6. every clean PR gets the BATCH receipt for the surfaces that passed —
  *      printed, and written into its body between the batch-receipt markers
  *      with `--write-receipts`; every red PR is named with its red lines.
@@ -36,12 +39,15 @@ import { domReachablePaths } from "../lib/ui-scope.ts";
 import {
     attributeBatch,
     domDigest,
+    settleOrphans,
     formatBatchHead,
     parseBatchBanner,
     settleAmbiguous,
     withBatchReceipt,
     type BatchAttribution,
     type BatchHead,
+    type CombinationBreak,
+    type PrefixProbe,
     type DomEntry,
 } from "./batch-receipt.ts";
 import { verdictDigestLines } from "./receipt.ts";
@@ -114,11 +120,17 @@ export interface BatchOutcome {
     /** PRs the batch could not carry, each with the reason it logged (not
      *  open against the base, a merge conflict, a FULL / undecided scope). */
     dropped: DroppedPr[];
-    /** PRs whose scope holds a red surface no PR owns. */
+    /** PRs whose scope holds a red surface no PR owns, and the PRs merged
+     *  after a combination break's culprit. */
     unproven: number[];
     /** The base sha the batch merged onto (issue #9264: a transient hold is
      *  retried once the base moves). */
     base: string;
+    /** Surfaces red only in combination, each with the head that completes
+     *  the break (issue #9265). */
+    combination?: CombinationBreak[];
+    /** Orphans green on every merge-order prefix (issue #9265). */
+    nonReproducible?: string[];
 }
 
 /** A PR the batch could not carry, and why (issue #9210). */
@@ -336,6 +348,109 @@ export function redSurfacesOf(output: string): string[] {
     return [...red];
 }
 
+/**
+ * Each surface of `surfaces` as one prefix walk measured it (issue #9265):
+ * `fail` with its red lines on a measured `FAIL` row or failed assertion;
+ * `pass` when it has rows and every one passed; `unsettled` otherwise (an
+ * `UNWALKED` / `INFRA` row, no row, no verdict block). Pure.
+ */
+export function prefixProbesOf(
+    output: string,
+    surfaces: readonly string[]
+): Map<string, PrefixProbe> {
+    const { block } = extractVerdictBlock(output, LANE_VOCABULARY);
+    const out = new Map<string, PrefixProbe>();
+    for (const surface of surfaces) {
+        if (!block) {
+            out.set(surface, { verdict: "unsettled" });
+            continue;
+        }
+        const rows = block.rows.filter((r) => r.surface === surface);
+        const asserts = block.assertRows.filter((a) => a.surface === surface);
+        const lines = [
+            ...rows
+                .filter((r) => r.verdict === "FAIL")
+                .map(
+                    (r) =>
+                        `FAIL ${r.surface} @ ${r.viewport ?? "—"}: ${r.detail}`
+                ),
+            ...asserts
+                .filter((a) => a.verdict === "FAIL")
+                .map(
+                    (a) =>
+                        `FAIL ${a.surface} @ ${a.viewport}: assertion ${JSON.stringify(a.label)}`
+                ),
+        ];
+        if (lines.length > 0) out.set(surface, { verdict: "fail", lines });
+        else if (
+            rows.length > 0 &&
+            rows.every((r) => r.verdict === "PASS") &&
+            asserts.every((a) => a.verdict === "PASS")
+        )
+            out.set(surface, { verdict: "pass" });
+        else out.set(surface, { verdict: "unsettled" });
+    }
+    return out;
+}
+
+/**
+ * Walk the orphan surfaces on merge-order prefixes (issue #9265): base alone,
+ * then base + head₁, base + head₁ + head₂, … — linear, every still-open
+ * orphan in ONE `--surface=` DIAGNOSTIC walk per prefix, so at most
+ * `merged.length + 1` walks. A surface leaves the walk at its first prefix
+ * that is not `pass`: `settleOrphans` reads no further.
+ */
+async function prefixRewalks(
+    orphans: readonly string[],
+    merged: readonly Merged[],
+    baseSha: string,
+    passthrough: readonly string[],
+    root: string,
+    log: Log
+): Promise<Map<string, PrefixProbe[]>> {
+    const probes = new Map<string, PrefixProbe[]>(orphans.map((s) => [s, []]));
+    let open = [...orphans];
+    for (let k = 0; k <= merged.length && open.length > 0; k++) {
+        const prefix = merged.slice(0, k);
+        const dir = newTreeDir(`prefix-${k}`);
+        let measured = new Map<string, PrefixProbe>();
+        try {
+            const built = buildTree(dir, baseSha, prefix, root, log);
+            if (built.length === prefix.length) {
+                initTree(dir, log);
+                const label =
+                    k === 0
+                        ? "the base alone"
+                        : `base + ${prefix.map((m) => `#${m.head.pr}`).join(" + ")}`;
+                log(
+                    `batch: re-walking ${open.join(", ")} on ${label} (DIAGNOSTIC — combination attribution only)`
+                );
+                const { code, output } = await walk(
+                    dir,
+                    [
+                        `--surface=${open.join(",")}`,
+                        "--no-publish",
+                        ...passthrough,
+                    ],
+                    log
+                );
+                if (code === 0 || code === 1)
+                    measured = prefixProbesOf(output, open);
+                else
+                    log(
+                        `batch: prefix walk ${k} exited ${code} — it settles nothing`
+                    );
+            }
+        } finally {
+            removeTree(dir, root);
+        }
+        for (const s of open)
+            probes.get(s)!.push(measured.get(s) ?? { verdict: "unsettled" });
+        open = open.filter((s) => probes.get(s)!.at(-1)!.verdict === "pass");
+    }
+    return probes;
+}
+
 /** Settle each ambiguous surface by walking its candidates alone. */
 async function soloRewalks(
     attribution: BatchAttribution,
@@ -544,20 +659,44 @@ export async function runBatch(
             );
             attribution = settleAmbiguous(attribution, solo);
         }
+        let combination: CombinationBreak[] = [];
+        let nonReproducible: string[] = [];
+        let baseRed: string[] = [];
+        let cleared = new Map<number, string[]>();
+        if (attribution.orphan.length > 0) {
+            const probes = await prefixRewalks(
+                attribution.orphan,
+                merged,
+                baseSha,
+                passthrough,
+                root,
+                log
+            );
+            const settle = settleOrphans(
+                attribution,
+                merged.map((m) => m.head.pr),
+                scopes,
+                probes
+            );
+            ({ attribution, combination, nonReproducible, baseRed, cleared } =
+                settle);
+        }
 
         log(
             "\n─── check:ui batch ─────────────────────────────────────────────"
-        );
-        const lines = batchReceiptLines(
-            attribution.passSurfaces,
-            baseSha,
-            heads
         );
         const clean = attribution.clean.filter(
             (pr) => !attribution.red.has(pr)
         );
         for (const pr of clean) {
-            if (attribution.passSurfaces.length === 0) {
+            // A PR cleared of a combination surface (its prefix passed it)
+            // carries that surface in its receipt too (issue #9265).
+            const extra = cleared.get(pr) ?? [];
+            const surfaces = walked.filter(
+                (s) => attribution.passSurfaces.includes(s) || extra.includes(s)
+            );
+            const lines = batchReceiptLines(surfaces, baseSha, heads);
+            if (surfaces.length === 0) {
                 // A PR with an empty scope owes no walk: no receipt to write.
                 log(
                     `#${pr}: CLEAN — its scope is empty: \`check:ui: no walk owed\``
@@ -572,6 +711,19 @@ export async function runBatch(
             log(`#${pr}: RED`);
             for (const l of red) log(`    ${l}`);
         }
+        for (const c of combination) {
+            log(
+                `combination: ${c.surface} — #${c.culprit} completes the break${c.partners.length ? ` with ${c.partners.map((p) => `#${p}`).join(", ")}` : ""}${c.after.length ? `; ${c.after.map((p) => `#${p}`).join(", ")} ride the next batch` : ""}`
+            );
+        }
+        for (const surface of baseRed)
+            log(
+                `orphan: ${surface} is red on the base alone — no head owns it`
+            );
+        for (const surface of nonReproducible)
+            log(
+                `orphan: ${surface} is non-reproducible — green on every merge-order prefix, the full set included`
+            );
         for (const surface of attribution.orphan) {
             log(
                 `orphan: ${surface} is red in the batch and owned by no single PR — it breaks only in combination, or no PR's own scope reaches it`
@@ -592,6 +744,8 @@ export async function runBatch(
             dropped: dropped.map((d) => ({ ...d })),
             unproven,
             base: baseSha,
+            combination: combination.map((c) => ({ ...c })),
+            nonReproducible: [...nonReproducible],
         });
         return clean.length === prs.length ? 0 : 1;
     }

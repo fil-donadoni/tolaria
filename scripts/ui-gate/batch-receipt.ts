@@ -237,6 +237,123 @@ export function settleAmbiguous(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Combination breaks: the merge-order prefix settle (issue #9265)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One orphan surface as one prefix walk measured it: `fail` only on a
+ *  measured `FAIL` row or failed assertion (its lines name the viewports);
+ *  `pass` when every row passed; `unsettled` when the walk could not judge it
+ *  (an `UNWALKED` / `INFRA` row, no row, a walk the machine cut short). */
+export type PrefixProbe =
+    | { verdict: "pass" }
+    | { verdict: "fail"; lines: string[] }
+    | { verdict: "unsettled" };
+
+/** A surface red only in combination, and the head that completes it. */
+export interface CombinationBreak {
+    surface: string;
+    culprit: number;
+    /** The heads merged before the culprit: cleared of the surface. */
+    partners: number[];
+    /** The heads merged after it: unproven against a base that will change. */
+    after: number[];
+}
+
+export interface PrefixSettle {
+    attribution: BatchAttribution;
+    combination: CombinationBreak[];
+    /** Orphans green on every prefix, the full set included. */
+    nonReproducible: string[];
+    /** Orphans already red on the base alone: no head owns them. */
+    baseRed: string[];
+    /** PR → the surfaces it was cleared on, beyond the batch's passing ones. */
+    cleared: Map<number, string[]>;
+}
+
+/**
+ * Settle each orphan surface on merge-order prefixes (issue #9265). `order`
+ * is the merged heads in merge order; `probes.get(surface)[k]` is the walk of
+ * base + the first k heads (k = 0: the base alone), as far as it went. In
+ * order: a `pass` goes on; an `unsettled` row settles nothing — the orphan
+ * stays as it is (issue #9210: only a measured `FAIL` blames); a `fail` on
+ * the base alone is the base's; a `fail` at k blames head k, clears the heads
+ * before it (whose prefix passed) and leaves the heads after it unproven. An
+ * orphan no prefix reproduces stays, reported non-reproducible. A PR is
+ * clean when every surface of its scope passed in the batch or cleared it,
+ * and it is neither red nor after a culprit. Pure.
+ */
+export function settleOrphans(
+    attribution: BatchAttribution,
+    order: readonly number[],
+    scopes: ReadonlyMap<number, readonly string[]>,
+    probes: ReadonlyMap<string, readonly PrefixProbe[]>
+): PrefixSettle {
+    const red = new Map(attribution.red);
+    const orphan: string[] = [];
+    const combination: CombinationBreak[] = [];
+    const nonReproducible: string[] = [];
+    const baseRed: string[] = [];
+    const cleared = new Map<number, string[]>();
+    for (const surface of attribution.orphan) {
+        const rows = probes.get(surface) ?? [];
+        let settled = false;
+        for (let k = 0; k <= order.length; k++) {
+            const probe = rows[k];
+            if (!probe || probe.verdict === "unsettled") break;
+            if (probe.verdict === "pass") continue;
+            if (k === 0) {
+                baseRed.push(surface);
+                break;
+            }
+            const culprit = order[k - 1];
+            const partners = order.slice(0, k - 1);
+            const after = order.slice(k);
+            const partnerText =
+                partners.length > 0
+                    ? `in combination with ${partners.map((p) => `#${p}`).join(", ")} (merged before it)`
+                    : "with no earlier head merged";
+            red.set(culprit, [
+                ...(red.get(culprit) ?? []),
+                `${surface}: red when #${culprit} is merged ${partnerText}`,
+                ...probe.lines,
+            ]);
+            for (const pr of partners)
+                cleared.set(pr, [...(cleared.get(pr) ?? []), surface]);
+            combination.push({ surface, culprit, partners, after });
+            settled = true;
+            break;
+        }
+        if (settled) continue;
+        orphan.push(surface);
+        const greenThroughout =
+            rows.length > order.length &&
+            rows.slice(0, order.length + 1).every((p) => p.verdict === "pass");
+        if (greenThroughout) nonReproducible.push(surface);
+    }
+    const pass = new Set(attribution.passSurfaces);
+    const deferred = new Set(combination.flatMap((c) => c.after));
+    const clean = [...scopes]
+        .filter(
+            ([pr, s]) =>
+                !red.has(pr) &&
+                !deferred.has(pr) &&
+                s.every(
+                    (surface) =>
+                        pass.has(surface) ||
+                        (cleared.get(pr) ?? []).includes(surface)
+                )
+        )
+        .map(([pr]) => pr);
+    return {
+        attribution: { ...attribution, red, orphan, clean },
+        combination,
+        nonReproducible,
+        baseRed,
+        cleared,
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // The PR body section
 // ─────────────────────────────────────────────────────────────────────────────
 
