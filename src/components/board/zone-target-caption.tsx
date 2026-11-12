@@ -1,5 +1,6 @@
 import { Crosshair } from "lucide-react";
 import type { StackItem } from "~/types/game";
+import { stackObjectName } from "~/lib/stack-target-line";
 import TargetThumb from "./target-thumb";
 
 /** Width of a targeting source's thumbnail under a zone card (px) — large
@@ -31,6 +32,7 @@ export default function ZoneTargetCaption({
                 <span
                     key={item.id}
                     data-zone-target-source={item.id}
+                    title={`Targeted by ${stackObjectName(item) ?? "?"} (#${stackNumber} on the stack)`}
                     className="inline-flex flex-col items-center gap-0.5"
                 >
                     <TargetThumb card={item} width={SOURCE_THUMB_W} />

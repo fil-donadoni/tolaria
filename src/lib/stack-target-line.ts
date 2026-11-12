@@ -161,6 +161,11 @@ function seatsFor(
         : allPlayers;
 }
 
+/** Display name of a stack object (face-down aware), or `null`. */
+export function stackObjectName(item: StackItem): string | null {
+    return cardName(displayCardId(item));
+}
+
 /** CR 114 — an emblem-sourced object's `card.id` is an emblem KEY, absent from
  *  the card registry, so the emblem registry is the second lookup rather than
  *  a raw id fallback. */
