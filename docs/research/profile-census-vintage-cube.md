@@ -1,9 +1,9 @@
 # Profile Census — Vintage Cube, first pass
 
-> **First measured at `1be2f3642` (2026-11-10)** against base `39563e57b`;
-> **re-measured at `65b39ebaf` (2026-11-12)** after rebasing onto the
-> plan-first Auto-Build (issue #8902, PRD #8772). The census changes seed data
-> and the vintage-cube Floors only: no build or pick logic moved.
+> **Measured at `37b38b3c7` (2026-11-12)**, after rebasing onto the plan-first
+> Auto-Build; the first pass was measured at `1be2f3642` against base
+> `39563e57b` (issue #8902, PRD #8772). The census changes seed data and the
+> vintage-cube Floors only: no build or pick logic moved.
 
 ## What the pass wrote
 
@@ -58,7 +58,7 @@ that tip with the seed files as they were before the census; "census" adds the
 six catalogue rows and the 540 rows; "control narrowed" also takes `control` off
 42 cheap one-for-one cards (below).
 
-| Measure                      | Base `cc6893e55`                                       | Census `f9e6c3eeb`                       | Control narrowed `65b39ebaf`                           | Floor now |
+| Measure                      | Base `cc6893e55`                                       | Census `f9e6c3eeb`                       | Control narrowed `37b38b3c7`                           | Floor now |
 | ---------------------------- | ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------ | --------- |
 | Decks built at ≥ 40          | 64 / 64                                                | 64 / 64                                  | 64 / 64                                                | 1         |
 | Mean castability             | 0.865                                                  | 0.858                                    | 0.867                                                  | 0.86      |
