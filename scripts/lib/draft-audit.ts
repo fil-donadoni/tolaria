@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { CURVE_MAX_BUCKET } from "../../convex/limited/botDrafter";
 import { EMPTY_PROFILE_LAYERS } from "../../convex/limited/cardProfilesCore";
+import { archetypeScopeShareForPackSlots } from "../../convex/limited/planArchetype";
 import {
     buildDraftLabCardProfile,
     buildDraftLabSeatDecks,
@@ -126,11 +127,15 @@ export function runDraftAudit(
         packSlots,
         EMPTY_PROFILE_LAYERS
     );
+    const scopeShare = archetypeScopeShareForPackSlots(
+        packSlots,
+        getCardProfile
+    );
     const decks: DeckAudit[] = [];
     for (const seed of seeds) {
         const state = runFullDraftLab(seed, packSlots);
         for (const seat of buildDraftLabSeatDecks(state)) {
-            decks.push(auditSeatDeck(seed, seat, getCardProfile));
+            decks.push(auditSeatDeck(seed, seat, getCardProfile, scopeShare));
         }
     }
     return {

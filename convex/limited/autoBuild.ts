@@ -61,7 +61,6 @@ import type { DeckCard } from "../deckPresets";
 import { FORMAT_RULES } from "../formats";
 import type { Color } from "../cards/types";
 import {
-    ARCHETYPE_SETTLE_UNITS,
     CURVE_MAX_BUCKET,
     CURVE_TARGET,
     archetypeCommitment,
@@ -76,6 +75,7 @@ import {
     type CardEvalMeta,
     type GetPickRating,
 } from "./botDrafter";
+import { choosePlanArchetype, type ArchetypeScopeShare } from "./planArchetype";
 import {
     colourSignature,
     type ColourSignature,
@@ -252,34 +252,27 @@ interface BuildPlan {
  *  deck's castability (`docs/research/draft-table-audit-plan-first.md`). */
 const PLAN_COLOUR_MIN_SHARE = 0.3;
 
-/** The Pool's deepest Archetype, or `null` when nothing is profiled or no
- *  Archetype is deep enough to be a plan. Depth is `archetypeCommitment`,
- *  the pick scorer's own accumulator (copies count, an unreviewed Archetype
- *  layer at half weight), so card COUNT decides, never card quality: eleven
- *  aggro cards outrank eight better control cards. A plan must reach
+/** The Pool's plan, or `null` when nothing is profiled or no Archetype is
+ *  deep enough to be one. Depth is `archetypeCommitment`, the pick scorer's
+ *  own accumulator (copies count, an unreviewed Archetype layer at half
+ *  weight), read against the scope (`planArchetype.ts`, issue #9298): the
+ *  plan is the settled Archetype the Pool holds furthest above what its
+ *  scope would hand it, so a tag covering a quarter of the cube no longer wins by
+ *  size. Card COUNT decides, never card quality. A plan must reach
  *  `ARCHETYPE_SETTLE_UNITS`, the depth at which the pick scorer counts a
  *  Pool as settled: below it, a scope with a handful of profiled cards
- *  builds as an unprofiled one. Ties break by Archetype id, as the Draft
- *  Table Audit reads the plan. The signature is the Archetype Catalogue's
- *  `colourSignature` with the Pool as its scope. */
+ *  builds as an unprofiled one. Ties break by Archetype id. The signature is
+ *  the Archetype Catalogue's `colourSignature` with the Pool as its scope. */
 function choosePlan(
     resolved: readonly ResolvedEntry[],
-    getCardProfile: GetCardProfile | undefined
+    getCardProfile: GetCardProfile | undefined,
+    scopeShare: ArchetypeScopeShare | undefined
 ): BuildPlan | null {
     if (!getCardProfile) return null;
     const metas = resolvedMetas(resolved);
     const commitment = archetypeCommitment(poolProfiles(metas, getCardProfile));
-    let archetype: string | null = null;
-    let depth = 0;
-    for (const [a, units] of [...commitment].sort(([x], [y]) =>
-        x.localeCompare(y)
-    )) {
-        if (units > depth) {
-            archetype = a;
-            depth = units;
-        }
-    }
-    if (archetype === null || depth < ARCHETYPE_SETTLE_UNITS) return null;
+    const archetype = choosePlanArchetype(commitment, metas.length, scopeShare);
+    if (archetype === null) return null;
     const plan = archetype;
     const isPlanCard = (meta: CardEvalMeta) =>
         getCardProfile(meta.cardId)?.archetypes.includes(plan) ?? false;
@@ -399,16 +392,18 @@ function chooseDeckColorsFromResolved(
  *  first via `getMeta` (exported standalone, mirrors `botDrafter.ts`'s
  *  `scoreCandidate`, so colour selection is directly unit-testable without
  *  building a whole deck). Returns 2 or 3 colours (`MAX_DECK_COLORS`).
- *  `getCardProfile` is the plan's seam, as in `AutoBuildOptions`. */
+ *  `getCardProfile` and `archetypeScopeShare` are the plan's seams, as in
+ *  `AutoBuildOptions`. */
 export function chooseDeckColors(
     pool: readonly LimitedPoolCard[],
     getMeta: GetAutoBuildCardMeta,
-    getCardProfile?: GetCardProfile
+    getCardProfile?: GetCardProfile,
+    archetypeScopeShare?: ArchetypeScopeShare
 ): TrueColor[] {
     const resolved = resolvePool(pool, getMeta);
     return chooseDeckColorsFromResolved(
         resolved,
-        choosePlan(resolved, getCardProfile)
+        choosePlan(resolved, getCardProfile, archetypeScopeShare)
     );
 }
 
@@ -694,6 +689,10 @@ export interface AutoBuildOptions {
      *  "nothing is rated": every spell's base value then comes from the
      *  quality heuristic on the rating scale, exactly as an unrated pick. */
     getPickRating?: GetPickRating;
+    /** The pack sources' Archetype frequency
+     *  (`archetypeScopeShareForPackSlots`, issue #9298): the plan is the
+     *  Archetype the Pool holds most above it. Omit to read raw depth. */
+    archetypeScopeShare?: ArchetypeScopeShare;
 }
 
 /** Builds a bot Seat's Auto-Built deck from its FINAL Pool (issue #1115).
@@ -711,7 +710,11 @@ export function autoBuildDeck(
     options: AutoBuildOptions = {}
 ): AutoBuiltDeck {
     const resolved = resolvePool(pool, getMeta);
-    const plan = choosePlan(resolved, options.getCardProfile);
+    const plan = choosePlan(
+        resolved,
+        options.getCardProfile,
+        options.archetypeScopeShare
+    );
     const colors = chooseDeckColorsFromResolved(resolved, plan);
     const colorSet = new Set<Color>(colors);
 

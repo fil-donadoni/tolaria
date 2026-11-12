@@ -102,6 +102,7 @@ import {
     type GetCardProfile,
 } from "./limited/cardProfilesCore";
 import { loadProfileLayerRows } from "./limited/cardProfiles";
+import { archetypeScopeShareForPackSlots } from "./limited/planArchetype";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -947,13 +948,18 @@ async function loadSeatDeckBuilder(
     // Ratings its spell base value — the SAME layered seams the pick reads.
     const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+    // The plan reads the Pool against its scope's Archetype frequency (issue
+    // #9298), computed once for every seat.
+    const archetypeScopeShare =
+        archetypeScopeShareForPackSlots(event.packSlots, getCardProfile) ??
+        undefined;
     return (seat) =>
         computeBotAutoBuiltDeck(
             seat,
             eventContext,
             getAutoBuildCardMeta,
             resolveBasicLand,
-            { getCardProfile, getPickRating }
+            { getCardProfile, getPickRating, archetypeScopeShare }
         );
 }
 
@@ -1231,6 +1237,10 @@ async function projectEventForViewer(
     const getPickRating = needsFallback
         ? await loadEventPickRating(ctx, event.packSlots)
         : undefined;
+    const archetypeScopeShare = getCardProfile
+        ? (archetypeScopeShareForPackSlots(event.packSlots, getCardProfile) ??
+          undefined)
+        : undefined;
     return {
         ...base,
         seats: base.seats.map((seatView, i) => {
@@ -1244,7 +1254,7 @@ async function projectEventForViewer(
                       eventContext,
                       getAutoBuildCardMeta,
                       resolveBasicLand,
-                      { getCardProfile, getPickRating }
+                      { getCardProfile, getPickRating, archetypeScopeShare }
                   ));
             return {
                 ...seatView,
