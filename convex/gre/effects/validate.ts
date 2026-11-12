@@ -4228,6 +4228,10 @@ const DELAYED_TIMINGS = new Set([
     // REPEATING across combats, purged at CLEANUP. Its body reads the creature
     // through a `capture`; `$event` stays illegal.
     "this-turn-watched-creature-attacks-monarch",
+    // Repeating attack watch over the controller's own declarations (CR 508.3a
+    // / 603.7b) — "Whenever you attack this turn, …" (Dalkovan Encampment).
+    // Rejects `targetPlayer` and `watch`, purged at CLEANUP.
+    "this-turn-you-attack",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
