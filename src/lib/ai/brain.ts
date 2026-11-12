@@ -1292,6 +1292,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "trigger-order":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // CR 103.6a — begin the game with opening-hand cards on the
+        // battlefield. Optional (`min` 0), so a `slice(0, min)` would always
+        // decline: put every eligible card — a card that offers this is never
+        // worth less on the battlefield before turn 1 than in hand, where it
+        // would cost mana and a later turn to arrive.
+        case "opening-hand-action":
+            return candidates.slice(0, max).map((c) => c.id);
+
         // `may-pay` is a yes/no answer routed through `submitMayPay`
         // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via

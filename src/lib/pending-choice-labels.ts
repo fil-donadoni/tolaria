@@ -56,6 +56,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "land-entry-tapped": "Pay 2 life",
     // order family
     "mulligan-bottom": "Mulligan",
+    // opening-hand actions (CR 103.6a — begin the game on the battlefield)
+    "opening-hand-action": "Opening hand",
     // simultaneous-trigger ordering (CR 603.3b, ADR 0058)
     "trigger-order": "Order triggers",
     // option family

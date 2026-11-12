@@ -44,7 +44,7 @@ import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
 import { copyExceptName } from "../cards/cardNames";
 import { damageSourceChoicePool } from "./damageSourceChoice";
-import { applyMulliganBottomChoice } from "./mulligan";
+import { applyMulliganBottomChoice, applyOpeningHandChoice } from "./mulligan";
 import {
     landTriggerAnnouncementPriority,
     raiseTriggerTargetSelection,
@@ -634,6 +634,18 @@ export function submitMulliganBottom(
         state.passCount = 0;
         drainAutoPasses(state);
     }
+}
+
+/** The opening-hand action pick (CR 103.6a, `applyOpeningHandChoice`). The
+ *  zone-pick check has already held every id to the chooser's hand and the
+ *  choice's `candidateIds`. */
+export function submitOpeningHandAction(
+    state: GameState,
+    _head: PendingChoice,
+    _queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
+    applyOpeningHandChoice(state, args.cardInstanceIds);
 }
 
 // CR 502.1: additional untap-pick constraints beyond zone validation.

@@ -162,7 +162,7 @@ import {
 } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown, isFaceDownExile } from "./faceDown";
-import { finalizeMulligan } from "./mulligan";
+import { startFirstTurn } from "./mulligan";
 import { computeExpectedInput } from "./expectedInput";
 import { buildActivatedAbilityStackItem } from "./activationCommit";
 import { buildTriggerItem } from "./triggers";
@@ -452,7 +452,7 @@ export function assertLiveGameCanContinue(state: GameState): void {
     // CR 103.5 / CR 117.3a — the mulligan procedure is PRE-GAME, and priority is
     // granted within a turn's steps and phases, so the phase grants none at all
     // and `passPriority` refuses it by name. The builder finalizes whatever
-    // mulligan the base game was in (`finalizeMulligan` leaves `UNTAP`), so this
+    // mulligan the base game was in (`startFirstTurn` leaves `UNTAP`), so this
     // is reachable only by a spec naming the phase back — and then no mulligan
     // mutation is open either, since `state.mulligan` is gone. Checked before
     // the empty-stack return: that board is frozen with or without a stack.
@@ -530,9 +530,10 @@ export function buildStateFromScenario(
     // If the game is still in the pre-game mulligan phase (CR 103.5),
     // confirm the mulligan for both players so the scenario takes over a
     // clean turn-1 state. The scenario's own `phase` override (later below)
-    // wins if specified.
+    // wins if specified. The opening-hand window (CR 103.6) is skipped with
+    // it: the scenario replaces every hand and battlefield below.
     if (state.mulligan) {
-        finalizeMulligan(state);
+        startFirstTurn(state);
     }
 
     const p1 = state.players.find((p) => p.id === mySeatId);
@@ -569,7 +570,7 @@ export function buildStateFromScenario(
     // has left a graveyard "this turn" on a freshly-built board.
     //
     // This is not hygiene, it is correctness of the artefact. The opening hand
-    // is dealt through `drawCard` (`gre/setup.ts`) and `finalizeMulligan` walks
+    // is dealt through `drawCard` (`gre/setup.ts`) and `startFirstTurn` walks
     // to UPKEEP via `advancePhase`, never `advanceTurn` — so without this clear
     // every scenario arrives on turn 1 carrying SEVEN drawn cards, and the
     // first "if you've drawn more than one card this turn" trigger (Proft's

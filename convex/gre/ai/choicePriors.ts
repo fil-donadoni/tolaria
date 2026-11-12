@@ -392,6 +392,7 @@ export function heuristicChoicePrior(
         case "meld-arrange":
         case "choose-aura-host":
         case "mulligan-bottom":
+        case "opening-hand-action":
         case "trigger-order":
         case "name-card":
         case "random-reveal":
