@@ -9041,14 +9041,15 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 404.1 + CR 701.24a — "Target player shuffles up to two target cards
-    // from their graveyard into their library": the controller picks up to N
-    // of that player's graveyard cards (`choice` kind `choose-graveyard-card`,
-    // `count` a min/max range), they move into that player's library, and the
-    // library is shuffled. Exhibits the runtime-sized `choice` count and the
-    // graveyard `moveZone` the canned smoke scenario cannot model, so this
-    // fixture is the evidence the trio is emitted as the hand-written Krosan
-    // Reclamation (sets/jud/green.cards.ts) writes it, modulo the binding name.
+    // CR 601.2c + CR 701.24a — "Target player shuffles up to two target cards
+    // from their graveyard into their library": the player and up to N cards
+    // from THAT player's graveyard are announced targets (a second group
+    // carrying `zoneOwnerOfPriorPlayerTarget`); each still-legal card moves
+    // into its owner's library, and the library is shuffled. Exhibits the
+    // swept graveyard group and the graveyard `moveZone` the canned smoke
+    // scenario cannot model, so this fixture is the evidence the pair is
+    // emitted as the hand-written Krosan Reclamation (sets/jud/green.cards.ts)
+    // writes it.
     {
         rule: "effect clause",
         card: {
@@ -9068,21 +9069,16 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                 "Target player shuffles up to two target cards from their graveyard into their library.\nFlashback {1}{G} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
             effects: [
                 {
-                    op: "choice",
-                    kind: "choose-graveyard-card",
-                    player: "controller",
-                    zoneOwnerId: { target: 0 },
-                    zone: "graveyard",
-                    count: { min: 0, max: 2 },
-                    prompt: "Shuffle up to two target cards from that player's graveyard into their library.",
-                    bind: "$reclaimed1",
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$reclaimed1" },
-                    player: { target: 0 },
-                    from: "graveyard",
-                    to: "library",
+                    op: "forEach",
+                    select: { set: "targets", zone: "graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "graveyard",
+                            to: "library",
+                        },
+                    ],
                 },
                 {
                     op: "libraryLook",
@@ -9091,6 +9087,15 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                 },
             ],
             targetRequirement: { type: "player", count: 1 },
+            additionalTargetRequirements: [
+                {
+                    type: "card",
+                    count: { min: 0, max: 2 },
+                    zone: "graveyard",
+                    controller: "any",
+                    zoneOwnerOfPriorPlayerTarget: true,
+                },
+            ],
             flashback: { X: 1, G: 1 },
         },
     },
