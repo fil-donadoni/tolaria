@@ -672,7 +672,9 @@ from each PR's head branch by the rule `wt:new` created it with.
 
 **No job requires one host (issue #5873).** `housekeeping` and `nightly` run
 on whichever [`maint`](#g-maint) runner is free: their state — the housekeeping watermark
-and retry list, the nightly's last measured tip and audit time — is
+and retry list, the nightly's last measured tip and audit time, the blade
+robustness audit's record that `health:status` shows (`robustness`, issue
+#9294) — is
 [shared state](#g-shared-state), one git ref per key on origin
 (`refs/tolaria/state/<key>`, `scripts/lib/shared-state.ts`) read at the start
 of a run and written back with a compare-and-swap, so a run on one machine

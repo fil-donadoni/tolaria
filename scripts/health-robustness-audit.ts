@@ -6,8 +6,9 @@
  * Run by `health-nightly` for the tip a recorded verdict is about, wrapped in
  * `gate.ts yield` (the lowest admission class): a queued `land` is never made
  * to wait for it. It audits the tip the
- * verdict is about, in its own worktree, files drift as issues and leaves
- * `robustness-audit.json` for `health:status`. It never writes `last.json` or
+ * verdict is about, in its own worktree, files drift as issues and leaves its
+ * record for `health:status` in shared state (the `robustness` key, issue
+ * #9294), so every machine shows the newest audit wherever it ran. It never writes `last.json` or
  * the RED marker, and `release` does not wait for it. Why this is safe to take
  * out of the gates: `lib/health-robustness-audit.ts`.
  */
@@ -17,6 +18,7 @@ import { dirname, join, resolve } from "node:path";
 import {
     claimAuditRequest,
     runAudit,
+    sharedAuditStore,
     type VerdictRecord,
 } from "./lib/health-robustness-audit";
 import { ROBUSTNESS_STEP } from "./lib/health-robustness-drift";
@@ -121,7 +123,13 @@ async function main(): Promise<void> {
             });
             return { ok: r.ok, output: r.output, excused: cause !== null };
         };
-        const record = await runAudit({ dir, request, log, run });
+        const record = await runAudit({
+            dir,
+            store: sharedAuditStore(root),
+            request,
+            log,
+            run,
+        });
         console.log(
             `health-robustness-audit: ${record.status} @ ${request.sha.slice(0, 8)}${record.filed.map((l) => `\n  ${l}`).join("")}`
         );
