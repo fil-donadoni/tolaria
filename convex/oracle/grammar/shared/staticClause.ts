@@ -300,6 +300,13 @@ export type StaticClauseIR =
      */
     | { readonly kind: "cant-be-countered" }
     /**
+     * CR 103.6a — "If this card is in your opening hand, you may begin the
+     * game with it on the battlefield": an opening-hand action the card
+     * declares (`CardDefinition.openingHandAction`), taken in the CR 103.6
+     * window before the first turn — not a static of the permanent.
+     */
+    | { readonly kind: "begin-on-battlefield" }
+    /**
      * CR 614.1c / 614.12a / 205.3m — "As this creature enters, choose a
      * creature type": a choice made BEFORE the permanent enters, over the
      * whole CR 205.3m creature-type list, kept on the permanent for the
@@ -1566,6 +1573,26 @@ const cantBeCounteredRule: Rule<StaticClauseIR> = rule(
         span === THIS_SPELL_CANT_BE_COUNTERED
             ? ok({ kind: "cant-be-countered" as const })
             : fail(`not "${THIS_SPELL_CANT_BE_COUNTERED}"`, span)
+);
+
+/**
+ * CR 103.6a — "If a card allows a player to begin the game with that card on
+ * the battlefield, the player taking this action puts that card onto the
+ * battlefield." The Leyline template, exact: the action is taken from the
+ * opening hand in the CR 103.6 window, so it lowers to the card's
+ * `openingHandAction` declaration. A neighbour carrying its own gate or rider
+ * (Gemstone Caverns' "and you're not the starting player … with a luck
+ * counter on it") is another form and stays refused.
+ */
+const BEGIN_ON_BATTLEFIELD =
+    "If this card is in your opening hand, you may begin the game with it on the battlefield";
+
+const beginOnBattlefieldRule: Rule<StaticClauseIR> = rule(
+    "begin the game on the battlefield",
+    (span): RuleResult<StaticClauseIR> =>
+        span === BEGIN_ON_BATTLEFIELD
+            ? ok({ kind: "begin-on-battlefield" as const })
+            : fail(`not "${BEGIN_ON_BATTLEFIELD}"`, span)
 );
 
 /** "on it", or its gendered object spelling on a named character (issue #7627). */
@@ -3021,6 +3048,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersTappedUnlessControls,
         entersPrepared,
         cantBeCounteredRule,
+        beginOnBattlefieldRule,
         entersWithCounters,
         asEntersChooseCreatureType,
         asEntersChooseCardName,
