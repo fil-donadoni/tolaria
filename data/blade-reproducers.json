@@ -3162,7 +3162,7 @@
         "landCount": 0,
         "libraryCount": 20
     },
-    "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand": {
+    "land-type change: Reef Shaman makes a Mountain for the Flame Slash that kills the Hill Giant": {
         "cards": [
             {
                 "name": "Reef Shaman",
@@ -3181,26 +3181,9 @@
                 "zone": "battlefield"
             },
             {
-                "name": "Swamp",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Lightning Bolt",
+                "name": "Flame Slash",
                 "owner": "me",
                 "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
             },
             {
                 "name": "Hill Giant",
@@ -3209,21 +3192,66 @@
                 "summoningSick": false
             },
             {
-                "name": "Swamp",
-                "owner": "opp",
+                "name": "Grizzly Bears",
+                "owner": "me",
                 "zone": "battlefield",
-                "tapped": true
+                "summoningSick": false
             },
             {
-                "name": "Forest",
-                "owner": "opp",
+                "name": "Merfolk of the Pearl Trident",
+                "owner": "me",
                 "zone": "battlefield",
-                "tapped": true
+                "summoningSick": false
             }
         ],
-        "phase": "END_STEP",
-        "activePlayer": "opp",
-        "priority": "me",
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 4,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "land-type change: Reef Shaman stays untapped when Flame Slash cannot kill the Ironroot Treefolk": {
+        "cards": [
+            {
+                "name": "Reef Shaman",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Flame Slash",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Ironroot Treefolk",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Merfolk of the Pearl Trident",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
         "turn": 4,
         "landCount": 0,
         "libraryCount": 20
