@@ -16,6 +16,7 @@ export default function NoticeToast({
     noticeKey,
     hidden = false,
     durationMs = NOTICE_TOAST_MS,
+    keysSuppressed = false,
     onDismiss,
 }: {
     message: string | null;
@@ -27,6 +28,10 @@ export default function NoticeToast({
     hidden?: boolean;
     /** How long this notice stays up; {@link NOTICE_TOAST_MS} by default. */
     durationMs?: number;
+    /** The viewer is being prompted for a pending choice: the choice owns the
+     *  keyboard, so Space / Escape are left alone (the reveal popup's rule,
+     *  issue #3425). */
+    keysSuppressed?: boolean;
     onDismiss: () => void;
 }) {
     useEffect(() => {
@@ -36,6 +41,24 @@ export default function NoticeToast({
         // onDismiss is a fresh closure every render; the timer is per notice.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [noticeKey]);
+
+    // Space / Escape dismiss (issue #8956). Window CAPTURE phase with
+    // stopPropagation, exactly as the reveal popup does, so the keystroke never
+    // also passes priority (`useControllerActions` listens on the bubble phase).
+    const listening = !!message && !hidden && !keysSuppressed;
+    useEffect(() => {
+        if (!listening) return;
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.code !== "Space" && e.key !== "Escape") return;
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss();
+        }
+        window.addEventListener("keydown", onKeyDown, true);
+        return () => window.removeEventListener("keydown", onKeyDown, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [listening, noticeKey]);
 
     if (!message || hidden) return null;
 

@@ -4622,6 +4622,8 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     // confirmation toast. No rule reads it, so a rebuilt position loses
     // nothing game-visible by starting without one.
     "lastPileChoice",
+    // Issue #8956 — display-only, like `lastPileChoice`.
+    "lastChoiceAnnouncement",
     // CR 514.3a (issue #2472, issue #3453) — the within-cleanup resume marker,
     // meaningful only while it EQUALS `state.turn`, which only holds inside
     // that turn's CLEANUP step. A scenario places a position before its

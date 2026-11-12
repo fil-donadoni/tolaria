@@ -8,7 +8,7 @@ import type {
 } from "./gre/state";
 import { getPendingChoiceMax, getPlayer } from "./gre/state";
 import type { CardAction } from "./gre/types";
-import type { Duration, PendingChoice } from "./gre/state";
+import type { ChoiceAnnouncement, Duration, PendingChoice } from "./gre/state";
 import type { WireCharacteristics } from "./gre/wireCharacteristics";
 import {
     applyWireCharacteristics,
@@ -1578,6 +1578,17 @@ function nonEmpty<T>(list: T[] | undefined): T[] | undefined {
     return list && list.length > 0 ? list : undefined;
 }
 
+/** Issue #8956 — strip the chooser-only library names for any other viewer. */
+function projectChoiceAnnouncement(
+    notice: ChoiceAnnouncement | undefined,
+    viewerId: string
+): ChoiceAnnouncement | undefined {
+    if (!notice || notice.chooserId === viewerId) return notice;
+    const stripped = { ...notice };
+    delete stripped.chooserNames;
+    return stripped;
+}
+
 export function projectPublicState(
     state: GameState,
     seq: number,
@@ -1943,6 +1954,12 @@ export function projectPublicState(
         // when none apply so the field stays absent on the wire.
         pendingReveals: state.pendingReveals?.filter((r) =>
             r.audience.includes(viewerId)
+        ),
+        // Issue #8956 — the names of the cards left in the library are the
+        // chooser's alone (CR 401.2); every seat keeps the counts.
+        lastChoiceAnnouncement: projectChoiceAnnouncement(
+            state.lastChoiceAnnouncement,
+            viewerId
         ),
         // CR 400.11a — a Wish pick's allow-list counts the matching cards in
         // its owner's sideboard: hidden information, so a viewer who is not
