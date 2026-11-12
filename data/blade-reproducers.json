@@ -2690,6 +2690,123 @@
             "opp": 20
         }
     },
+    "graveyard exile: answers a Shock aimed at the exiler with the counter": null,
+    "graveyard exile: exiles the opponent's flashback card over its own instant": {
+        "cards": [
+            {
+                "name": "Lion Sash",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Think Twice",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 4,
+        "priority": "opp",
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "graveyard exile: holds the rider activation through an unrelated spell": null,
+    "graveyard exile: never exiles its own instant at the opponent's end step": {
+        "cards": [
+            {
+                "name": "Lion Sash",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 4,
+        "priority": "opp",
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "graveyard exile: takes the counter off its own permanent card at the end step": {
+        "cards": [
+            {
+                "name": "Lion Sash",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Howling Mine",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 4,
+        "priority": "opp",
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
         "cards": [
             {
