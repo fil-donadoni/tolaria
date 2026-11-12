@@ -66,6 +66,7 @@ import {
     BASIC_LAND_SUBTYPES,
     PERMANENT_TYPES,
     type FullTextEffect,
+    type OpeningHandAction,
 } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
@@ -125,6 +126,8 @@ export interface LoweredStatic {
     readonly entersPrepared?: true;
     /** CR 113.6g — "This spell can't be countered." */
     readonly cantBeCountered?: true;
+    /** CR 103.6a — "you may begin the game with it on the battlefield". */
+    readonly openingHandAction?: OpeningHandAction;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
     /**
@@ -676,6 +679,11 @@ export function lowerStaticClause(
             return { ok: true, lowered: { entersPrepared: true } };
         case "cant-be-countered":
             return { ok: true, lowered: { cantBeCountered: true } };
+        case "begin-on-battlefield":
+            return {
+                ok: true,
+                lowered: { openingHandAction: "begin-on-battlefield" },
+            };
         case "ability-loss-pt-set":
             // CR 613.1f + 613.4b — one clause, two layers, one scope.
             return {

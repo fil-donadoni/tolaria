@@ -9813,7 +9813,6 @@
         {"key":"23087e426d1c","text":"If this card is in a graveyard, effects from spells named Flame Burst count it as a card named Flame Burst.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If this card is in a graveyard, effects from spells named Flame Burst count it as a card named Flame Burst"}},
         {"key":"429bd93e8ba6","text":"If this card is in a graveyard, effects from spells named Muscle Burst count it as a card named Muscle Burst.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If this card is in a graveyard, effects from spells named Muscle Burst count it as a card named Muscle Burst"}},
         {"key":"53d0fcda99e3","text":"If this card is in your opening hand and you're not the starting player, you may begin the game with {self} on the battlefield with a luck counter on it. If you do, exile a card from your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If this card is in your opening hand and you're not the starting player, you may begin the game with {self} on the battlefield with a luck counter on it. If you do, exile a card from your hand"}},
-        {"key":"e1ba5ab0c03b","text":"If this card is in your opening hand, you may begin the game with it on the battlefield.","reason":"no slot consumed the line","cards":18,"attribution":{"slot":"static","path":["static clause"],"span":"If this card is in your opening hand, you may begin the game with it on the battlefield"}},
         {"key":"0e09b4e5681a","text":"If this card is in your opening hand, you may exile it. If you do, create four Time Walk token cards and shuffle them into your deck.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this card is in your opening hand, you may exile it"}},
         {"key":"f079f240ddd6","text":"If this card is signed by someone who has ever designed a Magic card, treat all black mana symbols on this card as red mana symbols.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this card is signed by someone who has ever designed a Magic card, treat all black mana symbols on this card as red mana symbols"}},
         {"key":"4abe954eeb4c","text":"If this creature attacks, all creatures you control attack if able.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If this creature attacks, all creatures you control attack if able"}},
@@ -34514,7 +34513,7 @@
 
         {"oracleId":"1196a4cb-544c-4e7b-91cd-f0820b21a80d","name":"Lucy MacLean, Positively Armed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2f54c79f6bdf"]},
 
-        {"oracleId":"1197a595-3afc-4f18-b868-bbb096771922","name":"Leyline of Abundance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["025c8b961bc3","1e4f54bf2a56","e1ba5ab0c03b"]},
+        {"oracleId":"1197a595-3afc-4f18-b868-bbb096771922","name":"Leyline of Abundance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["025c8b961bc3","1e4f54bf2a56"]},
 
         {"oracleId":"1198d47a-4235-4678-bd2e-20f2a97b5924","name":"Charging Tuskodon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0763a366f215"]},
 
@@ -40094,7 +40093,7 @@
 
         {"oracleId":"26074e44-cf2b-459f-9a5d-7eed231ed2b4","name":"Desperate Charge","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["forEach","pump"],"definition":{"name":"Desperate Charge","types":["Sorcery"],"manaCost":{"X":2,"B":1},"oracleText":"Creatures you control get +2/+0 until end of turn.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":2,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"2608df54-dfbe-417d-aef5-49afbdfb03da","name":"Leyline of Punishment","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["184faeff57b7","ac1b724ce583","e1ba5ab0c03b"]},
+        {"oracleId":"2608df54-dfbe-417d-aef5-49afbdfb03da","name":"Leyline of Punishment","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["184faeff57b7","ac1b724ce583"]},
 
         {"oracleId":"2608f905-a678-4e40-9e73-cf1c42ec880d","name":"Rageblood Shaman","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7737ab756a58"]},
 
@@ -49680,7 +49679,7 @@
 
         {"oracleId":"492dafd8-0393-4151-845c-d9ca10bda03e","name":"Utopia Mycon","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","triggered"],"opsUsed":["counters","createToken"],"definition":{"name":"Utopia Mycon","types":["Creature"],"subtypes":["Fungus"],"manaCost":{"G":1},"power":0,"toughness":2,"oracleText":"At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Create a 1/1 green Saproling creature token.\nSacrifice a Saproling: Add one mana of any color.","activatedAbilities":[{"id":"utopia-mycon-ability","oracleText":"Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.","cost":{"removeCounter":{"type":"spore","count":3}},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Saproling","types":["Creature"],"subtypes":["Saproling"],"power":1,"toughness":1,"colors":["G"]},"controller":"controller"}]},{"id":"utopia-mycon-mana-2","oracleText":"Sacrifice a Saproling: Add one mana of any color.","cost":{"sacrificeFilter":{"subtypes":["Saproling"]}},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}],"compiledTriggeredAbilities":[{"id":"utopia-mycon-trigger","oracleText":"At the beginning of your upkeep, put a spore counter on this creature.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"counters","action":"add","counter":"spore","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"492e0e6c-8c27-4376-938b-f8a8b6205810","name":"Leyline of Sanctity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["300fb2efd1ce","e1ba5ab0c03b"]},
+        {"oracleId":"492e0e6c-8c27-4376-938b-f8a8b6205810","name":"Leyline of Sanctity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["300fb2efd1ce"]},
 
         {"oracleId":"49325445-0825-405e-be86-2a814699ce03","name":"The Howling Commandos","state":"quarantine","poolIn":["pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["forEach","grantAbility","pump"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test"}],"definition":{"name":"The Howling Commandos","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Soldier","Hero"],"manaCost":{"X":1,"W":1},"power":3,"toughness":1,"oracleText":"{5}: Creatures you control get +1/+1 until end of turn. Soldiers you control gain vigilance until end of turn.","activatedAbilities":[{"id":"the-howling-commandos-ability","oracleText":"{5}: Creatures you control get +1/+1 until end of turn. Soldiers you control gain vigilance until end of turn.","cost":{"mana":{"X":5}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]},{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"subtype":"Soldier"}},"effects":[{"op":"grantAbility","target":{"ref":"$each"},"ability":"vigilance","duration":{"phase":"end-of-turn"}}]}]}]}},
 
@@ -49830,7 +49829,7 @@
 
         {"oracleId":"49a46cfa-f2e9-4718-a6cb-47dbb0792b56","name":"Crystalline Giant","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1f0cc42dcc5c"]},
 
-        {"oracleId":"49a5c149-5067-4840-8385-c2989d7e5a34","name":"Leyline of Combustion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["18161498aac5","e1ba5ab0c03b"]},
+        {"oracleId":"49a5c149-5067-4840-8385-c2989d7e5a34","name":"Leyline of Combustion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["18161498aac5"]},
 
         {"oracleId":"49a7c053-81e9-47b7-af5c-c62cd0389ed4","name":"Lethal Protection","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy","moveZone"],"definition":{"name":"Lethal Protection","types":["Sorcery"],"manaCost":{"X":3,"B":1},"oracleText":"Destroy target creature. Return up to one target creature card from your graveyard to your hand.","effects":[{"op":"destroy","target":{"target":0}},{"op":"moveZone","target":{"target":1},"to":"hand"}],"targetRequirement":{"type":"Creature","count":1},"additionalTargetRequirements":[{"type":"Creature","count":{"min":0,"max":1},"zone":"graveyard","controller":"you"}]},"botReach":"played"},
 
@@ -51364,7 +51363,7 @@
 
         {"oracleId":"4f5921c1-b932-4d6b-bb8e-01992578abdc","name":"Skyshroud Poacher","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Skyshroud Poacher","types":["Creature"],"subtypes":["Human","Rebel"],"manaCost":{"X":2,"G":2},"power":2,"toughness":2,"oracleText":"{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.","activatedAbilities":[{"id":"skyshroud-poacher-ability","oracleText":"{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.","cost":{"mana":{"X":3},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"subtype":"Elf"},"count":{"min":0,"max":1},"prompt":"Search your library for an Elf permanent card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"4f597675-0f6d-438c-990c-337171927a5e","name":"Leyline Axe","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e1ba5ab0c03b"]},
+        {"oracleId":"4f597675-0f6d-438c-990c-337171927a5e","name":"Leyline Axe","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["attach"],"definition":{"name":"Leyline Axe","types":["Artifact"],"subtypes":["Equipment"],"manaCost":{"X":4},"oracleText":"If this card is in your opening hand, you may begin the game with it on the battlefield.\nEquipped creature gets +1/+1 and has double strike and trample.\nEquip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.)","activatedAbilities":[{"id":"leyline-axe-equip","oracleText":"Equip {3}","cost":{"mana":{"generic":3}},"sorcerySpeedOnly":true,"targetRequirement":{"type":"Creature","count":1,"controller":"you"},"useStack":true,"effects":[{"op":"attach","target":{"target":0}}]}],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":1,"toughness":1},{"kind":"keyword-grant","appliesTo":"host","keyword":"double strike"},{"kind":"keyword-grant","appliesTo":"host","keyword":"trample"}],"openingHandAction":"begin-on-battlefield"},"botReach":"played"},
 
         {"oracleId":"4f5978a6-40c2-49df-8277-48a6d4f6f23e","name":"Sift Through Sands","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["993ef174fddd"]},
 
@@ -56412,7 +56411,7 @@
 
         {"oracleId":"61a6341e-0d36-44b6-8026-9c87c8ef61cb","name":"Second Harvest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f80d4171c239"]},
 
-        {"oracleId":"61a9c81b-654d-422a-948a-0547ea2f0a0d","name":"Welcome to Australia","state":"unparsed","gaps":["50aada9d7e02","5ea7f10bdecf","6c287e38dabc","e1ba5ab0c03b"]},
+        {"oracleId":"61a9c81b-654d-422a-948a-0547ea2f0a0d","name":"Welcome to Australia","state":"unparsed","gaps":["50aada9d7e02","5ea7f10bdecf","6c287e38dabc"]},
 
         {"oracleId":"61aa0e56-e8d9-4223-895f-e54cdc5a3f0f","name":"Totem Speaker","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["9efbfecd00fb"]},
 
@@ -59092,7 +59091,7 @@
 
         {"oracleId":"6b2d92f5-b0a1-4f30-9140-da490bf01bda","name":"Lily Bowen, Raging Grandma","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["059c9926044b"]},
 
-        {"oracleId":"6b2e6a51-b9e6-4848-b7d7-98f02f2b897f","name":"Leyline of the Guildpact","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e1ba5ab0c03b","f4b786e604dd"]},
+        {"oracleId":"6b2e6a51-b9e6-4848-b7d7-98f02f2b897f","name":"Leyline of the Guildpact","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f4b786e604dd"]},
 
         {"oracleId":"6b2eb774-08f3-46cb-aeca-2ab82fdd5f03","name":"Loxodon Stalwart","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Loxodon Stalwart","types":["Creature"],"subtypes":["Elephant","Soldier"],"manaCost":{"X":3,"W":2},"power":3,"toughness":3,"oracleText":"Vigilance\n{W}: This creature gets +0/+1 until end of turn.","staticAbilities":["vigilance"],"activatedAbilities":[{"id":"loxodon-stalwart-ability","oracleText":"{W}: This creature gets +0/+1 until end of turn.","cost":{"mana":{"W":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":0,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -71268,7 +71267,7 @@
 
         {"oracleId":"971b30a8-4ab4-4e96-9d50-597da4d52994","name":"Danitha, New Benalia's Light","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d3f0b668aeb7"]},
 
-        {"oracleId":"971f7b30-0088-4e12-bc1a-262acc7f5f90","name":"Leyline of the Meek","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1b386db2ab7b","e1ba5ab0c03b"]},
+        {"oracleId":"971f7b30-0088-4e12-bc1a-262acc7f5f90","name":"Leyline of the Meek","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1b386db2ab7b"]},
 
         {"oracleId":"97248734-6e99-42a2-8f11-f3337b25f8ab","name":"Sage's Nouliths","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b0ccbe2d9b28","f64c9fc248c3"]},
 
@@ -71934,7 +71933,7 @@
 
         {"oracleId":"99742ec7-7b67-4301-9307-3c2068046e33","name":"Trained Condor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["grantAbility"],"definition":{"name":"Trained Condor","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":2,"U":1},"power":2,"toughness":1,"oracleText":"Flying\nWhenever this creature attacks, another target creature you control gains flying until end of turn.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"trained-condor-trigger","oracleText":"Whenever this creature attacks, another target creature you control gains flying until end of turn.","head":{"kind":"attacks"},"targetRequirement":{"type":"Creature","count":1,"controller":"you","excludeSource":true},"effects":[{"op":"grantAbility","target":{"target":0},"ability":"flying","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"997478aa-b790-4269-a626-abf0cb30fea0","name":"Leyline of Lifeforce","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2b2293fa64c","e1ba5ab0c03b"]},
+        {"oracleId":"997478aa-b790-4269-a626-abf0cb30fea0","name":"Leyline of Lifeforce","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2b2293fa64c"]},
 
         {"oracleId":"99763d8f-a251-47b9-83e6-153a023628c0","name":"Occupation of Kulrath","state":"unparsed","gaps":["388412b5f8ea"]},
 
@@ -73132,7 +73131,7 @@
 
         {"oracleId":"9dc6281b-08e0-4c66-9aef-abc7184ca36a","name":"Prosperous Pirates","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5f20e015ebbf"]},
 
-        {"oracleId":"9dc65ffe-17fc-4280-b4bd-78073ac7e12b","name":"Leyline of Anticipation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e1ba5ab0c03b"]},
+        {"oracleId":"9dc65ffe-17fc-4280-b4bd-78073ac7e12b","name":"Leyline of Anticipation","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Leyline of Anticipation","types":["Enchantment"],"manaCost":{"X":2,"U":2},"oracleText":"If this card is in your opening hand, you may begin the game with it on the battlefield.\nYou may cast spells as though they had flash.","compiledStaticEffects":[{"kind":"cast-permission","grantee":"controller","filter":{},"asThoughFlash":true,"oracleText":"You may cast spells as though they had flash.","id":"controller-spell-a7736ca4"}],"openingHandAction":"begin-on-battlefield"},"botReach":"played"},
 
         {"oracleId":"9dc97983-2403-4a1e-8317-fa8ed7c1c13d","name":"Vile Bile","state":"unparsed","gaps":["722c296fc37d"]},
 
@@ -81138,7 +81137,7 @@
 
         {"oracleId":"bb87917f-33fb-4024-9317-0992c2f8f55e","name":"Mogis's Warhound","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["76c1a33ccb28","9aa45297d356","b8ae47de9257"]},
 
-        {"oracleId":"bb87ec08-bb1b-43d8-8809-92904cbba685","name":"Leyline of Lightning","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1d82897147d6","e1ba5ab0c03b"]},
+        {"oracleId":"bb87ec08-bb1b-43d8-8809-92904cbba685","name":"Leyline of Lightning","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1d82897147d6"]},
 
         {"oracleId":"bb880c24-2c75-4f27-b2e0-2b44309f5a17","name":"The Bus Runner","state":"unparsed","gaps":["339cb42538fd","deca653b3ff6"]},
 
@@ -81450,7 +81449,7 @@
 
         {"oracleId":"bc9d75e7-1f64-4376-8e19-f6622ffbeb28","name":"Vault 12: The Necropolis","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["046746387461","74eade6cdab3","ceaf3b2cc67b"]},
 
-        {"oracleId":"bc9f159b-984d-4b9f-8904-b38b5cb79636","name":"Leyline of Singularity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e1ba5ab0c03b","f1d232b5c08c"]},
+        {"oracleId":"bc9f159b-984d-4b9f-8904-b38b5cb79636","name":"Leyline of Singularity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f1d232b5c08c"]},
 
         {"oracleId":"bca0c136-3845-4cb9-8d80-f504a01ad50a","name":"Quicksmith Genius","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c6794cffc3c"]},
 
@@ -84570,7 +84569,7 @@
 
         {"oracleId":"c7ee1b21-d02e-49ef-95d6-d6dbf2f886ae","name":"Eldrazi Monument","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2c4f16ba2f05","c155d72d5c2d"]},
 
-        {"oracleId":"c7ee79c3-a273-45b4-b3a4-548d9b2b883c","name":"Leyline of Hope","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61f13925f385","b8880bceb167","e1ba5ab0c03b"]},
+        {"oracleId":"c7ee79c3-a273-45b4-b3a4-548d9b2b883c","name":"Leyline of Hope","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61f13925f385","b8880bceb167"]},
 
         {"oracleId":"c7efe6c6-3da1-47a6-a8ad-30c36502a7ab","name":"Mercurial Transformation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cf923d029a65"]},
 
@@ -85350,7 +85349,7 @@
 
         {"oracleId":"caab555c-7852-418a-bdc3-f908af7e0932","name":"Phyrexian Colossus","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["585438eb426f"]},
 
-        {"oracleId":"caab67eb-65e7-4755-b116-6977e97f0844","name":"Leyline of Mutation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0a320933e666","e1ba5ab0c03b"]},
+        {"oracleId":"caab67eb-65e7-4755-b116-6977e97f0844","name":"Leyline of Mutation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0a320933e666"]},
 
         {"oracleId":"caaedd67-e074-47c4-a956-da88a01f8996","name":"Briar Hydra","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["22c60ffd66db"]},
 
@@ -85730,7 +85729,7 @@
 
         {"oracleId":"cbf09050-39d0-463b-96db-9e22011ae0d8","name":"Aang, Swift Savior // Aang and La, Ocean's Fury","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6fbf5ee66c4e","9dc97dcede38","fa96dd9aa81f"]},
 
-        {"oracleId":"cbf2b19e-32a3-489f-9979-ba2748c52845","name":"Leyline of Vitality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4366b0258d26","e1ba5ab0c03b"]},
+        {"oracleId":"cbf2b19e-32a3-489f-9979-ba2748c52845","name":"Leyline of Vitality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4366b0258d26"]},
 
         {"oracleId":"cbf5bd0a-20ef-4dce-9f70-13339d438ff7","name":"Eerie Gravestone","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["choice","draw","mill","moveZone"],"definition":{"name":"Eerie Gravestone","types":["Artifact"],"manaCost":{"X":2},"oracleText":"When this artifact enters, draw a card.\n{1}{B}, Sacrifice this artifact: Mill four cards. You may put a creature card from among them into your hand. (To mill four cards, put the top four cards of your library into your graveyard.)","activatedAbilities":[{"id":"eerie-gravestone-ability","oracleText":"{1}{B}, Sacrifice this artifact: Mill four cards. You may put a creature card from among them into your hand.","cost":{"mana":{"X":1,"B":1},"sacrifice":true},"useStack":true,"effects":[{"op":"mill","player":"controller","count":4,"bindAll":"$milled1"},{"op":"choice","kind":"choose-graveyard-card","player":"controller","zone":"graveyard","candidates":[{"ref":"$milled1"}],"filter":{"type":"Creature"},"count":{"min":0,"max":1},"prompt":"You may put a creature card from among the milled cards into your hand.","bind":"$pick2"},{"op":"moveZone","cards":{"ref":"$pick2"},"player":"controller","from":"graveyard","to":"hand"}]}],"compiledTriggeredAbilities":[{"id":"eerie-gravestone-trigger","oracleText":"When this artifact enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
@@ -86756,7 +86755,7 @@
 
         {"oracleId":"cfaa0d5d-d9f1-4586-a7b1-6576a58c0f1e","name":"Symbiotic Elf","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Symbiotic Elf","types":["Creature"],"subtypes":["Elf"],"manaCost":{"X":3,"G":1},"power":2,"toughness":2,"oracleText":"When this creature dies, create two 1/1 green Insect creature tokens.","compiledTriggeredAbilities":[{"id":"symbiotic-elf-trigger","oracleText":"When this creature dies, create two 1/1 green Insect creature tokens.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Insect","types":["Creature"],"subtypes":["Insect"],"power":1,"toughness":1,"colors":["G"]},"controller":"controller","count":2}]}]},"botReach":"played"},
 
-        {"oracleId":"cfaa13d6-9992-4223-8bd7-c44046505555","name":"Leyline of Transformation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d9152c68cb52","e1ba5ab0c03b"]},
+        {"oracleId":"cfaa13d6-9992-4223-8bd7-c44046505555","name":"Leyline of Transformation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d9152c68cb52"]},
 
         {"oracleId":"cfaa8b7b-7bfc-4660-bbc7-a717e05df6ef","name":"Stone-Giant of High Pass","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3ed0b74eba3e"]},
 
@@ -97238,7 +97237,7 @@
 
         {"oracleId":"f4e15575-2277-4cb1-a343-e9407c050eb1","name":"Ubul Sar Gatekeepers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["pump"],"definition":{"name":"Ubul Sar Gatekeepers","types":["Creature"],"subtypes":["Zombie","Soldier"],"manaCost":{"X":3,"B":1},"power":2,"toughness":4,"oracleText":"When this creature enters, if you control two or more Gates, target creature an opponent controls gets -2/-2 until end of turn.","compiledTriggeredAbilities":[{"id":"ubul-sar-gatekeepers-trigger","oracleText":"When this creature enters, if you control two or more Gates, target creature an opponent controls gets -2/-2 until end of turn.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"controls","filter":{"subtypes":["Gate"]},"atLeast":2},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"pump","target":{"target":0},"power":-2,"toughness":-2,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"f4e32fc1-1b8d-441e-8e76-71f19f98e925","name":"Leyline of the Void","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e190354a75a4","e1ba5ab0c03b"]},
+        {"oracleId":"f4e32fc1-1b8d-441e-8e76-71f19f98e925","name":"Leyline of the Void","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e190354a75a4"]},
 
         {"oracleId":"f4e4060d-bfff-4991-9ae5-8f848304cd1e","name":"Buoyancy","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Buoyancy","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":1,"U":1},"oracleText":"Flash\nEnchant creature\nEnchanted creature has flying.","staticAbilities":["flash"],"compiledStaticEffects":[{"kind":"keyword-grant","appliesTo":"host","keyword":"flying"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -97698,7 +97697,7 @@
 
         {"oracleId":"f693cf76-0919-4b89-92de-e619be006abb","name":"Loyal Gyrfalcon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e8d3f087ead5"]},
 
-        {"oracleId":"f69574dd-097f-4908-9cab-344b0eb39c62","name":"Leyline of Resonance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bac2ef586213","e1ba5ab0c03b"]},
+        {"oracleId":"f69574dd-097f-4908-9cab-344b0eb39c62","name":"Leyline of Resonance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bac2ef586213"]},
 
         {"oracleId":"f695a073-7235-45c8-bc42-f1e29bb086ee","name":"Groundling Pouncer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0a38f5b0969a"]},
 
