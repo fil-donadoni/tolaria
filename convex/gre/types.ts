@@ -255,6 +255,15 @@ export type LandEntryChoiceKind = "land-entry-tapped";
  *     slice is ≥2 copies of the same printed target-less ability — swapping
  *     outcome-identical instances has one meaningful result (ADR 0003). */
 export type OrderChoiceKind = "mulligan-bottom" | "trigger-order";
+/** Opening-hand action window (CR 103.6): once the mulligan process is
+ *  complete, the starting player and then each other player in turn order
+ *  chooses which opening-hand cards declaring `openingHandAction:
+ *  "begin-on-battlefield"` to put onto the battlefield (CR 103.6a), in the
+ *  order picked. A stackless pre-game choice (`stackItemId: "opening-hand"`)
+ *  raised and committed by `gre/mulligan.ts`; `zone: "hand"`, `candidateIds`
+ *  the eligible cards, `count: { min: 0, max: N }` (declining is legal). It is
+ *  `privateToChooser`: the eligible cards are in a hidden zone. */
+export type OpeningHandChoiceKind = "opening-hand-action";
 /** Pick exactly one abstract option from a precomputed list (CR 614.12 /
  *  701.x "as it enters, choose …" body selection). Unlike `ZonePickKind` the
  *  candidates are NOT zone members — they are author-supplied `{id,label}`
@@ -511,6 +520,7 @@ export type PendingChoiceKind =
     | YesNoChoiceKind
     | LandEntryChoiceKind
     | OrderChoiceKind
+    | OpeningHandChoiceKind
     | OptionChoiceKind
     | TriggerModeChoiceKind
     | NameCardChoiceKind

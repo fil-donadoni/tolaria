@@ -10,21 +10,32 @@
 // their final hand on the bottom of their library, where N = mulligansTaken.
 //
 // State lives in `GameState.mulligan` (MulliganState). The phase name is
-// `"MULLIGAN"`. After bottoming completes, `finalizeMulligan` clears the
-// mulligan field, sets phase back to `"UNTAP"`, and calls advancePhase to
-// land at UPKEEP of turn 1 — the same pipeline a freshly initialized game
-// used before mulligan was implemented.
+// `"MULLIGAN"`. After bottoming completes, `finalizeMulligan` opens the
+// opening-hand action window (CR 103.6, still in `"MULLIGAN"`): the starting
+// player, then each other player in turn order, may put opening-hand cards
+// that allow it onto the battlefield. Once the window closes, `startFirstTurn`
+// clears the mulligan field, sets phase back to `"UNTAP"`, and calls
+// advancePhase to land at UPKEEP of turn 1 — the same pipeline a freshly
+// initialized game used before mulligan was implemented.
 
+import { tryGetDefinition } from "../cards";
 import {
+    type CardInstanceState,
     type GameState,
     type MulliganState,
     type PendingChoice,
     type PlayerState,
     moveCard,
+    processPendingActionTriggers,
+    putHandCardOntoBattlefield,
 } from "./state";
-import { advancePhase } from "./phases";
+import { advancePhase, drainAutoPasses } from "./phases";
 import { seededShuffle } from "./rng";
 import type { Phase } from "./types";
+
+/** The stackless sentinel an opening-hand action choice carries in
+ *  `stackItemId` (CR 103.6) — there is no stack object behind it. */
+export const OPENING_HAND_STACK_ITEM_ID = "opening-hand";
 
 /** Initial hand size (CR 103.5; constant for now — Vanguard / hand-modifier
  *  effects are out of scope). Mirrored from game.ts to avoid a cycle. */
@@ -239,9 +250,143 @@ export function applyMulliganBottomChoice(
     }
 }
 
+/** The mulligan process is complete (CR 103.5): open the opening-hand action
+ *  window (CR 103.6), which starts the first turn itself once every player
+ *  has acted. */
+export function finalizeMulligan(state: GameState): void {
+    const m = state.mulligan;
+    if (!m) throw new Error("Mulligan state missing");
+    m.openingHand = { actorPosition: -1, queued: [] };
+    advanceOpeningHandWindow(state);
+}
+
+/** CR 103.6a — the opening-hand cards that let `player` begin the game with
+ *  them on the battlefield. */
+export function openingHandBattlefieldCards(
+    player: PlayerState
+): CardInstanceState[] {
+    return player.hand.filter((card) => {
+        const id = (card.card as { id?: string }).id;
+        return (
+            id !== undefined &&
+            tryGetDefinition(id)?.openingHandAction === "begin-on-battlefield"
+        );
+    });
+}
+
+/** The player `turnOrderPosition` seats after the starting player — the
+ *  active player of the first turn (CR 103.1), who need not be `players[0]`
+ *  (a later Game of a Match starts with the chosen player on the play). */
+function playerInTurnOrder(
+    state: GameState,
+    turnOrderPosition: number
+): PlayerState {
+    const start = state.players.findIndex((p) => p.id === state.activePlayerId);
+    const n = state.players.length;
+    return state.players[(Math.max(start, 0) + turnOrderPosition) % n];
+}
+
+/** CR 103.6 — hand the window to the next player in turn order from the
+ *  starting player who has an opening-hand action to take, raising their
+ *  `opening-hand-action` choice. A player with none is skipped without a
+ *  prompt. When nobody is left, the first turn begins. */
+function advanceOpeningHandWindow(state: GameState): void {
+    const window = state.mulligan?.openingHand;
+    if (!window) throw new Error("Opening-hand window is not open");
+    for (
+        let position = window.actorPosition + 1;
+        position < state.players.length;
+        position++
+    ) {
+        const player = playerInTurnOrder(state, position);
+        const eligible = openingHandBattlefieldCards(player);
+        if (eligible.length === 0) continue;
+        window.actorPosition = position;
+        const choice: PendingChoice = {
+            stackItemId: OPENING_HAND_STACK_ITEM_ID,
+            step: 0,
+            choiceId: `opening-hand-${player.id}`,
+            playerId: player.id,
+            kind: "opening-hand-action",
+            zone: "hand",
+            candidateIds: eligible.map((c) => c.id),
+            count: { min: 0, max: eligible.length },
+            prompt: "Choose cards from your opening hand to begin the game with on the battlefield",
+            // CR 103.6 — the eligible cards sit in a hidden zone (CR 400.2):
+            // the opponent sees the pause, never the cards it is about.
+            privateToChooser: true,
+        };
+        state.pendingChoices = [...(state.pendingChoices ?? []), choice];
+        state.priorityPlayerId = player.id;
+        return;
+    }
+    startFirstTurn(state);
+}
+
+/** Apply the front `opening-hand-action` PendingChoice (CR 103.6a): the chosen
+ *  cards are put onto the battlefield one at a time, in the order picked
+ *  ("in any order", CR 103.6). Putting is not casting nor playing, so it goes
+ *  through the shared non-cast entry path — entry replacements and ETB
+ *  triggers apply; the triggers wait in `pendingEvents` until a player first
+ *  receives priority, in the first turn's upkeep. `selectedIds` has already
+ *  passed the zone-pick check (in hand, in `candidateIds`, within count). */
+export function applyOpeningHandChoice(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const choices = state.pendingChoices;
+    const choice = choices?.[0];
+    if (!choice || choice.kind !== "opening-hand-action") {
+        throw new Error("No opening-hand action choice to apply");
+    }
+    const window = state.mulligan?.openingHand;
+    if (!window) throw new Error("Opening-hand window is not open");
+    choices!.shift();
+    state.pendingChoices = choices!.length > 0 ? choices : undefined;
+    window.queued = [...selectedIds];
+    resumeOpeningHandWindow(state);
+}
+
+/** Carry the window on after the actor's pick, or after an as-enters choice
+ *  one of the picked cards parked on (CR 614.12a — `finalizeAsEnters` calls
+ *  here). Once the window has closed and the first turn begun, the active
+ *  player holds priority, as after the mulligan bottom pick.
+ *
+ *  CR 117.5 — abilities that triggered on a pre-game entry wait until a player
+ *  would first receive priority, in the first turn's upkeep, so they are
+ *  flushed here. They are placed as their own batch, above any "at the
+ *  beginning of your upkeep" triggers `advancePhase` already stacked, rather
+ *  than ordered together with those in one CR 603.3b batch. */
+export function resumeOpeningHandWindow(state: GameState): void {
+    continueOpeningHandWindow(state);
+    if (!state.mulligan) processPendingActionTriggers(state);
+    if ((state.pendingChoices?.length ?? 0) === 0) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+    }
+}
+
+/** Put the actor's queued cards onto the battlefield until the queue empties
+ *  or an entry parks on an as-enters choice; then hand the window on. */
+function continueOpeningHandWindow(state: GameState): void {
+    const window = state.mulligan?.openingHand;
+    if (!window) throw new Error("Opening-hand window is not open");
+    const actor = playerInTurnOrder(state, window.actorPosition);
+    while ((state.pendingChoices?.length ?? 0) === 0) {
+        const next = window.queued.shift();
+        if (next === undefined) {
+            advanceOpeningHandWindow(state);
+            return;
+        }
+        putHandCardOntoBattlefield(state, actor.id, next);
+    }
+    state.priorityPlayerId = state.pendingChoices![0].playerId;
+}
+
 /** Clears the mulligan state and advances the engine to UPKEEP of turn 1
  *  using the existing phase pipeline (UNTAP is auto-skipped). */
-export function finalizeMulligan(state: GameState): void {
+export function startFirstTurn(state: GameState): void {
     state.mulligan = undefined;
     // CR 103.5 (issue #1714) — the opening hand is drawn BEFORE turn 1 begins,
     // so none of it was drawn "this turn". Every opening hand is dealt through
@@ -255,6 +400,21 @@ export function finalizeMulligan(state: GameState): void {
     for (const player of state.players) {
         player.drawnThisTurn = undefined;
         player.lastDrawnCardId = undefined;
+        // CR 103.6a — a card that began the game on the battlefield entered
+        // BEFORE turn 1, so it did not enter "this turn" and was no
+        // qualifying action of it (Arboria's tally). The entry stamped both against
+        // the turn number the game already reads; this walk never reaches the
+        // turn boundary that would roll them over.
+        player.qualifyingActionThisTurn = undefined;
+        for (const card of player.battlefield) {
+            card.enteredOnTurn = undefined;
+            // CR 302.6 — the starting player has controlled it continuously
+            // since before their most recent turn (turn 1) began. Any other
+            // player's stays sick until their own first untap step clears it.
+            if (player.id === state.activePlayerId) {
+                card.isSummoningSick = undefined;
+            }
+        }
     }
     state.phase = "UNTAP" as Phase;
     advancePhase(state);

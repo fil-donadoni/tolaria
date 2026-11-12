@@ -12,6 +12,7 @@
  *  It lives in its own module rather than in `gre/state.ts` because it is the
  *  only layer allowed to decide priority: it needs `resolveTopOfStack` (state)
  *  AND `drainAutoPasses` (phases), and `state.ts` cannot import `phases.ts`. */
+import { resumeOpeningHandWindow } from "./mulligan";
 import { drainAutoPasses } from "./phases";
 import { checkStateBasedActions } from "./sba";
 import type { GameState } from "./state";
@@ -61,6 +62,14 @@ export function finalizeAsEnters(state: GameState, selected: string[]): void {
     // while the entry still exists.
     const parkedStackItemId = entry?.parkedStackItemId;
     if (entry) advanceStagedEntry(state, entry, selected);
+
+    // CR 103.6a — an opening-hand card put onto the battlefield before the
+    // first turn: no player receives priority yet, so neither the SBA check
+    // (CR 704.3) nor the priority tail below applies; the window carries on.
+    if (state.mulligan?.openingHand) {
+        resumeOpeningHandWindow(state);
+        return;
+    }
 
     // The entry (an Aura attach, a control change, a body choice that leaves a
     // 0-toughness creature) may create an SBA — CR 704.3, repeat until none

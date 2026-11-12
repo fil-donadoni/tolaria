@@ -494,6 +494,7 @@ export type {
     PendingChoice,
     PendingTarget,
     MulliganState,
+    OpeningHandWindow,
     RevealNotification,
     AttackManaTaxPayment,
     ExtraPhase,

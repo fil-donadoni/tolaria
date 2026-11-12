@@ -95,7 +95,13 @@ export type MechanicKind =
      *  field the engine branches on. Censused for the same reason as
      *  `cast-rider`: the registry is the NAME authority for the field. See
      *  `CHARACTERISTIC_EFFECTS`. */
-    | "characteristic-effect";
+    | "characteristic-effect"
+    /** CR 103.6 — an action a card lets its owner take with it from their
+     *  opening hand, after the mulligan process and before the first turn,
+     *  declared through `CardDefinition.openingHandAction`. Not a keyword and
+     *  never in `staticAbilities[]`; censused because the registry is the NAME
+     *  authority for the field's values. See `OPENING_HAND_ACTIONS`. */
+    | "opening-hand-action";
 export type MechanicStatus = "implemented" | "planned" | "out-of-scope";
 
 export interface MechanicRow {
@@ -2982,6 +2988,20 @@ const CHARACTERISTIC_EFFECTS: MechanicRow[] = [
     },
 ];
 
+/** CR 103.6 opening-hand actions, one row per `OpeningHandAction` value. */
+const OPENING_HAND_ACTIONS: MechanicRow[] = [
+    {
+        id: "begin-on-battlefield",
+        name: "Begin the Game on the Battlefield",
+        kind: "opening-hand-action",
+        cr: "103.6a",
+        status: "implemented",
+        binding:
+            'CardDefinition.openingHandAction: "begin-on-battlefield" (cards/types.ts OpeningHandAction) + gre/mulligan.ts (finalizeMulligan opens the window; advanceOpeningHandWindow raises one privateToChooser "opening-hand-action" PendingChoice per player with an eligible card, starting player first; applyOpeningHandChoice puts the picks through putHandCardOntoBattlefield; finalizeAsEnters resumes the window after an as-enters choice) + submitResolutionChoice (convex/game.ts) + the Bot\'s chooseResolution (src/lib/ai/brain.ts: put every eligible card).',
+        note: 'CR 103.6: "Once the mulligan process (see rule 103.5) is complete, the starting player may take any such actions in any order. Then each other player in turn order may do the same." CR 103.6a: "If a card allows a player to begin the game with that card on the battlefield, the player taking this action puts that card onto the battlefield." The Leylines: "If this card is in your opening hand, you may begin the game with it on the battlefield." A player with no eligible card is skipped without a prompt. Putting is not casting or playing: no cast triggers, no land drop; entry replacements and ETB triggers apply, the triggers going on the stack in the first turn\'s upkeep, when a player first receives priority.',
+    },
+];
+
 export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...KEYWORD_ACTIONS,
     ...KEYWORD_ABILITIES,
@@ -2990,6 +3010,7 @@ export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...CAST_RIDERS,
     ...RULES_MODIFIERS,
     ...CHARACTERISTIC_EFFECTS,
+    ...OPENING_HAND_ACTIONS,
 ];
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702

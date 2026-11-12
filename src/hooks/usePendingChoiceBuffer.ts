@@ -17,6 +17,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         "discard-hand",
         "untap-pick",
         "mulligan-bottom",
+        // Opening-hand actions (CR 103.6a) — hand pick of the cards to begin
+        // the game with on the battlefield.
+        "opening-hand-action",
         "choose-permanents",
         "choose-damage-target",
         // trigger-time player pick (CR 115.1a — Endurance) — routed through the

@@ -3644,6 +3644,15 @@ export interface OffBattlefieldCharacteristics {
     toughness?: number;
 }
 
+/** CR 103.6 — the actions a card can let a player take with it from their
+ *  opening hand, in the pre-game window `gre/mulligan.ts` opens once the
+ *  mulligan process is complete. `"begin-on-battlefield"` is CR 103.6a: "If
+ *  this card is in your opening hand, you may begin the game with it on the
+ *  battlefield" (the Leylines) — the player puts the card onto the
+ *  battlefield. That is not casting or playing it: no cast triggers, no land
+ *  drop, but entry replacements and ETB triggers apply as for any entry. */
+export type OpeningHandAction = "begin-on-battlefield";
+
 /** CR 612.6 — "this permanent has the full text of <object>": a layer-3
  *  (CR 613.1c) text-changing effect that replaces not only the rules text but
  *  the name, mana cost, colour indicator, type line, power and toughness.
@@ -22988,6 +22997,10 @@ export interface CardDefinition {
     /** CR 612.6 — "as long as <condition>, this permanent has the full text of
      *  <object>": a conditional layer-3 static. See {@link FullTextEffect}. */
     fullText?: FullTextEffect;
+    /** CR 103.6 — an action this card lets its owner take with it from their
+     *  opening hand, once the mulligan process is complete and before the
+     *  first turn begins. See {@link OpeningHandAction}. */
+    openingHandAction?: OpeningHandAction;
     /** CR 702.122b — "This creature crews Vehicles as though its power were N
      *  greater" (Shorikai's Pilot token, the Pilot/Vehicle cycle). A static
      *  characteristic of the CREW-ING creature, not of the Vehicle: it is added
