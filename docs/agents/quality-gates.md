@@ -1516,8 +1516,9 @@ because a surface's layout is a function of three inputs: its route's import
 closure (scoped exactly by `scripts/lib/import-graph.ts`), the global styling
 inputs (always force FULL) and deployment data (pinned by the per-run lane
 account). The scoper (`scripts/lib/ui-scope.ts`) is fail-closed like
-`classifyPath`: the lane itself, the build config's closure, a stylesheet, a
-design token, `src/components/ui/**`, the shell, the router, `index.html`,
+`classifyPath`: the lane itself, the build config's closure, a stylesheet
+(unless every changed line sits in a class-only rule: then the surfaces whose
+closure holds a module writing those classes, issue #9295), a design token, `src/components/ui/**`, the shell, the router, `index.html`,
 `public/**`, or any path no closure contains forces FULL; tests, scripts and
 markdown reach nothing. A no-flag run on a narrower scope prints `SCOPED`
 naming the base and the surfaces; `land` re-derives the scope from the PR's

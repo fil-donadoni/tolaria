@@ -29,6 +29,10 @@
  *     `import type` / `export type` statements → contributes nothing: the
  *     build erases those, so no code of it runs on any screen
  *     (a type change that matters fails `check:ts`, not a walk);
+ *   - a STYLESHEET whose every changed line sits in a class-only rule (or a
+ *     `@keyframes` such a rule names, or a comment) → the surfaces whose
+ *     closure holds a module writing those classes; an owner in the shell
+ *     → `full` (`ui-stylesheet-scope.ts`, issue #9295);
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
  *     modules nor the catalogue gate) → `full`: the shell renders around
@@ -89,6 +93,7 @@
  */
 import type { ImportGraph } from "./import-graph";
 import { additiveRegistrationsSinceBase } from "./ui-route-registration-edits";
+import { stylesheetOwnersSinceBase } from "./ui-stylesheet-scope";
 import type { SurfaceEdits } from "./ui-surface-edits";
 
 /** The module that boots the app; its closure, minus route modules, is the shell. */
@@ -245,6 +250,10 @@ export interface ComputeUiScopeInput {
     /** Changed paths whose diff only registers a new static route (issue
      *  #8409). Absent: derived from git at the graph's root. */
     additiveRegistrations?: ReadonlySet<string>;
+    /** Changed stylesheets whose every changed line is confined to class
+     *  rules, each with the modules that own those classes (issue #9295).
+     *  Absent: derived from git at the graph's root. */
+    stylesheetOwners?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** A JS/TS module: what an `import` names, so what `tsc` resolves. */
@@ -302,6 +311,7 @@ export function computeUiScope({
     graph,
     surfaceEdits = null,
     additiveRegistrations = additiveRegistrationsSinceBase(changed, graph.root),
+    stylesheetOwners = stylesheetOwnersSinceBase(changed, graph.root),
 }: ComputeUiScopeInput): UiScope {
     const shell = shellClosure(graph);
     const build = graph.closureOf(BUILD_CONFIG);
@@ -409,6 +419,27 @@ export function computeUiScope({
             };
         }
         if (isNonDomPath(path)) continue;
+        const owners = stylesheetOwners.get(path);
+        if (owners !== undefined) {
+            // A class-confined stylesheet diff (issue #9295): placed by the
+            // modules that write its classes, each like a changed module.
+            for (const owner of owners) {
+                if (shell.has(owner)) {
+                    return {
+                        kind: "full",
+                        reason: `${path} restyles a class written by the app shell (${owner})`,
+                    };
+                }
+                const ownerHits = closures.filter((c) => c.files.has(owner));
+                for (const hit of ownerHits) selected.add(hit.id);
+                if (ownerHits.length > 0) continue;
+                if (staffOnlyReachable(owner)) continue;
+                doubts.push(
+                    `${path} restyles a class written by ${owner}, which is in no surface's closure`
+                );
+            }
+            continue;
+        }
         const global = globalReason(path);
         if (global) return { kind: "full", reason: `${path} is ${global}` };
         if (shell.has(path)) {
