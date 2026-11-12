@@ -1208,7 +1208,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         resolveTopOfStack(state);
         for (const cid of ["s-tap-a", "s-tap-b"]) {
             const perm = state.players[0].battlefield.find((c) => c.id === cid);
-            expect(perm?.tapped).toBe(true);
+            expect(perm?.isTapped).toBe(true);
         }
     });
 
