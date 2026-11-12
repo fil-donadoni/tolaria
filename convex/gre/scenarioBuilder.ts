@@ -19,6 +19,8 @@ import {
     FACE_DOWN_CARD_ID,
     getCardByName as getCatalogueCardByName,
     tokenDefinitionId,
+    tokenShapeId,
+    tokenSpecFromDefinitionId,
     tryGetCardByName,
     tryGetDefinition,
 } from "../cards";
@@ -2500,34 +2502,51 @@ export type StackBlocker = {
     field: string;
 };
 
-/** Every distinct token shape, reverse-indexed by its synthesized definition
- *  id — the inverse of `findTokenSpec` (key -> spec). Memoized like
+/** Every distinct token shape, reverse-indexed twice — by its synthesized
+ *  definition id, and by that id's art-stripped SHAPE (`tokenShapeId`) — the
+ *  inverse of `findTokenSpec` (key -> spec). Memoized like
  *  `listTokenCatalogue` itself: the pool is static for the life of the
  *  process. */
-let tokenKeyByDefId: Map<string, string> | undefined;
+let tokenKeyIndex:
+    | { byDefId: Map<string, string>; byShape: Map<string, string> }
+    | undefined;
 function tokenKeyForDefId(defId: string): string | undefined {
-    if (!tokenKeyByDefId) {
-        tokenKeyByDefId = new Map(
-            listTokenCatalogue().map((entry) => [entry.defId, entry.key])
-        );
+    if (!tokenKeyIndex) {
+        const catalogue = listTokenCatalogue();
+        tokenKeyIndex = {
+            byDefId: new Map(catalogue.map((e) => [e.defId, e.key])),
+            byShape: new Map(
+                catalogue.map((e) => [tokenShapeId(e.defId), e.key])
+            ),
+        };
     }
-    return tokenKeyByDefId.get(defId);
+    // The catalogue keeps ONE definition per shape, so a producer pinning a
+    // different token printing of a catalogued shape misses the exact id and
+    // resolves through its shape.
+    return (
+        tokenKeyIndex.byDefId.get(defId) ??
+        tokenKeyIndex.byShape.get(tokenShapeId(defId))
+    );
 }
 
 /** Resolve a definition id to the NAME a `ScenarioCard.name` would carry —
  *  the token-catalogue key for a token, the printed card name otherwise.
- *  Throws like `getCardByName` does on an unresolvable id: a live definition
- *  this can't name back is a bug in the lowering, not a "can't express this"
- *  case (that's what `dropped` is for). */
+ *  A token no catalogue entry names (one built inside a `resolve()` closure,
+ *  the catalogue's static-walk blind spot) is named by its raw `token:`
+ *  definition id, which `findTokenSpec` decodes back into the same spec.
+ *  Throws like `getCardByName` does on an unresolvable card id: a live
+ *  definition this can't name back is a bug in the lowering, not a "can't
+ *  express this" case (that's what `dropped` is for). */
 function displayNameForDefId(defId: string, isToken: boolean): string {
     if (isToken) {
         const key = tokenKeyForDefId(defId);
-        if (!key) {
+        if (key) return key;
+        if (!tokenSpecFromDefinitionId(defId)) {
             throw new Error(
-                `specFromState: token definition "${defId}" has no token-catalogue entry.`
+                `specFromState: token definition "${defId}" neither names a token-catalogue entry nor decodes to a token spec.`
             );
         }
-        return key;
+        return defId;
     }
     const def = tryGetDefinition(defId);
     if (!def) {

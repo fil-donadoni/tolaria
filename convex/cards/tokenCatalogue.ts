@@ -23,7 +23,11 @@
  * migrate.
  */
 
-import { getAllCards, tokenDefinitionId } from "./index";
+import {
+    getAllCards,
+    tokenDefinitionId,
+    tokenSpecFromDefinitionId,
+} from "./index";
 import * as SHARED_TOKENS from "./sharedTokens";
 import { literalTokenPT } from "./sharedTokens";
 import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
@@ -307,9 +311,18 @@ export function getAllTokenKeys(): string[] {
  * working even if a later card introduces a second "Treasure" shape and the
  * canonical key gains a suffix (the first shape by sort order wins). Returns
  * undefined when nothing matches; the caller decides whether that is an error.
+ * A `token:` definition id is decoded instead of looked up.
  */
 export function findTokenSpec(reference: string): TokenSpec | undefined {
-    const wanted = reference.trim().toLowerCase();
+    // A raw content-derived definition id (`token:…`) — what `specFromState`
+    // writes for a token no catalogue entry names (a spec built inside a
+    // `resolve()` closure, the blind spot above) — decodes through the token
+    // codec itself, so it re-creates the identical definition.
+    const trimmed = reference.trim();
+    if (trimmed.startsWith("token:")) {
+        return tokenSpecFromDefinitionId(trimmed);
+    }
+    const wanted = trimmed.toLowerCase();
     if (wanted === "") return undefined;
     const catalogue = listTokenCatalogue();
     return (
