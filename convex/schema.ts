@@ -92,7 +92,9 @@ export default defineSchema({
         // current constant === the payload widened since; the gate is shown
         // again before diagnostics travel.
         bugReportConsentVersion: v.optional(v.number()),
-    }).index("email", ["email"]),
+    })
+        .index("email", ["email"])
+        .index("by_isAdmin", ["isAdmin"]),
     gameStates: defineTable({
         gameId: v.id("games"),
         seq: v.number(),
@@ -1402,8 +1404,40 @@ export default defineSchema({
         // `false` means the reporter DECLINED: the description and contact
         // fields are here, the diagnostic payload deliberately is not.
         diagnosticsConsent: v.optional(v.boolean()),
+        // GitHub state of the filed issue (issue #9013), kept by
+        // `bugReportIssueState.ts`: `attachIssueRef` stamps `"open"`, the
+        // 15-minute sync maps GitHub `open` / `closed` onto it. Absent on a row
+        // never filed (the filing failed) and on a row filed before the first
+        // backfill reached it.
+        issueState: v.optional(v.union(v.literal("open"), v.literal("closed"))),
+        // GitHub's `state_reason` on a closed issue: `completed` or
+        // `not_planned` (a duplicate / reopened reason folds into those two).
+        issueCloseReason: v.optional(
+            v.union(v.literal("completed"), v.literal("not_planned"))
+        ),
+        // Epoch ms the issue was closed (GitHub `closed_at`); orders the
+        // closed history, newest closed first.
+        issueClosedAt: v.optional(v.number()),
+        // Epoch ms of the last sync that wrote the state above.
+        issueSyncedAt: v.optional(v.number()),
+        // Admin notification email outcome (issue #9013): `sent`, `skipped`
+        // past the per-UTC-day cap (the report and issue proceed), `failed` on
+        // a Resend error. Absent on a row filed before the email existed and on
+        // a system row (the Bot-fault channel sends none).
+        notification: v.optional(
+            v.union(
+                v.literal("sent"),
+                v.literal("skipped_cap"),
+                v.literal("failed")
+            )
+        ),
+        // Epoch ms of a notification ATTEMPT (`sent` / `failed`); the cap
+        // counts these per UTC day. Absent when skipped.
+        notifiedAt: v.optional(v.number()),
     })
         .index("by_issueNumber", ["issueNumber"])
+        // Daily notification cap (issue #9013).
+        .index("by_notifiedAt", ["notifiedAt"])
         // Rate limit (issue #4076): a user's reports in the last hour.
         .index("by_userId", ["userId"])
         // System channel (issue #9000): dedupe onto the fingerprint's issue,
@@ -1411,6 +1445,14 @@ export default defineSchema({
         .index("by_fingerprint", ["fingerprint"])
         .index("by_gameId", ["gameId"])
         .index("by_source", ["source"]),
+
+    // Cursor of the GitHub issue-state sync for `bugReports` (issue #9013): a
+    // single row. `since` is the ISO time the last FULLY successful read began;
+    // absent === no sync yet, so the next run is the full backfill.
+    bugReportSync: defineTable({
+        since: v.string(),
+        syncedAt: v.number(),
+    }),
 
     debugScenarios: defineTable({
         // Authorship provenance for interactively-saved rows only (set by

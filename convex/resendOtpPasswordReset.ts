@@ -135,16 +135,29 @@ export interface ResetMailDeps {
     from: string;
 }
 
-/** POST one reset code to Resend. Throws with a diagnosable message. */
-export async function sendResetCodeEmail(
+/** One message for `sendResendEmail`. */
+export interface ResendMessage {
+    to: string[];
+    subject: string;
+    text: string;
+    html: string;
+}
+
+/**
+ * POST one message to Resend — the ONE sender (endpoint, key, `from`) shared
+ * by the password-reset code and the admin Bug Report notification
+ * (`bugReportNotify.ts`). `label` names the mail in the thrown error.
+ * Throws with a diagnosable message.
+ */
+export async function sendResendEmail(
     deps: ResetMailDeps,
-    email: string,
-    code: string
+    message: ResendMessage,
+    label = "email"
 ): Promise<void> {
     if (!deps.apiKey) {
         throw new Error(
-            "RESEND_API_KEY is not set on this Convex deployment — password " +
-                "reset cannot send mail. Set it with: " +
+            `RESEND_API_KEY is not set on this Convex deployment — the ${label} ` +
+                "cannot be sent. Set it with: " +
                 "npx convex env set RESEND_API_KEY <key>"
         );
     }
@@ -155,13 +168,7 @@ export async function sendResetCodeEmail(
             Authorization: `Bearer ${deps.apiKey}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-            from: deps.from,
-            to: [email],
-            subject: `Your Tolaria password reset code: ${formatCode(code)}`,
-            text: resetEmailText(code),
-            html: resetEmailHtml(code),
-        }),
+        body: JSON.stringify({ from: deps.from, ...message }),
     });
 
     if (!response.ok) {
@@ -170,9 +177,37 @@ export async function sendResetCodeEmail(
         // a code that simply never arrived.
         const detail = await response.text().catch(() => "");
         throw new Error(
-            `Resend rejected the password-reset email (${response.status}): ${detail}`
+            `Resend rejected the ${label} (${response.status}): ${detail}`
         );
     }
+}
+
+/** The deployment's Resend settings, read once (`RESEND_API_KEY`,
+ *  `AUTH_EMAIL_FROM`). */
+export function resendDepsFromEnv(): ResetMailDeps {
+    return {
+        fetchImpl: fetch,
+        apiKey: process.env.RESEND_API_KEY,
+        from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    };
+}
+
+/** POST one reset code to Resend. Throws with a diagnosable message. */
+export async function sendResetCodeEmail(
+    deps: ResetMailDeps,
+    email: string,
+    code: string
+): Promise<void> {
+    await sendResendEmail(
+        deps,
+        {
+            to: [email],
+            subject: `Your Tolaria password reset code: ${formatCode(code)}`,
+            text: resetEmailText(code),
+            html: resetEmailHtml(code),
+        },
+        "password-reset email"
+    );
 }
 
 /**
@@ -204,15 +239,7 @@ export async function authorizeReset(
 export const ResendOTPPasswordReset: EmailConfig = {
     ...Email({
         sendVerificationRequest: async ({ identifier: email, token }) => {
-            await sendResetCodeEmail(
-                {
-                    fetchImpl: fetch,
-                    apiKey: process.env.RESEND_API_KEY,
-                    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
-                },
-                email,
-                token
-            );
+            await sendResetCodeEmail(resendDepsFromEnv(), email, token);
         },
     }),
     id: "resend-otp-password-reset",

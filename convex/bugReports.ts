@@ -25,6 +25,11 @@ import {
     type ReportRateLimitedData,
 } from "./bugReportRateLimit";
 import {
+    deriveGithubState,
+    isClosedReport,
+    reportGithubStateValidator,
+} from "./bugReportIssueState";
+import {
     BUG_REPORT_CONSENT_VERSION,
     type BugReportDiagnostics,
 } from "./bugReportConsent";
@@ -379,7 +384,8 @@ export const attachIssueRef = internalMutation({
     returns: v.null(),
     handler: async (ctx, args) => {
         const { reportId, ...ref } = args;
-        await ctx.db.patch(reportId, ref);
+        // A new filing starts open (issue #9013); the sync takes over.
+        await ctx.db.patch(reportId, { ...ref, issueState: "open" });
         return null;
     },
 });
@@ -395,6 +401,12 @@ export const attachIssueRef = internalMutation({
  * keeps the only public-ish URL out of the DB as well as out of the issue.
  */
 /** The system-channel columns (issue #9000), returned by both detail reads. */
+const notificationValidator = v.union(
+    v.literal("sent"),
+    v.literal("skipped_cap"),
+    v.literal("failed")
+);
+
 const systemRowFields = {
     source: v.optional(v.union(v.literal("user"), v.literal("system"))),
     fault: v.optional(botFaultValidator),
@@ -482,16 +494,34 @@ export const getReport = internalQuery({
  * to never put it on the object this handler returns. The detail query
  * (`getBugReport`) is the only one of the two that reads `state`.
  */
-export async function listBugReportsHandler(ctx: QueryCtx) {
+export type BugReportView = "open" | "closed";
+
+export async function listBugReportsHandler(
+    ctx: QueryCtx,
+    args: { view?: BugReportView } = {}
+) {
     await assertIsAdmin(ctx);
     const rows = await ctx.db.query("bugReports").order("desc").collect();
-    return rows.map((row) => ({
+    // Filtered here, never on the client: the default view must not put a
+    // closed row on the wire (issue #9013). Open = everything not closed,
+    // unfiled reports included.
+    const closedView = args.view === "closed";
+    const picked = rows.filter((row) => isClosedReport(row) === closedView);
+    if (closedView)
+        picked.sort(
+            (a, b) =>
+                (b.issueClosedAt ?? b._creationTime) -
+                (a.issueClosedAt ?? a._creationTime)
+        );
+    return picked.map((row) => ({
         _id: row._id,
         filedAt: row._creationTime,
         isSystem: row.source === "system",
         name: row.name,
         descriptionPreview: row.description.split("\n")[0]!.slice(0, 200),
         issueNumber: row.issueNumber,
+        githubState: deriveGithubState(row),
+        notification: row.notification,
         hasSnapshot: row.state !== undefined,
         hasAttachment: row.attachmentId !== undefined,
         hasDiagnostics: row.clientDiagnostics !== undefined,
@@ -499,7 +529,9 @@ export async function listBugReportsHandler(ctx: QueryCtx) {
 }
 
 export const listBugReports = query({
-    args: {},
+    args: {
+        view: v.optional(v.union(v.literal("open"), v.literal("closed"))),
+    },
     returns: v.array(
         v.object({
             _id: v.id("bugReports"),
@@ -508,12 +540,27 @@ export const listBugReports = query({
             name: v.string(),
             descriptionPreview: v.string(),
             issueNumber: v.optional(v.number()),
+            githubState: reportGithubStateValidator,
+            notification: v.optional(notificationValidator),
             hasSnapshot: v.boolean(),
             hasAttachment: v.boolean(),
             hasDiagnostics: v.boolean(),
         })
     ),
     handler: listBugReportsHandler,
+});
+
+/** How many reports sit in the closed history — the toggle button's count. */
+export async function countClosedBugReportsHandler(ctx: QueryCtx) {
+    await assertIsAdmin(ctx);
+    const rows = await ctx.db.query("bugReports").collect();
+    return rows.filter(isClosedReport).length;
+}
+
+export const countClosedBugReports = query({
+    args: {},
+    returns: v.number(),
+    handler: countClosedBugReportsHandler,
 });
 
 /**
@@ -554,6 +601,9 @@ export async function getBugReportHandler(
         diagnosticsConsent: row.diagnosticsConsent,
         issueNumber: row.issueNumber,
         issueUrl: row.issueUrl,
+        githubState: deriveGithubState(row),
+        issueClosedAt: row.issueClosedAt,
+        notification: row.notification,
         filedAt: row._creationTime,
     };
 }
@@ -579,6 +629,9 @@ export const getBugReport = query({
             diagnosticsConsent: v.optional(v.boolean()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
+            githubState: reportGithubStateValidator,
+            issueClosedAt: v.optional(v.number()),
+            notification: v.optional(notificationValidator),
             filedAt: v.number(),
         })
     ),
@@ -708,28 +761,44 @@ export const submitBugReport = action({
             reportId,
         });
 
-        const res = await githubFetch(token, "issues", issueRequest);
+        // The admin notification follows the filing ATTEMPT, whatever its
+        // outcome (issue #9013): scheduled, so a Resend failure can never fail
+        // the report, and the email carries the issue link only when the row
+        // has one by then.
+        const notify = () =>
+            ctx.scheduler.runAfter(0, internal.bugReportNotify.notifyAdmins, {
+                reportId,
+            });
+        let issueUrl: string;
+        try {
+            const res = await githubFetch(token, "issues", issueRequest);
 
-        if (!res.ok) {
-            const detail = await res.text().catch(() => "");
-            throw new ConvexError(
-                `GitHub API error (${res.status}): ${detail.slice(0, 300)}`
-            );
-        }
+            if (!res.ok) {
+                const detail = await res.text().catch(() => "");
+                throw new ConvexError(
+                    `GitHub API error (${res.status}): ${detail.slice(0, 300)}`
+                );
+            }
 
-        const issue = (await res.json()) as {
-            html_url?: string;
-            number?: number;
-        };
-        if (!issue.html_url) {
-            throw new ConvexError("GitHub API returned no issue URL");
+            const issue = (await res.json()) as {
+                html_url?: string;
+                number?: number;
+            };
+            if (!issue.html_url) {
+                throw new ConvexError("GitHub API returned no issue URL");
+            }
+            await ctx.runMutation(internal.bugReports.attachIssueRef, {
+                reportId,
+                issueNumber: issue.number,
+                issueUrl: issue.html_url,
+            });
+            issueUrl = issue.html_url;
+        } catch (err) {
+            await notify();
+            throw err;
         }
-        await ctx.runMutation(internal.bugReports.attachIssueRef, {
-            reportId,
-            issueNumber: issue.number,
-            issueUrl: issue.html_url,
-        });
-        return { issueUrl: issue.html_url };
+        await notify();
+        return { issueUrl };
     },
 });
 

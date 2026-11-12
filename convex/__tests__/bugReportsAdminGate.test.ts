@@ -24,7 +24,11 @@
 import { describe, it, expect } from "vitest";
 import type { QueryCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
-import { listBugReports, getBugReport } from "../bugReports";
+import {
+    listBugReports,
+    getBugReport,
+    countClosedBugReports,
+} from "../bugReports";
 
 type Handler<A, R> = { _handler: (ctx: QueryCtx, args: A) => Promise<R> };
 
@@ -118,11 +122,61 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
             name: "Ada",
             descriptionPreview: "Board freezes on attack",
             issueNumber: undefined,
+            githubState: "not_filed",
+            notification: undefined,
             hasSnapshot: true,
             hasAttachment: false,
             hasDiagnostics: false,
         });
         expect(rows[0]).not.toHaveProperty("state");
+    });
+
+    // issue #9013 — the default view filters on the SERVER: a closed row is
+    // never sent, an unfiled one is never hidden; the closed view is newest
+    // closed first and the count matches it.
+    it("open view excludes closed rows; closed view lists them newest closed first", async () => {
+        const filed = { ...REPORT, issueNumber: 5 };
+        const rows = [
+            ADMIN,
+            // The stub's `order("desc")` is insertion order: newest first.
+            {
+                ...filed,
+                _id: "closed-old",
+                _creationTime: 3,
+                issueState: "closed",
+                issueCloseReason: "completed",
+                issueClosedAt: 100,
+            },
+            { ...REPORT, _id: "unfiled", _creationTime: 2 },
+            { ...filed, _id: "open-1", _creationTime: 1, issueState: "open" },
+            {
+                ...filed,
+                _id: "closed-new",
+                _creationTime: 0,
+                issueState: "closed",
+                issueCloseReason: "not_planned",
+                issueClosedAt: 900,
+            },
+        ];
+        const ctx = makeCtx("admin-1", rows);
+        const run = (args: { view?: "open" | "closed" }) =>
+            (listBugReports as unknown as Handler<typeof args, Row[]>)._handler(
+                ctx,
+                args
+            );
+        const ids = (r: Row[]) => r.map((x) => x._id);
+        expect(ids(await run({}))).toEqual(["unfiled", "open-1"]);
+        expect(ids(await run({ view: "open" }))).toEqual(["unfiled", "open-1"]);
+        const closed = await run({ view: "closed" });
+        expect(ids(closed)).toEqual(["closed-new", "closed-old"]);
+        expect(closed[0]!.githubState).toBe("closed_not_planned");
+        const count = await (
+            countClosedBugReports as unknown as Handler<
+                Record<string, never>,
+                number
+            >
+        )._handler(ctx, {});
+        expect(count).toBe(closed.length);
     });
 
     it("allows an admin through getBugReport, including the full state", async () => {

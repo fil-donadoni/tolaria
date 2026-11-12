@@ -98,4 +98,12 @@ crons.interval(
     )
 );
 
+// Bug Report issue state (issue #9013): one GitHub read of `user-report`
+// issues changed since the last run; the first run is the full backfill.
+crons.interval(
+    "sync bug report issue states",
+    { minutes: 15 },
+    internal.bugReportIssueState.syncIssueStates
+);
+
 export default crons;

@@ -14,6 +14,8 @@ import { copyText } from "@/lib/clipboard";
 import BugReportSnapshotHeader from "./bug-report-snapshot-header";
 import BugReportAttachment from "./bug-report-attachment";
 import BugReportFault from "./bug-report-fault";
+import BugReportStateBadge from "./bug-report-state-badge";
+import { notificationLabel } from "./bug-report-state-labels";
 
 export type BugReportDetailData = NonNullable<
     FunctionReturnType<typeof api.bugReports.getBugReport>
@@ -104,6 +106,23 @@ export default function BugReportDetail({
                             {report.diagnosticsConsent
                                 ? "accepted"
                                 : "declined"}
+                        </span>
+                    )}
+                    <span className="flex items-center gap-2">
+                        GitHub issue:{" "}
+                        <BugReportStateBadge state={report.githubState} />
+                        {report.issueClosedAt !== undefined && (
+                            <span>
+                                {new Date(
+                                    report.issueClosedAt
+                                ).toLocaleString()}
+                            </span>
+                        )}
+                    </span>
+                    {notificationLabel(report.notification) && (
+                        <span data-testid="notification">
+                            Admin email:{" "}
+                            {notificationLabel(report.notification)}
                         </span>
                     )}
                     {report.issueUrl && (

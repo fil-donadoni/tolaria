@@ -5,6 +5,8 @@
 // without opening it). Pure presentational — selection state lives in the
 // parent (`BugReportsAdminPanel`), same split as `DebugScenarioRow`.
 import type { BugReportListItem } from "./bug-reports-admin-panel";
+import BugReportStateBadge from "./bug-report-state-badge";
+import { notificationLabel } from "./bug-report-state-labels";
 
 function formatFiledAt(ms: number): string {
     return new Date(ms).toLocaleString();
@@ -48,6 +50,7 @@ export default function BugReportListRow({
                             AI
                         </span>
                     )}
+                    <BugReportStateBadge state={row.githubState} />
                     {row.issueNumber !== undefined && (
                         <span className="text-text-muted">
                             #{row.issueNumber}
@@ -61,6 +64,11 @@ export default function BugReportListRow({
                     {row.descriptionPreview}
                 </span>
             </div>
+            {notificationLabel(row.notification) && (
+                <span className="text-[11px] text-text-muted">
+                    {notificationLabel(row.notification)}
+                </span>
+            )}
         </button>
     );
 }
