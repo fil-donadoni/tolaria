@@ -1,5 +1,6 @@
 // The blade robustness audit runs AFTER the health verdict and cannot change
-// it (issue #5079).
+// it (issue #5079); its record is shared state every machine reads (issue
+// #9294).
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     mkdirSync,
@@ -13,14 +14,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     AUDIT_RECORD_FILE,
+    AUDIT_RECORD_KEY,
     auditRequestFile,
     claimAuditRequest,
     describeAuditRecord,
-    readAuditRecord,
+    readAuditRecord as readRecordFrom,
     readOwedAudit,
     runAudit,
     writeAuditRequest,
+    type AuditRecord,
+    type AuditRecordStore,
 } from "../lib/health-robustness-audit";
+import { SharedStateConflict } from "../lib/shared-state";
 import { ROBUSTNESS_FINDING_PREFIX } from "../lib/health-robustness-drift";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
 
@@ -40,12 +45,40 @@ function finding(kind: string, label: string): string {
     ].join("\n");
 }
 
+/** The shared ref in memory: one document, a lease that moves on every
+ *  write, a conflict when the caller's lease is stale. */
+function memoryStore(): AuditRecordStore & {
+    raw: string | null;
+    sha: string | null;
+} {
+    let n = 0;
+    const store = {
+        raw: null as string | null,
+        sha: null as string | null,
+        read: () => ({ sha: store.sha, raw: store.raw }),
+        write: (raw: string, expected: string | null) => {
+            if (expected !== store.sha)
+                throw new SharedStateConflict(AUDIT_RECORD_KEY, expected);
+            store.raw = raw;
+            store.sha = `sha-${++n}`;
+            return store.sha;
+        },
+    };
+    return store;
+}
+
 let dir: string;
+let store: ReturnType<typeof memoryStore>;
 beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "robustness-audit-"));
     mkdirSync(dir, { recursive: true });
+    store = memoryStore();
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+function readAuditRecord(d: string): AuditRecord | null {
+    return readRecordFrom(store, d).record;
+}
 
 describe("the offline phase no longer contains the audit", () => {
     it("is not a health gate, whatever the batch owes", () => {
@@ -134,6 +167,7 @@ describe("runAudit leaves the verdict alone", () => {
         const filed: string[] = [];
         const record = await runAudit({
             dir,
+            store,
             request,
             log: "/log",
             run: async () => ({
@@ -157,6 +191,7 @@ describe("runAudit leaves the verdict alone", () => {
         const before = seedVerdict();
         const record = await runAudit({
             dir,
+            store,
             request,
             log: "/log",
             run: async () => ({
@@ -179,6 +214,7 @@ describe("runAudit leaves the verdict alone", () => {
         };
         const clean = await runAudit({
             dir,
+            store,
             request,
             log: "/log",
             run: async () => ({ ok: true, excused: false, output: "" }),
@@ -187,6 +223,7 @@ describe("runAudit leaves the verdict alone", () => {
         expect(clean.status).toBe("clean");
         const infra = await runAudit({
             dir,
+            store,
             request,
             log: "/log",
             run: async () => ({ ok: false, excused: true, output: "" }),
@@ -200,6 +237,7 @@ describe("runAudit leaves the verdict alone", () => {
         let during: string | undefined;
         const record = await runAudit({
             dir,
+            store,
             request,
             log: "/log",
             run: async () => {
@@ -224,6 +262,130 @@ describe("a dead audit is not shown as running", () => {
         };
         expect(describeAuditRecord(record, true)).toContain("running @");
         expect(describeAuditRecord(record, false)).toContain("abandoned @");
+    });
+});
+
+describe("the record is shared, not machine-local (issue #9294)", () => {
+    const request = { sha: SHA, mode: "full — search changed" };
+    const clean = async () => ({ ok: true, excused: false, output: "" });
+
+    it("an audit run on one machine is what the other machine reads", async () => {
+        const macbook = dir;
+        const huawei = mkdtempSync(join(tmpdir(), "robustness-audit-b-"));
+        try {
+            await runAudit({
+                dir: macbook,
+                store,
+                request,
+                log: "/l",
+                run: clean,
+            });
+            expect(existsSync(join(macbook, AUDIT_RECORD_FILE))).toBe(false);
+            expect(readRecordFrom(store, huawei).record).toMatchObject({
+                sha: SHA,
+                status: "clean",
+            });
+        } finally {
+            rmSync(huawei, { recursive: true, force: true });
+        }
+    });
+
+    it("a local file from before is read only while the ref holds none", async () => {
+        const old = {
+            sha: "0ld0ld0ld0ld",
+            status: "drift",
+            mode: "full",
+            startedAt: "2026-10-11T00:00:00.000Z",
+            filed: [],
+        };
+        writeFileSync(join(dir, AUDIT_RECORD_FILE), JSON.stringify(old));
+        expect(readAuditRecord(dir)?.sha).toBe(old.sha);
+        await runAudit({ dir, store, request, log: "/l", run: clean });
+        expect(readAuditRecord(dir)?.sha).toBe(SHA);
+    });
+
+    it("a conflict keeps a newer audit's record and overwrites an older one", async () => {
+        const other = (startedAt: string): string =>
+            JSON.stringify({
+                sha: "0th3r0th3r00",
+                status: "running",
+                mode: "full",
+                startedAt,
+                filed: [],
+            });
+        // Another machine writes between this audit's read and its final
+        // write: the lease is stale on the final write.
+        await runAudit({
+            dir,
+            store,
+            request,
+            log: "/l",
+            now: () => new Date("2026-11-01T00:00:00.000Z"),
+            run: async () => {
+                store.raw = other("2026-11-02T00:00:00.000Z");
+                store.sha = "moved";
+                return { ok: true, excused: false, output: "" };
+            },
+        });
+        expect(readAuditRecord(dir)?.sha).toBe("0th3r0th3r00");
+        await runAudit({
+            dir,
+            store,
+            request,
+            log: "/l",
+            now: () => new Date("2026-11-03T00:00:00.000Z"),
+            run: async () => {
+                store.raw = other("2026-10-01T00:00:00.000Z");
+                store.sha = "moved-again";
+                return { ok: true, excused: false, output: "" };
+            },
+        });
+        expect(readAuditRecord(dir)).toMatchObject({
+            sha: SHA,
+            status: "clean",
+        });
+    });
+});
+
+describe("the status line states the record's age (issue #9294)", () => {
+    const record: AuditRecord = {
+        sha: "c316ed9e0000",
+        status: "drift",
+        mode: "full",
+        startedAt: "2026-10-11T02:00:00.000Z",
+        finishedAt: "2026-10-11T03:00:00.000Z",
+        machine: "macbook",
+        filed: ["already filed as issue #5415"],
+    };
+
+    it("a month-old record shows its date and is flagged stale", () => {
+        const line = describeAuditRecord(
+            record,
+            true,
+            new Date("2026-11-12T12:00:00.000Z")
+        );
+        expect(line).toContain("2026-10-11 on macbook, 32 d ago");
+        expect(line).toContain("STALE");
+    });
+
+    it("a record within the weekly cadence is not stale", () => {
+        const line = describeAuditRecord(
+            record,
+            true,
+            new Date("2026-10-19T02:00:00.000Z")
+        );
+        expect(line).toContain("2026-10-11 on macbook, 7 d ago");
+        expect(line).not.toContain("STALE");
+    });
+
+    it("9 days is past the 8-day bound", () => {
+        expect(
+            describeAuditRecord(
+                record,
+                true,
+                new Date("2026-10-20T04:00:00.000Z")
+            )
+        ).toContain("STALE");
     });
 });
 
