@@ -88,7 +88,9 @@ export function useTargetingSession(): ActiveTargeting | null {
         const cancel =
             session.mode === "attack"
                 ? resetSequence
-                : () => void cancelTarget({ gameId, playerId });
+                : // A repeat Escape inside the round trip finds no selection
+                  // left; the first one already cancelled it.
+                  () => void cancelTarget({ gameId, playerId }).catch(() => {});
         return { ...session, cancel };
     }, [session, resetSequence, cancelTarget, gameId, playerId]);
 }
