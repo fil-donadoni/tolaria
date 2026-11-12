@@ -63,6 +63,7 @@ vi.mock("@convex/cards", () => ({
     // type-only edges (issue #3986) — never called by this suite.
     getAllCards: () => [],
     tokenDefinitionId: () => "__tokenDef",
+    tokenSpecFromDefinitionId: () => undefined,
 }));
 
 // Chrome with no bearing on either seam.
