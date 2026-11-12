@@ -189,3 +189,64 @@ export function curve(a: Pt, b: Pt, bend = 0.18): string {
     const cy = my + (b.x - a.x) * bend;
     return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
 }
+
+/** Several stack items can target cards in the SAME zone: lay them out as one
+ *  row per zone. Per group: the index of its first card in that row and the
+ *  row's total length. */
+export function zoneSlots(
+    groups: ZoneTargetGroup[]
+): Record<string, { start: number; total: number; zoneKey: string }> {
+    const totals = new Map<string, number>();
+    const out: Record<
+        string,
+        { start: number; total: number; zoneKey: string }
+    > = {};
+    for (const g of groups) {
+        const zk = `${g.ownerId}:${g.zone}`;
+        const start = totals.get(zk) ?? 0;
+        out[g.key] = { start, total: 0, zoneKey: zk };
+        totals.set(zk, start + g.cards.length);
+    }
+    for (const g of groups) out[g.key].total = totals.get(out[g.key].zoneKey)!;
+    return out;
+}
+
+export type ZoneCluster = {
+    zoneKey: string;
+    zone: ZoneKind;
+    ownerLabel: string;
+    at: Pt;
+    /** Targeted cards in this zone, each with the stack item(s) naming it. */
+    targets: Array<{ card: CardInstance; sources: string[] }>;
+    zoneCards: CardInstance[];
+};
+
+/** Merge every group pointing into the same zone into ONE cluster. */
+export function zoneClusters(
+    groups: ZoneTargetGroup[],
+    anchors: Record<string, Anchors>
+): ZoneCluster[] {
+    const out = new Map<string, ZoneCluster>();
+    for (const g of groups) {
+        const at = anchors[g.key]?.zone;
+        if (!at) continue;
+        const zk = `${g.ownerId}:${g.zone}`;
+        const c =
+            out.get(zk) ??
+            ({
+                zoneKey: zk,
+                zone: g.zone,
+                ownerLabel: g.ownerLabel,
+                at,
+                targets: [],
+                zoneCards: g.zoneCards,
+            } satisfies ZoneCluster);
+        for (const card of g.cards) {
+            const hit = c.targets.find((t) => t.card.id === card.id);
+            if (hit) hit.sources.push(g.sourceLabel);
+            else c.targets.push({ card, sources: [g.sourceLabel] });
+        }
+        out.set(zk, c);
+    }
+    return Array.from(out.values());
+}
