@@ -1,16 +1,28 @@
 // PROTOTYPE (zone-target highlight) — shared variant props + geometry re-exports.
-import type { Anchors, ZoneTargetGroup } from "./use-zone-target-model";
+import type { Anchors, Rect, ZoneTargetGroup } from "./use-zone-target-model";
 
-export { curve, inward } from "./use-zone-target-model";
+export {
+    center,
+    curve,
+    inward,
+    zoneClusters,
+    zoneWord,
+} from "./use-zone-target-model";
 
 export type VariantProps = {
     groups: ZoneTargetGroup[];
     anchors: Record<string, Anchors>;
-    /** Simulated scenario: the real arrow layer has nothing to draw, so the
-     *  variant draws the stack → pile arrow itself. */
-    drawBase: boolean;
+    /** Measured `[data-proto-measure]` rects, keyed by attribute value. */
+    extra: Record<string, Rect>;
+    /** Hovered relationship (group keys), null = nothing hovered. */
+    focus: Set<string> | null;
 };
 
-export function zoneWord(z: ZoneTargetGroup["zone"]) {
-    return z === "graveyard" ? "graveyard" : "exile";
+/** Outside the hovered relationship? (never dim when nothing is hovered) */
+export function isDim(focus: Set<string> | null, keys: string[]): boolean {
+    return !!focus && !keys.some((k) => focus.has(k));
+}
+
+export function isLit(focus: Set<string> | null, keys: string[]): boolean {
+    return !!focus && keys.some((k) => focus.has(k));
 }

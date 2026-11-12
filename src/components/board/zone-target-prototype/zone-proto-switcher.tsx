@@ -2,6 +2,7 @@
 // scenario picker, live state readout. Dev-only (mounted behind DEV).
 import { useEffect } from "react";
 import { SCENARIOS } from "./use-zone-target-model";
+import { notifyZoneProto } from "./zone-proto-store";
 
 export type ZoneProtoParams = { variant: string; scenario: string };
 
@@ -9,7 +10,7 @@ export function readZoneProto(): ZoneProtoParams | null {
     const q = new URLSearchParams(window.location.search);
     if (!q.has("zoneProto")) return null;
     return {
-        variant: q.get("variant") ?? "A",
+        variant: q.get("variant") ?? "C2",
         scenario: q.get("zoneProto") || "real",
     };
 }
@@ -19,6 +20,7 @@ export function writeZoneProto(p: ZoneProtoParams) {
     q.set("zoneProto", p.scenario);
     q.set("variant", p.variant);
     window.history.replaceState(null, "", `${window.location.pathname}?${q}`);
+    notifyZoneProto();
 }
 
 export default function ZoneProtoSwitcher({

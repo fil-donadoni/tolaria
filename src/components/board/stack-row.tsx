@@ -24,6 +24,7 @@ import { SLOT_SPRING } from "~/lib/board-motion";
 import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
 import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
+import ProtoStackRowTargets from "./zone-target-prototype/proto-stack-row-targets";
 import ControllerChip from "./controller-chip";
 import StackYieldToggle from "./stack-yield-toggle";
 import StackCardImage from "../cards/stack-card-image";
@@ -297,6 +298,13 @@ export default function StackRow({
                             {targetNames.join(", ")}
                         </span>
                     )}
+
+                    {/* PROTOTYPE zone-target highlight (B2) — throwaway */}
+                    <ProtoStackRowTargets
+                        item={item}
+                        allPlayers={allPlayers}
+                        viewerId={viewerId}
+                    />
 
                     {modeLines?.map((line) => (
                         <span
