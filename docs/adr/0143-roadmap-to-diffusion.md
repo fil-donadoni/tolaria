@@ -535,6 +535,21 @@ game is a blocking defect class. The server files each fault itself
 exactly as it raises `bug` + `area:workflow` — same `labeled` trigger
 (`issue-band.yml`), same never-lowers semantics. No third script writes `P0`.
 
+### A user Bug Report is P0 — Amendment XII (issue #9013, 2026-11-12)
+
+The owner's request (issue #9013): a Bug Report filed from the in-app button
+waits for the owner at the top of the board, never behind a `P0` or beside every
+other `P1`. `convex/bugReports.ts` files it labelled `user-report` +
+`needs-triage` (never `ready-for-agent`), and `issue:workflow-band` raises an
+open `user-report` issue to `P0` — the third `P0` writer rule, after
+`bug` + `area:workflow` (Amendment VII) and `bug` + `bot-fault` (Amendment XI).
+The rules are now ONE table (`scripts/lib/p0-label-rules.ts`): the script plans
+from it and `issue-band.yml`'s `if:` is checked against it by
+`scripts/__tests__/p0-label-rules.test.ts`. Same `labeled` trigger, same
+never-lowers, read-back semantics; `backlog:triage`'s `P1` default for
+`user-report` is untouched and never overwrites a `P0`. (The issue named this
+"Amendment X"; X and XI were taken, so it is XII.)
+
 ### Format Tiers
 
 What a player is told about a format is derived from the Target registry,

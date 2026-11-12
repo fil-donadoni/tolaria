@@ -24,6 +24,8 @@ const LIST = [
         name: "Ada",
         descriptionPreview: "Board freezes on attack",
         issueNumber: 42,
+        githubState: "open",
+        notification: "sent",
         hasSnapshot: true,
         hasAttachment: true,
         hasDiagnostics: true,
@@ -35,6 +37,8 @@ const LIST = [
         name: "Grace",
         descriptionPreview: "Lobby is blank",
         issueNumber: undefined,
+        githubState: "not_filed",
+        notification: "skipped_cap",
         hasSnapshot: false,
         hasAttachment: false,
         hasDiagnostics: false,
@@ -46,6 +50,24 @@ const LIST = [
         name: "System",
         descriptionPreview: "choice — Crabomination — driver-error",
         issueNumber: 77,
+        githubState: "open",
+        hasSnapshot: false,
+        hasAttachment: false,
+        hasDiagnostics: false,
+    },
+];
+
+// The closed history (issue #9013): the server returns these only for
+// `view: "closed"`.
+const CLOSED = [
+    {
+        _id: "report-9",
+        filedAt: 1600000000000,
+        isSystem: false,
+        name: "Linus",
+        descriptionPreview: "Old crash",
+        issueNumber: 9,
+        githubState: "closed_not_planned",
         hasSnapshot: false,
         hasAttachment: false,
         hasDiagnostics: false,
@@ -112,7 +134,11 @@ const DETAIL: Record<string, unknown> = {
 
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }, args: unknown) => {
-        if (query._name === "listBugReports") return LIST;
+        if (query._name === "listBugReports")
+            return (args as { view?: string }).view === "closed"
+                ? CLOSED
+                : LIST;
+        if (query._name === "countClosedBugReports") return CLOSED.length;
         if (query._name === "getBugReport") {
             const { reportId } = args as { reportId: string };
             return DETAIL[reportId] ?? null;
@@ -141,6 +167,48 @@ afterEach(() => {
 });
 
 describe("BugReportsAdminPanel", () => {
+    // issue #9013 — open + unfiled by default, closed history on demand.
+    it("shows open and unfiled reports by default, each with its GitHub state", () => {
+        render(<BugReportsAdminPanel />);
+        expect(screen.queryByText("Linus")).toBeNull();
+        expect(screen.getByText("Grace")).toBeTruthy();
+        expect(
+            screen.getAllByTestId("github-state").map((e) => e.textContent)
+        ).toEqual(["Open", "Not filed", "Open"]);
+        expect(screen.getByText("Admins emailed")).toBeTruthy();
+        expect(screen.getByText("Email skipped (daily cap)")).toBeTruthy();
+    });
+
+    it("the toggle shows the closed history with its count and returns to open", () => {
+        render(<BugReportsAdminPanel />);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show closed history (1)" })
+        );
+        expect(screen.getByText("Linus")).toBeTruthy();
+        expect(screen.getByText("Closed · not planned")).toBeTruthy();
+        expect(screen.queryByText("Ada")).toBeNull();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Back to open reports" })
+        );
+        expect(screen.getByText("Ada")).toBeTruthy();
+    });
+
+    it("the detail panel shows the GitHub state and the notification outcome", () => {
+        DETAIL["report-1"] = {
+            ...(DETAIL["report-1"] as object),
+            githubState: "closed_completed",
+            notification: "failed",
+        };
+        render(<BugReportsAdminPanel />);
+        fireEvent.click(screen.getByText("Ada"));
+        expect(screen.getByTestId("notification").textContent).toContain(
+            "Email failed"
+        );
+        expect(
+            screen.getAllByTestId("github-state").map((e) => e.textContent)
+        ).toContain("Closed · completed");
+    });
+
     it("lists every report newest — reporter, description preview, linked issue, snapshot flag", () => {
         render(<BugReportsAdminPanel />);
         expect(screen.getByText("Ada")).toBeTruthy();

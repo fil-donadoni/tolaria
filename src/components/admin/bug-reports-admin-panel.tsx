@@ -16,14 +16,27 @@ import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import BugReportListRow from "./bug-report-list-row";
 import BugReportDetail from "./bug-report-detail";
+import BugReportViewToggle from "./bug-report-view-toggle";
+
+/** `?report=<id>` — the link the admin notification email carries. */
+function initialReportId(): Id<"bugReports"> | null {
+    const id = new URLSearchParams(window.location.search).get("report");
+    return id ? (id as Id<"bugReports">) : null;
+}
+
+export type BugReportView = "open" | "closed";
 
 export type BugReportListItem = FunctionReturnType<
     typeof api.bugReports.listBugReports
 >[number];
 
 export default function BugReportsAdminPanel() {
-    const reports = useQuery(api.bugReports.listBugReports, {});
-    const [selectedId, setSelectedId] = useState<Id<"bugReports"> | null>(null);
+    const [view, setView] = useState<BugReportView>("open");
+    const reports = useQuery(api.bugReports.listBugReports, { view });
+    const closedCount = useQuery(api.bugReports.countClosedBugReports, {});
+    const [selectedId, setSelectedId] = useState<Id<"bugReports"> | null>(
+        initialReportId
+    );
 
     const total = reports?.length ?? 0;
 
@@ -34,9 +47,18 @@ export default function BugReportsAdminPanel() {
                 <PanelHeader
                     title="Reports"
                     subtitle={
-                        reports === undefined ? "Loading…" : `${total} total`
+                        reports === undefined
+                            ? "Loading…"
+                            : `${total} ${view === "open" ? "open or unfiled" : "closed"}`
                     }
                 />
+                <div className="px-4 pb-2">
+                    <BugReportViewToggle
+                        view={view}
+                        closedCount={closedCount}
+                        onChange={setView}
+                    />
+                </div>
                 <PanelBody className="flex flex-col gap-1">
                     {reports === undefined ? (
                         <span className="text-xs text-text-disabled">
@@ -44,7 +66,9 @@ export default function BugReportsAdminPanel() {
                         </span>
                     ) : reports.length === 0 ? (
                         <span className="text-xs text-text-disabled">
-                            No bug reports filed yet
+                            {view === "open"
+                                ? "No open bug reports"
+                                : "No closed bug reports"}
                         </span>
                     ) : (
                         reports.map((row) => (
