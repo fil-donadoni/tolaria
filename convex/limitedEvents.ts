@@ -5,6 +5,7 @@
 // `convex/limited/eventProjection.ts`, so they're unit-testable without a
 // convex-test harness (the project has none — see
 // `convex/__tests__/adminAuth.test.ts`).
+import { limitedSourceColors } from "./limited/manaSourceColors";
 import { v, type Infer } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -55,7 +56,7 @@ import {
     makeResolveBasicLand,
 } from "./limited/resolveBasicLand";
 import { getCardColorIdentity, getPipCountsFromCost } from "./cards/colors";
-import { getDefinitionProducibleColors, manaValue } from "./gre/constants";
+import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
     computeBotAutoBuiltDeck,
@@ -632,8 +633,8 @@ const MY_EVENTS_SCAN_LIMIT = 500;
  *
  *  `pips`/`producedColors` (ADR 0073, issue #1610) are the mana-base fix:
  *  `colors` is mana-cost-derived (CR 202.2) so a dual land, a Mox, a Signet
- *  all read `[]` there — `producedColors` (`getDefinitionProducibleColors`)
- *  reads what the card PRODUCES instead, and `pips` (`getPipCountsFromCost`)
+ *  all read `[]` there — `producedColors` (`limitedSourceColors`, issue #9334)
+ *  reads what the card PRODUCES or FETCHES instead, and `pips` (`getPipCountsFromCost`)
  *  carries the coloured PIP COUNT a plain `colors` presence check can't. */
 const makeCardEvalMeta =
     (resolve: ResolveCard): GetCardEvalMeta =>
@@ -648,7 +649,7 @@ const makeCardEvalMeta =
             manaValue: manaValue(def.manaCost),
             rarity: meta.rarity,
             pips: getPipCountsFromCost(def.manaCost),
-            producedColors: [...getDefinitionProducibleColors(def)],
+            producedColors: limitedSourceColors(def),
         };
     };
 
@@ -807,7 +808,7 @@ const makeAutoBuildCardMeta =
             manaValue: manaValue(def.manaCost),
             rarity: meta.rarity,
             pips: getPipCountsFromCost(def.manaCost),
-            producedColors: [...getDefinitionProducibleColors(def)],
+            producedColors: limitedSourceColors(def),
             isLand: def.types.includes("Land"),
             isBasicLand:
                 def.types.includes("Land") &&
