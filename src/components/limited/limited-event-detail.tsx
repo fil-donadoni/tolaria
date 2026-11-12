@@ -222,7 +222,10 @@ export default function LimitedEventDetail({
     };
 
     const handleJoin = () => runMutation(() => join({ eventId }));
-    const handleStart = () => runMutation(() => start({ eventId }));
+    const handleStart = () =>
+        runMutation(() =>
+            start({ eventId, withCountdown: event?.type === "draft" })
+        );
     const handleStartRequest = () => {
         if (viewerSeat) void handleStart();
         else setConfirmStartUnseated(true);

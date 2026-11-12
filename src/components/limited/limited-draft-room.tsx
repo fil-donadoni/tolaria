@@ -4,7 +4,10 @@ import type { Id } from "@convex/_generated/dataModel";
 import { areDraftPicksLegal } from "@convex/limited/eventStatus";
 import { passDirection } from "@convex/limited/draftEngine";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
-import { useLimitedEvent } from "~/hooks/useLimitedEvent";
+import {
+    useLimitedEvent,
+    useLimitedEventMutations,
+} from "~/hooks/useLimitedEvent";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { limitedEventName } from "~/lib/limitedEventName";
 import { cn } from "~/lib/utils";
@@ -19,6 +22,8 @@ import LimitedDraftBar from "./limited-draft-bar";
 import LimitedDraftTable from "./limited-draft-table";
 import LimitedDraftPool from "./limited-draft-pool";
 import LimitedTableRing from "./limited-table-ring";
+import LimitedDraftIntro from "./limited-draft-intro";
+import { isDraftIntroRunning } from "~/lib/limited/draftIntro";
 
 /**
  * The Draft Room (issue #2587, PRD #2405 slice 8, ADR 0101 §6) — the pick
@@ -57,6 +62,7 @@ export default function LimitedDraftRoom({
     const user = useCurrentUser();
     const event = useLimitedEvent(eventId);
     const viewport = useViewportMode();
+    const { startDraftNow } = useLimitedEventMutations();
     const [poolVisible, setPoolVisible] = useState(true);
     const [tableOpen, setTableOpen] = useState(false);
 
@@ -162,6 +168,9 @@ export default function LimitedDraftRoom({
               : "phone-landscape";
     const draftPhone = draftLive && viewport !== "desktop";
 
+    const introStartsAt = isDraftIntroRunning(event)
+        ? event.draftStartsAt
+        : undefined;
     const round = event.draftRound ?? 0;
     const pack = viewerSeat.currentPack ?? [];
     const pool = viewerSeat.pool ?? [];
@@ -225,13 +234,24 @@ export default function LimitedDraftRoom({
                                 message="Rotate for more room to see your pack and pool side by side."
                             />
                         )}
-                        <LimitedDraftTable
-                            eventId={eventId}
-                            seat={viewerSeat}
-                            round={round}
-                            layout={draftTableLayout}
-                            showPool={poolVisible}
-                        />
+                        {introStartsAt !== undefined ? (
+                            <LimitedDraftIntro
+                                event={event}
+                                startsAt={introStartsAt}
+                                canStartNow={event.createdBy === user._id}
+                                onStartNow={() =>
+                                    void startDraftNow({ eventId })
+                                }
+                            />
+                        ) : (
+                            <LimitedDraftTable
+                                eventId={eventId}
+                                seat={viewerSeat}
+                                round={round}
+                                layout={draftTableLayout}
+                                showPool={poolVisible}
+                            />
+                        )}
                     </>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-3">
