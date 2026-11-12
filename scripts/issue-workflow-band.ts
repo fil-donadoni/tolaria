@@ -12,7 +12,7 @@
  * liveness ruling (2026-11-09) adds `bug` + `bot-fault`:
  * a Bot that froze a game is a blocking defect class, filed by the server
  * (`convex/botFaultReport.ts`) with exactly those labels. A `user-report`
- * issue (ADR 0143 Amendment X) waits for the owner at `P0`.
+ * issue (ADR 0143 Amendment XII) waits for the owner at `P0`.
  *
  * The second script that may write `P0` (ADR 0143, Amendment VII; the first
  * is `issue:inherit-band`, which only copies one). It overwrites a lower band

@@ -1,6 +1,6 @@
 /**
  * The table of label rules that rank an open issue at board `P0`
- * (ADR 0143 Amendment VII + X). ONE table: `issue:workflow-band` plans from it
+ * (ADR 0143 Amendment VII + XI + XII). ONE table: `issue:workflow-band` plans from it
  * and the `issue-band` workflow's `if:` is checked against it
  * (`scripts/__tests__/p0-label-rules.test.ts`), so a rule cannot be added to
  * one and forgotten in the other.

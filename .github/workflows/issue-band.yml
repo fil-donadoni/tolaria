@@ -1,6 +1,6 @@
 # issue-band — a workflow bug is P0 (issue #6902, ADR 0143 Amendment VII), and
 # so is a system-filed Bot fault (issue #9000, PRD issue #8998) and a user
-# Bug Report (`user-report`, issue #9013, Amendment X).
+# Bug Report (`user-report`, issue #9013, Amendment XII).
 # When an issue is labelled and matches a rule of the P0 label table (an
 # issue filed with its labels fires `labeled` too), `bun run issue:workflow-band` sets its board `Priority` to
 # `P0` (idempotent; never lowers a band). The board write needs the machine's

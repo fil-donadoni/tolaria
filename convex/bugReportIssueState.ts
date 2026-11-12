@@ -59,17 +59,28 @@ export function mapIssueState(issue: GithubIssueRef): IssueStatePatch {
     };
 }
 
-/** Every `user-report` issue changed since `since`, following pagination.
+/** Labels whose issues have a `bugReports` row: a user report, and a
+ *  system-filed Bot fault. A report an admin later retypes (drops
+ *  `user-report`) leaves the sync and keeps its last known state. */
+export const SYNCED_ISSUE_LABELS = ["user-report", "bot-fault"] as const;
+
+/** Re-read window: an issue updated WHILE a read pages through the list can
+ *  shift a neighbour past a page boundary; the next run starts this far back so
+ *  it is fetched then. Re-applying a state is idempotent. */
+export const SYNC_OVERLAP_MS = 60_000;
+
+/** Every issue of one label changed since `since`, following pagination.
  *  Throws on any non-OK page, so a partial read is never mistaken for a full one. */
-export async function fetchChangedIssues(
+async function fetchLabelIssues(
     fetchImpl: typeof fetch,
     token: string,
+    label: string,
     since: string | undefined
 ): Promise<GithubIssueRef[]> {
     const all: GithubIssueRef[] = [];
     for (let page = 1; ; page++) {
         const params = new URLSearchParams({
-            labels: "user-report",
+            labels: label,
             state: "all",
             per_page: String(PER_PAGE),
             page: String(page),
@@ -96,6 +107,24 @@ export async function fetchChangedIssues(
     }
 }
 
+/** Every synced-label issue changed since `since`, one read per label. */
+export async function fetchChangedIssues(
+    fetchImpl: typeof fetch,
+    token: string,
+    since: string | undefined
+): Promise<GithubIssueRef[]> {
+    const byNumber = new Map<number, GithubIssueRef>();
+    for (const label of SYNCED_ISSUE_LABELS)
+        for (const issue of await fetchLabelIssues(
+            fetchImpl,
+            token,
+            label,
+            since
+        ))
+            byNumber.set(issue.number, issue);
+    return [...byNumber.values()];
+}
+
 export interface IssueStateSyncDeps {
     fetchImpl: typeof fetch;
     token: string | undefined;
@@ -105,7 +134,7 @@ export interface IssueStateSyncDeps {
     setCursor: (since: string, syncedAt: number) => Promise<void>;
 }
 
-/** One sync run. The cursor advances to the run's START time only after the
+/** One sync run. The cursor advances to the run's START time (less `SYNC_OVERLAP_MS`) only after the
  *  whole read AND the write succeeded; any throw leaves it where it was, so
  *  the next run re-reads the same window. Returns the issues applied. */
 export async function runIssueStateSync(
@@ -116,7 +145,10 @@ export async function runIssueStateSync(
     const since = await deps.getCursor();
     const issues = await fetchChangedIssues(deps.fetchImpl, deps.token, since);
     await deps.apply(issues.map(mapIssueState), startedAt);
-    await deps.setCursor(new Date(startedAt).toISOString(), startedAt);
+    await deps.setCursor(
+        new Date(startedAt - SYNC_OVERLAP_MS).toISOString(),
+        startedAt
+    );
     return issues.length;
 }
 

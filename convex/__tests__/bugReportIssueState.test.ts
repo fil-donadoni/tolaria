@@ -89,15 +89,25 @@ describe("fetchChangedIssues", () => {
         ];
         const fetchImpl = (async (url: string) => {
             urls.push(url);
-            return new Response(JSON.stringify(pages[urls.length - 1]));
+            const q = new URL(url).searchParams;
+            // The Bot-fault label has no changed issue in this fixture.
+            const rows =
+                q.get("labels") === "user-report"
+                    ? pages[Number(q.get("page")) - 1]
+                    : [];
+            return new Response(JSON.stringify(rows));
         }) as unknown as typeof fetch;
         const out = await fetchChangedIssues(
             fetchImpl,
             "t",
             "2026-11-01T00:00:00Z"
         );
+        // One read per synced label (user-report pages twice, bot-fault once).
+        expect(urls.some((u) => u.includes("labels=bot-fault"))).toBe(true);
         expect(out).toHaveLength(102);
-        expect(urls).toHaveLength(2);
+        expect(
+            urls.filter((u) => u.includes("labels=user-report"))
+        ).toHaveLength(2);
         expect(urls[0]).toContain("labels=user-report");
         expect(urls[0]).toContain("since=2026-11-01T00%3A00%3A00Z");
         expect(urls[1]).toContain("page=2");
@@ -141,7 +151,8 @@ describe("runIssueStateSync cursor", () => {
         const { d, log } = deps();
         expect(await runIssueStateSync(d)).toBe(2);
         expect(log.applied).toHaveLength(2);
-        expect(log.cursor).toBe("2026-11-12T10:00:00.000Z");
+        // The run's start less the 60 s overlap: re-reads are idempotent.
+        expect(log.cursor).toBe("2026-11-12T09:59:00.000Z");
     });
 
     it("a failed read leaves the cursor and writes nothing", async () => {
