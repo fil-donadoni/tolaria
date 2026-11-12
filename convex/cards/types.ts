@@ -8994,7 +8994,17 @@ export type DelayedTriggerTiming =
      *  CLEANUP (CR 514.2) and dropped when the creature leaves the battlefield
      *  (CR 400.7). The body reads the creature through a `capture`, not `$event`,
      *  exactly as `attacks-unblocked` does. Rejects `targetPlayer`. */
-    | "this-turn-watched-creature-attacks-monarch";
+    | "this-turn-watched-creature-attacks-monarch"
+    /** CR 508.3a / 603.7b — a REPEATING, this-turn-bounded attack watch over
+     *  the scheduling player's own declarations: "Whenever you attack this
+     *  turn, …" (Dalkovan Encampment). Fires ONCE per `ATTACKERS_DECLARED`
+     *  declaration made by the instance's controller, however many creatures
+     *  attack and whomever they attack; creatures put onto the battlefield
+     *  attacking declare nothing and do not fire it (CR 508.3a). Stays queued
+     *  after firing, so an extra combat fires it again (CR 603.7b); purged at
+     *  CLEANUP (CR 514.2). The firing event is threaded onto the stack item.
+     *  Rejects `targetPlayer` / `watch`. */
+    | "this-turn-you-attack";
 
 /** What one "until your next turn" attack window watches: the two axes its
  *  Oracle line varies on, as data (`UNTIL_NEXT_TURN_ATTACK_WATCHES`).
