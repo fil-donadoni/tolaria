@@ -53457,6 +53457,14 @@
         "source": "compiled"
     },
     {
+        "name": "Nature's Claim",
+        "scryfallId": "64ae5a91-ac54-4222-832e-d7a740a3f7cb",
+        "oracleId": "6d4e558e-9109-4918-a082-fdcbaffd516b",
+        "firstSet": "wwk",
+        "firstPrintId": "64ae5a91-ac54-4222-832e-d7a740a3f7cb",
+        "firstPrintSet": "wwk"
+    },
+    {
         "name": "Nature's Lore",
         "scryfallId": "668d2969-b6b7-4507-bdd4-20bbaa68035a",
         "oracleId": "78826359-fe63-44ad-adc4-a17ffcd710e4",
