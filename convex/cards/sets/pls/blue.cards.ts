@@ -962,8 +962,8 @@ export const ertaisTrickery = defineCard(() => ({
             op: "if",
             predicate: {
                 left: { spellKickerCount: { of: { target: 0 } } },
-                op: "gt",
-                right: 0,
+                op: "ge",
+                right: 1,
             },
             then: [{ op: "counter", target: { target: 0 } }],
         },

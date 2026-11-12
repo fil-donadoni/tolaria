@@ -16226,7 +16226,7 @@ export type EffectAdditionalCostPaidValue = { additionalCostPaid: string };
  *  instructions are followed (CR 608.2c), not baked into the target set: "Counter
  *  target spell if it was kicked" (Ertai's Trickery) targets ANY spell
  *  (CR 115.1a — "target spell" is unqualified) and is an `if` whose comparison
- *  reads this value `gt` 0. The `spellWasKicked` target FILTER is the other
+ *  reads this value `ge` 1. The `spellWasKicked` target FILTER is the other
  *  shape, for a card whose target itself is restricted.
  *
  *  `of` is an announced target slot (`{ target: N }`) and nothing else —

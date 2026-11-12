@@ -40,7 +40,10 @@ import { compactState, expandState } from "../../../../gre/serialize";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { KickerPayments } from "../../../../gre/kicker";
-import { getDefinition } from "../../../index";
+import { getDefinition, preloadDefinitions } from "../../../index";
+import { ertaisTrickery } from "../blue.cards";
+
+preloadDefinitions([ertaisTrickery()]);
 
 const planarOverlay = getDefinition("1315fef0-234e-44f5-a7a3-bf3db78943c3");
 const alliedStrategies = getDefinition("51d4f211-10e8-486d-b982-287ab0c060c9");
@@ -1481,11 +1484,10 @@ describe("Waterspout Elemental (single Kicker ETB — bounce + skip, PLS 38, iss
 //
 // `spellWasKicked` is the registry's OTHER spell-property filter and is
 // exercised here through a SYNTHETIC requirement, not a card: Ertai's Trickery
-// (the card that motivated it) is a tracked stub, because "counter target
-// spell if it was kicked" is a CR 608.2a intervening condition, not a
-// targeting restriction — see the stub note in `../blue.ts` (tracked-by:
-// #2044). The filter itself stays covered so the descriptor, its client mirror
-// and every census consumer keep a live proof.
+// (the card that motivated it) checks "if it was kicked" at resolution instead
+// (`spellKickerCount`, its own block below), because its target is unqualified.
+// The filter itself stays covered so the descriptor, its client mirror and
+// every census consumer keep a live proof.
 //
 // The tests below are written one-per-row from the PRODUCER CENSUS of every
 // site that consumes a spell-target filter, INCLUDING the must-NOT rows (a
@@ -1497,7 +1499,7 @@ describe("Waterspout Elemental (single Kicker ETB — bounce + skip, PLS 38, iss
 describe("Confound — spell-property target filters (issue #1956)", () => {
     const CONFOUND_REQ = confound.targetRequirement!;
     /** Synthetic — no shipped card declares `spellWasKicked` (see the section
-     *  note above, tracked-by: #2044). Keeps the registry filter proven. */
+     *  note above). Keeps the registry filter proven. */
     const KICKED_REQ: NonNullable<CardDefinition["targetRequirement"]> = {
         type: "spell",
         count: 1,
@@ -1889,5 +1891,60 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         const slimRage = projected.stack.find((s) => s.id === rage.id)!;
         expect(slimBolt.targets).toEqual([{ type: "permanent", id: "bear" }]);
         expect(slimRage.kickerPayments).toEqual({ kicker: 1 });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ertai's Trickery — "Counter target spell if it was kicked."
+// The target is unqualified (CR 115.1a); "if it was kicked" (CR 702.33d) is
+// checked as the spell resolves (CR 608.2c), never at targeting.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Ertai's Trickery — counter target spell if it was kicked (CR 115.1a / 608.2c / 702.33d)", () => {
+    const trickery = getDefinition("544e3575-9fb6-41f7-a4e6-f8460dfae344");
+
+    function stackWithBolt(kicked: boolean): {
+        state: GameState;
+        boltId: string;
+    } {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        if (kicked) bolt.kickerPayments = { kicker: 1 };
+        return { state, boltId: bolt.id };
+    }
+
+    it("offers an UNKICKED spell as a target — the card is castable with no kicked spell on the stack", () => {
+        const { state, boltId } = stackWithBolt(false);
+        const offered = getLegalTargets(
+            state,
+            trickery.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(offered).toContain(boltId);
+    });
+
+    it("counters a kicked target", () => {
+        const { state, boltId } = stackWithBolt(true);
+        pushSpell(state, trickery.id, "p1", [{ type: "spell", id: boltId }]);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === boltId)).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === boltId)).toBe(
+            true
+        );
+    });
+
+    it("resolves and does nothing to an unkicked target", () => {
+        const { state, boltId } = stackWithBolt(false);
+        pushSpell(state, trickery.id, "p1", [{ type: "spell", id: boltId }]);
+        resolveTopOfStack(state);
+        expect(state.stack.map((s) => s.id)).toEqual([boltId]);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            trickery.id
+        );
     });
 });

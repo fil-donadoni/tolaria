@@ -9212,3 +9212,56 @@ describe("validateEffectScript — createToken token.crewPowerBonus (CR 702.122b
         expect(pilotWith(bad).length).toBeGreaterThan(0);
     });
 });
+
+describe("spellKickerCount — a targeted spell's kicker count (CR 702.33d)", () => {
+    const counterIfKicked = (of: unknown): EffectOp[] => [
+        {
+            op: "if",
+            predicate: {
+                left: { spellKickerCount: { of } },
+                op: "ge",
+                right: 1,
+            },
+            then: [{ op: "counter", target: { target: 0 } }],
+        } as unknown as EffectOp,
+    ];
+
+    it("accepts an announced target slot", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: counterIfKicked({ target: 0 }) })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a bare ref — only a target slot names another spell's stack item", () => {
+        const errors = validateEffectScript(
+            host({ effects: counterIfKicked({ ref: "$source" }) })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("rejects an extra key beside `of`", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: {
+                                spellKickerCount: {
+                                    of: { target: 0 },
+                                    kicker: "k",
+                                },
+                            },
+                            op: "ge",
+                            right: 1,
+                        },
+                        then: [{ op: "counter", target: { target: 0 } }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
