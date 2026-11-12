@@ -8,7 +8,7 @@
 // records every executed query and every point `get`, which is what these
 // tests assert on.
 import { describe, it, expect } from "vitest";
-import type { MutationCtx, QueryCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 import {
     createLimitedEvent,
@@ -98,7 +98,7 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
         ] as const) {
             db.reads.length = 0;
             db.gets.length = 0;
-            const result = await query(as(db, "alice") as QueryCtx, {});
+            const result = await query(as(db, "alice"), {});
 
             expect(result.map((e) => e._id).sort()).toEqual(expected);
             expect(db.gets).not.toContain(theirs);
@@ -121,7 +121,7 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
             eventId: theirs,
         });
 
-        expect(await listAll(as(db, "alice") as QueryCtx, {})).toEqual([]);
+        expect(await listAll(as(db, "alice"), {})).toEqual([]);
     });
 });
 

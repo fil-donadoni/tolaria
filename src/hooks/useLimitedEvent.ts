@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     useMutation,
     useQueries,
     useQuery,
     type ReactMutation,
+    type RequestForQueries,
 } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
@@ -109,6 +110,12 @@ export function useMyCurrentLimitedEvents(
     );
 }
 
+// `useQueries` requests: skipping means asking for nothing.
+const CURRENT_EVENTS_QUERY: RequestForQueries = {
+    events: { query: api.limitedEvents.myCurrentLimitedEvents, args: {} },
+};
+const NO_QUERIES: RequestForQueries = {};
+
 /** {@link useMyCurrentLimitedEvents} for the app shell, which must never die
  *  of it (issue #6076): a failed "current events" read is no reason to blank
  *  the routed page. `useQuery` re-throws a query's error into the render, and
@@ -121,18 +128,8 @@ export function useMyCurrentLimitedEventsForChrome(
 ): LimitedEventSummaryView[] | undefined {
     const pageVisible = usePageVisible();
     const live = enabled && pageVisible;
-    const queries = useMemo(
-        () =>
-            live
-                ? {
-                      events: {
-                          query: api.limitedEvents.myCurrentLimitedEvents,
-                          args: {},
-                      },
-                  }
-                : {},
-        [live]
-    );
+    // Module constants, so the request is referentially stable across renders.
+    const queries = live ? CURRENT_EVENTS_QUERY : NO_QUERIES;
     const result = useQueries(queries).events as
         | LimitedEventSummaryView[]
         | Error
