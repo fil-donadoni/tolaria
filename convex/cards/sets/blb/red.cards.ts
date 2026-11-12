@@ -11,10 +11,9 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // it sits on the definition and gates itself on `classLevelOf(self) >= 3`
 // (CR 716.2a: the ability exists only at level 3 or greater).
 //
-// CR 614.1 / 120.2a — "noncombat damage" is `!event.isCombat`; the source is
-// "a source you control" (`sourceControllerId`, CR 109.5) and the recipient is
-// an opponent or a permanent an opponent controls (CR 102.2 / 109.4).
-// CR 614.5 — each damage event is a separate event, so +2 applies to each.
+// CR 614.1 / 120.2b — "noncombat damage" is `!event.isCombat` (combat damage
+// is CR 120.2a); the source is "a source you control" (`sourceControllerId`,
+// CR 109.5) and the recipient is an opponent or a permanent one controls.
 // hand-tail: If a source you control would deal noncombat damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead. (#8595)
 export const artistsTalent = defineCard(() => ({
     id: "8b9e51d9-189b-4dd6-87cb-628ea6373e81", // BLB 124
@@ -66,7 +65,7 @@ export const artistsTalent = defineCard(() => ({
             staticEffects: [
                 {
                     kind: "cost-modifier",
-                    // CR 601.2a — "spells YOU cast" reads the caster.
+                    // "spells YOU cast" reads the caster (the announcer).
                     appliesToSpell: (card, _ctx, effectSource, announcerId) =>
                         !card.types.includes("Creature") &&
                         announcerId !== undefined &&
