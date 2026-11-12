@@ -348,6 +348,16 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         evalWeights: { materialLinearShare: 0.6 },
     },
 
+    /** The control arm of the Saturation Prior (issue #9095,
+     *  `saturationPriorTerms` in `search.ts`): in-tree selection back to
+     *  UCB1/PUCT alone, visits spread evenly over a saturated node's
+     *  children. `BLADE_VARIANT=no-saturation-prior bun run test:blade` reds
+     *  the Caustic Bronco twin. */
+    "no-saturation-prior": {
+        name: "no-saturation-prior",
+        evalWeights: { saturationPriorC: 0 },
+    },
+
     /** The Root Heuristic Share grid (issue #9045, PRD #9043, ADR 0177): λ,
      *  the fixed share the one-ply policy value of each root candidate holds
      *  in the root verdict (`makeRootScorer`, `search.ts`). The base vector

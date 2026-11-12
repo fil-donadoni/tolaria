@@ -2483,6 +2483,116 @@ function ucb1(edge: Edge, weights: EvalWeights): number {
     return exploit + explore;
 }
 
+/** Mean-reward span under which a node's children count as SATURATED: every
+ *  leaf below them sits on the same reward clip (`materialFull`), so their
+ *  means are equal, not merely close. Only rounding separates them. */
+const SATURATION_EPS = 1e-9;
+
+/** The Saturation Prior of in-tree selection (issue #9095): at a node whose
+ *  children are all opened and all carry the SAME mean reward, each child's
+ *  `saturationPriorC` times its one-ply policy value's place between the
+ *  node's lowest (0) and highest (1). `null` when a child is unopened or has
+ *  no policy value, when the rewards differ, when the policy values are all
+ *  equal, or when the prior is off.
+ *
+ *  Past the clip the reward is flat, so UCB1's exploit term is the same for
+ *  every child and the action priors, built from the clipped reward, are
+ *  uniform: the search samples its own continuations at random. A root move
+ *  with eight continuations then reads each through an eighth of its visits,
+ *  one with two through a half, and the subtree mean margin the root
+ *  `material-tiebreak` reads prefers the move with FEWER continuations,
+ *  whatever its lines are worth. The prior fills that vacuum with the
+ *  unclipped one-ply value the node already caches, so the visits deepen the
+ *  line the Bot would play.
+ *
+ *  Two choices here, each measured (docs/research/reward-saturation-selection.md):
+ *
+ *  - The POLICY VALUE, not the children's sampled margins: it is read off
+ *    the position, so a node with more children draws no luckier maximum.
+ *  - A term in the score, not a cut of the candidate set: children in
+ *    between share the visits by their place, and a child whose reward
+ *    leaves the clip closes the gate. The ranking is strong while the node
+ *    stays saturated, though: UCB1's exploration returns to the
+ *    lowest-valued child only once `ln(avail)` outgrows
+ *    `(saturationPriorC / ucbC)²`, a few thousand visits at the base
+ *    values, so within a live budget that child is read once.
+ *
+ *  `selectionSaturationPrior` decides where it applies. */
+export function saturationPriorTerms(
+    edges: readonly (Edge | undefined)[],
+    policyValues: ReadonlyMap<string, number> | undefined,
+    weights: EvalWeights
+): Map<Edge, number> | null {
+    if (weights.saturationPriorC <= 0) return null;
+    if (!policyValues || edges.length < 2) return null;
+    let lowReward = Infinity;
+    let highReward = -Infinity;
+    let low = Infinity;
+    let high = -Infinity;
+    for (const e of edges) {
+        if (!e || e.visits === 0) return null;
+        const mean = e.totalReward / e.visits;
+        lowReward = Math.min(lowReward, mean);
+        highReward = Math.max(highReward, mean);
+        if (highReward - lowReward > SATURATION_EPS) return null;
+        const value = policyValues.get(e.key);
+        if (value === undefined) return null;
+        low = Math.min(low, value);
+        high = Math.max(high, value);
+    }
+    // The floor `computeActionPriors` uses: two values a rounding error
+    // apart are the same move read twice, not a ranking.
+    if (!(high - low > 1e-12)) return null;
+    const terms = new Map<Edge, number>();
+    for (const e of edges) {
+        const value = policyValues.get(e!.key)!;
+        terms.set(
+            e!,
+            (weights.saturationPriorC * (value - low)) / (high - low)
+        );
+    }
+    return terms;
+}
+
+/** Where `saturationPriorTerms` applies: the bot's own nodes below the root
+ *  at which it MUST decide — an attack or block declaration, no `pass` among
+ *  its moves. Three gates, each measured on the `must` tier
+ *  (docs/research/reward-saturation-selection.md):
+ *
+ *  - Not at a priority window. `pass` there carries the same act one window
+ *    later, so reading its line through its best continuation makes waiting
+ *    worth as much as acting, and the root's material tie-break then cannot
+ *    tell them apart. The even spread over a window's moves is what prices
+ *    waiting below acting; a declaration cannot be deferred, so nothing
+ *    there relies on it.
+ *  - Not at the root: its visit counts feed the root rules.
+ *  - Not at an opponent's node: narrowing the opponent onto its one-ply
+ *    favourite is a model of the opponent, not a reading of the Bot's own
+ *    line. Its saturated continuations stay averaged.
+ *
+ *  SATURATION, not a tie band, for the same reason as the first gate: where
+ *  the rewards differ at all the search has a signal, and every wider band
+ *  flipped `must` entries.
+ *
+ *  Called at the PUCT step, the one selection site whose node caches policy
+ *  values. Exported as a test seam. */
+export function selectionSaturationPrior(
+    keyed: readonly KeyedMove[],
+    children: ReadonlyMap<string, Edge>,
+    policyValues: ReadonlyMap<string, number> | undefined,
+    weights: EvalWeights,
+    atRoot: boolean,
+    botNode: boolean
+): Map<Edge, number> | null {
+    if (atRoot || !botNode || weights.saturationPriorC <= 0) return null;
+    if (keyed.some((k) => k.move.kind === "pass")) return null;
+    return saturationPriorTerms(
+        keyed.map((k) => children.get(k.key)),
+        policyValues,
+        weights
+    );
+}
+
 /** Whether `move` casts an instant-speed answer in a REACTIVE window — a combat
  *  step or the opponent's turn, i.e. anywhere but the mover's OWN main phase
  *  (the exact mirror of the ADR 0020 §4 sorcery-speed definition). These are the
@@ -3570,6 +3680,14 @@ function puctDescend(
     let bestEdge: Edge | null = null;
     // The node's castable-instant probe, once for every edge (issue #4461).
     const held = heldInstantProbe(world, pid);
+    const saturation = selectionSaturationPrior(
+        keyed,
+        node.children,
+        node.policyValues,
+        weights,
+        path.length === 0,
+        pid === botId
+    );
     for (const k of keyed) {
         const edge = node.children.get(k.key);
         const visits = edge?.visits ?? 0;
@@ -3605,7 +3723,8 @@ function puctDescend(
                   weights.ucbC *
                       Math.sqrt(Math.log(Math.max(parentVisits, 2)))) +
             puctBonus(priors.get(k.key) ?? 0, parentVisits, visits, config) +
-            reactivePrior(world, pid, k.move, visits, weights, held);
+            reactivePrior(world, pid, k.move, visits, weights, held) +
+            (edge ? (saturation?.get(edge) ?? 0) : 0);
         if (val > bestVal) {
             bestVal = val;
             bestKeyed = k;

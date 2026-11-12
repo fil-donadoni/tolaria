@@ -4456,7 +4456,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Ancestral Recall", target: "me" },
             ],
         },
-        note: "Issue #8954, the hand-cast half: at the opponent's end step with three Islands open and the Bot ~815 points behind, the draw goes to the Bot. HONEST ABOUT THE MECHANISM: the three candidates' mean rewards sit within `outcomeEps` under the base vector (all exactly 0.2500) and under `reward-soft-tail` alike (a three-card swing is worth ~0.01 reward at this depth of the tail), so the pick is settled by `material-tiebreak` either way. What the companion test pins is the signature of the blindness — every candidate at the floor — and that the tail removes it: the search's own mean then ranks the self-draw first and the misdirected draw last, so the tie-break confirms the search instead of being its only defence.",
+        note: "Issue #8954, the hand-cast half: at the opponent's end step with three Islands open and the Bot ~815 points behind, the draw goes to the Bot. HONEST ABOUT THE MECHANISM: the three candidates' mean rewards sit within `outcomeEps` under the base vector (all exactly 0.2500) and under `reward-soft-tail` alike (a three-card swing is worth ~0.01 reward at this depth of the tail), so the pick is settled by `material-tiebreak` either way. What the companion test pins is the signature of the blindness — every candidate at the floor — and that the tail removes it: the search's own mean then ranks the misdirected draw last, so the tie-break confirms the search instead of being its only defence. `pass` and the self-draw read within noise of each other there: holding keeps the self-cast for the Bot's own turn, and the Reward-Tie Margin Term (issue #9095) reads that line through it.",
     },
     {
         // Issue #8954 — the class beyond draw: far behind, a one-mana removal
@@ -21268,7 +21268,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Caustic Bronco" }],
         },
-        note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart. `libraryCount: 0` is load-bearing: without it the base deck's Plains share the determinized library, the reveal is mana value 0 nine times in ten, and the full swing is rightly better (issue #8736). Both root moves sit at the reward clip, so `material-tiebreak` decides on the subtree mean margin, about +30 for the saddle at 400 to 4000 iterations. A POSITION GUARD, not a discriminating one: with `becomeSaddled` made a no-op the saddle still wins, because the `pass` subtree's mean is diluted by its eight tied attack declarations (issue #9049).",
+        note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart. `libraryCount: 0` is load-bearing: without it the base deck's Plains share the determinized library, the reveal is mana value 0 nine times in ten, and the full swing is rightly better (issue #8736). Both root moves sit at the reward clip, so `material-tiebreak` decides on the subtree mean margin. DISCRIMINATING since issue #9095: with `becomeSaddled` made a no-op the bot passes on every seed. Before the Saturation Prior it still saddled, because UCB1 spread `pass`'s visits evenly over its eight saturated attack declarations and their mean diluted the full swing's line. The twin below is the other half.",
+    },
+    {
+        // CR 702.171a/b — the twin: every library card has mana value 1, so the
+        // saddled drain is worth 2 life of swing against the 4 damage the tapped
+        // Bears no longer deal.
+        label: "attacks with the saddlers rather than saddle its Mount when their damage outweighs the drain",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Mount whose saddled payoff is smaller than the saddlers' damage",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Caustic Bronco",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 6,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 6 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #9095 — the twin of the saddle entry above. Both root moves sit past the reward clip, and `pass` carries eight attack declarations against the saddle's two Bronco ones. Before the Saturation Prior (`saturationPriorTerms`, `search.ts`) UCB1 spread `pass`'s visits evenly over the eight, the subtree mean margin averaged the full swing in with the empty attacks, and the bot saddled on every seed at 400, 1000 and 2000 iterations. The prior ranks a saturated attack declaration's children by one-ply policy value, so the visits deepen the full swing; `BLADE_VARIANT=no-saturation-prior` turns it off and reds this entry. The `reward-soft-tail` variant would red it too: under a tail nothing saturates, so the prior never fires.",
     },
     // CR 702.26a — a phasing creature comes back at its controller's next untap
     // step. Read as gone for good, the rollouts priced casting it below holding

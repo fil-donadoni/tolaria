@@ -354,6 +354,14 @@ export type EvalWeights = {
     calibratedRewardK: number;
     /** Weight of a choice-node prior in UCB1 selection (`CHOICE_PRIOR_C`). */
     choicePriorC: number;
+    /** Span of the Saturation Prior of in-tree selection
+     *  (`saturationPriorTerms`, `search.ts`; issue #9095): at a declaration
+     *  node of the bot's below the root whose children all carry the same
+     *  mean reward, the child with the best one-ply policy value scores this
+     *  much above the worst, linearly between. In UCB-score units, beside
+     *  `ucbC`. `0` turns it off (the `no-saturation-prior` variant). Never
+     *  fitted: a search-side constant. */
+    saturationPriorC: number;
     /** Visit-count band for "near-equal" root candidates (`VISIT_TOL`,
      *  issue #138). */
     visitTol: number;
@@ -516,6 +524,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     rootHeuristicShare: 0.1,
     calibratedRewardK: 9.983957e-4,
     choicePriorC: 0.75,
+    saturationPriorC: 4,
     visitTol: 0.15,
     outcomeEps: 0.05,
     extraTurnValue: 350,
