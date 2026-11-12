@@ -238,7 +238,7 @@ export default function LimitedDraftRoom({
                             <LimitedDraftIntro
                                 event={event}
                                 startsAt={introStartsAt}
-                                canStartNow={event.createdBy === user._id}
+                                canStartNow={event.createdBy === user?._id}
                                 onStartNow={() =>
                                     void startDraftNow({ eventId })
                                 }

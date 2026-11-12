@@ -67,7 +67,7 @@ function setup(identity: string) {
         },
     } as unknown as MutationCtx;
     const event = () =>
-        db.tables.limitedEvents[0] as Record<string, unknown> & {
+        db.tables.limitedEvents[0] as unknown as Record<string, unknown> & {
             seats: LimitedEventSeat[];
             draftStartsAt?: number;
             draftRound?: number;
@@ -75,16 +75,17 @@ function setup(identity: string) {
     // Seat order is shuffled at start: find where the human landed.
     const humanSeat = () =>
         (event().seats as LimitedEventSeat[]).find((s) => s.userId === "u1")!;
+    const seatRows = () =>
+        (db.tables.limitedSeats ?? []) as unknown as SeatRow[];
     const humanPackSize = () => {
-        const rows = db.tables.limitedSeats ?? [];
-        const row = rows.find(
-            (r: SeatRow) => r.seatIndex === humanSeat().seatIndex
-        ) as SeatRow | undefined;
+        const row = seatRows().find(
+            (r) => r.seatIndex === humanSeat().seatIndex
+        );
         return (row?.currentPack ?? []).length as number;
     };
     const botPicks = () =>
-        (db.tables.limitedSeats ?? []).filter(
-            (r: SeatRow) =>
+        seatRows().filter(
+            (r) =>
                 r.seatIndex !== humanSeat().seatIndex &&
                 (r.pool ?? []).length > 0
         ).length;
