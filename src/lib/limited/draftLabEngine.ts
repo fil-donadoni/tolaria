@@ -57,6 +57,7 @@ import {
     type SeatSignalState,
 } from "@convex/limited/draftSignal";
 import { autoBuildDeck, type AutoBuiltDeck } from "@convex/limited/autoBuild";
+import { archetypeScopeShareForPackSlots } from "@convex/limited/planArchetype";
 import { makeResolveBasicLand } from "@convex/limited/resolveBasicLand";
 import { observeLabPack } from "./draftLabSignal";
 import { auditSeatDeck, type DeckAudit } from "./draftTableAudit";
@@ -473,6 +474,11 @@ export function buildDraftLabSeatDecks(
     // values each spell as the seat drafted it.
     const getPickRating = buildDraftLabPickRating(state.packSlots);
     const resolveBasicLand = makeResolveBasicLand("", new Map());
+    // The plan reads the Pool against its scope (issue #9298), as the
+    // server's build does.
+    const archetypeScopeShare =
+        archetypeScopeShareForPackSlots(state.packSlots, getCardProfile) ??
+        undefined;
     return state.seats.map((seat) => {
         const pool = seat.pool ?? [];
         return {
@@ -482,7 +488,7 @@ export function buildDraftLabSeatDecks(
                 pool,
                 draftLabGetAutoBuildCardMeta,
                 resolveBasicLand,
-                { getCardProfile, getPickRating }
+                { getCardProfile, getPickRating, archetypeScopeShare }
             ),
         };
     });
@@ -502,8 +508,12 @@ export function buildDraftLabBuiltSeats(
     state: DraftLabState
 ): DraftLabBuiltSeat[] {
     const getCardProfile = draftLabSessionCardProfile(state);
+    const scopeShare = archetypeScopeShareForPackSlots(
+        state.packSlots,
+        getCardProfile
+    );
     return buildDraftLabSeatDecks(state).map((seat) => ({
         ...seat,
-        audit: auditSeatDeck(state.seed, seat, getCardProfile),
+        audit: auditSeatDeck(state.seed, seat, getCardProfile, scopeShare),
     }));
 }

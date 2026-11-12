@@ -29,6 +29,7 @@ import {
     type ResolveBasicLand,
 } from "../autoBuild";
 import type { CardProfile, GetCardProfile } from "../cardProfilesCore";
+import { archetypeScopeShareOf, choosePlanArchetype } from "../planArchetype";
 import {
     runBotAutoPicks,
     startDraft,
@@ -1483,5 +1484,78 @@ describe("Plan-first Auto-Build (issue #8898)", () => {
         );
         expect(nothing).toEqual(plain);
         expect(shallow).toEqual(plain);
+    });
+});
+
+describe("plan depth read against the scope (issue #9298)", () => {
+    // rivalPlansPool: 33 cards, 11 aggro against 8 control.
+    const POOL_SIZE = 33;
+    /** A scope where `aggro` tags half the cards and `control` one in
+     *  twenty: eleven aggro cards are fewer than a 33-card Pool drawn from
+     *  it would hold (16.5), eight control cards far more (1.65). */
+    const broadAggroScope = new Map([
+        ["aggro", 0.5],
+        ["control", 0.05],
+    ]);
+
+    it("Discriminating Pair: the same Pool builds aggro by raw depth and control once the scope is read", () => {
+        const { pool, getMeta } = rivalPlansPool();
+        const getCardProfile = rivalPlanProfiles();
+        expect(chooseDeckColors(pool, getMeta, getCardProfile)).toEqual([
+            "R",
+            "G",
+        ]);
+        expect(
+            chooseDeckColors(pool, getMeta, getCardProfile, broadAggroScope)
+        ).toEqual(["U", "B"]);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile,
+            archetypeScopeShare: broadAggroScope,
+        });
+        expect(
+            built.cards.filter((c) => /^(air|vampire)/.test(c.cardName))
+        ).toHaveLength(8);
+    });
+
+    it("a rare tag below the settle bar is never the plan, however far above its share", () => {
+        // Three control units against a scope share of zero: a surplus of 3,
+        // but below ARCHETYPE_SETTLE_UNITS (4), so the settled aggro plan
+        // stays even at a negative surplus.
+        const commitment = new Map([
+            ["aggro", 11],
+            ["control", 3],
+        ]);
+        expect(
+            choosePlanArchetype(commitment, POOL_SIZE, broadAggroScope)
+        ).toBe("aggro");
+    });
+
+    it("with no scope share the plan is the raw deepest, ties by Archetype id", () => {
+        const commitment = new Map([
+            ["control", 8],
+            ["aggro", 8],
+        ]);
+        expect(choosePlanArchetype(commitment, POOL_SIZE, null)).toBe("aggro");
+        expect(choosePlanArchetype(new Map([["aggro", 3]]), 33, null)).toBe(
+            null
+        );
+    });
+
+    it("the scope share counts every distinct card in the denominator and an unreviewed layer at half", () => {
+        const getCardProfile = profilesById([
+            ["Gray Ogre", archetypeProfile(["aggro"])],
+            ["Grizzly Bears", archetypeProfile(["aggro", "tokens"], false)],
+        ]);
+        const ids = [
+            "Gray Ogre",
+            "Grizzly Bears",
+            "Gray Ogre",
+            "Hill Giant",
+        ].map((n) => getCardByName(n).id);
+        const share = archetypeScopeShareOf(ids, getCardProfile)!;
+        // Three distinct cards; aggro 1 + 0.5, tokens 0.5; Hill Giant unprofiled.
+        expect(share.get("aggro")).toBeCloseTo(0.5);
+        expect(share.get("tokens")).toBeCloseTo(1 / 6);
+        expect(archetypeScopeShareOf([], getCardProfile)).toBeNull();
     });
 });
