@@ -251,6 +251,10 @@ export const LANE_JOBS: ReadonlyMap<string, string> = new Map([
     [".github/workflows/queue-lane.yml#queue-lane", "every merge"],
     [".github/workflows/health.yml#gate", "the base's GREEN/RED verdict"],
     [".github/workflows/release.yml#release", "the release branch"],
+    // The batch walk needs the lane machine's local Convex deployment and
+    // the lane slot (issue #9264); the hosted probe keeps an empty tick off
+    // the runner, so it holds the slot only while a PR is owed.
+    [".github/workflows/ui-batch.yml#collect", "every `ui-owed` PR's landing"],
 ]);
 
 /** The runner role a gate holds (ADR 0160). */

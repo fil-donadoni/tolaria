@@ -10,9 +10,22 @@
  *   no outcome (the walk was cut short: infra exit) → nothing touched.
  *
  * Runs on the lane machine (local Convex deployment, ADR 0156 lane slot).
- * Trigger: by hand, no arguments (a workflow is a follow-up). `land:ready`
- * runs in a throwaway worktree of each PR's pushed head. A refusal there is
- * commented and the label stays off. Exit: the batch's own code.
+ * Trigger (issue #9264): the `ui-batch` workflow — a hosted `--probe` every
+ * 30 min, then this collector on the `lane` runner only when a PR is owed —
+ * or by hand. `land:ready` runs in a throwaway worktree of each PR's pushed
+ * head. A refusal there is commented and the label stays off.
+ *
+ * A held PR (DROPPED / UNPROVEN) keeps `ui-owed`; its comment carries the
+ * head it was judged at (`heldMarker`), and a PR held at its CURRENT head is
+ * not owed again until a new push: a scheduled run never re-walks the same
+ * head forever. Naming PRs on the command line bypasses that filter.
+ *
+ *   --probe  print the owed PRs, write `owed=<N>` to $GITHUB_OUTPUT; no walk
+ *   --ci     an infra exit (`INFRA_EXITS`) that settled nothing exits 0 as
+ *            INFRA — labels untouched, the next tick retries; the per-PR
+ *            summary goes to $GITHUB_STEP_SUMMARY
+ *
+ * Exit: the batch's own code (`--ci`: 0 on INFRA).
  */
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -20,6 +33,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { FAILED_LABEL, UI_OWED_LABEL } from "../lib/land-labels.ts";
 import { gh } from "../lib/gh.ts";
+import { INFRA_EXIT } from "../lib/infra-exit.ts";
+import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable.ts";
+import { DEPLOYMENT_SKEW_EXIT } from "../lib/deployment-skew.ts";
 import { runBatch, type BatchOutcome } from "./batch-run.ts";
 
 export type CollectAction =
@@ -55,35 +71,93 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
     return actions;
 }
 
-function owedPrs(): number[] {
-    return (
-        JSON.parse(
-            gh([
-                "pr",
-                "list",
-                "--label",
-                UI_OWED_LABEL,
-                "--state",
-                "open",
-                "--json",
-                "number",
-                "--limit",
-                "50",
-            ])
-        ) as { number: number }[]
-    )
+/** The marker a hold comment carries: the head the batch judged. */
+export function heldMarker(sha: string): string {
+    return `<!-- check-ui-batch-held: ${sha} -->`;
+}
+
+/** An open `ui-owed` PR as `gh pr list` returns it. */
+export interface OwedPr {
+    number: number;
+    headRefOid: string;
+    comments: { body: string }[];
+}
+
+/** The PRs a scheduled batch owes a walk: every listed PR except one already
+ *  held at its current head (issue #9264). Pure. */
+export function owedFrom(prs: readonly OwedPr[]): number[] {
+    return prs
+        .filter(
+            (p) =>
+                !p.comments.some((c) =>
+                    c.body.includes(heldMarker(p.headRefOid))
+                )
+        )
         .map((p) => p.number)
         .sort((a, b) => a - b);
+}
+
+/** Exit codes of a walk the machine cut short: deployment down, deployment
+ *  skew, a gate that never started. */
+export const INFRA_EXITS: ReadonlySet<number> = new Set([
+    DEPLOYMENT_DOWN_EXIT,
+    DEPLOYMENT_SKEW_EXIT,
+    INFRA_EXIT,
+]);
+
+/** The workflow's exit: an infra exit that settled nothing is INFRA, never
+ *  a red batch (the next tick retries). Pure. */
+export function ciExit(code: number, settled: boolean): number {
+    return !settled && INFRA_EXITS.has(code) ? 0 : code;
+}
+
+/** The per-PR summary of a settled batch, one Markdown row each. Pure. */
+export function summaryRows(outcome: BatchOutcome): string[] {
+    return [
+        "| PR | Batch verdict |",
+        "| --- | --- |",
+        ...outcome.clean.map((pr) => `| #${pr} | CLEAN |`),
+        ...[...outcome.red.keys()].map((pr) => `| #${pr} | RED |`),
+        ...outcome.dropped.map(
+            ({ pr, reason }) => `| #${pr} | DROPPED — ${reason} |`
+        ),
+        ...outcome.unproven.map((pr) => `| #${pr} | UNPROVEN |`),
+    ];
+}
+
+function listOwed(): OwedPr[] {
+    return JSON.parse(
+        gh([
+            "pr",
+            "list",
+            "--label",
+            UI_OWED_LABEL,
+            "--state",
+            "open",
+            "--json",
+            "number,headRefOid,comments",
+            "--limit",
+            "50",
+        ])
+    ) as OwedPr[];
 }
 
 function comment(pr: number, body: string): void {
     gh(["pr", "comment", String(pr), "--body", body]);
 }
 
-function apply(action: CollectAction, log: (m: string) => void): void {
+function apply(
+    action: CollectAction,
+    heads: ReadonlyMap<number, string>,
+    log: (m: string) => void
+): void {
     const pr = String(action.pr);
     if (action.kind === "hold") {
-        comment(action.pr, action.comment);
+        const head = heads.get(action.pr);
+        comment(
+            action.pr,
+            head ? `${action.comment}\n\n${heldMarker(head)}` : action.comment
+        );
         return;
     }
     gh(["pr", "edit", pr, "--remove-label", UI_OWED_LABEL]);
@@ -140,14 +214,26 @@ function landFromPrHead(pr: number): string | null {
     }
 }
 
+function writeTo(envVar: string, text: string): void {
+    const file = process.env[envVar];
+    if (file) fs.appendFileSync(file, text);
+}
+
 async function main(): Promise<number> {
     const log = (m: string) => console.log(m);
-    const prs = process.argv.slice(2).some((a) => /^\d+$/.test(a))
-        ? process.argv
-              .slice(2)
-              .filter((a) => /^\d+$/.test(a))
-              .map(Number)
-        : owedPrs();
+    const args = process.argv.slice(2);
+    const ci = args.includes("--ci");
+    const named = args.filter((a) => /^\d+$/.test(a)).map(Number);
+    const listed = named.length > 0 ? [] : listOwed();
+    const heads = new Map(listed.map((p) => [p.number, p.headRefOid]));
+    const prs = named.length > 0 ? named : owedFrom(listed);
+    if (args.includes("--probe")) {
+        log(
+            `collect: ${prs.length} PR(s) owed${prs.length ? `: ${prs.map((p) => `#${p}`).join(" ")}` : ""}`
+        );
+        writeTo("GITHUB_OUTPUT", `owed=${prs.length}\n`);
+        return 0;
+    }
     if (prs.length === 0) {
         log("collect: no open ui-owed PR");
         return 0;
@@ -162,12 +248,21 @@ async function main(): Promise<number> {
         (o) => (outcome = o)
     );
     if (outcome === null) {
+        const infra = INFRA_EXITS.has(code);
         log(
-            `collect: the walk settled nothing (exit ${code}) — labels untouched`
+            `collect: the walk settled nothing (exit ${code}${infra ? ", INFRA" : ""}) — labels untouched`
         );
-        return code;
+        if (ci)
+            writeTo(
+                "GITHUB_STEP_SUMMARY",
+                `check:ui batch: settled nothing (exit ${code}${infra ? ", INFRA — the next tick retries" : ""}); labels untouched\n`
+            );
+        return ci ? ciExit(code, false) : code;
     }
-    for (const action of planCollect(outcome)) apply(action, log);
+    const settled: BatchOutcome = outcome;
+    if (ci)
+        writeTo("GITHUB_STEP_SUMMARY", `${summaryRows(settled).join("\n")}\n`);
+    for (const action of planCollect(settled)) apply(action, heads, log);
     return code;
 }
 

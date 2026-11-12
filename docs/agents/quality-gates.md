@@ -753,7 +753,15 @@ UNPROVEN PRs `ui-owed` with a comment (a DROPPED one's names the logged reason).
 A surface red in the batch and reached by several PRs is re-walked on each
 alone; only a measured `FAIL` there blames a PR — an `UNWALKED` / `INFRA` solo
 row leaves it UNPROVEN, never `land-failed` (issue #9210). It needs the local Convex deployment and
-the lane slot (ADR 0156); trigger is by hand until a workflow is measured.
+the lane slot (ADR 0156). Trigger (issue #9264): the `ui-batch` workflow every
+30 min and on dispatch — a GitHub-hosted probe counts the owed PRs (the probe
+itself ~1.4 s, its hosted job ≈ 30 s, the `lane` runner untouched), and only
+when one is owed does the collector run on the `lane` runner, serialised with
+the other lane jobs by the runner label; one batch costs one SCOPED walk, at
+most the full walk's ~15 min (not separately measured: the first scheduled
+runs' job time is the measurement). A PR held at its current head is not
+re-walked until a new push; an infra exit (3, 4, 77) touches no PR and exits
+0 as INFRA. By hand: `bun run check:ui:batch [PR#…]`.
 
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)
 

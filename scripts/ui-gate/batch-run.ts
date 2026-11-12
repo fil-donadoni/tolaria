@@ -470,6 +470,16 @@ export async function runBatch(
 
         if (merged.length === 0) {
             log("batch: no PR left to walk");
+            for (const d of dropped) log(`#${d.pr}: DROPPED — ${d.reason}`);
+            // Every PR dropped is still a settled batch: each is held with
+            // its reason, never left to be re-dropped silently on every
+            // scheduled run (issue #9264).
+            onOutcome?.({
+                clean: [],
+                red: new Map(),
+                dropped: dropped.map((d) => ({ ...d })),
+                unproven: [],
+            });
             return 1;
         }
         const heads = merged.map((m) => m.head);

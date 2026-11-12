@@ -58,7 +58,7 @@ and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
 (`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT`/`SCOPED`/`BATCH` (`--batch=`),
 never `DIAGNOSTIC`; never reflow a line.
 
-**Owed walk → label `ui-owed`**; `bun run check:ui:batch` walks all in one batch (#9122).
+**Owed walk → label `ui-owed`**; `bun run check:ui:batch` walks all in one batch (#9122), run every 30 min by the `ui-batch` workflow (#9264).
 
 **Six viewports per surface touched** (ADR 0101, ADR 0168), via `emulate`:
 desktop `1440x900x2` (and `1440x900x1`, DPR 1 in the full Chromium, on a

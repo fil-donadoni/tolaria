@@ -223,12 +223,14 @@ export const PR_RECEIPT_GUARDS: Readonly<
     },
     // The batch collector (issue #9122, #9106): one `check:ui` walk for every
     // open `ui-owed` PR, the receipts written into their bodies. Needs a
-    // deployment + browser, so never a lane step; run by hand, cost = one walk.
+    // deployment + browser, so never a lane step; the `ui-batch` workflow
+    // runs it on the `lane` runner when a PR is owed (issue #9264), cost =
+    // one walk.
     "check:ui:batch": {
         measuredCostS: 879,
         measured:
             "one `check:ui` walk for the batch; no separate measurement, same walk as `check:ui` (see above)",
-        why: "writes the `BATCH` receipt `land` re-derives into each clean PR's body; a walk needs a deployment and a browser, so it is never a lane step (issue #9122)",
+        why: "writes the `BATCH` receipt `land` re-derives into each clean PR's body; a walk needs a deployment and a browser, so it is never a lane step (issue #9122) — the `ui-batch` workflow runs it every 30 min when a PR is owed, a hosted probe keeping an empty tick off the lane runner (issue #9264)",
     },
     // The Draft Table Audit (issue #8895, PRD #8772): over 10 s, so not a lane
     // step. A diff touching the drafter, Auto-Build, the Card Profiles, the
