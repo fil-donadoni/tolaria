@@ -179,6 +179,7 @@ export function useLimitedEventMutations() {
     const leave = useMutation(api.limitedEvents.leaveLimitedEvent);
     const cancel = useMutation(api.limitedEvents.cancelLimitedEvent);
     const start = useMutation(api.limitedEvents.startLimitedEvent);
+    const startDraftNow = useMutation(api.limitedEvents.startDraftNow);
     const submitPick = useMutation(api.limitedEvents.submitPick);
     // Pool Arrangement persistence (ADR 0060, issue #1247).
     const setPoolArrangementEntry = useMutation(
@@ -193,6 +194,7 @@ export function useLimitedEventMutations() {
         leave,
         cancel,
         start,
+        startDraftNow,
         submitPick,
         setPoolArrangementEntry,
         selectDraftPick,

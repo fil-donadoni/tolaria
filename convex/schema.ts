@@ -908,6 +908,10 @@ export default defineSchema({
         // empties — every seat's Pool is final and deckbuilding can start.
         // Absent while the draft is still in progress (or for Sealed).
         draftCompletedAt: v.optional(v.number()),
+        // Draft only: epoch ms the table-intro countdown ends and round 0 is
+        // dealt (Bots pick, pick deadlines stamp from here). "Start now" moves
+        // it to the click; set with no `draftRound` = the intro is running.
+        draftStartsAt: v.optional(v.number()),
         // Per-seat identity + SMALL mutable state. The heavy card payload
         // (`pool`/`currentPack`/`packQueue`/`poolArrangement`) lives in the
         // `limitedSeats` child table below — see its comment for why. The

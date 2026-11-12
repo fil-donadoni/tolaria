@@ -52,6 +52,8 @@ export interface LimitedEventRow {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
+    /** Table-intro countdown end (issue #9167); no `draftRound` yet = running. */
+    draftStartsAt?: number;
     /** Per-pick timer on/off (issue #1114, PRD #1107 story 5; ADR 0060 /
      *  issue #1243 replaced the fixed-seconds value with this boolean) —
      *  absent/false === disabled. Not per-seat: it's the event-wide config,
@@ -301,6 +303,8 @@ export interface LimitedEventView {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
+    /** Table-intro countdown end (issue #9167); no `draftRound` yet = running. */
+    draftStartsAt?: number;
     timerEnabled?: boolean;
     /** Open Decklists (issue #5386) — DEFINITE on the wire: a legacy row with
      *  nothing stored reads `false`, so the review banner and the Join
@@ -533,6 +537,7 @@ export function projectLimitedEvent(
         draftRound: event.draftRound,
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
+        draftStartsAt: event.draftStartsAt,
         timerEnabled: event.timerEnabled,
         openDecklists: event.openDecklists ?? false,
         // Play phase (PRD #1628). `gamesFormat` is resolved here — the one
