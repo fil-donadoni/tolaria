@@ -75856,6 +75856,14 @@
         "firstPrintSet": "zen"
     },
     {
+        "name": "Spell Snare",
+        "scryfallId": "35554fdf-c70a-4baa-a35a-414caa9978be",
+        "oracleId": "38877c68-b69b-4ee1-8e8f-5137a184a8f7",
+        "firstSet": "dis",
+        "firstPrintId": "35554fdf-c70a-4baa-a35a-414caa9978be",
+        "firstPrintSet": "dis"
+    },
+    {
         "name": "Spell Snip",
         "scryfallId": "d6870203-ece9-4fe0-912b-2dcf685f3eb0",
         "oracleId": "cfdae813-7241-4f6c-99f0-c772af34af91",
