@@ -65,10 +65,10 @@ nickname from `ctx.auth`; clients cannot spoof identity.
 ### Data model
 
 - `gameStates` — **one row per game, patched in place** by `saveGameState`
-  (sole writer): compacted snapshot + monotonic `seq`. No undo history.
-  Libraries: `gameLibraries` (ADR 0179).
-- `gameTicks` — ~150-byte wake-up row beside every `gameStates` save:
-  subscribers need not hold the fat row.
+  (sole writer): compacted snapshot + `seq`. No undo history. Libraries:
+  `gameLibraries` (ADR 0179).
+- `gameTicks` — ~150-byte wake-up row per `gameStates` save, so subscribers
+  skip the fat row.
 - **No event log.** `game_events` was designed, never built; the snapshot is
   the source of truth (`docs/PROJECT.md` § Data model).
 
