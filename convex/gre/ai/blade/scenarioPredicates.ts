@@ -921,6 +921,26 @@ export function namesCardAbsentFromLibrary(
     );
 }
 
+/** Issue #9118 — a look-and-keep answered with EVERY keep-eligible card: the
+ *  chosen move is a `resolution-choice` whose submission is exactly the
+ *  pending choice's `eligibleIds`, and that set holds `count` cards (so an
+ *  entry whose window drifted to fewer eligible cards reds rather than
+ *  passing on a smaller keep). */
+export function keepsEveryEligibleCard(
+    move: Move | null,
+    state: GameState,
+    count: number
+): boolean {
+    if (move?.kind !== "resolution-choice") return false;
+    const eligible = state.pendingChoices?.[0]?.eligibleIds ?? [];
+    const kept = new Set(move.cardInstanceIds);
+    return (
+        eligible.length === count &&
+        kept.size === count &&
+        eligible.every((id) => kept.has(id))
+    );
+}
+
 /** The forced-sacrifice board shared by the issue-#8382 pair: three untapped
  *  creatures that can block (the 3/3 flash flier among them), two tapped
  *  ones, two mana rocks, four basics and a nonbasic surveil dual, every mana
