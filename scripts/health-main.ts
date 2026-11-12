@@ -139,6 +139,8 @@ import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
     describeAuditRecord,
     readAuditRecord,
+    sharedAuditStore,
+    type AuditRecord,
 } from "./lib/health-robustness-audit";
 import {
     retryNote,
@@ -211,6 +213,7 @@ import {
     rmSync,
     writeFileSync,
 } from "node:fs";
+import { hostname } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
     DURATIONS_ENV,
@@ -488,11 +491,7 @@ function status(root: string): never {
         console.log(
             `  offline: ${last.offline ?? "unrecorded"} · browser: ${last.browser ?? "unrecorded"}`
         );
-    const audit = readAuditRecord(dir);
-    if (audit)
-        console.log(
-            `  blade audit: ${describeAuditRecord(audit, pidAlive(audit.pid))}`
-        );
+    printAuditRecord(root, dir);
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
         console.log(
@@ -501,6 +500,25 @@ function status(root: string): never {
         for (const s of stale) console.log(`    · ${s}`);
     }
     process.exit(red ? 1 : 0);
+}
+
+/** The blade audit's SHARED record (issue #9294): the newest audit on any
+ *  machine. Its pid is checked only on the machine that ran it. */
+function printAuditRecord(root: string, dir: string): void {
+    let audit: AuditRecord | null;
+    try {
+        audit = readAuditRecord(sharedAuditStore(root), dir).record;
+    } catch (err) {
+        console.log(
+            `  blade audit: shared record UNREADABLE — ${(err as Error).message.split("\n")[0]}`
+        );
+        return;
+    }
+    if (!audit) return;
+    const local = audit.machine === undefined || audit.machine === hostname();
+    console.log(
+        `  blade audit: ${describeAuditRecord(audit, !local || pidAlive(audit.pid))}`
+    );
 }
 
 function pidAlive(pid: number | undefined): boolean {

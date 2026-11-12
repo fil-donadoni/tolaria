@@ -226,7 +226,6 @@
     "scripts/lib/gap-issues.ts#a70702af7d",
     "scripts/lib/generated-artifacts.ts#efe38fcb24",
     "scripts/lib/grammar-gaps.ts#2d454f3d01",
-    "scripts/lib/health-robustness-audit.ts#bb27fbfab2",
     "scripts/lib/health-robustness-drift.ts#22c730c51a",
     "scripts/lib/health-robustness-trigger.ts#4c016bdc19",
     "scripts/lib/health-step.ts#847303156f",
