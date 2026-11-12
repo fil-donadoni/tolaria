@@ -1,6 +1,6 @@
 /**
  * Lowering a board that holds a token built inside a `resolve()` closure
- * (CR 111 / 707.2): the token catalogue's static walk never sees such a spec,
+ * (CR 111.3): the token catalogue's static walk never sees such a spec,
  * so `specFromState` must still name it — through the art-stripped shape when
  * a catalogued shape matches, else through its raw `token:` definition id —
  * and the rebuilt scenario must re-create the same token, CR 604.3
@@ -48,7 +48,7 @@ function lower(state: GameState) {
     return specFromState(state, { mySeatId: state.players[0].id });
 }
 
-describe("specFromState — tokens created inside resolve() closures (CR 111 / 707.2)", () => {
+describe("specFromState — tokens created inside resolve() closures (CR 111.3)", () => {
     for (const [producer, printId] of CONSTRUCT_PRINTS) {
         it(`lowers and rebuilds ${producer}'s Construct with its CR 604.3 artifact-count CDA`, () => {
             const state = boardWithToken(

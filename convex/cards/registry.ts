@@ -1471,7 +1471,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
 }
 
 /** Decode a content-derived token definition id back into the `TokenSpec`
- *  that mints it (CR 111 / 707.2) — the spec-shaped inverse of
+ *  that mints it (CR 111.3) — the spec-shaped inverse of
  *  {@link tokenDefinitionId}, for a caller that must CREATE the token again
  *  (a scenario rebuilt from a lowered board) rather than only display it.
  *
