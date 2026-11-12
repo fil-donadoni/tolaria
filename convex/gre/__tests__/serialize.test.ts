@@ -1539,6 +1539,28 @@ describe("gameStates serialize round-trip", () => {
         expect(expanded.monarchReturnWatch).toEqual(state.monarchReturnWatch);
     });
 
+    // CR 610.3b — a save between a monarch-exile trigger and its resolution
+    // keeps both halves of the crown-change comparison.
+    it("preserves the crown-change epoch and a trigger's stamp of it (CR 610.3b)", () => {
+        const state = freshState();
+        state.monarchCrownings = 3;
+        state.stack = [
+            {
+                ...makeInstance(animateArtifact().id, {
+                    id: "monarch-exile-trigger",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "stack",
+                }),
+                castById: "p1",
+                monarchCrowningsAtTrigger: 2,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.monarchCrownings).toBe(3);
+        expect(expanded.stack[0].monarchCrowningsAtTrigger).toBe(2);
+    });
+
     it("preserves the City's Blessing designation across the round trip (CR 702.131, issue #1460)", () => {
         const state = freshState();
         // NON-exclusive: both players may hold it (unlike the monarch scalar).

@@ -242,6 +242,12 @@ export function buildTriggerItem(
         // CR 701.27f (issue #3537) — the moment this ability is put onto the
         // stack, as its source and that source's transform count.
         stackTransformStamp: stackTransformStamp(self),
+        // CR 610.3b — the crown-change epoch at the moment this ability
+        // triggered, so an "until an opponent becomes the monarch" exile can
+        // tell at resolution whether its event already occurred.
+        ...(state.monarchCrownings
+            ? { monarchCrowningsAtTrigger: state.monarchCrownings }
+            : {}),
     };
 }
 

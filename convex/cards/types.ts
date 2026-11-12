@@ -11,7 +11,7 @@ import type {
     PendingChoiceZone,
     FlipRecord,
 } from "../gre/types";
-import type { CastFromZone } from "../gre/state/declarations";
+import type { CastFromZone, ExileUntilEvent } from "../gre/state/declarations";
 import type { FlipSequenceRequest } from "../gre/flipSequence";
 
 // A hand-written Card Definition as a memoised factory (issue #4857): Set
@@ -5755,19 +5755,17 @@ export interface SpellContext {
              *  (CR 704.5n) and its Equipment detaches and stays on the
              *  battlefield. */
             includeAttachments?: boolean;
-            /** CR 610.3a / 610.3b — refuse the exile outright when `sourceId`
-             *  has ALREADY left play (neither on the battlefield nor on the
-             *  stack — a resolving spell is its own source and has not
-             *  "left the battlefield"). An "until <event>" exile is a
-             *  one-shot effect whose return half is a second one-shot created
-             *  when that event occurs; if the event happened first, "the object
-             *  doesn't move" at all. Set by the "until THIS leaves the
-             *  battlefield" family (the `exileWithAttachments` Op — Banishing
-             *  Light, Leyline Binding, Oblivion Ring, Tawnos's Coffin), whose
-             *  expiry event IS the source's departure. Palace Jailer leaves it
-             *  false on purpose: its event is a monarch change, so its exile
-             *  survives the Jailer's own death (CR 720). */
-            requireSourceOnBattlefield?: boolean;
+            /** CR 610.3a / 610.3b — the specified event of this "until
+             *  <event>" exile. An "until <event>" exile is a one-shot effect
+             *  whose return half is a second one-shot created when that event
+             *  occurs; if the event happened first, "the object doesn't move"
+             *  at all, so the exile is refused outright. The "until THIS
+             *  leaves the battlefield" family (the `exileWithAttachments` Op —
+             *  Banishing Light, Leyline Binding, Oblivion Ring, Tawnos's
+             *  Coffin) passes `source-leaves`: `sourceId` has left play (a
+             *  resolving spell is its own source and has not "left the
+             *  battlefield"). Absent = no guard. */
+            untilEvent?: ExileUntilEvent;
         }
     ) => string | null;
     /** CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
@@ -5793,7 +5791,9 @@ export interface SpellContext {
      *  condition is the monarch designation changing hands, not this card's
      *  own source leaving the battlefield — Palace Jailer leaving play does
      *  NOT return the exiled creature (official ruling). No-op if the target
-     *  isn't on the battlefield. */
+     *  isn't on the battlefield, and — CR 610.3b — when an opponent became
+     *  the monarch after the resolving ability triggered: nothing is exiled
+     *  and no watch is armed. */
     exileUntilMonarchChanges: (
         targetId: string,
         opts?: { returnTapped?: boolean }

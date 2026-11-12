@@ -7,11 +7,41 @@ import {
     pushSpell,
     resolveTriggerOrder,
 } from "../../../__tests__/setup.helper";
-import { resolveTopOfStack, becomeMonarch } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    becomeMonarch,
+    type GameState,
+} from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
 const palaceJailer = getDefinition("78cef262-c753-4658-b3ec-fec8db47f944");
+
+/** Cast Palace Jailer over a lone opposing bear and put both ETB triggers on
+ *  the stack, then resolve down to the exile trigger, leaving it on top. */
+function jailerExileTriggerOnTop(): GameState {
+    const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+    const victim = makeInstance(bear.id, {
+        id: "victim",
+        controllerId: "p2",
+        ownerId: "p2",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1"),
+            makePlayer("p2", { battlefield: [victim] }),
+        ],
+    });
+    pushSpell(state, palaceJailer.id, "p1");
+    resolveTopOfStack(state);
+    resolveTriggerOrder(state);
+    const top = () => state.stack[state.stack.length - 1];
+    while (top() && top().triggeredAbilityId !== "palace-jailer-exile") {
+        resolveTopOfStack(state);
+    }
+    expect(top()?.triggeredAbilityId).toBe("palace-jailer-exile");
+    return state;
+}
 
 describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR 720, issue #1199)", () => {
     it("becomes the monarch and exiles the sole legal opposing creature on ETB", () => {
@@ -69,6 +99,37 @@ describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR
         state.players[0].battlefield = [];
         expect(state.players[1].exile).toHaveLength(1);
         expect(state.monarchReturnWatch).toHaveLength(1);
+
+        // …and the first opponent crowning after it still frees the creature.
+        becomeMonarch(state, "p2");
+        expect(state.players[1].exile).toHaveLength(0);
+        expect(state.players[1].battlefield[0]?.id).toBe("victim");
+    });
+
+    it("CR 610.3b — an opponent crowned while the exile trigger is on the stack leaves the creature where it is", () => {
+        const state = jailerExileTriggerOnTop();
+        becomeMonarch(state, "p2");
+        resolveTopOfStack(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "victim",
+        ]);
+        expect(state.players[1].exile).toHaveLength(0);
+        expect(state.exileHeld ?? []).toHaveLength(0);
+        expect(state.monarchReturnWatch).toBeUndefined();
+    });
+
+    it("CR 610.3b — the controller re-crowned while the exile trigger is on the stack still exiles", () => {
+        const state = jailerExileTriggerOnTop();
+        becomeMonarch(state, "p1");
+        resolveTopOfStack(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["victim"]);
+        expect(state.monarchReturnWatch).toEqual([
+            expect.objectContaining({ controllerId: "p1" }),
+        ]);
     });
 
     it("releases the exiled creature the moment an opponent becomes the monarch", () => {
