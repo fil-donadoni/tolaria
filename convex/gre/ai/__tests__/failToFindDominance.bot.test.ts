@@ -1,5 +1,5 @@
 // CR 701.23b — "fail to find" pruned where finding is a strict gain (issue
-// #6761).
+// #6761; a reveal of the find is not a reader, issue #8854).
 //
 // THE BUG. A "may search" tutor (`count: { min: 0, max: 1 }`) always offered
 // the empty pick as its own tree branch. ISMCTS backs the MEAN of a choice
@@ -191,14 +191,57 @@ describe("fail to find is pruned where finding is a strict gain (CR 701.23b)", (
     });
 
     it("keeps the empty branch when the script reads the find beyond moving it", () => {
-        // Eladamri's Call reveals the find before it moves it to hand: the
-        // binding has a second reader.
+        // "Put it into your hand. You gain life equal to its mana value": the
+        // binding has a second reader that counts by what was found.
+        const id = "test-8854-may-search-counted";
+        registerTokenDefinition({
+            id,
+            name: "Test May-Search Counted",
+            rarity: "common",
+            manaCost: { U: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$picked.manaValue" },
+                },
+            ],
+        } as CardDefinition);
+        const { state, choice } = openSearchChoice(
+            id,
+            Array.from({ length: ROOMY }, () => juggernaut().id)
+        );
+        expect(choicePicksOnlyMoved(state, choice)).toBe(false);
+        expect(keys(state, choice)).toContain(NONE);
+    });
+
+    it("a reveal before the move is not a second reader (CR 701.20a)", () => {
+        // Eladamri's Call reveals the find, then puts it into the hand: the
+        // reveal only shows the card, so finding is still a strict gain.
         const { state, choice } = openSearchChoice(
             eladamrisCall().id,
             Array.from({ length: ROOMY }, () => ornithopter().id)
         );
-        expect(choicePicksOnlyMoved(state, choice)).toBe(false);
-        expect(keys(state, choice)).toContain(NONE);
+        expect(choicePicksOnlyMoved(state, choice)).toBe(true);
+        expect(keys(state, choice)).not.toContain(NONE);
     });
 
     it("an empty eligible pool still answers with the empty pick", () => {

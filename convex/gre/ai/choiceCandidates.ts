@@ -116,6 +116,7 @@ import {
     choiceFindDestination,
     choicePicksADiscard,
     choicePicksOnlyMoved,
+    declineLosesGame,
     searchFindDestination,
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
@@ -255,7 +256,7 @@ function mayPayTapPlan(
  *  legs admit. Self-pruning — an unaffordable cost yields the decline only, and
  *  a threshold sacrifice leg yields at most two policy picks (fewest bodies /
  *  cheapest material), never the subset lattice. */
-const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
+const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
     const out: Omit<ChoiceCandidate, "prior">[] = [
         { key: "may-pay:no", move: { kind: "may-pay", accept: false } },
     ];
@@ -411,6 +412,21 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         });
     }
     return out;
+};
+
+/** `may-pay`'s answers, without the decline where it is DOMINATED: an accept
+ *  is payable and declining loses the game for the decliner
+ *  (`declineLosesGame`, CR 104.3e — the Pact cycle's upkeep). ISMCTS backs the
+ *  MEAN of a choice node's children up to the move that raised it, so every
+ *  visit spent on the losing decline drags the cast that scheduled the payment
+ *  below `pass` — the dilution `failToFindIsDominated` removes from a library
+ *  search, on the same terms. Search-side only: the decline stays LEGAL, the
+ *  engine still accepts it, and a human is still offered it. */
+const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const out = mayPayAnswers(state, choice);
+    return out.length > 1 && declineLosesGame(state, choice)
+        ? out.filter((c) => c.key !== "may-pay:no")
+        : out;
 };
 
 /** `number-pick` (CR 107.1c / 107.3f, issues #1701 / #1421): a NUMERIC

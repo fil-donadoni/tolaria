@@ -309,12 +309,14 @@ function namesBinding(value: string, bind: string): boolean {
     );
 }
 
-/** Whether anything in `value` reads `bind`, OTHER than the two sites the
- *  sole-move shape allows: the raising `choice` Op's own `bind` / `id`, and the
+/** Whether anything in `value` reads `bind`, OTHER than the three sites the
+ *  sole-move shape allows: the raising `choice` Op's own `bind` / `id`, the
  *  `cards` of a `moveZone` that moves the picks under the controller and binds
- *  nothing itself. A `moveZone` that re-binds what entered ("sacrifice it at
- *  the beginning of the next end step") hands the find to a later reader, so
- *  it counts as a read. */
+ *  nothing itself, and the `cards` of a `reveal` that binds nothing ("reveal
+ *  it, put it into your hand"). A `moveZone` that re-binds what entered
+ *  ("sacrifice it at the beginning of the next end step") hands the find to a
+ *  later reader, so it counts as a read. A reveal only shows the card to every
+ *  player (CR 701.20a): it charges, deals and counts nothing. */
 function readsBindingElsewhere(
     value: unknown,
     bind: string,
@@ -335,6 +337,12 @@ function readsBindingElsewhere(
         (rec.cards as { ref?: unknown } | undefined)?.ref === bind
     ) {
         if (rec.bind !== undefined || rec.player !== "controller") return true;
+        skip.add("cards");
+    } else if (
+        rec.op === "reveal" &&
+        rec.bind === undefined &&
+        (rec.cards as { ref?: unknown } | undefined)?.ref === bind
+    ) {
         skip.add("cards");
     }
     return Object.entries(rec).some(
@@ -365,4 +373,39 @@ export function choicePicksOnlyMoved(
     const choiceOp = choiceOpFor(flattenOps(script, []), choice.choiceId);
     if (!choiceOp) return false;
     return !readsBindingElsewhere(script, choiceOp.bind, choiceOp.op);
+}
+
+/** The ops of a `then` / `else` branch that end the game against the script's
+ *  controller (CR 104.3e). */
+const losesForController = (ops: readonly EffectOp[] | undefined): boolean =>
+    (ops ?? []).some((o) => o.op === "loseGame" && o.player === "controller");
+
+/** Whether DECLINING the `may-pay` `choice` loses the game for the player
+ *  declining it (CR 104.3e: an effect may state that a player loses the game):
+ *  the source's script reads the payment's binding in an `if` whose unpaid arm
+ *  is a `loseGame` of its controller — the Pact cycle's "pay {2}{G}{G}. If you
+ *  don't, you lose the game.", either `if { not $paid } then loseGame` or
+ *  `if $paid … else loseGame`. The choice must be the stack item controller's
+ *  own, so "controller" names the decliner. Fails closed like the rest of this
+ *  module: an underivable script or a binding read any other way answers
+ *  `false`. Pure. */
+export function declineLosesGame(
+    state: GameState,
+    choice: PendingChoice
+): boolean {
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    if (!item || item.controllerId !== choice.playerId) return false;
+    const script = resolvingEffectScript(item);
+    if (!script) return false;
+    const bind = unscopedBindingName(choice.choiceId);
+    return flattenOps(script, []).some((op) => {
+        if (op.op !== "if") return false;
+        const predicate = op.predicate as {
+            binding?: unknown;
+            not?: { binding?: unknown };
+        };
+        if (predicate.not?.binding === bind) return losesForController(op.then);
+        if (predicate.binding === bind) return losesForController(op.else);
+        return false;
+    });
 }
