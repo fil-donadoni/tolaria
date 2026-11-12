@@ -4035,7 +4035,7 @@ function isSimultaneousReanimationBody(effects: unknown): boolean {
     if (op.op !== "moveZone" || op.to !== "battlefield") return false;
     const target = op.target as Record<string, unknown> | undefined;
     if (!target || target.ref !== "$each") return false;
-    const allowed = new Set(["op", "target", "to", "controller"]);
+    const allowed = new Set(["op", "target", "to", "controller", "tapped"]);
     return Object.keys(op).every((k) => allowed.has(k));
 }
 

@@ -1173,6 +1173,45 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         ).toBe(false);
     });
 
+    it("`tapped` on the simultaneous body returns every matching card tapped (CR 110.5a)", () => {
+        const id = registerScript("test-foreach-gy-simul-tapped", [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Enchantment" },
+                },
+                simultaneous: true,
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "battlefield",
+                        tapped: true,
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyCard(ENCH_ID, "s-tap-a"),
+                        gyCard(ENCH_ID, "s-tap-b"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const cid of ["s-tap-a", "s-tap-b"]) {
+            const perm = state.players[0].battlefield.find((c) => c.id === cid);
+            expect(perm?.tapped).toBe(true);
+        }
+    });
+
     it("a reanimated Aura attaches to an enchantment-creature reanimated in the SAME simultaneous event (CR 303.4c / 400.7) — the batching proof", () => {
         // The whole point of the batch primitive: the Aura's CR 303.4
         // host-legality check must see a creature that's ALSO being
