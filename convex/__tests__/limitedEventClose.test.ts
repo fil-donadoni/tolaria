@@ -547,6 +547,12 @@ describe("full path (issue #2357 AC): close removes the event from the in-progre
             {
                 users: USERS,
                 limitedEvents: [event as unknown as InMemoryRow],
+                // The membership index both list queries read through.
+                limitedEventMembers: USERS.map((user) => ({
+                    _id: `member-${user._id}`,
+                    userId: user._id,
+                    eventId: event._id,
+                })),
             },
             { identitySubject: "user1|session1" }
         );

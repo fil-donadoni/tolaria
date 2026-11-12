@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { useMutation, useQuery, type ReactMutation } from "convex/react";
+import { useEffect, useState } from "react";
+import {
+    useMutation,
+    useQueries,
+    useQuery,
+    type ReactMutation,
+    type RequestForQueries,
+} from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -91,13 +97,9 @@ export function useMyLimitedEvents(): LimitedEventSummaryView[] | undefined {
 export function useMyCurrentLimitedEvents(
     /**
      * `false` skips the subscription outright, for a caller that is mounted
-     * where its own result is discarded (issue #2582 review: `AppShell` mounts
-     * on EVERY route including the board, where no band that could show an
-     * event is rendered). This query scans the `limitedEvents` table — whose
-     * documents embed `seats[].pool`, `currentPack` and `rounds` — and
-     * re-executes for every subscribed client on every write to any of them,
-     * i.e. on every draft pick anywhere in the app. An always-live subscriber
-     * that throws the answer away is not free.
+     * where its own result is discarded. An always-live subscriber that
+     * throws the answer away is not free: it re-executes whenever one of the
+     * viewer's events is written, i.e. on every pick at their table.
      */
     enabled = true
 ): LimitedEventSummaryView[] | undefined {
@@ -106,6 +108,39 @@ export function useMyCurrentLimitedEvents(
         api.limitedEvents.myCurrentLimitedEvents,
         enabled && pageVisible ? {} : "skip"
     );
+}
+
+// `useQueries` requests: skipping means asking for nothing.
+const CURRENT_EVENTS_QUERY: RequestForQueries = {
+    events: { query: api.limitedEvents.myCurrentLimitedEvents, args: {} },
+};
+const NO_QUERIES: RequestForQueries = {};
+
+/** {@link useMyCurrentLimitedEvents} for the app shell, which must never die
+ *  of it (issue #6076): a failed "current events" read is no reason to blank
+ *  the routed page. `useQuery` re-throws a query's error into the render, and
+ *  the shell wraps every route, so one bad answer took the whole app down.
+ *  `useQueries` hands the error back as a value instead; it is logged once
+ *  and read as "no event to return to", which is what the shell can render
+ *  without the answer. */
+export function useMyCurrentLimitedEventsForChrome(
+    enabled: boolean
+): LimitedEventSummaryView[] | undefined {
+    const pageVisible = usePageVisible();
+    const live = enabled && pageVisible;
+    // Module constants, so the request is referentially stable across renders.
+    const queries = live ? CURRENT_EVENTS_QUERY : NO_QUERIES;
+    const result = useQueries(queries).events as
+        | LimitedEventSummaryView[]
+        | Error
+        | undefined;
+    const failure = result instanceof Error ? result.message : null;
+    useEffect(() => {
+        if (failure !== null) {
+            console.warn(`Current Limited events unavailable: ${failure}`);
+        }
+    }, [failure]);
+    return result instanceof Error ? [] : result;
 }
 
 /** One event, projected for the current viewer (own Pool visible, every
