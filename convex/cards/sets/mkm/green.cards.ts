@@ -12,8 +12,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // with `simultaneous: true` hands the whole frozen land set to the entry
 // funnel as ONE event (the Replenish shape, uds/white.cards.ts), so every
 // land is staged before any landfall trigger looks at the battlefield. Each
-// land enters tapped (CR 614.1c); cards return to their owner's control
-// (CR 108.3 — the set is "your graveyard", so owner = you).
+// land enters tapped (CR 110.5b); cards return under their owner's control.
 // hand-tail: {3}{G}, Sacrifice this creature: Return all land cards from your graveyard to the battlefield tapped. (#8605)
 export const aftermathAnalyst = defineCard(() => ({
     id: "374e54d8-8e73-4268-9dde-c28c77bbbf32",

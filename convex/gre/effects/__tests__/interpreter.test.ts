@@ -1173,7 +1173,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         ).toBe(false);
     });
 
-    it("`tapped` on the simultaneous body returns every matching card tapped (CR 110.5a)", () => {
+    it("`tapped` on the simultaneous body returns every matching card tapped (CR 110.5b)", () => {
         const id = registerScript("test-foreach-gy-simul-tapped", [
             {
                 op: "forEach",

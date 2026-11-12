@@ -9074,7 +9074,7 @@ function execForEach(
                       controllerId,
                       fromZone
                   );
-            // CR 110.5a — "…to the battlefield tapped": the same direct `tap`
+            // CR 110.5b — "…to the battlefield tapped": the same direct `tap`
             // after entry the per-member `moveZone` path performs, on each
             // permanent that actually entered.
             if (body.tapped) {
