@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { CURVE_MAX_BUCKET } from "../../convex/limited/botDrafter";
 import { EMPTY_PROFILE_LAYERS } from "../../convex/limited/cardProfilesCore";
+import { archetypeScopeShareForPackSlots } from "../../convex/limited/planArchetype";
 import {
     buildDraftLabCardProfile,
     buildDraftLabSeatDecks,
@@ -126,11 +127,17 @@ export function runDraftAudit(
         packSlots,
         EMPTY_PROFILE_LAYERS
     );
+    // `runFullDraftLab` snapshots no DB profile rows, so the build reads the
+    // same seed-only profiles this share is computed from.
+    const scopeShare = archetypeScopeShareForPackSlots(
+        packSlots,
+        getCardProfile
+    );
     const decks: DeckAudit[] = [];
     for (const seed of seeds) {
         const state = runFullDraftLab(seed, packSlots);
         for (const seat of buildDraftLabSeatDecks(state)) {
-            decks.push(auditSeatDeck(seed, seat, getCardProfile));
+            decks.push(auditSeatDeck(seed, seat, getCardProfile, scopeShare));
         }
     }
     return {
@@ -174,10 +181,16 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // spells carrying the plan's tag, so a plan-neutral removal spell
         // reads as off-plan: the narrower vocabulary lowers it by
         // construction while the table gets more varied (control the plan of
-        // 40 seats of 64, was 50). The plan choice itself is issue #9298's.
-        worstDeckCastability: 0.74,
-        meanPlanShare: 0.42,
-        meanCapabilityPairs: 16.68,
+        // 40 seats of 64, was 50).
+        // Loosened again 0.74 → 0.72, 0.42 → 0.41 and 16.68 → 16.53 by the
+        // scope-relative plan (issue #9298): control is the plan of 23 seats
+        // (was 40) and eight plans are built, among them `lands` and
+        // `spells`. A narrower plan holds fewer tagged spells and fewer
+        // Capability partners; the worst deck is one GR `ramp` seat
+        // (seed 8 seat 5), the next at 0.744.
+        worstDeckCastability: 0.72,
+        meanPlanShare: 0.41,
+        meanCapabilityPairs: 16.53,
     },
     lea: {
         builtShare: 1,
