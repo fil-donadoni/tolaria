@@ -1,12 +1,5 @@
 import type { Player } from "~/types/game";
-import {
-    matchesPlayerTargetFilters,
-    wantsPlayerTarget,
-} from "~/lib/card-utils";
-import {
-    isBarredByRequiredTargetChoice,
-    isPlayerUntargetableByPending,
-} from "~/lib/targeting";
+import { isLegalPlayerTarget } from "~/lib/target-candidates";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -132,42 +125,18 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
 
     const isTargetable =
         isAttackTargetCandidate ||
-        (!!pendingTarget &&
-            pendingTarget.playerId === playerId &&
-            // Accepts scalar "player"/"any" AND the array form (Lava Spike's
-            // ["player", "Planeswalker"]) — a raw === "player" missed arrays.
-            wantsPlayerTarget(pendingTarget.targetType) &&
-            // CR 109.3 / 115 / 506.2 / 601.2c — EVERY player-kind filter
-            // dimension, routed through the SAME target-filter registry
-            // (`checkPlayerTargetFilters`, ADR 0068) the server's offered set
-            // (`getLegalTargets`) and accepted set (`selectTarget`) already share.
-            // The per-dimension clauses that used to live inline here covered
-            // `playerAttackedThisTurn` and the CR 601.2c already-picked exclusion
-            // but simply did not have `controller` (Word of Command's "target
-            // opponent"), so both nameplates lit up and the server rejected the
-            // click — the #1697 symptom, player-kind (issue #1734).
-            matchesPlayerTargetFilters(
-                player,
-                pendingTarget,
-                activePlayerId,
-                allPlayers
-            ) &&
-            // CR 702.18 (applied to a player via CR 115.4) — don't offer a
-            // shrouded player as a click-to-target candidate; the server would
-            // reject it anyway (issue #1128, mirrors the battlefield's
-            // `isUntargetableByPending` gate for shrouded permanents, #382).
-            // CR 702.16b/i (issue #674) — same treatment for a player with
-            // protection from everything (The One Ring), folded into the same
-            // guard; it arrives as the wire designation, not a permanent's static.
-            !isPlayerUntargetableByPending(
-                allPlayers,
-                player.id,
-                playerProtectionFromEverything
-            ) &&
-            // CR 601.2c — while a target-choice requirement binds this pick
-            // (Flagbearer), the chooser must choose one of the permanents the
-            // engine narrowed to, so no nameplate is a legal click.
-            !isBarredByRequiredTargetChoice(pendingTarget, player.id));
+        // CR 109.3 / 115 / 506.2 / 601.2c / 702.18 — the shared player
+        // candidate predicate (`target-candidates.ts`): every player-kind
+        // filter through the target-filter registry (issue #1734), the
+        // shroud / protection-from-everything gate (issues #1128, #674) and
+        // the Flagbearer narrowing — the set the targeting arrow (issue
+        // #9163) snaps to.
+        isLegalPlayerTarget(player, pendingTarget, {
+            viewerId: playerId,
+            activePlayerId,
+            allPlayers,
+            playerProtectionFromEverything,
+        });
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a
