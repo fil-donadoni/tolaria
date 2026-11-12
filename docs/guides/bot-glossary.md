@@ -449,10 +449,12 @@ owner admits to `must` anyway leaves it for good and is counted as **burned**.
 Where it stands: the Verdict Lock holds 101 Verdicts (last promotion
 2026-10-03), held-out n = 24; the last run (2026-10-11) printed pick agreement
 14/24 = 58.3% (`pass` 6/7, `land-drop` 5/9, `cast` 2/6), stable across eleven
-runs within 13–15. The automatic post-verdict health audit that produced those
-runs has not fired since, and every record it left reads `failed` because the
-vitest runner asserts nothing — the number is in the log, not in
-`health:status`. Run by hand: `bun run verdicts:pick-agreement` (≈ 7 minutes).
+runs within 13–15. No health or nightly step runs it: at this `n` the number
+moves from run to run, so an automated reading raises false alarms. Run it by
+hand after each `verdicts:promote`, whose report ends by saying so:
+`bun run verdicts:pick-agreement` (≈ 7 minutes). It exits 0 only when every
+held-out Verdict could be searched, so its printed block is paste-able as the
+held-out receipt a strength claim owes.
 
 <a id="beyond-budget"></a>**Beyond budget** — a test position the Bot solves
 only with more search than a real game grants, recorded with _why_: too many
