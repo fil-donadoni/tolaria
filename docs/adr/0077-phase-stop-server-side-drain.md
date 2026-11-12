@@ -192,12 +192,14 @@ real saving has been measured.
 
 The decisions above are implemented as written, with these readings:
 
-- **Predicate and preference shape** live in `convex/gre/autoPass.ts`
-  (`autoPassBlocked`, `phaseStopSkips`, `PhaseSkipPrefs`,
-  `DEFAULT_SKIP_PREFS`); `src/lib/skip-phase-prefs.ts` re-exports the shape
-  and the defaults. The client's `computeAutoPassBlocked` is unchanged: it
-  reads the projected view, not a `GameState`, and stays the fallback loop's
-  predicate (§ Consequences).
+- **The predicate** lives in `convex/gre/autoPass.ts` (`autoPassBlocked`,
+  `phaseStopSkips`); **the preference shape and its defaults** in the
+  card-free `convex/phaseStopPrefs.ts`, because `convex/gamePrefs.ts` is
+  imported by modules that must not load the engine.
+  `src/lib/skip-phase-prefs.ts` re-exports the shape and the defaults. The
+  client's `computeAutoPassBlocked` is unchanged: it reads the projected
+  view, not a `GameState`, and stays the fallback loop's predicate
+  (§ Consequences).
 - **Undeclared attackers block for either seat**, not only the active one:
   nobody may pass before the declaration.
 - **The Bot seat's row is seeded in `saveGameState`'s insert branch** — the

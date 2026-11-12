@@ -6,14 +6,14 @@ import {
     isSkippablePhase,
     type PhaseSkipPrefs,
     type Side,
-} from "@convex/gre/autoPass";
+} from "@convex/phaseStopPrefs";
 import {
     computeAutoPassBlocked,
     type AutoPassBlockedCtx,
 } from "~/lib/priority";
 
 // The preference shape, its defaults and the skippable set are the engine's
-// (`convex/gre/autoPass.ts`, ADR 0077): the server drain reads the same rows
+// (`convex/phaseStopPrefs.ts`, ADR 0077): the server drain reads the same rows
 // this file stores, so there is one definition of what a stored `true` means.
 export {
     DEFAULT_SKIP_PREFS,

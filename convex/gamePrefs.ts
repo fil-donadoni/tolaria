@@ -12,7 +12,7 @@ import {
     DEFAULT_SKIP_PREFS,
     sanitizeSkipPrefs,
     type PhaseSkipPrefs,
-} from "./gre/autoPass";
+} from "./phaseStopPrefs";
 
 type ReadCtx = Pick<GenericQueryCtx<DataModel>, "db">;
 type WriteCtx = Pick<GenericMutationCtx<DataModel>, "db">;

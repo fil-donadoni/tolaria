@@ -23,11 +23,10 @@ import { setSkipPrefs } from "../../gamePrefs";
 import { saveGameState } from "../../gameStateStore";
 import {
     DEFAULT_SKIP_PREFS,
-    autoPassBlocked,
-    phaseStopSkips,
     sanitizeSkipPrefs,
     type PhaseSkipPrefs,
-} from "../autoPass";
+} from "../../phaseStopPrefs";
+import { autoPassBlocked, phaseStopSkips } from "../autoPass";
 import { passPriorityOnState } from "../owedInputDeclines";
 import type { GameState } from "../state";
 

@@ -142,7 +142,7 @@ export default defineSchema({
     // drain reads to pass a run of skipped steps in one mutation. Outside
     // `gameStates` on purpose — the hot row does not grow, and a toggle
     // bumps no `seq`. `skipPrefs` is a `PhaseSkipPrefs`
-    // (`convex/gre/autoPass.ts`), sanitised on both write and read.
+    // (`convex/phaseStopPrefs.ts`), sanitised on both write and read.
     // `convex/gamePrefs.ts` is the only module that reads or writes it.
     gamePrefs: defineTable({
         gameId: v.id("games"),

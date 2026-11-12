@@ -51,7 +51,7 @@ import type {
     TextChange,
 } from "../../cards/types";
 import type { GrantedAbilityOrigin } from "../activatedAbilities";
-import type { PhaseSkipPrefs } from "../autoPass";
+import type { PhaseSkipPrefs } from "../../phaseStopPrefs";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { DeckColorsBySeat } from "../deckKnowledge";
 import type { FaceDownProducer } from "../faceDown";
