@@ -158,6 +158,7 @@ import {
     type HealthStep,
     derivePredicateAnswer,
     DERIVED_GRACE_MS,
+    brokenPredicateVerdict,
     derivedTipVerdict,
     queuedHousekeeping,
 } from "./lib/health-step";
@@ -955,6 +956,7 @@ function judgeDerivedTip(
     // reports the late line and never tries to file or close.
     const args = ["run", "derive:sync", "--settled"];
     if (mode === "early") args.push("--no-file");
+    const startedAt = Date.now();
     const r = spawnSync("bun", args, {
         cwd: wt,
         encoding: "utf8",
@@ -967,10 +969,11 @@ function judgeDerivedTip(
         output: `${r.stdout ?? ""}${r.stderr ?? ""}`,
     });
     if (answer.kind === "broken")
-        return {
-            kind: "red",
-            reason: `derive:sync --settled gave no verdict (${answer.why}) — the predicate itself is broken on this tip, not waited on`,
-        };
+        return brokenPredicateVerdict({
+            why: answer.why,
+            startedAt,
+            lastSleepAt: readLastSleepAt(),
+        });
     // The tip's committer time: every base commit is made at its landing —
     // the queue squashes, `derive:sync` / `gaps:sync` `commit-tree` — so it
     // is when the tip appeared, and the grace counts from there.
@@ -1664,8 +1667,9 @@ async function main(): Promise<void> {
                     pending = judged.reason;
                     break;
                 }
-                if (judged.kind === "red") {
+                if (judged.kind === "red" || judged.kind === "infra") {
                     failedStep = DERIVE_STEP;
+                    if (judged.kind === "infra") failedCause = judged.cause;
                     failedOutput = {
                         output: `${DERIVE_STEP}: ${judged.reason}\n`,
                         status: 1,
