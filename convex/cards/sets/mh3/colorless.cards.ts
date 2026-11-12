@@ -10,7 +10,9 @@ import {
     DELIRIUM_CARD_TYPES,
     PERMANENT_TYPES,
     type LandEntryStateView,
+    type TargetRequirement,
 } from "../../types";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Shifting Woodland — Land.
 // "This land enters tapped unless you control a Forest.
@@ -160,5 +162,66 @@ export const arenaOfGlory = defineCard(() => ({
             effect: (ctx) => ctx.addMana({ R: 2 }),
             manaProduced: { R: 2 },
         },
+    ],
+}));
+
+// Devourer of Destiny — {5}{C}{C} Creature — Eldrazi 6/6.
+// "You may reveal this card from your opening hand. If you do, at the
+//  beginning of your first upkeep, look at the top four cards of your library.
+//  You may put one of those cards back on top of your library. Exile the rest.
+//  When you cast this spell, exile target permanent that's one or more colors."
+//
+// CR 103.6b — the reveal is `openingHandAction: "reveal"`, taken in the
+// pre-game window `gre/mulligan.ts` opens; what it sets up is the delayed
+// trigger of CR 603.7 declared by `openingHandReveal`, at the beginning of the
+// revealing player's first upkeep. The dig is the shipped `lookDistribute`: look
+// at four, keep up to one on top of the library (`keepTo: "library-top"`,
+// `optional`), exile the rest. CR 113.6k — the cast trigger functions
+// from the stack (`scope: "self"`), as Ugin's does; "one or more colors" is
+// `colorFilterAny` over the five colours (CR 105.2), and the slot is mandatory
+// (`count` 1), unlike Ugin's "up to one".
+const DEVOURER_COLORED_PERMANENT: TargetRequirement = {
+    type: [...PERMANENT_TYPES],
+    count: 1,
+    colorFilterAny: ["W", "U", "B", "R", "G"],
+};
+
+// hand-tail: When you cast this spell, exile target permanent that's one or more colors. (#8598)
+export const devourerOfDestiny = defineCard(() => ({
+    id: "560debcd-feb4-4534-991e-a7aa1cca2409",
+    rarity: "rare",
+    name: "Devourer of Destiny",
+    oracleText:
+        "You may reveal this card from your opening hand. If you do, at the beginning of your first upkeep, look at the top four cards of your library. You may put one of those cards back on top of your library. Exile the rest.\nWhen you cast this spell, exile target permanent that's one or more colors.",
+    manaCost: { X: 5, C: 2 },
+    types: ["Creature"],
+    subtypes: ["Eldrazi"],
+    power: 6,
+    toughness: 6,
+    openingHandAction: "reveal",
+    openingHandReveal: {
+        oracleText:
+            "At the beginning of your first upkeep, look at the top four cards of your library. You may put one of those cards back on top of your library. Exile the rest.",
+        effects: [
+            {
+                op: "lookDistribute",
+                player: "controller",
+                look: 4,
+                take: 1,
+                keepTo: "library-top",
+                optional: true,
+                destination: "exile",
+            },
+        ],
+    },
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "devourer-of-destiny-cast-exile",
+            oracleText:
+                "When you cast this spell, exile target permanent that's one or more colors.",
+            scope: "self",
+            targetRequirement: DEVOURER_COLORED_PERMANENT,
+            effects: [{ op: "exile", target: { target: 0 } }],
+        }),
     ],
 }));

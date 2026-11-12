@@ -3650,8 +3650,21 @@ export interface OffBattlefieldCharacteristics {
  *  this card is in your opening hand, you may begin the game with it on the
  *  battlefield" (the Leylines) — the player puts the card onto the
  *  battlefield. That is not casting or playing it: no cast triggers, no land
- *  drop, but entry replacements and ETB triggers apply as for any entry. */
-export type OpeningHandAction = "begin-on-battlefield";
+ *  drop, but entry replacements and ETB triggers apply as for any entry.
+ *  `"reveal"` is CR 103.6b: "You may reveal this card from your opening
+ *  hand" — the card stays revealed until the first turn begins and sets up
+ *  the delayed trigger {@link CardDefinition.openingHandReveal} declares. */
+export type OpeningHandAction = "begin-on-battlefield" | "reveal";
+
+/** CR 103.6b — what a card that lets its owner reveal it from their opening
+ *  hand (`openingHandAction: "reveal"`) does for having done so: a delayed
+ *  triggered ability (CR 603.7) that triggers at the beginning of that
+ *  player's first upkeep. `oracleText` is the ability's own sentence, shown
+ *  on the stack. */
+export type OpeningHandRevealTrigger = {
+    oracleText: string;
+    effects: EffectOp[];
+};
 
 /** CR 612.6 — "this permanent has the full text of <object>": a layer-3
  *  (CR 613.1c) text-changing effect that replaces not only the rules text but
@@ -23015,6 +23028,9 @@ export interface CardDefinition {
      *  opening hand, once the mulligan process is complete and before the
      *  first turn begins. See {@link OpeningHandAction}. */
     openingHandAction?: OpeningHandAction;
+    /** CR 103.6b — required with `openingHandAction: "reveal"`: the delayed
+     *  trigger a reveal sets up. See {@link OpeningHandRevealTrigger}. */
+    openingHandReveal?: OpeningHandRevealTrigger;
     /** CR 702.122b — "This creature crews Vehicles as though its power were N
      *  greater" (Shorikai's Pilot token, the Pilot/Vehicle cycle). A static
      *  characteristic of the CREW-ING creature, not of the Vehicle: it is added

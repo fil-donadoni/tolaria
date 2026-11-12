@@ -260,18 +260,56 @@ export function finalizeMulligan(state: GameState): void {
     advanceOpeningHandWindow(state);
 }
 
-/** CR 103.6a — the opening-hand cards that let `player` begin the game with
- *  them on the battlefield. */
-export function openingHandBattlefieldCards(
+/** CR 103.6 — the opening-hand cards `player` may take an action with: those
+ *  that let them begin the game on the battlefield (CR 103.6a) and those they
+ *  may reveal (CR 103.6b), the latter only once each. */
+export function openingHandActionCards(
+    state: GameState,
     player: PlayerState
 ): CardInstanceState[] {
+    const revealed = state.mulligan?.openingHand?.revealed ?? [];
     return player.hand.filter((card) => {
         const id = (card.card as { id?: string }).id;
-        return (
-            id !== undefined &&
-            tryGetDefinition(id)?.openingHandAction === "begin-on-battlefield"
-        );
+        if (id === undefined) return false;
+        const action = tryGetDefinition(id)?.openingHandAction;
+        if (action === "reveal") return !revealed.includes(card.id);
+        return action === "begin-on-battlefield";
     });
+}
+
+/** CR 103.6b — reveal `card` from `player`'s opening hand: every player sees
+ *  it until the first turn begins, and the delayed triggered ability the card
+ *  describes is created (CR 603.7a) to trigger at the beginning of that
+ *  player's first upkeep — their own, which for a player not on the play is
+ *  turn 2's. `next-upkeep` + `targetPlayerId` is exactly that: it fires at the
+ *  first upkeep of that player reached after scheduling, once. */
+function revealOpeningHandCard(
+    state: GameState,
+    playerId: string,
+    card: CardInstanceState
+): void {
+    const window = state.mulligan?.openingHand;
+    const definition = tryGetDefinition((card.card as { id: string }).id);
+    const reveal = definition?.openingHandReveal;
+    if (!window || !reveal) return;
+    window.revealed = [...(window.revealed ?? []), card.id];
+    card.knownTo = state.players.map((p) => p.id);
+    state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
+    state.delayedTriggers = [
+        ...(state.delayedTriggers ?? []),
+        {
+            id: `delayed-${state.nextDelayedSeq}`,
+            sourceCardId: definition.id,
+            sourceInstanceId: card.id,
+            triggerId: "opening-hand-reveal",
+            controller: playerId,
+            timing: "next-upkeep",
+            targetPlayerId: playerId,
+            payload: {},
+            effects: reveal.effects,
+            oracleText: reveal.oracleText,
+        },
+    ];
 }
 
 /** The player `turnOrderPosition` seats after the starting player — the
@@ -299,7 +337,7 @@ function advanceOpeningHandWindow(state: GameState): void {
         position++
     ) {
         const player = playerInTurnOrder(state, position);
-        const eligible = openingHandBattlefieldCards(player);
+        const eligible = openingHandActionCards(state, player);
         if (eligible.length === 0) continue;
         window.actorPosition = position;
         const choice: PendingChoice = {
@@ -311,7 +349,7 @@ function advanceOpeningHandWindow(state: GameState): void {
             zone: "hand",
             candidateIds: eligible.map((c) => c.id),
             count: { min: 0, max: eligible.length },
-            prompt: "Choose cards from your opening hand to begin the game with on the battlefield",
+            prompt: "Choose cards from your opening hand to begin the game with on the battlefield or to reveal",
             // CR 103.6 — the eligible cards sit in a hidden zone (CR 400.2):
             // the opponent sees the pause, never the cards it is about.
             privateToChooser: true,
@@ -343,7 +381,19 @@ export function applyOpeningHandChoice(
     if (!window) throw new Error("Opening-hand window is not open");
     choices!.shift();
     state.pendingChoices = choices!.length > 0 ? choices : undefined;
-    window.queued = [...selectedIds];
+    // CR 103.6b — a reveal needs nothing further, so it is taken at once;
+    // the rest enter the battlefield one at a time (CR 103.6a).
+    const actor = playerInTurnOrder(state, window.actorPosition);
+    window.queued = [];
+    for (const id of selectedIds) {
+        const card = actor.hand.find((c) => c.id === id);
+        if (!card) continue;
+        const action = tryGetDefinition(
+            (card.card as { id: string }).id
+        )?.openingHandAction;
+        if (action === "reveal") revealOpeningHandCard(state, actor.id, card);
+        else window.queued.push(id);
+    }
     resumeOpeningHandWindow(state);
 }
 
@@ -387,6 +437,14 @@ function continueOpeningHandWindow(state: GameState): void {
 /** Clears the mulligan state and advances the engine to UPKEEP of turn 1
  *  using the existing phase pipeline (UNTAP is auto-skipped). */
 export function startFirstTurn(state: GameState): void {
+    // CR 103.6b — a card revealed from an opening hand "remains revealed until
+    // the first turn begins".
+    const revealed = state.mulligan?.openingHand?.revealed ?? [];
+    for (const player of state.players) {
+        for (const card of player.hand) {
+            if (revealed.includes(card.id)) delete card.knownTo;
+        }
+    }
     state.mulligan = undefined;
     // CR 103.5 (issue #1714) — the opening hand is drawn BEFORE turn 1 begins,
     // so none of it was drawn "this turn". Every opening hand is dealt through

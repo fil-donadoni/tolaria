@@ -4676,6 +4676,9 @@ export type OpeningHandWindow = {
      *  them waits on an as-enters choice (CR 614.12a) — the rest follow once
      *  it is answered. */
     queued: string[];
+    /** Cards revealed from an opening hand (CR 103.6b), across every player's
+     *  turn in the window. They stay revealed until the first turn begins. */
+    revealed?: string[];
 };
 
 /** A one-shot "this just happened in a hidden zone" notification (Reveal
