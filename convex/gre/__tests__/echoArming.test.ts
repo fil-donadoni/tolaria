@@ -16,6 +16,7 @@ import {
     applyControlChange,
     createTokenPermanents,
     putHandCardOntoBattlefield,
+    removePermanentTo,
 } from "../state";
 
 const GOBLIN_PATROL = getDefinition("d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3");
@@ -111,5 +112,31 @@ describe("echoPending arming (CR 702.30a)", () => {
         );
         const token = state.players[0].battlefield.find((c) => c.id === id);
         expect(token?.echoPending).toBe(true);
+    });
+
+    // CR 400.7 — the card that left is a new object: the owed echo belonged
+    // to the permanent, so it does not ride into the hand (or back out of it).
+    // The next arrival re-arms on its own (`armEchoOnArrival`).
+    it("drops the owed echo when the permanent leaves for its owner's hand, and re-arms on the next entry", () => {
+        const patrol = makeInstance(GOBLIN_PATROL.id, {
+            id: "patrol",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        patrol.echoPending = true;
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [patrol] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(removePermanentTo(state, "patrol", "hand")).not.toBeNull();
+        const inHand = state.players[0].hand.find((c) => c.id === "patrol");
+        expect(inHand?.echoPending).toBeUndefined();
+        expect(putHandCardOntoBattlefield(state, "p1", "patrol")).toBe(true);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "patrol"
+        );
+        expect(back?.echoPending).toBe(true);
     });
 });
