@@ -10290,6 +10290,14 @@
         "source": "compiled"
     },
     {
+        "name": "Break the Ice",
+        "scryfallId": "01ca9568-06b6-4c57-b1f6-8a74ec2a2b91",
+        "oracleId": "22ec98d2-0ac5-48a2-b48b-c6a98f35ecf0",
+        "firstSet": "mh2",
+        "firstPrintId": "01ca9568-06b6-4c57-b1f6-8a74ec2a2b91",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Break Under Pressure",
         "scryfallId": "46974d94-e900-43e4-92b5-4fb9b9f7cf46",
         "oracleId": "8dd23c50-cc84-4064-89cd-8d52fbfbd4ab",
