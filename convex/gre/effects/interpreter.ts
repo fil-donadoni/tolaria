@@ -9040,7 +9040,10 @@ function execForEach(
         const fromZone = op.select.set === "graveyard" ? "graveyard" : "exile";
         const resultKey = `#forEach:${pos}:simultaneousResult`;
         if (ctx.recallChoice(resultKey) === undefined) {
-            const body = op.effects[0] as { controller?: EffectPlayerRef };
+            const body = op.effects[0] as {
+                controller?: EffectPlayerRef;
+                tapped?: boolean;
+            };
             // Mirrors the per-member `moveZone` path: an explicit `controller`
             // override that fails to resolve skips the WHOLE batch (CR
             // 608.2b), rather than silently falling back to owner control.
@@ -9071,6 +9074,14 @@ function execForEach(
                       controllerId,
                       fromZone
                   );
+            // CR 110.5b — "…to the battlefield tapped": the same direct `tap`
+            // after entry the per-member `moveZone` path performs, on each
+            // permanent that actually entered.
+            if (body.tapped) {
+                for (const id of entered) {
+                    ctx.tap({ type: "permanent", id });
+                }
+            }
             ctx.noteChoice(resultKey, entered);
         }
         return undefined;

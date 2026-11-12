@@ -1058,6 +1058,14 @@
         "source": "compiled"
     },
     {
+        "name": "Aftermath Analyst",
+        "scryfallId": "1c1aa6f8-2d34-4f4b-9184-0eab2e4745f7",
+        "oracleId": "374e54d8-8e73-4268-9dde-c28c77bbbf32",
+        "firstSet": "mkm",
+        "firstPrintId": "1c1aa6f8-2d34-4f4b-9184-0eab2e4745f7",
+        "firstPrintSet": "mkm"
+    },
+    {
         "name": "Aftershock",
         "scryfallId": "c91a26b2-03f8-43f0-a3a4-ff6c5a3690c4",
         "oracleId": "e6bef0c4-3dfc-49a8-8fec-22b2570b704b",
