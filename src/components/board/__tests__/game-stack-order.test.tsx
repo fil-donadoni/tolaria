@@ -229,12 +229,12 @@ describe("GameStack ability art follows the chosen printing (ADR 0140 §6, issue
     });
 });
 
-describe("GameStack targets are arrows, not text chips (QA)", () => {
-    it("renders no target-name chip for a targeted stack item", () => {
-        // The board-crossing SVG arrows (`board-arrows.tsx`) are the single
-        // representation of "what this targets". A duplicate name chip in the
-        // row said WHAT but never WHERE, so it was dropped — the row must not
-        // print the target's name at all.
+describe("GameStack rows list their targets (issue #9326)", () => {
+    it("names a targeted player in the row's Targets block", () => {
+        // Superseded decision: the arrows used to be the ONLY representation
+        // of "what this targets" (a name chip said WHAT but never WHERE). The
+        // Targets block says both — "player", "#N in X's graveyard", "#N on
+        // the stack" — so the row now lists every target, at every viewport.
         const item = {
             ...makeStackItem("bolt"),
             castById: "me",
@@ -249,8 +249,9 @@ describe("GameStack targets are arrows, not text chips (QA)", () => {
             },
         ] as never);
 
-        expect(container.textContent).not.toContain("Rival");
-        expect(container.textContent).not.toContain("→");
+        const line = container.querySelector("[data-stack-target-line]");
+        expect(line?.textContent).toContain("Rival");
+        expect(container.textContent).toContain("Targets · 1");
     });
 });
 

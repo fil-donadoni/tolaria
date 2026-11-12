@@ -29,6 +29,9 @@ import {
     mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
 import CardsPile from "./cards-pile";
+import { useZoneTargetCaption } from "~/hooks/useZoneTargetCaption";
+import { useArrowNodeHover } from "~/hooks/useArrowNodeHover";
+import { zonePileNodeId } from "~/lib/target-arrow-geometry";
 import GraveyardFlashbackButton from "./graveyard-flashback-button";
 import GraveyardPlayLandButton from "./graveyard-play-land-button";
 import GraveyardActivateButton from "./graveyard-activate-button";
@@ -59,6 +62,11 @@ export default function PlayerGraveyard({
         emblems,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
+    // Issue #9326 — position numbers (and the targeting sources' thumbnails)
+    // while something on the stack targets a card in this graveyard; hovering
+    // the pile focuses every relationship pointing into it.
+    const targetCaption = useZoneTargetCaption(player, "graveyard");
+    const pileHover = useArrowNodeHover(zonePileNodeId("graveyard", player.id));
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
     // The graveyard tile carries NO built-in context menu on the GRE board —
@@ -178,6 +186,7 @@ export default function PlayerGraveyard({
 
     const pile = (
         <CardsPile
+            captionFor={isGraveyardChoice ? undefined : targetCaption}
             cards={
                 isGraveyardChoice
                     ? graveyardChoiceCards(head, player, allPlayers)
@@ -302,6 +311,7 @@ export default function PlayerGraveyard({
     return (
         <div
             data-arrow-anchor-graveyard={player.id}
+            {...pileHover}
             // Inert hit-test handle for a pointer-driven zone drag (#2169) —
             // no listener, no styling, no behaviour on the GRE board.
             data-zone-drop="graveyard"

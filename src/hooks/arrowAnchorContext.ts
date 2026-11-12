@@ -1,9 +1,14 @@
 import { createContext, useContext } from "react";
 import type { AnchorMap, AnchorPoint } from "~/lib/target-arrow-geometry";
 
-/** The four anchor kinds, mirroring the `data-arrow-anchor-*` key space and the
+/** The anchor kinds, mirroring the `data-arrow-anchor-*` key space and the
  *  {@link AnchorMap} buckets. */
-export type AnchorKind = "stack" | "permanent" | "player" | "graveyard";
+export type AnchorKind =
+    | "stack"
+    | "permanent"
+    | "player"
+    | "graveyard"
+    | "stackTarget";
 
 export type ArrowAnchorContextValue = {
     /** Publish (or move) an anchor point in board-root coordinates. Idempotent;

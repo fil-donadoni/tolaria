@@ -16,6 +16,7 @@ import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isExileChoiceActive } from "~/lib/exile-choice";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
 import CardsPile from "./cards-pile";
+import { useZoneTargetCaption } from "~/hooks/useZoneTargetCaption";
 import ExileIcon from "../icons/exile-icon";
 import ExileCastButton from "./exile-cast-button";
 import LibrarySearchConfirm from "./library-search-confirm";
@@ -31,6 +32,9 @@ export default function PlayerExile({
     onOpenChange?: (open: boolean) => void;
 }) {
     const { playerId, pendingChoices } = useGameContext();
+    // Issue #9326 — position numbers while the stack targets this exile
+    // (no exile-card target type exists yet: designed for, never empty-built).
+    const targetCaption = useZoneTargetCaption(player, "exile");
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
     // The exile tile carries NO built-in context menu on the GRE board — the
@@ -119,6 +123,7 @@ export default function PlayerExile({
 
     const pile = (
         <CardsPile
+            captionFor={isExileChoice ? undefined : targetCaption}
             cards={pileCards}
             actionableIds={actionableIds}
             emptyLabel="Exile"

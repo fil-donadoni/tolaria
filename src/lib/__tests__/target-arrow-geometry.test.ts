@@ -12,6 +12,7 @@ import {
     distanceToArrow,
     ARROW_HOVER_RADIUS,
     emptyAnchorMap,
+    zonePileNodeId,
     type AnchorMap,
 } from "../target-arrow-geometry";
 import type { Combat, StackItem } from "~/types/game";
@@ -66,6 +67,7 @@ describe("buildTargetArrows — endpoint mapping", () => {
             stack: { s1: { x: 0, y: 0 }, s0: { x: 5, y: 5 } },
             player: { p2: { x: 20, y: 20 } },
             graveyard: { p2: { x: 30, y: 30 } },
+            stackTarget: { "s1|graveyard-card:gc1": { x: 2, y: 2 } },
         });
         const arrows = buildTargetArrows(stack, map);
         expect(arrows.map((a) => a.to)).toEqual([
@@ -542,5 +544,110 @@ describe("buildCombatArrows — attackers still choosing a target (CR 508.1b)", 
         expect(all.map((a) => a.fromId)).toEqual(["a1", "a2"]);
         const some = buildCombatArrows(c, map, "opp", ["a1"]);
         expect(some.map((a) => a.fromId)).toEqual(["a2"]);
+    });
+});
+
+describe("buildTargetArrows — a zone-card target's arrow leaves its target line (issue #9326)", () => {
+    const reanimate = stackItem("s1", [
+        { type: "graveyard-card", id: "elf-2", playerId: "p2" },
+        { type: "player", id: "p2" },
+    ]);
+    const base = {
+        stack: { s1: { x: 0, y: 0 } },
+        player: { p2: { x: 20, y: 20 } },
+        graveyard: { p2: { x: 300, y: 30 } },
+    };
+
+    it("starts at the line's anchor and ends on the pile, which is its target node", () => {
+        const map = anchors({
+            ...base,
+            stackTarget: {
+                "s1|graveyard-card:elf-2": { x: 7, y: 9 },
+                "s1|header": { x: 7, y: 3 },
+            },
+        });
+        const [zone, player] = buildTargetArrows([reanimate], map);
+        expect(zone.from).toEqual({ x: 7, y: 9 });
+        expect(zone.to).toEqual({ x: 300, y: 30 });
+        expect(zone.toId).toBe(zonePileNodeId("graveyard", "p2"));
+        expect(zone.stackItemId).toBe("s1");
+        // A player target keeps the row as its source.
+        expect(player.from).toEqual({ x: 0, y: 0 });
+    });
+
+    it("starts at the block header while the block is collapsed", () => {
+        const map = anchors({
+            ...base,
+            stackTarget: { "s1|header": { x: 7, y: 3 } },
+        });
+        expect(buildTargetArrows([reanimate], map)[0].from).toEqual({
+            x: 7,
+            y: 3,
+        });
+    });
+
+    it("draws no zone-card arrow when the line is not on screen (row scrolled out) — never from the row or the permanent instead", () => {
+        const ability = {
+            ...reanimate,
+            abilityId: "a1",
+            triggerSourceId: "perm-src",
+        } as StackItem;
+        const map = anchors({
+            ...base,
+            permanent: { "perm-src": { x: 50, y: 50 } },
+        });
+        const arrows = buildTargetArrows([ability], map);
+        expect(arrows.map((a) => a.key)).toEqual(["s1->player:p2:"]);
+    });
+});
+
+describe("resolveArrowHighlight — the focus of a zone-card relationship (issue #9326)", () => {
+    const ability = {
+        ...stackItem("s1", [
+            { type: "graveyard-card", id: "elf-2", playerId: "p2" },
+        ]),
+        abilityId: "a1",
+        triggerSourceId: "perm-src",
+    } as StackItem;
+    const spell = stackItem("s2", [
+        { type: "graveyard-card", id: "elf-1", playerId: "p2" },
+    ]);
+    const map = anchors({
+        stack: { s1: { x: 0, y: 0 }, s2: { x: 0, y: 40 } },
+        permanent: { "perm-src": { x: 50, y: 50 } },
+        graveyard: { p2: { x: 300, y: 30 } },
+        stackTarget: {
+            "s1|graveyard-card:elf-2": { x: 7, y: 9 },
+            "s2|graveyard-card:elf-1": { x: 7, y: 49 },
+        },
+    });
+    const arrows = buildTargetArrows([ability, spell], map);
+    const pile = zonePileNodeId("graveyard", "p2");
+
+    it("hovering the ability's SOURCE PERMANENT lights the arrow leaving its row's line, the row and the pile", () => {
+        const h = resolveArrowHighlight(arrows, { nodeId: "perm-src" })!;
+        expect(h.focus).toBe("target");
+        expect([...h.keys]).toEqual(["s1->graveyard-card:elf-2:p2"]);
+        expect(h.nodes).toEqual(new Set(["perm-src", "s1", pile]));
+    });
+
+    it("hovering the stack ROW lights the same relationship", () => {
+        const h = resolveArrowHighlight(arrows, { nodeId: "s1" })!;
+        expect([...h.keys]).toEqual(["s1->graveyard-card:elf-2:p2"]);
+        expect(h.nodes.has("perm-src")).toBe(true);
+    });
+
+    it("hovering the PILE lights every relationship pointing into it", () => {
+        const h = resolveArrowHighlight(arrows, { nodeId: pile })!;
+        expect(h.keys.size).toBe(2);
+        expect(h.nodes).toEqual(new Set([pile, "s1", "perm-src", "s2"]));
+    });
+
+    it("hovering the ARROW lights its source nodes and the pile", () => {
+        const h = resolveArrowHighlight(arrows, {
+            key: "s2->graveyard-card:elf-1:p2",
+        })!;
+        expect(h.focus).toBe("target");
+        expect(h.nodes).toEqual(new Set(["s2", pile]));
     });
 });

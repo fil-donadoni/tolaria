@@ -33,7 +33,36 @@ export type AnchorMap = {
     player: Record<string, AnchorPoint>;
     /** Graveyard owner (player) ids. */
     graveyard: Record<string, AnchorPoint>;
+    /** A stack row's Targets block (issue #9326): one anchor per target line,
+     *  keyed {@link stackTargetLineAnchorId}, plus the block header, keyed
+     *  {@link stackTargetHeaderAnchorId} — where a zone-card target's arrow
+     *  starts (the line's left edge; the header while the block is collapsed). */
+    stackTarget: Record<string, AnchorPoint>;
 };
+
+/** Anchor id of one target line inside a stack row's Targets block. */
+export function stackTargetLineAnchorId(
+    stackItemId: string,
+    target: Pick<NonNullable<StackItem["targets"]>[number], "type" | "id">
+): string {
+    return `${stackItemId}|${target.type}:${target.id}`;
+}
+
+/** Anchor id of a stack row's Targets block header ("Targets · N"). */
+export function stackTargetHeaderAnchorId(stackItemId: string): string {
+    return `${stackItemId}|header`;
+}
+
+/** Highlight node id of a zone pile (issue #9326): a zone-card target's arrow
+ *  ends on the pile, so the pile — not the card inside it — is the node that
+ *  lights, dims and seeds hover. Namespaced so it never collides with an
+ *  instance or player id. */
+export function zonePileNodeId(
+    zone: "graveyard" | "exile",
+    ownerId: string
+): string {
+    return `${zone}-pile:${ownerId}`;
+}
 
 /** Arrow category. `target` = stack item → its target (1-hop highlight on
  *  hover). `combat` = blocker → the attacker it blocks (transitive cluster
@@ -49,8 +78,16 @@ export type TargetArrow = {
      *  combat) — used to resolve hover highlight incidence. */
     fromId: string;
     /** Target node id (target id for targets, attacker permanent id for
-     *  combat). */
+     *  combat; the zone pile's {@link zonePileNodeId} for a zone-card
+     *  target). */
     toId: string;
+    /** Target arrows only: the stack item the arrow belongs to and, for an
+     *  ability, its source permanent — the relationship's SOURCE nodes, which
+     *  light together whichever of them the arrow starts at (issue #9326: a
+     *  zone-card arrow starts at its target line, yet hovering the ability's
+     *  source permanent must still focus it). Absent on manual arrows. */
+    stackItemId?: string;
+    sourcePermanentId?: string;
     /** Connected-combat-component id; same for every arrow in one combat knot
      *  (banding-aware). `undefined` for `target` arrows. */
     clusterId?: string;
@@ -64,7 +101,13 @@ export type TargetArrow = {
 
 /** Empty registry — convenient default before any zone has published. */
 export function emptyAnchorMap(): AnchorMap {
-    return { stack: {}, permanent: {}, player: {}, graveyard: {} };
+    return {
+        stack: {},
+        permanent: {},
+        player: {},
+        graveyard: {},
+        stackTarget: {},
+    };
 }
 
 /** Resolve one stack target to its anchor point, or `null` if no anchor exists
@@ -132,6 +175,44 @@ function resolveArrowSource(
     return row ? { id: item.id, point: row } : null;
 }
 
+/** The ability's source permanent id (CR 602.2a / 603.3), or undefined for a
+ *  spell. See {@link resolveArrowSource}. */
+function sourcePermanentOf(item: StackItem): string | undefined {
+    const isAbility = !!item.abilityId || !!item.triggeredAbilityId;
+    return isAbility ? (item.triggerSourceId ?? item.id) : undefined;
+}
+
+/**
+ * Where ONE target's arrow starts (issue #9326). A target that lives in a zone
+ * pile (`graveyard-card`) is listed by its own line in the stack row's Targets
+ * block — the line names WHICH card in the pile, the arrow says WHERE the pile
+ * is — so its arrow leaves that line (the block header while collapsed). No
+ * line or header anchor (the row is scrolled out of the stack panel, or not
+ * rendered) → no arrow: never a fallback to some other start point. Every
+ * other target keeps the item's own source ({@link resolveArrowSource}).
+ */
+function resolveTargetSource(
+    item: StackItem,
+    target: NonNullable<StackItem["targets"]>[number],
+    itemSource: { id: string; point: AnchorPoint } | null,
+    anchors: AnchorMap
+): { id: string; point: AnchorPoint } | null {
+    if (target.type !== "graveyard-card") return itemSource;
+    const point =
+        anchors.stackTarget[stackTargetLineAnchorId(item.id, target)] ??
+        anchors.stackTarget[stackTargetHeaderAnchorId(item.id)];
+    return point ? { id: item.id, point } : null;
+}
+
+/** The node a target arrow ends on: the pile for a zone-card target. */
+function targetNodeId(
+    target: NonNullable<StackItem["targets"]>[number]
+): string {
+    return target.type === "graveyard-card" && target.playerId
+        ? zonePileNodeId("graveyard", target.playerId)
+        : target.id;
+}
+
 /**
  * Build the arrow set for the current stack from resolved anchor points.
  *
@@ -149,10 +230,16 @@ export function buildTargetArrows(
     const arrows: TargetArrow[] = [];
     for (const item of stack) {
         if (!item.targets || item.targets.length === 0) continue;
-        const source = resolveArrowSource(item, anchors);
-        if (!source) continue;
-        const from = source.point;
+        const itemSource = resolveArrowSource(item, anchors);
+        const sourcePermanentId = sourcePermanentOf(item);
         for (const target of item.targets) {
+            const source = resolveTargetSource(
+                item,
+                target,
+                itemSource,
+                anchors
+            );
+            if (!source) continue;
             const to = resolveTarget(target, anchors);
             if (!to) continue;
             arrows.push({
@@ -161,10 +248,12 @@ export function buildTargetArrows(
                 }`,
                 kind: "target",
                 fromId: source.id,
-                toId: target.id,
-                from,
+                toId: targetNodeId(target),
+                stackItemId: item.id,
+                ...(sourcePermanentId ? { sourcePermanentId } : {}),
+                from: source.point,
                 to,
-                path: arrowPath(from, to),
+                path: arrowPath(source.point, to),
             });
         }
     }
@@ -322,11 +411,20 @@ export function buildManualArrows(
     return arrows;
 }
 
+/** A resolved hover highlight: the lit arrow keys, the lit node ids, and
+ *  which relationship shape produced it (`target` drives the focus veil, issue
+ *  #9326; a combat knot keeps its plain dimming). */
+export type ArrowHighlight = {
+    keys: Set<string>;
+    nodes: Set<string>;
+    focus: ArrowKind;
+};
+
 /** All arrows in the combat cluster `clusterId`, with their endpoint nodes. */
 function combatCluster(
     arrows: TargetArrow[],
     clusterId: string
-): { keys: Set<string>; nodes: Set<string> } {
+): ArrowHighlight {
     const keys = new Set<string>();
     const nodes = new Set<string>();
     for (const a of arrows) {
@@ -336,7 +434,17 @@ function combatCluster(
             nodes.add(a.toId);
         }
     }
-    return { keys, nodes };
+    return { keys, nodes, focus: "combat" };
+}
+
+/** A target arrow's SOURCE nodes: where it starts, plus the stack item and
+ *  ability source permanent it belongs to (issue #9326) — they light, and
+ *  seed, as one. */
+function sourceNodesOf(a: TargetArrow): string[] {
+    const ids = [a.fromId];
+    if (a.stackItemId) ids.push(a.stackItemId);
+    if (a.sourcePermanentId) ids.push(a.sourcePermanentId);
+    return ids;
 }
 
 /**
@@ -346,17 +454,17 @@ function combatCluster(
  * - **combat** (transitive cluster): hovering a combat arrow OR any creature in
  *   a combat knot lights the WHOLE banding-aware cluster.
  * - **target / stack** (peer-to-peer, NOT transitive — and **directional**):
- *     - hovering a *target arrow* lights **only that arrow** + its two
- *       endpoints — it does not chain to other arrows that share an endpoint
- *       (hover `A→B` ⇒ {A, B, A→B}, even if `C→A` also exists);
+ *     - hovering a *target arrow* lights **only that arrow** + its source
+ *       nodes + its target — it does not chain to other arrows that share an
+ *       endpoint (hover `A→B` ⇒ {A, B, A→B}, even if `C→A` also exists);
  *     - hovering a *node* shows **what that node is involved with in its own
- *       direction**: a node that is a *source* (a stack item with targets — it
- *       is the `fromId` of ≥1 target arrow) lights only its **outgoing** arrows
- *       (what it targets); any other node (a permanent / player only ever
- *       targeted) lights its **incoming** arrows (what targets it). So with
- *       `A→B` (bolt→bears) and `C→A` (counter→bolt): hover `A` (a source) ⇒
- *       {A, B, A→B} — the counter `C→A` stays dim; hover `C` ⇒ {A, C, C→A};
- *       hover `B` ⇒ {A, B, A→B}.
+ *       direction**: a node that is a *source* (a stack item with targets, or
+ *       an ability's source permanent — {@link sourceNodesOf}) lights only its
+ *       **outgoing** arrows (what it targets); any other node (a permanent /
+ *       player / zone pile only ever targeted) lights its **incoming** arrows
+ *       (what targets it). So with `A→B` (bolt→bears) and `C→A`
+ *       (counter→bolt): hover `A` (a source) ⇒ {A, B, A→B} — the counter `C→A`
+ *       stays dim; hover `C` ⇒ {A, C, C→A}; hover `B` ⇒ {A, B, A→B}.
  *
  * Returns `null` when nothing is hovered, or when a hovered node has no arrow
  * at all (an unrelated permanent) — so the caller dims nothing and only the
@@ -365,7 +473,7 @@ function combatCluster(
 export function resolveArrowHighlight(
     arrows: TargetArrow[],
     hovered: { key: string } | { nodeId: string } | null
-): { keys: Set<string>; nodes: Set<string> } | null {
+): ArrowHighlight | null {
     if (!hovered) return null;
 
     if ("key" in hovered) {
@@ -377,7 +485,8 @@ export function resolveArrowHighlight(
         }
         return {
             keys: new Set([a.key]),
-            nodes: new Set([a.fromId, a.toId]),
+            nodes: new Set([...sourceNodesOf(a), a.toId]),
+            focus: "target",
         };
     }
 
@@ -390,23 +499,24 @@ export function resolveArrowHighlight(
         return combatCluster(arrows, inCombat.clusterId);
     }
 
-    // Directional over the target graph. A node that is a source (the `fromId`
-    // of any target arrow — i.e. a stack item with targets) shows its OUTGOING
-    // arrows; any other node shows its INCOMING arrows.
-    const isSource = arrows.some((a) => a.kind === "target" && a.fromId === id);
+    // Directional over the target graph. A node that is a source shows its
+    // OUTGOING arrows; any other node shows its INCOMING arrows.
+    const isSource = arrows.some(
+        (a) => a.kind === "target" && sourceNodesOf(a).includes(id)
+    );
     const keys = new Set<string>();
     const nodes = new Set<string>([id]);
     for (const a of arrows) {
         if (a.kind !== "target") continue;
-        const hit = isSource ? a.fromId === id : a.toId === id;
+        const hit = isSource ? sourceNodesOf(a).includes(id) : a.toId === id;
         if (hit) {
             keys.add(a.key);
-            nodes.add(a.fromId);
+            for (const n of sourceNodesOf(a)) nodes.add(n);
             nodes.add(a.toId);
         }
     }
     if (keys.size === 0) return null;
-    return { keys, nodes };
+    return { keys, nodes, focus: "target" };
 }
 
 /** Curvature of the arrow as a fraction of the chord length: the control point

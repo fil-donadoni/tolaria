@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { ANCHORS_REPOSITION_EVENT } from "~/hooks/anchor-reposition";
 import { useArrowAnchors, type AnchorKind } from "~/hooks/arrowAnchorContext";
+import { visibleRect } from "~/lib/visible-rect";
 
 /** `data-arrow-anchor-*` attribute name per anchor kind. */
 const ANCHOR_ATTR: Record<AnchorKind, string> = {
@@ -8,7 +9,30 @@ const ANCHOR_ATTR: Record<AnchorKind, string> = {
     permanent: "data-arrow-anchor-permanent",
     player: "data-arrow-anchor-player",
     graveyard: "data-arrow-anchor-graveyard",
+    stackTarget: "data-arrow-anchor-stack-target",
 };
+
+/** Kinds that live inside the stack panel's scroll container (issue #9326):
+ *  a row scrolled out of the panel still has a full-size rect, OUTSIDE the
+ *  panel, so its raw rect would start an arrow from nowhere. These kinds are
+ *  measured by their VISIBLE part ({@link visibleRect}) — nothing visible, no
+ *  anchor, no arrow. */
+const CLIPPED_KINDS: ReadonlySet<AnchorKind> = new Set([
+    "stack",
+    "stackTarget",
+]);
+
+/** Where on its box an anchor sits: the centre, except a target line, whose
+ *  arrow leaves its LEFT edge (issue #9326 — the arrows run from the line out
+ *  across the board, never across the line's own text). */
+function anchorPoint(
+    kind: AnchorKind,
+    r: { left: number; top: number; width: number; height: number }
+): { x: number; y: number } {
+    return kind === "stackTarget"
+        ? { x: r.left, y: r.top + r.height / 2 }
+        : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
 
 /** Marker attribute identifying the spatial board root — the coordinate space
  *  every published anchor point lives in. */
@@ -100,7 +124,11 @@ export function useDomAnchorPublisher(
                 els.forEach((el) => {
                     const id = el.getAttribute(attr);
                     if (!id) return;
-                    const r = el.getBoundingClientRect();
+                    const r = CLIPPED_KINDS.has(kind)
+                        ? visibleRect(el)
+                        : el.getBoundingClientRect();
+                    // Scrolled out of its panel: no anchor (see CLIPPED_KINDS).
+                    if (!r) return;
                     // A `display:none` ancestor (BoardPileChips' hidden dialog
                     // wrapper, the portrait Zones drawer while closed)
                     // collapses this element to an all-zero rect. Publishing
@@ -111,9 +139,10 @@ export function useDomAnchorPublisher(
                     // omitting it from `seen` below lets the vanished-anchor
                     // cleanup unpublish the stale point.
                     if (r.width === 0 && r.height === 0) return;
+                    const p = anchorPoint(kind, r);
                     publish(kind, id, {
-                        x: r.left - rootRect.left + r.width / 2,
-                        y: r.top - rootRect.top + r.height / 2,
+                        x: p.x - rootRect.left,
+                        y: p.y - rootRect.top,
                     });
                     seen[kind].add(id);
                     nextOwned.push({ kind, id });

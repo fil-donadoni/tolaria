@@ -85,7 +85,7 @@ function baseState() {
 
 describe("check:ui declared positions (ADR 0132 §4)", () => {
     it("seeds one payload per game surface that loads a position", () => {
-        // Six today. The count is asserted so that ADDING a payload without
+        // Seven today. The count is asserted so that ADDING a payload without
         // a surface, or a surface without a payload, is a decision somebody
         // makes on purpose rather than a diff nobody reads.
         expect(seeds.map((s) => s.label)).toEqual([
@@ -95,6 +95,7 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
             "UI combat — blocks owed on a confirmed attack",
             "UI choice — a card pick over the board, seven candidates",
             "UI source choice — a spell on the stack as a source of your choice",
+            "UI stack targets — six items, graveyard and stack targets",
         ]);
     });
 

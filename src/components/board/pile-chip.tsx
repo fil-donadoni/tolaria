@@ -1,4 +1,6 @@
 import { V4_COUNT_BADGE } from "~/lib/board-chrome-v4";
+import { useArrowNodeHover } from "~/hooks/useArrowNodeHover";
+import { zonePileNodeId } from "~/lib/target-arrow-geometry";
 
 type PileChipProps = {
     /** Short zone label, e.g. "GY", "LIB", "EXL", "STACK". */
@@ -59,10 +61,16 @@ export default function PileChip({
     compact = false,
     grow = false,
 }: PileChipProps) {
+    // Issue #9326 — the graveyard chip IS the pile on portrait: hovering it
+    // focuses every relationship pointing into that graveyard.
+    const pileHover = useArrowNodeHover(
+        zonePileNodeId("graveyard", arrowAnchorGraveyard ?? "")
+    );
     return (
         <button
             type="button"
             onClick={onClick}
+            {...(arrowAnchorGraveyard ? pileHover : {})}
             data-testid={testId}
             data-arrow-anchor-graveyard={arrowAnchorGraveyard}
             className={

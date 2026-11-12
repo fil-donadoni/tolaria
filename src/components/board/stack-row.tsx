@@ -22,9 +22,9 @@ import {
 } from "~/lib/images";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
-import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
 import ControllerChip from "./controller-chip";
+import StackRowTargets from "./stack-row-targets";
 import StackYieldToggle from "./stack-yield-toggle";
 import StackCardImage from "../cards/stack-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
@@ -55,21 +55,11 @@ function StackControllerChip({
  *  tile + resolve-order badge, name + mana pips + controller chip, chosen-mode
  *  lines and FULL oracle text (never truncated).
  *
- *  Targets are NOT listed as chips: the board-crossing SVG arrows
- *  (`board-arrows.tsx`) are the representation of "what this targets", which a
- *  chip cannot be — it says the name without saying WHERE. That decision is
- *  pinned by `game-stack-order.test.tsx` ("targets are arrows, not text
- *  chips") and this slice does not relitigate it: on desktop the row prints no
- *  target name, exactly as before.
- *
- *  `showTargetLine` (issue #2727) is the ONE case that decision did not cover.
- *  The desktop panel floats beside a board where the arrow is fully visible;
- *  the PHONE panels are not that. In portrait the panel spans the viewer's
- *  whole half (`PORTRAIT_STACK_PANEL_TOP` → `NARROW_BOTTOM_CLASS`) and in
- *  landscape-compact it covers the right rail, so while the panel is open the
- *  arrow's far end is behind it. There the line is not a duplicate of the
- *  arrow — it is the only representation the player can see. See
- *  `stackTargetNames`. */
+ *  Targets are listed in the row's own Targets block (issue #9326,
+ *  `StackRowTargets`): every target, whatever its kind, with WHERE it is — the
+ *  stack row number, the card's position in its zone. It supersedes both the
+ *  arrows-only rule (an arrow into a graveyard lands on the pile and cannot
+ *  say which card) and the phone-only name line of issue #2727. */
 export default function StackRow({
     item,
     order,
@@ -83,7 +73,6 @@ export default function StackRow({
     allPlayers,
     viewerId,
     stack,
-    showTargetLine = false,
 }: {
     item: StackItem;
     /** 1-based resolve order — 1 resolves first (top of stack). */
@@ -104,10 +93,6 @@ export default function StackRow({
     /** The whole stack — the only way to name a `spell`-type target (CR
      *  601.2c), which is another item on this same stack. */
     stack: StackItem[];
-    /** Print the muted target line under the header. Set only by the phone
-     *  stack panels, where the panel occludes the arrows — see the doc block
-     *  above for why desktop deliberately stays without it. */
-    showTargetLine?: boolean;
 }) {
     const reduceMotion = useReducedMotion();
     const tokenPrints = useTokenPrints();
@@ -173,9 +158,6 @@ export default function StackRow({
     // resolving on `identityId` regardless is still correct since neither
     // has a registered `imagePrintFace` (issue #1595).
     const imageFace = resolveCardImageFace(identityId);
-    const targetNames = showTargetLine
-        ? stackTargetNames(item, allPlayers, stack)
-        : [];
 
     return (
         // The shared-layout flight identity lives on the CARD TILE below, not on
@@ -285,18 +267,12 @@ export default function StackRow({
                         />
                     </span>
 
-                    {/* Target line (issue #2727), phone panels only — see
-                        the component doc for why desktop keeps the
-                        arrows-only rule this row has always followed. */}
-                    {targetNames.length > 0 && (
-                        <span
-                            data-stack-target-line
-                            className="truncate text-[11px] leading-tight text-text-muted"
-                        >
-                            <span aria-hidden>→ </span>
-                            {targetNames.join(", ")}
-                        </span>
-                    )}
+                    <StackRowTargets
+                        item={item}
+                        allPlayers={allPlayers}
+                        stack={stack}
+                        viewerId={viewerId}
+                    />
 
                     {modeLines?.map((line) => (
                         <span

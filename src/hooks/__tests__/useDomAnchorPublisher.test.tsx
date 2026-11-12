@@ -413,3 +413,107 @@ describe("useDomAnchorPublisher — board-root reflow (issue #6236)", () => {
         expect(value.anchors.player.p1).toEqual({ x: 690, y: 920 });
     });
 });
+
+// Issue #9326 — stack rows and their target lines live inside the stack
+// panel's SCROLL container. A row scrolled out of the panel keeps a full-size
+// rect outside it, so the raw rect started arrows "from nowhere". These kinds
+// are measured by their VISIBLE part: none visible → no anchor → no arrow.
+function ClippedHarness({ rowTop }: { rowTop: number }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useDomAnchorPublisher(ref, ["stack", "stackTarget"], String(rowTop));
+    const box = (x: number, y: number, w: number, h: number) =>
+        ({
+            left: x,
+            top: y,
+            width: w,
+            height: h,
+            right: x + w,
+            bottom: y + h,
+            x,
+            y,
+            toJSON: () => ({}),
+        }) as DOMRect;
+    return (
+        <div
+            data-board-root
+            ref={(el) => {
+                if (el) el.getBoundingClientRect = () => box(0, 0, 1000, 1000);
+            }}
+        >
+            <div ref={ref} />
+            {/* The panel's scroll container: rows 100..300 visible. */}
+            <div
+                style={{ overflowY: "auto" }}
+                ref={(el) => {
+                    if (el)
+                        el.getBoundingClientRect = () =>
+                            box(500, 100, 300, 200);
+                }}
+            >
+                <div
+                    data-arrow-anchor-stack="row"
+                    ref={(el) => {
+                        if (el)
+                            el.getBoundingClientRect = () =>
+                                box(500, rowTop, 300, 80);
+                    }}
+                >
+                    <span
+                        data-arrow-anchor-stack-target="row|graveyard-card:c1"
+                        ref={(el) => {
+                            if (el)
+                                el.getBoundingClientRect = () =>
+                                    box(520, rowTop + 40, 200, 30);
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+describe("useDomAnchorPublisher — stack panel anchors are clipped to the panel (issue #9326)", () => {
+    it("a target line anchors at its LEFT edge, vertically centred", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <ClippedHarness rowTop={120} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.stackTarget["row|graveyard-card:c1"]).toEqual({
+            x: 520,
+            y: 175,
+        });
+        expect(value.anchors.stack.row).toEqual({ x: 650, y: 160 });
+    });
+
+    it("a row half scrolled out anchors at the centre of its VISIBLE slice", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <ClippedHarness rowTop={260} />
+            </ArrowAnchorContext.Provider>
+        );
+        // Visible 260..300 of 260..340.
+        expect(value.anchors.stack.row).toEqual({ x: 650, y: 280 });
+    });
+
+    it("a row scrolled fully out of the panel publishes no anchor — and drops the one it had", () => {
+        const { value } = makeRegistry();
+        const { rerender } = render(
+            <ArrowAnchorContext.Provider value={value}>
+                <ClippedHarness rowTop={120} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.stack.row).toBeDefined();
+        rerender(
+            <ArrowAnchorContext.Provider value={value}>
+                <ClippedHarness rowTop={400} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.stack.row).toBeUndefined();
+        expect(
+            value.anchors.stackTarget["row|graveyard-card:c1"]
+        ).toBeUndefined();
+    });
+});
