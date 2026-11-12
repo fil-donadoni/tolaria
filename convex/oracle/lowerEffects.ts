@@ -3885,7 +3885,7 @@ function lowerSentenceBody(
             // (`zoneOwnerOfPriorPlayerTarget`). The directive reads the FIRST
             // player among the earlier picks, so a body that already
             // announced one is refused rather than bound to the wrong player.
-            if (slots.requirements().some((r) => r.type === "player"))
+            if (slots.requirements().some((group) => group.type === "player"))
                 return unlowerable(
                     '"their graveyard" may name an earlier announced player (CR 601.2c)'
                 );
