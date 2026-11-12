@@ -25630,8 +25630,14 @@ export function getCostModifiers(
                     continue;
                 if (effect.costIncrease) {
                     const norm = normalizeManaCost(effect.costIncrease);
+                    // CR 601.2f — once per other spell the announcer already cast.
+                    const times =
+                        effect.perOtherSpellCastByAnnouncerThisTurn === true
+                            ? (state.players.find((p) => p.id === announcer)
+                                  ?.spellsCastThisTurn ?? 0)
+                            : 1;
                     for (const [k, v] of Object.entries(norm)) {
-                        increase[k] = (increase[k] ?? 0) + v;
+                        increase[k] = (increase[k] ?? 0) + v * times;
                     }
                 }
                 if (effect.costReduction) {
