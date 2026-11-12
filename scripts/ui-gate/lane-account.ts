@@ -117,6 +117,7 @@ const SCENARIO_FILES = [
     "combat-scenario.json",
     "choice-scenario.json",
     "source-choice-scenario.json",
+    "stack-targets-scenario.json",
 ] as const;
 
 export interface ScenarioSeed {
