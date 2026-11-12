@@ -8427,8 +8427,14 @@ export function returnExiledForSource(
         const idx = ownerExile.findIndex((c) => c.id === bundle.hostId);
         if (idx === -1) continue; // host left exile — the return fizzles
         const [hostCard] = ownerExile.splice(idx, 1);
-        putReanimatedOnBattlefield(state, hostCard, bundle.hostOwnerId);
-        if (bundle.returnTapped) hostCard.isTapped = true;
+        putReanimatedOnBattlefield(
+            state,
+            hostCard,
+            bundle.hostOwnerId,
+            undefined,
+            undefined,
+            bundle.returnTapped ? { entersTapped: true } : undefined
+        );
         // CR 712.21c — the return finds both cards of a melded host; each
         // comes back under its owner's control as its own permanent.
         for (const p of bundle.meldPartners ?? []) {
@@ -8436,8 +8442,14 @@ export function returnExiledForSource(
             const at = exile.findIndex((c) => c.id === p.id);
             if (at === -1) continue;
             const [partnerCard] = exile.splice(at, 1);
-            putReanimatedOnBattlefield(state, partnerCard, p.ownerId);
-            if (bundle.returnTapped) partnerCard.isTapped = true;
+            putReanimatedOnBattlefield(
+                state,
+                partnerCard,
+                p.ownerId,
+                undefined,
+                undefined,
+                bundle.returnTapped ? { entersTapped: true } : undefined
+            );
         }
         // CR 122 — re-apply the noted counters to the new object, MERGING them
         // onto whatever the entry itself already placed rather than
@@ -15415,6 +15427,7 @@ export function buildSpellContext(
                 entersAs?: EntryTypeLine;
                 attachTo?: string;
                 entryCounters?: Readonly<Record<string, number>>;
+                authoredEntry?: AuthoredEntryState;
             }
         ): boolean {
             const player = getPlayer(state, playerId);
@@ -15485,7 +15498,8 @@ export function buildSpellContext(
                 card,
                 controllerId ?? playerId,
                 fromZone === "graveyard",
-                opts?.entryCounters
+                opts?.entryCounters,
+                opts?.authoredEntry
             );
         },
         // CR 400.7 / 614-batch (issue #1094) — the simultaneous twin of
@@ -15548,7 +15562,10 @@ export function buildSpellContext(
         putFromLibraryOntoBattlefield(
             playerId: string,
             cardInstanceId: string,
-            opts?: { faceDown?: FaceDownProducer }
+            opts?: {
+                faceDown?: FaceDownProducer;
+                authoredEntry?: AuthoredEntryState;
+            }
         ): boolean {
             const player = getPlayer(state, playerId);
             const idx = player.library.findIndex(
@@ -15562,7 +15579,14 @@ export function buildSpellContext(
             // never apply, and an entry replacement that bites a creature
             // (Containment Priest) bites the face-down one.
             if (opts?.faceDown) turnFaceDown(state, card, opts.faceDown);
-            const entered = putReanimatedOnBattlefield(state, card, playerId);
+            const entered = putReanimatedOnBattlefield(
+                state,
+                card,
+                playerId,
+                undefined,
+                undefined,
+                opts?.authoredEntry
+            );
             // CR 701.40f — a card that did not enter was never manifested:
             // wherever an entry replacement sent it, it is the real card.
             if (!entered && card.faceDown && card.zone !== "battlefield") {
@@ -15577,13 +15601,21 @@ export function buildSpellContext(
         // longer in hand at resolution (CR 608.2b).
         putFromHandOntoBattlefield(
             playerId: string,
-            cardInstanceId: string
+            cardInstanceId: string,
+            authoredEntry?: AuthoredEntryState
         ): boolean {
             const player = getPlayer(state, playerId);
             const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return false;
             const [card] = player.hand.splice(idx, 1);
-            return putReanimatedOnBattlefield(state, card, playerId);
+            return putReanimatedOnBattlefield(
+                state,
+                card,
+                playerId,
+                undefined,
+                undefined,
+                authoredEntry
+            );
         },
         // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand (or, issue
         // #1961, their graveyard / exile) under their control, "if able".

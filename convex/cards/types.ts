@@ -5401,6 +5401,9 @@ export interface SpellContext {
             entersAs?: EntryTypeLine;
             attachTo?: string;
             entryCounters?: Readonly<Record<string, number>>;
+            /** CR 110.5a — the effect's own "enters tapped", applied inside
+             *  the entry funnel so PERMANENT_ENTERED sees `enteredTapped`. */
+            authoredEntry?: AuthoredEntryState;
         }
     ) => boolean;
     /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
@@ -5451,7 +5454,11 @@ export interface SpellContext {
     putFromLibraryOntoBattlefield: (
         playerId: string,
         cardInstanceId: string,
-        opts?: { faceDown?: FaceDownProducer }
+        opts?: {
+            faceDown?: FaceDownProducer;
+            /** CR 110.5a — see `returnToBattlefield`'s `authoredEntry`. */
+            authoredEntry?: AuthoredEntryState;
+        }
     ) => boolean;
     /** Puts a card from `playerId`'s HAND onto their battlefield (CR 400.7 — a
      *  zone change that is not "playing" the card, so no cost is paid and the
@@ -5464,7 +5471,9 @@ export interface SpellContext {
      *  battlefield"). */
     putFromHandOntoBattlefield: (
         playerId: string,
-        cardInstanceId: string
+        cardInstanceId: string,
+        /** CR 110.5a — see `returnToBattlefield`'s `authoredEntry`. */
+        authoredEntry?: AuthoredEntryState
     ) => boolean;
     /** PLAYS a land from `playerId`'s hand under their control "if able"
      *  (CR 305.2 / 116.2a). Distinct from `putFromHandOntoBattlefield` (a free
