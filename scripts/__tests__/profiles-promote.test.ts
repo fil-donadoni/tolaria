@@ -47,8 +47,17 @@ const seedCapabilities = getCardCapabilityFile();
 const seedArchetypes = getCardArchetypeFile(CUBE_SOURCE_KEY)!;
 const [firstCapabilityCard] = Object.keys(seedCapabilities.capabilities);
 const [firstArchetypeCard] = Object.keys(seedArchetypes.archetypes);
-/** A real card the Capability seed has no row for — a DB-only override. */
-const capabilityNewcomer = Object.keys(seedArchetypes.archetypes).find(
+/** A real card the Capability seed has no row for — a DB-only override.
+ *  Drawn from the LEA Pick Ratings, not the cube: since the first Profile
+ *  Census (issue #8902) every cube card has a Capability row. */
+const leaRatedCards = Object.keys(
+    (
+        JSON.parse(
+            readFileSync(join(REPO_ROOT, "data/pick-ratings/lea.json"), "utf8")
+        ) as { ratings: Record<string, number> }
+    ).ratings
+);
+const capabilityNewcomer = leaRatedCards.find(
     (cardId) => !(cardId in seedCapabilities.capabilities)
 )!;
 
