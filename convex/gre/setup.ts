@@ -110,7 +110,7 @@ export function buildPlayerState(
  *  order), seeded by `seed` for reproducibility. Shuffles each library, draws
  *  opening hands (CR 103.4), and enters the mulligan phase with declarations
  *  starting from the active player (CR 103.5); `advancePhase` is deferred to
- *  `finalizeMulligan`. Pure — no persistence, no `games` row. */
+ *  `startFirstTurn`. Pure — no persistence, no `games` row. */
 export function createInitialGameState(
     players: PlayerInput[],
     seed: number
@@ -139,7 +139,7 @@ export function createInitialGameState(
     }
 
     // CR 103.5: enter the mulligan phase — declarations begin with the starting
-    // player. advancePhase is deferred to finalizeMulligan.
+    // player. advancePhase is deferred to startFirstTurn.
     state.phase = "MULLIGAN" as Phase;
     state.mulligan = makeMulliganState(state);
     state.priorityPlayerId = state.mulligan.declaringPlayerId;

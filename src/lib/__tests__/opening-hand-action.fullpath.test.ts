@@ -12,26 +12,26 @@
 // predicate both boards gate a hand card's pick toggle on.
 
 import { describe, expect, it } from "vitest";
-import { submitResolutionChoice } from "../game";
-import { getCardByName, withTemporaryDefinitionAsync } from "../cards";
-import type { CardDefinition } from "../cards/types";
-import { makeMulliganState, recordDeclaration } from "../gre/mulligan";
-import type { GameState } from "../gre/state";
-import type { Phase } from "../gre/types";
-import { projectPublicState } from "../gameProjections";
-import { isSelectableHandChoiceCard } from "../../src/lib/hand-choice";
+import { submitResolutionChoice } from "@convex/game";
+import { getCardByName, withTemporaryDefinitionAsync } from "@convex/cards";
+import type { CardDefinition } from "@convex/cards/types";
+import { makeMulliganState, recordDeclaration } from "@convex/gre/mulligan";
+import type { GameState } from "@convex/gre/state";
+import type { Phase } from "@convex/gre/types";
+import { projectPublicState } from "@convex/gameProjections";
+import { isSelectableHandChoiceCard } from "../hand-choice";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../cards/__tests__/setup.helper";
-import type { Id } from "../_generated/dataModel";
+} from "@convex/cards/__tests__/setup.helper";
+import type { Id } from "@convex/_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness.fixture";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const bears = getCardByName("Grizzly Bears");
@@ -84,7 +84,7 @@ function windowOpen(): GameState {
         rngCounter: 0,
         priorityPlayerId: "p1",
         activePlayerId: "p1",
-        turnNumber: 1,
+        turn: 1,
     });
     state.mulligan = makeMulliganState(state);
     recordDeclaration(state, "p1", "keep");

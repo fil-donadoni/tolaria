@@ -256,7 +256,7 @@ export function applyMulliganBottomChoice(
 export function finalizeMulligan(state: GameState): void {
     const m = state.mulligan;
     if (!m) throw new Error("Mulligan state missing");
-    m.openingHand = { actorIndex: -1, queued: [] };
+    m.openingHand = { actorPosition: -1, queued: [] };
     advanceOpeningHandWindow(state);
 }
 
@@ -274,18 +274,34 @@ export function openingHandBattlefieldCards(
     });
 }
 
-/** CR 103.6 — hand the window to the next player in turn order (the
- *  starting player is `players[0]`) who has an opening-hand action to take,
- *  raising their `opening-hand-action` choice. A player with none is skipped
- *  without a prompt. When nobody is left, the first turn begins. */
+/** The player `turnOrderPosition` seats after the starting player — the
+ *  active player of the first turn (CR 103.1), who need not be `players[0]`
+ *  (a later Game of a Match starts with the chosen player on the play). */
+function playerInTurnOrder(
+    state: GameState,
+    turnOrderPosition: number
+): PlayerState {
+    const start = state.players.findIndex((p) => p.id === state.activePlayerId);
+    const n = state.players.length;
+    return state.players[(Math.max(start, 0) + turnOrderPosition) % n];
+}
+
+/** CR 103.6 — hand the window to the next player in turn order from the
+ *  starting player who has an opening-hand action to take, raising their
+ *  `opening-hand-action` choice. A player with none is skipped without a
+ *  prompt. When nobody is left, the first turn begins. */
 function advanceOpeningHandWindow(state: GameState): void {
     const window = state.mulligan?.openingHand;
     if (!window) throw new Error("Opening-hand window is not open");
-    for (let i = window.actorIndex + 1; i < state.players.length; i++) {
-        const player = state.players[i];
+    for (
+        let position = window.actorPosition + 1;
+        position < state.players.length;
+        position++
+    ) {
+        const player = playerInTurnOrder(state, position);
         const eligible = openingHandBattlefieldCards(player);
         if (eligible.length === 0) continue;
-        window.actorIndex = i;
+        window.actorPosition = position;
         const choice: PendingChoice = {
             stackItemId: OPENING_HAND_STACK_ITEM_ID,
             step: 0,
@@ -356,7 +372,7 @@ export function resumeOpeningHandWindow(state: GameState): void {
 function continueOpeningHandWindow(state: GameState): void {
     const window = state.mulligan?.openingHand;
     if (!window) throw new Error("Opening-hand window is not open");
-    const actor = state.players[window.actorIndex];
+    const actor = playerInTurnOrder(state, window.actorPosition);
     while ((state.pendingChoices?.length ?? 0) === 0) {
         const next = window.queued.shift();
         if (next === undefined) {
@@ -384,6 +400,21 @@ export function startFirstTurn(state: GameState): void {
     for (const player of state.players) {
         player.drawnThisTurn = undefined;
         player.lastDrawnCardId = undefined;
+        // CR 103.6a — a card that began the game on the battlefield entered
+        // BEFORE turn 1, so it did not enter "this turn" and was no
+        // qualifying action of it (Arboria's tally). The entry stamped both against
+        // the turn number the game already reads; this walk never reaches the
+        // turn boundary that would roll them over.
+        player.qualifyingActionThisTurn = undefined;
+        for (const card of player.battlefield) {
+            card.enteredOnTurn = undefined;
+            // CR 302.6 — the starting player has controlled it continuously
+            // since before their most recent turn (turn 1) began. Any other
+            // player's stays sick until their own first untap step clears it.
+            if (player.id === state.activePlayerId) {
+                card.isSummoningSick = undefined;
+            }
+        }
     }
     state.phase = "UNTAP" as Phase;
     advancePhase(state);

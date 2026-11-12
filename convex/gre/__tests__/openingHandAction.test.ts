@@ -65,7 +65,10 @@ const LEYLINE_WITH_AS_ENTERS: CardDefinition = {
 
 /** A two-player game at the start of the mulligan, each hand the given
  *  definitions (padded with Grizzly Bears), libraries of Bears. */
-function makeGame(hands: { p1: string[]; p2: string[] }): GameState {
+function makeGame(
+    hands: { p1: string[]; p2: string[] },
+    startingPlayer: "p1" | "p2" = "p1"
+): GameState {
     const buildPlayer = (id: "p1" | "p2") => {
         const handIds = [...hands[id]];
         while (handIds.length < 7) handIds.push(bears.id);
@@ -93,8 +96,8 @@ function makeGame(hands: { p1: string[]; p2: string[] }): GameState {
         rngSeed: 1,
         rngCounter: 0,
         priorityPlayerId: "p1",
-        activePlayerId: "p1",
-        turnNumber: 1,
+        activePlayerId: startingPlayer,
+        turn: 1,
     });
     state.mulligan = makeMulliganState(state);
     return state;
@@ -161,7 +164,44 @@ describe("opening-hand actions (CR 103.6)", () => {
             expect(state.mulligan).toBeUndefined();
             expect(state.pendingChoices).toBeUndefined();
             expect(state.phase).toBe("UPKEEP");
-            expect(state.turnNumber).toBe(1);
+            expect(state.turn).toBe(1);
+        });
+    });
+
+    it("the starting player acts first even when not seated first (CR 103.6)", () => {
+        withTemporaryDefinition(LEYLINE, () => {
+            const state = makeGame(
+                { p1: [LEYLINE.id], p2: [LEYLINE.id] },
+                "p2"
+            );
+            keepBoth(state);
+
+            expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+            submit(state, []);
+            expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+            submit(state, []);
+            expect(state.phase).toBe("UPKEEP");
+        });
+    });
+
+    it("a card that began the game on the battlefield did not enter during turn 1 (CR 302.6)", () => {
+        withTemporaryDefinition(LEYLINE, () => {
+            const state = makeGame({ p1: [LEYLINE.id], p2: [LEYLINE.id] });
+            keepBoth(state);
+            submit(state, ["p1-hand-0"]);
+            submit(state, ["p2-hand-0"]);
+
+            expect(state.phase).toBe("UPKEEP");
+            const [mine, theirs] = state.players.map((p) => p.battlefield[0]);
+            expect(mine.enteredOnTurn).toBeUndefined();
+            expect(theirs.enteredOnTurn).toBeUndefined();
+            // Controlled since before the starting player's turn began; the
+            // other player's first turn has not begun yet.
+            expect(mine.isSummoningSick).toBeFalsy();
+            expect(theirs.isSummoningSick).toBe(true);
+            // Arboria's tally — no qualifying action was taken during turn 1.
+            expect(state.players[0].qualifyingActionThisTurn).toBeUndefined();
+            expect(state.players[1].qualifyingActionThisTurn).toBeUndefined();
         });
     });
 

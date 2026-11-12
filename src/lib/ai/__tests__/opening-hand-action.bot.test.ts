@@ -81,7 +81,7 @@ function windowOwedToBot(): GameState {
         phase: "MULLIGAN" as Phase,
         activePlayerId: HUMAN,
         priorityPlayerId: HUMAN,
-        turnNumber: 1,
+        turn: 1,
     });
     state.mulligan = makeMulliganState(state);
     recordDeclaration(state, HUMAN, "keep");

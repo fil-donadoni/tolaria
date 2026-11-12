@@ -4667,9 +4667,10 @@ export type MulliganState = {
 
 /** The opening-hand action window's progress (CR 103.6). */
 export type OpeningHandWindow = {
-    /** Index into `GameState.players` of the player whose opening-hand
-     *  actions are being taken; -1 before the first one. */
-    actorIndex: number;
+    /** Turn-order position, counted from the starting player (the first
+     *  turn's active player, 0), of the player whose opening-hand actions are
+     *  being taken; -1 before the first one. */
+    actorPosition: number;
     /** Cards the actor chose to put onto the battlefield (CR 103.6a) that
      *  have not entered yet, in the order chosen. Non-empty only while one of
      *  them waits on an as-enters choice (CR 614.12a) — the rest follow once
@@ -5108,8 +5109,9 @@ export type GameState = {
      *  same ids. */
     nextRevealSeq?: number;
     /** Pre-game mulligan tracking (CR 103.5). Set during init, cleared by
-     *  `finalizeMulligan` when all opening hands are locked and any required
-     *  bottoming choices have resolved. */
+     *  `startFirstTurn` once all opening hands are locked, any required
+     *  bottoming choices have resolved and the opening-hand action window
+     *  (CR 103.6) has closed. */
     mulligan?: MulliganState;
     /** Set when the game ends. Contains winner/loser info for a decisive game,
      *  or `isDraw: true` for a drawn game (CR 104.4 — Divine Intervention's

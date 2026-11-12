@@ -815,7 +815,7 @@ export function buildInitialGameState(
     }
 
     // CR 103.5: enter the mulligan phase — declarations begin with the active
-    // player. advancePhase is deferred to finalizeMulligan.
+    // player. advancePhase is deferred to startFirstTurn.
     initialState.phase = "MULLIGAN" as Phase;
     initialState.mulligan = makeMulliganState(initialState);
     initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
