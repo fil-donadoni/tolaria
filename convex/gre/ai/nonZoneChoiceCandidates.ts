@@ -122,6 +122,8 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     // are the zone's. Only the CHOOSER's half names a label.
     "divide-piles": "none",
     "mulligan-bottom": "none",
+    // CR 103.6a — the eligible opening-hand cards are hand members.
+    "opening-hand-action": "none",
     // Answered through their own dedicated resolvers, never with instance ids
     // (`chooseResolution` throws on each): a yes/no, a scalar, a card name, an
     // acknowledgement.

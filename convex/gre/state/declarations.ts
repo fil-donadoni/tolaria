@@ -4659,6 +4659,22 @@ export type MulliganState = {
     /** True once all players are locked. The engine has enqueued one
      *  `mulligan-bottom` PendingChoice per player with `mulligansTaken > 0`. */
     bottoming: boolean;
+    /** CR 103.6 — the opening-hand action window, open once bottoming is done
+     *  and before the first turn begins: the starting player acts first, then
+     *  each other player in turn order. Absent until the window opens. */
+    openingHand?: OpeningHandWindow;
+};
+
+/** The opening-hand action window's progress (CR 103.6). */
+export type OpeningHandWindow = {
+    /** Index into `GameState.players` of the player whose opening-hand
+     *  actions are being taken; -1 before the first one. */
+    actorIndex: number;
+    /** Cards the actor chose to put onto the battlefield (CR 103.6a) that
+     *  have not entered yet, in the order chosen. Non-empty only while one of
+     *  them waits on an as-enters choice (CR 614.12a) — the rest follow once
+     *  it is answered. */
+    queued: string[];
 };
 
 /** A one-shot "this just happened in a hidden zone" notification (Reveal

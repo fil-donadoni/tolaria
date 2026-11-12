@@ -21,6 +21,7 @@ import {
     submitMeldArrange,
     submitMidResolutionPick,
     submitMulliganBottom,
+    submitOpeningHandAction,
     submitOptionPick,
     submitOutsideGamePick,
     submitPilePick,
@@ -112,6 +113,10 @@ export const PENDING_CHOICE_HANDLERS: Record<
     },
     "mulligan-bottom": {
         submit: zoned(submitMulliganBottom),
+        legalActions: zonePickActions,
+    },
+    "opening-hand-action": {
+        submit: zoned(submitOpeningHandAction),
         legalActions: zonePickActions,
     },
     "choose-damage-target": {
