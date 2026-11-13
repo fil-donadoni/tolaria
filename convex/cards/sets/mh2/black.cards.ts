@@ -214,6 +214,43 @@ export const boneShards = defineCard(() => ({
     effects: [{ op: "destroy", target: { target: 0 } }],
 }));
 
+// Break the Ice — {B}{B} Sorcery (MH2 77). "Destroy target land that is snow
+// or could produce {C}. Overload {4}{B}{B}". The target clause is a
+// disjunction of the live snow supertype (CR 205.4a) and "could produce"
+// (CR 106.7) read as a mana TYPE, so {C} counts (CR 106.1b) — one
+// `supertypeOrProducesFilter`, shared by the offered, accepted and
+// client-highlighted sets. Overload (CR 702.96) reuses the printed target
+// requirement for its sweep, so the overloaded cast destroys every snow or
+// {C}-producing land, even one that is untargetable (CR 702.96b); the script is Damn's
+// `forEach { set: "targets" }` shape.
+// hand-tail: Destroy target land that is snow or could produce {C}. (#8608)
+export const breakTheIce = defineCard(() => ({
+    id: "01ca9568-06b6-4c57-b1f6-8a74ec2a2b91",
+    name: "Break the Ice",
+    rarity: "uncommon",
+    oracleText:
+        'Destroy target land that is snow or could produce {C}.\nOverload {4}{B}{B} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+    manaCost: { B: 2 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {4}{B}{B}",
+        mana: { X: 4, B: 2 },
+    },
+    targetRequirement: {
+        type: "Land",
+        count: 1,
+        supertypeOrProducesFilter: { supertype: "Snow", produces: "C" },
+    },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
+}));
+
 // Damn — {B}{B} Sorcery (MH2 80, Vintage Cube). "Destroy target creature. A
 // creature destroyed this way can't be regenerated. Overload {2}{W}{W}."
 //

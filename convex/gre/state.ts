@@ -1417,6 +1417,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     subtypeFilter: true,
     typeOrSubtypeFilter: true,
     supertypeFilter: true,
+    supertypeOrProducesFilter: true,
     excludeSubtypes: true,
     excludeSupertypes: true,
     excludeTypes: true,
