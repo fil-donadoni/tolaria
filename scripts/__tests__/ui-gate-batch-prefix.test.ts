@@ -41,6 +41,7 @@ function orphaned(): BatchAttribution {
         red: new Map(),
         ambiguous: [],
         orphan: ["game-board"],
+        unmeasured: [],
     };
 }
 

@@ -143,16 +143,40 @@ export interface BatchAttribution {
      *  changes that only break together), or a surface the union scope adds
      *  through `surfaces.ts`. Every PR in the batch stays unproven on it. */
     orphan: string[];
+    /** A surface ONE PR reaches whose every non-`PASS` row is `UNWALKED` /
+     *  `INFRA` (issue #9549): the walk measured nothing there, so it reds
+     *  nobody until a solo re-walk of those cells on its owner settles it
+     *  (`settleUnmeasured`). */
+    unmeasured: UnmeasuredSurface[];
+}
+
+/** One unmeasured surface and the cells to re-walk on its owner alone. */
+export interface UnmeasuredSurface {
+    surface: string;
+    owner: number;
+    /** The viewports with no measurement; `null` when a whole-surface row
+     *  (unreachable, not attempted) left the surface unmeasured throughout. */
+    viewports: string[] | null;
+    /** The batch's `UNWALKED` / `INFRA` lines for the surface. */
+    lines: string[];
+}
+
+/** `surface @ v1, v2` — the cells an unmeasured surface re-walks. */
+export function unmeasuredCellsText(u: UnmeasuredSurface): string {
+    return `${u.surface} @ ${u.viewports ? u.viewports.join(", ") : "every viewport"}`;
 }
 
 /**
  * Which PR each red surface belongs to. `walked` is the batch's scope (the
  * banner's surfaces). A surface is red when any of its
  * rows or assertion lines is not `PASS`; a PR is clean when no surface of
- * its own scope is red. A red surface reached by one PR reds that PR; by
- * several, it is ambiguous until a solo re-walk settles it; by none, it is
- * an orphan, and an orphan reds nobody but proves nothing either — it is
- * reported, and the PRs it does not touch still land.
+ * its own scope is red. A red surface reached by one PR reds that PR when
+ * the walk MEASURED it red (a `FAIL` row, a failed assertion); one whose
+ * non-`PASS` rows are all `UNWALKED` / `INFRA` measured nothing and is
+ * `unmeasured` instead (issue #9549). Reached by several PRs, a red surface
+ * is ambiguous until a solo re-walk settles it; by none, it is an orphan,
+ * and an orphan reds nobody but proves nothing either — it is reported, and
+ * the PRs it does not touch still land.
  */
 export function attributeBatch(
     walked: readonly string[],
@@ -161,18 +185,27 @@ export function attributeBatch(
     scopes: ReadonlyMap<number, readonly string[]>
 ): BatchAttribution {
     const redLines = new Map<string, string[]>();
+    /** Surfaces with a measured red: a `FAIL` row or a failed assertion. */
+    const measuredRed = new Set<string>();
+    /** Unmeasured cells per surface; `null` = a whole-surface row. */
+    const unmeasuredCells = new Map<string, (string | null)[]>();
     const push = (surface: string, line: string) => {
         const list = redLines.get(surface) ?? [];
         list.push(line);
         redLines.set(surface, list);
     };
     for (const r of rows) {
-        if (r.verdict !== "PASS") {
-            push(
-                r.surface,
-                `${r.verdict} ${r.surface} @ ${r.viewport ?? "—"}: ${r.detail}`
-            );
-        }
+        if (r.verdict === "PASS") continue;
+        push(
+            r.surface,
+            `${r.verdict} ${r.surface} @ ${r.viewport ?? "—"}: ${r.detail}`
+        );
+        if (r.verdict === "FAIL") measuredRed.add(r.surface);
+        else
+            unmeasuredCells.set(r.surface, [
+                ...(unmeasuredCells.get(r.surface) ?? []),
+                r.viewport,
+            ]);
     }
     for (const a of assertRows) {
         if (a.verdict !== "PASS") {
@@ -180,6 +213,7 @@ export function attributeBatch(
                 a.surface,
                 `FAIL ${a.surface} @ ${a.viewport}: assertion ${JSON.stringify(a.label)}`
             );
+            measuredRed.add(a.surface);
         }
     }
     const passSurfaces = walked.filter((s) => !redLines.has(s));
@@ -187,12 +221,23 @@ export function attributeBatch(
     const red = new Map<number, string[]>();
     const ambiguous: BatchAttribution["ambiguous"] = [];
     const orphan: string[] = [];
+    const unmeasured: UnmeasuredSurface[] = [];
     for (const [surface, lines] of redLines) {
         const candidates = [...scopes]
             .filter(([, s]) => s.includes(surface))
             .map(([pr]) => pr);
         if (candidates.length === 0) orphan.push(surface);
-        else if (candidates.length === 1) {
+        else if (candidates.length === 1 && !measuredRed.has(surface)) {
+            const cells = unmeasuredCells.get(surface) ?? [];
+            unmeasured.push({
+                surface,
+                owner: candidates[0],
+                viewports: cells.includes(null)
+                    ? null
+                    : [...new Set(cells as string[])],
+                lines,
+            });
+        } else if (candidates.length === 1) {
             red.set(candidates[0], [
                 ...(red.get(candidates[0]) ?? []),
                 ...lines,
@@ -203,7 +248,66 @@ export function attributeBatch(
     const clean = [...scopes]
         .filter(([, s]) => s.every((surface) => pass.has(surface)))
         .map(([pr]) => pr);
-    return { passSurfaces, clean, red, ambiguous, orphan };
+    return { passSurfaces, clean, red, ambiguous, orphan, unmeasured };
+}
+
+/** What `settleUnmeasured` adds beside the settled attribution. */
+export interface UnmeasuredSettle {
+    attribution: BatchAttribution;
+    /** PR → the cells its solo re-walk measured `PASS` (receipt comment). */
+    rewalked: Map<number, string[]>;
+}
+
+/**
+ * Settle the unmeasured surfaces with a solo re-walk of their cells on the
+ * owning PR (issue #9549). `probes` maps each surface to that re-walk, read
+ * over the re-walked cells only (`cellProbesOf`): `pass` → the surface
+ * passes (it joins `passSurfaces`, the PR may land); `fail` → the owner is
+ * red with the measured lines; `unsettled` (UNWALKED / INFRA again, or no
+ * re-walk) → the surface stays in `unmeasured` and its owner ends UNPROVEN,
+ * never red. Pure.
+ */
+export function settleUnmeasured(
+    attribution: BatchAttribution,
+    scopes: ReadonlyMap<number, readonly string[]>,
+    probes: ReadonlyMap<string, PrefixProbe>
+): UnmeasuredSettle {
+    const red = new Map(attribution.red);
+    const passSurfaces = [...attribution.passSurfaces];
+    const unmeasured: UnmeasuredSurface[] = [];
+    const rewalked = new Map<number, string[]>();
+    for (const u of attribution.unmeasured) {
+        const probe = probes.get(u.surface) ?? { verdict: "unsettled" };
+        if (probe.verdict === "pass") {
+            passSurfaces.push(u.surface);
+            rewalked.set(u.owner, [
+                ...(rewalked.get(u.owner) ?? []),
+                unmeasuredCellsText(u),
+            ]);
+        } else if (probe.verdict === "fail") {
+            red.set(u.owner, [
+                ...(red.get(u.owner) ?? []),
+                `${u.surface}: unmeasured in the batch, measured red when #${u.owner} was re-walked alone`,
+                ...probe.lines,
+            ]);
+        } else unmeasured.push(u);
+    }
+    const pass = new Set(passSurfaces);
+    const clean = [...scopes]
+        .filter(
+            ([pr, s]) => !red.has(pr) && s.every((surface) => pass.has(surface))
+        )
+        .map(([pr]) => pr);
+    return {
+        attribution: {
+            ...attribution,
+            passSurfaces,
+            red,
+            unmeasured,
+            clean,
+        },
+        rewalked,
+    };
 }
 
 /**
@@ -236,18 +340,18 @@ export function settleAmbiguous(
     return { ...attribution, red, ambiguous: [], orphan };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Combination breaks: the merge-order prefix settle (issue #9265)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** One orphan surface as one prefix walk measured it: `fail` only on a
- *  measured `FAIL` row or failed assertion (its lines name the viewports);
- *  `pass` when every row passed; `unsettled` when the walk could not judge it
+/** One surface as a probe walk measured it: `fail` only on a measured
+ *  `FAIL` row or failed assertion (its lines name the viewports); `pass`
+ *  when every row passed; `unsettled` when the walk could not judge it
  *  (an `UNWALKED` / `INFRA` row, no row, a walk the machine cut short). */
 export type PrefixProbe =
     | { verdict: "pass" }
     | { verdict: "fail"; lines: string[] }
     | { verdict: "unsettled" };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Combination breaks: the merge-order prefix settle (issue #9265)
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** A surface red only in combination, and the head that completes it. */
 export interface CombinationBreak {
