@@ -29,3 +29,58 @@ export const consumingAetherborn = defineCard(() => ({
     staticAbilities: ["backup 1", "lifelink"],
     triggeredAbilities: [backupTrigger(1, ["lifelink"])],
 }));
+
+// Glistening Deluge — {1}{B}{B} Sorcery. "All creatures get -1/-1 until end of
+// turn. Creatures that are green and/or white get an additional -2/-2 until
+// end of turn." (CR 611.2 — two one-shot effects that each create a
+// continuous P/T change; CR 613.4c P/T modification.) Two `forEach`
+// sweeps with no `controller` (every player's battlefield): the first hits
+// every creature, the second the green-and-or-white subset via
+// `filter.color` array (OR semantics, CR 105.2 — a green-white creature matches
+// once and takes the additional -2/-2 once).
+// hand-tail: All creatures get -1/-1 until end of turn. Creatures that are green and/or white get an additional -2/-2 until end of turn. (#8621)
+export const glisteningDeluge = defineCard(() => ({
+    id: "83ca46ac-0698-4651-940d-3fd20c266b74", // MOM printing (scryfallId)
+    name: "Glistening Deluge",
+    rarity: "uncommon",
+    oracleText:
+        "All creatures get -1/-1 until end of turn. Creatures that are green and/or white get an additional -2/-2 until end of turn.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: -1,
+                    toughness: -1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", color: ["G", "W"] },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: -2,
+                    toughness: -2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+}));
