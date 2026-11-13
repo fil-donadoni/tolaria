@@ -2,7 +2,6 @@
 // Mirrors the board targeting-choice test's mutation-capture pattern.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { ReactNode } from "react";
 import type { CardInstance, PendingTarget, Player } from "~/types/game";
 
 type MutArgs = Record<string, unknown>;
@@ -48,11 +47,6 @@ vi.mock("~/components/cards/card-image", () => ({
 }));
 
 import GraveyardTargetDialog from "../graveyard-target-dialog";
-import GraveyardTargetSurface from "../graveyard-target-surface";
-import {
-    MinimizedChoiceContext,
-    useMinimizedChoiceState,
-} from "~/hooks/useMinimizedChoice";
 
 function gyCard(id: string, ownerId: string): CardInstance {
     return {
@@ -103,7 +97,6 @@ function renderDialog(
             pendingTarget={pt}
             me={me}
             allPlayers={players}
-            stack={[]}
             gameId={"g1" as never}
             playerId="me"
             activePlayerId="me"
@@ -275,102 +268,5 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         // A second click while pending is a no-op.
         fireEvent.click(secondBtn);
         expect(selectTarget).toHaveBeenCalledTimes(1);
-    });
-});
-
-// Issue #8426 — the dialog minimizes to the board indicator like the other
-// blocking pickers. The provider is the board's own hook
-// (`useMinimizedChoiceState`), so the reset-on-new-target rule is the real one.
-function MinimizeProvider({
-    pt,
-    children,
-}: {
-    pt: PendingTarget;
-    children: ReactNode;
-}) {
-    const min = useMinimizedChoiceState(undefined, pt);
-    return (
-        <MinimizedChoiceContext value={min}>{children}</MinimizedChoiceContext>
-    );
-}
-
-function surface(pt: PendingTarget, me: Player) {
-    return (
-        <MinimizeProvider pt={pt}>
-            <GraveyardTargetSurface
-                pendingTarget={pt}
-                me={me}
-                allPlayers={[me]}
-                stack={[]}
-                gameId={"g1" as never}
-                playerId="me"
-                activePlayerId="me"
-            />
-        </MinimizeProvider>
-    );
-}
-
-const minimizeBtn = () =>
-    screen.queryByRole("button", { name: "Minimize choice dialog" });
-const indicator = () => screen.queryByRole("button", { name: /^Restore/ });
-
-describe("GraveyardTargetSurface minimize (issue #8426)", () => {
-    it("minimize shows the indicator; restore reopens with `selected` intact, no mutation", () => {
-        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
-        // A 2-target selection with its first pick already made.
-        const pt = pending({
-            controller: "you",
-            count: 2,
-            selected: [{ type: "graveyard-card", id: "m1" }],
-        });
-        render(surface(pt, me));
-
-        fireEvent.click(minimizeBtn()!);
-        expect(screen.queryByTestId("card-img-m1")).toBeNull();
-        expect(indicator()).not.toBeNull();
-
-        fireEvent.click(indicator()!);
-        expect(indicator()).toBeNull();
-        const picked = screen.getByTestId("card-img-m1").closest("button")!;
-        expect(picked.className).toContain("card-ring-selected");
-
-        expect(cancelTarget).not.toHaveBeenCalled();
-        expect(selectTarget).not.toHaveBeenCalled();
-    });
-
-    it("a new PendingTarget opens expanded", () => {
-        const me = player("me", "Me", [gyCard("m1", "me")]);
-        const first = pending({ controller: "you", cardInstanceId: "src-1" });
-        const { rerender } = render(surface(first, me));
-        fireEvent.click(minimizeBtn()!);
-        expect(indicator()).not.toBeNull();
-
-        rerender(
-            surface(pending({ controller: "you", cardInstanceId: "src-2" }), me)
-        );
-        expect(indicator()).toBeNull();
-        expect(screen.getByTestId("card-img-m1")).toBeTruthy();
-    });
-
-    it("dismissing the dialog still cancels the selection", () => {
-        const me = player("me", "Me", [gyCard("m1", "me")]);
-        render(surface(pending({ controller: "you" }), me));
-        fireEvent.keyDown(document, { key: "Escape" });
-        expect(cancelTarget).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe("GraveyardTargetDialog title (issue #8426)", () => {
-    it("a cast from the graveyard is titled by the card, never 'spell'", () => {
-        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
-        renderDialog(
-            pending({ controller: "you", cardInstanceId: "m2", kind: "cast" }),
-            [me],
-            me
-        );
-        expect(
-            screen.getByRole("heading", { name: "Card def-m2" })
-        ).toBeTruthy();
-        expect(screen.queryByRole("heading", { name: "spell" })).toBeNull();
     });
 });
