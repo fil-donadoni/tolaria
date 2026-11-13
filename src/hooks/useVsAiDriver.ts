@@ -111,6 +111,7 @@ import {
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     openBotSearchReport,
+    telemetryNow,
     type BotSearchRecorder,
 } from "~/lib/ai/bot-search-telemetry";
 import {
@@ -235,6 +236,13 @@ export function useVsAiDriver(
     gameId: Id<"games">,
     botId: string | null
 ): VsAiDriverStatus {
+    // This game's Bot search report (issue #9526): every consult's ending is
+    // folded in, and it is flushed ONCE — at game over or when the game is
+    // left, whichever comes first. Opened and closed by the same per-game
+    // effect that owns the Brain, so a rematch on this hook instance starts a
+    // fresh one. A consult still in flight at the flush is not in the report.
+    const searchReport = useRef<BotSearchRecorder | null>(null);
+
     // Cheap wake-up signal (issue #1778): mount the fat `getPublicState`
     // subscription only once the tick says the bot's own seat owes input.
     // Gate on MEMBERSHIP in `owedPlayerIds`, not equality with a single id —
@@ -247,12 +255,6 @@ export function useVsAiDriver(
     // over the network before it answers anything, and doing that inside the
     // first `consultBrain` would spend `BRAIN_CONSULT_TIMEOUT_MS` on a
     // download instead of on the search.
-    // This game's Bot search report (issue #9526): every consult's ending is
-    // folded in, and it is flushed ONCE — at game over or when the game is
-    // left, whichever comes first. Opened and closed by the same per-game
-    // effect that owns the Brain, so a rematch on this hook instance starts a
-    // fresh one.
-    const searchReport = useRef<BotSearchRecorder | null>(null);
     useEffect(() => {
         if (botId) warmBrain();
         searchReport.current = botId ? openBotSearchReport(gameId) : null;
@@ -303,6 +305,8 @@ export function useVsAiDriver(
     // The game ended on the board: report its searches now rather than when
     // the player eventually leaves the game-over screen (or closes the tab on
     // it, which would lose the report).
+    // Keyed on the flag alone, not on the game: after a swap this must not
+    // run against the next game's recorder with the previous game's flag.
     const gameOver = !!tick?.gameOver;
     useEffect(() => {
         if (gameOver) searchReport.current?.flush();
@@ -1372,7 +1376,7 @@ export function useVsAiDriver(
             // both captured BEFORE the consult: a game swapped while the
             // search runs must not file its verdict under the next game.
             const report = searchReport.current;
-            const consultStartedAt = performance.now();
+            const consultStartedAt = telemetryNow();
             dispatch(
                 signature,
                 () =>
@@ -1400,7 +1404,7 @@ export function useVsAiDriver(
                             report?.record({
                                 outcome,
                                 via,
-                                consultMs: performance.now() - consultStartedAt,
+                                consultMs: telemetryNow() - consultStartedAt,
                                 difficulty,
                                 ...(trace
                                     ? {

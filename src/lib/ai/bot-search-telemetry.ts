@@ -10,8 +10,9 @@
 // The vs-Bot driver folds every Brain consult into a per-game accumulator
 // (`openBotSearchReport`) and flushes it when the game ends or is left,
 // whichever comes first: one structured log per game, never one per consult.
-// A game with no consult reports nothing. A game whose tab is closed mid-play
-// loses its report; that is accepted.
+// A game with no consult reports nothing. A consult still in flight when the
+// report is flushed is not in it, and a game whose tab is closed mid-play
+// loses its report; both are accepted.
 //
 // WHAT TRAVELS, and the boundary it must keep. This report is NOT consented:
 // it leaves the device without the bug-report consent gate
@@ -103,6 +104,17 @@ export const botSearchSink = {
     },
 };
 
+/** A monotonic clock that exists wherever this module is imported. */
+export function telemetryNow(): number {
+    return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+const finite = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value);
+
+const maxOf = (values: readonly number[]): number =>
+    values.reduce((max, value) => (value > max ? value : max), -Infinity);
+
 /** The `p`-th percentile of `values` by nearest rank (`p` in 0..100), or
  *  `undefined` for no values. One value is every percentile of itself. */
 export function percentile(
@@ -163,16 +175,42 @@ export function deviceClass(
     };
 }
 
+/** Keep only the attributes the allowlist names. The counters below are keyed
+ *  by the consult's outcome and the search's stop reason; a value added to
+ *  either union — or a malformed trace — must not become an attribute nobody
+ *  reviewed, so the boundary is enforced HERE, at runtime, and not only by the
+ *  test that pins the list. */
+function onlyAllowed(
+    raw: Record<string, string | number | boolean>
+): BotSearchReport {
+    const report: BotSearchReport = {};
+    for (const key of REPORT_KEYS) {
+        if (key in raw) report[key] = raw[key];
+    }
+    return report;
+}
+
+/** A search's numbers, when every one of them is a usable measurement. */
+function usableSearch(search: SearchStats | undefined): SearchStats | null {
+    if (!search) return null;
+    return finite(search.iterationsRequested) &&
+        finite(search.iterationsCompleted) &&
+        finite(search.elapsedMs)
+        ? search
+        : null;
+}
+
 /** Fold a game's consults into its report. Pure. A statistic with no sample
  *  behind it is LEFT OUT rather than reported as zero: "no search had a trace"
- *  and "every search took 0 ms" must not read the same. */
+ *  and "every search took 0 ms" must not read the same. A number that is not
+ *  finite is no sample. */
 export function summarizeBotSearch(
     gameId: string,
     samples: readonly ConsultSample[],
     device: DeviceClass
 ): BotSearchReport {
     const difficulties = new Set(samples.map((s) => s.difficulty));
-    const report: BotSearchReport = {
+    const raw: Record<string, string | number | boolean> = {
         gameId,
         difficulty: difficulties.size === 1 ? [...difficulties][0]! : "mixed",
         consults: samples.length,
@@ -180,22 +218,28 @@ export function summarizeBotSearch(
         "device.cores": device.cores,
         "device.mobile": device.mobile,
     };
+    const count = (key: string) => {
+        raw[key] = ((raw[key] as number | undefined) ?? 0) + 1;
+    };
 
     for (const sample of samples) {
-        const key = `consults.${sample.outcome}` as BotSearchReportKey;
-        report[key] = ((report[key] as number | undefined) ?? 0) + 1;
+        count(`consults.${sample.outcome}`);
+        if (sample.via === "inline") count("consults.inline");
     }
-    const inline = samples.filter((s) => s.via === "inline").length;
-    if (inline > 0) report["consults.inline"] = inline;
 
-    const consultMs = samples.map((s) => s.consultMs);
-    report["consultMs.p50"] = round(percentile(consultMs, 50)!);
-    report["consultMs.p90"] = round(percentile(consultMs, 90)!);
-    report["consultMs.max"] = round(Math.max(...consultMs));
+    const consultMs = samples.map((s) => s.consultMs).filter(finite);
+    if (consultMs.length > 0) {
+        raw["consultMs.p50"] = round(percentile(consultMs, 50)!);
+        raw["consultMs.p90"] = round(percentile(consultMs, 90)!);
+        raw["consultMs.max"] = round(maxOf(consultMs));
+    }
 
-    const searches = samples.flatMap((s) => (s.search ? [s.search] : []));
-    report.searches = searches.length;
-    if (searches.length === 0) return report;
+    const searches = samples.flatMap((s) => {
+        const search = usableSearch(s.search);
+        return search ? [search] : [];
+    });
+    raw.searches = searches.length;
+    if (searches.length === 0) return onlyAllowed(raw);
 
     const requested = searches.reduce(
         (sum, s) => sum + s.iterationsRequested,
@@ -205,53 +249,49 @@ export function summarizeBotSearch(
         (sum, s) => sum + s.iterationsCompleted,
         0
     );
-    report["iterations.requested"] = requested;
-    report["iterations.completed"] = completed;
+    raw["iterations.requested"] = requested;
+    raw["iterations.completed"] = completed;
     if (requested > 0)
-        report["iterations.ratio"] = round(completed / requested, 3);
+        raw["iterations.ratio"] = round(completed / requested, 3);
 
-    for (const search of searches) {
-        const key = `stopped.${search.stoppedBy}` as BotSearchReportKey;
-        report[key] = ((report[key] as number | undefined) ?? 0) + 1;
-    }
+    for (const search of searches) count(`stopped.${search.stoppedBy}`);
 
     const searchMs = searches.map((s) => s.elapsedMs);
-    report["searchMs.p50"] = round(percentile(searchMs, 50)!);
-    report["searchMs.p90"] = round(percentile(searchMs, 90)!);
-    report["searchMs.max"] = round(Math.max(...searchMs));
+    raw["searchMs.p50"] = round(percentile(searchMs, 50)!);
+    raw["searchMs.p90"] = round(percentile(searchMs, 90)!);
+    raw["searchMs.max"] = round(maxOf(searchMs));
 
     const perIteration = searches
         .filter((s) => s.iterationsCompleted > 0)
         .map((s) => s.elapsedMs / s.iterationsCompleted);
     const p50 = percentile(perIteration, 50);
     const p90 = percentile(perIteration, 90);
-    if (p50 !== undefined) report["msPerIteration.p50"] = round(p50, 2);
-    if (p90 !== undefined) report["msPerIteration.p90"] = round(p90, 2);
+    if (p50 !== undefined) raw["msPerIteration.p50"] = round(p50, 2);
+    if (p90 !== undefined) raw["msPerIteration.p90"] = round(p90, 2);
 
-    return report;
+    return onlyAllowed(raw);
 }
 
-/** One game's accumulator. */
+/** One game's accumulator. Neither method ever throws. */
 export type BotSearchRecorder = {
-    /** Fold one consult in. A no-op once flushed. */
+    /** Fold one consult in. A no-op once the report has been emitted. */
     record: (sample: ConsultSample) => void;
-    /** Emit the game's report, once. A game with no consult emits nothing.
-     *  Never throws. */
+    /** Emit the game's report, once. With no consult recorded it emits
+     *  nothing and stays open: a flush that came too early costs nothing. */
     flush: () => void;
 };
 
 /** Open the accumulator of one game's Bot searches. */
 export function openBotSearchReport(gameId: string): BotSearchRecorder {
     const samples: ConsultSample[] = [];
-    let flushed = false;
+    let emitted = false;
     return {
         record(sample) {
-            if (!flushed) samples.push(sample);
+            if (!emitted) samples.push(sample);
         },
         flush() {
-            if (flushed) return;
-            flushed = true;
-            if (samples.length === 0) return;
+            if (emitted || samples.length === 0) return;
+            emitted = true;
             try {
                 botSearchSink.log(
                     summarizeBotSearch(gameId, samples, deviceClass())

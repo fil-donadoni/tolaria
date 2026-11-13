@@ -258,6 +258,44 @@ describe("summarizeBotSearch", () => {
         expect(Object.keys(report).sort()).toEqual([...REPORT_KEYS].sort());
     });
 
+    it("drops an attribute the allowlist does not name, at runtime", () => {
+        // An outcome or stop reason added to its union later (or a malformed
+        // trace) builds a counter key nobody reviewed.
+        const report = summarizeBotSearch(
+            "game1",
+            [
+                searched({
+                    outcome: "brand-new-outcome" as never,
+                    stoppedBy: "brand-new-stop" as never,
+                }),
+            ],
+            DEVICE
+        );
+        expect(report).not.toHaveProperty("consults.brand-new-outcome");
+        expect(report).not.toHaveProperty("stopped.brand-new-stop");
+        expect(report.consults).toBe(1);
+    });
+
+    it("treats a number that is not finite as no sample", () => {
+        const report = summarizeBotSearch(
+            "game1",
+            [
+                searched({ elapsedMs: 800 }),
+                searched({ elapsedMs: Number.NaN }),
+                { ...searched(), consultMs: Number.POSITIVE_INFINITY },
+            ],
+            DEVICE
+        );
+        expect(report.consults).toBe(3);
+        expect(report.searches).toBe(2);
+        expect(report["consultMs.max"]).toBe(820);
+        for (const value of Object.values(report)) {
+            if (typeof value === "number") {
+                expect(Number.isFinite(value)).toBe(true);
+            }
+        }
+    });
+
     it("pins the allowlist: widening what leaves the device is a reviewed edit", () => {
         expect([...REPORT_KEYS]).toEqual([
             "gameId",
@@ -311,6 +349,15 @@ describe("openBotSearchReport", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         openBotSearchReport("game1").flush();
         expect(log).not.toHaveBeenCalled();
+    });
+
+    it("stays open after a flush that had nothing to report", () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const report = openBotSearchReport("game1");
+        report.flush();
+        report.record(searched());
+        report.flush();
+        expect(log).toHaveBeenCalledTimes(1);
     });
 
     it("swallows a throwing sink", () => {

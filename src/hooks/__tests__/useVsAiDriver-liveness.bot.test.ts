@@ -1310,6 +1310,37 @@ describe("the game's Bot search report (issue #9526)", () => {
         expect(log).toHaveBeenCalledTimes(1);
     });
 
+    it("times a consult from its posting to its verdict", async () => {
+        const board = searchWindow(1);
+        deferConsult = true;
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+        expect(releaseConsult).toBeDefined();
+
+        // The Brain takes 1.2 s to answer.
+        await advance(1200);
+        releaseConsult!({
+            move: null,
+            trace: null,
+            outcome: "no-move",
+            via: "worker",
+        });
+        await advance(50);
+
+        board.gameOver = { winnerId: HUMAN, loserId: BOT, reason: "life" };
+        publish(board, 2);
+        rerender();
+        await advance(50);
+
+        expect(log).toHaveBeenCalledTimes(1);
+        const report = log.mock.calls[0]![0] as Record<string, number>;
+        // Posted somewhere inside the first 500 ms (the think delay), settled
+        // 1,200 ms after them: never less than the Brain's own 1.2 s, never
+        // more than the whole 1.7 s the test has run.
+        expect(report["consultMs.max"]).toBeGreaterThanOrEqual(1200);
+        expect(report["consultMs.max"]).toBeLessThanOrEqual(1700);
+    });
+
     it("reports a game that is LEFT, once, and starts the next game from zero", async () => {
         searchWindow(1);
         answered();
