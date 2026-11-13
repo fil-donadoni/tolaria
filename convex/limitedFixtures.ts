@@ -63,6 +63,7 @@ import { SCORER_VERSION } from "./limited/scorerVersion";
 // file's header (issue #2822 review round 2).
 import {
     uiGateDraftLabel,
+    uiGateFinalPickLabel,
     uiGateOpenLabel,
 } from "./limited/uiGateFixtureLabels";
 import { isLaneAccountEmail, isRunId } from "./lib/uiGateLaneAccount";
@@ -73,6 +74,10 @@ import { isLaneAccountEmail, isRunId } from "./lib/uiGateLaneAccount";
  *  name and Pack Source row honest. */
 const FIXTURE_SET = "lea";
 const FIXTURE_SEAT_COUNT = 8;
+/** `insertFixtureEvent`'s `packSlots` length — the draft's round count. */
+const FIXTURE_PACK_SLOT_COUNT = 3;
+/** The one card left in the final-pick fixture's last pack. */
+const FIXTURE_FINAL_PICK_NAME = "Fireball";
 
 /** A constant, so a re-seed reproduces the same event rather than a fresh
  *  shuffle. Nothing in the fixture is dealt from it — it exists because
@@ -206,7 +211,10 @@ async function insertFixtureEvent(
         // status through it keeps the two in step by construction.
         status: "open",
         seatCount: FIXTURE_SEAT_COUNT,
-        packSlots: [FIXTURE_SET, FIXTURE_SET, FIXTURE_SET],
+        packSlots: Array.from(
+            { length: FIXTURE_PACK_SLOT_COUNT },
+            () => FIXTURE_SET
+        ),
         gamesFormat: "bo3",
         // Timer OFF: a timer-on fixture would schedule real Auto-Pick
         // mutations that mutate the seat between two lane runs, which is the
@@ -230,6 +238,7 @@ export const seedUiGateFixtures = internalMutation({
     returns: v.object({
         openEventId: v.id("limitedEvents"),
         draftEventId: v.id("limitedEvents"),
+        finalPickEventId: v.id("limitedEvents"),
         replaced: v.number(),
         packSize: v.number(),
         poolSize: v.number(),
@@ -257,10 +266,12 @@ export const seedUiGateFixtures = internalMutation({
 
         const openLabel = uiGateOpenLabel(args.runId);
         const draftLabel = uiGateDraftLabel(args.runId);
+        const finalPickLabel = uiGateFinalPickLabel(args.runId);
         const now = Date.now();
         const replaced =
             (await dropFixture(ctx, openLabel)) +
-            (await dropFixture(ctx, draftLabel));
+            (await dropFixture(ctx, draftLabel)) +
+            (await dropFixture(ctx, finalPickLabel));
 
         // ── Fixture 1: seating still open ────────────────────────────────
         const openEventId = await insertFixtureEvent(
@@ -302,9 +313,47 @@ export const seedUiGateFixtures = internalMutation({
             updatedAt: now,
         });
 
+        // ── Fixture 3: the end of the draft, last pick pending ───────────
+        // The LAST round's LAST pack, one card left in it, over a full-size
+        // pool: `applyPick` empties that pack, takes `draftPacksRemaining` to
+        // 0 on the last round of `packSlots`, and completes the draft. The
+        // card's `pickId` carries the last round's index so it can never
+        // collide with an earlier round's.
+        const lastRound = FIXTURE_PACK_SLOT_COUNT - 1;
+        const finalPickEventId = await insertFixtureEvent(
+            ctx,
+            finalPickLabel,
+            user._id,
+            "draft",
+            now
+        );
+        const finalSeats = fillBotSeats(
+            seatViewer(user._id, user.nickname),
+            FIXTURE_SEED
+        );
+        finalSeats[0] = {
+            ...finalSeats[0],
+            currentPack: [
+                {
+                    ...fixturePoolCard(FIXTURE_FINAL_PICK_NAME),
+                    pickId: `r${lastRound}-p0-c0`,
+                },
+            ],
+            pool,
+        };
+        await saveSeats(ctx, finalPickEventId, finalSeats, {
+            status: "started",
+            seed: FIXTURE_SEED,
+            scorerVersion: SCORER_VERSION,
+            draftRound: lastRound,
+            draftPacksRemaining: 1,
+            updatedAt: now,
+        });
+
         return {
             openEventId,
             draftEventId,
+            finalPickEventId,
             replaced,
             packSize: pack.length,
             poolSize: pool.length,

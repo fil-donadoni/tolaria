@@ -19,6 +19,8 @@ import {
     pickUiSeamParams,
     UI_SEAM_ECHO_PATH,
     UI_SEAM_LIMITED_DECK_PATH,
+    UI_SEAM_LIMITED_SCREEN_PATH,
+    UI_SEAM_SIDEBOARDING_PATH,
     UI_SEAM_POSITION_PATH,
 } from "@convex/lib/uiSeamNamespace";
 
@@ -59,9 +61,35 @@ export function buildUiSeamRoutes(rootRoute: AnyRoute): AnyRoute[] {
             () => import("~/routes/ui-seam/ui-seam-limited-deck.route")
         ),
     });
+    // Issue #9560: a Limited fixture's screen (event, Draft Room, pool
+    // builder) in one navigation.
+    const limitedScreenRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: UI_SEAM_LIMITED_SCREEN_PATH,
+        staticData: { lightSurface: true },
+        validateSearch: (search: Record<string, unknown>) =>
+            pickUiSeamParams(search),
+        component: lazyRouteComponent(
+            () => import("~/routes/ui-seam/ui-seam-limited-screen.route")
+        ),
+    });
+    // Issue #9560: the lane's solo Match forced to the Bo3 sideboarding gate,
+    // then the board.
+    const sideboardingRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: UI_SEAM_SIDEBOARDING_PATH,
+        staticData: { lightSurface: true },
+        validateSearch: (search: Record<string, unknown>) =>
+            pickUiSeamParams(search),
+        component: lazyRouteComponent(
+            () => import("~/routes/ui-seam/ui-seam-sideboarding.route")
+        ),
+    });
     return [
         echoRoute as unknown as AnyRoute,
         positionRoute as unknown as AnyRoute,
         limitedDeckRoute as unknown as AnyRoute,
+        limitedScreenRoute as unknown as AnyRoute,
+        sideboardingRoute as unknown as AnyRoute,
     ];
 }
