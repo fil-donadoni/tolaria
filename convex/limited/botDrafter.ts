@@ -156,6 +156,7 @@
 // acceptance "picks are deterministic given the event seed" with no extra RNG
 // plumbing on this path.
 import type { Color, Rarity } from "../cards/types";
+import { resolveFetchSources, type FetchTargets } from "./manaSourceColors";
 import { cardValueById } from "../gre/cardValue";
 // TYPE-ONLY (erased at compile): the Card Profile seam is injected as a
 // closure, so this module never touches the Card Profile tables, their Convex
@@ -212,7 +213,8 @@ export interface CardEvalMeta {
      *  but the colour terms below still read `producedColors` for it too, so
      *  one signal serves both card shapes uniformly instead of branching on
      *  which kind of source a card is. A card with no mana ability yields
-     *  `[]`. */
+     *  `[]`. A fetch land's entry is its FLOOR (the basic types it names);
+     *  `resolveFetchSources` widens it within a collection (issue #9348). */
     producedColors: Color[];
     /** The subset of `producedColors` this card makes only by sacrificing
      *  itself for mana (`manaSourceColors.ts#oneShotSourceColors`): a Lotus
@@ -220,6 +222,11 @@ export interface CardEvalMeta {
      *  of a source, not one (`sourceWeight`). Omitted = none, every produced
      *  colour a permanent source. */
     oneShotColors?: Color[];
+    /** A land's basic land types (Underground Sea: Island, Swamp) — what a
+     *  fetch land's search can match (issue #9348). Absent on a non-land. */
+    landTypes?: readonly string[];
+    /** What a fetch land can find (issue #9348). Absent on every other card. */
+    fetch?: FetchTargets;
 }
 
 /** Resolves a drawn card's Scryfall id to its `CardEvalMeta`, or `null` when
@@ -1547,11 +1554,16 @@ export interface ScoreCandidateOptions {
  *  how much deck the seat already has, which is exactly what the Pool
  *  measures. */
 export function scoreCandidate(
-    candidate: CardEvalMeta,
-    poolMeta: readonly CardEvalMeta[],
+    rawCandidate: CardEvalMeta,
+    rawPoolMeta: readonly CardEvalMeta[],
     rating: number | null = null,
     options: ScoreCandidateOptions = {}
 ): PickCandidateTrace {
+    // Fetch lands supply the colours of the lands they can find in the Pool
+    // (issue #9348): the Pool's own fetches, and the candidate's against the
+    // Pool, so Fixing Value prices a fetch by the duals already drafted.
+    const poolMeta = resolveFetchSources(rawPoolMeta);
+    const [candidate] = resolveFetchSources([rawCandidate], rawPoolMeta);
     const pickNumber = options.pickNumber ?? poolMeta.length + 1;
     const contextCap = contextCapForPick(pickNumber, options.totalPicks);
 

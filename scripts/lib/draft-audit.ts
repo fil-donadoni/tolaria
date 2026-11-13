@@ -47,8 +47,14 @@ export interface AuditAggregate {
     unresolved: number;
     /** Mean over every coloured Maindeck spell of the run. */
     meanCastability: number | null;
-    /** The lowest deck `meanCastability` of the run. */
+    /** The lowest deck `meanCastability` of the run — reported; a single
+     *  deck moves with any change to the picks, so the Floor reads the tail
+     *  through `p5DeckCastability` where a scope declares it. */
     worstDeckCastability: number | null;
+    /** The 5th percentile of deck `meanCastability` (nearest rank, the
+     *  `⌊0.05 × (n − 1)⌋`-th lowest): the bottom tail of the table, robust to
+     *  one unlucky seat (issue #9348). */
+    p5DeckCastability: number | null;
     meanPlanShare: number | null;
     meanCapabilityPairs: number;
     meanLandCount: number;
@@ -95,6 +101,13 @@ function earlyBelowShare(decks: readonly DeckAudit[]): number | null {
         : decks.reduce((a, d) => a + d.earlyCastability.below, 0) / spells;
 }
 
+/** Nearest-rank percentile: the `⌊q × (n − 1)⌋`-th lowest value. */
+function percentile(values: readonly number[], q: number): number | null {
+    if (values.length === 0) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(q * (sorted.length - 1))];
+}
+
 export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
     const colourCounts: Record<string, number> = {};
     for (const d of decks) {
@@ -116,6 +129,7 @@ export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
         ),
         worstDeckCastability:
             deckMeans.length === 0 ? null : Math.min(...deckMeans),
+        p5DeckCastability: percentile(deckMeans, 0.05),
         meanPlanShare: mean(nonNull(decks.map((d) => d.planShare))),
         meanCapabilityPairs: mean(decks.map((d) => d.capabilityPairs)) ?? 0,
         meanLandCount: mean(decks.map((d) => d.landCount)) ?? 0,
@@ -203,6 +217,7 @@ export type FloorMetric =
     | "builtShare"
     | "meanCastability"
     | "worstDeckCastability"
+    | "p5DeckCastability"
     | "meanPlanShare"
     | "meanCapabilityPairs";
 
@@ -222,22 +237,12 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
         meanCastability: 0.86,
-        // Loosened 0.77 → 0.76 after fetch lands became sources (issue
-        // #9334, issue #9369). The new Fixing Value changes every pick, so
-        // all eight tables are drafted again. The worst of 64 decks is one
-        // seat's draw: across eight blocks of eight seeds it spans
-        // 0.58–0.79 on trees whose mean castability is equal. On the old
-        // tree, seeds 1..8 were the best block of the eight (0.772, median
-        // 0.730). The 64-seed mean is unchanged (0.864 → 0.865), and so is
-        // the 5th percentile. Only the last percent thickens, and that comes
-        // from the scope-relative plan
-        // (docs/research/draft-table-audit-floor-noise.md).
-        // Loosened 0.76 → 0.72 by the `sacrifice-fodder` Capability (issue
-        // #9323): its pairs redraft seeds 1..8 only, and they fall from the
-        // base's best block (0.795) to its median (0.733 base, 0.728 here).
-        // The other seven blocks keep their worst deck, the 64-seed mean
-        // holds (0.865 → 0.866) and so does p1 (0.723).
-        worstDeckCastability: 0.72,
+        // The tail is held at the 5th percentile, not the worst deck (issue
+        // #9348): one seat of 64 moves with any change to the picks, and the
+        // worst-deck Floor moved four times in two days for single decks
+        // (issues #9334, #9369, #9323). Set from the deck-aware fetch build,
+        // 0.777 rounded down; the worst deck is reported beside it.
+        p5DeckCastability: 0.77,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.
@@ -334,7 +339,7 @@ export function formatAggregate(run: DraftAuditRun): string[] {
     return [
         `scope ${run.scope} · seeds ${run.seeds[0]}..${run.seeds[run.seeds.length - 1]} (${run.seeds.length}) · decks ${a.decks}`,
         `builtShare ${fmt(a.builtShare)} · unresolved ${a.unresolved}`,
-        `meanCastability ${fmt(a.meanCastability)} · worstDeckCastability ${fmt(a.worstDeckCastability)}`,
+        `meanCastability ${fmt(a.meanCastability)} · worstDeckCastability ${fmt(a.worstDeckCastability)} · p5DeckCastability ${fmt(a.p5DeckCastability)}`,
         `meanPlanShare ${fmt(a.meanPlanShare)} · meanCapabilityPairs ${fmt(a.meanCapabilityPairs, 2)}`,
         `meanLandCount ${fmt(a.meanLandCount, 2)} · meanSpellCount ${fmt(a.meanSpellCount, 2)} · colours ${colours}`,
         `meanCurve (MV 1..${CURVE_MAX_BUCKET}+) ${a.meanCurve
