@@ -26485,7 +26485,8 @@ export function consumeSpellManaSubstitutionGrant(
 export function applyCostModifiers(
     baseCost: Record<string, number>,
     modifiers: CostModifiers
-): void {
+): number {
+    let raised = 0;
     for (const [k, v] of Object.entries(modifiers.increase)) {
         baseCost[k] = (baseCost[k] ?? 0) + v;
     }
@@ -26522,9 +26523,32 @@ export function applyCostModifiers(
             0
         );
         if (total < modifiers.raiseTotalTo) {
-            baseCost.X = (baseCost.X ?? 0) + (modifiers.raiseTotalTo - total);
+            raised = modifiers.raiseTotalTo - total;
+            baseCost.X = (baseCost.X ?? 0) + raised;
         }
     }
+    return raised;
+}
+
+/** CR 107.4f / 601.2f — Phyrexian pips paid with mana are folded into the cost
+ *  AFTER `applyCostModifiers`, so a `raiseTotalTo` raise (its return value)
+ *  was computed without them. Each mana-paid pip counts toward the floor
+ *  already: take back as much of the raise as the folded mana covers, so
+ *  `{1}{B/P}{B/P}` paid in mana under Trinisphere stays three mana. */
+export function absorbRaiseIntoFoldedMana(
+    cost: Record<string, number>,
+    raised: number,
+    foldedMana: Record<string, number | undefined>
+): void {
+    if (raised <= 0) return;
+    const folded = Object.values(foldedMana).reduce<number>(
+        (sum, n) => sum + (n && n > 0 ? n : 0),
+        0
+    );
+    const take = Math.min(raised, folded, cost.X ?? 0);
+    if (take <= 0) return;
+    cost.X = (cost.X ?? 0) - take;
+    if (!cost.X) delete cost.X;
 }
 
 /** Returns true if manaPool fully covers the normalized cost. With

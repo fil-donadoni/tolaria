@@ -51,7 +51,7 @@ function board(pool: number, trinisphereTapped = false): GameState {
                         id: "trini",
                         controllerId: "p2",
                         ownerId: "p2",
-                        tapped: trinisphereTapped,
+                        isTapped: trinisphereTapped,
                     }),
                 ],
             }),

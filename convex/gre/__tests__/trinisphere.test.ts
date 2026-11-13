@@ -13,6 +13,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import {
+    absorbRaiseIntoFoldedMana,
     applyCostModifiers,
     getCostModifiers,
     normalizeManaCost,
@@ -35,7 +36,7 @@ function board(opts: { tapped?: boolean; sphere?: boolean } = {}): GameState {
                                   id: "trini",
                                   controllerId: "p2",
                                   ownerId: "p2",
-                                  tapped: opts.tapped ?? false,
+                                  isTapped: opts.tapped ?? false,
                               }),
                           ],
             }),
@@ -123,6 +124,29 @@ describe("Trinisphere", () => {
     it("leaves an activated ability's cost alone (it is not a spell)", () => {
         withTemporaryDefinition(def, () => {
             expect(priced(board(), { X: 1 }, "ability").X).toBe(1);
+        });
+    });
+
+    it("counts mana-paid Phyrexian pips toward the floor: {1}{B/P}{B/P} stays three mana (CR 107.4f)", () => {
+        withTemporaryDefinition(def, () => {
+            const state = board();
+            const view = makeInstance(forest().id, {
+                id: "spell-view",
+                controllerId: "p1",
+                zone: "hand",
+            });
+            // Dismember normalises to {1}; the Phyrexian pips fold in later.
+            const cost = normalizeManaCost({ X: 1 });
+            const raised = applyCostModifiers(
+                cost,
+                getCostModifiers(state, view, "spell", undefined, "p1")
+            );
+            expect(cost.X).toBe(3);
+            const folded = { B: 2 };
+            absorbRaiseIntoFoldedMana(cost, raised, folded);
+            cost.B = (cost.B ?? 0) + folded.B;
+            expect((cost.X ?? 0) + cost.B).toBe(3);
+            expect(cost.X).toBe(1);
         });
     });
 });

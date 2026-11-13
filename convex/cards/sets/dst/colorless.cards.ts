@@ -96,7 +96,7 @@ export const trinisphere = defineCard(() => ({
         {
             kind: "cost-modifier",
             appliesToSpell: (_card, _ctx, effectSource) =>
-                effectSource?.tapped !== true,
+                effectSource?.isTapped !== true,
             raiseTotalCostTo: 3,
         },
     ],
