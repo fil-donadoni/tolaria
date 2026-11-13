@@ -3027,14 +3027,6 @@ export function getGraveyardStackAbilities(
                     ).length
             );
             if (!payable) return false;
-            // CR 119.4 — a life cost is payable only with at least N life.
-            if (
-                a.cost.life !== undefined &&
-                payerLife !== undefined &&
-                payerLife < a.cost.life
-            ) {
-                return false;
-            }
             // CR 602.1b — the shared precondition authority (data condition
             // and closure alike), see `getStackAbilities`.
             if (
