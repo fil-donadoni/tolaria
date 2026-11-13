@@ -736,3 +736,60 @@ describe("the refusal a panel renders (issue #3457)", () => {
         ).not.toContain("tracked by");
     });
 });
+
+/** CR 608.2 (issue #9119) — Torsten's ETB suspended on its `look-distribute`,
+ *  the library topped by a card the creature/land filter refuses. The Bot's
+ *  view knows the seven looked-at cards (the projection's library peek), and
+ *  nothing below them. */
+const TORSTEN_ETB: ScenarioSpec = {
+    cards: [
+        { name: "Torsten, Founder of Benalia", owner: "me" },
+        { name: "Lightning Bolt", owner: "me", zone: "library", position: 1 },
+        { name: "Swamp", owner: "opp" },
+    ],
+    phase: "PRECOMBAT_MAIN",
+    turn: 5,
+    activePlayer: "me",
+    landCount: 0,
+    libraryCount: 20,
+};
+
+describe("the quiz on a decision at an open top-N look (issue #9119)", () => {
+    it("rebuilds Torsten's reveal from the Bot's view over the same seven cards, rather than refusing a different decision", () => {
+        const built = buildBladeState({
+            label: "verdict-quiz library window",
+            spec: TORSTEN_ETB,
+            setup: [
+                { kind: "etb-trigger", card: "Torsten, Founder of Benalia" },
+                { kind: "resolve-top" },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        const state = asLiveGame(built, ["Alice", "Bob"]);
+        const botId = state.players[0].id;
+        expect(state.pendingChoices?.[0].kind).toBe("look-distribute");
+        expect(state.pendingChoices?.[0].eligibleIds).toHaveLength(6);
+        const source: AiTraceSource = {
+            state: projectPublicState(state, SEQ, botId),
+            botId,
+        };
+
+        const result = quizOfTrace(
+            traceFor(state, botId, candidateMoves(state, botId)[0]),
+            source
+        );
+        if (!result.ok) {
+            throw new Error(
+                `refused ${result.refusal.kind}: ${result.refusal.detail}`
+            );
+        }
+        const library = result.quiz.spec.cards.filter(
+            (c) => c.zone === "library"
+        );
+        expect(library).toHaveLength(7);
+        expect(library[0].name).toBe("Lightning Bolt");
+    });
+});

@@ -159,6 +159,25 @@ function substitution(
     };
 }
 
+/** A `choiceId` is minted by the site that raised the choice, and many embed
+ *  a per-world handle as their trailing `-` segment (`order-top-<stack item>`,
+ *  `miracle-reveal-<card>`, `cleanup-discard-<player>`), so the same choice
+ *  keys differently on two builds unless that segment is substituted too.
+ *  The LONGEST resolving suffix wins, so a player id that itself holds a `-`
+ *  (a solo seat, `<user>-p1`) is taken whole. A suffix that resolves to
+ *  nothing leaves the id verbatim — fail-closed, like every other string. */
+function embeddedHandle(value: string, subst: (s: string) => string): string {
+    const whole = subst(value);
+    if (whole !== value) return whole;
+    for (let cut = value.indexOf("-"); cut !== -1; ) {
+        const tail = value.slice(cut + 1);
+        const canonical = subst(tail);
+        if (canonical !== tail) return `${value.slice(0, cut + 1)}${canonical}`;
+        cut = value.indexOf("-", cut + 1);
+    }
+    return value;
+}
+
 /** Deep-walk `value`, substituting every string — object KEYS included, which
  *  is what `declare-attackers`' `attackTargets` record needs (its keys are
  *  attacker ids). Generic on purpose: a Move kind added tomorrow is
@@ -177,7 +196,9 @@ function canonicalise(value: unknown, subst: (s: string) => string): unknown {
         return Object.entries(value)
             .map(([key, inner]): [string, unknown] => [
                 subst(key),
-                canonicalise(inner, subst),
+                key === "choiceId" && typeof inner === "string"
+                    ? embeddedHandle(inner, subst)
+                    : canonicalise(inner, subst),
             ])
             .map((pair): [string, [string, unknown]] => [
                 JSON.stringify(pair),
