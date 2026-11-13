@@ -110,6 +110,11 @@ import {
 } from "~/lib/ai/brain-client";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
+    openBotSearchReport,
+    telemetryNow,
+    type BotSearchRecorder,
+} from "~/lib/ai/bot-search-telemetry";
+import {
     recordAiDecision,
     recordAiEscalation,
     pushAiTrace,
@@ -231,6 +236,13 @@ export function useVsAiDriver(
     gameId: Id<"games">,
     botId: string | null
 ): VsAiDriverStatus {
+    // This game's Bot search report (issue #9526): every consult's ending is
+    // folded in, and it is flushed ONCE — at game over or when the game is
+    // left, whichever comes first. Opened and closed by the same per-game
+    // effect that owns the Brain, so a rematch on this hook instance starts a
+    // fresh one. A consult still in flight at the flush is not in the report.
+    const searchReport = useRef<BotSearchRecorder | null>(null);
+
     // Cheap wake-up signal (issue #1778): mount the fat `getPublicState`
     // subscription only once the tick says the bot's own seat owes input.
     // Gate on MEMBERSHIP in `owedPlayerIds`, not equality with a single id —
@@ -245,6 +257,7 @@ export function useVsAiDriver(
     // download instead of on the search.
     useEffect(() => {
         if (botId) warmBrain();
+        searchReport.current = botId ? openBotSearchReport(gameId) : null;
         // Tear the Brain down when the bot seat goes away (issue #3040). It
         // frees a thread that had no owner otherwise — `disposeBrain` had no
         // caller in the app at all — and, more to the point, it resets the
@@ -254,6 +267,8 @@ export function useVsAiDriver(
         // never even tried to spawn one.
         return () => {
             disposeBrain();
+            searchReport.current?.flush();
+            searchReport.current = null;
             // The trace ring is per-GAME evidence (issue #3404). Left standing
             // across a rematch it shows eight decisions from a match that is
             // over, with nothing on screen to date them — a new failure mode,
@@ -287,6 +302,15 @@ export function useVsAiDriver(
         botId ? { gameId } : "skip"
     );
     const tick = tickQuery.data;
+    // The game ended on the board: report its searches now rather than when
+    // the player eventually leaves the game-over screen (or closes the tab on
+    // it, which would lose the report).
+    // Keyed on the flag alone, not on the game: after a swap this must not
+    // run against the next game's recorder with the previous game's flag.
+    const gameOver = !!tick?.gameOver;
+    useEffect(() => {
+        if (gameOver) searchReport.current?.flush();
+    }, [gameOver]);
     // The difficulty the Match was STARTED with (issue #6916): a Limited
     // Event's vs-AI Match plays at the event's difficulty, whatever this
     // browser last picked in the lobby. `null` = the Match carries none (lobby
@@ -1327,6 +1351,7 @@ export function useVsAiDriver(
             const knobs = guard("search budget", owedKind, () => {
                 const difficulty = matchDifficulty ?? getStoredDifficulty();
                 return {
+                    difficulty,
                     budget: budgetFor(difficulty),
                     knowledge: knowsOpponent(difficulty)
                         ? deckKnowledge?.informed
@@ -1338,7 +1363,7 @@ export function useVsAiDriver(
                 escalateFault(signature);
                 return;
             }
-            const { budget, knowledge } = knobs;
+            const { difficulty, budget, knowledge } = knobs;
             // The version the SEARCH is about to run on. Captured before the
             // consult, not read when it resolves: a search takes up to a full
             // difficulty budget plus Worker startup, and its verdict —
@@ -1347,6 +1372,11 @@ export function useVsAiDriver(
             // to be committed when it lands is exactly the mismatch that makes
             // a breadcrumb unusable next to the board snapshot.
             const at = { phase: botState.phase, seq: botState.seq };
+            // The report this consult belongs to, and when it was posted —
+            // both captured BEFORE the consult: a game swapped while the
+            // search runs must not file its verdict under the next game.
+            const report = searchReport.current;
+            const consultStartedAt = telemetryNow();
             dispatch(
                 signature,
                 () =>
@@ -1369,6 +1399,26 @@ export function useVsAiDriver(
                             // for the next consult, so an optional loop is not
                             // walked twice through the same position.
                             if (remembered) repetition.current = remembered;
+                            // Issue #9526 — this consult, for the game's
+                            // search report.
+                            report?.record({
+                                outcome,
+                                via,
+                                consultMs: telemetryNow() - consultStartedAt,
+                                difficulty,
+                                ...(trace
+                                    ? {
+                                          search: {
+                                              iterationsRequested:
+                                                  trace.iterationsRequested,
+                                              iterationsCompleted:
+                                                  trace.iterationsCompleted,
+                                              elapsedMs: trace.elapsedMs,
+                                              stoppedBy: trace.stoppedBy,
+                                          },
+                                      }
+                                    : {}),
+                            });
                             // Surface the reasoning to the Debug panel
                             // (client-only). `via` travels with it: a trace the
                             // Worker did not produce came from the degraded
