@@ -20,6 +20,7 @@ import { buildBladeState } from "@convex/gre/ai/blade/build";
 import { findBladeScenario } from "@convex/gre/ai/blade/registry";
 import { runBladeScenario } from "@convex/gre/ai/blade/runner";
 import type { BladeScenario } from "@convex/gre/ai/blade/types";
+import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView } from "../bot-view";
 import { escalationLadder } from "../owed-input";
 
@@ -61,5 +62,18 @@ describe.each([
         if (action.kind !== "resolution-choice") throw new Error("kind");
         expect(action.cardInstanceIds).toHaveLength(1);
         expect(head.candidateIds).toContain(action.cardInstanceIds[0]);
+    });
+});
+
+describe("choose-damage-target fallback with no candidate (issue #9148, #2497)", () => {
+    it("returns none rather than an empty answer the server rejects", () => {
+        const action = chooseOwedChoiceAction({
+            kind: "choose-damage-target",
+            searchable: true,
+            min: 1,
+            max: 1,
+            candidates: [],
+        });
+        expect(action).toEqual({ kind: "none" });
     });
 });
