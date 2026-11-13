@@ -1,8 +1,9 @@
-// The plan a Pool is built toward (issue #9298): the Archetype the Pool holds
-// MORE of than its scope would hand it by chance, not the one it holds most
-// of. One authority, read by Auto-Build (`autoBuild.ts#choosePlan`) and by
-// the Draft Table Audit (`src/lib/limited/draftTableAudit.ts`), so plan share
-// always measures the plan the build chose.
+// The plans a Pool is built toward (issue #9298): the Archetypes the Pool
+// holds MORE of than its scope would hand it by chance, not the one it holds
+// most of, each weighed by that surplus (`planArchetypeWeights`). One
+// authority, read by Auto-Build (`autoBuild.ts#choosePlan`) and by the Draft
+// Table Audit (`src/lib/limited/draftTableAudit.ts`), so plan share always
+// measures the plans the build weighed.
 //
 // Why not raw depth: an Archetype tagged on a quarter of the scope (cube
 // `control`) is the deepest in almost every Pool whatever the drafter leaned
