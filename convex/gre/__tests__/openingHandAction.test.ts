@@ -13,6 +13,7 @@ import type { CardDefinition } from "../../cards/types";
 import { makeMulliganState, recordDeclaration } from "../mulligan";
 import { resolveTopOfStack } from "../state";
 import { devourerOfDestiny } from "../../cards/sets/mh3/colorless.cards";
+import { gemstoneCaverns } from "../../cards/sets/tsp/colorless.cards";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import type { CardInstanceState, GameState } from "../state";
 import type { Phase } from "../types";
@@ -441,6 +442,92 @@ describe("opening-hand actions (CR 103.6)", () => {
                 "p1-lib-0",
                 "p1-lib-1",
                 "p1-lib-3",
+            ]);
+        });
+    });
+
+    // CR 103.6a — Gemstone Caverns: the gate, the entry counter, the follow-up.
+    describe("begin with terms (Gemstone Caverns)", () => {
+        const caverns = gemstoneCaverns();
+
+        it("is not offered to the starting player, only to the other seat", () => {
+            withTemporaryDefinition(caverns, () => {
+                const state = makeGame({ p1: [caverns.id], p2: [caverns.id] });
+                keepBoth(state);
+                // p1 starts: skipped without a prompt; p2 is offered the card.
+                const head = state.pendingChoices![0];
+                expect(head.kind).toBe("opening-hand-action");
+                expect(head.playerId).toBe("p2");
+                expect(head.candidateIds).toEqual(["p2-hand-0"]);
+            });
+        });
+
+        it("begins on the battlefield with a luck counter, then exiles a chosen hand card", () => {
+            withTemporaryDefinition(caverns, () => {
+                const state = makeGame({ p1: [], p2: [caverns.id] });
+                keepBoth(state);
+                submit(state, ["p2-hand-0"]);
+
+                const landCard = state.players[1].battlefield[0];
+                expect(landCard.id).toBe("p2-hand-0");
+                expect(landCard.counters?.luck).toBe(1);
+
+                // "If you do, exile a card from your hand": a private pick of
+                // exactly one hand card, window still pre-game.
+                const head = state.pendingChoices![0];
+                expect(state.phase).toBe("MULLIGAN");
+                expect(head.playerId).toBe("p2");
+                expect(head.count).toEqual({ min: 1, max: 1 });
+                expect(head.privateToChooser).toBe(true);
+                expect(head.candidateIds).toEqual(
+                    state.players[1].hand.map((c) => c.id)
+                );
+
+                submit(state, ["p2-hand-3"]);
+                expect(state.players[1].exile.map((c) => c.id)).toEqual([
+                    "p2-hand-3",
+                ]);
+                expect(state.players[1].hand).toHaveLength(5);
+                expect(state.mulligan).toBeUndefined();
+                expect(state.phase).toBe("UPKEEP");
+            });
+        });
+
+        it("declining begins nothing and exiles nothing", () => {
+            withTemporaryDefinition(caverns, () => {
+                const state = makeGame({ p1: [], p2: [caverns.id] });
+                keepBoth(state);
+                submit(state, []);
+                expect(onBattlefield(state, 1)).toEqual([]);
+                expect(state.players[1].exile).toHaveLength(0);
+                expect(state.players[1].hand).toHaveLength(7);
+                expect(state.phase).toBe("UPKEEP");
+            });
+        });
+
+        it("the luck counter survives the wire projection", () => {
+            withTemporaryDefinition(caverns, () => {
+                const state = makeGame({ p1: [], p2: [caverns.id] });
+                keepBoth(state);
+                submit(state, ["p2-hand-0"]);
+                submit(state, ["p2-hand-3"]);
+                const projected = projectPublicState(state, 1, "p2");
+                const slim = projected.players[1].battlefield.find(
+                    (c) => c.id === "p2-hand-0"
+                )!;
+                expect(slim.counters?.luck).toBe(1);
+            });
+        });
+
+        it("its mana ability offers any colour with the counter, {C} alone without", () => {
+            const ability = caverns.activatedAbilities![0];
+            const view = (counters: Record<string, number>) =>
+                ({ counters }) as never;
+            expect(
+                ability.getManaChoices!(view({ luck: 1 }), "p2", [])
+            ).toHaveLength(5);
+            expect(ability.getManaChoices!(view({}), "p2", [])).toEqual([
+                { C: 1 },
             ]);
         });
     });
