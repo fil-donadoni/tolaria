@@ -76,6 +76,11 @@ const EXEMPT: Record<string, string> = {
         "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it loads a declared position and routes to /game, which the game surfaces measure",
     "src/routes/ui-seam/ui-seam-limited-deck.route.tsx":
         "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it saves a Limited fixture seat's deck and routes to /limited/decks, which limited-deck-archive measures",
+    // Issue #9560: the Limited screen link and the sideboarding gate link.
+    "src/routes/ui-seam/ui-seam-limited-screen.route.tsx":
+        "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it opens a Limited fixture event and routes to its event, draft or build screen, which the Limited surfaces measure",
+    "src/routes/ui-seam/ui-seam-sideboarding.route.tsx":
+        "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it forces the lane's solo game to the Bo3 sideboarding gate and routes to it, which game-sideboarding measures",
 };
 
 /**
