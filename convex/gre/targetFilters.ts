@@ -1082,6 +1082,21 @@ const totalPowerToughnessFilterDescriptor = defineFilter<{
     },
 });
 
+// CR 208.1 / CR 613.4c — effective power OR effective toughness at most `max`
+// ("power or toughness 1 or less", Warping Wail, issue #8645).
+const powerOrToughnessFilterDescriptor = defineFilter<{ max: number }>({
+    lower: (req) => req.powerOrToughnessFilter,
+    checks: {
+        permanent: (card, value, ctx) => {
+            const power = getEffectivePower(ctx.state, card);
+            const toughness = getEffectiveToughness(ctx.state, card);
+            if (power > value.max && toughness > value.max)
+                return `Target must have power or toughness ≤ ${value.max}`;
+            return null;
+        },
+    },
+});
+
 // CR 601.2c (issue #1104) — cross-slot same-controller constraint spanning
 // two-or-more announced target slots of ONE requirement ("choose two target
 // creatures controlled by the same player", Barrin's Spite). Unlike every
@@ -1624,6 +1639,7 @@ export const PERMANENT_FILTER_KEYS = [
     "powerFilter",
     "toughnessFilter",
     "totalPowerToughnessFilter",
+    "powerOrToughnessFilter",
     "mvFilter",
     "sameController",
     "isToken",
@@ -1707,6 +1723,8 @@ export const REGISTRY = {
     toughnessFilter: toughnessFilterDescriptor as FilterDescriptor<unknown>,
     totalPowerToughnessFilter:
         totalPowerToughnessFilterDescriptor as FilterDescriptor<unknown>,
+    powerOrToughnessFilter:
+        powerOrToughnessFilterDescriptor as FilterDescriptor<unknown>,
     mvFilter: mvFilterDescriptor as FilterDescriptor<unknown>,
     spellStackKind: spellStackKindDescriptor as FilterDescriptor<unknown>,
     stackSourceTypeFilter:
@@ -1768,6 +1786,7 @@ export type PermanentFilterValues = Partial<{
     powerFilter: { min?: number; max?: number };
     toughnessFilter: { min?: number; max?: number };
     totalPowerToughnessFilter: { min?: number; max?: number };
+    powerOrToughnessFilter: { max: number };
     mvFilter: { min?: number; max?: number; equals?: number };
     sameController: boolean;
     isToken: boolean;

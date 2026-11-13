@@ -4274,6 +4274,10 @@ export type PendingTarget = {
      *  effective toughness (CR 208.1, CR 613.4c). Propagated from
      *  TargetRequirement.totalPowerToughnessFilter. Both bounds inclusive. */
     totalPowerToughnessFilter?: { min?: number; max?: number };
+    /** If set, restricts legal permanent targets to effective power OR
+     *  effective toughness at most `max` (CR 208.1, CR 613.4c). Propagated
+     *  from TargetRequirement.powerOrToughnessFilter. */
+    powerOrToughnessFilter?: { max: number };
     /** If set, excludes permanents whose subtypes include any of these
      *  (CR 205.3). Propagated from TargetRequirement.excludeSubtypes. */
     excludeSubtypes?: string[];
