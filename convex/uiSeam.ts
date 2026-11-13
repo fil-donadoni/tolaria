@@ -213,14 +213,14 @@ export const limitedFixtureEvent = query({
  * #9560) — the Debug panel's "Bo3 Sideboard" (`forceBo3Sideboarding`, the
  * shared body): Game 1 recorded for the second seat, score 0–1, the Game
  * ended, so the board opens the Game-Over interstitial one click from the
- * Sideboarding step. Idempotent: a Match already at the gate is left as it is.
+ * Sideboarding step.
  *
  * Same game rule as `loadPosition`: the caller's active SOLO game past its
  * pregame, never a table another account plays in.
  */
 export const forceSideboarding = mutation({
     args: {},
-    returns: v.object({ gameId: v.id("games"), forced: v.boolean() }),
+    returns: v.object({ gameId: v.id("games") }),
     handler: async (ctx) => {
         const user = await assertUiSeamCaller(ctx);
         const game = await findActiveGameForUser(ctx, user._id);
@@ -229,11 +229,7 @@ export const forceSideboarding = mutation({
                 `ui seam: the lane account has ${UI_SEAM_NO_SOLO_GAME_IN_PLAY} to put at the sideboarding gate — the lane deals one through the lobby first`
             );
         }
-        const match = game.matchId ? await ctx.db.get(game.matchId) : null;
-        if (match?.status === "sideboarding") {
-            return { gameId: game._id, forced: false };
-        }
         await forceBo3Sideboarding(ctx, game._id);
-        return { gameId: game._id, forced: true };
+        return { gameId: game._id };
     },
 });
