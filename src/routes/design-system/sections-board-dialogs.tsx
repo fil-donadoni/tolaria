@@ -297,8 +297,6 @@ const SPECIMENS: OverlaySpecimen[] = [
                 pendingTarget={PENDING_TARGET}
                 me={PLAYERS[0]}
                 allPlayers={PLAYERS}
-                stack={[]}
-                onMinimize={() => {}}
                 gameId={GAME_ID}
                 playerId={ME}
                 activePlayerId={ME}
