@@ -53281,6 +53281,14 @@
         "source": "compiled"
     },
     {
+        "name": "Mystical Dispute",
+        "scryfallId": "fbe04cb8-a8b9-4241-baae-b398a2509a3a",
+        "oracleId": "48390b8d-db41-48a5-9bac-316660ab7252",
+        "firstSet": "eld",
+        "firstPrintId": "fbe04cb8-a8b9-4241-baae-b398a2509a3a",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Mystical Tether",
         "scryfallId": "18344498-952e-489c-8b03-bd1bef4c26ca",
         "oracleId": "fb1a6986-39f7-4592-9039-7e30f5ccd009",
