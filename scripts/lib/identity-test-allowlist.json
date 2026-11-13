@@ -1043,5 +1043,10 @@
         "file": "scripts/__tests__/draft-audit-receipt.test.ts",
         "test": "wiring > the receipt's scopes and seeds are the audit's own",
         "reason": "Drift pin between two independently declared lists: the receipt module's scopes/seeds (kept out of the audit's import closure) and DRAFT_AUDIT_FLOORS / DEFAULT_AUDIT_SEEDS."
+    },
+    {
+        "file": "src/routes/__tests__/router-ui-seam.test.ts",
+        "test": "router: check:ui seam routes (issue #9271) > spells every seam path and parameter under the one marker",
+        "reason": "Relates independently written string literals (route/param prefixes, echo path/param) to the marker: check:bundle scans production assets for the marker only, so a seam spelling that drops it would escape the bundle guard (ADR 0180)."
     }
 ]
