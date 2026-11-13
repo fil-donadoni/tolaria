@@ -3068,7 +3068,12 @@ export function getHandStackAbilities(
      *  caller that has it rather than widened onto the view. Omitted, an
      *  ability with that cost leg is HIDDEN — fail closed, the right default
      *  for a menu entry whose mutation would throw. */
-    combatScope?: UnblockedAttackerScope
+    combatScope?: UnblockedAttackerScope,
+    /** CR 119.4 — the activator's life total, so a "Pay N life" cost leg
+     *  (Cycling—Pay 2 life.) is hidden when unpayable. Omitted (undefined) =
+     *  unknown, fail open like `getStackAbilities`; the server throw is
+     *  authoritative. */
+    payerLife?: number
 ): { id: string; oracleText: string }[] {
     // A card whose id resolves to no definition (synthetic tokens, test
     // fixtures) has no hand-activatable ability — never throw here, since this
@@ -3123,6 +3128,14 @@ export function getHandStackAbilities(
                 ) {
                     return false;
                 }
+            }
+            // CR 119.4 — a life cost is payable only with at least N life.
+            if (
+                a.cost.life !== undefined &&
+                payerLife !== undefined &&
+                payerLife < a.cost.life
+            ) {
+                return false;
             }
             // CR 602.1b — the shared precondition authority (data condition
             // and closure alike), see `getStackAbilities`.

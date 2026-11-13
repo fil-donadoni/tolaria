@@ -1021,6 +1021,13 @@ export function applyActivationCostsForSearch(
                 handAbility.cost.cyclingCost ? "cycling" : undefined
             );
         }
+        // CR 119.4 — the life leg ("Cycling—Pay 2 life."): paid here like the
+        // battlefield branch below, else the tree cycles for free. Fail CLOSED
+        // when the owner cannot pay (the enumerator gates it the same way).
+        if (handOwner && handAbility?.cost.life !== undefined) {
+            if (!canPayLifeCost(handOwner, handAbility.cost.life)) return false;
+            payLifeCost(state, handOwner, handAbility.cost.life);
+        }
         // CR 113.6m / 118.1 — "Exile this card from your hand": the hand twin
         // of the graveyard leg above, through the same `payExileThisCost`
         // authority the mutation pays it with.
