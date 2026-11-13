@@ -78712,6 +78712,14 @@
         "source": "compiled"
     },
     {
+        "name": "Stormscale Scion",
+        "scryfallId": "0ac43386-bd32-425c-8776-cec00b064cbc",
+        "oracleId": "cf37426d-b0ad-42c3-81be-79701aa4e0cf",
+        "firstSet": "tdm",
+        "firstPrintId": "0ac43386-bd32-425c-8776-cec00b064cbc",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Stormscape Apprentice",
         "scryfallId": "1eb42f39-9187-44e4-aa34-14ab31977199",
         "oracleId": "cf2bacd3-b1ac-4863-b9c7-1e0a8d4854f3",
