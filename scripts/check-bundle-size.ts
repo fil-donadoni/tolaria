@@ -58,29 +58,53 @@ import {
     setChunkViolations,
     compiledAssetViolations,
 } from "./lib/asset-graph";
+import {
+    SET_CHUNK_BUDGET,
+    countHandWrittenCards,
+    scaledBudgetBytes,
+    type ScaledBudget,
+} from "./lib/bundle-budget";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const DIST_ASSETS = join(ROOT, "dist", "assets");
 
-interface Budget {
-    /** Chunk filename prefix (hash suffix varies per build). */
-    prefix: string;
-    /** `sum`: the budget bounds every chunk carrying the prefix together
-     *  (the per-Set chunks of issue #5615); default: the one largest. */
-    scope?: "sum";
-    /** gzip bytes. ~10% headroom over the post-#3053 measurement in this
-     *  file's header — past this, either the chunk's own code has grown a
-     *  lot, or card data has come back into a client graph. */
-    gzipBudgetBytes: number;
+/** A budget row. A `sum` row bounds a corpus that grows (one chunk per
+ *  Set, one definition per card), so its budget MUST scale with it: a fixed
+ *  byte count there catches ordinary growth instead of the accident, and
+ *  turned base tip `18ba7b7be854` RED (issue #9489). The type forbids the
+ *  fixed form on a `sum` row. */
+type Budget =
+    | {
+          /** Chunk filename prefix (hash suffix varies per build). */
+          prefix: string;
+          /** The one largest chunk carrying the prefix. */
+          scope?: undefined;
+          /** gzip bytes. Past this, either the chunk's own code has grown a
+           *  lot, or card data has come back into a client graph. */
+          gzipBudgetBytes: number;
+      }
+    | {
+          prefix: string;
+          /** Every chunk carrying the prefix, together (the per-Set chunks of
+           *  issue #5615). */
+          scope: "sum";
+          /** Scaled by the hand-written card count (`scripts/lib/bundle-budget.ts`). */
+          scaled: ScaledBudget;
+      };
+
+/** The gzip budget a row allows on this tree. */
+function budgetBytes(budget: Budget): number {
+    return budget.scope === "sum"
+        ? scaledBudgetBytes(budget.scaled, countHandWrittenCards(ROOT))
+        : budget.gzipBudgetBytes;
 }
 
 const BUDGETS: Budget[] = [
-    // measured 440,553 B (issue #3053) as ONE `card-catalogue` chunk; since
-    // issue #5615 the Sets are one chunk each (`card-set-<code>`, 146 files)
-    // and the row bounds their SUM — 436,709 B gzip on the same tree (the
-    // helpers many Sets share moved to chunks of their own), so the ceiling
-    // stays where it was.
-    { prefix: SET_CHUNK_PREFIX, scope: "sum", gzipBudgetBytes: 490_000 },
+    // The Sets are one chunk each (`card-set-<code>`) and the row bounds
+    // their SUM, a corpus that grows with every hand-written card: the
+    // budget scales with the card count (`SET_CHUNK_BUDGET`, issue #9489),
+    // and literal-pool re-entry still exceeds its headroom.
+    { prefix: SET_CHUNK_PREFIX, scope: "sum", scaled: SET_CHUNK_BUDGET },
     // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
     // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time
     // ORDINARY CODE GROWTH and not the accident this row guards.
@@ -161,6 +185,7 @@ function main(): void {
             );
             continue;
         }
+        const allowed = budgetBytes(budget);
         const gzipBytes = files
             .map((f) => gzipSync(readFileSync(join(DIST_ASSETS, f))).length)
             .reduce((a, b) => a + b, 0);
@@ -168,14 +193,14 @@ function main(): void {
             budget.scope === "sum"
                 ? `${budget.prefix}*.js (${files.length} chunks)`
                 : files[0]!;
-        const status = gzipBytes <= budget.gzipBudgetBytes ? "OK" : "OVER";
+        const status = gzipBytes <= allowed ? "OK" : "OVER";
         console.log(
             `[check:bundle] ${file}: ${(gzipBytes / 1024).toFixed(1)} KB gzip ` +
-                `(budget ${(budget.gzipBudgetBytes / 1024).toFixed(0)} KB) — ${status}`
+                `(budget ${(allowed / 1024).toFixed(0)} KB) — ${status}`
         );
-        if (gzipBytes > budget.gzipBudgetBytes) {
+        if (gzipBytes > allowed) {
             failures.push(
-                `${file}: ${gzipBytes} B gzip > budget ${budget.gzipBudgetBytes} B. ` +
+                `${file}: ${gzipBytes} B gzip > budget ${allowed} B. ` +
                     `See this file's header for what lands in this chunk and why.`
             );
         }
