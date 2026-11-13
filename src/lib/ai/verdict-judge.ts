@@ -33,7 +33,7 @@ export type VerdictJudge = {
     judge: BrainJudge;
     /** How each consult ended, for the proposal-count report (issue #8732). */
     tally: JudgeOutcomeTally;
-    /** Per answered consult: server search time, round trip, memory. */
+    /** Per answered consult: server search time and round trip. */
     timings: JudgeTimings;
     /** End this game's judging: a consult started afterwards is not sent.
      *  Idempotent. */
@@ -46,12 +46,7 @@ export function openVerdictJudge(
     gameId: Id<"games">
 ): VerdictJudge {
     const tally: JudgeOutcomeTally = {};
-    const timings: JudgeTimings = {
-        serverMs: [],
-        roundTripMs: [],
-        heapMb: [],
-        peakRssMb: [],
-    };
+    const timings: JudgeTimings = { serverMs: [], roundTripMs: [] };
     let closed = false;
     const count = (outcome: keyof JudgeOutcomeTally) => {
         tally[outcome] = (tally[outcome] ?? 0) + 1;
@@ -79,8 +74,6 @@ export function openVerdictJudge(
             });
             timings.roundTripMs.push(performance.now() - start);
             timings.serverMs.push(r.searchMs);
-            if (r.heapUsedMb !== undefined) timings.heapMb.push(r.heapUsedMb);
-            if (r.peakRssMb !== undefined) timings.peakRssMb.push(r.peakRssMb);
             count(r.outcome);
             return r.outcome === "move" ? r.move : null;
         } catch (cause: unknown) {

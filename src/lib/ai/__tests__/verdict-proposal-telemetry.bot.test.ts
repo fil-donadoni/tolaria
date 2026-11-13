@@ -71,7 +71,7 @@ describe("verdict proposal telemetry (issue #8732)", () => {
         });
     });
 
-    it("carries the server judge's measurements as p50 / max, the failed calls by kind (issue #9528)", () => {
+    it("carries the server judge's search and round-trip times as p50 / max, the failed calls by kind (issue #9528)", () => {
         const report = proposalCountsReport(
             "g1",
             { proposals: [], captured: 5, unidentified: 0, unjudged: 2 },
@@ -79,8 +79,6 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             {
                 serverMs: [900, 300.4, 1200],
                 roundTripMs: [1500.6, 450, 2600],
-                heapMb: [180.5, 210.25],
-                peakRssMb: [260, 301.5],
             }
         );
         expect(report).toEqual({
@@ -96,8 +94,6 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             "judge.serverMs.max": 1200,
             "judge.roundTripMs.p50": 1501,
             "judge.roundTripMs.max": 2600,
-            "judge.heapMb.max": 210.25,
-            "judge.peakRssMb.max": 301.5,
         });
     });
 
@@ -109,8 +105,6 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             {
                 serverMs: [400, 100],
                 roundTripMs: [700, 900],
-                heapMb: [],
-                peakRssMb: [],
             }
         );
         expect(report["judge.serverMs.p50"]).toBe(100);
@@ -122,9 +116,9 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             "g1",
             { proposals: [], captured: 3, unidentified: 0, unjudged: 3 },
             { "server-error": 3 },
-            { serverMs: [], roundTripMs: [], heapMb: [], peakRssMb: [] }
+            { serverMs: [], roundTripMs: [] }
         );
-        expect(Object.keys(report).filter((k) => /Ms|Mb/.test(k))).toEqual([]);
+        expect(Object.keys(report).filter((k) => /Ms/.test(k))).toEqual([]);
     });
 
     it("an empty sample is a warning — the game that offers no review", () => {

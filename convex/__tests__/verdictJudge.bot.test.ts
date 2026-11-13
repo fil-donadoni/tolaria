@@ -1,9 +1,9 @@
 // The server's game-end Verdict Proposal judge (`verdictJudge.ts`, issue
-// #9528): the action body authorizes through the guard BEFORE any search runs,
-// searches at the budget the guard clamped, never throws for a search failure,
-// and answers a captured position exactly as the in-process search does at
-// the same iteration budget and seed — the reproducibility the judge exists
-// for.
+// #9528): the action body bounds the payload, then authorizes through the
+// guard, BEFORE any search runs; it hands the search the captured position,
+// the clamped budget and the seed (so the move is the in-process search's);
+// it discards a search the wall-clock backstop cut, and never throws for a
+// search failure.
 import { describe, expect, it } from "vitest";
 import { getFunctionName } from "convex/server";
 import { verdictProposals } from "../../tolaria.config.json";
@@ -15,6 +15,9 @@ import { buildBladeState } from "../gre/ai/blade/runner";
 import { projectedToGameState } from "../gre/ai/stateAdapter";
 import { searchWithTrace, type SearchBudget } from "../gre/search";
 import {
+    VERDICT_JUDGE_BACKSTOP_MS,
+    VERDICT_JUDGE_KNOWLEDGE_MAX_CARDS,
+    VERDICT_JUDGE_STATE_MAX_BYTES,
     judgeOnePosition,
     runVerdictJudge,
     type JudgePositionArgs,
@@ -129,13 +132,18 @@ function args(
     };
 }
 
-describe("verdict judge — the server's answer is the in-process search's (issue #9528)", () => {
-    it("a blade position at the judge's fixed budget and seed: the same move", async () => {
+describe("verdict judge — the wiring to the search (issue #9528)", () => {
+    it("the captured position, the judge's budget and seed reach the search, under the backstop, and the move is the in-process search's", async () => {
         const { human, projected } = capturedPosition();
         const stub = makeMutationCtx(human, seeds(human));
         const { ctx, called } = actionCtx(stub);
+        const { search, budgets } = countingSearch();
 
-        const served = await judgeOnePosition(ctx, args(human, projected));
+        const served = await judgeOnePosition(
+            ctx,
+            args(human, projected),
+            search
+        );
 
         const local = searchWithTrace(
             projectedToGameState(projected, undefined, human),
@@ -144,59 +152,19 @@ describe("verdict judge — the server's answer is the in-process search's (issu
             verdictProposals.seed
         );
         expect(called).toEqual(["verdictJudgeGuard:claimJudgeConsult"]);
+        expect(budgets).toHaveLength(1);
+        expect(budgets[0]).toMatchObject({
+            iterations: verdictProposals.iterations,
+            backstopMs: VERDICT_JUDGE_BACKSTOP_MS,
+        });
+        expect(budgets[0].timeMs).toBeUndefined();
         expect(served.outcome).toBe("move");
         expect(local.move).not.toBeNull();
         expect(served.move).toEqual(local.move);
         expect(served.searchMs).toBeGreaterThanOrEqual(0);
     });
-});
 
-describe("verdict judge — the guard runs before any search (issue #9528)", () => {
-    it("rejected callers and calls run no search", async () => {
-        const { human, projected } = capturedPosition();
-        const cases: Array<[string, ReturnType<typeof makeMutationCtx>]> = [
-            ["unauthenticated", makeMutationCtx(null, seeds(human))],
-            ["non-participant", makeMutationCtx("someone-else", seeds(human))],
-            [
-                "game not over",
-                makeMutationCtx(
-                    human,
-                    seeds(human).map((r) =>
-                        r.__table === "gameTicks"
-                            ? { ...r, gameOver: false }
-                            : r
-                    )
-                ),
-            ],
-            [
-                "past the per-game bound",
-                makeMutationCtx(
-                    human,
-                    seeds(human, [
-                        {
-                            _id: "budget-1",
-                            __table: "verdictJudgeBudgets",
-                            gameId: GAME,
-                            positions: VERDICT_JUDGE_POSITIONS_PER_GAME,
-                            updatedAt: 0,
-                        },
-                    ])
-                ),
-            ],
-        ];
-        for (const [label, stub] of cases) {
-            const { search, budgets } = countingSearch();
-            const { ctx } = actionCtx(stub);
-            await expect(
-                judgeOnePosition(ctx, args(human, projected), search),
-                label
-            ).rejects.toThrow();
-            expect(budgets, label).toEqual([]);
-            expect(stub.writes, label).toEqual([]);
-        }
-    });
-
-    it("an oversized budget is searched at the clamp, with no time cap", async () => {
+    it("an oversized budget is searched at the clamp", async () => {
         const { human, projected } = capturedPosition();
         const stub = makeMutationCtx(human, seeds(human));
         const { ctx } = actionCtx(stub);
@@ -212,11 +180,150 @@ describe("verdict judge — the guard runs before any search (issue #9528)", () 
             args(human, projected, { iterations: 10 ** 9 }),
             search
         );
-        expect(budgets).toEqual([{ iterations: VERDICT_JUDGE_MAX_ITERATIONS }]);
+        expect(budgets).toHaveLength(1);
+        expect(budgets[0].iterations).toBe(VERDICT_JUDGE_MAX_ITERATIONS);
+        expect(budgets[0].timeMs).toBeUndefined();
     });
 });
 
-describe("verdict judge — a search failure (issue #9528)", () => {
+describe("verdict judge — rejections run no search (issue #9528)", () => {
+    it("the guard's rejections: each with its message, no search, nothing written", async () => {
+        const { human, projected } = capturedPosition();
+        const cases: Array<[RegExp, ReturnType<typeof makeMutationCtx>]> = [
+            [/Sign in to use the judge/, makeMutationCtx(null, seeds(human))],
+            [
+                /You are not the player of this game/,
+                makeMutationCtx("someone-else", seeds(human)),
+            ],
+            [
+                /The game is not over/,
+                makeMutationCtx(
+                    human,
+                    seeds(human).map((r) =>
+                        r.__table === "gameTicks"
+                            ? { ...r, gameOver: false }
+                            : r
+                    )
+                ),
+            ],
+            [
+                /This game has no judge positions left/,
+                makeMutationCtx(
+                    human,
+                    seeds(human, [
+                        {
+                            _id: "budget-1",
+                            __table: "verdictJudgeBudgets",
+                            gameId: GAME,
+                            userId: human,
+                            humanId: human,
+                            botId: `${human}-p2`,
+                            positions: VERDICT_JUDGE_POSITIONS_PER_GAME,
+                            updatedAt: 0,
+                        },
+                    ])
+                ),
+            ],
+        ];
+        for (const [message, stub] of cases) {
+            const { search, budgets } = countingSearch();
+            const { ctx } = actionCtx(stub);
+            await expect(
+                judgeOnePosition(ctx, args(human, projected), search),
+                String(message)
+            ).rejects.toThrow(message);
+            expect(budgets, String(message)).toEqual([]);
+            expect(stub.writes, String(message)).toEqual([]);
+        }
+    });
+
+    it("a position over the size bound is refused before the guard is called", async () => {
+        const { human, projected } = capturedPosition();
+        const stub = makeMutationCtx(human, seeds(human));
+        const { ctx, called } = actionCtx(stub);
+        const { search, budgets } = countingSearch();
+        const oversized = {
+            ...projected,
+            padding: "x".repeat(VERDICT_JUDGE_STATE_MAX_BYTES),
+        };
+        await expect(
+            judgeOnePosition(ctx, args(human, oversized), search)
+        ).rejects.toThrow(/position is too large/);
+        expect(called).toEqual([]);
+        expect(budgets).toEqual([]);
+    });
+
+    it("knowledge over its bounds is refused before the guard is called", async () => {
+        const { human, projected } = capturedPosition();
+        const tooMany = [human, `${human}-p2`, "third"].map((playerId) => ({
+            playerId,
+            cardIds: [],
+        }));
+        const tooLong = [
+            {
+                playerId: human,
+                cardIds: Array.from(
+                    { length: VERDICT_JUDGE_KNOWLEDGE_MAX_CARDS + 1 },
+                    () => "card"
+                ),
+            },
+        ];
+        for (const [knowledge, message] of [
+            [tooMany, /knowledge names more than two seats/],
+            [tooLong, /knowledge lists too many cards/],
+        ] as const) {
+            const stub = makeMutationCtx(human, seeds(human));
+            const { ctx, called } = actionCtx(stub);
+            const { search, budgets } = countingSearch();
+            await expect(
+                judgeOnePosition(
+                    ctx,
+                    args(human, projected, { knowledge: [...knowledge] }),
+                    search
+                )
+            ).rejects.toThrow(message);
+            expect(called).toEqual([]);
+            expect(budgets).toEqual([]);
+        }
+    });
+
+    it("knowledge naming a seat outside the game is refused by the guard, with no search", async () => {
+        const { human, projected } = capturedPosition();
+        const stub = makeMutationCtx(human, seeds(human));
+        const { ctx } = actionCtx(stub);
+        const { search, budgets } = countingSearch();
+        await expect(
+            judgeOnePosition(
+                ctx,
+                args(human, projected, {
+                    knowledge: [{ playerId: "stranger-p1", cardIds: [] }],
+                }),
+                search
+            )
+        ).rejects.toThrow(/knowledge names a seat outside this game/);
+        expect(budgets).toEqual([]);
+        expect(stub.writes).toEqual([]);
+    });
+});
+
+describe("verdict judge — answers that are not reproducible (issue #9528)", () => {
+    it("a search the wall-clock backstop ended is discarded as search-error", () => {
+        const { human, projected } = capturedPosition();
+        const cut: typeof searchWithTrace = (...a) => {
+            const r = searchWithTrace(...a);
+            return { ...r, trace: { ...r.trace!, stoppedBy: "time" } };
+        };
+        const result = runVerdictJudge(
+            { state: projected, botId: human, iterations: 10, seed: 1 },
+            cut
+        );
+        expect(result).toMatchObject({
+            move: null,
+            outcome: "search-error",
+        });
+        expect(result.message).toMatch(/backstop cut the search short/);
+    });
+
     it("a search that throws comes back as search-error, never a throw", () => {
         const { human, projected } = capturedPosition();
         const result = runVerdictJudge(

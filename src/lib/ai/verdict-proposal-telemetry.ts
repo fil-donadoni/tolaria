@@ -29,14 +29,11 @@ export type JudgeOutcome = BrainOutcome | "server-rejected" | "server-error";
 export type JudgeOutcomeTally = Partial<Record<JudgeOutcome, number>>;
 
 /** The server judge's measurements, one entry per ANSWERED consult: the
- *  server's own search time, the client's round trip of the same call (their
- *  difference is cold start + module load + network), and the server
- *  process's memory where it could be read. */
+ *  server's own search time and the client's round trip of the same call
+ *  (their difference is cold start + module load + network). */
 export type JudgeTimings = {
     serverMs: number[];
     roundTripMs: number[];
-    heapMb: number[];
-    peakRssMb: number[];
 };
 
 /** The structured attributes of one report — flat primitives, the shape
@@ -96,7 +93,7 @@ function summarise(
 
 /** The attributes of a finished sample: its counts, the consult outcomes
  *  (`judge.<outcome>` per outcome seen) and the server judge's measurements
- *  (p50 / max over the game's answered consults; memory as max only). */
+ *  (p50 / max over the game's answered consults). */
 export function proposalCountsReport(
     gameId: string,
     list: Pick<
@@ -119,12 +116,6 @@ export function proposalCountsReport(
     if (timings) {
         summarise(report, "judge.serverMs", timings.serverMs, 0);
         summarise(report, "judge.roundTripMs", timings.roundTripMs, 0);
-        if (timings.heapMb.length > 0) {
-            report["judge.heapMb.max"] = Math.max(...timings.heapMb);
-        }
-        if (timings.peakRssMb.length > 0) {
-            report["judge.peakRssMb.max"] = Math.max(...timings.peakRssMb);
-        }
     }
     return report;
 }

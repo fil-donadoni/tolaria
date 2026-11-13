@@ -241,7 +241,6 @@ const PASS_ANSWER = {
     move: { kind: "pass" },
     outcome: "move",
     searchMs: 120,
-    heapUsedMb: 190,
 };
 
 beforeEach(() => {
@@ -433,7 +432,6 @@ describe("issue #8889 — the game-over review survives a reload", () => {
             "judge.move": 1,
             "judge.serverMs.p50": 120,
             "judge.serverMs.max": 120,
-            "judge.heapMb.max": 190,
         });
         expect(line["judge.roundTripMs.max"]).toBeGreaterThanOrEqual(0);
     });

@@ -1,4 +1,3 @@
-"use node";
 // The game-end Verdict Proposal judge, on the server (GLOSSARY.md § Verdict
 // Proposal).
 //
@@ -6,22 +5,31 @@
 // human seat, which move the Brain would have picked on the seat's own view.
 // This action answers ONE such position: it runs the very handler the client's
 // Brain Worker runs (`convex/gre/ai/brainRequest.ts`) at a fixed iteration
-// budget and seed and NO wall-clock cap, so the answer is the same on every
-// machine and never depends on the player's device.
+// budget and seed, so the answer is the same on every machine and never
+// depends on the player's device.
 //
-// The Node runtime because of memory: the engine plus the card catalogue
-// already take most of the default runtime's per-call ceiling, and a search on
-// top of them does not fit.
+// THE DEFAULT RUNTIME, not Node. The engine and the card catalogue are already
+// in the default runtime's bundle (every game mutation runs them); a Node entry
+// would ship them a second time. Its per-call memory ceiling is 64 MiB.
+// Measured locally on 2026-11-13 (Node, the 56 searched blade `must`
+// positions, at 400 and at 1320 iterations): every search completes with V8's
+// old space capped at 64 MB, and the process dies at 40 MB — the need sits
+// between the two, and the project's earlier probes put the isolate at about
+// 0.6x Node's heap. Unverified on cloud: a call that runs out of memory fails
+// the action, which the client counts as `judge.server-error` — that rate is
+// what this pilot watches.
 //
-// Order is load-bearing: the guard (`verdictJudgeGuard.claimJudgeConsult`)
-// authorizes and counts the call FIRST — a rejection throws before any search
-// runs. A search FAILURE is not thrown: it comes back as `search-error`, so a
-// bad position costs that one decision and the client's review goes on.
+// Order is load-bearing. The payload and `knowledge` bounds are checked first
+// (a rejected payload costs no counter), then the guard
+// (`verdictJudgeGuard.claimJudgeConsult`) authorizes and counts the call — a
+// rejection throws before any search runs. A search FAILURE is not thrown: it
+// comes back as `search-error`, so a bad position costs that one decision and
+// the client's review goes on.
 //
-// It also measures itself, for the pilot's numbers: the server's own search
-// time and the process's memory after the search, returned beside the move.
+// It times itself with `Date.now()` (the search is handed the same clock), for
+// the pilot's numbers: the server's own search time, returned beside the move.
 
-import { v, type Infer } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import { action, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { handleBrainRequest, type BrainOutcome } from "./gre/ai/brainRequest";
@@ -50,12 +58,6 @@ export const verdictJudgeResultValidator = v.object({
     message: v.optional(v.string()),
     /** The server's own wall time of the search, ms. */
     searchMs: v.number(),
-    /** `process.memoryUsage().heapUsed` after the search, MiB — garbage not
-     *  yet collected included, so an upper reading. */
-    heapUsedMb: v.optional(v.number()),
-    /** The process's peak resident set so far (`resourceUsage().maxRSS`),
-     *  MiB — what a per-call memory ceiling is measured against. */
-    peakRssMb: v.optional(v.number()),
 });
 export type VerdictJudgeResult = Infer<typeof verdictJudgeResultValidator>;
 
@@ -67,58 +69,91 @@ export type VerdictJudgeInput = {
     seed: number;
 };
 
-const MIB = 1024 * 1024;
-const round1 = (n: number) => Math.round(n * 10) / 10;
+/** The wall-clock backstop on one judge search. An honest position finishes
+ *  its iteration budget far inside it (the slowest of the blade `must`
+ *  positions takes about 2 s at 400 iterations, locally); it exists so a
+ *  crafted `state` cannot keep a search running for the action's whole
+ *  lifetime. It is a CEILING, not part of the decision (`backstopMs`): a
+ *  search that finishes under it answers exactly as without it, and one it
+ *  ends is discarded — a clock-cut answer is not reproducible. */
+export const VERDICT_JUDGE_BACKSTOP_MS = 30_000;
 
-/** Process memory, if this runtime exposes it — never a reason to fail. */
-function memoryReading(): Pick<VerdictJudgeResult, "heapUsedMb" | "peakRssMb"> {
-    try {
-        if (typeof process === "undefined") return {};
-        const heapUsedMb = round1(process.memoryUsage().heapUsed / MIB);
-        // `maxRSS` is in KiB.
-        const peakRssMb =
-            typeof process.resourceUsage === "function"
-                ? round1(process.resourceUsage().maxRSS / 1024)
-                : undefined;
-        return peakRssMb === undefined
-            ? { heapUsedMb }
-            : { heapUsedMb, peakRssMb };
-    } catch {
-        return {};
+/** The largest `state` the judge accepts, serialized. The largest of the 546
+ *  blade positions projected for their searching seat is 24,372 B (median
+ *  2,640 B, measured 2026-11-13); 1 MiB is ~40x that, room for a long game's
+ *  board, and still bounds what one call can make the server parse. */
+export const VERDICT_JUDGE_STATE_MAX_BYTES = 1024 * 1024;
+
+/** At most this many decklist entries per seat in `knowledge`: a Constructed
+ *  maindeck plus sideboard is 75, a Limited pool a few dozen more. */
+export const VERDICT_JUDGE_KNOWLEDGE_MAX_CARDS = 250;
+
+/** The payload checks that need no database: reject before the guard is
+ *  called, so a rejected payload costs no counter. */
+export function assertJudgePayload(args: JudgePositionArgs): void {
+    if (JSON.stringify(args.state).length > VERDICT_JUDGE_STATE_MAX_BYTES) {
+        throw new ConvexError("The judge's position is too large.");
+    }
+    const knowledge = args.knowledge ?? [];
+    if (knowledge.length > 2) {
+        throw new ConvexError(
+            "The judge's knowledge names more than two seats."
+        );
+    }
+    if (
+        knowledge.some(
+            (k) => k.cardIds.length > VERDICT_JUDGE_KNOWLEDGE_MAX_CARDS
+        )
+    ) {
+        throw new ConvexError("The judge's knowledge lists too many cards.");
     }
 }
 
 /**
  * The judge's search for one position, already authorized: the Brain's
- * request handler at `{ iterations }` with `seed` and no time cap. Never
- * throws — the handler lowers a search throw to `error`. `search` is the
- * handler's own injection seam, for a test of the failure path.
+ * request handler at `{ iterations }` with `seed`, under the wall-clock
+ * backstop. Never throws — the handler lowers a search throw to `error`.
+ * `search` is the handler's own injection seam, for tests.
  */
 export function runVerdictJudge(
     input: VerdictJudgeInput,
     search?: typeof searchWithTrace
 ): VerdictJudgeResult {
-    const start = performance.now();
+    // `Date.now()`, never `performance.now()`: the default runtime is not
+    // guaranteed to provide `performance`, and the search's own clock (its
+    // default is `performance.now()`) is handed the same function.
+    const now = () => Date.now();
+    const start = now();
     const res = handleBrainRequest(
         {
             id: 0,
             state: input.state,
             botId: input.botId,
-            budget: { iterations: input.iterations },
+            budget: {
+                iterations: input.iterations,
+                backstopMs: VERDICT_JUDGE_BACKSTOP_MS,
+                now,
+            },
             deckKnowledge: input.knowledge,
             seed: input.seed,
         },
         search
     );
-    const searchMs = Math.round(performance.now() - start);
-    const memory = memoryReading();
+    const searchMs = now() - start;
     if (res.error) {
         return {
             move: null,
             outcome: "search-error",
             message: res.error.message,
             searchMs,
-            ...memory,
+        };
+    }
+    if (res.trace?.stoppedBy === "time") {
+        return {
+            move: null,
+            outcome: "search-error",
+            message: `The ${VERDICT_JUDGE_BACKSTOP_MS} ms backstop cut the search short: no reproducible answer.`,
+            searchMs,
         };
     }
     const move: Move | null = res.move;
@@ -126,7 +161,6 @@ export function runVerdictJudge(
         move,
         outcome: move ? "move" : "no-move",
         searchMs,
-        ...memory,
     };
 }
 
@@ -138,7 +172,8 @@ export const judgePositionArgs = {
     // a Convex value when the server sent it, so it travels back as one;
     // what it may ask for is bounded by the guard, and nothing it holds
     // is stored or trusted — it only seeds a search whose move the
-    // client compares with its own.
+    // client compares with its own. Its size is bounded before anything
+    // else runs (`VERDICT_JUDGE_STATE_MAX_BYTES`).
     state: v.any(),
     botId: v.string(),
     knowledge: v.optional(
@@ -153,9 +188,9 @@ export const judgePositionArgsValidator = v.object(judgePositionArgs);
 export type JudgePositionArgs = Infer<typeof judgePositionArgsValidator>;
 
 /**
- * The action's body: authorize and count the call through the guard FIRST
- * (it throws, and nothing is searched, on a rejection), then search at the
- * budget the guard clamped. `search` is the handler's injection seam, so a
+ * The action's body: the payload bounds, then the guard, which authorizes
+ * and counts the call (it throws, and nothing is searched, on a rejection),
+ * then the search at the budget the guard clamped. `search` is the handler's injection seam, so a
  * test can observe whether — and at what budget — a search ran.
  */
 export async function judgeOnePosition(
@@ -163,11 +198,15 @@ export async function judgeOnePosition(
     args: JudgePositionArgs,
     search?: typeof searchWithTrace
 ): Promise<VerdictJudgeResult> {
+    assertJudgePayload(args);
     const { iterations } = await ctx.runMutation(
         internal.verdictJudgeGuard.claimJudgeConsult,
         {
             gameId: args.gameId,
             seatId: args.botId,
+            // Only the seat ids, not the card lists: the guard checks each is
+            // one of the game's two seats.
+            knowledgeSeats: (args.knowledge ?? []).map((k) => k.playerId),
             iterations: args.iterations,
             seed: args.seed,
         }

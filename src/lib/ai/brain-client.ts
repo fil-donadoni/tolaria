@@ -172,8 +172,7 @@ type BrainChannel = {
         botId: string,
         budget?: SearchBudget,
         deckKnowledge?: DeckKnowledgeBySeat,
-        repetition?: RepetitionHistory,
-        seed?: number
+        repetition?: RepetitionHistory
     ) => Promise<BrainResult>;
     dispose: () => void;
 };
@@ -308,10 +307,7 @@ function createBrainChannel(): BrainChannel {
         botId: string,
         budget: SearchBudget = DEFAULT_BUDGET,
         deckKnowledge?: DeckKnowledgeBySeat,
-        repetition?: RepetitionHistory,
-        /** A fixed seed, for a consult that must be reproducible (issue #3984's
-         *  game-end Verdict Proposal judge). Absent, the handler draws one. */
-        seed?: number
+        repetition?: RepetitionHistory
     ): Promise<BrainResult> {
         const w = getWorker();
         if (!w) {
@@ -330,7 +326,6 @@ function createBrainChannel(): BrainChannel {
                     budget: exhausted ? clampToFallback(budget) : budget,
                     deckKnowledge,
                     repetition,
-                    ...(seed === undefined ? {} : { seed }),
                 })
             );
         }
@@ -343,7 +338,6 @@ function createBrainChannel(): BrainChannel {
             budget,
             deckKnowledge,
             repetition,
-            ...(seed === undefined ? {} : { seed }),
         };
         return new Promise<BrainResult>((resolve) => {
             // A consult ALWAYS settles (issue #2284) — see
@@ -569,19 +563,9 @@ export function consultBrain(
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET,
     deckKnowledge?: DeckKnowledgeBySeat,
-    repetition?: RepetitionHistory,
-    /** A fixed seed, for a consult that must be reproducible (issue #3984's
-     *  game-end Verdict Proposal judge). Absent, the handler draws one. */
-    seed?: number
+    repetition?: RepetitionHistory
 ): Promise<BrainResult> {
-    return botBrain.consult(
-        state,
-        botId,
-        budget,
-        deckKnowledge,
-        repetition,
-        seed
-    );
+    return botBrain.consult(state, botId, budget, deckKnowledge, repetition);
 }
 
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.
