@@ -22,8 +22,10 @@ import CardPreviewDock from "./card-preview-dock";
 import {
     chooseDockSide,
     dockWidth,
+    litNodeRects,
     type DockSide,
 } from "~/lib/card-preview-placement";
+import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import CardPreviewAnchored from "./card-preview-anchored";
 import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
 import CardPreviewYieldMenu from "./card-preview-yield-menu";
@@ -94,6 +96,14 @@ export default function CardPreview({
     const [showHoverDock, setShowHoverDock] = useState(false);
     // Decided once at dwell-open from the hovered card's rect (issue #8955).
     const [dockSide, setDockSide] = useState<DockSide>("right");
+    // The hovered card's lit relationship (issue #9500), mirrored into a ref
+    // so the dwell timer reads it at open time: the dock also keeps the far
+    // end of the arrow (an attacked planeswalker) uncovered.
+    const litNodes = useArrowHighlight()?.nodes ?? null;
+    const litNodesRef = useRef(litNodes);
+    useEffect(() => {
+        litNodesRef.current = litNodes;
+    }, [litNodes]);
     const [imgLoaded, setImgLoaded] = useState(false);
     // Mirrors the open states for synchronous reads inside event handlers
     // (the quick-click toggle and the outside-click listener run before React
@@ -433,7 +443,11 @@ export default function CardPreview({
                     chooseDockSide(
                         cardEl.getBoundingClientRect(),
                         dockWidth(hasOriginalRef.current),
-                        { width: window.innerWidth, height: window.innerHeight }
+                        {
+                            width: window.innerWidth,
+                            height: window.innerHeight,
+                        },
+                        litNodeRects(litNodesRef.current, cardEl)
                     )
                 );
                 setShowHoverDock(true);

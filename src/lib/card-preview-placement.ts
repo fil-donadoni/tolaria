@@ -66,15 +66,50 @@ export function dockWidth(hasOriginal: boolean): number {
     return hasOriginal ? DOCK_WIDTH * 2 : DOCK_WIDTH;
 }
 
-/** Side to dock on, decided from the hovered card's rect when the dock opens:
- *  `left` iff the card intersects the right-edge band, else `right`. */
+/** Side to dock on, decided when the dock opens: `left` iff the hovered card
+ *  intersects the right-edge band (issue #8955), OR one of `keepClear` does
+ *  while the left band is free of them all (issue #9500). `keepClear` is the
+ *  hovered card's lit relationship — the planeswalker an attacker is
+ *  attacking, the attackers of a hovered target — so the dock never covers
+ *  the other end of the arrow the player is reading. */
 export function chooseDockSide(
     cardRect: Pick<DOMRect, "left" | "right">,
     width: number,
-    viewport: Viewport
+    viewport: Viewport,
+    keepClear: ReadonlyArray<Pick<DOMRect, "left" | "right">> = []
 ): DockSide {
-    const bandLeft = viewport.width - DOCK_EDGE_INSET - width;
-    const bandRight = viewport.width;
-    const intersects = cardRect.right > bandLeft && cardRect.left < bandRight;
-    return intersects ? "left" : "right";
+    const rightBand = {
+        left: viewport.width - DOCK_EDGE_INSET - width,
+        right: viewport.width,
+    };
+    const leftBand = { left: 0, right: DOCK_EDGE_INSET + width };
+    const hits = (
+        r: Pick<DOMRect, "left" | "right">,
+        band: { left: number; right: number }
+    ) => r.right > band.left && r.left < band.right;
+    if (hits(cardRect, rightBand)) return "left";
+    const relatedRight = keepClear.some((r) => hits(r, rightBand));
+    const relatedLeft = keepClear.some((r) => hits(r, leftBand));
+    return relatedRight && !relatedLeft ? "left" : "right";
+}
+
+/** The on-screen rects of the board nodes a hover highlight lit (issue
+ *  #9500): permanents, players, stack items — by their arrow anchors. */
+export function litNodeRects(
+    nodes: Iterable<string> | null | undefined,
+    exceptEl?: Element | null
+): DOMRect[] {
+    if (!nodes) return [];
+    const rects: DOMRect[] = [];
+    for (const id of nodes) {
+        const sel = ["permanent", "player", "stack"]
+            .map((k) => `[data-arrow-anchor-${k}="${CSS.escape(id)}"]`)
+            .join(",");
+        for (const el of document.querySelectorAll(sel)) {
+            if (exceptEl && (el === exceptEl || exceptEl.contains(el)))
+                continue;
+            rects.push(el.getBoundingClientRect());
+        }
+    }
+    return rects;
 }

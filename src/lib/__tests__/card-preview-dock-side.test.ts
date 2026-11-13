@@ -38,3 +38,22 @@ describe("chooseDockSide (issue #8955)", () => {
         );
     });
 });
+
+// Issue #9500 — the dock also keeps the hovered card's lit relationship
+// clear: Serra Angel (centre) attacking Liliana (right band) docks LEFT.
+describe("chooseDockSide — keeps the arrow's far end clear (issue #9500)", () => {
+    const liliana = card(1440 - 8 - 90);
+    it("related node in the right band, left band free → left", () => {
+        expect(chooseDockSide(card(600), DOCK_WIDTH, VP, [liliana])).toBe(
+            "left"
+        );
+    });
+    it("related nodes in BOTH bands → stays right (the card's own rule only)", () => {
+        expect(
+            chooseDockSide(card(600), DOCK_WIDTH, VP, [liliana, card(20)])
+        ).toBe("right");
+    });
+    it("no relationship → unchanged", () => {
+        expect(chooseDockSide(card(600), DOCK_WIDTH, VP, [])).toBe("right");
+    });
+});
