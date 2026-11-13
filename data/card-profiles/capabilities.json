@@ -217,8 +217,9 @@
         },
         "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024": {
             "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false
+            "requires": ["value-on-etb"],
+            "reviewed": false,
+            "rationale": "oracle: its own enters trigger exiles a permanent and returns it at the next end step, re-buying that permanent's enters trigger"
         },
         "b4e3d844-d3b4-41d8-921d-c1cb3af343f8": {
             "provides": ["self-mills", "land-enters"],
@@ -499,8 +500,9 @@
         },
         "55707746-da6e-46e5-a5ca-7ac843fdc38e": {
             "provides": ["value-on-attack"],
-            "requires": [],
-            "reviewed": false
+            "requires": ["value-on-etb"],
+            "reviewed": false,
+            "rationale": "oracle: its attack trigger exiles another nonland permanent and returns it at the next end step, re-buying that permanent's enters trigger"
         },
         "e419cd0b-2449-4cc5-9ead-b9e45e271700": {
             "provides": ["value-on-etb", "value-on-attack"],
@@ -951,9 +953,9 @@
         },
         "c7a401b8-29fb-46ef-a663-427f66724d5c": {
             "provides": [],
-            "requires": ["value-on-cast", "cheap-spell"],
+            "requires": ["value-on-cast", "cheap-spell", "value-on-etb"],
             "reviewed": false,
-            "rationale": "oracle: blinks a permanent on each noncreature spell cast; cheap spells drive the loop"
+            "rationale": "oracle: each noncreature spell flickers a nonland permanent you control, re-buying its enters trigger; cheap spells drive the loop"
         },
         "08ffbd51-2bd3-4262-8809-09576ce2b6f5": {
             "provides": ["value-on-attack", "value-on-death", "discard-outlet"],
@@ -2318,6 +2320,12 @@
             "requires": ["sacrifice-fodder"],
             "reviewed": false,
             "rationale": "oracle: draws two cards whenever the equipped creature dies — a 1-toughness token dies on equip"
+        },
+        "cef789e8-e4cc-4f61-bc15-debc2487777f": {
+            "provides": [],
+            "requires": ["value-on-etb"],
+            "reviewed": false,
+            "rationale": "oracle: removes fade counters to exile creatures and returns them when it leaves, re-buying their enters triggers"
         }
     }
 }
