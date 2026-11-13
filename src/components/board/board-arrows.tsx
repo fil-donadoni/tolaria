@@ -7,6 +7,7 @@ import {
     buildTargetArrows,
     emptyAnchorMap,
     hitTestArrows,
+    pickHoverSeed,
     resolveArrowHighlight,
     type AnchorPoint,
     type ArrowHighlight,
@@ -60,6 +61,7 @@ const BOARD_DEF_IDS = {
     grad: "board-arrow-grad",
     head: "board-arrowhead",
     shadow: "board-arrow-shadow",
+    tail: "board-arrow-tail",
 };
 
 /** A stack target arrow (issue #9326) — drawn quiet at rest. Combat and
@@ -178,22 +180,24 @@ export default function BoardArrows({
     // too). Resolved here, where the arrow set + geometry live.
     const channelSeed = channel?.seed ?? null;
     const seed = useMemo<ArrowHoverSeed>(
-        () => (hoveredKey ? { key: hoveredKey } : channelSeed),
-        [hoveredKey, channelSeed]
+        () => pickHoverSeed(arrows, hoveredKey, channelSeed),
+        [arrows, hoveredKey, channelSeed]
     );
-    const highlight = useMemo<ArrowHighlight | null>(
-        () =>
-            targetingNodeIds
-                ? {
-                      keys: new Set<string>(),
-                      nodes: new Set(targetingNodeIds),
-                      // plain dimming: the targeting overlay draws its own
-                      // arrow, no focus veil
-                      focus: "combat",
-                  }
-                : resolveArrowHighlight(arrows, seed),
-        [arrows, seed, targetingNodeIds]
-    );
+    const highlight = useMemo<ArrowHighlight | null>(() => {
+        const hovered = resolveArrowHighlight(arrows, seed);
+        if (!targetingNodeIds) return hovered;
+        // An open target choice keeps its candidates lit and STILL answers
+        // hover (issue #9500): pointing at a planeswalker while choosing shows
+        // every creature already attacking it. Plain dimming: the targeting
+        // overlay draws its own arrow, no focus veil.
+        const nodes = new Set(targetingNodeIds);
+        for (const n of hovered?.nodes ?? []) nodes.add(n);
+        return {
+            keys: new Set(hovered?.keys ?? []),
+            nodes,
+            focus: "combat",
+        };
+    }, [arrows, seed, targetingNodeIds]);
 
     // Publish the resolved node set so battlefield cards illuminate (or dim) in
     // lockstep with the hovered relationship.

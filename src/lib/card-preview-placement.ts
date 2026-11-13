@@ -49,9 +49,18 @@ export function clampAnchoredPreviewPosition(
     return { top, left };
 }
 
-// Hover preview dock side (issue #8955). The dock is a fixed panel on the
-// viewport's right edge; a card whose rect intersects that band would be
-// covered by the very panel it opened, so the dock moves to the left edge.
+// Hover preview dock side (issues #8955, #9500). The dock is a fixed panel on
+// the viewport's right edge by default; it moves to the left edge when it
+// would cover what the player is reading:
+// - a battlefield permanent the board itself places in the right-edge band
+//   (the back row's right block: planeswalkers, battles, noncreature
+//   artifacts / enchantments) — the board says so (`preferred`), by effective
+//   type, so this file never re-derives a type list;
+// - a card OFF the battlefield (a zone pile, the hand, the stack) whose rect
+//   intersects the right band (issue #8955);
+// - the hovered card's lit relationship (the planeswalker an attacker
+//   attacks, the attackers of a hovered target) when one of its nodes sits
+//   in the right band and none in the left band (issue #9500).
 // Horizontal test only: the band's vertical extent depends on a CSS variable
 // (`--preview-bottom-safe`) that pure layout code cannot read.
 
@@ -66,15 +75,37 @@ export function dockWidth(hasOriginal: boolean): number {
     return hasOriginal ? DOCK_WIDTH * 2 : DOCK_WIDTH;
 }
 
-/** Side to dock on, decided from the hovered card's rect when the dock opens:
- *  `left` iff the card intersects the right-edge band, else `right`. */
+/** Where the hovered card sits, as far as the dock cares. */
+export type DockAnchor =
+    /** The board asked for the left dock (back row, right block). */
+    | { kind: "preferred-left" }
+    /** Any other battlefield permanent: its own rect never moves the dock. */
+    | { kind: "battlefield" }
+    /** Off the battlefield: its rect is tested against the right band. */
+    | { kind: "elsewhere"; rect: Pick<DOMRect, "left" | "right"> };
+
+type Span = Pick<DOMRect, "left" | "right">;
+
+function intersects(r: Span, band: Span): boolean {
+    return r.right > band.left && r.left < band.right;
+}
+
+/** Side to dock on, decided when the dock opens (see the block comment). */
 export function chooseDockSide(
-    cardRect: Pick<DOMRect, "left" | "right">,
+    anchor: DockAnchor,
     width: number,
-    viewport: Viewport
+    viewport: Viewport,
+    keepClear: ReadonlyArray<Span> = []
 ): DockSide {
-    const bandLeft = viewport.width - DOCK_EDGE_INSET - width;
-    const bandRight = viewport.width;
-    const intersects = cardRect.right > bandLeft && cardRect.left < bandRight;
-    return intersects ? "left" : "right";
+    if (anchor.kind === "preferred-left") return "left";
+    const rightBand = {
+        left: viewport.width - DOCK_EDGE_INSET - width,
+        right: viewport.width,
+    };
+    if (anchor.kind === "elsewhere" && intersects(anchor.rect, rightBand))
+        return "left";
+    const leftBand = { left: 0, right: DOCK_EDGE_INSET + width };
+    const relatedRight = keepClear.some((r) => intersects(r, rightBand));
+    const relatedLeft = keepClear.some((r) => intersects(r, leftBand));
+    return relatedRight && !relatedLeft ? "left" : "right";
 }

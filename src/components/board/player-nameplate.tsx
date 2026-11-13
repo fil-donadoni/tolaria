@@ -1,3 +1,4 @@
+import { useArrowNodeHover } from "~/hooks/useArrowNodeHover";
 import { useState } from "react";
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
@@ -135,6 +136,10 @@ export default function PlayerNameplate({
     underAttack = false,
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
+    // Hover seed (issue #9500): pointing at a player lights every arrow into
+    // them — each attacker, each spell targeting them. No-op without the
+    // board's highlight provider (classic chrome).
+    const nodeHover = useArrowNodeHover(player.id);
 
     // Manual Board life editing (PRD #2162 / issue #2169). Both affordances
     // are OPT-IN through fields the GRE `usePlayerInteraction` never sets, so
@@ -262,6 +267,7 @@ export default function PlayerNameplate({
     const box = (
         <div
             data-arrow-anchor-player={player.id}
+            {...nodeHover}
             data-plaque-state={state ?? undefined}
             onClick={interaction.handleClick}
             onWheel={onLifeWheel ? (e) => onLifeWheel(e.deltaY) : undefined}

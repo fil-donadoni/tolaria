@@ -332,8 +332,24 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
         expect(getByTestId("nodes").textContent).toBe("none");
     });
 
-    it("arrow hover wins over a hovered card; away from the arrow the card seed is back", () => {
-        // A second, far-away relationship s2 → bear, seeded by hovering bear.
+    it("arrow hover wins over a hovered card with no arrow of its own; away from the arrow it clears", () => {
+        // `bear` is in no relationship: the arrow crossing it disambiguates.
+        const { getByTestId } = renderHoverBoard(HOVER_STACK, [
+            ...HOVER_ANCHORS,
+            { kind: "permanent", id: "bear", point: { x: 200, y: 500 } },
+        ]);
+        const root = getByTestId("board-root");
+        fireEvent.pointerEnter(getByTestId("card-bear"));
+        expect(getByTestId("nodes").textContent).toBe("none");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("a hovered card with its own arrows beats a neighbour's arrow crossing it (issue #9500)", () => {
+        // A second relationship s2 → bear: the pointer on `bear` shows bear's
+        // own relationship even within reach of the s1 arrow.
         const { getByTestId } = renderHoverBoard(
             [
                 ...HOVER_STACK,
@@ -349,8 +365,6 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
         fireEvent.pointerEnter(getByTestId("card-bear"));
         expect(getByTestId("nodes").textContent).toBe("bear,s2");
         fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
-        expect(getByTestId("nodes").textContent).toBe("perm,s1");
-        fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
         expect(getByTestId("nodes").textContent).toBe("bear,s2");
     });
 
