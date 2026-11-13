@@ -92372,6 +92372,14 @@
         "source": "compiled"
     },
     {
+        "name": "Weapons Manufacturing",
+        "scryfallId": "a058f1a6-318c-4bba-981e-ace079ada806",
+        "oracleId": "e48a8160-cffe-4e00-a3e9-a59d7fc7b3a2",
+        "firstSet": "eoe",
+        "firstPrintId": "a058f1a6-318c-4bba-981e-ace079ada806",
+        "firstPrintSet": "eoe"
+    },
+    {
         "name": "Wear // Tear",
         "scryfallId": "d169a3b2-18ae-4414-98ef-d879676fdcc0",
         "oracleId": "9842734c-1eac-4509-a731-4c22017ae586",

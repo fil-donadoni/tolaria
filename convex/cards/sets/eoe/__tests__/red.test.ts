@@ -2,7 +2,7 @@
 //
 // Weapons Manufacturing (issue #8646): the nontoken-artifact enter trigger
 // (CR 603.6a, CR 111.1), the Munitions token's own leaves-the-battlefield
-// trigger (CR 603.6c, CR 707.2) with its announced "any target" (CR 603.3d),
+// trigger (CR 603.6c, CR 111.3) with its announced "any target" (CR 603.3d),
 // and the wire path through `projectPublicState` / a cold token-id decode.
 
 import { describe, it, expect } from "vitest";

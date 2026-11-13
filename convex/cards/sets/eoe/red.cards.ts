@@ -10,7 +10,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // "Whenever a nontoken artifact you control enters" — `scope: "yours"` over an
 // artifact filter with `isToken: false` (CR 111.1: a token is not a card; the
 // Munitions token itself never retriggers this). The created Munitions token
-// carries its OWN triggered ability (CR 707.2), a self-scoped
+// carries its OWN triggered ability (CR 111.3), a self-scoped
 // leaves-the-battlefield trigger (CR 603.6c) targeting any target (CR 603.3d);
 // "it" is the token, so the damage source is the token (CR 603.10a last known
 // information when it has already left).
