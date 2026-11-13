@@ -1380,8 +1380,10 @@ async function ensureScenarioBoard(
 
 /** What the position page prints when the lane's game is not in play yet. */
 const SEAM_NO_GAME_IN_PLAY = "no solo game in play";
-/** The board's own affordances: what `ensureBoard` waits for, too. */
-const BOARD_AFFORDANCE = "text=/Pass|YOUR GO|Untap|Upkeep|Library/i";
+/** The board's own surface (`board-surface.tsx`): present in every
+ *  position, whatever its phase or command slot shows — a declared position
+ *  can sit in a block window where none of `ensureBoard`'s words render. */
+const BOARD_ROOT = "[data-board-root]";
 
 /**
  * Load declared position `label` through the seam deep link (issue #9272) and
@@ -1457,12 +1459,18 @@ async function loadScenarioThroughSeamSteps(
             ? `position "${label}" already on the board (seq ${record.seq}) — not rebuilt`
             : `loaded position "${label}" through the seam`
     );
-    await settle(page);
-    if (!(await visible(page, BOARD_AFFORDANCE, 10_000))) {
+    if (!(await visible(page, BOARD_ROOT, 10_000))) {
         throw new Unreachable(
-            `the seam loaded "${label}" but no board affordance rendered within 10s`
+            `the seam loaded "${label}" but the board did not render within 10s`
         );
     }
+    // Park the pointer where it hovers nothing. The board just re-rendered
+    // under wherever the last row left the mouse, and a card under it opens
+    // its hover preview over the very controls the next walk clicks — the
+    // Debug sheet path never met this because its last click was the sheet's
+    // own edge toggle.
+    await page.mouse.move(0, 0);
+    await settle(page);
     return true;
 }
 
