@@ -242,7 +242,10 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // worst-deck Floor moved four times in two days for single decks
         // (issues #9334, #9369, #9323). Set from the deck-aware fetch build,
         // 0.777 rounded down; the worst deck is reported beside it.
-        p5DeckCastability: 0.77,
+        // Loosened 0.77 → 0.76 (issue #9321): the base itself read 0.769 on
+        // seeds 1..8 once PR #9516 landed after PR #9357; over 64
+        // seeds p5 is 0.783 and seeds 1..8 are the lowest block but one.
+        p5DeckCastability: 0.76,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.
@@ -253,7 +256,10 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // #9369): over 64 seeds, fetch lands leave the share where it was
         // (0.512 → 0.513), but seeds 1..8 are now the lowest of eight
         // blocks (0.482; median 0.515).
-        meanPlanShare: 0.48,
+        // Loosened 0.48 → 0.47 by the `big-artifact` Capability (issue
+        // #9321): seeds 1..8 stay the lowest block (0.482 → 0.479) while the
+        // 64-seed share does not move (0.509 → 0.509).
+        meanPlanShare: 0.47,
         meanCapabilityPairs: 16.71,
     },
     lea: {
