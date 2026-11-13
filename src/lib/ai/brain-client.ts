@@ -624,14 +624,13 @@ const botBrain = createBrainChannel(BOT_CHANNEL);
  *
  * Called on mount by `useVsAiDriver` whenever there is a bot seat, so the
  * Worker's script load overlaps the game's own setup; {@link primeBrain} then
- * hands it the shards to install. Since issue #5617 the Worker is a chunk of
- * the page's build, so both hit the browser cache the main thread already
- * filled from the same `immutable` URLs. Idempotent; safe where `Worker` is
- * undefined.
+ * hands it the shards to install. The Worker is a chunk of the page's build,
+ * so both hit the browser cache the main thread already filled from the same
+ * `immutable` URLs. Idempotent; safe where `Worker` is undefined.
  *
  * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_FAILURES}: a script
  * that cannot load fails here, with no consult pending, which is why that
- * failure has to be recorded rather than resolved (issue #3040).
+ * failure has to be recorded rather than resolved.
  */
 export function warmBrain(): void {
     botBrain.warm();
