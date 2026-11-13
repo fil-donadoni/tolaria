@@ -1,7 +1,7 @@
 // The Brain lab bench in real browsers (issue #9527): Chromium, Firefox and
 // WebKit through Playwright, running the SAME bundle as `run-engines.mjs`.
 //
-//   node docs/research/scripts/brain-bench/run-browsers.mjs <bundle.js> <out.json> [--background-qos]
+//   node docs/research/scripts/brain-bench/run-browsers.mjs <bundle.js> <out.json>
 //
 // A browser has only a wall clock, and this bench runs on a machine that is
 // rarely idle, so it reports RATIOS measured in interleaved rounds rather than
@@ -13,23 +13,14 @@
 //   contention  in each engine, a Brain Worker searching alone against the
 //               same search while a SECOND Brain Worker runs an uncapped
 //               search beside it: the slowdown a second Worker costs.
-//
-// `--background-qos` launches every browser through `taskpolicy -b` (macOS):
-// background QoS confines the whole browser to the efficiency cores, which on
-// Apple Silicon is a real few-slow-cores device (two cores on an M1 Pro).
 
 import { chromium, firefox, webkit } from "playwright";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { cpus, loadavg, tmpdir } from "node:os";
-import path from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { cpus, loadavg } from "node:os";
 
-const args = process.argv.slice(2);
-const backgroundQos = args.includes("--background-qos");
-const [bundlePath, out] = args.filter((a) => !a.startsWith("--"));
+const [bundlePath, out] = process.argv.slice(2);
 if (!bundlePath || !out) {
-    console.error(
-        "usage: run-browsers.mjs <bundle.js> <out.json> [--background-qos]"
-    );
+    console.error("usage: run-browsers.mjs <bundle.js> <out.json>");
     process.exit(2);
 }
 
@@ -39,18 +30,6 @@ const ROUNDS = 4; // the first is a warm-up and is discarded
 const CONTENTION_PAIRS = 6;
 const load = () => Number(loadavg()[0].toFixed(2));
 const bundle = readFileSync(bundlePath, "utf8");
-
-/** A launcher that puts the browser under background QoS. */
-function backgroundLauncher(name, executable) {
-    const dir = mkdtempSync(path.join(tmpdir(), "brain-bench-"));
-    const script = path.join(dir, `${name}-background`);
-    writeFileSync(
-        script,
-        `#!/bin/sh\nexec /usr/sbin/taskpolicy -b "${executable}" "$@"\n`
-    );
-    chmodSync(script, 0o755);
-    return script;
-}
 
 const WORKER_GLUE = `
 ;self.onmessage = (e) => {
@@ -66,16 +45,7 @@ const WORKER_GLUE = `
 
 async function open(name) {
     const type = ENGINES[name];
-    const browser = await type.launch(
-        backgroundQos
-            ? {
-                  executablePath: backgroundLauncher(
-                      name,
-                      type.executablePath()
-                  ),
-              }
-            : {}
-    );
+    const browser = await type.launch();
     const page = await browser.newPage();
     await page.goto("about:blank");
     await page.addScriptTag({ content: bundle });
@@ -227,7 +197,6 @@ writeFileSync(
     out,
     JSON.stringify(
         {
-            backgroundQos,
             cpu: cpus()[0]?.model ?? "unknown",
             cores: cpus().length,
             iterations: ITERATIONS,
