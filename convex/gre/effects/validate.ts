@@ -1195,6 +1195,7 @@ const TOKEN_TRIGGERED_EVENT_KINDS: Record<TokenTriggeredEventKind, true> = {
     PERMANENT_ENTERED: true,
     CREATURE_DIED: true,
     ATTACKERS_DECLARED: true,
+    PERMANENT_LEFT: true,
 };
 
 /** A token-scoped triggered ability (issue #2364, `EffectTokenSpec.
@@ -1216,8 +1217,20 @@ function isTokenTriggeredAbility(value: unknown): boolean {
         return false;
     }
     const a = value as Record<string, unknown>;
-    const allowed = new Set(["id", "oracleText", "event", "effects"]);
+    const allowed = new Set([
+        "id",
+        "oracleText",
+        "event",
+        "effects",
+        "targetRequirement",
+    ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
+    if (
+        a.targetRequirement !== undefined &&
+        !isInlineTargetRequirement(a.targetRequirement)
+    ) {
+        return false;
+    }
     if (typeof a.id !== "string" || a.id.length === 0) return false;
     if (typeof a.oracleText !== "string" || a.oracleText.length === 0) {
         return false;
@@ -10173,6 +10186,19 @@ function validateEffectOpList(
                             : undefined
                     )
                 );
+                // CR 601.2c / 603.3d — same slot-vs-requirement check as the
+                // token's activated abilities above: a targeted token trigger
+                // body reading `{ target: n }` needs a requirement guaranteeing
+                // slot n, else the Op silently skips at runtime.
+                const maxSlot = maxAnnouncedTargetSlot(ability.effects);
+                const guaranteed = guaranteedTargetCount(
+                    (raw as { targetRequirement?: unknown }).targetRequirement
+                );
+                if (maxSlot >= guaranteed) {
+                    errors.push(
+                        `${abilityLabel}: body references announced target slot ${maxSlot} but the trigger's targetRequirement guarantees only ${guaranteed} target(s) — the slot would resolve to undefined and the Op would silently skip (CR 601.2c / 608.2b)`
+                    );
+                }
             }
         });
     });

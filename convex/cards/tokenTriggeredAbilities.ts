@@ -24,6 +24,7 @@
 import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
+import { leftTrigger } from "./abilities/triggers/leftTrigger";
 import type {
     TokenTriggeredAbility,
     TokenTriggeredEventKind,
@@ -44,6 +45,7 @@ export const TOKEN_TRIGGERED_EVENT_KINDS: Record<
     PERMANENT_ENTERED: true,
     CREATURE_DIED: true,
     ATTACKERS_DECLARED: true,
+    PERMANENT_LEFT: true,
 };
 
 /** True when `event` names a kind `resolveTokenTriggeredAbilities` can
@@ -76,6 +78,9 @@ export function resolveTokenTriggeredAbilities(
                         oracleText: d.oracleText,
                         scope: "self",
                         effects: d.effects,
+                        ...(d.targetRequirement
+                            ? { targetRequirement: d.targetRequirement }
+                            : {}),
                     })
                 );
                 break;
@@ -86,6 +91,9 @@ export function resolveTokenTriggeredAbilities(
                         oracleText: d.oracleText,
                         scope: "self",
                         effects: d.effects,
+                        ...(d.targetRequirement
+                            ? { targetRequirement: d.targetRequirement }
+                            : {}),
                     })
                 );
                 break;
@@ -96,6 +104,24 @@ export function resolveTokenTriggeredAbilities(
                         oracleText: d.oracleText,
                         scope: "self",
                         effects: d.effects,
+                        ...(d.targetRequirement
+                            ? { targetRequirement: d.targetRequirement }
+                            : {}),
+                    })
+                );
+                break;
+            case "PERMANENT_LEFT":
+                // CR 603.10 — "when this token leaves the battlefield", any
+                // destination zone (no `toZone`).
+                abilities.push(
+                    leftTrigger({
+                        id: d.id,
+                        oracleText: d.oracleText,
+                        scope: "self",
+                        effects: d.effects,
+                        ...(d.targetRequirement
+                            ? { targetRequirement: d.targetRequirement }
+                            : {}),
                     })
                 );
                 break;
