@@ -12,15 +12,24 @@
 // clone): no functions, no class instances, no `Error` objects — an `Error` is
 // lowered to `{ name, message }` before it travels.
 
-import type { PublicGameState } from "@convex/gameProjections";
-import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
-import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
+// Shared by both sides of the client/server line: the client's Brain Worker
+// (`src/lib/ai/brain.worker.ts`, through the `src/lib/ai/brain-request.ts`
+// re-export) and the server's game-end Verdict Proposal judge
+// (`convex/verdictJudge.ts`) run this ONE handler, so a position searched at
+// the same iteration budget and seed gets the same answer on either side.
+// It therefore imports only engine modules, never anything under `src/`.
+
+import type { PublicGameState } from "../../gameProjections";
+import type { Move } from "../moves";
 import {
-    recordRepetition,
-    type RepetitionHistory,
-} from "@convex/gre/ai/repetition";
-import { projectedToGameState } from "./state-adapter";
-import type { DeckKnowledgeBySeat } from "./state-adapter";
+    searchWithTrace,
+    DEFAULT_BUDGET,
+    type SearchBudget,
+    type DecisionTrace,
+} from "../search";
+import { recordRepetition, type RepetitionHistory } from "./repetition";
+import { projectedToGameState } from "./stateAdapter";
+import type { DeckKnowledgeBySeat } from "../deckKnowledge";
 
 export type BrainRequest = {
     id: number;

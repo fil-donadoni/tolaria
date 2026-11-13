@@ -65,27 +65,29 @@
 // every iteration, which is what makes the search reason over a DISTRIBUTION of
 // opponent hands rather than one guess.
 
-import type {
-    CardInstanceState,
-    DeckKnowledgeBySeat,
-    GameState,
-    SeatDeckKnowledge,
-} from "@convex/gre";
-import { knowledgeFor, PLACEHOLDER_CARD_ID } from "@convex/gre";
-import { openPeekTopCount } from "@convex/gre/libraryKnownRuns";
-import type { PendingChoice } from "@convex/gre/state";
+import type { CardInstanceState, GameState, PendingChoice } from "../state";
+import {
+    knowledgeFor,
+    type DeckKnowledgeBySeat,
+    type SeatDeckKnowledge,
+} from "../deckKnowledge";
+import { PLACEHOLDER_CARD_ID } from "../constants";
+import { openPeekTopCount } from "../libraryKnownRuns";
 import type {
     KnownLibraryCard,
     PublicGameState,
     PublicPlayer,
-} from "@convex/gameProjections";
-import { tryGetDefinition } from "@convex/cards";
+} from "../../gameProjections";
+// The REGISTRY, not the `../../cards` barrel: the client's `@convex/cards`
+// alias resolves to the registry alone, and this module is in the page's
+// graph — the barrel would pull the catalogue in with it.
+import { tryGetDefinition } from "../../cards/registry";
 
-// The per-seat deck-knowledge type now lives in the ENGINE
+// The per-seat deck-knowledge type lives in the ENGINE
 // (`convex/gre/deckKnowledge.ts`, issue #2789): `determinize` is a consumer
-// too, and `convex/gre/` cannot import from `src/`. Re-exported here so every
-// existing import site keeps working, and so the adapter and the search can
-// never drift onto two different shapes of the same fact.
+// too. Re-exported here so every existing import site keeps working, and so
+// the adapter and the search can never drift onto two different shapes of the
+// same fact.
 export type { SeatDeckKnowledge, DeckKnowledgeBySeat };
 
 /** One opaque hidden-zone instance — identity intentionally absent. The ZONE is
@@ -415,7 +417,7 @@ export function projectedToGameState(
             // step / draw spells / fetch searches need cards to take. Rebuild
             // to the wire count.
             //
-            // EXCEPTION (issue #1506): while a `search-library` choice is live,
+            // EXCEPTION: while a `search-library` choice is live,
             // the projection legitimately exposes the searched pile face-up to
             // the chooser (`librarySearch`, CR 401.4 / 701.23) — the same field
             // the human's picker renders. The search decides that choice at the
@@ -425,7 +427,7 @@ export function projectedToGameState(
             // submission of ids the server rejects forever. `librarySearch`
             // therefore takes precedence over the deck-knowledge reconstruction.
             //
-            // Otherwise (issue #1509, per-seat since #2788): rebuild to the
+            // Otherwise (per seat): rebuild to the
             // wire count with THIS seat's known decklist for real identities
             // where we have one, opaque placeholders otherwise, so simulated
             // draws/fetches valuate real cards instead of blanks.
