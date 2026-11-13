@@ -19,6 +19,6 @@
 // of; each synergy term reads its own layer's review flag.
 // v3: the `land-enters` Capability — fetch lands and extra
 // land plays now pair with landfall payoffs.
-// v4 (issue #9323): the `sacrifice-fodder` Capability — token makers now
+// v4: the `sacrifice-fodder` Capability — token makers now
 // pair with sacrifice outlets and sacrifice costs.
 export const SCORER_VERSION = 4;
