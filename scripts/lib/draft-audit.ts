@@ -175,14 +175,25 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
         meanCastability: 0.86,
-        worstDeckCastability: 0.77,
+        // Loosened 0.77 → 0.76 after fetch lands became sources (issue
+        // #9334, issue #9369). The new Fixing Value changes every pick, so
+        // all eight tables are drafted again. The worst of 64 decks is one
+        // seat's draw: across eight blocks of eight seeds it spans
+        // 0.58–0.79 on trees whose mean castability is equal. On the old
+        // tree, seeds 1..8 were the best block of the eight (0.772, median
+        // 0.730). The 64-seed mean is unchanged (0.864 → 0.865).
+        worstDeckCastability: 0.76,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.
         // Plan share counts spells carrying the plan's tag, so a narrower
         // plan reads a plan-neutral card (cheap removal) as off-plan and
         // lowers it by construction (0.526 → 0.505).
-        meanPlanShare: 0.5,
+        // Loosened 0.50 → 0.48 once both changes were on one tree (issue
+        // #9369): over 64 seeds, fetch lands leave the share where it was
+        // (0.512 → 0.513), but seeds 1..8 are now the lowest of eight
+        // blocks (0.482; median 0.515).
+        meanPlanShare: 0.48,
         meanCapabilityPairs: 16.71,
     },
     lea: {
