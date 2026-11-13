@@ -174,8 +174,9 @@ describe("graveyard target title — activated ability (CR 602.2b, issue #8426)"
                     },
                     effects: [
                         {
-                            op: "returnToHand",
+                            op: "moveZone",
                             target: { target: 0 },
+                            to: "hand",
                         },
                     ],
                 },
