@@ -40,6 +40,23 @@ import {
     censusPageReuse,
     specimenLayerSelector,
 } from "./census-page.ts";
+import {
+    UI_SEAM_DECK_NAME_PARAM,
+    UI_SEAM_FIXTURE_PARAM,
+    UI_SEAM_LIMITED_DECK_PATH,
+    UI_SEAM_NO_SOLO_GAME_IN_PLAY,
+    uiSeamUrl,
+} from "../../convex/lib/uiSeamNamespace";
+import {
+    inAppNavigateSource,
+    parsePositionRecord,
+    POSITION_SETTLED_SOURCE,
+    READ_POSITION_RECORD_SOURCE,
+    SEAM_LIMITED_DECK_ERROR,
+    SEAM_POSITION_ERROR,
+    seamPositionPath,
+    type LoadedPosition,
+} from "./seam-position.ts";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -99,6 +116,11 @@ export interface WalkContext {
     joinTableId?: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
+    /** The last declared position this lane loaded through the seam deep
+     *  link (issue #9272): the repeat guard that lets the next row on the
+     *  same position skip rebuilding it. The server checks the guard against
+     *  the live game, so a stale one costs a reload, never a wrong board. */
+    loadedPosition?: LoadedPosition;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
      *  `useDeckWorkspace`'s autosave, so a real `userDecks` row exists by the
      *  time `walk()` returns. `walk()` records the auto-assigned name here;
@@ -1320,19 +1342,186 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
 }
 
 /** The board with the debug scenario `label` loaded into the SOLO game the lane
- *  created — `ensureStressBoard`'s mechanism, for any fixed position. */
+ *  created — `ensureStressBoard`'s mechanism, for any fixed position.
+ *
+ *  `via: "seam"` (the default since issue #9272) loads it through the seam's
+ *  deep link, `/__uiseam/position`, in one navigation — and when the lane
+ *  already holds its own game it skips the lobby's Resume and pregame
+ *  checks too. `via: "sheet"` keeps the Debug sheet's clicks: ONE row walks
+ *  that path on purpose, so the screen a tester actually loads positions
+ *  through stays proven (a deep link proves the board, never the path). */
 async function ensureScenarioBoard(
     page: Page,
     ctx: WalkContext,
-    label: string
+    label: string,
+    via: "seam" | "sheet" = "seam"
 ): Promise<void> {
+    if (via === "seam" && ctx.createdGame) {
+        // The game exists: the deep link alone reaches the board. A game still
+        // in its pregame (dealt, coin toss unresolved) is refused by name —
+        // the real path finishes it, then the link loads the position.
+        if (await loadScenarioThroughSeam(page, ctx, label)) return;
+    }
     await ensureBoard(page, ctx);
     if (!ctx.createdGame) {
         throw new Unreachable(
             "an active game the lane did not create is in progress; loading a scenario would clobber it. Finish or concede it, then re-run"
         );
     }
-    await loadScenarioOnBoard(page, label);
+    if (via === "sheet") {
+        await loadScenarioOnBoard(page, label);
+        return;
+    }
+    if (!(await loadScenarioThroughSeam(page, ctx, label))) {
+        throw new Unreachable(
+            `the seam found no solo game in play to load "${label}" into, right after the lobby reached the lane's board`
+        );
+    }
+}
+
+/** The board's own surface (`board-surface.tsx`): present in every
+ *  position, whatever its phase or command slot shows — a declared position
+ *  can sit in a block window where none of `ensureBoard`'s words render. */
+const BOARD_ROOT = "[data-board-root]";
+
+/**
+ * Load declared position `label` through the seam deep link (issue #9272) and
+ * land on the board. `false` when the seam answered that the lane has no solo
+ * game in play — the caller deals or finishes one through the real path and
+ * asks again; every other refusal is the row's Unreachable reason.
+ *
+ * Inside the app it routes in place (`inAppNavigateSource`); on a page with
+ * no app yet it is a real `goto`. Either way ONE route does the work: the
+ * page asks the server, records the load, and routes to `/game`.
+ */
+async function loadScenarioThroughSeam(
+    page: Page,
+    ctx: WalkContext,
+    label: string
+): Promise<boolean> {
+    // The walk's `position` sub-phase (issue #9268): the whole load, its
+    // navigation included — what it replaces is the sheet's clicks AND the
+    // lobby's Resume, so the two sub-phases are compared as one sum.
+    return chargeSub(walkLedgerOf(page), "position", () =>
+        loadScenarioThroughSeamSteps(page, ctx, label)
+    );
+}
+
+async function loadScenarioThroughSeamSteps(
+    page: Page,
+    ctx: WalkContext,
+    label: string
+): Promise<boolean> {
+    const path = seamPositionPath(label, ctx.loadedPosition);
+    if (page.url().startsWith(ctx.baseUrl)) {
+        await page.evaluate(inAppNavigateSource(path));
+    } else {
+        await page.goto(`${ctx.baseUrl}${path}`, {
+            waitUntil: "domcontentloaded",
+            timeout: NAV_TIMEOUT,
+        });
+    }
+    await page
+        .waitForFunction(POSITION_SETTLED_SOURCE, null, {
+            timeout: NAV_TIMEOUT,
+        })
+        .catch(() => {});
+    const refusal = await page
+        .locator(SEAM_POSITION_ERROR)
+        .first()
+        .textContent({ timeout: 250 })
+        .catch(() => null);
+    if (refusal !== null) {
+        if (refusal.includes(UI_SEAM_NO_SOLO_GAME_IN_PLAY)) return false;
+        throw new Unreachable(
+            `the seam refused declared position "${label}": ${refusal.trim()}`
+        );
+    }
+    const record = parsePositionRecord(
+        (await page.evaluate(READ_POSITION_RECORD_SOURCE).catch(() => null)) as
+            | string
+            | null,
+        label
+    );
+    if (!record || new URL(page.url()).pathname !== "/game") {
+        throw new Unreachable(
+            `the seam deep link for "${label}" never recorded a load and reached /game within ${NAV_TIMEOUT / 1000}s (at ${page.url()})`
+        );
+    }
+    ctx.loadedPosition = {
+        label: record.label,
+        gameId: record.gameId,
+        seq: record.seq,
+    };
+    ctx.log(
+        record.loaded === false
+            ? `position "${label}" already on the board (seq ${record.seq}) — not rebuilt`
+            : `loaded position "${label}" through the seam`
+    );
+    if (!(await visible(page, BOARD_ROOT, 10_000))) {
+        throw new Unreachable(
+            `the seam loaded "${label}" but the board did not render within 10s`
+        );
+    }
+    // Park the pointer where it hovers nothing. The board just re-rendered
+    // under wherever the last row left the mouse, and a card under it opens
+    // its hover preview over the very controls the next walk clicks — the
+    // Debug sheet path never met this because its last click was the sheet's
+    // own edge toggle.
+    await page.mouse.move(0, 0);
+    await settle(page);
+    return true;
+}
+
+/** The archive deck's name, as the builder walk used to type it. */
+const SEAM_ARCHIVE_DECK_NAME = "ui-gate archive deck";
+
+/**
+ * Save the lane's seat of Limited fixture `label` as a deck through the seam
+ * (issue #9272) and land on the Limited Deck Archive. Charged to `position`:
+ * it is fixture state, what `openFixtureEvent` is charged to.
+ */
+async function saveFixtureDeckThroughSeam(
+    page: Page,
+    ctx: WalkContext,
+    label: string
+): Promise<void> {
+    await chargeSub(walkLedgerOf(page), "position", async () => {
+        const path = uiSeamUrl(UI_SEAM_LIMITED_DECK_PATH, {
+            [UI_SEAM_FIXTURE_PARAM]: label,
+            [UI_SEAM_DECK_NAME_PARAM]: SEAM_ARCHIVE_DECK_NAME,
+        });
+        if (page.url().startsWith(ctx.baseUrl)) {
+            await page.evaluate(inAppNavigateSource(path));
+        } else {
+            await page.goto(`${ctx.baseUrl}${path}`, {
+                waitUntil: "domcontentloaded",
+                timeout: NAV_TIMEOUT,
+            });
+        }
+        const landed = await page
+            .waitForURL((url) => url.pathname === "/limited/decks", {
+                timeout: NAV_TIMEOUT,
+            })
+            .then(() => true)
+            .catch(() => false);
+        if (!landed) {
+            const refusal = await page
+                .locator(SEAM_LIMITED_DECK_ERROR)
+                .first()
+                .textContent({ timeout: 250 })
+                .catch(() => null);
+            throw new Unreachable(
+                refusal
+                    ? `the seam refused to save Limited fixture "${label}"'s deck: ${refusal.trim()}`
+                    : `the seam's Limited deck link for "${label}" never reached /limited/decks (at ${page.url()}). ${FIXTURE_SEED_HINT}`
+            );
+        }
+        await page
+            .locator("[data-surface-ready]")
+            .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
+        ctx.log(`saved Limited fixture "${label}"'s deck through the seam`);
+    });
 }
 
 /** Load the debug scenario `label` into the game currently on screen.
@@ -4165,12 +4354,12 @@ export const SURFACES: readonly Surface[] = [
         id: "limited-deck-archive",
         entries: ["src/routes/limited-decks.route.tsx"],
         // Issue #8409. A fresh lane account owns no Limited deck, and a deck of
-        // the run's own fixture seat is the honest way to make one: the same
-        // public `userDecks:create` the builder's save calls, with no function
-        // the deployment might not carry yet (the reasoning of
-        // `passwordSeedDeck`, `lane-account.ts`). The fixture is mid-draft, so
-        // the deck cannot open the play phase, and it stays an illegal deck: the
-        // row measures its reasons too. Skipped once a viewport has saved it.
+        // the run's own fixture seat is the honest way to make one: the insert
+        // the builder's save runs (`userDecks:create`'s body), reached since
+        // issue #9272 through the seam's `saveLimitedFixtureDeck` rather than
+        // by driving the builder. The fixture is mid-draft, so the deck cannot
+        // open the play phase, and it stays an illegal deck: the row measures
+        // its reasons too. Skipped once a viewport has saved it.
         label: "Limited Deck Archive (/limited/decks)",
         asserts: [
             {
@@ -4191,27 +4380,15 @@ export const SURFACES: readonly Surface[] = [
                 .locator("[data-surface-ready]")
                 .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
             if ((await page.locator(ARCHIVE_DECK).count()) === 0) {
-                await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
-                const eventId = currentEventId(page);
-                await goto(page, ctx, `/limited/${eventId}/build`);
-                if (!(await visible(page, "[data-card-tile]", 10_000))) {
-                    throw new Unreachable(
-                        `/limited/${eventId}/build rendered no card tile, so no Limited deck can be saved. ${FIXTURE_SEED_HINT}`
-                    );
-                }
-                await page
-                    .getByRole("textbox", { name: "Deck name" })
-                    .fill("ui-gate archive deck", { timeout: STEP_TIMEOUT });
-                await page
-                    .getByRole("button", { name: "Done" })
-                    .first()
-                    .click({ timeout: STEP_TIMEOUT });
-                await page
-                    .waitForURL(new RegExp(`/limited/${eventId}(\\?.*)?$`), {
-                        timeout: NAV_TIMEOUT,
-                    })
-                    .catch(() => {});
-                await goto(page, ctx, "/limited/decks");
+                // Issue #9272: the seam saves the fixture seat's deck — the
+                // builder's own insert — and routes back here, in one
+                // navigation instead of the event list, the builder and a
+                // save. The builder itself stays walked by `limited-build`.
+                await saveFixtureDeckThroughSeam(
+                    page,
+                    ctx,
+                    ctx.fixtureLabels.draft
+                );
             }
             if (!(await visible(page, ARCHIVE_DECK, 10_000))) {
                 throw new Unreachable(
@@ -5636,7 +5813,16 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            await ensureScenarioBoard(page, ctx, ctx.yieldsScenarioLabel);
+            // The ONE row that still loads its position through the Debug
+            // sheet's clicks (issue #9272): every other row takes the seam's
+            // deep link, and a deep link proves the board, never the path a
+            // tester loads positions through.
+            await ensureScenarioBoard(
+                page,
+                ctx,
+                ctx.yieldsScenarioLabel,
+                "sheet"
+            );
             const toggles = page.locator(STACK_YIELD_TOGGLE);
             if (!(await visible(page, STACK_YIELD_TOGGLE, STEP_TIMEOUT))) {
                 throw new Unreachable(

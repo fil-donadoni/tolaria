@@ -12,11 +12,6 @@ import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { copyExceptName } from "./cards/cardNames";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 
-import {
-    assertLiveGameCanContinue,
-    assertLoadableIntoLiveGame,
-    buildStateFromScenario,
-} from "./gre/scenarioBuilder";
 // CR 106.4 / 106.6 (issue #3460) — both nested mana validators are IMPORTED
 // rather than mirrored here: the rest of this mutation's args are a hand-kept
 // lock-step copy of `scenarioSpecValidator`, and a nested validator is exactly
@@ -177,6 +172,7 @@ import {
     type ResolvePool,
 } from "./formats";
 import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
+import { loadScenarioIntoGame } from "./lib/scenarioLoad";
 import {
     widenGameDefinitionManifests,
     writeGameDefinitionManifests,
@@ -607,7 +603,6 @@ import {
     botIsChooser,
     botSeatId,
     buildNextGameSeats,
-    debugLoadMySeatId,
     findActiveMatchForUser,
     forfeitMatch as computeForfeitMatch,
     matchBelongsToUser,
@@ -15790,57 +15785,10 @@ export const debugSetupScenario = mutation({
         // are rejected server-side before any state is touched: an arbitrary
         // logged-in caller could otherwise overwrite any game's board.
         await assertIsAdmin(ctx);
-
-        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
-        // refused HERE, before either DB read below, rather than at the spec
-        // boundary: it is a valid spec, and the verdict quiz rebuilds it every
-        // time. What it is not is a board a live game can hold.
-        assertLoadableIntoLiveGame(args);
-
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        // WHICH SEAT renders as `"me"` (issue #3786). The immutable `games`
-        // row, never the live snapshot's `players[]`: a `bot: "me"` Blade load
-        // (`debugLoadBladeScenario` below) reorders that array to orient its
-        // position onto the Bot, and a Debug scenario loaded into the SAME
-        // game afterwards must still render from the human viewer's point of
-        // view, whichever seat that landed on.
-        const game = await ctx.db.get(args.gameId);
-        if (!game) throw new Error("Game not found");
-        const mySeatId = debugLoadMySeatId(game);
-
-        // The actual state-construction logic lives in the pure
-        // `buildStateFromScenario` (issue #1424, PRD #1423) so it's callable
-        // from a vitest test with no Convex runtime AND from this mutation —
-        // `args` (minus `gameId`) already matches the `ScenarioSpec` shape
-        // it takes.
-        const state = buildStateFromScenario(
-            gameState.state as GameState,
-            args,
-            mySeatId
-        );
-        // CR 117.3 / 508.1 (issue #3515) — and a second refusal over the BUILT
-        // position: a spec carrying a stack is loadable, but a board whose
-        // priority holder has no legal action is not a game, it is a frozen
-        // client. Read after the build because the facts are the phase, the
-        // priority holder and the combat object together.
-        assertLiveGameCanContinue(state);
-
-        // The Game-load Token Print query reads `games.cardIds` (issue #4120):
-        // widen it to the position just staged, so its tokens keep their art.
-        await ctx.db.patch(args.gameId, {
-            cardIds: withStatePrintIds(game.cardIds, state),
-        });
-        // …and the Definition Manifest likewise (issue #5614): a card staged
-        // from outside the decks must reach the client's loaded definitions.
-        await widenGameDefinitionManifests(ctx, args.gameId, state);
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
+        // `args` (minus `gameId`) already matches the `ScenarioSpec` shape the
+        // shared loader takes; the build and its refusals live there, shared
+        // with the `check:ui` seam's `loadPosition` (issue #9272).
+        const { gameId, ...spec } = args;
+        await loadScenarioIntoGame(ctx, gameId, spec);
     },
 });
