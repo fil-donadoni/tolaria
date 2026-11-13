@@ -71,6 +71,56 @@ describe("verdict proposal telemetry (issue #8732)", () => {
         });
     });
 
+    it("carries the server judge's search and round-trip times as p50 / max, the failed calls by kind (issue #9528)", () => {
+        const report = proposalCountsReport(
+            "g1",
+            { proposals: [], captured: 5, unidentified: 0, unjudged: 2 },
+            { move: 3, "server-rejected": 1, "server-error": 1 },
+            {
+                serverMs: [900, 300.4, 1200],
+                roundTripMs: [1500.6, 450, 2600],
+            }
+        );
+        expect(report).toEqual({
+            gameId: "g1",
+            proposals: 0,
+            captured: 5,
+            unidentified: 0,
+            unjudged: 2,
+            "judge.move": 3,
+            "judge.server-rejected": 1,
+            "judge.server-error": 1,
+            "judge.serverMs.p50": 900,
+            "judge.serverMs.max": 1200,
+            "judge.roundTripMs.p50": 1501,
+            "judge.roundTripMs.max": 2600,
+        });
+    });
+
+    it("an even sample's p50 is its lower middle value (nearest rank)", () => {
+        const report = proposalCountsReport(
+            "g1",
+            { proposals: [], captured: 2, unidentified: 0, unjudged: 0 },
+            { move: 2 },
+            {
+                serverMs: [400, 100],
+                roundTripMs: [700, 900],
+            }
+        );
+        expect(report["judge.serverMs.p50"]).toBe(100);
+        expect(report["judge.roundTripMs.p50"]).toBe(700);
+    });
+
+    it("omits every measurement with no sample — no answered consult is not a zero", () => {
+        const report = proposalCountsReport(
+            "g1",
+            { proposals: [], captured: 3, unidentified: 0, unjudged: 3 },
+            { "server-error": 3 },
+            { serverMs: [], roundTripMs: [] }
+        );
+        expect(Object.keys(report).filter((k) => /Ms/.test(k))).toEqual([]);
+    });
+
     it("an empty sample is a warning — the game that offers no review", () => {
         const { sink, logs } = recordingSink();
         reportProposalCounts(

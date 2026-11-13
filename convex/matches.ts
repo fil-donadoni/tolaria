@@ -813,6 +813,12 @@ export async function deleteGameCascade(
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .collect();
     for (const f of consultFailures) await ctx.db.delete(f._id);
+    // Game-end Verdict judge position counter — same key, same orphan risk.
+    const judgeBudgets = await ctx.db
+        .query("verdictJudgeBudgets")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const b of judgeBudgets) await ctx.db.delete(b._id);
     // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
     await deleteGameDecks(ctx, gameId);
     // Definition Manifest companion (issue #5614) — same key, same risk.

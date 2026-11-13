@@ -293,6 +293,13 @@ export type SearchBudget = {
     timeMs?: number;
     now?: () => number;
     minIterations?: number;
+    /** A wall-clock CEILING that is not part of the decision: unlike
+     *  `timeMs`, it does not make the search open a starved root by policy,
+     *  so an iteration-bounded search that finishes under it answers exactly
+     *  as it would without it. A search it ends reports `stoppedBy: "time"`,
+     *  and that answer is the clock's, not the budget's — the caller decides
+     *  what it is worth (the server's game-end judge discards it). */
+    backstopMs?: number;
 };
 
 /** The single shipped difficulty preset for this slice (CR-agnostic tuning).
@@ -8121,6 +8128,13 @@ function runSearchWithTrace(
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
+            stoppedBy = "time";
+            break;
+        }
+        if (
+            budget.backstopMs !== undefined &&
+            now() - start >= budget.backstopMs
+        ) {
             stoppedBy = "time";
             break;
         }

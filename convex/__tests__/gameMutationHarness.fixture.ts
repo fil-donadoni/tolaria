@@ -40,6 +40,9 @@ export interface MutationStub {
      *  that — a handler persisting eight versions and one persisting one end
      *  at the identical state. */
     writes: { id: string; table?: string }[];
+    /** Every `ctx.db.delete(id)`, in order — kept apart from `writes`, whose
+     *  count is the persisted-version count above. */
+    deletes: string[];
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
@@ -90,6 +93,7 @@ export function makeMutationCtx(
     const gets: string[] = [];
     const queried: string[] = [];
     const writes: { id: string; table?: string }[] = [];
+    const deletes: string[] = [];
     const scheduled: MutationStub["scheduled"] = [];
     const authAs = (who: string | null) => ({
         getUserIdentity: async () =>
@@ -131,6 +135,10 @@ export function makeMutationCtx(
                 const table = docs.get(id)?.__table;
                 docs.set(id, { ...value, _id: id, __table: table });
                 writes.push({ id });
+            },
+            delete: async (id: string) => {
+                docs.delete(id);
+                deletes.push(id);
             },
             query: (table: string) => {
                 queried.push(table);
@@ -196,6 +204,7 @@ export function makeMutationCtx(
         gets,
         queried,
         writes,
+        deletes,
         scheduled,
         // `saveGameState` persists the COMPACT form (`compactState`) — read
         // it back the same way the mutation's own `getLatestGameState` does

@@ -46,7 +46,6 @@ import type { BotFault } from "./botFaultReport";
 import { recordSystemBugReport } from "./bugReports";
 import { tryGetDefinition } from "./cards";
 import { finalizeGameOver } from "./game";
-import { assertSeatOwnership } from "./gameLifecycle";
 import { getLatestGameState, saveGameState } from "./gameStateStore";
 import {
     botOwedWindow,
@@ -56,6 +55,7 @@ import {
 import { legalActions } from "./gre/legalActions";
 import type { ExpectedInput, GameState } from "./gre/state";
 import { botSeatId } from "./matches";
+import { vsAiSeats } from "./vsAiSeats";
 
 /** Why the client handed the window off: its ladder ran out of rungs, or a
  *  decision-path throw (issue #8999) left it nothing to walk. */
@@ -106,23 +106,10 @@ export function boundedDiagnostics(diagnostics: unknown): unknown {
         : diagnostics;
 }
 
-/**
- * The Bot seat of a vs-AI game, and the proof the caller is its human player.
- * Throws for a game that is not vs-AI and for a caller who does not own the
- * human seat — in a vs-AI game the human owns BOTH handles (ADR 0000), so the
- * human seat is the one to check.
- */
+/** The Bot seat of a vs-AI game, once the caller is proven its human player
+ *  (`vsAiSeats`). */
 function vsAiBotSeat(game: Doc<"games">, userId: string): string {
-    const botId = botSeatId(game);
-    if (!botId) throw new ConvexError("This game has no Bot seat.");
-    const human = game.players.find((p) => p.id !== botId);
-    if (!human) throw new ConvexError("This game has no human seat.");
-    try {
-        assertSeatOwnership(human.id, userId);
-    } catch {
-        throw new ConvexError("You are not the player of this game.");
-    }
-    return botId;
+    return vsAiSeats(game, userId).botId;
 }
 
 /** Name of the card whose stack item (or permanent) raised the owed window. */
