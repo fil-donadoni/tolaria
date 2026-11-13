@@ -596,6 +596,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
             increase: {},
             reductionGeneric: 2,
             minTotalMana: 1,
+            raiseTotalTo: 0,
         });
         expect(cost).toEqual({ X: 1, U: 1 });
     });
@@ -608,6 +609,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
             increase: {},
             reductionGeneric: 2,
             minTotalMana: 1,
+            raiseTotalTo: 0,
         });
         expect(cost).toEqual({ U: 1 });
     });

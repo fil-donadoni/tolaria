@@ -11043,6 +11043,16 @@ export interface StaticCostModifier {
      *  touched, so the floor only ever protects generic mana. Ignored when no
      *  `costReduction` is present. */
     minTotalMana?: number;
+    /** CR 601.2f — an effect that "directly affects the total cost" and is
+     *  applied AFTER every increase and reduction: each matching spell that
+     *  would cost less than this many total mana costs exactly that many
+     *  ("each spell that would cost less than three mana to cast costs three
+     *  mana to cast", Trinisphere → `raiseTotalCostTo: 3`). Raises by adding
+     *  GENERIC mana, so coloured pips stay as printed; a cost already at or
+     *  above it is left untouched (this never reduces). Independent of
+     *  `costReduction`, unlike `minTotalMana`. Several matching effects take
+     *  the largest. */
+    raiseTotalCostTo?: number;
     /** CR 601.2f — the modifier applies only while the announcing player is
      *  NOT the active player: "Each spell costs {3} more to cast except during
      *  its controller's turn" (Defense Grid). A spell's controller is the

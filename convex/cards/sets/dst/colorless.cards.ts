@@ -70,3 +70,34 @@ export const skullclamp = defineCard(() => ({
         }),
     ],
 }));
+
+// Trinisphere — {3} Artifact. "As long as this artifact is untapped, each spell
+// that would cost less than three mana to cast costs three mana to cast.
+// (Additional mana in the cost may be paid with any color of mana or colorless
+// mana. For example, a spell that would cost {1}{B} to cast costs {2}{B} to
+// cast instead.)" One global `cost-modifier` (CR 601.2f) whose `raiseTotalCostTo`
+// is the "effect that directly affects the total cost", applied after every
+// increase and reduction: it adds GENERIC mana up to the floor, so the reminder
+// text's {1}{B} → {2}{B} falls out and a coloured pip is never touched. "As long
+// as this artifact is untapped" is read off the carrying permanent (the
+// `effectSource` argument), so tapping it switches the tax off live. It reaches
+// every player's spells, the controller's included; abilities are not spells and
+// stay untouched.
+// hand-tail: As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast. (#8640)
+export const trinisphere = defineCard(() => ({
+    id: "d465597a-362e-4bd0-b547-f11d8807e597",
+    name: "Trinisphere",
+    rarity: "rare",
+    oracleText:
+        "As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast. (Additional mana in the cost may be paid with any color of mana or colorless mana. For example, a spell that would cost {1}{B} to cast costs {2}{B} to cast instead.)",
+    manaCost: { generic: 3 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: (_card, _ctx, effectSource) =>
+                effectSource?.isTapped !== true,
+            raiseTotalCostTo: 3,
+        },
+    ],
+}));
