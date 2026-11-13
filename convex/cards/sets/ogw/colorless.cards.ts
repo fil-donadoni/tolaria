@@ -5,6 +5,7 @@
 
 import { defineCard } from "../../types";
 import type { ManaCost } from "../../types";
+import { ELDRAZI_SCION_TOKEN } from "../../sharedTokens";
 
 // Mirrorpool — Land (OGW, issue #8856, modern-metagame). "This land enters
 // tapped. {T}: Add {C}. {2}{C}, {T}, Sacrifice this land: Copy target instant
@@ -69,6 +70,68 @@ export const mirrorpool = defineCard(() => ({
                 {
                     op: "createTokenCopy",
                     source: { target: 0 },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+}));
+
+// Warping Wail — {1}{C} Instant (OGW, issue #8645, modern-metagame).
+// "Choose one — • Exile target creature with power or toughness 1 or less. •
+// Counter target sorcery spell. • Create a 1/1 colorless Eldrazi Scion
+// creature token. It has "Sacrifice this token: Add {C}.""
+//   - A modal spell (CR 700.2) with `modeSelection` absent = exactly one; only
+//     the chosen mode's target is announced (CR 601.2c).
+//   - {C} in the cost is colourless mana specifically (CR 107.4c).
+//   - "Power or toughness 1 or less" is `powerOrToughnessFilter` (CR 208.1,
+//     CR 613.4c): one value at the bound qualifies, so the conjunctive
+//     `powerFilter` / `toughnessFilter` cannot say it.
+//   - Counter: `spellTypeFilter: "Sorcery"` (CR 114.1) then `counter`
+//     (CR 701.6a).
+//   - The Scion shares the Spawn's sacrifice mana ability (CR 605.3a).
+// hand-tail: Choose one — • Exile target creature with power or toughness 1 or less. • Counter target sorcery spell. • Create a 1/1 colorless Eldrazi Scion creature token. It has "Sacrifice this token: Add {C}." (#8645)
+export const warpingWail = defineCard(() => ({
+    id: "c8b9fa02-0a0c-4a87-9a00-3c1c7e2f4bfd",
+    rarity: "uncommon",
+    name: "Warping Wail",
+    oracleText:
+        'Choose one —\n• Exile target creature with power or toughness 1 or less.\n• Counter target sorcery spell.\n• Create a 1/1 colorless Eldrazi Scion creature token. It has "Sacrifice this token: Add {C}."',
+    manaCost: { X: 1, C: 1 } as ManaCost,
+    types: ["Instant"],
+    modes: [
+        {
+            id: "exile-creature",
+            label: "Exile target creature with power or toughness 1 or less",
+            oracleText:
+                "Exile target creature with power or toughness 1 or less.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerOrToughnessFilter: { max: 1 },
+            },
+            effects: [{ op: "exile", target: { target: 0 } }],
+        },
+        {
+            id: "counter-sorcery",
+            label: "Counter target sorcery spell",
+            oracleText: "Counter target sorcery spell.",
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Sorcery",
+            },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+        {
+            id: "create-scion",
+            label: "Create a 1/1 Eldrazi Scion",
+            oracleText:
+                'Create a 1/1 colorless Eldrazi Scion creature token. It has "Sacrifice this token: Add {C}."',
+            effects: [
+                {
+                    op: "createToken",
+                    token: ELDRAZI_SCION_TOKEN,
                     controller: "controller",
                 },
             ],
