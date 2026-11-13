@@ -1,7 +1,7 @@
 // One-shot mana sources in the Limited mana-base model (issue #9337): a card
 // that sacrifices itself for mana (CR 602.1, 701.21; a mana ability, CR
 // 605.1a) pays one pip once, so it counts as half a source of its colours in
-// Castability, Fixing Value, the third-colour gate and the audit's
+// Castability, Fixing Value, the build's colour choice and the audit's
 // castability, never as a permanent source like a land or a Mox.
 import { describe, expect, it } from "vitest";
 import { getCardByName, tryGetDefinition } from "../../cards";

@@ -91,6 +91,8 @@ export interface DeckAudit {
     splash: SplashDiscipline | null;
     /** Maindeck lands producing a colour outside `colors` (issue #9335). */
     offColourDuals: number;
+    /** Maindeck spells with a coloured pip outside `colors` (issue #9336). */
+    offColourSpells: number;
     /** The Pool's deepest Archetype: most Pool cards tagged with it (copies
      *  count), ties by id. `null` when no Pool card carries one. */
     planArchetype: string | null;
@@ -219,6 +221,22 @@ export function countOffColourDuals(
     }).length;
 }
 
+/** Maindeck spells with a coloured pip in a colour outside the deck's: the
+ *  cards a build plays although its colours cannot pay them (issue #9336). */
+export function countOffColourSpells(
+    colors: readonly string[],
+    main: readonly AutoBuildCardMeta[]
+): number {
+    const deckColors = new Set(colors);
+    return main.filter(
+        (m) =>
+            !m.isLand &&
+            (Object.entries(m.pips) as [Color, number][]).some(
+                ([c, n]) => n > 0 && c !== "C" && !deckColors.has(c)
+            )
+    ).length;
+}
+
 // ── Measure ────────────────────────────────────────────────────────────────
 
 /** Measures one Auto-Built seat. */
@@ -291,6 +309,7 @@ export function auditSeatDeck(
         earlyCastability: earlyCastability(castability),
         splash: splashDiscipline(seat.deck.colors, main),
         offColourDuals: countOffColourDuals(seat.deck.colors, main),
+        offColourSpells: countOffColourSpells(seat.deck.colors, main),
         planArchetype,
         planShare,
         capabilityPairs: countCapabilityPairs(profiles),

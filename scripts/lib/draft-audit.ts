@@ -61,7 +61,7 @@ export interface AuditAggregate {
     meanSpellCount: number;
     /** Mean spells per `curveBucket`. */
     meanCurve: number[];
-    /** Decks by colour count (`"2"`, `"3"`). */
+    /** Decks by colour count (`"1"` … `"5"`). */
     colourCounts: Record<string, number>;
     /** Colour coherence (issue #9335), report only — no Floor reads these.
      *  Mean over every early spell of the run (`DeckAudit.earlyCastability`). */
@@ -77,6 +77,11 @@ export interface AuditAggregate {
     /** Share of the run's splash cards that are strained. */
     splashStrainedShare: number | null;
     meanOffColourDuals: number;
+    /** Mean Maindeck spells with a pip outside the deck's colours (issue
+     *  #9336), report only. */
+    meanOffColourSpells: number;
+    /** Decks by off-colour spell count (`"0"`, `"1"`, `"2"`, `"3+"`). */
+    offColourSpellDecks: Record<string, number>;
     meanUnreviewedShare: {
         archetypes: number | null;
         capabilities: number | null;
@@ -99,6 +104,24 @@ function earlyBelowShare(decks: readonly DeckAudit[]): number | null {
     return spells === 0
         ? null
         : decks.reduce((a, d) => a + d.earlyCastability.below, 0) / spells;
+}
+
+/** The bucket an off-colour spell count reports under: its count, three and
+ *  more together. */
+const OFF_COLOUR_SPELLS_TOP_BUCKET = 3;
+
+function offColourSpellDecks(
+    decks: readonly DeckAudit[]
+): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const d of decks) {
+        const k =
+            d.offColourSpells >= OFF_COLOUR_SPELLS_TOP_BUCKET
+                ? `${OFF_COLOUR_SPELLS_TOP_BUCKET}+`
+                : String(d.offColourSpells);
+        counts[k] = (counts[k] ?? 0) + 1;
+    }
+    return counts;
 }
 
 /** Nearest-rank percentile: the `⌊q × (n − 1)⌋`-th lowest value. */
@@ -162,6 +185,8 @@ export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
                 ? null
                 : splashes.reduce((a, s) => a + s.strained, 0) / splashCards,
         meanOffColourDuals: mean(decks.map((d) => d.offColourDuals)) ?? 0,
+        meanOffColourSpells: mean(decks.map((d) => d.offColourSpells)) ?? 0,
+        offColourSpellDecks: offColourSpellDecks(decks),
         meanUnreviewedShare: {
             archetypes: mean(
                 nonNull(decks.map((d) => d.unreviewedShare.archetypes))
@@ -229,14 +254,18 @@ export type DraftAuditFloors = Partial<Record<FloorMetric, number>>;
  *  the Auto-Build fixes of issue #8897
  *  (`docs/research/draft-table-audit-build-fixes.md`), then after the
  *  plan-first build of issue #8898
- *  (`docs/research/draft-table-audit-plan-first.md`): tightened where the
+ *  (`docs/research/draft-table-audit-plan-first.md`), then after the
+ *  castable-value colour choice of issue #9336
+ *  (`docs/research/draft-table-audit-castable-value.md`): tightened where the
  *  build improved, loosened where it traded against the metric — each
  *  loosening says why below. None may loosen without saying why. A scope
  *  with no profiles declares no plan or Capability Floor. */
 export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
     "vintage-cube": {
         builtShare: 1,
-        meanCastability: 0.86,
+        // Tightened 0.86 → 0.88 by the castable-value colour choice (issue
+        // #9336, `docs/research/draft-table-audit-castable-value.md`).
+        meanCastability: 0.88,
         // The tail is held at the 5th percentile, not the worst deck (issue
         // #9348): one seat of 64 moves with any change to the picks, and the
         // worst-deck Floor moved four times in two days for single decks
@@ -245,7 +274,9 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // Loosened 0.77 → 0.76 (issue #9321): the base itself read 0.769 on
         // seeds 1..8 once PR #9516 landed after PR #9357; over 64
         // seeds p5 is 0.783 and seeds 1..8 are the lowest block but one.
-        p5DeckCastability: 0.76,
+        // Tightened 0.76 → 0.79 by the castable-value colour choice (issue
+        // #9336): 0.767 → 0.793 on seeds 1..8.
+        p5DeckCastability: 0.79,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.
@@ -259,7 +290,10 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // Loosened 0.48 → 0.47 by the `big-artifact` Capability (issue
         // #9321): seeds 1..8 stay the lowest block (0.482 → 0.479) while the
         // 64-seed share does not move (0.509 → 0.509).
-        meanPlanShare: 0.47,
+        // Tightened 0.47 → 0.49 by the castable-value colour choice (issue
+        // #9336): a plan card is worth `PLAN_CARD_RATING` more in the colour
+        // set's score (0.478 → 0.492 on seeds 1..8).
+        meanPlanShare: 0.49,
         meanCapabilityPairs: 16.71,
     },
     lea: {
@@ -272,8 +306,12 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // sacrifices itself for mana as half a source (issue #9337): Black
         // Lotus is LEA's one (0.761 → 0.7596 on seeds 1..8; 0.765 → 0.764
         // over 64 seeds at one meter).
-        meanCastability: 0.75,
-        worstDeckCastability: 0.49,
+        // Tightened 0.75 → 0.77 and 0.49 → 0.57 by the castable-value
+        // colour choice (issue #9336): a deck no longer maindecks spells its
+        // colours cannot pay; it splashes them or names their colour
+        // (0.760 → 0.770, worst 0.492 → 0.576 on seeds 1..8).
+        meanCastability: 0.77,
+        worstDeckCastability: 0.57,
     },
 };
 
@@ -326,6 +364,7 @@ export function formatDeckLine(d: DeckAudit): string {
         `early ${fmt(d.earlyCastability.mean)} (${d.earlyCastability.below}/${d.earlyCastability.spells} low)`,
         `splash ${d.splash ? `${d.splash.cards} (${d.splash.strained} strained)` : "—"}`,
         `offDuals ${d.offColourDuals}`,
+        `offSpells ${d.offColourSpells}`,
         `plan ${d.planArchetype ?? "—"} ${fmt(d.planShare, 2)}`,
         `pairs ${d.capabilityPairs}`,
         `unreviewed A ${fmt(d.unreviewedShare.archetypes, 2)} C ${fmt(d.unreviewedShare.capabilities, 2)}`,
@@ -354,6 +393,12 @@ export function formatAggregate(run: DraftAuditRun): string[] {
             .join(" / ")}`,
         `meanUnreviewedShare archetypes ${fmt(a.meanUnreviewedShare.archetypes)} · capabilities ${fmt(a.meanUnreviewedShare.capabilities)}`,
         `earlyCastability (MV ≤ ${EARLY_MANA_VALUE}) ${fmt(a.earlyCastability)} · earlyBelowShare ${fmt(a.earlyBelowShare)}${earlyByColours ? ` (${earlyByColours})` : ""}`,
+        `meanOffColourSpells ${fmt(a.meanOffColourSpells, 2)} · offColourSpellDecks ${Object.entries(
+            a.offColourSpellDecks
+        )
+            .sort(([x], [y]) => x.localeCompare(y))
+            .map(([k, n]) => `${k} ${n}`)
+            .join(", ")}`,
         `splashDecks ${a.splashDecks} · meanSplashCards ${fmt(a.meanSplashCards, 2)} · splashStrainedShare ${fmt(a.splashStrainedShare)} · meanOffColourDuals ${fmt(a.meanOffColourDuals, 2)}`,
     ];
 }

@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
     countOffColourDuals,
+    countOffColourSpells,
     earlyCastability,
     splashDiscipline,
 } from "../../src/lib/limited/draftTableAudit";
@@ -32,7 +33,7 @@ const lea = runDraftAudit("lea", [1]);
 function expectEveryField(deck: DeckAudit): void {
     expect(deck.legal).toBe(true);
     expect(deck.unresolved).toBe(0);
-    expect(deck.colors.length).toBeGreaterThanOrEqual(2);
+    expect(deck.colors.length).toBeGreaterThanOrEqual(1);
     expect(deck.landCount + deck.spellCount).toBe(deck.mainSize);
     expect(deck.curve.reduce((a, b) => a + b, 0)).toBe(deck.spellCount);
     expect(deck.castability.length).toBeGreaterThan(0);
@@ -46,12 +47,13 @@ function expectEveryField(deck: DeckAudit): void {
         deck.castability.filter((c) => c.manaValue <= 2).length
     );
     expect(early.below).toBeLessThanOrEqual(early.spells);
-    expect(deck.splash === null).toBe(deck.colors.length === 2);
+    expect(deck.splash === null).toBe(deck.colors.length <= 2);
     if (deck.splash) {
         expect(deck.splash.strained).toBeLessThanOrEqual(deck.splash.cards);
         expect(deck.splash.cards).toBeLessThanOrEqual(deck.spellCount);
     }
     expect(deck.offColourDuals).toBeLessThanOrEqual(deck.landCount);
+    expect(deck.offColourSpells).toBeLessThanOrEqual(deck.spellCount);
     expect(deck.capabilityPairs).toBeGreaterThanOrEqual(0);
     expect(deck).toHaveProperty("unreviewedShare.archetypes");
     expect(deck).toHaveProperty("unreviewedShare.capabilities");
@@ -196,6 +198,36 @@ describe("colour coherence (issue #9335)", () => {
         ];
         main[5] = { ...main[5], isLand: false };
         expect(countOffColourDuals(["U", "R"], main)).toBe(2);
+    });
+
+    it("off-colour spells: a spell with a pip outside the deck's colours, never a land or a colourless pip", () => {
+        const main = [
+            meta("on-colour", 2, { U: 1, R: 1 }),
+            meta("gold-off", 3, { U: 1, B: 1 }),
+            meta("off", 1, { G: 1 }),
+            meta("colourless", 2, { C: 1 }),
+            meta("off-land", 0, {}, ["B"]),
+        ];
+        expect(countOffColourSpells(["U", "R"], main)).toBe(2);
+        expect(countOffColourSpells(["U", "B", "R", "G"], main)).toBe(0);
+    });
+
+    it("the aggregate reports off-colour spells per deck, three and more together", () => {
+        const decks = cube.decks.map((d, i) => ({
+            ...d,
+            offColourSpells: i,
+        }));
+        const a = aggregateAudit(decks);
+        expect(a.offColourSpellDecks).toEqual({
+            "0": 1,
+            "1": 1,
+            "2": 1,
+            "3+": decks.length - 3,
+        });
+        expect(a.meanOffColourSpells).toBeCloseTo(
+            decks.reduce((s, d) => s + d.offColourSpells, 0) / decks.length,
+            12
+        );
     });
 
     it("the aggregate pools early spells and splits the stumble share by colour count", () => {

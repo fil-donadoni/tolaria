@@ -10,13 +10,16 @@
 //      at half weight), so the builder finishes the plan the draft was
 //      heading for. No profiles, or no Archetype deep enough to be settled,
 //      means no plan, and every step below runs exactly as without one;
-//   1. picks the seat's colors (`chooseDeckColors`): the plan's colour
-//      signature in the Pool first (the Archetype Catalogue's
-//      `colourSignature`), then pip-weighted Colour Commitment
-//      (`botDrafter.ts`'s own `colourAffinityWeights`, ADR 0073), with the
-//      color COUNT derived: two by default, three when the Pool's own mana
-//      base pays for the third (`manaBaseSupportsThirdColor`, the same
-//      `max(0, demand − sources)` deficit arithmetic as Fixing Value);
+//   1. picks the seat's colors by **castable value** (`chooseBuild`, issue
+//      #9336): every candidate colour set of one to five colours is built
+//      (steps 2 and 3) and scored as the sum, over its Maindeck spells, of
+//      each spell's value times its castability against that deck's mana
+//      base; the best set is kept. No count rule and no splash rule: a Pool
+//      with little fixing pays so much castability per extra colour that two
+//      colours (plus a splash) win, a cube Pool with duals, fetches and
+//      Moxen pays little, so four or five win when the cards are worth it.
+//      The plan is one input to a spell's value (`PLAN_CARD_RATING`), never
+//      a veto on colours;
 //   2. takes the plan's castable core first — its own cards, their
 //      Capability partners and the deck's mana-producing spells — then
 //      curve-fills a spell base from the Pool's on-colour (+ colourless)
@@ -32,15 +35,14 @@
 //      Maindeck — so an enabler the Pool was drafted around is not cut for
 //      weak standalone quality, and a heavy spell the mana cannot pay loses
 //      its slot to a castable one;
-//   3. plays the Pool's own on-color LANDS (a dual that unlocked a third color
+//   3. plays the Pool's own on-color LANDS (a dual that pays for a colour
 //      has to actually be in the deck), then tops the mana base up with
 //      unlimited basics of the drafted set, allotted across the chosen colors
 //      by the Maindeck's own pip demand.
 //
 // Every card-quality judgement routes through `botDrafter.ts` —
 // `archetypeCommitment`, `candidateBaseRating`, `CURVE_TARGET`/`curveBucket`,
-// `colourAffinityWeights`,
-// `pipDemandByColor`, `sourceCountsByColor`, `capabilityFitTerm` —
+// `pipDemandByColor`, `sourceWeight`, `capabilityFitTerm` —
 // deliberately: ONE card-quality authority for draft time and build time (ADR
 // 0073's "Auto-Build consumes the same seams"), never two that drift apart.
 //
@@ -67,20 +69,14 @@ import {
     candidateBaseRating,
     candidateQuality,
     capabilityFitTerm,
-    colourAffinityWeights,
     curveBucket,
     pipDemandByColor,
     poolProfiles,
-    sourceCountsByColor,
     sourceWeight,
     type CardEvalMeta,
     type GetPickRating,
 } from "./botDrafter";
 import { choosePlanArchetype, type ArchetypeScopeShare } from "./planArchetype";
-import {
-    colourSignature,
-    type ColourSignature,
-} from "./archetypeCatalogueCore";
 import {
     addProducer,
     addSources,
@@ -103,9 +99,9 @@ import { arePoolsDealt, type LimitedEventStatus } from "./eventStatus";
  *    Pool card competes for a spell slot or a land slot;
  *  - `isBasicLand` (CR 205.4a `Basic` supertype) — a basic is NOT fixing. The
  *    builder invents basics for free, so a basic already in the Pool must not
- *    be counted as evidence that the mana base can carry a third colour;
+ *    be counted as evidence that the mana base can carry another colour;
  *    spending a land slot on it is precisely what takes a slot AWAY from the
- *    top two colours.
+ *    deck's other colours.
  *
  *  Extending (rather than re-declaring a parallel shape) is the point: adding
  *  a colour signal to `CardEvalMeta` reaches Auto-Build automatically, and the
@@ -150,10 +146,9 @@ export type ResolveBasicLand = (color: TrueColor) => DeckCard;
  *  ahead of a Match, PRD #1107 story 26's full pool REVEAL is issue #1116,
  *  out of this issue's scope).
  *
- *  `colors` is a LIST, not a pair (issue #1615): the count is derived from the
- *  Pool's own mana base — two, or three when the Pool pays for a third — so a
- *  Jeskai cube Pool is no longer compressed into the two colours a hardcoded
- *  pair forced it into. Always at least two, at most `MAX_DECK_COLORS`. */
+ *  `colors` is a LIST, not a pair (issue #1615): one to five colours, the
+ *  count a consequence of the Pool's fixing (issue #9336), heaviest pip
+ *  demand first. */
 export interface AutoBuiltDeck {
     cards: DeckCard[];
     sideboard: DeckCard[];
@@ -172,10 +167,8 @@ const WUBRG: readonly TrueColor[] = ["W", "U", "B", "R", "G"];
  *  Auto-Build from what actually validates. */
 const TARGET_MAIN_SIZE = FORMAT_RULES.limited.minMain;
 
-/** The nominal land budget a 40-card Limited deck splits its colours over —
- *  the denominator the third-colour test normalises pip demand to, and the
- *  land count the PROVISIONAL spell pass reserves before the curve decides
- *  the real one. Real-practice Limited deckbuilding, not CR-mandated. */
+/** The nominal land budget of a 40-card Limited deck — the land count the
+ *  PROVISIONAL spell pass reserves before the curve decides the real one. Real-practice Limited deckbuilding, not CR-mandated. */
 const NOMINAL_LAND_COUNT = 17;
 
 /** Spell count of the provisional pass (`40 - 17`). */
@@ -208,20 +201,6 @@ const BUILD_CASTABILITY_RATING = 1;
  *  Maindeck spells below one half as the visible "uncastable" defect. */
 export const BUILD_CASTABILITY_FLOOR = 0.5;
 
-/** Colours a derived-count Auto-Build will ever commit to (issue #1615). Two
- *  is the floor (a mono-colour Limited deck is not a shape this builder aims
- *  for), three the ceiling: in the Vintage Cube three-colour decks on duals
- *  and fetches are normal, four-colour ones are not, and every colour past the
- *  third costs land slots the deck cannot spare. */
-const MIN_DECK_COLORS = 2;
-export const MAX_DECK_COLORS = 3;
-
-/** Minimum mana SOURCES the Pool must already hold for a third colour before
- *  Auto-Build will commit to it — the floor under the demand-weighted
- *  requirement below, so a one-pip splash still has to be paid for by at least
- *  one real fixer rather than rounding its way in for free. */
-const MIN_THIRD_COLOR_SOURCES = 1;
-
 interface ResolvedEntry {
     entry: LimitedPoolCard;
     meta: AutoBuildCardMeta | null;
@@ -252,22 +231,24 @@ function resolvedMetas(
         .filter((m): m is AutoBuildCardMeta => m !== null);
 }
 
-/** The plan Auto-Build finishes: the Archetype the Pool is deepest in, its
- *  colour signature over the Pool, and which cards carry it. */
+/** The plan Auto-Build finishes: the Archetype the Pool is deepest in and
+ *  which cards carry it. */
 interface BuildPlan {
     archetype: string;
-    signature: ColourSignature;
     isPlanCard: (meta: CardEvalMeta) => boolean;
 }
 
-/** A signature colour carrying less than this share of the plan's cards is a
- *  splash of the plan, not one of its colours: it ranks by the Pool's Colour
- *  Commitment like any colour outside the plan. Without it, a plan spread
- *  thin over five colours (cube `control`) names colours the Pool barely
- *  plays, and a mono-colour plan's one gold card names the second colour.
- *  Chosen on the Vintage Cube audit, where a lower bar costs the worst
- *  deck's castability (`docs/research/draft-table-audit-plan-first.md`). */
-const PLAN_COLOUR_MIN_SHARE = 0.3;
+/** Rating points a plan card adds to its value when a colour set is scored
+ *  (issue #9336): the plan is one input to a spell's value, never a veto on
+ *  colours. A set that plays the plan's cards outscores one that cuts them,
+ *  by this much per castable plan card — so a plan whose cards are spread
+ *  over many colours, or whose only coloured cards are one or two, moves
+ *  the set by those cards alone and never more. Two points, not one: the
+ *  Build Invariant (a deeper plan survives a rival plan rated two points
+ *  higher, `autoBuild.bot.test.ts`) holds at two and fails at one, and on
+ *  the Vintage Cube audit two raises the plan share at a small castability
+ *  cost (`docs/research/draft-table-audit-castable-value.md`). */
+const PLAN_CARD_RATING = 2;
 
 /** The Pool's plan, or `null` when nothing is profiled or no Archetype is
  *  deep enough to be one. Depth is `archetypeCommitment`, the pick scorer's
@@ -278,8 +259,7 @@ const PLAN_COLOUR_MIN_SHARE = 0.3;
  *  size. Card COUNT decides, never card quality. A plan must reach
  *  `ARCHETYPE_SETTLE_UNITS`, the depth at which the pick scorer counts a
  *  Pool as settled: below it, a scope with a handful of profiled cards
- *  builds as an unprofiled one. Ties break by Archetype id. The signature is
- *  the Archetype Catalogue's `colourSignature` with the Pool as its scope. */
+ *  builds as an unprofiled one. Ties break by Archetype id. */
 function choosePlan(
     resolved: readonly ResolvedEntry[],
     getCardProfile: GetCardProfile | undefined,
@@ -290,137 +270,45 @@ function choosePlan(
     const commitment = archetypeCommitment(poolProfiles(metas, getCardProfile));
     const archetype = choosePlanArchetype(commitment, metas.length, scopeShare);
     if (archetype === null) return null;
-    const plan = archetype;
-    const isPlanCard = (meta: CardEvalMeta) =>
-        getCardProfile(meta.cardId)?.archetypes.includes(plan) ?? false;
-    const scope = metas.map((m) => ({
-        archetypes: getCardProfile(m.cardId)?.archetypes ?? [],
-        colours: m.colors,
-    }));
     return {
-        archetype: plan,
-        signature: colourSignature(scope, plan),
-        isPlanCard,
+        archetype,
+        isPlanCard: (meta: CardEvalMeta) =>
+            getCardProfile(meta.cardId)?.archetypes.includes(archetype) ??
+            false,
     };
 }
 
-/** True once the Pool's OWN mana base pays for a third colour (issue #1615,
- *  ADR 0073: "the colour COUNT becomes derived — two, or three when the Pool's
- *  own mana base supports it, by the same source/deficit arithmetic").
- *
- *  The arithmetic IS Fixing Value's, `max(0, demand[c] − sources[c])`, read at
- *  build time and required to come out at ZERO for the third colour:
- *
- *  - `demand` is `pipDemandByColor` over the Pool's SPELLS — the same
- *    pip-counting half Fixing Value uses — normalised to the deck's land
- *    budget, so what a colour needs is its share of 17 nominal slots, not its raw pip
- *    total over a 90-card Pool (which no 40-card deck ever has to satisfy).
- *  - `sources` is `sourceCountsByColor` over the Pool's mana sources EXCLUDING
- *    basic lands. Excluding basics is the load-bearing choice, and the reason
- *    a Pool with no fixing can never reach three colours: the builder invents
- *    basics for free, so counting them would make every Pool support three
- *    colours trivially, when in truth a basic of the third colour is a slot
- *    taken away from the first two. Only real fixing — duals, fetches, Moxen,
- *    Signets, anything already in the Pool that PRODUCES that colour — can
- *    close the deficit.
- *
- *  Non-negative and directional: adding a source of the third colour can only
- *  ever move this from `false` toward `true`, never back. */
-function manaBaseSupportsThirdColor(
-    metas: readonly AutoBuildCardMeta[],
-    colors: readonly [TrueColor, TrueColor, TrueColor]
-): boolean {
+/** The colour sets Auto-Build scores (issue #9336): every non-empty subset of
+ *  the colours the Pool holds a SPELL pip in, one to five colours. A colour
+ *  with only mana sources is fixing, never a colour of its own. Ordered by
+ *  size, then by the subset's bitmask over WUBRG — the order ties resolve
+ *  in, so an equal score keeps the smaller set. A Pool with no coloured spell (a degenerate/test case, never
+ *  a real draft) yields the single set `["W", "U"]`. */
+export function candidateColourSets(
+    metas: readonly AutoBuildCardMeta[]
+): TrueColor[][] {
     const demand = pipDemandByColor(metas.filter((m) => !m.isLand));
-    const third = colors[2];
-    const thirdDemand = demand[third] ?? 0;
-    // Nothing to splash: a colour the Pool holds mana sources for but no
-    // SPELLS in is not a third colour, it is fixing.
-    if (thirdDemand <= 0) return false;
-
-    const totalDemand = colors.reduce((sum, c) => sum + (demand[c] ?? 0), 0);
-    if (totalDemand <= 0) return false;
-    const need = Math.max(
-        MIN_THIRD_COLOR_SOURCES,
-        Math.round((NOMINAL_LAND_COUNT * thirdDemand) / totalDemand)
-    );
-
-    const fixers = metas.filter(
-        (m) => !m.isBasicLand && m.producedColors.length > 0
-    );
-    const sources = sourceCountsByColor(fixers)[third] ?? 0;
-    return Math.max(0, need - sources) === 0;
-}
-
-/** Picks the colours the seat actually drafted toward, and HOW MANY of them
- *  (issue #1615, replacing the summed-quality `chooseTwoColors` ADR 0073 calls
- *  out by name).
- *
- *  Ranking is **pip-weighted Colour Commitment** — `colourAffinityWeights`,
- *  `botDrafter.ts`'s own: a spell's coloured PIPS count at full weight
- *  (`{U}{U}` commits twice as hard as `{4}{U}`), a mana source's produced
- *  colours at a lower weight, so a strong dual land FOLLOWS the Pool's
- *  commitment instead of creating it. That is the same quantity the Pick
- *  Heuristic drafted by, which is the whole point: the builder now finishes
- *  the draft's plan rather than re-deciding it from summed card quality, which
- *  is blind to how hard a card commits and blind to the mana base entirely.
- *
- *  With a plan (`choosePlan`), the plan's colour signature ranks first: a
- *  colour holding at least `PLAN_COLOUR_MIN_SHARE` of the plan's cards
- *  outranks every colour that does not, by its share; Colour Commitment
- *  orders the rest and breaks ties. Without one, every signature share reads
- *  0 and the ranking is Colour Commitment alone.
- *
- *  The COUNT is derived, never hardcoded: two colours, plus a third when
- *  `manaBaseSupportsThirdColor` says the Pool pays for it. Ties break by WUBRG
- *  order — deterministic, since `ranked` is built in WUBRG order and
- *  `Array.prototype.sort` is STABLE (ECMA 2019+). A Pool with no coloured
- *  cards at all (a degenerate/test case, never a real draft) falls back to
- *  `["W", "U"]` rather than throwing. */
-function chooseDeckColorsFromResolved(
-    resolved: readonly ResolvedEntry[],
-    plan: BuildPlan | null
-): TrueColor[] {
-    const metas = resolvedMetas(resolved);
-    const affinity = colourAffinityWeights(metas);
-    const planShare = (c: TrueColor): number => {
-        const share = plan?.signature[c] ?? 0;
-        return share >= PLAN_COLOUR_MIN_SHARE ? share : 0;
-    };
-    const ranked = WUBRG.map((c) => ({
-        c,
-        plan: planShare(c),
-        score: affinity[c] ?? 0,
-    })).sort((a, b) => b.plan - a.plan || b.score - a.score);
-    const colors: TrueColor[] = ranked
-        .slice(0, MIN_DECK_COLORS)
-        .map((r) => r.c);
-    const third = ranked[MIN_DECK_COLORS];
-    if (
-        third !== undefined &&
-        third.score > 0 &&
-        manaBaseSupportsThirdColor(metas, [colors[0], colors[1], third.c])
-    ) {
-        colors.push(third.c);
+    const colours = WUBRG.filter((c) => (demand[c] ?? 0) > 0);
+    if (colours.length === 0) return [["W", "U"]];
+    const sets: TrueColor[][] = [];
+    for (let mask = 1; mask < 1 << colours.length; mask++) {
+        sets.push(colours.filter((_, i) => mask & (1 << i)));
     }
-    return colors;
+    return sets.sort((a, b) => a.length - b.length);
 }
 
-/** Public entry point for `chooseDeckColorsFromResolved` — resolves `pool`
- *  first via `getMeta` (exported standalone, mirrors `botDrafter.ts`'s
- *  `scoreCandidate`, so colour selection is directly unit-testable without
- *  building a whole deck). Returns 2 or 3 colours (`MAX_DECK_COLORS`).
- *  `getCardProfile` and `archetypeScopeShare` are the plan's seams, as in
- *  `AutoBuildOptions`. */
-export function chooseDeckColors(
-    pool: readonly LimitedPoolCard[],
-    getMeta: GetAutoBuildCardMeta,
-    getCardProfile?: GetCardProfile,
-    archetypeScopeShare?: ArchetypeScopeShare
+/** Orders a built deck's colours by its Maindeck's pip demand, heaviest
+ *  first, ties by WUBRG: the deck's main colours lead and its lightest
+ *  colours — what a reader calls the splash — come last. */
+function byDeckDemand(
+    colors: readonly TrueColor[],
+    spells: readonly ResolvedEntry[]
 ): TrueColor[] {
-    const resolved = resolvePool(pool, getMeta);
-    return chooseDeckColorsFromResolved(
-        resolved,
-        choosePlan(resolved, getCardProfile, archetypeScopeShare)
+    const demand = pipDemandByColor(spells.map((r) => r.meta!));
+    return [...colors].sort(
+        (a, b) =>
+            (demand[b] ?? 0) - (demand[a] ?? 0) ||
+            WUBRG.indexOf(a) - WUBRG.indexOf(b)
     );
 }
 
@@ -561,8 +449,8 @@ function selectSpells(
 }
 
 /** The Maindeck's land base for a given spell selection: the Pool's OWN
- *  on-colour NON-BASIC lands ahead of any basic (a dual land that unlocked a
- *  third colour has to actually BE in the deck), then basics allotted by the
+ *  on-colour NON-BASIC lands ahead of any basic (a dual land that pays for a
+ *  colour has to actually BE in the deck), then basics allotted by the
  *  spells' per-colour pip DEMAND. Basics in the Pool are deliberately NOT
  *  taken: they are indistinguishable from the ones the builder invents for
  *  free, so maindecking them would only move cards between zones (and make
@@ -589,15 +477,15 @@ function buildManaBase(
                 !r.meta.isBasicLand &&
                 r.meta.producedColors.some((c) => colorSet.has(c))
         )
-        .sort((a, b) => {
-            const coverage = (r: ResolvedEntry) =>
-                r.meta!.producedColors.filter((c) => colorSet.has(c)).length;
-            return (
-                coverage(b) - coverage(a) ||
-                candidateQuality(b.meta!) - candidateQuality(a.meta!)
-            );
-        })
-        .slice(0, landCount);
+        .map((r) => ({
+            r,
+            coverage: r.meta!.producedColors.filter((c) => colorSet.has(c))
+                .length,
+            quality: candidateQuality(r.meta!),
+        }))
+        .sort((a, b) => b.coverage - a.coverage || b.quality - a.quality)
+        .slice(0, landCount)
+        .map((x) => x.r);
     const basics = allotBasics(
         landCount - lands.length,
         colors,
@@ -631,15 +519,31 @@ function castabilityAgainst(
 ): (entry: ResolvedEntry) => number {
     const sources = deckSources(base, provisional);
     const inDeck = new Set(provisional.map((r) => r.entry));
+    // A spell's castability is a function of its pips, its mana value and
+    // the source it removes when it is one itself: computed once per shape.
+    const byShape = new Map<string, number>();
     return (entry) => {
         const meta = entry.meta!;
-        let own: ReadonlyMap<string, number> = sources;
-        if (inDeck.has(entry.entry) && meta.producedColors.length > 0) {
-            const less = new Map(sources);
-            addProducer(less, meta, sourceWeight, -1);
-            own = less;
+        const removes =
+            inDeck.has(entry.entry) && meta.producedColors.length > 0;
+        const shape = [
+            JSON.stringify(meta.pips),
+            meta.manaValue,
+            removes ? JSON.stringify(meta.producedColors) : "",
+            removes ? JSON.stringify(meta.oneShotColors ?? []) : "",
+        ].join("|");
+        let p = byShape.get(shape);
+        if (p === undefined) {
+            let own: ReadonlyMap<string, number> = sources;
+            if (removes) {
+                const less = new Map(sources);
+                addProducer(less, meta, sourceWeight, -1);
+                own = less;
+            }
+            p = pipCastability(meta.pips, meta.manaValue, deckSize, own);
+            byShape.set(shape, p);
         }
-        return pipCastability(meta.pips, meta.manaValue, deckSize, own);
+        return p;
     };
 }
 
@@ -713,27 +617,76 @@ export interface AutoBuildOptions {
     archetypeScopeShare?: ArchetypeScopeShare;
 }
 
-/** Builds a bot Seat's Auto-Built deck from its FINAL Pool (issue #1115).
- *  Deterministic and total: never throws, always returns a Maindeck of AT
- *  LEAST `FORMAT_RULES.limited.minMain` cards drawn entirely from `pool`
- *  (plus free basics) — the tiered spillover and the grow-past-the-band land
- *  count are why a thin/skewed Pool still reaches the floor. Every `pool`
- *  entry ends up in EXACTLY ONE of `cards`/`sideboard` (never both, never
- *  dropped) — the invariant `checkPoolMembership` (`convex/formats.ts`)
- *  requires for `limited` legality. */
-export function autoBuildDeck(
-    pool: readonly LimitedPoolCard[],
-    getMeta: GetAutoBuildCardMeta,
-    resolveBasicLand: ResolveBasicLand,
-    options: AutoBuildOptions = {}
-): AutoBuiltDeck {
-    const resolved = resolvePool(pool, getMeta);
-    const plan = choosePlan(
-        resolved,
-        options.getCardProfile,
-        options.archetypeScopeShare
-    );
-    const colors = chooseDeckColorsFromResolved(resolved, plan);
+/** How many colour sets, best by their provisional deck's castable value,
+ *  are finished and scored again (`chooseBuild`). The cost of a build grows
+ *  with the Pool, and a 90-card cube Sealed Pool has 31 candidate sets: the
+ *  bound keeps the build within a Convex mutation's budget for every Bot
+ *  seat at once. Six finalists build the deck finishing all 31 builds on
+ *  122 of 128 Vintage Cube decks and 127 of 128 LEA decks (seeds 1..16), the
+ *  audit's aggregates within 0.001
+ *  (`docs/research/draft-table-audit-castable-value.md`). */
+const COLOUR_SET_FINALISTS = 6;
+
+/** `score`, computed once per Pool entry. */
+function memoScore(score: SpellScore): SpellScore {
+    const cache = new Map<LimitedPoolCard, number>();
+    return (r) => {
+        let v = cache.get(r.entry);
+        if (v === undefined) {
+            v = score(r);
+            cache.set(r.entry, v);
+        }
+        return v;
+    };
+}
+
+/** `options` with its Card Profile lookup computed once per card. */
+function memoOptions(options: AutoBuildOptions): AutoBuildOptions {
+    const lookup = options.getCardProfile;
+    if (!lookup) return options;
+    const cache = new Map<string, ReturnType<GetCardProfile>>();
+    return {
+        ...options,
+        getCardProfile: (cardId) => {
+            if (!cache.has(cardId)) cache.set(cardId, lookup(cardId));
+            return cache.get(cardId)!;
+        },
+    };
+}
+
+/** One colour set, built: the spells, the Pool lands and the basics. */
+interface ColourBuild {
+    colors: TrueColor[];
+    chosen: ResolvedEntry[];
+    lands: ResolvedEntry[];
+    basics: Map<TrueColor, number>;
+}
+
+/** The FIRST of a colour set's two passes: what the deck provisionally IS
+ *  on standalone value at the nominal split. Its curve sizes the land count,
+ *  its mana base sizes every candidate's castability, and its cards are what
+ *  Capability fit is measured against ("an enabler REQUIRED BY CARDS ALREADY
+ *  IN THE DECK" — Flash's value is a function of the deck, not of Flash). */
+interface ProvisionalBuild {
+    colors: TrueColor[];
+    onColor: ResolvedEntry[];
+    offColor: ResolvedEntry[];
+    planCore: (
+        rs: readonly ResolvedEntry[],
+        isPartner: (r: ResolvedEntry) => boolean
+    ) => ResolvedEntry[];
+    provisional: ResolvedEntry[];
+    manaBase: ManaBase;
+    spellCount: number;
+    landCount: number;
+}
+
+function provisionalBuild(
+    resolved: readonly ResolvedEntry[],
+    plan: BuildPlan | null,
+    colors: TrueColor[],
+    base: SpellScore
+): ProvisionalBuild {
     const colorSet = new Set<Color>(colors);
 
     const spellCandidates = resolved.filter(
@@ -744,7 +697,6 @@ export function autoBuildDeck(
     const offColor = spellCandidates.filter(
         (r) => !onColorEntries.has(r.entry)
     );
-    const base = baseSpellScore(options.getPickRating);
     // The plan's core: its own cards, the cards `isPartner` names, and every
     // spell producing a deck colour. A mana source serves whatever plan the
     // deck plays; cutting one for a plan card costs every other spell its
@@ -762,14 +714,6 @@ export function autoBuildDeck(
               )
             : [];
 
-    // TWO passes. The first establishes what the deck provisionally IS on
-    // standalone value at the nominal split; the curve of that deck sizes
-    // the land count, its mana base sizes every candidate's castability, and
-    // its cards are what Capability fit is measured against ("an enabler
-    // REQUIRED BY CARDS ALREADY IN THE DECK" — Flash's value is a function of
-    // the deck, not of Flash). Exactly one refinement pass, deliberately: a
-    // loop to a fixpoint can oscillate between two equally-scoring decks, and
-    // determinism is a hard requirement of this module.
     const provisional = selectSpells(
         planCore(onColor, () => false),
         [onColor, offColor],
@@ -782,10 +726,41 @@ export function autoBuildDeck(
         spellCandidates.length
     );
     const landCount = TARGET_MAIN_SIZE - spellCount;
+    return {
+        colors,
+        onColor,
+        offColor,
+        planCore,
+        provisional,
+        manaBase: buildManaBase(resolved, provisional, colors, landCount),
+        spellCount,
+        landCount,
+    };
+}
 
+/** The SECOND pass, which builds the Maindeck for one colour set — steps 2
+ *  and 3 of the module comment. Exactly one refinement pass, deliberately: a
+ *  loop to a fixpoint can oscillate between two equally-scoring decks, and
+ *  determinism is a hard requirement of this module. */
+function finishBuild(
+    resolved: readonly ResolvedEntry[],
+    plan: BuildPlan | null,
+    first: ProvisionalBuild,
+    options: AutoBuildOptions,
+    base: SpellScore
+): ColourBuild {
+    const {
+        colors,
+        onColor,
+        offColor,
+        planCore,
+        provisional,
+        spellCount,
+        landCount,
+    } = first;
     const castability = castabilityAgainst(
         provisional,
-        buildManaBase(resolved, provisional, colors, landCount),
+        first.manaBase,
         TARGET_MAIN_SIZE
     );
     const fit = options.getCardProfile
@@ -822,7 +797,6 @@ export function autoBuildDeck(
         spellCount,
         score
     );
-    const chosenEntries = new Set(chosen.map((r) => r.entry));
 
     // The final mana base, allotted by the BUILT Maindeck's pip demand.
     const { lands, basics } = buildManaBase(
@@ -831,6 +805,153 @@ export function autoBuildDeck(
         colors,
         landCount
     );
+    return { colors, chosen, lands, basics };
+}
+
+/** A built colour set's **castable value** (issue #9336): the sum, over its
+ *  Maindeck spells, of each spell's value times its castability against the
+ *  deck's own mana base (`castability.ts`, the audit's model). A spell's
+ *  value is its base rating (`candidateBaseRating`), plus its Capability fit
+ *  against the built Maindeck, plus `PLAN_CARD_RATING` when it carries the
+ *  plan. A colourless spell pays nothing for colours and reads its full
+ *  value in every set; a colour the mana base cannot pay discounts every
+ *  spell of it; a spell outside the set (a filler the set's own spells could
+ *  not cover) reads zero, so a set never borrows the value of a colour it
+ *  does not name through a dual that happens to produce it. */
+function castableValue(
+    build: ColourBuild,
+    plan: BuildPlan | null,
+    options: AutoBuildOptions,
+    base: SpellScore
+): number {
+    const castability = castabilityAgainst(
+        build.chosen,
+        { lands: build.lands, basics: build.basics },
+        TARGET_MAIN_SIZE
+    );
+    const fit = options.getCardProfile
+        ? capabilityFit(
+              build.chosen.map((r) => r.meta!),
+              options.getCardProfile
+          )
+        : () => 0;
+    const colorSet = new Set<Color>(build.colors);
+    let total = 0;
+    for (const r of build.chosen) {
+        // An off-colour spell is a dead slot whatever a dual of another
+        // colour pays for it: a set is worth only the spells it plays.
+        if (!isOnColor(r.meta!, colorSet)) continue;
+        const value =
+            base(r) +
+            fit(r) +
+            (plan?.isPlanCard(r.meta!) ? PLAN_CARD_RATING : 0);
+        total += Math.max(0, value) * castability(r);
+    }
+    return total;
+}
+
+/** Chooses the colour set by castable value (issue #9336): every candidate
+ *  set (`candidateColourSets`) is built and scored (`castableValue`), the
+ *  best kept, ties to the earlier candidate (the smaller set). No colour
+ *  count and no splash rule is written down: the count is a consequence of
+ *  the fixing. A Pool with little fixing pays so much castability per extra
+ *  colour that two colours (plus a splash) win; a cube Pool with fetches,
+ *  duals and Moxen pays little, so four or five colours win when the cards
+ *  are worth it. */
+function chooseBuild(
+    resolved: readonly ResolvedEntry[],
+    plan: BuildPlan | null,
+    options: AutoBuildOptions
+): ColourBuild {
+    // Every candidate set reads the same base ratings: each is computed once
+    // per Pool, not once per set.
+    const base = memoScore(baseSpellScore(options.getPickRating));
+    // Every set is first scored on its provisional deck — its first pass,
+    // valued exactly as a finished build is — and only the best
+    // `COLOUR_SET_FINALISTS` are finished and scored again. The candidates
+    // keep their canonical order, so a tie still keeps the smaller set.
+    const firsts = candidateColourSets(resolvedMetas(resolved)).map(
+        (colors, index) => {
+            const first = provisionalBuild(resolved, plan, colors, base);
+            const estimate = castableValue(
+                {
+                    colors,
+                    chosen: first.provisional,
+                    lands: first.manaBase.lands,
+                    basics: first.manaBase.basics,
+                },
+                plan,
+                options,
+                base
+            );
+            return { first, estimate, index };
+        }
+    );
+    const finalists = [...firsts]
+        .sort((a, b) => b.estimate - a.estimate || a.index - b.index)
+        .slice(0, COLOUR_SET_FINALISTS)
+        .sort((a, b) => a.index - b.index);
+    let best: ColourBuild | null = null;
+    let bestValue = -Infinity;
+    for (const { first } of finalists) {
+        const build = finishBuild(resolved, plan, first, options, base);
+        const value = castableValue(build, plan, options, base);
+        if (value > bestValue) {
+            best = build;
+            bestValue = value;
+        }
+    }
+    return { ...best!, colors: byDeckDemand(best!.colors, best!.chosen) };
+}
+
+/** The colours Auto-Build plays for `pool` (issue #9336: the colour set of
+ *  the best castable value, its size derived from the fixing), heaviest
+ *  first. Exported standalone so colour selection is directly unit-testable;
+ *  `options` are `autoBuildDeck`'s. */
+export function chooseDeckColors(
+    pool: readonly LimitedPoolCard[],
+    getMeta: GetAutoBuildCardMeta,
+    rawOptions: AutoBuildOptions = {}
+): TrueColor[] {
+    const options = memoOptions(rawOptions);
+    const resolved = resolvePool(pool, getMeta);
+    const plan = choosePlan(
+        resolved,
+        options.getCardProfile,
+        options.archetypeScopeShare
+    );
+    return chooseBuild(resolved, plan, options).colors;
+}
+
+/** Builds a bot Seat's Auto-Built deck from its FINAL Pool (issue #1115).
+ *  Deterministic and total: never throws, always returns a Maindeck of AT
+ *  LEAST `FORMAT_RULES.limited.minMain` cards drawn entirely from `pool`
+ *  (plus free basics) — the tiered spillover and the grow-past-the-band land
+ *  count are why a thin/skewed Pool still reaches the floor. Every `pool`
+ *  entry ends up in EXACTLY ONE of `cards`/`sideboard` (never both, never
+ *  dropped) — the invariant `checkPoolMembership` (`convex/formats.ts`)
+ *  requires for `limited` legality. */
+export function autoBuildDeck(
+    pool: readonly LimitedPoolCard[],
+    getMeta: GetAutoBuildCardMeta,
+    resolveBasicLand: ResolveBasicLand,
+    rawOptions: AutoBuildOptions = {}
+): AutoBuiltDeck {
+    // Every candidate colour set reads the same profiles: each is composed
+    // once per Pool, not once per set.
+    const options = memoOptions(rawOptions);
+    const resolved = resolvePool(pool, getMeta);
+    const plan = choosePlan(
+        resolved,
+        options.getCardProfile,
+        options.archetypeScopeShare
+    );
+    const { colors, chosen, lands, basics } = chooseBuild(
+        resolved,
+        plan,
+        options
+    );
+    const chosenEntries = new Set(chosen.map((r) => r.entry));
     for (const r of lands) chosenEntries.add(r.entry);
 
     const cards: DeckCard[] = [...chosen, ...lands].map((r) => ({
