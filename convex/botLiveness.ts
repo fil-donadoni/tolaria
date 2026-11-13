@@ -11,12 +11,20 @@
 //   check per game `saveGameState` arms while the Bot is owed
 //   (`convex/botDeadline.ts`). It holds when no client acts at all.
 //
+// Beside them, OBSERVATION only (issue #9502): `reportConsultFailure` records
+// a Brain consult that gave no answer (`search-error` / `worker-error` /
+// `timeout`) — the case the ladder covers with legal passes, so neither entry
+// above ever fires — and `getConsultFailures` reads it back by game id. It
+// advances nothing and carries no consent-gated payload
+// (`botConsultFailureStore.ts`).
+//
 // The Bot seat comes from `botSeatId` (`matches.ts`), the one derivation every
 // server path shares: no `botId` field exists, the Bot is the non-human seat.
 
 import { ConvexError, v, type Infer } from "convex/values";
 import {
     internalMutation,
+    internalQuery,
     mutation,
     type MutationCtx,
 } from "./_generated/server";
@@ -24,6 +32,16 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { planBotDeadline } from "./botDeadline";
 import { getCurrentUserId } from "./auth";
+import {
+    appendConsultFailure,
+    boundedConsultMessage,
+    consultFailureOutcomeValidator,
+    consultFailureRecordValidator,
+    readConsultFailureRow,
+    readConsultFailures,
+    type ConsultFailureRecord,
+    type ConsultFailureSample,
+} from "./botConsultFailureStore";
 import type { BotFault } from "./botFaultReport";
 import { recordSystemBugReport } from "./bugReports";
 import { tryGetDefinition } from "./cards";
@@ -35,6 +53,7 @@ import {
     forceAdvanceOwedInput,
     type ForceAdvanceResult,
 } from "./gre/forceAdvance";
+import { legalActions } from "./gre/legalActions";
 import type { ExpectedInput, GameState } from "./gre/state";
 import { botSeatId } from "./matches";
 
@@ -317,4 +336,93 @@ export const checkDeadline = internalMutation({
         });
         return null;
     },
+});
+
+/** Whether the Bot could play a land right now (CR 305.2): a `play-land`
+ *  among its legal priority actions. A throw reads as "unknown", never as a
+ *  failed report — this is a diagnostic, not a gate. */
+function botLandDropLegal(
+    state: GameState,
+    botId: string
+): boolean | undefined {
+    try {
+        return legalActions(state).some(
+            (a) =>
+                a.playerId === botId &&
+                a.expect === "priority" &&
+                a.action.kind === "play-land"
+        );
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Record one Brain consult that gave the Bot no answer (issue #9502). Sent
+ * fire-and-forget by the vs-AI driver; changes nothing about the game. Same
+ * authorization as `reportStall`: the caller is the human of this vs-AI game.
+ *
+ * Turn, phase and land-drop legality are read from the server's own state,
+ * and only when it is still version `seq` — the one the consult ran on. A
+ * report landing after the game moved keeps `seq` and the outcome alone.
+ *
+ * No consent-gated payload: the outcome, the coordinates the server already
+ * knows and the Brain's error message, truncated (`botConsultFailureStore.ts`).
+ */
+export const reportConsultFailure = mutation({
+    args: {
+        gameId: v.id("games"),
+        seq: v.number(),
+        outcome: consultFailureOutcomeValidator,
+        message: v.optional(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+        const userId = await getCurrentUserId(ctx);
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new ConvexError("Game not found.");
+        const botId = vsAiBotSeat(game, userId);
+
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        const state =
+            gameState && gameState.seq === args.seq
+                ? (gameState.state as GameState)
+                : undefined;
+        const landDropLegal = state
+            ? botLandDropLegal(state, botId)
+            : undefined;
+        const message = boundedConsultMessage(args.message);
+        const sample: ConsultFailureSample = {
+            outcome: args.outcome,
+            seq: args.seq,
+            at: Date.now(),
+            ...(state ? { turn: state.turn, phase: state.phase } : {}),
+            ...(landDropLegal !== undefined ? { landDropLegal } : {}),
+            ...(message !== undefined ? { message } : {}),
+        };
+
+        const row = await readConsultFailureRow(ctx, args.gameId);
+        const next = appendConsultFailure(row, sample);
+        if (row) {
+            await ctx.db.patch(row._id, next);
+        } else {
+            await ctx.db.insert("botConsultFailures", {
+                gameId: args.gameId,
+                ...next,
+            });
+        }
+        return null;
+    },
+});
+
+/**
+ * A game's failed-consult record, for triage (`bunx convex run
+ * botLiveness:getConsultFailures '{"gameId":"…"}' --prod`): `null` when its
+ * Bot never failed a consult.
+ */
+export const getConsultFailures = internalQuery({
+    args: { gameId: v.id("games") },
+    returns: v.union(v.null(), consultFailureRecordValidator),
+    handler: async (ctx, args): Promise<ConsultFailureRecord | null> =>
+        await readConsultFailures(ctx, args.gameId),
 });

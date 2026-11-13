@@ -52,6 +52,10 @@ let onMutation: ((ref: unknown) => void) | undefined;
  *  default is the server's answer for a window it advanced. */
 let reportStallImpl: (args: unknown) => Promise<unknown> = () =>
     Promise.resolve({ advanced: true, outcome: "advanced" });
+/** Issue #9502 — the failed-consult report, answered apart from
+ *  `mutationsThrow` like `reportStall`. The default is the server's `null`. */
+let reportConsultFailureImpl: (args: unknown) => Promise<unknown> = () =>
+    Promise.resolve(null);
 
 vi.mock("@convex/_generated/api", () => {
     // Every mutation/query the driver reaches for, tagged by a plain string so
@@ -106,7 +110,10 @@ vi.mock("@convex/_generated/api", () => {
     return {
         api: {
             game: Object.fromEntries(names.map((n) => [n, n])),
-            botLiveness: { reportStall: "reportStall" },
+            botLiveness: {
+                reportStall: "reportStall",
+                reportConsultFailure: "reportConsultFailure",
+            },
             gameReads: Object.fromEntries(
                 [
                     "getGameTick",
@@ -173,6 +180,8 @@ vi.mock("convex/react", async () => {
     const useMutation = (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
         if (ref === "reportStall") return reportStallImpl(args);
+        if (ref === "reportConsultFailure")
+            return reportConsultFailureImpl(args);
         if (mutationsThrow) return Promise.reject(new Error("server rejected"));
         // A hook for the fixtures that need an ACCEPTED mutation to actually
         // move the board — the real server writes a new seq, and the watchdog
@@ -563,6 +572,7 @@ beforeEach(() => {
     onMutation = undefined;
     reportStallImpl = () =>
         Promise.resolve({ advanced: true, outcome: "advanced" });
+    reportConsultFailureImpl = () => Promise.resolve(null);
     stubDecideNone = true;
     stubDecideUnanswered = false;
     stubDecideThrows = false;
@@ -1077,5 +1087,119 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
         expect(fault).toBeDefined();
         expect(fault!.message).toContain("view exploded");
         expect(fault!.expectedKind).toBe("priority");
+    });
+});
+
+// Issue #9502 — a consult that gave NO answer is reported to the server, so a
+// Bot that passes a whole game on failed consults leaves a trace there. Driven
+// through the real decision path: the REAL `decideBotAction` routes the window
+// to the consult, and the consult's verdict reaches the driver's breadcrumb
+// seam exactly as `brain-client.ts` resolves it.
+describe("failed Brain consults reach the server (issue #9502)", () => {
+    /** CR 305.2 — the Bot's main phase with a land in hand: a window worth
+     *  searching, so the decision is routed to the Brain. */
+    function landWindow(seq = 1) {
+        stubDecideNone = false;
+        const board = priorityBoard();
+        board.players[1].hand = [
+            makeInstance(FOREST, {
+                id: "land1",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "hand",
+            }),
+        ];
+        publish(board, seq);
+    }
+
+    const reports = () => calls.filter((c) => c.ref === "reportConsultFailure");
+
+    for (const outcome of ["search-error", "worker-error", "timeout"]) {
+        it(`reports a "${outcome}" consult exactly once`, async () => {
+            landWindow(4);
+            brainResult = {
+                move: null,
+                trace: null,
+                outcome,
+                via: "worker",
+                message: "Script error",
+            };
+            renderHook(() => useVsAiDriver(GAME, BOT));
+            await advance(500);
+
+            expect(reports()).toHaveLength(1);
+            expect(reports()[0].args).toEqual({
+                gameId: GAME,
+                seq: 4,
+                outcome,
+                message: "Script error",
+            });
+        });
+    }
+
+    it("reports nothing for a consult that answered", async () => {
+        landWindow();
+        brainResult = {
+            move: { kind: "play-land", cardInstanceId: "land1" },
+            trace: null,
+            outcome: "move",
+            via: "worker",
+        };
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+
+        expect(getAiDecisions().map((d) => d.outcome)).toContain("move");
+        expect(reports()).toHaveLength(0);
+    });
+
+    it("reports nothing for a consult that chose no move", async () => {
+        landWindow();
+        brainResult = {
+            move: null,
+            trace: null,
+            outcome: "no-move",
+            via: "worker",
+        };
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+
+        expect(getAiDecisions().map((d) => d.outcome)).toContain("no-move");
+        expect(reports()).toHaveLength(0);
+    });
+
+    it("a rejected or throwing report leaves the bot's play exactly as it was", async () => {
+        /** The mutations the driver submits over one ladder round after a
+         *  timed-out consult — the report itself excluded. */
+        async function play(): Promise<unknown[]> {
+            calls.length = 0;
+            clearAiDecisions();
+            clearAiEscalations();
+            landWindow();
+            brainResult = {
+                move: null,
+                trace: null,
+                outcome: "timeout",
+                via: "worker",
+            };
+            const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+            await runToWatchdog();
+            unmount();
+            expect(reports()).toHaveLength(1);
+            return calls
+                .filter((c) => c.ref !== "reportConsultFailure")
+                .map((c) => c.ref);
+        }
+
+        const baseline = await play();
+        expect(baseline.length).toBeGreaterThan(0);
+
+        reportConsultFailureImpl = () =>
+            Promise.reject(new Error("server rejected"));
+        expect(await play()).toEqual(baseline);
+
+        reportConsultFailureImpl = () => {
+            throw new Error("client threw");
+        };
+        expect(await play()).toEqual(baseline);
     });
 });

@@ -33,3 +33,19 @@ Exit 1 with a message: no such row, or a row with no state (a user report
 filed outside a game, or with diagnostics declined) — nothing to lower.
 
 It works on user-button rows too (`/admin/bug-reports` shows their id).
+
+## When the Bot passed instead of faulting
+
+A Brain consult that gives no answer (`search-error`, `worker-error`,
+`timeout`) never files a `[Bot Fault]`: the driver's ladder passes legally, so
+the game moves on (issue #9502). Each such consult is counted server-side,
+with no consent-gated payload, against the game:
+
+```bash
+bunx convex run botLiveness:getConsultFailures '{"gameId":"<gameId>"}' --prod
+```
+
+`null` = the Bot never failed a consult in that game. Otherwise per-outcome
+counters plus the most recent samples (state `seq`, turn, phase, whether a
+land drop was legal, the truncated Brain message). A report filed with a game
+id carries the counters on `bugReports:getReport` as `botConsultFailures`.

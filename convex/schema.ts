@@ -30,6 +30,7 @@ import { storedDifficultyValidator } from "./limited/botDifficulty";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { botFaultValidator } from "./botFaultReport";
+import { consultFailureRecordFields } from "./botConsultFailureStore";
 import {
     botReachTraceValidator,
     compileSourceValidator,
@@ -200,6 +201,17 @@ export default defineSchema({
         botDeadlineAt: v.optional(v.number()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
+    // Failed Bot Brain consults of a vs-AI game (issue #9502,
+    // `convex/botConsultFailureStore.ts`): per-outcome counters plus a capped
+    // ring of recent samples, ONE row per game, written only when a consult
+    // ends in `search-error` / `worker-error` / `timeout` — a healthy game
+    // writes none. No consent-gated payload (the store's header). Kept apart
+    // from `gameStates` / `gameTicks`, whose size budgets are load-bearing.
+    // Deleted with its game by `deleteGameCascade` (`matches.ts`).
+    botConsultFailures: defineTable(consultFailureRecordFields).index(
+        "by_gameId",
+        ["gameId"]
+    ),
     // Manual Mode state (ADR 0080) — mirrors gameStates, one row per game,
     // patched in place. State is opaque JSON (no compile-time shape); the
     // import-graph boundary guard ensures nothing here imports from convex/gre/.
