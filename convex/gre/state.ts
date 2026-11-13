@@ -25618,7 +25618,7 @@ function resolveCostReductionGeneric(
  *  asks the chosen targets (stack-item ids); without (a probe before any
  *  target exists) it asks whether the caster COULD choose one. An ability on
  *  the stack is an object of its own, never a spell (CR 113.1c). */
-function targetsMatchingSpellExist(
+export function targetsMatchingSpellExist(
     state: GameState,
     filter: SpellFilter,
     announcedTargets: ReadonlyArray<TargetSelection> | undefined

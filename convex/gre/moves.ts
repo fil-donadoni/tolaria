@@ -52,6 +52,7 @@ import {
     restrictionAllowsSpell,
     sourceRestrictionSubject,
     spellRestrictionSubject,
+    targetsMatchingSpellExist,
     type TargetCountAnnouncement,
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
@@ -4634,6 +4635,23 @@ function enumerateCastMovesFromZone(
                         perModeCombination &&
                         chosenModeIds &&
                         !modeLedger.admit(chosenModeIds)
+                    ) {
+                        continue;
+                    }
+                    // CR 601.2f — the tap plan above was priced without
+                    // targets, so a target-conditional self reduction was
+                    // granted optimistically. A target that does not earn it
+                    // would be charged more at the commit than this plan
+                    // pays, parking an unpayable cast: not enumerated.
+                    const conditionalReduction =
+                        def?.selfCostReduction?.ifTargetsSpell;
+                    if (
+                        conditionalReduction !== undefined &&
+                        !targetsMatchingSpellExist(
+                            state,
+                            conditionalReduction,
+                            targets
+                        )
                     ) {
                         continue;
                     }
