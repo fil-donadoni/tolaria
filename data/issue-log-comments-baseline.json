@@ -291,7 +291,6 @@
     "src/lib/ai/__tests__/brain-worker-residency.bot.test.ts#f92d952453",
     "src/lib/ai/bot-view.ts#27514b55dd",
     "src/lib/ai/bot-view.ts#ca4ca018b1",
-    "src/lib/ai/brain-client.ts#51fa163c38",
     "src/lib/ai/brain-client.ts#e9f650e1dc",
     "src/lib/ai/brain.ts#8166873a10",
     "src/lib/ai/state-adapter.ts#6a4b1ddef2",

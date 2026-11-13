@@ -1,6 +1,6 @@
 // Client-side handle to the Brain Web Worker (ADR 0000, issues #109/#110).
 //
-// Lazily spawns a single module Worker and exposes `consultBrain(state, botId)`,
+// Lazily spawns the Bot's module Worker and exposes `consultBrain(state, botId)`,
 // which resolves with the bot's chosen Move (or null when it owes nothing). A
 // request-id map matches each reply to its caller so concurrent consults never
 // cross. The Worker is a thin shell; enumeration + selection live in the GRE and
@@ -19,8 +19,8 @@
 // nothing on screen said the AI was broken. Recovery has two stages, and the
 // caller is never handed "no move" while either can still answer:
 //
-//   1. terminate + clear the singleton, so the next consult constructs a FRESH
-//      Worker — bounded by MAX_BRAIN_WORKER_SPAWNS per game, or a permanently
+//   1. terminate + clear the installed Worker, so the next consult constructs a FRESH
+//      Worker — bounded by MAX_BRAIN_WORKER_FAILURES per game, or a permanently
 //      broken script would spin;
 //   2. once that budget is spent, consults run the SAME handler in-thread at
 //      BRAIN_FALLBACK_BUDGET. A weak move beats no move.
@@ -158,117 +158,340 @@ const BRAIN_WORKER_SCRIPT = "brain.worker.ts";
  *  #3040's report named neither the script nor the position. */
 export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
 
-let worker: Worker | null = null;
-let nextId = 1;
-const pending = new Map<number, InFlight>();
-/** Worker failures since the last successful reply — see
- *  {@link MAX_BRAIN_WORKER_FAILURES}. */
-let failures = 0;
-/** Set once the spawn budget is spent: every later consult goes in-thread. */
-let exhausted = false;
-/** Every Manifest entry primed this game, by definition id (issue #5617) —
- *  re-posted to a FRESH Worker, which starts with nothing resident. */
-const primed = new Map<string, DefinitionManifestEntry>();
+/** The game-end Verdict Proposal judge's consult timeout (issue #9514).
+ *  The judge searches at an ITERATION-only budget (its answers must be
+ *  reproducible, so never wall-clock), on its own channel — a slow device
+ *  makes it slow, never wrong. The timeout only keeps the standing promise
+ *  that a consult always settles (issue #2284); it is sized well past a
+ *  400-iteration search on a slow device, so the judge waits for its answer;
+ *  a search that outlasts even this takes its Worker with it
+ *  (`abandonOnTimeout`), so the next judge consult never queues behind it. */
+export const JUDGE_CONSULT_TIMEOUT_MS = 60_000;
 
-function getWorker(): Worker | null {
-    if (typeof Worker === "undefined") return null;
-    // Out of respawns: the in-thread fallback owns the rest of this game. Fall
-    // through to `consultBrain`'s `!w` branch rather than handing back a handle
-    // known to die (issue #3040) — that is what made every later consult pay
-    // the full consult timeout for nothing.
-    if (exhausted) return null;
-    if (worker) return worker;
-    // Held in a local as well as in the module singleton, so both handlers can
-    // ask "am I still the installed Worker?" — see `onerror` below.
-    const spawned = new Worker(brainWorkerUrl, { type: "module" });
-    worker = spawned;
-    if (primed.size > 0) postPrime(spawned, [...primed.values()]);
-    spawned.onmessage = (e: MessageEvent<BrainResponse>) => {
-        // A reply — even one carrying a search `error` — proves the script
-        // loaded and this Worker answers, so the failure count starts over.
-        failures = 0;
-        const entry = pending.get(e.data.id);
-        if (entry) {
-            pending.delete(e.data.id);
-            entry.resolve(fromResponse(e.data, "worker"));
-        }
-    };
-    spawned.onerror = (e) => {
-        // A STALE event must not tear down the healthy Worker that replaced
-        // this one. Two ways it happens: a runtime `error` does not terminate a
-        // Worker (the spec only fires the event), so a crashed-but-alive handle
-        // can fire again after it has been replaced; and React StrictMode's
-        // mount → cleanup → mount makes "the handle that fires is not the
-        // handle that is installed" ordinary rather than exotic. Without this
-        // the late event would null the singleton, terminate the LIVE Worker,
-        // spend a failure and record a breadcrumb for a Worker nobody is using.
-        if (worker !== spawned) return;
-        handleWorkerFailure(e);
-    };
-    return spawned;
-}
+/** How one Brain channel behaves (issue #9514). */
+export type BrainChannelOptions = {
+    /** How long a consult may run before it settles as `timeout`. */
+    consultTimeoutMs: number;
+    /** Whether a Worker failure nobody is waiting on is written to the Bot's
+     *  decision ring — the bug report's evidence of what the BOT saw. */
+    recordsToDecisionRing: boolean;
+    /** Whether an exhausted Worker hands its consults to the in-thread search
+     *  at {@link BRAIN_FALLBACK_BUDGET} (issue #3040) — a weak move beats a
+     *  pass for the Bot; a different budget is a different answer for the
+     *  judge. */
+    inlineFallback: boolean;
+    /** Whether a consult that times out takes its Worker with it, so the
+     *  search still running there cannot delay the channel's next consult
+     *  (issue #9514). The Bot keeps its Worker: its searches are wall-clock
+     *  capped well under the timeout, and a respawn would re-pay the shards'
+     *  install inside its next 5 s. */
+    abandonOnTimeout: boolean;
+};
 
-/** A Worker `error` event: the handle is dead, and before issue #3040 it stayed
- *  installed forever.
+/** One Brain: one Worker, its in-flight consults, its respawn budget and its
+ *  primed Manifest.
  *
- *  Terminate and clear it so the next `getWorker()` constructs a fresh one, and
- *  never leave the caller with a bare "no move" while another stage can still
- *  answer: with the spawn budget spent, the in-flight consults are re-run on
- *  this thread instead of being reported as a dead end. */
-function handleWorkerFailure(e: unknown): void {
-    const reason = describeWorkerFailure(e);
+ *  There is more than one because a Worker serves its requests ONE AT A TIME
+ *  in arrival order (`brain.worker.ts`), and a consult that times out is not
+ *  cancelled there: its search keeps the Worker busy and every later request
+ *  waits behind it. The game-end Verdict Proposal judge consults at an
+ *  iteration-only budget, and on a slow device each of its searches outlasted
+ *  the consult timeout; sharing the Bot's Worker, it left a backlog the next
+ *  game's Bot consults queued behind — every one timed out, the ladder passed
+ *  every window, and the Bot played one land in a whole game (issue #9514). A
+ *  consumer that is not the Bot's turn-by-turn play gets its own channel, so
+ *  nothing it queues can stand between the Bot and its next decision. */
+export type BrainChannel = {
+    warm: () => void;
+    prime: (entries: readonly DefinitionManifestEntry[]) => void;
+    consult: (
+        state: PublicGameState,
+        botId: string,
+        budget?: SearchBudget,
+        deckKnowledge?: DeckKnowledgeBySeat,
+        repetition?: RepetitionHistory,
+        seed?: number
+    ) => Promise<BrainResult>;
+    dispose: () => void;
+};
 
-    const dead = worker;
-    worker = null;
-    // Terminate AFTER dropping the reference: a throw from `terminate()` must
-    // not leave the dead singleton installed. `onerror` is detached first so a
-    // handle that fires again on its way out cannot re-enter here.
-    try {
-        if (dead) dead.onerror = null;
-        dead?.terminate();
-    } catch {
-        // A handle that cannot even be terminated is still gone from here.
+/** The Bot's own channel: the turn-by-turn consults of `useVsAiDriver`. */
+const BOT_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
+    consultTimeoutMs: BRAIN_CONSULT_TIMEOUT_MS,
+    recordsToDecisionRing: true,
+    inlineFallback: true,
+    abandonOnTimeout: false,
+});
+
+/** The game-end Verdict Proposal judge's channel (issue #9514). */
+export const JUDGE_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
+    consultTimeoutMs: JUDGE_CONSULT_TIMEOUT_MS,
+    recordsToDecisionRing: false,
+    inlineFallback: false,
+    abandonOnTimeout: true,
+});
+
+/** Build a Brain channel with its own Worker (issue #9514). */
+export function createBrainChannel(
+    options: Readonly<BrainChannelOptions>
+): BrainChannel {
+    let worker: Worker | null = null;
+    let nextId = 1;
+    const pending = new Map<number, InFlight>();
+    /** Worker failures since the last successful reply — see
+     *  {@link MAX_BRAIN_WORKER_FAILURES}. */
+    let failures = 0;
+    /** Set once the spawn budget is spent: every later consult goes in-thread. */
+    let exhausted = false;
+    /** Every Manifest entry primed this game, by definition id (issue #5617) —
+     *  re-posted to a FRESH Worker, which starts with nothing resident. */
+    const primed = new Map<string, DefinitionManifestEntry>();
+
+    function getWorker(): Worker | null {
+        if (typeof Worker === "undefined") return null;
+        // Out of respawns: the in-thread fallback owns the rest of this game. Fall
+        // through to `consult`'s `!w` branch rather than handing back a handle
+        // known to die (issue #3040) — that is what made every later consult pay
+        // the full consult timeout for nothing.
+        if (exhausted) return null;
+        if (worker) return worker;
+        // Held in a local as well as in the channel's `worker`, so both handlers can
+        // ask "am I still the installed Worker?" — see `onerror` below.
+        const spawned = new Worker(brainWorkerUrl, { type: "module" });
+        worker = spawned;
+        if (primed.size > 0) postPrime(spawned, [...primed.values()]);
+        spawned.onmessage = (e: MessageEvent<BrainResponse>) => {
+            // A reply — even one carrying a search `error` — proves the script
+            // loaded and this Worker answers, so the failure count starts over.
+            failures = 0;
+            const entry = pending.get(e.data.id);
+            if (entry) {
+                pending.delete(e.data.id);
+                entry.resolve(fromResponse(e.data, "worker"));
+            }
+        };
+        spawned.onerror = (e) => {
+            // A STALE event must not tear down the healthy Worker that replaced
+            // this one. Two ways it happens: a runtime `error` does not terminate a
+            // Worker (the spec only fires the event), so a crashed-but-alive handle
+            // can fire again after it has been replaced; and React StrictMode's
+            // mount → cleanup → mount makes "the handle that fires is not the
+            // handle that is installed" ordinary rather than exotic. Without this
+            // the late event would null the installed handle, terminate the LIVE Worker,
+            // spend a failure and record a breadcrumb for a Worker nobody is using.
+            if (worker !== spawned) return;
+            handleWorkerFailure(e);
+        };
+        return spawned;
     }
-    failures += 1;
-    if (failures >= MAX_BRAIN_WORKER_FAILURES) exhausted = true;
 
-    const inFlight = [...pending.values()];
-    pending.clear();
+    /** A Worker `error` event: the handle is dead, and before issue #3040 it stayed
+     *  installed forever.
+     *
+     *  Terminate and clear it so the next `getWorker()` constructs a fresh one, and
+     *  never leave the caller with a bare "no move" while another stage can still
+     *  answer: with the spawn budget spent, the in-flight consults are re-run on
+     *  this thread instead of being reported as a dead end. */
+    function handleWorkerFailure(e: unknown): void {
+        const reason = describeWorkerFailure(e);
 
-    // Who reports the failure? An in-flight consult settling as `worker-error`
-    // already carries it to the driver's breadcrumb ring. The two cases where
-    // nobody would are exactly where the failure used to vanish: the warm-up
-    // spawn (no consult pending at all) and the exhausting failure (whose
-    // consults now report the INLINE outcome instead). Record it here for
-    // those, so it reaches a bug report either way (issue #3040).
-    if (exhausted || inFlight.length === 0) {
-        recordWorkerFailure(
-            exhausted
-                ? `${reason} — out of respawns, falling back to the in-thread search`
-                : reason
-        );
+        const dead = worker;
+        worker = null;
+        // Terminate AFTER dropping the reference: a throw from `terminate()` must
+        // not leave the dead handle installed. `onerror` is detached first so a
+        // handle that fires again on its way out cannot re-enter here.
+        try {
+            if (dead) dead.onerror = null;
+            dead?.terminate();
+        } catch {
+            // A handle that cannot even be terminated is still gone from here.
+        }
+        failures += 1;
+        if (failures >= MAX_BRAIN_WORKER_FAILURES) exhausted = true;
+
+        const inFlight = [...pending.values()];
+        pending.clear();
+
+        // Who reports the failure? An in-flight consult settling as `worker-error`
+        // already carries it to the driver's breadcrumb ring. The two cases where
+        // nobody would are exactly where the failure used to vanish: the warm-up
+        // spawn (no consult pending at all) and the exhausting failure (whose
+        // consults now report the INLINE outcome instead). Record it here for
+        // those, so it reaches a bug report either way (issue #3040).
+        if (
+            options.recordsToDecisionRing &&
+            (exhausted || inFlight.length === 0)
+        ) {
+            recordWorkerFailure(
+                exhausted
+                    ? `${reason} — out of respawns, falling back to the in-thread search`
+                    : reason
+            );
+        }
+
+        for (const entry of inFlight) {
+            if (exhausted && options.inlineFallback) {
+                entry.resolve(
+                    runInline({
+                        ...entry.request,
+                        budget: clampToFallback(
+                            entry.request.budget ?? DEFAULT_BUDGET
+                        ),
+                    })
+                );
+            } else {
+                entry.resolve({
+                    move: null,
+                    trace: null,
+                    outcome: "worker-error",
+                    via: "worker",
+                    message: reason,
+                });
+            }
+        }
     }
 
-    for (const entry of inFlight) {
-        if (exhausted) {
-            entry.resolve(
+    function prime(entries: readonly DefinitionManifestEntry[]): void {
+        const fresh = entries.filter((e) => !primed.has(e.definitionId));
+        if (fresh.length === 0) return;
+        const running = worker;
+        for (const entry of fresh) primed.set(entry.definitionId, entry);
+        // A Worker spawned by this call is handed every primed entry at birth.
+        const w = getWorker();
+        if (w && w === running) postPrime(w, fresh);
+    }
+
+    function consult(
+        state: PublicGameState,
+        botId: string,
+        budget: SearchBudget = DEFAULT_BUDGET,
+        deckKnowledge?: DeckKnowledgeBySeat,
+        repetition?: RepetitionHistory,
+        /** A fixed seed, for a consult that must be reproducible (issue #3984's
+         *  game-end Verdict Proposal judge). Absent, the handler draws one. */
+        seed?: number
+    ): Promise<BrainResult> {
+        const w = getWorker();
+        if (!w) {
+            // No Worker: the SAME handler, on this thread. It reports a throw as
+            // `error` rather than propagating, so the inline path and the Worker
+            // path fail identically. Two ways to get here, and they differ only in
+            // the budget — a native non-Worker environment (SSR, tests) keeps the
+            // caller's, while the issue #3040 FALLBACK clamps it, because there it
+            // is the game's UI thread paying for the search.
+            const id = nextId++;
+            // A channel with no in-thread fallback (the judge's) settles an
+            // exhausted Worker as the failure it is: its fixed budget is what makes
+            // its answer reproducible, and a clamped search would be a different
+            // question answered silently.
+            if (exhausted && !options.inlineFallback) {
+                return Promise.resolve({
+                    move: null,
+                    trace: null,
+                    outcome: "worker-error",
+                    via: "worker",
+                    message: "Brain Worker out of respawns",
+                });
+            }
+            return Promise.resolve(
                 runInline({
-                    ...entry.request,
-                    budget: clampToFallback(
-                        entry.request.budget ?? DEFAULT_BUDGET
-                    ),
+                    id,
+                    state,
+                    botId,
+                    budget: exhausted ? clampToFallback(budget) : budget,
+                    deckKnowledge,
+                    repetition,
+                    ...(seed === undefined ? {} : { seed }),
                 })
             );
-        } else {
+        }
+
+        const id = nextId++;
+        const request: BrainRequest = {
+            id,
+            state,
+            botId,
+            budget,
+            deckKnowledge,
+            repetition,
+            ...(seed === undefined ? {} : { seed }),
+        };
+        return new Promise<BrainResult>((resolve) => {
+            // A consult ALWAYS settles (issue #2284) — see
+            // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
+            // pending entry and is dropped.
+            const timer = setTimeout(() => {
+                if (!pending.delete(id)) return;
+                resolve({
+                    move: null,
+                    trace: null,
+                    outcome: "timeout",
+                    via: "worker",
+                });
+                // The timed-out search is still running in `w`, and the Worker
+                // serves one request at a time: the next consult would queue
+                // behind it (issue #9514). A channel that abandons a timed-out
+                // Worker terminates it — once nothing else is waiting on it —
+                // so its next consult starts on a fresh one. Not a failure: the
+                // script loaded and answered before; the respawn budget is for
+                // Workers that die.
+                if (
+                    options.abandonOnTimeout &&
+                    worker === w &&
+                    pending.size === 0
+                ) {
+                    worker = null;
+                    try {
+                        w.onerror = null;
+                        w.terminate();
+                    } catch {
+                        // Gone from here either way.
+                    }
+                }
+            }, options.consultTimeoutMs);
+            pending.set(id, {
+                request,
+                resolve: (result) => {
+                    clearTimeout(timer);
+                    resolve(result);
+                },
+            });
+            w.postMessage(request);
+        });
+    }
+
+    function dispose(): void {
+        if (worker) {
+            worker.onerror = null;
+            worker.terminate();
+            worker = null;
+        }
+        // SETTLE what was in flight, do not just forget it. `pending.clear()` alone
+        // leaves the consult's own timeout unable to fire (`pending.delete(id)`
+        // returns false), so its promise never settles at all — and this file's
+        // standing invariant is that a consult ALWAYS settles (issue #2284). That
+        // was unreachable while `disposeBrain` had no caller in the app; wiring it
+        // to the driver's effect cleanup makes a dispose DURING a live consult an
+        // ordinary event (a rematch swaps the game on the same hook instance), and
+        // a promise that never settles there is a latch on the driver's in-flight
+        // guard and a stray mutation aimed at the game the player just left.
+        const inFlight = [...pending.values()];
+        pending.clear();
+        for (const entry of inFlight) {
             entry.resolve({
                 move: null,
                 trace: null,
                 outcome: "worker-error",
                 via: "worker",
-                message: reason,
+                message: "Brain disposed — the game was left or swapped",
             });
         }
+        failures = 0;
+        exhausted = false;
+        primed.clear();
     }
+
+    return { warm: () => void getWorker(), prime, consult, dispose };
 }
 
 /** Write a Worker failure into the decision ring a bug report carries.
@@ -350,131 +573,12 @@ function clampToFallback(requested: SearchBudget): SearchBudget {
     };
 }
 
-/**
- * Spawn the Worker now, so its own catalogue hydration is NOT charged to the
- * first consult (issue #3053).
- *
- * Since ADR 0113 §3 the Worker fetches the card catalogue in its own module
- * graph before it answers anything. `getWorker()` is lazy and was first
- * called from inside `consultBrain`, which put that fetch inside
- * {@link BRAIN_CONSULT_TIMEOUT_MS} together with the hardest search budget
- * (3,000 ms) — a cold HTTP cache would spend the first consult on the
- * download and settle it as `outcome: "timeout"`, i.e. the bot passing its
- * first window, while the constant's own comment still claimed it sat
- * "comfortably ABOVE the hardest search budget".
- *
- * Called on mount by `useVsAiDriver` whenever there is a bot seat, so the
- * Worker's script load overlaps the game's own setup; {@link primeBrain} then
- * hands it the shards to install. Since issue #5617 the Worker is a chunk of
- * the page's build, so both hit the browser cache the main thread already
- * filled from the same `immutable` URLs. Idempotent; safe where `Worker` is
- * undefined.
- *
- * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_SPAWNS}: a script
- * that cannot load fails here, with no consult pending, which is why that
- * failure has to be recorded rather than resolved (issue #3040).
- */
-export function warmBrain(): void {
-    getWorker();
-}
-
 function postPrime(
     target: Worker,
     entries: readonly DefinitionManifestEntry[]
 ): void {
     const message: BrainPrime = { kind: "prime", entries };
     target.postMessage(message);
-}
-
-/**
- * Hand the Worker its Manifest (issue #5617): the bot seat's Definition
- * Manifest entries (both maindecks, both companions, its sideboard). The
- * Worker installs those shards ahead of the consults that need
- * them, so the first consult does not pay for them inside
- * {@link BRAIN_CONSULT_TIMEOUT_MS}; a consult still installs whatever its own
- * state names before it searches. Only entries not yet posted travel;
- * idempotent; a no-op where there is no Worker (the in-thread path reads the
- * page's catalogue, which holds its Manifest already).
- */
-export function primeBrain(entries: readonly DefinitionManifestEntry[]): void {
-    const fresh = entries.filter((e) => !primed.has(e.definitionId));
-    if (fresh.length === 0) return;
-    const running = worker;
-    for (const entry of fresh) primed.set(entry.definitionId, entry);
-    // A Worker spawned by this call is handed every primed entry at birth.
-    const w = getWorker();
-    if (w && w === running) postPrime(w, fresh);
-}
-
-/** Ask the Brain to choose a move for `botId` from its projected `state`. The
- *  optional `budget` scales the search by the chosen difficulty (issue #114);
- *  omitted, it falls back to the default preset. `deckKnowledge` names which
- *  seats (if any) the search may know the real deck contents of (issue #2788);
- *  omitted, every seat is blind. */
-export function consultBrain(
-    state: PublicGameState,
-    botId: string,
-    budget: SearchBudget = DEFAULT_BUDGET,
-    deckKnowledge?: DeckKnowledgeBySeat,
-    repetition?: RepetitionHistory,
-    /** A fixed seed, for a consult that must be reproducible (issue #3984's
-     *  game-end Verdict Proposal judge). Absent, the handler draws one. */
-    seed?: number
-): Promise<BrainResult> {
-    const w = getWorker();
-    if (!w) {
-        // No Worker: the SAME handler, on this thread. It reports a throw as
-        // `error` rather than propagating, so the inline path and the Worker
-        // path fail identically. Two ways to get here, and they differ only in
-        // the budget — a native non-Worker environment (SSR, tests) keeps the
-        // caller's, while the issue #3040 FALLBACK clamps it, because there it
-        // is the game's UI thread paying for the search.
-        const id = nextId++;
-        return Promise.resolve(
-            runInline({
-                id,
-                state,
-                botId,
-                budget: exhausted ? clampToFallback(budget) : budget,
-                deckKnowledge,
-                repetition,
-                ...(seed === undefined ? {} : { seed }),
-            })
-        );
-    }
-
-    const id = nextId++;
-    const request: BrainRequest = {
-        id,
-        state,
-        botId,
-        budget,
-        deckKnowledge,
-        repetition,
-        ...(seed === undefined ? {} : { seed }),
-    };
-    return new Promise<BrainResult>((resolve) => {
-        // A consult ALWAYS settles (issue #2284) — see
-        // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
-        // pending entry and is dropped.
-        const timer = setTimeout(() => {
-            if (pending.delete(id))
-                resolve({
-                    move: null,
-                    trace: null,
-                    outcome: "timeout",
-                    via: "worker",
-                });
-        }, BRAIN_CONSULT_TIMEOUT_MS);
-        pending.set(id, {
-            request,
-            resolve: (result) => {
-                clearTimeout(timer);
-                resolve(result);
-            },
-        });
-        w.postMessage(request);
-    });
 }
 
 /** Classify a Brain response into the result the driver records. The search
@@ -502,39 +606,81 @@ function fromResponse(
     };
 }
 
+/** The Bot's Brain (issue #9514: the judge has its own). */
+const botBrain = createBrainChannel(BOT_CHANNEL);
+
+/**
+ * Spawn the Worker now, so its own catalogue hydration is NOT charged to the
+ * first consult (issue #3053).
+ *
+ * Since ADR 0113 §3 the Worker fetches the card catalogue in its own module
+ * graph before it answers anything. `getWorker()` is lazy and was first
+ * called from inside `consultBrain`, which put that fetch inside
+ * {@link BRAIN_CONSULT_TIMEOUT_MS} together with the hardest search budget
+ * (3,000 ms) — a cold HTTP cache would spend the first consult on the
+ * download and settle it as `outcome: "timeout"`, i.e. the bot passing its
+ * first window, while the constant's own comment still claimed it sat
+ * "comfortably ABOVE the hardest search budget".
+ *
+ * Called on mount by `useVsAiDriver` whenever there is a bot seat, so the
+ * Worker's script load overlaps the game's own setup; {@link primeBrain} then
+ * hands it the shards to install. The Worker is a chunk of the page's build,
+ * so both hit the browser cache the main thread already filled from the same
+ * `immutable` URLs. Idempotent; safe where `Worker` is undefined.
+ *
+ * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_FAILURES}: a script
+ * that cannot load fails here, with no consult pending, which is why that
+ * failure has to be recorded rather than resolved.
+ */
+export function warmBrain(): void {
+    botBrain.warm();
+}
+
+/**
+ * Hand the Worker its Manifest (issue #5617): the bot seat's Definition
+ * Manifest entries (both maindecks, both companions, its sideboard). The
+ * Worker installs those shards ahead of the consults that need
+ * them, so the first consult does not pay for them inside
+ * {@link BRAIN_CONSULT_TIMEOUT_MS}; a consult still installs whatever its own
+ * state names before it searches. Only entries not yet posted travel;
+ * idempotent; a no-op where there is no Worker (the in-thread path reads the
+ * page's catalogue, which holds its Manifest already).
+ */
+export function primeBrain(entries: readonly DefinitionManifestEntry[]): void {
+    botBrain.prime(entries);
+}
+
+/** Ask the Brain to choose a move for `botId` from its projected `state`. The
+ *  optional `budget` scales the search by the chosen difficulty (issue #114);
+ *  omitted, it falls back to the default preset. `deckKnowledge` names which
+ *  seats (if any) the search may know the real deck contents of (issue #2788);
+ *  omitted, every seat is blind. */
+export function consultBrain(
+    state: PublicGameState,
+    botId: string,
+    budget: SearchBudget = DEFAULT_BUDGET,
+    deckKnowledge?: DeckKnowledgeBySeat,
+    repetition?: RepetitionHistory,
+    /** A fixed seed, for a consult that must be reproducible (issue #3984's
+     *  game-end Verdict Proposal judge). Absent, the handler draws one. */
+    seed?: number
+): Promise<BrainResult> {
+    return botBrain.consult(
+        state,
+        botId,
+        budget,
+        deckKnowledge,
+        repetition,
+        seed
+    );
+}
+
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.
  *
  *  Also resets the respawn budget, which is what makes
- *  {@link MAX_BRAIN_WORKER_SPAWNS} a per-GAME cap rather than a per-tab one: a
+ *  {@link MAX_BRAIN_WORKER_FAILURES} a per-GAME cap rather than a per-tab one: a
  *  game that exhausted its Worker must not hand the next game in the same tab
  *  an already-dead Brain. */
 export function disposeBrain(): void {
-    if (worker) {
-        worker.onerror = null;
-        worker.terminate();
-        worker = null;
-    }
-    // SETTLE what was in flight, do not just forget it. `pending.clear()` alone
-    // leaves the consult's own timeout unable to fire (`pending.delete(id)`
-    // returns false), so its promise never settles at all — and this file's
-    // standing invariant is that a consult ALWAYS settles (issue #2284). That
-    // was unreachable while `disposeBrain` had no caller in the app; wiring it
-    // to the driver's effect cleanup makes a dispose DURING a live consult an
-    // ordinary event (a rematch swaps the game on the same hook instance), and
-    // a promise that never settles there is a latch on the driver's in-flight
-    // guard and a stray mutation aimed at the game the player just left.
-    const inFlight = [...pending.values()];
-    pending.clear();
-    for (const entry of inFlight) {
-        entry.resolve({
-            move: null,
-            trace: null,
-            outcome: "worker-error",
-            via: "worker",
-            message: "Brain disposed — the game was left or swapped",
-        });
-    }
-    failures = 0;
-    exhausted = false;
-    primed.clear();
+    botBrain.dispose();
 }
