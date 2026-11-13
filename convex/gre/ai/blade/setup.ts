@@ -953,6 +953,40 @@ function applyChoose(
     }
 }
 
+/** Issue #9148 — answer the head OPTION pick (an `option-pick`'s author ids,
+ *  never card names) through the search's own applier. See the step's doc in
+ *  `types.ts`. */
+function applyChooseOption(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "choose-option" }>
+): void {
+    const head = state.pendingChoices?.[0];
+    if (!head?.options?.some((o) => o.id === step.option)) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no pending choice offers the option "${step.option}".`
+        );
+    }
+    const answer: Move = {
+        kind: "resolution-choice",
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [step.option],
+    };
+    moveObserver?.(head.playerId, answer, state);
+    applyMoveInSearch(state, head.playerId, answer);
+    if (state.pendingChoices?.[0] === head) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the ${head.kind} choice rejected the answer and is still pending.`
+        );
+    }
+}
+
 function applyAnswerMayPay(
     state: GameState,
     label: string,
@@ -1116,6 +1150,9 @@ function applyBladeSetupSteps(
                 break;
             case "answer-may-pay":
                 applyAnswerMayPay(state, scenario.label, step);
+                break;
+            case "choose-option":
+                applyChooseOption(state, scenario.label, step);
                 break;
             case "submit-player-target":
                 applySubmitPlayerTarget(state, scenario.label, step);

@@ -54,6 +54,7 @@ import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import {
+    anyTargetChoicePool,
     choiceSpansAllBattlefields,
     choiceSpansAllGraveyards,
 } from "@convex/gre/zonePickEligibility";
@@ -441,6 +442,16 @@ function readChoiceZone(
     // seat a card, so no candidate is worth taking: the empty answer.
     if (head.kind === "choose-outside-game-card") {
         return ownerId === botId ? (owner.outsideGamePeek ?? []) : [];
+    }
+
+    // CR 115.1 / 601.2c (issue #9148) — "any target" (a free cast's target
+    // step, Word of Command, Cuombajj Witches): the allow-list names objects
+    // in ANY public zone — a permanent, a graveyard card, a spell on the
+    // stack — whatever `zone` the raise is labelled with. The SAME resolver
+    // the server enumerator uses; players are appended by
+    // `nonZoneChoiceCandidateIds`.
+    if (head.kind === "choose-damage-target") {
+        return anyTargetChoicePool(state, head.candidateIds);
     }
 
     let cards: SlimCardInstance[];

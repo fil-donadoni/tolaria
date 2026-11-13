@@ -402,6 +402,8 @@
             "opp": 3
         }
     },
+    "cast during resolution: Counterspell off Chandra counters the bigger spell": null,
+    "cast during resolution: Raise Dead off Chandra returns the best creature card": null,
     "cast permission: casts a creature for free under Aluren with no lands": {
         "cards": [
             {

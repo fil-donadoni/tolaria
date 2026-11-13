@@ -1066,7 +1066,9 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // the bot is the opponent picking where 1 damage lands. Minimal-legal
         // default (ADR 0016) — pick exactly `min` (=1) by lowest projected
         // value, so it tends to ping the least valuable target (a player or a
-        // small creature) rather than its own bomb. Smart targeting is deferred.
+        // small creature) rather than its own bomb. The FALLBACK, not the
+        // policy (issue #9148): the kind carries a candidate generator, so the
+        // search scores the target; this runs only when it yields nothing.
         case "choose-damage-target":
             return worstFirst(candidates)
                 .slice(0, min)
@@ -1602,6 +1604,18 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // candidate came back: keep the card hidden. Always legal, never
         // stalls, and discloses nothing.
         return { kind: "miracle-reveal", reveal: false };
+    }
+    if (
+        choice.kind === "choose-damage-target" &&
+        choice.candidates.length < choice.min
+    ) {
+        // CR 601.2c (issue #9148) — "any target" validates against its
+        // allow-lists alone (`submitDamageTargetPick`), so a pool too small to
+        // fill `min` would submit an answer the server throws on, and the
+        // `choice` ladder has no rung below this one. `none` surfaces the
+        // unanswerable window instead of looping on a rejected `[]` (the
+        // issue #2497 contract, as `name-card` above).
+        return NONE;
     }
     return {
         kind: "resolution-choice",

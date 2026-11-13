@@ -197,6 +197,13 @@ export type BladeSetupStep =
      *  expressible walk. Throws when the head choice is not a may-pay, or when
      *  the answer leaves it at the head. */
     | { kind: "answer-may-pay"; accept: boolean }
+    /** Answer the head OPTION pick with one of its option ids (an
+     *  `option-pick`'s author-supplied id — "cast" on a cast-during-resolution
+     *  offer, CR 608.2g), through the search's own applier. Issue #9148: the
+     *  free cast's TARGET pick sits behind its Cast / Decline offer, and
+     *  `choose` names cards, never options. Throws when no pending choice
+     *  offers that id, or when the answer leaves it at the head. */
+    | { kind: "choose-option"; option: string }
     /** Submit an engine-raised target selection (a spell copy's retarget,
      *  CR 707.10c) naming a seat, through the search's own applier, for the
      *  seat it is owed to. Throws when no selection is pending, or when that

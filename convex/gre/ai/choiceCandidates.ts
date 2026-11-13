@@ -3046,6 +3046,92 @@ const pickSourceCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+/** `choose-damage-target` (CR 115.1 / CR 601.2c), issue #9148 — ONE target
+ *  for a spell the chooser casts mid-resolution (`castDuringResolution`'s
+ *  target step: cascade, Etali, Crabomination), for the spell Word of Command
+ *  makes its controller cast, or the opponent's "any target" pick (Cuombajj
+ *  Witches). With no generator the pick was no decision node: the Bot fell to
+ *  the minimal-legal worst-first default over a pool that held battlefield
+ *  permanents only, so a graveyard or stack target left it nothing to submit.
+ *
+ *  The pool is `eligibleZonePickCards` (the allow-list resolved across every
+ *  public zone, the authority the submit path validates against) plus the
+ *  `candidatePlayerIds`. One singleton per candidate — the answer is exactly
+ *  one target — and the search scores the cast that follows each. Ownership
+ *  only orders the `CHOICE_TOP_K` budget (opponents first, players before
+ *  objects), it never filters. Identity carries the zone: a graveyard card
+ *  and a permanent of one name are different answers, a spell keys on its
+ *  stack position. No `hint`: picking a target gives up no material. */
+const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
+    state,
+    choice
+) => {
+    const chooserId = choice.playerId;
+    const side = (mine: boolean) => (mine ? "mine" : "theirs");
+    const onBattlefield = (id: string) =>
+        state.players.some((p) => p.battlefield.some((c) => c.id === id));
+    type Answer = { id: string; mine: boolean; identity: string };
+    const objectAnswer = (card: CardInstanceState): Answer => {
+        const stackIndex = state.stack.findIndex((s) => s.id === card.id);
+        if (stackIndex >= 0 && !onBattlefield(card.id)) {
+            const mine = card.controllerId === chooserId;
+            return {
+                id: card.id,
+                mine,
+                identity: `spell@${stackIndex} ${side(mine)}:${stableCardIdentity(card)}`,
+            };
+        }
+        for (const zone of ["graveyard", "exile"] as const) {
+            const owner = state.players.find((p) =>
+                p[zone].some((c) => c.id === card.id)
+            );
+            if (owner) {
+                const mine = owner.id === chooserId;
+                return {
+                    id: card.id,
+                    mine,
+                    identity: `${zone} ${side(mine)}:${stableCardIdentity(card)}`,
+                };
+            }
+        }
+        return {
+            id: card.id,
+            mine: card.controllerId === chooserId,
+            identity: sidedPickIdentity(state, card, chooserId),
+        };
+    };
+    const players: Answer[] = (choice.candidatePlayerIds ?? []).map((id) => ({
+        id,
+        mine: id === chooserId,
+        identity: `player:${side(id === chooserId)}`,
+    }));
+    const objects = eligibleZonePickCards(state, choice).map(objectAnswer);
+    const ordered = [
+        ...players.filter((a) => !a.mine),
+        ...objects.filter((a) => !a.mine),
+        ...players.filter((a) => a.mine),
+        ...objects.filter((a) => a.mine),
+    ];
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<string>();
+    for (const { id, identity } of ordered) {
+        if (out.length >= CHOICE_TOP_K) break;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        out.push({
+            key: `choose-damage-target:${identity}`,
+            move: {
+                kind: "resolution-choice",
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: [id],
+            },
+        });
+    }
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -3117,6 +3203,9 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // generator the settle stopped at the source pick and never scored the
     // shield the Circle of Protection buys.
     "pick-source": pickSourceCandidates,
+    // CR 601.2c (issue #9148) — see `chooseDamageTargetCandidates`: the free
+    // cast's target, scored by the search instead of a worst-first default.
+    "choose-damage-target": chooseDamageTargetCandidates,
     // CR 201.4 (issue #8709) — a name the effect seeks in the chooser's own
     // library; see `librarySoughtNameCandidates`. Every other name window
     // declines (`CHOICE_GENERATOR_APPLIES`) and keeps `forcedChoiceAnswer`.
