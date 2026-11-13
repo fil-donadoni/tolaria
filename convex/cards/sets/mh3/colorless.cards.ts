@@ -381,6 +381,28 @@ export const uginsLabyrinth = defineCard(() => ({
                     1
                 );
             },
+            // AI shadow script (never executed, valued by `OP_VALUERS` only):
+            // the exile of one hand card the resolve() above performs; the
+            // colorless / mana value 7 filter is not an `EffectCardFilter` field.
+            aiEffects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Exile a colorless card with mana value 7 or greater from your hand.",
+                    bind: "$imprinted",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$imprinted" },
+                    player: "controller",
+                    from: "hand",
+                    to: "exile",
+                    linkToSource: true,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
