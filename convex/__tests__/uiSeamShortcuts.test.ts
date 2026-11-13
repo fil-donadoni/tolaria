@@ -176,10 +176,18 @@ describe("uiSeam shortcut handlers — the paths that write nothing (issue #9272
     it("saveLimitedFixtureDeck keeps the seat's existing deck instead of saving a second", async () => {
         const ctx = laneCtx({
             limitedEvents: [event],
+            // Listed first, each matching the seat on ONE of the two keys:
+            // the lookup must hold both, account and seat.
             userDecks: [
                 {
-                    _id: "deckOther",
+                    _id: "deckOtherAccountSameSeat",
                     userId: OTHER,
+                    limitedEventId: "event1",
+                    limitedSeatId: "0",
+                },
+                {
+                    _id: "deckSameAccountOtherSeat",
+                    userId: LANE,
                     limitedEventId: "event1",
                     limitedSeatId: "1",
                 },
