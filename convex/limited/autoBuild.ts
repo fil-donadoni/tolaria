@@ -139,16 +139,15 @@ export type GetAutoBuildCardMeta = (
  *  (`makeResolveBasicLand`, `convex/limited/resolveBasicLand.ts`). */
 export type ResolveBasicLand = (color: TrueColor) => DeckCard;
 
-/** A completed Auto-Build (issue #1115): the playable Maindeck + the rest of
- *  the Pool as Sideboard (ADR 0055's "whole Pool travels with the deck" MTGO
- *  model), plus the chosen colors (for a compact "R/G" label — the only
- *  spoiler the vs-AI hookup UI shows; the full decklist is never rendered
- *  ahead of a Match, PRD #1107 story 26's full pool REVEAL is issue #1116,
- *  out of this issue's scope).
+/** A completed Auto-Build: the playable Maindeck + the rest of the Pool as
+ *  Sideboard (ADR 0055's "whole Pool travels with the deck" MTGO model),
+ *  plus the chosen colors (for a compact "R/G" label — the only spoiler the
+ *  vs-AI hookup UI shows; the full decklist is never rendered ahead of a
+ *  Match).
  *
- *  `colors` is a LIST, not a pair (issue #1615): one to five colours, the
- *  count a consequence of the Pool's fixing (issue #9336), heaviest pip
- *  demand first. */
+ *  `colors` is a LIST, not a pair: one to five colours, the count a
+ *  consequence of the Pool's fixing (issue #9336), heaviest pip demand
+ *  first. */
 export interface AutoBuiltDeck {
     cards: DeckCard[];
     sideboard: DeckCard[];

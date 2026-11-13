@@ -251,12 +251,8 @@ export type DraftAuditFloors = Partial<Record<FloorMetric, number>>;
 /** Floors per scope, rounded DOWN to two decimals from a measured run on
  *  `1..DEFAULT_AUDIT_SEEDS`. First set from the baseline before any build
  *  change (`docs/research/draft-table-audit-baseline.md`), then re-set after
- *  the Auto-Build fixes of issue #8897
- *  (`docs/research/draft-table-audit-build-fixes.md`), then after the
- *  plan-first build of issue #8898
- *  (`docs/research/draft-table-audit-plan-first.md`), then after the
- *  castable-value colour choice of issue #9336
- *  (`docs/research/draft-table-audit-castable-value.md`): tightened where the
+ *  each build change measured in `docs/research/draft-table-audit-*.md`
+ *  (build fixes, plan-first, castable value): tightened where the
  *  build improved, loosened where it traded against the metric — each
  *  loosening says why below. None may loosen without saying why. A scope
  *  with no profiles declares no plan or Capability Floor. */
