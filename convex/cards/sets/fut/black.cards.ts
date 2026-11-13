@@ -7,9 +7,9 @@ import { cyclingLifeAbility } from "../../abilities/cycling";
 // being life, CR 119.4). The life-cost cycling template is `cyclingLifeAbility`.
 // hand-tail: Cycling—Pay 2 life. (#8634)
 export const streetWraith = defineCard(() => ({
-    id: "bd7867f4-4f58-49c2-9c24-a124dfdb506d",
+    id: "672e2815-bbcc-4338-a8ba-9aa97142ea69",
     name: "Street Wraith",
-    rarity: "common",
+    rarity: "uncommon",
     oracleText:
         "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nCycling—Pay 2 life. (Pay 2 life, Discard this card: Draw a card.)",
     manaCost: { X: 3, B: 2 },

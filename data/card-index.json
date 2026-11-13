@@ -78910,6 +78910,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Street Wraith",
+        "scryfallId": "672e2815-bbcc-4338-a8ba-9aa97142ea69",
+        "oracleId": "bd7867f4-4f58-49c2-9c24-a124dfdb506d",
+        "firstSet": "fut",
+        "firstPrintId": "672e2815-bbcc-4338-a8ba-9aa97142ea69",
+        "firstPrintSet": "fut"
+    },
+    {
         "name": "Streetbreaker Wurm",
         "scryfallId": "d5313054-91a5-401c-84d1-03a2cd265060",
         "oracleId": "38bdb4f8-012e-460c-ad20-e51bec1e6745",
