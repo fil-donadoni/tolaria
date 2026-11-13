@@ -14,21 +14,37 @@
 //     from the stored decisions;
 //   - storage that throws on read and write changes nothing;
 //   - a capture for another game drops the previous game's stored decisions.
+//
+// And where the game-end judge runs (issue #9528): through the server action,
+// one call per sampled decision, never a Brain on this device — and a call the
+// server refuses or that fails costs that decision, not the game-end path.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+    type Mock,
+} from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
     tick: { gameOver: true } as Record<string, unknown> | null,
-    /** The judge channel's consult — what the game-end judge must call. */
-    consultBrain: null as unknown as ReturnType<typeof vi.fn>,
-    /** The Bot's own consult: the judge must never reach it (issue #9514). */
-    botConsult: null as unknown as ReturnType<typeof vi.fn>,
-    channels: [] as Array<{ options: unknown; disposed: boolean }>,
+    /** The server judge action — what the game-end judge must call. */
+    action: null as unknown as Mock<(...args: unknown[]) => Promise<unknown>>,
+    /** Every export of the client Brain: the judge must reach none. */
+    brain: {} as Record<string, ReturnType<typeof vi.fn>>,
+    /** Workers constructed: the judge must spawn none. */
+    workers: 0,
 }));
 
 vi.mock("convex/react", () => {
-    const client = { mutation: () => Promise.resolve(null) };
+    const client = {
+        mutation: () => Promise.resolve(null),
+        action: (...args: unknown[]) => h.action(...args),
+    };
     return {
         useConvex: () => client,
         useQuery: () => ({ nickname: "Tessa", isTester: true }),
@@ -43,6 +59,7 @@ vi.mock("@convex/_generated/api", () => ({
             getSeatDeckKnowledge: "gameReads:getSeatDeckKnowledge",
             getSeatDeck: "gameReads:getSeatDeck",
         },
+        verdictJudge: { judgePosition: "verdictJudge:judgePosition" },
     },
 }));
 vi.mock("~/hooks/useResilientQuery", () => ({
@@ -56,31 +73,13 @@ vi.mock("~/hooks/useResilientQuery", () => ({
     }),
 }));
 vi.mock("~/lib/ai/brain-client", () => {
-    h.consultBrain = vi.fn(async () => ({
-        outcome: "move",
-        move: { kind: "pass" },
-    }));
-    h.botConsult = vi.fn(async () => ({
-        outcome: "move",
-        move: { kind: "pass" },
-    }));
-    const JUDGE_CHANNEL = { judge: true };
-    return {
-        consultBrain: h.botConsult,
-        JUDGE_CHANNEL,
-        createBrainChannel: (options: unknown) => {
-            const channel = { options, disposed: false };
-            h.channels.push(channel);
-            return {
-                warm: () => {},
-                prime: () => {},
-                consult: h.consultBrain,
-                dispose: () => {
-                    channel.disposed = true;
-                },
-            };
-        },
-    };
+    Object.assign(h.brain, {
+        consultBrain: vi.fn(),
+        warmBrain: vi.fn(),
+        primeBrain: vi.fn(),
+        disposeBrain: vi.fn(),
+    });
+    return h.brain;
 });
 
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
@@ -89,6 +88,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import type { PublicGameState } from "@convex/gameProjections";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { Id } from "@convex/_generated/dataModel";
+import { ConvexError } from "convex/values";
 import {
     captureHumanDecision,
     clearHumanCapture,
@@ -236,19 +236,43 @@ function renderGameOver(human: string, bot: string) {
 
 let storage: ReturnType<typeof memoryStorage>;
 
+/** The server's answer to one position: a pass, as the judge returns it. */
+const PASS_ANSWER = {
+    move: { kind: "pass" },
+    outcome: "move",
+    searchMs: 120,
+};
+
 beforeEach(() => {
     storage = memoryStorage();
     setProposalStorageForTest(storage);
     h.tick = { gameOver: true };
-    h.consultBrain.mockClear();
-    h.botConsult.mockClear();
-    h.channels.length = 0;
+    h.action = vi.fn(async () => PASS_ANSWER);
+    for (const fn of Object.values(h.brain)) fn.mockClear();
+    h.workers = 0;
+    vi.stubGlobal(
+        "Worker",
+        class {
+            constructor() {
+                h.workers += 1;
+            }
+        }
+    );
 });
 
 afterEach(() => {
     reload();
     setProposalStorageForTest(undefined);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
 });
+
+/** The `verdict proposals` counts line the game-end path reported. */
+function countsLines(info: ReturnType<typeof vi.spyOn>): unknown[] {
+    return info.mock.calls
+        .filter((c: unknown[]) => c[0] === "verdict proposals")
+        .map((c: unknown[]) => c[1]);
+}
 
 describe("issue #8889 — the capture resumes across a reload", () => {
     it("decisions before and after a reload are one capture, sampled as with no reload", async () => {
@@ -335,22 +359,81 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         await screen.findByRole("button", {
             name: "Review your decisions (1)",
         });
-        expect(h.consultBrain).toHaveBeenCalled();
+        expect(h.action).toHaveBeenCalled();
     });
 
-    it("judges on a Brain channel of its own, never the Bot's, and closes it (issue #9514)", async () => {
+    it("judges through the server action, never a Brain on this device (issue #9528)", async () => {
         const { human, bot } = await captureLandDrop();
         renderGameOver(human, bot);
         await screen.findByRole("button", {
             name: "Review your decisions (1)",
         });
-        expect(h.consultBrain).toHaveBeenCalled();
-        expect(h.botConsult).not.toHaveBeenCalled();
-        await waitFor(() =>
-            expect(h.channels).toEqual([
-                { options: { judge: true }, disposed: true },
-            ])
+        expect(h.action).toHaveBeenCalledTimes(1);
+        expect(h.action).toHaveBeenCalledWith(
+            "verdictJudge:judgePosition",
+            expect.objectContaining({
+                gameId: GAME,
+                botId: human,
+                iterations: VERDICT_PROPOSAL_CONFIG.iterations,
+                seed: VERDICT_PROPOSAL_CONFIG.seed,
+            })
         );
+        for (const [name, fn] of Object.entries(h.brain)) {
+            expect(fn, name).not.toHaveBeenCalled();
+        }
+        expect(h.workers).toBe(0);
+    });
+
+    it.each([
+        [
+            "judge.server-rejected",
+            new ConvexError("This game has no judge positions left."),
+        ],
+        ["judge.server-error", new Error("network down")],
+    ])(
+        "a call that throws costs the decision, not the game-end path: %s (issue #9528)",
+        async (counter, cause) => {
+            const info = vi.spyOn(console, "info").mockImplementation(() => {});
+            h.action = vi.fn(async () => {
+                throw cause;
+            });
+            const { human, bot } = await captureLandDrop();
+            renderGameOver(human, bot);
+            await waitFor(() =>
+                expect(getVerdictProposals(GAME)).not.toBeNull()
+            );
+            expect(h.action).toHaveBeenCalledTimes(1);
+            expect(getVerdictProposals(GAME)).toMatchObject({
+                proposals: [],
+                captured: 1,
+                unjudged: 1,
+            });
+            expect(countsLines(info)).toEqual([
+                expect.objectContaining({
+                    gameId: GAME,
+                    proposals: 0,
+                    unjudged: 1,
+                    [counter]: 1,
+                }),
+            ]);
+        }
+    );
+
+    it("the counts line carries the server's search time and the round trip (issue #9528)", async () => {
+        const info = vi.spyOn(console, "info").mockImplementation(() => {});
+        const { human, bot } = await captureLandDrop();
+        renderGameOver(human, bot);
+        await screen.findByRole("button", {
+            name: "Review your decisions (1)",
+        });
+        await waitFor(() => expect(countsLines(info)).toHaveLength(1));
+        const [line] = countsLines(info) as Record<string, number>[];
+        expect(line).toMatchObject({
+            "judge.move": 1,
+            "judge.serverMs.p50": 120,
+            "judge.serverMs.max": 120,
+        });
+        expect(line["judge.roundTripMs.max"]).toBeGreaterThanOrEqual(0);
     });
 
     it("a list built before the reload is offered again with the same count, the Brain not consulted again", async () => {
@@ -360,7 +443,7 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         await screen.findByRole("button", {
             name: "Review your decisions (1)",
         });
-        const consults = h.consultBrain.mock.calls.length;
+        const consults = h.action.mock.calls.length;
         expect(consults).toBeGreaterThan(0);
 
         reload();
@@ -369,8 +452,6 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         await screen.findByRole("button", {
             name: "Review your decisions (1)",
         });
-        await waitFor(() =>
-            expect(h.consultBrain.mock.calls.length).toBe(consults)
-        );
+        await waitFor(() => expect(h.action.mock.calls.length).toBe(consults));
     });
 });
