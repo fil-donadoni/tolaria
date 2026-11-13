@@ -3165,7 +3165,7 @@ export type PendingCast = {
          *  tactical); `max` is min(eligible graveyard cards, generic remaining
          *  after CR 601.2f reductions). Built by `buildDelveExileChoice`
          *  (`gre/payWith.ts`). Undefined for every non-delve exile cost. */
-        offsetGeneric?: { min: number; max: number };
+        offsetGeneric?: { min: number; max: number; perCard?: number };
         /** CR 118.9 / 601.2h — a POSITIONAL exile cost with no payer pick: an
          *  alternative cost's `CostLegs.graveyard` exile leg ("exile the top
          *  three black cards of your graveyard"). When set, the cards paid are

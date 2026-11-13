@@ -188,3 +188,31 @@ export const theWanderingEmperor = defineCard(() => ({
         },
     ],
 }));
+
+// March of Otherworldly Light — {X}{W} Instant. "As an additional cost to cast
+// this spell, you may exile any number of white cards from your hand. This
+// spell costs {2} less to cast for each card exiled this way.\nExile target
+// artifact, creature, or enchantment with mana value X or less."
+//
+// The cost clause is `handExileCostReduction` (CR 601.2b / 601.2f / 118.8): an
+// optional additional cost paid through the `payWith` picker (`gre/payWith.ts`,
+// the variable-offset mode Delve shares), each exiled white card paying {2} of
+// the GENERIC cost (the announced X) and never the {W} pip. The target ceiling
+// is `mvFilter.max: "X"` — the announced X, not the reduced mana paid.
+// hand-tail: As an additional cost to cast this spell, you may exile any number of white cards from your hand. This spell costs {2} less to cast for each card exiled this way. (#8625)
+export const marchOfOtherworldlyLight = defineCard(() => ({
+    id: "553fb946-2706-475b-89f9-e4355ec9ea2b", // NEO 28
+    name: "March of Otherworldly Light",
+    rarity: "rare",
+    oracleText:
+        "As an additional cost to cast this spell, you may exile any number of white cards from your hand. This spell costs {2} less to cast for each card exiled this way.\nExile target artifact, creature, or enchantment with mana value X or less.",
+    manaCost: { X: "X", W: 1 },
+    types: ["Instant"],
+    handExileCostReduction: { color: "W", perCard: 2 },
+    targetRequirement: {
+        type: ["Artifact", "Creature", "Enchantment"],
+        count: 1,
+        mvFilter: { max: "X" },
+    },
+    effects: [{ op: "exile", target: { target: 0 } }],
+}));

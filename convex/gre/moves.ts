@@ -170,10 +170,10 @@ import {
 import {
     applyGenericOffset,
     consumeColoredAndHybridPips,
-    delveEligibleCards,
+    genericFuelCards,
+    genericFuelOf,
     genericPortion,
     greedyDistinctColorMatch,
-    spellHasDelve,
 } from "./payWith";
 import {
     PHYREXIAN_LIFE_PER_PIP,
@@ -4526,8 +4526,9 @@ function enumerateCastMovesFromZone(
             // enumerator that discounted the cost anyway would build a tap plan
             // short of what the server charges and park the announcement
             // unpayable (issue #2980 review, F1).
+            const payWithFuel = genericFuelOf(card);
             const delveFuel =
-                spellHasDelve(card) &&
+                payWithFuel &&
                 !castExileCostOccupiesPayWithSlot(
                     state,
                     player,
@@ -4541,23 +4542,27 @@ function enumerateCastMovesFromZone(
                         chosenX: x,
                     }
                 )
-                    ? delveEligibleCards(player, card.id).length
+                    ? genericFuelCards(player, card).length
                     : 0;
-            if (delveFuel > 0) {
+            if (payWithFuel && delveFuel > 0) {
                 const shortfall = genericManaShortfall(
                     player,
                     card,
                     normCost,
                     state
                 );
-                applyGenericOffset(
-                    normCost,
-                    Math.min(
-                        delveFuel,
-                        genericPortion(normCost),
-                        Number.isFinite(shortfall) ? shortfall : 0
+                // CR 601.2f — a card pays `perCard` generic points, so the
+                // forced exile count is the shortfall rounded UP to whole cards.
+                const forcedCards = Math.min(
+                    delveFuel,
+                    Math.ceil(
+                        Math.min(
+                            genericPortion(normCost),
+                            Number.isFinite(shortfall) ? shortfall : 0
+                        ) / payWithFuel.perCard
                     )
                 );
+                applyGenericOffset(normCost, forcedCards * payWithFuel.perCard);
             }
             const castCostPicks = withKickerEvidencePicks(
                 exilePlanDependsOnX
