@@ -18351,7 +18351,11 @@ export function buildSpellContext(
             state.damageUnpreventableThisTurn = true;
         },
 
-        restrictSpellCasting(playerId: string, cardTypes?: CardType[]): void {
+        restrictSpellCasting(
+            playerId: string,
+            cardTypes?: CardType[],
+            excludeCardTypes?: CardType[]
+        ): void {
             // CR 601.3a — mark `playerId` unable to cast spells for the rest of
             // this turn (Xantid Swarm: "defending player can't cast spells this
             // turn"; Abeyance passes `cardTypes: ["Instant", "Sorcery"]` to
@@ -18359,12 +18363,34 @@ export function buildSpellContext(
             // per player+cardTypes shape; cleared unconditionally at CLEANUP
             // (CR 514.2).
             const list = state.cannotCastSpellsThisTurn ?? [];
-            const already = list.find((e) => e.playerId === playerId);
-            if (!already) {
-                list.push({ playerId, cardTypes });
-            } else if (cardTypes === undefined) {
+            // A "noncreature" lock (`excludeCardTypes`) is its own entry: it
+            // covers a different class than an instant/sorcery one, so two
+            // narrow shapes for one player coexist (CR 601.3a).
+            const sameShape = (a?: CardType[], b?: CardType[]) =>
+                (a ?? []).slice().sort().join() ===
+                (b ?? []).slice().sort().join();
+            const blanket = list.some(
+                (e) =>
+                    e.playerId === playerId &&
+                    !e.cardTypes &&
+                    !e.excludeCardTypes
+            );
+            if (cardTypes === undefined && excludeCardTypes === undefined) {
                 // A blanket (all-spells) lock always wins over a narrower one.
-                already.cardTypes = undefined;
+                state.cannotCastSpellsThisTurn = [
+                    ...list.filter((e) => e.playerId !== playerId),
+                    { playerId },
+                ];
+                return;
+            }
+            const dup = list.some(
+                (e) =>
+                    e.playerId === playerId &&
+                    sameShape(e.cardTypes, cardTypes) &&
+                    sameShape(e.excludeCardTypes, excludeCardTypes)
+            );
+            if (!blanket && !dup) {
+                list.push({ playerId, cardTypes, excludeCardTypes });
             }
             state.cannotCastSpellsThisTurn = list;
         },

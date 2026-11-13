@@ -113,6 +113,7 @@ export interface CastRestrictionStateView extends SplitSecondStackView {
     cannotCastSpellsThisTurn?: ReadonlyArray<{
         playerId: string;
         cardTypes?: readonly CardType[];
+        excludeCardTypes?: readonly CardType[];
     }>;
     /** CR 702.50b — game-long player locks. The epic one forbids every spell;
      *  it survives the projection like the turn lock above. */
@@ -392,15 +393,20 @@ export function castProhibitionReason(
     // set by an effect and cleared at CLEANUP (CR 514.2), so it is checked
     // directly rather than via a battlefield scan. Lands are unaffected —
     // rules.ts only calls this on the spell-cast path, never on land plays.
-    const lock = state.cannotCastSpellsThisTurn?.find(
+    // Several narrow locks can stand on one player (instant/sorcery AND
+    // noncreature), so every entry is read, not the first.
+    const locks = state.cannotCastSpellsThisTurn?.filter(
         (e) => e.playerId === casterId
     );
-    if (lock) {
+    if (locks?.length) {
         const printedTypes = CAST_RESTRICTION_CTX.getPrintedTypes(spell);
-        if (
-            !lock.cardTypes ||
-            lock.cardTypes.some((t) => printedTypes.includes(t))
-        ) {
+        const covered = locks.some(
+            (lock) =>
+                (!lock.cardTypes ||
+                    lock.cardTypes.some((t) => printedTypes.includes(t))) &&
+                !lock.excludeCardTypes?.some((t) => printedTypes.includes(t))
+        );
+        if (covered) {
             return "That player can't cast spells this turn.";
         }
     }
