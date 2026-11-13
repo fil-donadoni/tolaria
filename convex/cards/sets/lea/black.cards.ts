@@ -27,6 +27,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { makeLace } from "./white.cards";
+import { announceResolveTimeCastTargets } from "../../../gre/effects/resolveTimeCastTargets";
 
 // Animate Dead — "Enchant creature card in a graveyard. Return enchanted
 // creature card to the battlefield under your control and attach Animate Dead
@@ -1679,64 +1680,31 @@ export const wordOfCommand = defineCard(() => ({
             additionalSacrificeIds = pickedSac;
         }
 
-        // TARGETED spell (#578, CR 601.2c) — the Acting Player chooses the
-        // targets. For a MODAL spell the active requirement is the chosen
-        // mode's (CR 700.2d); otherwise the card-level one. The legal candidate
-        // set comes from `getLegalTargetsForCard`, which reuses `getLegalTargets`
-        // exactly as a normal cast does, with the controlled opponent as the
-        // spell's caster (CR 601). For an "any target" spell (Lightning Bolt)
-        // that places no restriction, so the controller may aim the opponent's
-        // Bolt at the opponent themselves — the classic Word of Command line.
-        // No legal targets → the spell is NOT played ("if able", CR 601.2c).
-        const targetReq = chosenModeId
-            ? ctx.getCardModeTargetRequirement(
-                  opponentId,
-                  chosenId,
-                  chosenModeId,
-                  faceId
-              )
-            : ctx.getCardTargetRequirement(opponentId, chosenId, faceId);
-        let chosenTargets: TargetSelection[] | undefined;
-        if (targetReq) {
-            // This slice supports single-target spells (count 1); multi-target
-            // casts route their extra picks in a later slice.
-            const legal = ctx.getLegalTargetsForCard(
-                opponentId,
-                chosenId,
-                targetReq,
-                faceId
-            );
-            if (legal.length === 0) return; // no legal target — not played
-
-            // Route the target pick to the Acting Player (controller). The
-            // candidate set is split into permanent/spell instance ids
-            // (`candidateIds`) and player ids (`candidatePlayerIds`) so the
-            // `choose-damage-target` validator accepts either kind, mirroring an
-            // "any target" pick (CR 115.4) — Lightning Bolt's exact shape.
-            const candidatePlayerIds = legal
-                .filter((t) => t.type === "player")
-                .map((t) => t.id);
-            const candidateIds = legal
-                .filter((t) => t.type !== "player")
-                .map((t) => t.id);
-            const pickedTarget = ctx.requestChoice({
-                playerId: controllerId,
-                choiceId: `${controllerId}:target`,
-                actingPlayerId: controllerId,
-                kind: "choose-damage-target",
-                zone: "battlefield",
-                count: 1,
-                candidateIds,
-                candidatePlayerIds,
-                prompt: "Choose a target for the opponent's spell.",
-            });
-            if (pickedTarget === undefined) return; // suspend — resume on submit
-            const pickedId = pickedTarget[0];
-            if (!pickedId) return;
-            const selected = legal.find((t) => t.id === pickedId);
-            if (!selected) return; // pick no longer legal (CR 608.2b)
-            chosenTargets = [selected];
-        }
+        // TARGETED spell (#578, CR 601.2c) — the Acting Player announces
+        // every target the spell requires, group by group (issue #9536): for a
+        // MODAL spell the chosen mode's requirement (CR 700.2d), otherwise the
+        // card-level one, then each `additionalTargetRequirements` group. The
+        // candidates are the ones a normal cast offers, with the controlled
+        // opponent as the spell's caster (CR 601): for an "any target" spell
+        // (Lightning Bolt) that places no restriction, so the controller may
+        // aim the opponent's Bolt at the opponent themselves — the classic
+        // Word of Command line. A required target with no legal choice → the
+        // spell is NOT played ("if able", CR 601.2c).
+        const announced = announceResolveTimeCastTargets(ctx, {
+            chooserId: controllerId,
+            casterId: opponentId,
+            cardInstanceId: chosenId,
+            modeId: chosenModeId,
+            alternativeCostId: faceId,
+            chosenX,
+            choiceId: `${controllerId}:target`,
+            actingPlayerId: controllerId,
+            subject: "the opponent's spell",
+        });
+        if (announced === "suspend") return; // suspend — resume on submit
+        if (announced === "unfillable" || announced === "abort") return;
+        const chosenTargets: TargetSelection[] | undefined =
+            announced.length > 0 ? announced : undefined;
 
         // `castChosenSpell` handles mana payment (including X) + the additional
         // sacrifice + stack placement + cast triggers, and is a no-op (returns

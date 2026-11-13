@@ -8540,7 +8540,7 @@ export interface SpellContext {
      *
      *  For a TARGETED spell (CR 601.2c) the Acting Player's chosen targets are
      *  passed in via `opts.targets` and written onto the resulting `StackItem`;
-     *  the caller is responsible for choosing them from `getLegalTargetsForCard`
+     *  the caller is responsible for choosing them from `getCastTargetSlot`
      *  (Word of Command — the controller aims the opponent's spell).
      *
      *  X / modal / additional-cost casts (CR 107.3 / 700.2c / 118.8, #579) ride
@@ -8610,16 +8610,6 @@ export interface SpellContext {
         cardInstanceId: string,
         alternativeCostId?: string
     ) => { id: string; label: string }[];
-    /** ADR 0037 / CR 700.2d — the target requirement of a specific mode of a
-     *  modal card in `casterId`'s hand, or `undefined` if the mode has none /
-     *  the card isn't modal. Drives the Acting Player's target pick for a
-     *  controlled modal cast (Word of Command). */
-    getCardModeTargetRequirement: (
-        casterId: string,
-        cardInstanceId: string,
-        modeId: string,
-        alternativeCostId?: string
-    ) => TargetRequirement | undefined;
     /** ADR 0037 / CR 107.3 — true when a card in `casterId`'s hand has a
      *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
      *  cast (Word of Command) know it must ask the Acting Player for X. */
@@ -8655,30 +8645,36 @@ export interface SpellContext {
         chosenModeId?: string,
         alternativeCostId?: string
     ) => number;
-    /** ADR 0037 / CR 601.2c — enumerate the legal targets for a card in
-     *  `casterId`'s hand if it were cast as their spell, reusing the exact
-     *  `getLegalTargets` candidate set a normal cast uses. Relationship filters
-     *  ("opponent"/"you") resolve against `casterId` (the controlled opponent
-     *  whose spell it is, CR 601), so an "any target" spell places no
-     *  restriction — Word of Command's controller may aim the opponent's
-     *  Lightning Bolt at the opponent themselves. Returns the flat candidate
-     *  list (empty when there are no legal targets → the controlled cast is not
-     *  played, "if able"). Returns `[]` for a card with no `targetRequirement`. */
-    getLegalTargetsForCard: (
+    /** CR 601.2c (issue #9536) — ONE target pick of a spell cast during a
+     *  resolution (Word of Command's controlled cast, ADR 0037; the
+     *  cast-during-resolution Op, issue #1477), card in any cast zone of
+     *  `casterId`. `groupIndex` names the target GROUP — the primary
+     *  requirement (the chosen mode's, CR 700.2d, falling back to the card's),
+     *  then every `additionalTargetRequirements` entry, as `announceCast`
+     *  orders them (`castAnnouncedTargetGroups`, unkicked: no kicker is paid
+     *  on these casts). Returns `undefined` past the last group, else the
+     *  group's resolved count (`max` undefined = unbounded) and the legal
+     *  targets of its NEXT pick, read through `getLegalTargets` exactly as a
+     *  normal cast does with relationship filters resolved against `casterId`
+     *  (CR 601): `groupTargets` (this group's picks so far) are excluded and
+     *  constrain `sameController`; `priorTargets` (earlier groups' picks)
+     *  lower `excludePriorTargets` and the zone-owner directives and feed a
+     *  text-defined count. Driven by `announceResolveTimeCastTargets`
+     *  (`gre/effects/resolveTimeCastTargets.ts`). */
+    getCastTargetSlot: (
         casterId: string,
         cardInstanceId: string,
-        requirement: TargetRequirement,
-        alternativeCostId?: string
-    ) => TargetSelection[];
-    /** CR 601.2c — the `targetRequirement` of a card in `casterId`'s hand, read
-     *  from the registry (CR 108.1), or `undefined` for a non-targeted card.
-     *  Lets a controlled cast (Word of Command) decide whether the chosen
-     *  spell needs the Acting Player to choose targets before casting it. */
-    getCardTargetRequirement: (
-        casterId: string,
-        cardInstanceId: string,
-        alternativeCostId?: string
-    ) => TargetRequirement | undefined;
+        query: {
+            modeId?: string;
+            alternativeCostId?: string;
+            chosenX?: number;
+            groupIndex: number;
+            groupTargets: readonly TargetSelection[];
+            priorTargets: readonly TargetSelection[];
+        }
+    ) =>
+        | { min: number; max: number | undefined; legal: TargetSelection[] }
+        | undefined;
     /** CR 608.2f / 305.1 (issue #1477) — for the cast-during-resolution Op: is
      *  the card `cardInstanceId` present in `playerId`'s `sourceZone` AND a
      *  castable (nonland) card? Lands are PLAYED, not cast (the official Malcolm

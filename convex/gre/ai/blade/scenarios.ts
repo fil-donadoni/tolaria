@@ -27486,4 +27486,108 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9148, stack half: the twin of the Raise Dead entry with the target on the stack. Countering the opponent's Dragon over its Bears is right on any board (`absolute`). DISCRIMINATING: before the fix the pool held no spell — no move at all.",
     },
+    {
+        // CR 601.2c / CR 608.2g (issue #9536) — a spell cast mid-resolution
+        // announces EVERY target group. Chandra's +1 exiles Plague Spores
+        // ("target nonblack creature and target land"); its first pick is the
+        // creature group's.
+        label: "cast during resolution: Plague Spores off Chandra aims its creature target at the Dragon",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Chandra, Torch of Defiance",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Shivan Dragon", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plague Spores",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        setup: [
+            {
+                kind: "activate",
+                card: "Chandra, Torch of Defiance",
+                ability: "chandra-torch-of-defiance-plus1-impulse",
+            },
+            { kind: "resolve-top" },
+            { kind: "choose-option", option: "cast" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Shivan Dragon" }],
+        },
+        note: "Issue #9536, first group of a two-group free cast. Destroying the opponent's Dragon over its Bears is right on any board (`absolute`). Guards that the per-group walk reaches the Bot as an ordinary `choose-damage-target` it searches.",
+    },
+    {
+        // CR 601.2c (issue #9536) — the SECOND group of the same announcement:
+        // the land. Before the fix the cast ended after one pick, so this
+        // position did not exist and the spell resolved with no land target.
+        label: "cast during resolution: Plague Spores off Chandra aims its land target at the opponent's land",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Chandra, Torch of Defiance",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Shivan Dragon", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plague Spores",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        setup: [
+            {
+                kind: "activate",
+                card: "Chandra, Torch of Defiance",
+                ability: "chandra-torch-of-defiance-plus1-impulse",
+            },
+            { kind: "resolve-top" },
+            { kind: "choose-option", option: "cast" },
+            { kind: "choose", cards: ["Shivan Dragon"] },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Forest" }],
+        },
+        note: "Issue #9536, second group of a two-group free cast. Destroying the opponent's only land over one of the Bot's own is right on any board (`absolute`). DISCRIMINATING: before the fix the free cast announced one target and no land pick was ever raised — the setup's `choose` left no choice at the head.",
+    },
 ];
