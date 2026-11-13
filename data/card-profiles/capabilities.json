@@ -21,15 +21,9 @@
             "reviewed": false
         },
         "1be9d9a4-d7ee-4854-abc2-85cabf993ec9": {
-            "provides": [
-                "reanimatable",
-                "value-on-etb",
-                "value-on-attack",
-                "cheat-target"
-            ],
+            "provides": ["reanimatable", "value-on-etb", "value-on-attack"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: an eight-drop flier whose enters and attack trigger edicts, discards, drains 3 and draws; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "16c8d2fa-54a7-46e8-980c-905258497c90": {
             "provides": ["self-mills"],
@@ -37,10 +31,9 @@
             "reviewed": false
         },
         "4a1f905f-1d55-4d02-9d24-e58070793d3f": {
-            "provides": ["reanimatable", "value-on-etb", "cheat-target"],
+            "provides": ["reanimatable", "value-on-etb"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop whose enters trigger refills the hand and that stays as a 7/7 flier; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "340c5799-4964-44dd-8c48-8f3f3aba5211": {
             "provides": ["value-on-etb"],
@@ -263,10 +256,9 @@
             "reviewed": false
         },
         "b51666ae-2aef-4cb1-9cd4-44aec81530f8": {
-            "provides": ["reanimatable", "cheat-target"],
+            "provides": ["reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: an eight-drop 7/7 flier with lifelink and pay 7 life: draw seven, worth keeping for good; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4": {
             "provides": ["value-on-attack"],
@@ -659,15 +651,9 @@
             "reviewed": false
         },
         "0783b426-a527-42c1-9271-be28b229e1c6": {
-            "provides": [
-                "value-on-etb",
-                "value-on-death",
-                "reanimatable",
-                "cheat-target"
-            ],
+            "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop whose enters trigger puts the creatures and lands of the top seven into hand and whose death makes seven tokens; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21": {
             "provides": [],
@@ -740,10 +726,9 @@
             "reviewed": false
         },
         "543d55cb-3a6b-4620-af25-10ae74ed32c4": {
-            "provides": ["value-on-death", "cheat-target"],
+            "provides": ["value-on-death"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: an eleven-drop 15/15 trampler; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable"
+            "reviewed": false
         },
         "6d3e3c3a-d351-4d91-8884-312d4b6f540d": {
             "provides": [],
@@ -821,15 +806,9 @@
             "reviewed": false
         },
         "6bcafc2e-cef6-412d-8c5d-1658c3337292": {
-            "provides": [
-                "value-on-etb",
-                "value-on-attack",
-                "reanimatable",
-                "cheat-target"
-            ],
+            "provides": ["value-on-etb", "value-on-attack", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop whose enters and attack trigger makes two flying Insects, kept as a creature when not cast for impending; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db": {
             "provides": ["value-on-cast"],
@@ -1002,22 +981,19 @@
             "reviewed": false
         },
         "f328d6e0-d808-4abe-b6a2-cc557b27c329": {
-            "provides": ["value-on-etb", "reanimatable", "cheat-target"],
+            "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a six-drop whose enters trigger exiles three of the opponent's cards and casts one free; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "16448d95-ee21-4def-b880-26f6f159c213": {
-            "provides": ["value-on-etb", "reanimatable", "cheat-target"],
+            "provides": ["value-on-etb", "reanimatable"],
             "requires": ["reanimatable", "self-mills", "discard-outlet"],
-            "reviewed": false,
-            "rationale": "oracle: a six-drop lifelinker returning a creature on entering; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "a6539e26-b63b-4725-9407-caaf451de084": {
-            "provides": ["reanimatable", "cheat-target"],
+            "provides": ["reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a six-drop 6/5 nearly unblockable body; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f": {
             "provides": ["discard-outlet"],
@@ -1175,10 +1151,9 @@
             "reviewed": false
         },
         "95c14c4d-6c16-4826-8d93-d89ad04aee09": {
-            "provides": ["value-on-etb", "reanimatable", "cheat-target"],
+            "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop whose enters trigger casts a free spell from each library; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "1b832fda-d7c4-4566-884c-2a8b6da15488": {
             "provides": [],
@@ -1236,26 +1211,14 @@
             "reviewed": false
         },
         "62b3f560-262b-4bc3-9aef-535fd7082c28": {
-            "provides": [
-                "value-on-etb",
-                "value-on-death",
-                "reanimatable",
-                "cheat-target"
-            ],
+            "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop trampler gaining 3 and drawing on every big creature entering, copied as a token on death; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "43aa7e35-55ee-4e02-a8aa-ea2b267055d1": {
-            "provides": [
-                "value-on-etb",
-                "value-on-death",
-                "reanimatable",
-                "cheat-target"
-            ],
+            "provides": ["value-on-etb", "value-on-death", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: an eight-drop persist trampler destroying a noncreature permanent each time it enters; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "4034e5ba-9974-43e3-bde7-8d9b4586c3a4": {
             "provides": ["value-on-cast"],
@@ -1269,9 +1232,8 @@
         },
         "cf14de50-d123-400c-862e-2c95fd2aa23f": {
             "provides": ["self-mills"],
-            "requires": ["cheat-target"],
-            "reviewed": false,
-            "rationale": "oracle: puts the first creature revealed from library onto the battlefield for good and mills the rest; wants a cheat-target and keeps self-mills"
+            "requires": [],
+            "reviewed": false
         },
         "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c": {
             "provides": [],
@@ -1284,21 +1246,14 @@
             "reviewed": false
         },
         "b0ae94ed-7314-470b-baba-f2f58bbc894a": {
-            "provides": [
-                "value-on-etb",
-                "value-on-attack",
-                "reanimatable",
-                "cheat-target"
-            ],
+            "provides": ["value-on-etb", "value-on-attack", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop that brings four Myr and pings on every attack while it stays; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "67600383-bbb8-411c-b8e6-2296650bc747": {
-            "provides": ["value-on-attack", "value-on-cast", "cheat-target"],
+            "provides": ["value-on-attack", "value-on-cast"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a fifteen-drop with annihilator 6 no deck casts; shuffles its graveyard away, so a cheat-target from hand or library but never reanimatable"
+            "reviewed": false
         },
         "02e8e540-8aa3-4e6a-9a11-c3949cab5f0f": {
             "provides": [],
@@ -1396,10 +1351,9 @@
             "reviewed": false
         },
         "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab": {
-            "provides": ["value-on-etb", "cheat-target"],
+            "provides": ["value-on-etb"],
             "requires": ["reanimatable"],
-            "reviewed": false,
-            "rationale": "oracle: a nine-drop artifact that edicts three creatures and reanimates a card every upkeep it stays; worth having for good without paying its cost"
+            "reviewed": false
         },
         "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4": {
             "provides": ["value-on-etb"],
@@ -1482,10 +1436,9 @@
             "reviewed": false
         },
         "ca4c8b04-66af-4cb3-8003-9088d8344b20": {
-            "provides": ["value-on-etb", "reanimatable", "cheat-target"],
+            "provides": ["value-on-etb", "reanimatable"],
             "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a six-drop menace trampler destroying a permanent on entering; reanimatable on its size, so also a cheat-target"
+            "reviewed": false
         },
         "80c72839-0fa6-4b5f-83b7-6553ebf09bef": {
             "provides": ["value-on-attack"],
@@ -1776,30 +1729,6 @@
             "provides": ["value-on-etb"],
             "requires": [],
             "reviewed": false
-        },
-        "7928bb14-7631-4830-a756-26d1ea832ba2": {
-            "provides": ["cheat-target"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a twelve-drop 11/11 infect indestructible; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable"
-        },
-        "87cc2855-6b14-44dd-a398-7dc2bbae081f": {
-            "provides": ["cheat-target"],
-            "requires": [],
-            "reviewed": false,
-            "rationale": "oracle: a seven-drop living-weapon Equipment making a 5/5 indestructible haste germ; an artifact worth having for good without paying its cost"
-        },
-        "4b851c17-55ed-4671-b471-dc7b34944432": {
-            "provides": [],
-            "requires": ["cheat-target"],
-            "reviewed": false,
-            "rationale": "oracle: each player puts an artifact, creature, enchantment or land from hand onto the battlefield with no sacrifice clause; wants a cheat-target in hand"
-        },
-        "0845f0b0-9413-4ddd-861d-9607636bebc6": {
-            "provides": [],
-            "requires": ["cheat-target"],
-            "reviewed": false,
-            "rationale": "oracle: sacrifice a green creature to put a green creature from library onto the battlefield for good; wants a cheat-target (green only, accepted imprecision)"
         }
     }
 }

@@ -169,22 +169,12 @@ describe("Vintage Cube Card Profile census (issue #1614): every seeded Capabilit
         expect(griselbrand.provides).not.toContain("value-on-attack");
     });
 
-    it("Sneak Attack requires one-combat value; Show and Tell — which puts its target in PERMANENTLY — requires a cheat-target", () => {
+    it("Sneak Attack requires one-combat value; Show and Tell — which puts its target in PERMANENTLY — requires nothing", () => {
         const sneak = censusProfile("Sneak Attack");
         expect(sneak.requires).toEqual(
             expect.arrayContaining(["value-on-etb", "value-on-attack"])
         );
-        expect(sneak.requires).not.toContain("cheat-target");
-        expect(censusProfile("Show and Tell").requires).toEqual([
-            "cheat-target",
-        ]);
-    });
-
-    it("cheat-target splits from reanimatable on Emrakul: a cheat from hand or library, never a graveyard", () => {
-        const emrakul = censusProfile("Emrakul, the Aeons Torn");
-        expect(emrakul.provides).toContain("cheat-target");
-        expect(emrakul.provides).not.toContain("reanimatable");
-        expect(censusProfile("Griselbrand").provides).toContain("cheat-target");
+        expect(censusProfile("Show and Tell").requires).toEqual([]);
     });
 
     it("Phlage/Uro escape rather than reanimate — 'sacrifice it unless it escaped'", () => {
