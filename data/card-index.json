@@ -68384,6 +68384,14 @@
         "source": "compiled"
     },
     {
+        "name": "Scapeshift",
+        "scryfallId": "84829605-50eb-455d-a236-ebfa11e883c5",
+        "oracleId": "c235015e-a7a9-4f8d-bf4a-cf68b3847f83",
+        "firstSet": "mor",
+        "firstPrintId": "84829605-50eb-455d-a236-ebfa11e883c5",
+        "firstPrintSet": "mor"
+    },
+    {
         "name": "Scar",
         "scryfallId": "b34e3f7c-468a-456c-8ed0-0cb88f6d86fc",
         "oracleId": "4eafe158-abff-43e9-aeae-596430c5ce21",

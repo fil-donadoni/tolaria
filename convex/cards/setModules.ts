@@ -130,6 +130,7 @@ import * as spm from "./sets/spm/index.cards";
 import * as moc from "./sets/moc/index.cards";
 import * as dsc from "./sets/dsc/index.cards";
 import * as frc from "./sets/frc/index.cards";
+import * as mor from "./sets/mor/index.cards";
 import * as ogw from "./sets/ogw/index.cards";
 import * as znr from "./sets/znr/index.cards";
 import * as woe from "./sets/woe/index.cards";
@@ -288,6 +289,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "moc", exports: moc },
     { code: "dsc", exports: dsc },
     { code: "frc", exports: frc },
+    { code: "mor", exports: mor },
     { code: "ogw", exports: ogw },
     { code: "znr", exports: znr },
     { code: "woe", exports: woe },
