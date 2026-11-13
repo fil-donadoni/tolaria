@@ -13,6 +13,8 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import { castProhibitionReason } from "../../../castRestrictions";
+import { withTemporaryDefinition } from "../../../registry";
+import { rangerCaptainOfEos } from "../white.cards";
 
 const giverOfRunes = getDefinition("4e117771-5a8b-4812-b487-32ba34b7f724");
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
@@ -134,18 +136,22 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
 // at cleanup; CR 205.2a "noncreature" = no Creature type, so an artifact
 // creature stays castable.)
 describe("Ranger-Captain of Eos (CR 601.3a noncreature cast lock)", () => {
-    const captain = getDefinition("af3928b4-813a-4120-8799-de34235d60ac");
+    const captain = rangerCaptainOfEos();
 
+    // The derived catalogue row lands after merge, so the card is served to
+    // the registry directly for the duration of each test.
     function lockedState() {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const source = makeInstance(captain.id, {
-            id: "captain",
-            controllerId: "p1",
-            ownerId: "p1",
+        withTemporaryDefinition(captain, () => {
+            const source = makeInstance(captain.id, {
+                id: "captain",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            resolveActivated(state, source, "ranger-captain-of-eos-lock");
         });
-        resolveActivated(state, source, "ranger-captain-of-eos-lock");
         return state;
     }
 
