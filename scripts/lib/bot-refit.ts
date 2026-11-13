@@ -79,12 +79,26 @@ export const FIT_WRITE_STEP: RefitStep = {
     onFail: "the fit did not run — evalWeights.ts is untouched",
 };
 
+/** The per-test timeout the RECORDING step runs under (issue #9300). The
+ *  bot-node project's 60 s is an assertion budget; a recording is bounded by
+ *  its caller's wall instead (`derive:sync`'s 25-minute `REFIT_WALL_MS`).
+ *  On 2026-11-12 two housekeeping runs on a loaded runner timed out
+ *  searchCost / searchForcedPass / evaluateManaCensus pins at 60 s, put
+ *  every refit artefact back to HEAD and filed issue #9300 — a slow machine,
+ *  not a wrong pin. 10 minutes keeps a hung test inside that wall. */
+export const RECORD_PIN_TEST_TIMEOUT_MS = 10 * 60_000;
+
 /** Re-record every pin, in a process that starts AFTER the weights are on
  *  disk (a module graph is read once). */
 export const RECORD_PINS_STEP: RefitStep = {
     id: "pins",
     // `-u` takes an optional value: before the paths it swallows the first one.
-    argv: [...VITEST_BOT, ...BOT_PIN_TESTS, "-u"],
+    argv: [
+        ...VITEST_BOT,
+        `--testTimeout=${RECORD_PIN_TEST_TIMEOUT_MS}`,
+        ...BOT_PIN_TESTS,
+        "-u",
+    ],
     env: { RECORD_BOT_PINS: "1" },
     onFail: "a pin test failed while recording — a fixture may be half-written",
 };

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BOT_PINS_TESTS } from "../check-lane";
 import {
     BOT_PIN_TESTS,
+    RECORD_PIN_TEST_TIMEOUT_MS,
     REFIT_ARTIFACT_PATHS,
     VERIFY_STEPS,
     refitPlan,
@@ -49,6 +50,18 @@ describe("bot:refit plan (issue #6690)", () => {
         }
         expect(record.env.RECORD_BOT_PINS).toBe("1");
         expect(refitPlan([])[0].env.BLADE_FIT_WRITE).toBe("1");
+    });
+
+    it("recording outlasts the bot-node project's 60 s assertion timeout, the verify half keeps it (issue #9300)", () => {
+        const [, record] = refitPlan([]);
+        expect(record.argv).toContain(
+            `--testTimeout=${RECORD_PIN_TEST_TIMEOUT_MS}`
+        );
+        expect(RECORD_PIN_TEST_TIMEOUT_MS).toBeGreaterThan(60_000);
+        for (const step of VERIFY_STEPS)
+            expect(step.argv.some((a) => a.startsWith("--testTimeout"))).toBe(
+                false
+            );
     });
 
     it("every pin test exists and the lane's cheap guards cover the pins the search-cost and weight guards do not", () => {
