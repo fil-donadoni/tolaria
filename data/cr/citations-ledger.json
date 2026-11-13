@@ -19746,6 +19746,7 @@
         {"id":"109.1","line":"// CR 109.1 / 115 / 202 / 205 / 613 / 701.26 / 109.3 / 102.1 /","sites":1,"status":"baseline"},
         {"id":"613.1b","line":"describe(\"Ray of Command — steal a creature until EOT (CR 611.2b / 613.1b / 701.20a)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.132a","line":"/** CR 702.132a — Assist's exchange with the player the caster names.","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
+        {"id":"702.34a","line":"describe(\"grantFlashback `card` — a target slot or a forEach member (CR 702.34a)\", () => {","sites":1,"status":"confirmed","ruleHash":"f725cad209d40040"},
         {"id":"607.2a","line":"* has no duration (CR 607.2a) and still exiles with its source gone.","sites":1,"status":"confirmed","ruleHash":"426e2ed6b1cfd27c"},
         {"id":"601.3b","line":"// p1's next turn starts → the grant is gone (CR 601.3b \"until your next","sites":1,"status":"baseline"},
         {"id":"613.1f","line":"// CR 614.1c + 613.1f — ability-loss suppresses the entry-counter clause","sites":1,"status":"baseline"},
