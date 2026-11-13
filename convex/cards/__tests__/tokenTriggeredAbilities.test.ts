@@ -166,7 +166,33 @@ describe("resolveTokenTriggeredAbilities (CR 707.2, issue #2364)", () => {
             expect(ability, `no factory for ${event}`).toBeDefined();
             expect(ability.event).toBe(event);
         }
-        expect(kinds).toHaveLength(3);
+        expect(kinds).toHaveLength(4);
+    });
+
+    it("PERMANENT_LEFT descriptor synthesizes a self-scoped leftTrigger carrying its targetRequirement (CR 603.6c, 603.3d)", () => {
+        const [ability] = resolveTokenTriggeredAbilities([
+            {
+                id: "test-ltb",
+                oracleText:
+                    "When this token leaves the battlefield, do a thing.",
+                event: "PERMANENT_LEFT",
+                targetRequirement: { type: "any", count: 1 },
+                effects: [],
+            },
+        ]);
+        expect(ability.event).toBe("PERMANENT_LEFT");
+        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
+        const leave = (instanceId: string) =>
+            ({
+                type: "PERMANENT_LEFT",
+                instanceId,
+                controllerId: "p1",
+                ownerId: "p1",
+                types: ["Artifact"],
+                toZone: "graveyard",
+            }) as never;
+        expect(ability.matches(leave("self"), selfView())).toBe(true);
+        expect(ability.matches(leave("other"), selfView())).toBe(false);
     });
 
     it("multiple descriptors resolve independently, in order", () => {

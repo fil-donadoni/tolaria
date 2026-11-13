@@ -14,6 +14,7 @@ import type {
     ManaCost,
     AsEntersChoice,
     StaticEffect,
+    TargetRequirement,
     TokenSpec,
     TokenStaticEffectKey,
     TriggeredAbility,
@@ -1034,6 +1035,9 @@ export function tokenDefinitionId(spec: TokenSpec): string {
                           oracleText: a.oracleText,
                           event: a.event,
                           ...(a.effects ? { effects: a.effects } : {}),
+                          ...(a.targetRequirement
+                              ? { targetRequirement: a.targetRequirement }
+                              : {}),
                       }))
                   )
               )
@@ -1392,6 +1396,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                       oracleText: string;
                       event: GameEventType | GameEventType[];
                       effects?: EffectOp[];
+                      targetRequirement?: TargetRequirement;
                   }[]
               ).map((d) => {
                   // `isTokenTriggeredEventKind` (not a hand-written `||`
@@ -1408,6 +1413,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                               oracleText: d.oracleText,
                               event: d.event,
                               effects: d.effects,
+                              ...(d.targetRequirement
+                                  ? { targetRequirement: d.targetRequirement }
+                                  : {}),
                           },
                       ]);
                       if (rebuilt) return rebuilt;

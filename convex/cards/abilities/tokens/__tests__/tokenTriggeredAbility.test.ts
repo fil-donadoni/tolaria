@@ -262,4 +262,48 @@ describe("Token-carried triggered abilities (CR 111.3, issue #2364)", () => {
 
         expect(getPlayer(state, "p1").life).toBe(lifeBefore + 1);
     });
+    // CR 603.6c / 603.3d — the PERMANENT_LEFT kind and its announced target
+    // requirement must both ride the `token:` id and rebuild into a REAL
+    // firing, targeted ability on a cold decode.
+    it("a targeted PERMANENT_LEFT token trigger fires for REAL, with its targetRequirement, after a cold decode", () => {
+        const coldAbilityId = "cold-munitions-leaves";
+        const coldId = tokenDefinitionId({
+            name: "Cold Munitions",
+            types: ["Artifact"],
+            triggeredAbilities: resolveTokenTriggeredAbilities([
+                {
+                    id: coldAbilityId,
+                    oracleText:
+                        "When this token leaves the battlefield, it deals 2 damage to any target.",
+                    event: "PERMANENT_LEFT",
+                    targetRequirement: { type: "any", count: 1 },
+                    effects: [
+                        { op: "dealDamage", amount: 2, to: { target: 0 } },
+                    ],
+                },
+            ]),
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const token = makeInstance(coldId, {
+            id: "cold-munitions-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        state.players[0].battlefield.push(token);
+        expect(
+            getDefinition(coldId).triggeredAbilities?.[0]?.targetRequirement
+        ).toEqual({ type: "any", count: 1 });
+
+        removePermanentTo(state, token.id, "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(coldAbilityId);
+        state.stack[0].targets = [{ type: "player", id: "p2" }];
+        const lifeBefore = getPlayer(state, "p2").life;
+        resolveTopOfStack(state);
+        expect(getPlayer(state, "p2").life).toBe(lifeBefore - 2);
+    });
 });
