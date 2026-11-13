@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { PendingTarget, Player, StackItem } from "~/types/game";
+import type { PendingTarget, Player } from "~/types/game";
+import { getDefinition } from "@convex/cards";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 import GameDialog from "~/components/ui/game-dialog";
-import { pendingTargetTitle } from "~/lib/pending-target-title";
 import GraveyardTabs from "./graveyard-tabs";
 import GraveyardCardPicker from "./graveyard-card-picker";
 import {
@@ -29,19 +29,11 @@ import {
  *   - Picking a card submits the `graveyard-card` target with the owning
  *     player's id (unchanged `selectTarget` contract).
  *   - Dismissing the dialog cancels target selection (parity with the banner's
- *     Cancel). Mutation-firing buttons disable while in flight.
- *   - Title (issue #8426) by `PendingTarget.kind`: an activated ability's or a
- *     trigger's Oracle text, a cast's card name (`pendingTargetTitle`).
- *   - Minimize (issue #8426) collapses to the board indicator like the other
- *     blocking pickers: a view toggle (the board's `useMinimizedChoiceState`) — no mutation,
- *     `selected` untouched; the board renders the indicator instead of this
- *     dialog while minimized. */
+ *     Cancel). Mutation-firing buttons disable while in flight. */
 export default function GraveyardTargetDialog({
     pendingTarget,
     me,
     allPlayers,
-    stack,
-    onMinimize,
     gameId,
     playerId,
     activePlayerId,
@@ -49,12 +41,6 @@ export default function GraveyardTargetDialog({
     pendingTarget: PendingTarget;
     me: Player | undefined;
     allPlayers: Player[];
-    /** The projected stack — a trigger's `cardInstanceId` is its stack item
-     *  (CR 603.3d), whose Oracle text titles the dialog. */
-    stack: StackItem[];
-    /** Collapse the dialog to the board indicator — a view toggle, never a
-     *  mutation. Absent → no minimize control. */
-    onMinimize?: () => void;
     gameId: Id<"games">;
     playerId: string;
     /** CR 109.5 — the current active player (issue #1950 review round 2,
@@ -80,7 +66,12 @@ export default function GraveyardTargetDialog({
         [pendingTarget, allPlayers, playerId, activePlayerId]
     );
 
-    const title = pendingTargetTitle(pendingTarget, me, stack);
+    const cardInHand = me?.hand.find(
+        (c) => c !== null && c.id === pendingTarget.cardInstanceId
+    );
+    const cardName = cardInHand
+        ? getDefinition(cardInHand.card.id).name
+        : "spell";
 
     // Issue: dialog subtitle previously hardcoded singular "a card" even for
     // a 2-target spell like Restock, though the underlying selection count
@@ -138,9 +129,8 @@ export default function GraveyardTargetDialog({
             onOpenChange={(open) => {
                 if (!open) void handleCancel();
             }}
-            title={title}
+            title={cardName}
             subtitle={subtitle}
-            onMinimize={onMinimize}
             size="wide"
             dismissable={!isPending}
         >

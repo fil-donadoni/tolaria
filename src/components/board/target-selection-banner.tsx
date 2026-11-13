@@ -3,15 +3,15 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player, StackItem } from "~/types/game";
-import { getDefinition } from "@convex/cards";
+import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { findTriggeredAbility } from "@convex/gre/copy";
 import type { CardInstanceState } from "@convex/gre/state";
+import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { divideKindLabels, useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { displayCardId } from "~/lib/card-utils";
-import { pendingTargetSourceName } from "~/lib/pending-target-title";
 import {
     describeTargetProgress,
     formatTargetLabel,
@@ -120,10 +120,15 @@ export default function TargetSelectionBanner({
         pendingTarget.kind === "trigger"
             ? stack.find((s) => s.id === pendingTarget.cardInstanceId)
             : undefined;
-    // Issue #8426 — one resolver shared with the graveyard target dialog:
-    // the source in any zone the viewer sees (a cast from graveyard or exile
-    // included), an emblem-sourced trigger, "Copy" for a copy-retarget.
-    const cardName = pendingTargetSourceName(pendingTarget, me, stack);
+    const triggerSourceName = triggerSource
+        ? (tryGetDefinition(displayCardId(triggerSource))?.name ??
+          tryGetEmblemDefinition(triggerSource.card.id)?.name)
+        : undefined;
+    const cardName = cardInHand
+        ? getDefinition(cardInHand.card.id).name
+        : sourcePermanent
+          ? getDefinition(displayCardId(sourcePermanent)).name
+          : (triggerSourceName ?? (isCopyRetarget ? "Copy" : "spell"));
     // ADR 0094 (issue #2264) — with several mode instances announced, name
     // the instance this target group belongs to, so a repeated mode's groups
     // are not picked blind.
