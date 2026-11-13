@@ -31,13 +31,14 @@ import { cn } from "~/lib/utils";
  *  underneath. The full dialog can legitimately center (nothing to click
  *  behind an unminimized modal the player is actively reading), but the
  *  whole point of THIS collapsed badge is to get out of the way. */
-export default function MinimizedChoiceIndicator({
-    choice,
-}: {
-    choice: PendingChoice;
-}) {
+export default function MinimizedChoiceIndicator(
+    props: { choice: PendingChoice } | { label: string }
+) {
+    // A minimized target selection (the graveyard target dialog) has no
+    // Pending Choice: its caller passes the source's name as `label`.
     const { restore } = useMinimizedChoice();
-    const label = pendingChoiceSourceLabel(choice);
+    const label =
+        "label" in props ? props.label : pendingChoiceSourceLabel(props.choice);
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
         usePromptBannerPosition({ pinned: true });
 

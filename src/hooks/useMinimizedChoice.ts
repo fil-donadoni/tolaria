@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from "react";
-import type { PendingChoice } from "~/types/game";
+import type { PendingChoice, PendingTarget } from "~/types/game";
 import { deriveChoiceKey } from "~/hooks/usePendingChoiceBuffer";
+import { pendingTargetKey } from "~/lib/pending-target-title";
 
 /** Client-only, per-choice minimize toggle for blocking choice dialogs
  *  (issue #315). Minimizing is purely a view state: it collapses the modal
@@ -30,13 +31,19 @@ export const MinimizedChoiceContext = createContext<MinimizedChoice | null>(
 /** Owns the minimize flag for the active pending choice. Mounted by the
  *  board so the banner and the library-pick modal share one toggle. Resets
  *  when the choice identity changes (next choice in a chain, or queue
- *  empties). */
+ *  empties).
+ *
+ *  Issue #8426 — the graveyard target dialog is a blocking picker too, for a
+ *  `PendingTarget` (CR 601.2c / 602.2b / 603.3d) rather than a Pending
+ *  Choice: its identity joins the key, so a new target selection also opens
+ *  expanded. `selected` is not part of it (`pendingTargetKey`). */
 export function useMinimizedChoiceState(
-    activeChoice: PendingChoice | undefined
+    activeChoice: PendingChoice | undefined,
+    activeTarget?: PendingTarget
 ): MinimizedChoice {
     const [isMinimized, setIsMinimized] = useState(false);
 
-    const choiceKey = deriveChoiceKey(activeChoice);
+    const choiceKey = `${deriveChoiceKey(activeChoice)}|${pendingTargetKey(activeTarget)}`;
 
     // Reset when the choice identity changes — same render-time pattern the
     // buffer uses. A fresh Pending Choice always starts expanded.

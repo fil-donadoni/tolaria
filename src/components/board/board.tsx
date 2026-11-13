@@ -65,7 +65,7 @@ import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
-import GraveyardTargetDialog from "./graveyard-target-dialog";
+import GraveyardTargetSurface from "./graveyard-target-surface";
 import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
 import ConvokeCreatureDialog from "./convoke-creature-dialog";
@@ -334,13 +334,26 @@ export default function Board({
     // Client-only per-choice minimize toggle for blocking choice dialogs
     // (issue #315). Shared by the banner and the library-pick modal so one
     // minimize collapses whichever surface the active choice uses. Resets when
-    // the choice resolves; never persisted to GameState.
-    const minimizedChoice = useMinimizedChoiceState(state?.pendingChoices?.[0]);
+    // the choice resolves; never persisted to GameState. Issue #8426 — the
+    // viewer's graveyard target dialog is a blocking picker too: its
+    // `PendingTarget` joins the reset key and the `C` toggle below.
+    const viewerGraveyardTarget = isGraveyardTargetForViewer(
+        state?.pendingTarget,
+        viewerId
+    )
+        ? state?.pendingTarget
+        : undefined;
+    const minimizedChoice = useMinimizedChoiceState(
+        state?.pendingChoices?.[0],
+        viewerGraveyardTarget
+    );
     // Issue #7425 — view-only `promptCollapsed` flag for the payment banners
     // and the stack panel; `C` drives it (or the choice minimize above when a
     // choice of the viewer's is open). Resets when the open prompt changes.
     const promptCollapsed = usePromptCollapsedState(promptCollapseKey(state));
-    const viewerHasChoice = state?.pendingChoices?.[0]?.playerId === viewerId;
+    const viewerHasChoice =
+        state?.pendingChoices?.[0]?.playerId === viewerId ||
+        viewerGraveyardTarget !== undefined;
     const { toggle: toggleCollapsed } = promptCollapsed;
     const { isMinimized, minimize, restore } = minimizedChoice;
     usePromptCollapseHotkey(
@@ -638,7 +651,7 @@ export default function Board({
                                                         pendingTarget,
                                                         viewerId
                                                     ) ? (
-                                                        <GraveyardTargetDialog
+                                                        <GraveyardTargetSurface
                                                             pendingTarget={
                                                                 pendingTarget
                                                             }
@@ -646,6 +659,7 @@ export default function Board({
                                                             allPlayers={
                                                                 allPlayers
                                                             }
+                                                            stack={stackItems}
                                                             gameId={gameId}
                                                             playerId={viewerId}
                                                             activePlayerId={
