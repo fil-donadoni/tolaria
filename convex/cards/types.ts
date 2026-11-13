@@ -11071,6 +11071,9 @@ export interface CountDrivenCostReduction {
  *
  *  `"opponents"` counts that player's opponents (undaunted, CR 702.125a).
  *
+ *  `"opponent-lands-could-produce"` counts the lands that player's opponents
+ *  control that could produce the mana type `producible` (CR 106.7).
+ *
  *  `"domain"` (issue #1958) counts the BASIC LAND TYPES among the lands that
  *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast
  *  for each basic land type among lands you control"; Stratadon: {1} less).
@@ -11101,7 +11104,10 @@ export interface CensusDrivenCostReduction {
      *     permanents;
      *   - `"opponents"`: their opponents still in the game (undaunted,
      *     CR 702.125a/b). */
-    countMode: "domain" | "opponents";
+    countMode: "domain" | "opponents" | "opponent-lands-could-produce";
+    /** `"opponent-lands-could-produce"` only: the mana type (CR 106.7, {C}
+     *  included) a land must be able to produce to count. Defaults to `"C"`. */
+    producible?: Color;
 }
 
 /** The amount a CR 601.2f cost reduction takes off the GENERIC portion of a

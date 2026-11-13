@@ -55523,6 +55523,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Obsidian Charmaw",
+        "scryfallId": "ee6d08be-a6fc-44a5-932d-b6a8705534c0",
+        "oracleId": "c995bc01-f278-4088-9ae2-1b50f87b2a61",
+        "firstSet": "mh2",
+        "firstPrintId": "ee6d08be-a6fc-44a5-932d-b6a8705534c0",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Obsidian Giant",
         "scryfallId": "aad8a194-cee7-4671-8310-19357fc1a450",
         "oracleId": "f7a96612-4fc5-4944-8b74-9eb6f24190b4",
