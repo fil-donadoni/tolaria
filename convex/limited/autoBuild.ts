@@ -81,7 +81,12 @@ import {
     colourSignature,
     type ColourSignature,
 } from "./archetypeCatalogueCore";
-import { pipCastability } from "./castability";
+import {
+    addProducer,
+    addSources,
+    manaSourceKinds,
+    pipCastability,
+} from "./castability";
 import { resolveFetchSources } from "./manaSourceColors";
 import type { GetCardProfile } from "./cardProfilesCore";
 import { isAutoDrivenSeat } from "./droppedSeat";
@@ -601,18 +606,18 @@ function buildManaBase(
     return { lands, basics };
 }
 
-/** Per-colour mana sources of a deck: its lands, its basics, and every spell
- *  that produces mana (a Mox, a mana creature) — the supply half the
- *  castability model reads. */
+/** A deck's mana sources by kind (`ManaSourceKinds`): its lands, its basics,
+ *  and every spell that produces mana (a Mox, a mana creature) — the supply
+ *  half the castability model reads. */
 function deckSources(
     base: ManaBase,
     spells: readonly ResolvedEntry[]
-): Partial<Record<Color, number>> {
-    const sources = sourceCountsByColor([
-        ...base.lands.map((r) => r.meta!),
-        ...spells.map((r) => r.meta!),
-    ]);
-    for (const [c, n] of base.basics) sources[c] = (sources[c] ?? 0) + n;
+): Map<string, number> {
+    const sources = manaSourceKinds(
+        [...base.lands.map((r) => r.meta!), ...spells.map((r) => r.meta!)],
+        sourceWeight
+    );
+    for (const [c, n] of base.basics) addSources(sources, [c], n);
     return sources;
 }
 
@@ -628,11 +633,11 @@ function castabilityAgainst(
     const inDeck = new Set(provisional.map((r) => r.entry));
     return (entry) => {
         const meta = entry.meta!;
-        let own = sources;
+        let own: ReadonlyMap<string, number> = sources;
         if (inDeck.has(entry.entry) && meta.producedColors.length > 0) {
-            own = { ...sources };
-            for (const c of meta.producedColors)
-                own[c] = (own[c] ?? 0) - sourceWeight(meta, c);
+            const less = new Map(sources);
+            addProducer(less, meta, sourceWeight, -1);
+            own = less;
         }
         return pipCastability(meta.pips, meta.manaValue, deckSize, own);
     };
