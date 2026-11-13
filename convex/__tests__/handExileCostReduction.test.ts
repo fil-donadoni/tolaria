@@ -122,11 +122,11 @@ describe("picker bounds — each card pays {2} of the generic cost", () => {
         const choice = buildDelveExileChoice(
             player,
             spell,
-            { X: 4, W: 1 },
+            { X: 6, W: 1 },
             spell.id,
             3
         );
-        expect(choice?.offsetGeneric?.min).toBe(2);
+        expect(choice?.offsetGeneric).toMatchObject({ min: 2, max: 3 });
     });
 
     it("collapses a forced pick: every white card is exiled and each pays {2}", () => {
