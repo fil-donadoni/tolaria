@@ -24,7 +24,7 @@ describe("UiSeamSideboardingRoute (issue #9560)", () => {
     });
 
     it("forces the gate once, then routes to the board", async () => {
-        force.mockResolvedValue({ gameId: "g1", forced: true });
+        force.mockResolvedValue({ gameId: "g1" });
         render(
             <StrictMode>
                 <UiSeamSideboardingRoute />
