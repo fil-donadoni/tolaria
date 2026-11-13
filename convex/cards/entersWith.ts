@@ -55,7 +55,7 @@
 import { MANA_COLORS } from "../gre/manaColors";
 import { tryGetDefinition } from ".";
 import { ATTACK_RESTRICTION_CTX } from "./attackRestrictions";
-import type { PermanentView, StaticEffectStateView } from "./types";
+import type { CardType, PermanentView, StaticEffectStateView } from "./types";
 
 /** The card-definition surface that declares the replacement. Structurally
  *  identical to `CardDefinition.entersWith` — restated as a bare shape so this
@@ -80,7 +80,14 @@ export type EntersWithCount =
     // CR 702.176a — "If you chose to pay this permanent's impending cost, it
     // enters with N time counters on it": N when the entering object's
     // impending cost was paid, else nothing.
-    | { readonly ifImpended: number };
+    | { readonly ifImpended: number }
+    // CR 607.2q — "for each [type] card exiled with it": the cards exiled to
+    // pay the cost of the spell that became this permanent (Delve, CR 702.66,
+    // or any other cast-time exile cost), still in exile as it enters (CR
+    // 607.2a — a linked ability "refers only to cards in the exile zone").
+    // `types` keeps a card having ANY listed card type ("instant and sorcery
+    // card" = an instant OR a sorcery card); absent counts every such card.
+    | { readonly cardsExiledWithIt: { readonly types?: readonly CardType[] } };
 
 /** Cast-time values the count vocabulary may read off the entering object.
  *
@@ -126,6 +133,26 @@ export interface EntersWithCastValues {
      *  (`CardInstanceState.impended`, stamped at cast commit). Absent on
      *  every uncast path: only a spell can have had a cost paid for it. */
     impended?: boolean;
+    /** CR 607.2q — the card types of each card exiled to pay the cost of the
+     *  spell that became this permanent and STILL in exile as it enters (CR
+     *  607.2a; a card that left exile is a new object, CR 400.7). Resolved
+     *  by the entry site from the stack item's `castExiledCardIds`; absent on
+     *  every uncast path, where no cost was paid. */
+    cardsExiledWithIt?: readonly { readonly types: readonly string[] }[];
+}
+
+/** CR 607.2q — how many of `exiled` (the cards exiled with the entering
+ *  object, see `EntersWithCastValues.cardsExiledWithIt`) have any of `types`,
+ *  or all of them when `types` is absent. */
+export function countCardsExiledWithIt(
+    exiled: EntersWithCastValues["cardsExiledWithIt"],
+    types: readonly CardType[] | undefined
+): number {
+    if (!exiled) return 0;
+    if (!types) return exiled.length;
+    return exiled.filter((c) =>
+        c.types.some((t) => types.includes(t as CardType))
+    ).length;
 }
 
 /** CR 702.44a + CR 105.1 — how many DISTINCT COLORS of mana a record of spent
@@ -171,35 +198,41 @@ export function resolveEntersWithCounters(
                   : entry.count === "additionalCostMv"
                     ? Math.max(0, cast.additionalCostMv ?? 0)
                     : typeof entry.count === "object" &&
-                        "ifImpended" in entry.count
-                      ? // CR 702.176a — the impending count, only when that
-                        // cost was paid for the entering object.
-                        cast.impended === true
-                          ? entry.count.ifImpended
-                          : 0
-                      : typeof entry.count === "object"
-                        ? // CR 702.33f — "if this creature was kicked with its
-                          // {1}{U} kicker": how many times THAT kicker was paid,
-                          // read by id. An unknown id reads 0 (fail-closed, the
-                          // `kickerPaidCount` rule in `gre/kicker.ts`, not
-                          // imported here to keep this module frontend-light).
-                          Math.max(
-                              0,
-                              cast.kickerPayments?.[
-                                  entry.count.additionalCostPaid
-                              ] ?? 0
-                          )
-                        : // CR 702.44a — Sunburst: "it enters with a charge counter
-                          // on it for each color of mana spent to cast it" (a +1/+1
-                          // counter instead if the object is entering as a creature,
-                          // ignoring type-changing effects — which is why the counter
-                          // TYPE is declared per card and this vocabulary word only
-                          // supplies the COUNT). CR 702.44b restricts it to a
-                          // resolving spell, which is exactly the one entry site that
-                          // can pass a non-empty `manaSpentToCast`.
-                          entry.count === "sunburst"
-                          ? distinctColorsSpent(cast.manaSpentToCast)
-                          : entry.count;
+                        "cardsExiledWithIt" in entry.count
+                      ? countCardsExiledWithIt(
+                            cast.cardsExiledWithIt,
+                            entry.count.cardsExiledWithIt.types
+                        )
+                      : typeof entry.count === "object" &&
+                          "ifImpended" in entry.count
+                        ? // CR 702.176a — the impending count, only when that
+                          // cost was paid for the entering object.
+                          cast.impended === true
+                            ? entry.count.ifImpended
+                            : 0
+                        : typeof entry.count === "object"
+                          ? // CR 702.33f — "if this creature was kicked with its
+                            // {1}{U} kicker": how many times THAT kicker was paid,
+                            // read by id. An unknown id reads 0 (fail-closed, the
+                            // `kickerPaidCount` rule in `gre/kicker.ts`, not
+                            // imported here to keep this module frontend-light).
+                            Math.max(
+                                0,
+                                cast.kickerPayments?.[
+                                    entry.count.additionalCostPaid
+                                ] ?? 0
+                            )
+                          : // CR 702.44a — Sunburst: "it enters with a charge counter
+                            // on it for each color of mana spent to cast it" (a +1/+1
+                            // counter instead if the object is entering as a creature,
+                            // ignoring type-changing effects — which is why the counter
+                            // TYPE is declared per card and this vocabulary word only
+                            // supplies the COUNT). CR 702.44b restricts it to a
+                            // resolving spell, which is exactly the one entry site that
+                            // can pass a non-empty `manaSpentToCast`.
+                            entry.count === "sunburst"
+                            ? distinctColorsSpent(cast.manaSpentToCast)
+                            : entry.count;
         if (n <= 0) continue;
         delta[entry.type] = (delta[entry.type] ?? 0) + n;
     }

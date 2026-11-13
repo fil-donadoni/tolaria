@@ -2509,6 +2509,15 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  Written whenever more than one instance was chosen; a multi-instance
      *  item without it is an engine error, never an assumed zero. */
     modeTargetCounts?: number[];
+    /** CR 607.2q — the instance ids of the cards exiled to pay this spell's
+     *  cost (Delve CR 702.66, a flashback / escape / collect-evidence exile,
+     *  an exile-from-hand alternative cost, an exiled additional-cost
+     *  permanent), stamped at cast commit. The permanent the spell becomes
+     *  reads it at entry for "for each … card exiled with it" (Murktide
+     *  Regent, `EntersWithCount.cardsExiledWithIt`), counting only ids still
+     *  in exile (CR 607.2a / 400.7). Cast-instance-scoped: cleared when the
+     *  item leaves the stack (`resetStackTransientState`). */
+    castExiledCardIds?: string[];
     /** Snapshot of the permanent sacrificed OR exiled as an additional cost at
      *  announcement (CR 118.8 / 601.2f). Captured at commit and read at
      *  resolve via `SpellContext.getAdditionalSacrificeMv` (mana value) and

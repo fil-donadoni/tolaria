@@ -294,10 +294,10 @@ export function applyDelveExileForSearch(
     player: PlayerState,
     card: CardInstanceState,
     chosenX: number | undefined
-): void {
-    if (!spellHasDelve(card)) return;
+): string[] {
+    if (!spellHasDelve(card)) return [];
     const delveFuel = delveEligibleCards(player, card.id).length;
-    if (delveFuel === 0) return;
+    if (delveFuel === 0) return [];
     const rawCost = getInstanceManaCost(card) ?? {};
     const normCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
     // Cost modifiers (CR 601.2f) apply before the delve offset, mirroring the
@@ -316,7 +316,7 @@ export function applyDelveExileForSearch(
         genericPortion(normCost),
         Number.isFinite(shortfall) ? shortfall : 0
     );
-    if (delveCount <= 0) return;
+    if (delveCount <= 0) return [];
     // CHEAPEST FIRST, matching `castExileViewFor` + `chooseCastExileCost`
     // (`gre/paymentPicks.ts`) — the pair the LIVE bot answers the delve park
     // with. Both were raw graveyard order until issue #2980 reordered the live
@@ -324,12 +324,16 @@ export function applyDelveExileForSearch(
     // post-cast graveyard than the bot actually produces, and which cards leave
     // is observable (threshold, delirium, escape fodder, a graveyard-counting
     // CDA).
-    for (const c of cheapestFirst(delveEligibleCards(player, card.id)).slice(
+    const exiled = cheapestFirst(delveEligibleCards(player, card.id)).slice(
         0,
         delveCount
-    )) {
+    );
+    for (const c of exiled) {
         moveCard(player, c.id, "graveyard", "exile");
     }
+    // CR 607.2q — the exiled ids, stamped on the stack item as the cards
+    // "exiled with" the spell, exactly as `commitCast` stamps them.
+    return exiled.map((c) => c.id);
 }
 
 /** CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional-cost leg a
@@ -1503,9 +1507,9 @@ export function commitCastInSearch(
         move.cardInstanceId,
         move.castFromZone
     );
-    if (preCastSpell) {
-        applyDelveExileForSearch(state, player, preCastSpell, move.chosenX);
-    }
+    const castExiledCardIds = preCastSpell
+        ? applyDelveExileForSearch(state, player, preCastSpell, move.chosenX)
+        : [];
     // CR 601.2h / 702.44a — a `noteManaSpent` card records the colours it
     // was paid with (Converge, Sunburst, "if {R}{R} was spent"), stamped on
     // the stack item below. Read BEFORE the taps: a sacrificed source has left
@@ -1829,6 +1833,10 @@ export function commitCastInSearch(
                       castCostOut.additionalSacrificeSnapshot,
               }
             : {}),
+        // CR 607.2q — the delve exiles above, stamped as `commitCast` stamps
+        // them, so a "for each card exiled with it" entry count (Murktide
+        // Regent) is modelled in the tree.
+        ...(castExiledCardIds.length > 0 ? { castExiledCardIds } : {}),
         // CR 307.1 / 117.1a / 601.3a (issue #2473) — the search never calls
         // into `game.ts`'s commit paths, so it needs its own stamp or the bot
         // simulates a game in which the flag is universally absent. Evaluated

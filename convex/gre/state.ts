@@ -3526,6 +3526,29 @@ export function shouldEnterTapped(
     );
 }
 
+/** CR 607.2q / 607.2a — the card types of each of `ids` (the cards exiled to
+ *  pay a spell's cost, `StackItem.castExiledCardIds`) that is STILL in some
+ *  player's exile zone. A card that has left exile is a new object (CR 400.7)
+ *  and no longer "exiled with" anything, so it is dropped. Undefined when the
+ *  spell exiled nothing. */
+export function cardsStillExiled(
+    state: GameState,
+    ids: readonly string[] | undefined
+): { types: string[] }[] | undefined {
+    if (!ids || ids.length === 0) return undefined;
+    const out: { types: string[] }[] = [];
+    for (const id of ids) {
+        for (const p of state.players) {
+            const card = p.exile.find((c) => c.id === id);
+            if (card) {
+                out.push({ types: [...card.types] });
+                break;
+            }
+        }
+    }
+    return out;
+}
+
 /** CR 121.6 + 614.1c (issue #1693) — applies a permanent's declared
  *  "enters with N counters on it" REPLACEMENT to `card`, AS it enters.
  *
@@ -3844,6 +3867,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.chosenModeIds;
     delete item.modeTargetCounts;
     delete item.additionalSacrificeSnapshot;
+    delete item.castExiledCardIds;
     delete item.notedManaSpent;
     delete item.restrictedXManaOwed;
     delete item.dynamicCantBeCountered;
@@ -4477,9 +4501,19 @@ function finalizeSpellResolution(
                 // CR 702.176a — "if you chose to pay this permanent's
                 // impending cost": the cast-mode marker on the resolving item.
                 impended: item.impended,
+                // CR 607.2q — the cards exiled to pay this spell's cost (Delve),
+                // read off the stack item's cast-commit stamp; only those still
+                // in exile count (CR 607.2a / 400.7).
+                cardsExiledWithIt: cardsStillExiled(
+                    state,
+                    item.castExiledCardIds
+                ),
             },
             state
         );
+        // CR 607.2q — consumed at entry: the link belongs to the spell that
+        // became this permanent, never to a later object (CR 400.7).
+        delete item.castExiledCardIds;
         // CR 306.5b — a planeswalker enters with a number of loyalty counters
         // equal to its printed starting loyalty (`CardDefinition.loyalty`).
         // Loyalty counters reuse the generic `counters` map (same shape as the
