@@ -1682,7 +1682,7 @@ export const wordOfCommand = defineCard(() => ({
 
         // TARGETED spell (#578, CR 601.2c) — the Acting Player announces
         // every target the spell requires, group by group (issue #9536): for a
-        // MODAL spell the chosen mode's requirement (CR 700.2d), otherwise the
+        // MODAL spell the chosen mode's requirement (CR 700.2c), otherwise the
         // card-level one, then each `additionalTargetRequirements` group. The
         // candidates are the ones a normal cast offers, with the controlled
         // opponent as the spell's caster (CR 601): for an "any target" spell

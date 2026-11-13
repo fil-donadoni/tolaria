@@ -21872,7 +21872,7 @@ export function buildSpellContext(
             // target announcement (Word of Command's controlled cast, ADR
             // 0037; the cast-during-resolution Op, issue #1477). The group
             // list is `announceCast`'s: the chosen mode's primary requirement
-            // (CR 700.2d) falling back to the card's, then the mode's or the
+            // (CR 700.2c) falling back to the card's, then the mode's or the
             // card's `additionalTargetRequirements`. Unkicked: neither cast
             // pays a kicker (CR 702.33g drops the gated groups).
             // CR 709.3a / 712.11c / 715.3a — of the announced face alone.

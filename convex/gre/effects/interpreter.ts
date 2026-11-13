@@ -10245,7 +10245,7 @@ function castPickedCard(
 
     // TARGETS (CR 601.2c) — the caster announces every target the cast card
     // requires, group by group (the chosen mode's requirement for a modal
-    // card, CR 700.2d), from the candidate set a normal cast offers (issue
+    // card, CR 700.2c), from the candidate set a normal cast offers (issue
     // #9536 — a single `count: 1` pick cast "two target creatures" with one).
     // A required target with no legal choice => the card is NOT cast ("if
     // able").

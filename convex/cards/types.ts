@@ -8649,7 +8649,7 @@ export interface SpellContext {
      *  resolution (Word of Command's controlled cast, ADR 0037; the
      *  cast-during-resolution Op, issue #1477), card in any cast zone of
      *  `casterId`. `groupIndex` names the target GROUP — the primary
-     *  requirement (the chosen mode's, CR 700.2d, falling back to the card's),
+     *  requirement (the chosen mode's, CR 700.2c, falling back to the card's),
      *  then every `additionalTargetRequirements` entry, as `announceCast`
      *  orders them (`castAnnouncedTargetGroups`, unkicked: no kicker is paid
      *  on these casts). Returns `undefined` past the last group, else the
