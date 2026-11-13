@@ -1571,9 +1571,9 @@ describe("plans as soft weights: mixed plans (issue #9356)", () => {
     /** A mono-red Pool of one card shape (Hill Giant, {3}{R}), so colour,
      *  curve and castability are equal for every card and only the value
      *  decides: `aggroCopies` cards on `aggro`, eight on `tempo`, sixteen
-     *  untagged fillers rated 1.5 points above the plan cards. A plan card
-     *  at weight 1 outbids a filler (2.5 + 2 > 4); at weight one half it
-     *  does not (2.5 + 1 < 4). */
+     *  untagged fillers rated 1.3 points above the plan cards. A plan card
+     *  at weight 1 outbids a filler (2.5 + 2 > 3.8), and so does one at
+     *  weight 0.8 (2.5 + 1.6); at weight one half it does not (2.5 + 1). */
     function mixedPlansPool(aggroCopies: number) {
         const giant = metaOf("Hill Giant");
         const card = (cardId: string) => ({ ...giant, cardId });
@@ -1589,7 +1589,7 @@ describe("plans as soft weights: mixed plans (issue #9356)", () => {
                   ? archetypeProfile(["tempo"])
                   : null;
         const getPickRating = (cardId: string) =>
-            cardId === "filler" ? 4 : 2.5;
+            cardId === "filler" ? 3.8 : 2.5;
         const deck = autoBuildDeck(
             built.pool,
             built.getMeta,
@@ -1606,6 +1606,10 @@ describe("plans as soft weights: mixed plans (issue #9356)", () => {
         expect(split.deck.cards.length).toBeGreaterThanOrEqual(40);
         expect(split.count("aggro")).toBe(8);
         expect(split.count("tempo")).toBe(8);
+        // Uneven, still split: tempo weighs 8 / 10 and keeps its package.
+        const uneven = mixedPlansPool(10);
+        expect(uneven.count("aggro")).toBe(10);
+        expect(uneven.count("tempo")).toBe(8);
 
         const doubled = mixedPlansPool(16);
         expect(doubled.count("aggro")).toBe(16);
