@@ -27,6 +27,7 @@ import type {
     CardProfile,
     GetCardProfile,
 } from "@convex/limited/cardProfilesCore";
+import { resolveFetchSources } from "@convex/limited/manaSourceColors";
 import type { DraftLabSeatDeck } from "./draftLabEngine";
 import { draftLabGetAutoBuildCardMeta } from "./draftLabCardMeta";
 
@@ -229,7 +230,11 @@ export function auditSeatDeck(
     const resolved = seat.deck.cards.map((c) =>
         draftLabGetAutoBuildCardMeta(c.cardId)
     );
-    const main = resolved.filter((m): m is AutoBuildCardMeta => m !== null);
+    // A fetch land supplies the colours of the Maindeck lands it can find
+    // (issue #9348).
+    const main = resolveFetchSources(
+        resolved.filter((m): m is AutoBuildCardMeta => m !== null)
+    );
     const spells = main.filter((m) => !m.isLand);
 
     const curve = Array.from({ length: CURVE_MAX_BUCKET + 1 }, () => 0);
