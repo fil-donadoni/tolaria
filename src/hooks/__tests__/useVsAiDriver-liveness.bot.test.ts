@@ -1216,8 +1216,8 @@ describe("failed Brain consults reach the server (issue #9502)", () => {
 describe("the game's Bot search report (issue #9526)", () => {
     const GAME_2 = "game2" as Id<"games">;
 
-    /** CR 305.2 — the Bot's main phase with a land in hand: a window worth
-     *  searching, so the decision is routed to the Brain. */
+    /** The Bot's main phase with a land in hand: a window worth searching, so
+     *  the decision is routed to the Brain. */
     function searchWindow(seq: number): GameState {
         stubDecideNone = false;
         const board = priorityBoard();

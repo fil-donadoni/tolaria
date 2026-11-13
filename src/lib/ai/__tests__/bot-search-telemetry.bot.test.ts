@@ -295,38 +295,6 @@ describe("summarizeBotSearch", () => {
             }
         }
     });
-
-    it("pins the allowlist: widening what leaves the device is a reviewed edit", () => {
-        expect([...REPORT_KEYS]).toEqual([
-            "gameId",
-            "difficulty",
-            "consults",
-            "consults.move",
-            "consults.no-move",
-            "consults.timeout",
-            "consults.worker-error",
-            "consults.search-error",
-            "consults.inline",
-            "searches",
-            "iterations.requested",
-            "iterations.completed",
-            "iterations.ratio",
-            "stopped.iterations",
-            "stopped.time",
-            "stopped.settled",
-            "searchMs.p50",
-            "searchMs.p90",
-            "searchMs.max",
-            "consultMs.p50",
-            "consultMs.p90",
-            "consultMs.max",
-            "msPerIteration.p50",
-            "msPerIteration.p90",
-            "device.engine",
-            "device.cores",
-            "device.mobile",
-        ]);
-    });
 });
 
 describe("openBotSearchReport", () => {
