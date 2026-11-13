@@ -501,18 +501,19 @@ label, a position the loader refuses. Each value is a JSON string literal
 ## The seeded Limited fixture the lane walks (2026-08-26)
 
 `bun run check:ui`'s Limited and Draft surfaces do **not** walk whatever event
-this deployment happens to hold. They address two SEEDED events by label
+this deployment happens to hold. They address three SEEDED events by label
 (issue #2822) — because `listOpenLimitedEvents` returns every open event on the
 deployment to everyone, so both the row count of `/limited` and which seat the
 Draft Room walks measured used to be functions of the account's own data, and
 `budgets.json` rotted with no `src/` change.
 
-| Label                   | Shape                                                                           | Serves                                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`, `limited-table-ring`, `limited-leave-seat-confirm`                                           |
-| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`, `limited-build`, `limited-build-split` |
+| Label                        | Shape                                                                                                                                          | Serves                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ui-gate/<runId>/open`       | Draft event, seating still OPEN, viewer at seat 0, no pools                                                                                    | `limited-antechamber`, `limited-table-ring`, `limited-leave-seat-confirm`                                           |
+| `ui-gate/<runId>/draft`      | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool                                                                | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`, `limited-build`, `limited-build-split` |
+| `ui-gate/<runId>/final-pick` | Draft event, `started`, last round, viewer at seat 0 with ONE card left in the last pack and the 24-card pool (picking it completes the draft) | `draft-final-pick`                                                                                                  |
 
-The lane seeds both itself at bootstrap, for the run's own account and under
+The lane seeds all of them itself at bootstrap, for the run's own account and under
 the run's own id (issue #3626), and they go away with that account at
 teardown — so two concurrent runs never drop each other's rows. The seeder
 (`limitedFixtures:seedUiGateFixtures`) refuses any account outside the lane
@@ -548,6 +549,41 @@ different screen at others.
 `userDecks.create` (`insertUserDeck`), with the whole Pool in the Maindeck. If
 the seat already has a deck it is kept, not saved twice. The builder itself
 stays walked by `limited-build`.
+
+**A Limited screen in one navigation** (issue #9560). The rows that need a
+fixture's Draft Room or pool builder, not its path, land there through the
+seam instead of the event list's `?label=` filter, View click and a second
+navigation:
+
+```
+/__uiseam/limited-screen?__uiseam_fixture="ui-gate/<runId>/draft"&__uiseam_screen="draft"
+```
+
+`__uiseam_screen` is `event`, `draft` or `build` (`/limited/<id>`, `/draft`,
+`/build`). The page asks `uiSeam.limitedFixtureEvent` for the event of the
+label, which must seat the lane account, and routes to the screen. A refusal
+is printed on the page (`[data-testid="ui-seam-limited-screen-error"]`).
+`draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`,
+`draft-final-pick`, `limited-build`, `limited-build-split` and
+`limited-deck-detached-build` take it. **The event list stays the path** for
+`limited-list`, `limited-your-events`, `limited-antechamber`,
+`limited-table-ring` and `limited-leave-seat-confirm`: a deep link proves the
+screen, never the path to it.
+
+**Between two Bo3 games** (issue #9560). `game-sideboarding` needs a Match at
+the sideboarding gate. The seam forces the lane's own solo game there, with
+the Debug panel's own body (`forceBo3Sideboarding`, shared with
+`game.debugBo3Sideboard`), and lands on the board:
+
+```
+/__uiseam/sideboarding
+```
+
+`uiSeam.forceSideboarding` promotes the Match to Bo3, records Game 1 for the
+second seat (score 0–1) and ends the Game, so the board opens the Game-Over
+interstitial; the walk presses "Continue to Sideboarding" like a player. An
+undecided Match blocks a fresh game, so the row concedes it when it is done.
+Refusals print on `[data-testid="ui-seam-sideboarding-error"]`.
 
 The fixture's cards are pinned BY NAME in `convex/limitedFixtures.ts`, not
 dealt by `startDraft`: a seeded deal is only as stable as the set's implemented

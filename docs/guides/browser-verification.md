@@ -123,6 +123,13 @@ into the solo game the lobby already dealt. `game-manage-yields` keeps the
 Debug sheet's clicks. A row on the same position as the previous seam load
 skips the rebuild while the game's `seq` has not moved. `limited-deck-archive`
 saves its deck with `/__uiseam/limited-deck` instead of driving the builder.
+The Draft Room and pool builder rows reach their screen with
+`/__uiseam/limited-screen?__uiseam_fixture="<label>"&__uiseam_screen="draft"`
+(or `"build"`) instead of the event list; `limited-antechamber` and the list
+rows keep the event list as the real path (issue #9560). Two rows reach states
+the lane could not cheaply reach before: `draft-final-pick` (the
+`ui-gate/<runId>/final-pick` fixture) and `game-sideboarding`
+(`/__uiseam/sideboarding`, the Match forced to the Bo3 gate).
 Inside the app the lane routes in place, with a history push and `popstate`,
 so the bundle is not booted again. The routes and their guards are
 documented in `docs/guides/ui-runbooks.md` § Load a debug scenario and § The
