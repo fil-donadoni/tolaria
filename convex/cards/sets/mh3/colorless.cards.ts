@@ -10,9 +10,11 @@ import {
     DELIRIUM_CARD_TYPES,
     PERMANENT_TYPES,
     type LandEntryStateView,
+    type SpellContext,
     type TargetRequirement,
 } from "../../types";
 import { ELDRAZI_SPAWN_TOKEN } from "../../sharedTokens";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Shifting Woodland — Land.
@@ -313,6 +315,105 @@ export const kozileksCommand = defineCard(() => ({
                             to: "exile",
                         },
                     ],
+                },
+            ],
+        },
+    ],
+}));
+
+const UGINS_LABYRINTH_IMPRINT = "imprint-exiled";
+
+// Ugin's Labyrinth — Land (Vintage Cube). "Imprint — When this land enters,
+// you may exile a colorless card with mana value 7 or greater from your hand.
+// {T}: Add {C}. If a card is exiled with this land, add {C}{C} instead.
+// {T}: Return the exiled card to its owner's hand."
+//
+// protocol card: the imprint ETB picks a hand card by "colorless" AND "mana
+// value 7 or greater", and `EffectCardFilter` has neither field (Chrome Mox,
+// `mrd/colorless.cards.ts`, is the same hand-pick precedent), so it composes
+// `requestChoice` + `moveCardById` directly. The other two abilities are data.
+//
+// CR 406.3 — the imprinted card is exiled face up. `linkExileToSource` links it
+// to this land (CR 607.2a linked abilities) so the return ability's
+// `exiledWithSource` selector finds it; the `imprint-exiled` counter is the
+// marker the mana ability reads off its own source (`manaAmount` sees no exile
+// zone) and the return ability removes with the card, so "if a card is exiled
+// with this land" stays true only while one is. CR 605.1a — the mana ability
+// is `useStack: false`; the return ability is not a mana ability and uses the
+// stack. `isInternalCounter` hides the `imprint-` marker from badges.
+// hand-tail: Imprint — When this land enters, you may exile a colorless card with mana value 7 or greater from your hand. (#8641)
+export const uginsLabyrinth = defineCard(() => ({
+    id: "020e1348-1a35-4cc8-bad6-9fbddfa79277",
+    rarity: "mythic",
+    name: "Ugin's Labyrinth",
+    oracleText:
+        "Imprint — When this land enters, you may exile a colorless card with mana value 7 or greater from your hand.\n{T}: Add {C}. If a card is exiled with this land, add {C}{C} instead.\n{T}: Return the exiled card to its owner's hand.",
+    manaCost: {},
+    types: ["Land"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "uginss-labyrinth-imprint",
+            oracleText:
+                "Imprint — When this land enters, you may exile a colorless card with mana value 7 or greater from your hand.",
+            scope: "self",
+            resolve: (ctx: SpellContext) => {
+                const candidates = ctx
+                    .getHandCards(ctx.controller)
+                    .filter((c) => c.colors.length === 0 && c.manaValue >= 7);
+                if (candidates.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `uginss-labyrinth-imprint-${ctx.sourceInstanceId}`,
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    count: { min: 0, max: 1 },
+                    candidateIds: candidates.map((c) => c.id),
+                    prompt: "Ugin's Labyrinth: exile a colorless card with mana value 7 or greater from your hand (or skip).",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const cardId = picks[0];
+                if (!cardId) return;
+                ctx.moveCardById(ctx.controller, cardId, "hand", "exile");
+                ctx.linkExileToSource(cardId, ctx.sourceInstanceId);
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    UGINS_LABYRINTH_IMPRINT,
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "uginss-labyrinth-mana",
+            oracleText:
+                "{T}: Add {C}. If a card is exiled with this land, add {C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effects: [{ op: "addMana", mana: { C: 1 } }],
+            manaProduced: { C: 2 },
+            manaAmount: (source) =>
+                (source.counters?.[UGINS_LABYRINTH_IMPRINT] ?? 0) > 0
+                    ? { C: 2 }
+                    : { C: 1 },
+        },
+        {
+            id: "uginss-labyrinth-return",
+            oracleText: "{T}: Return the exiled card to its owner's hand.",
+            cost: { tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    to: "hand",
+                },
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: UGINS_LABYRINTH_IMPRINT,
+                    target: { ref: "$source" },
+                    count: 1,
                 },
             ],
         },
