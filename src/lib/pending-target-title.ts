@@ -23,8 +23,9 @@ export const UNRESOLVED_TARGET_SOURCE = "spell";
  *  - `ability` (CR 602.2b) — `cardInstanceId` is the source object: a
  *    permanent, or a card in another zone for an ability that functions there.
  *  - `trigger` (CR 603.3d) — `cardInstanceId` is the trigger's STACK ITEM.
- *  - a cast (CR 601.2c) — the card being cast, still in hand, graveyard or
- *    exile while its targets are chosen (CR 601.2a moves it only after). */
+ *  - a cast (CR 601.2c) — the card being cast. The engine asks for its
+ *    targets before moving it, so it is still in hand, graveyard or exile
+ *    here, although CR 601.2a moves it to the stack first. */
 export type PendingTargetSource =
     | { kind: "ability"; card: CardInstance }
     | { kind: "trigger"; item: StackItem }
@@ -59,7 +60,7 @@ export function resolvePendingTargetSource(
 }
 
 /** The source's NAME: the card (its displayed face) or, for an emblem-sourced
- *  trigger, the emblem (CR 114 — an emblem key is absent from the card
+ *  trigger, the emblem (CR 114.1 — an emblem key is absent from the card
  *  registry). `null` when nothing resolves. */
 function sourceName(source: PendingTargetSource): string | null {
     if (!source) return null;
@@ -87,8 +88,8 @@ export function pendingTargetSourceName(
         : UNRESOLVED_TARGET_SOURCE;
 }
 
-/** CR 113.1 / 611.2a — the activated ability's own Oracle text, looked up in
- *  the source's POST-LAYER ability set: a transformed face's (CR 712.8e) and a
+/** CR 113.1a / 613.1f — the activated ability's own Oracle text, looked up
+ *  in the source's POST-LAYER ability set: a transformed face's (CR 712.8e) and a
  *  granted one included. A grant names the card that prints it, which
  *  disambiguates two sources granting the same ability id. */
 function activatedAbilityText(

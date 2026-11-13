@@ -30,14 +30,12 @@ import { cn } from "~/lib/utils";
  *  the board, which reopens the full dialog on a tap meant for a card
  *  underneath. The full dialog can legitimately center (nothing to click
  *  behind an unminimized modal the player is actively reading), but the
- *  whole point of THIS collapsed badge is to get out of the way.
- *
- *  Issue #8426 — a minimized target selection (the graveyard target dialog)
- *  has no Pending Choice: its caller passes the `label` (the source's name)
- *  instead of a `choice`. */
+ *  whole point of THIS collapsed badge is to get out of the way. */
 export default function MinimizedChoiceIndicator(
     props: { choice: PendingChoice } | { label: string }
 ) {
+    // A minimized target selection (the graveyard target dialog) has no
+    // Pending Choice: its caller passes the source's name as `label`.
     const { restore } = useMinimizedChoice();
     const label =
         "label" in props ? props.label : pendingChoiceSourceLabel(props.choice);

@@ -151,7 +151,7 @@ describe("graveyard target title — activated ability (CR 602.2b, issue #8426)"
         expect(title(state)).toBe(ability.oracleText);
     });
 
-    it("a GRANTED ability (CR 113.1): the grant template's text", () => {
+    it("a GRANTED ability (CR 113.1a): the grant template's text", () => {
         const GRANTER_ID = "client-8426-granter";
         const GRANTED_ID = "client-8426-granted-return";
         const GRANTED_TEXT =
@@ -232,8 +232,8 @@ describe("graveyard target title — trigger (CR 603.3d, issue #8426)", () => {
 });
 
 describe("graveyard target title — cast (CR 601.2c, issue #8426)", () => {
-    // CR 601.2a — the card stays in the zone it is cast from until the
-    // announcement completes, so the source is found in graveyard or exile.
+    // The engine asks for targets before moving the card, although CR 601.2a
+    // moves it to the stack first, so the source is found in graveyard or exile.
     for (const zone of ["graveyard", "exile"] as const) {
         it(`a cast from ${zone}: dialog and banner both name the card`, () => {
             const state = boardState([]);
