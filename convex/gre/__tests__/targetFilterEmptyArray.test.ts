@@ -48,6 +48,7 @@ const SHAPE: Record<FilterKey, "array" | "other"> = {
     powerFilter: "other",
     toughnessFilter: "other",
     totalPowerToughnessFilter: "other",
+    powerOrToughnessFilter: "other",
     mvFilter: "other",
     spellStackKind: "other",
     stackSourceTypeFilter: "array",
