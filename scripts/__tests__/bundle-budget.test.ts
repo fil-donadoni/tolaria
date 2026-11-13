@@ -37,6 +37,10 @@ const grown = (added: number) =>
 
 describe("card-set bundle budget scales with the hand-written corpus (issue #9489)", () => {
     it("ordinary card growth stays under budget up to the re-anchor horizon", () => {
+        // An allowance below the marginal spends the headroom card by card.
+        expect(SET_CHUNK_BUDGET.perUnitBytes).toBeGreaterThanOrEqual(
+            OBSERVED_SET_BYTES_PER_CARD
+        );
         for (const added of ADDED)
             expect(grown(added)).toBeLessThanOrEqual(
                 scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits + added)
