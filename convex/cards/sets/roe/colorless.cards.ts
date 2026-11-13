@@ -160,3 +160,43 @@ export const emrakulTheAeonsTorn = defineCard(() => ({
         emrakulShuffleGraveyardFromAnywhere(),
     ],
 }));
+
+// Eldrazi Temple — Land. "{T}: Add {C}." and "{T}: Add {C}{C}. Spend this mana
+// only to cast colorless Eldrazi spells or activate abilities of colorless
+// Eldrazi." (ROE rare, modern oracle.)
+//
+// CR 106.6 — the second ability's mana carries a `colorless-eldrazi` spend
+// restriction (declared via `manaRestriction`): it floats in the parallel
+// `restrictedMana` pool and pays only a spell that is colorless (CR 105.2c) and
+// an Eldrazi (CR 205.3), or an ability whose source is. Two mana abilities, so
+// the engine's tap-option choice offers the unrestricted {C} and the {C}{C}.
+// hand-tail: {T}: Add {C}{C}. Spend this mana only to cast colorless Eldrazi spells or activate abilities of colorless Eldrazi. (#8615)
+export const eldraziTemple = defineCard(() => ({
+    id: "315924c9-77e3-405b-9bbf-852ed563c6e3",
+    rarity: "rare",
+    name: "Eldrazi Temple",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {C}{C}. Spend this mana only to cast colorless Eldrazi spells or activate abilities of colorless Eldrazi.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "eldrazi-temple-mana",
+            oracleText: "{T}: Add {C}.",
+            cost: { tap: true },
+            useStack: false,
+            effects: [{ op: "addMana", mana: { C: 1 } }],
+            manaProduced: { C: 1 },
+        },
+        {
+            id: "eldrazi-temple-restricted-mana",
+            oracleText:
+                "{T}: Add {C}{C}. Spend this mana only to cast colorless Eldrazi spells or activate abilities of colorless Eldrazi.",
+            cost: { tap: true },
+            useStack: false,
+            effects: [{ op: "addMana", mana: { C: 2 } }],
+            manaProduced: { C: 2 },
+            manaRestriction: "colorless-eldrazi",
+        },
+    ],
+}));

@@ -59,6 +59,8 @@ import {
     spendablePoolForSpell,
     payManaCostForAbility,
     spendablePoolForAbility,
+    sourceRestrictionSubject,
+    spellRestrictionSubject,
     addRestrictedManaToPool,
     hasAnyManaRider,
     manaRidersForAbility,
@@ -661,6 +663,7 @@ import { commitCast } from "./gre/castCommit";
 import {
     activateAbilityOnState,
     activationSourceTypes,
+    activationSourceSubject,
     assertActivationTimingLegal,
     assertDiscardFilterCostAffordable,
     assertGameNotOver,
@@ -5071,7 +5074,11 @@ export function finalizeTargetSelection(
         const manaUncovered =
             !!manaCost &&
             !isManaCostCovered(
-                spendablePoolForAbility(player, abilitySourceTypes),
+                spendablePoolForAbility(
+                    player,
+                    abilitySourceTypes,
+                    sourceRestrictionSubject(card)
+                ),
                 manaCost,
                 getAbilityManaSubstitutions(state, player.id, card)
             );
@@ -5152,7 +5159,9 @@ export function finalizeTargetSelection(
                 player,
                 manaCost,
                 abilitySourceTypes,
-                getAbilityManaSubstitutions(state, player.id, card)
+                getAbilityManaSubstitutions(state, player.id, card),
+                undefined,
+                sourceRestrictionSubject(card)
             );
             commitLandsForCost(player, manaCost);
         }
@@ -5918,6 +5927,7 @@ export function finalizeTargetSelection(
     // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
     // `legendary-spell` restriction's eligibility check (Delighted Halfling).
     const cardSupertypes = cardDef.supertypes ?? [];
+    const cardSubject = spellRestrictionSubject(cardDef);
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
@@ -5925,7 +5935,8 @@ export function finalizeTargetSelection(
                 player,
                 cardDef.types,
                 cardInstanceId,
-                cardSupertypes
+                cardSupertypes,
+                cardSubject
             ),
             manaCost,
             getCastManaSubstitutions(
@@ -6487,6 +6498,7 @@ export const announceCast = mutation({
         // `legendary-spell` restriction's eligibility check (Delighted
         // Halfling). Shared by every mana-coverage/payment call below.
         const cardSupertypes = cardDef.supertypes ?? [];
+        const cardSubject = spellRestrictionSubject(cardDef);
 
         // CR 118.9 — the caster opted into an ALTERNATIVE casting cost (return /
         // sacrifice lands, Gush/Thwart/Fireblast). Validate the variant exists
@@ -7805,7 +7817,8 @@ export const announceCast = mutation({
                         player,
                         cardDef.types,
                         args.cardInstanceId,
-                        cardSupertypes
+                        cardSupertypes,
+                        cardSubject
                     ),
                     altManaCost,
                     getCastManaSubstitutions(
@@ -8369,7 +8382,8 @@ export const announceCast = mutation({
                     player,
                     cardDef.types,
                     args.cardInstanceId,
-                    cardSupertypes
+                    cardSupertypes,
+                    cardSubject
                 ),
                 manaCost,
                 getCastManaSubstitutions(
@@ -9150,7 +9164,8 @@ export const tapForActivationPayment = mutation({
         const manaStillOwed = !isManaCostCovered(
             spendablePoolForAbility(
                 player,
-                activationSourceTypes(state, pa.cardInstanceId)
+                activationSourceTypes(state, pa.cardInstanceId),
+                activationSourceSubject(state, pa.cardInstanceId)
             ),
             pa.manaCost,
             getAbilityManaSubstitutions(state, player.id, paSource)

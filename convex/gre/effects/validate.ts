@@ -1080,6 +1080,7 @@ const MANA_RESTRICTIONS: Record<ManaRestriction, true> = {
     "artifact-ability": true,
     "legendary-spell": true,
     "not-nonartifact-spell": true,
+    "colorless-eldrazi": true,
 };
 
 function isTokenActivatedAbility(value: unknown): boolean {

@@ -162,6 +162,7 @@ import {
     normalizeManaCost,
     resolveTargetRequirementCount,
     restrictedUnitAllowsSpell,
+    spellRestrictionSubject,
     emitBecameTargetEvents,
     getPlayer,
     type TargetCountAnnouncement,
@@ -2741,9 +2742,12 @@ export function buildManaSourceUnits(
     // live overlay and the printed value coincide for every real spell this
     // restriction can apply to. Same source `restrictedUnitAllowsSpell`
     // expects.
-    const spellSupertypes =
-        tryGetDefinition((card.card as { id?: string }).id ?? "")?.supertypes ??
-        [];
+    const spellDef = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const spellSupertypes = spellDef?.supertypes ?? [];
+    // CR 106.6 — colour + subtype, for the `colorless-eldrazi` restriction.
+    const spellSubject = spellDef
+        ? spellRestrictionSubject(spellDef)
+        : undefined;
     // See `opts.state` doc above: only built when the caller passed a full
     // `GameState`, and always spans EVERY player, never just `player`. Shared
     // with moves.ts / game.ts via `manaGateBattlefields` (issue #1754 finding
@@ -2789,7 +2793,8 @@ export function buildManaSourceUnits(
                     r,
                     card.types,
                     card.id,
-                    spellSupertypes
+                    spellSupertypes,
+                    spellSubject
                 )
             ) {
                 for (let i = 0; i < r.amount; i++) {
@@ -2813,6 +2818,7 @@ export function buildManaSourceUnits(
             spell: {
                 types: card.types,
                 supertypes: spellSupertypes,
+                subject: spellSubject,
                 handDiscardFree: handDiscardCostsNothing(player, card.id),
             },
             replacements: opts.state,

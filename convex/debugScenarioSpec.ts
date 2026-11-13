@@ -241,6 +241,7 @@ const MANA_RESTRICTION_PRESENCE = {
     "artifact-ability": true,
     "legendary-spell": true,
     "not-nonartifact-spell": true,
+    "colorless-eldrazi": true,
 } satisfies Record<ManaRestriction, true>;
 
 /** The restriction members a spec may name, derived from the mirror above. */
