@@ -68724,6 +68724,14 @@
         "source": "compiled"
     },
     {
+        "name": "Scion of Draco",
+        "scryfallId": "3e7da55c-7f05-46b2-aa3c-17f8d5df46bb",
+        "oracleId": "fd547632-a29a-4dad-a9da-155882391815",
+        "firstSet": "mh2",
+        "firstPrintId": "3e7da55c-7f05-46b2-aa3c-17f8d5df46bb",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Scion of Glaciers",
         "scryfallId": "5e370939-831b-4c42-8291-8ffb0b6c1af7",
         "oracleId": "9d49cef5-8f9c-46cd-aa5e-7861fc1dcaa4",

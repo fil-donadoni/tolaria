@@ -361,3 +361,43 @@ export const nettlecyst = defineCard(() => ({
         }),
     ],
 }));
+
+// Scion of Draco — {12} Artifact Creature — Dragon 4/4 (MH2). The cast leg is
+// Draco's self-host Domain reduction ({2} per basic land type; CR 601.2f,
+// see `convex/cards/sets/pls/colorless.cards.ts`). The last line is five
+// colour-conditional keyword grants over every creature its controller
+// controls, itself included (CR 611, 613.1f layer 6). Colour is read through
+// `ctx.getColors`, so a layer-5 colour change moves the grants with it.
+// hand-tail: Each creature you control has vigilance if it's white, hexproof if it's blue, lifelink if it's black, first strike if it's red, and trample if it's green. (#8670)
+export const scionOfDraco = defineCard(() => ({
+    id: "3e7da55c-7f05-46b2-aa3c-17f8d5df46bb", // MH2 234
+    rarity: "mythic",
+    name: "Scion of Draco",
+    oracleText:
+        "Domain — This spell costs {2} less to cast for each basic land type among lands you control.\nFlying\nEach creature you control has vigilance if it's white, hexproof if it's blue, lifelink if it's black, first strike if it's red, and trample if it's green.",
+    manaCost: { X: 12 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Dragon"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    selfCostReduction: {
+        costReduction: { perCount: { X: 2 }, countMode: "domain" },
+    },
+    staticEffects: (
+        [
+            ["W", "vigilance"],
+            ["U", "hexproof"],
+            ["B", "lifelink"],
+            ["R", "first strike"],
+            ["G", "trample"],
+        ] as const
+    ).map(([color, keyword]) => ({
+        kind: "keyword-grant" as const,
+        applies: (target, source, ctx) =>
+            target.types.includes("Creature") &&
+            target.controllerId === source.controllerId &&
+            ctx.getColors(target).includes(color),
+        keyword,
+    })),
+}));
