@@ -9,15 +9,15 @@ import { defineCard } from "../../types";
 // "Sacrifice any number of lands. Search your library for up to that many land
 // cards, put them onto the battlefield tapped, then shuffle."
 //   - "Any number" is a `choice` over the controller's own lands with a
-//     `{ min: 0, max }` range clamped to what exists (CR 608.2b); the picks are
+//     `{ min: 0, max }` range clamped to what exists; the picks are
 //     sacrificed as a resolution-time effect, not a cost (CR 701.21a).
 //   - "That many" is the SIZE of the sacrificed picks (`setSize`, the Myr
 //     Battlesphere shape): the search ceiling is computed when the choice is
-//     raised, after the sacrifice (CR 701.23a), and "up to" with a stated
+//     raised, once the lands are gone (the search, CR 701.23a), and "up to" with a stated
 //     quality never compels the find (CR 701.23b, `min: 0`).
 //   - The found lands enter tapped (`tapped: true`), then the library is
-//     shuffled (CR 701.24a). Zero lands sacrificed raises no search (CR 107.1b)
-//     and the shuffle still happens.
+//     shuffled (CR 701.24a). Zero lands raises no search and the shuffle
+//     still happens.
 // hand-tail: Sacrifice any number of lands. Search your library for up to that many land cards, put them onto the battlefield tapped, then shuffle. (#8632)
 export const scapeshift = defineCard(() => ({
     id: "84829605-50eb-455d-a236-ebfa11e883c5",

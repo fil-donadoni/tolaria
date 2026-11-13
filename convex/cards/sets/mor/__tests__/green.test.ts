@@ -38,8 +38,10 @@ function submit(state: GameState, ids: string[]) {
 
 // Scapeshift — "Sacrifice any number of lands. Search your library for up to
 // that many land cards, put them onto the battlefield tapped, then shuffle."
-// (CR 701.21a sacrifice, CR 701.23 search, CR 701.24a shuffle.)
-describe("Scapeshift (CR 701.21a / 701.23b / 701.24a)", () => {
+// Sacrifice: CR 701.21a.
+// Search: CR 701.23b.
+// Shuffle: CR 701.24a.
+describe("Scapeshift", () => {
     function setup() {
         const lands = ["a", "b", "c"].map((id) =>
             makeInstance(forest.id, { id: `bf-${id}` })
