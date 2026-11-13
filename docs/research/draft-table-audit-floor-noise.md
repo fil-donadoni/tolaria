@@ -40,10 +40,11 @@ bun run draft:audit -- --scope vintage-cube --seeds 64 --json
 - **No build regression.** Over 64 seeds, mean castability does not move
   (0.864 → 0.865), and fetch lands leave plan share unchanged (0.512 → 0.513
   with PR #9320 under both).
-- **The worst deck is one seat's draw.** On a single tree it spans 0.58–0.79
-  across blocks. On the base, seeds 1..8 happened to be its best block. Fetch
-  lands change Fixing Value, so every pick changes and every table is drafted
-  again. That is enough to lose a lucky block.
+- **The worst deck is one seat's draw.** Across blocks it spans 0.58–0.77 on
+  PR #9320 alone and 0.64–0.79 on PR #9345 alone. On the base, seeds 1..8
+  happened to be its best block. Fetch lands change Fixing Value, so every
+  pick changes and every table is drafted again. That is enough to lose a
+  lucky block.
 - **The tail, all 512 decks.** Fetch lands do not hurt it. PR #9320 thickens
   only its last percent; p5 and above do not move.
 
