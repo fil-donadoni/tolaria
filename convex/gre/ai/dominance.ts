@@ -149,7 +149,7 @@ import {
     searchRestrictedXManaOwedStamp,
 } from "../searchTapPlan";
 import { tryGetDefinition } from "../../cards";
-import { spellHasDelve } from "../payWith";
+import { genericFuelOf } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
 // predicate. `phases.ts` is a leaf engine module here (it is neither
 // `search.ts` nor `applyMove.ts`, so this module still stays off `moves.ts`'
@@ -1881,7 +1881,7 @@ function probeEligible(
         // one. A flashback cast is already refused — the card is in the
         // graveyard, not the hand, so the `card` lookup above fails.)
         if (move.payLife !== undefined && move.payLife > 0) return false;
-        if (spellHasDelve(card)) return false;
+        if (genericFuelOf(card)) return false;
         return true;
     }
     if (move.kind === "activate-ability") {

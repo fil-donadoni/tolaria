@@ -40,11 +40,11 @@ export default function CastExileCostDialog({
          *  them. When set, `count` is ignored. */
         minCardTypes?: number;
         /** CR 702.66 (Delve) — the `payWith` VARIABLE-OFFSET cost (CR 601.2g,
-         *  ADR 0063): exile ANY number of graveyard cards in `min..max`, each
-         *  paying for {1} of the spell's generic cost. When set, `count` is
+         *  ADR 0063): exile ANY number of cards in `min..max` from `zone`, each
+         *  paying for `perCard` (default {1}) of the spell's generic cost. When set, `count` is
          *  ignored. `min` > 0 means the caster's mana can't cover the shortfall
          *  — that many exiles are forced, and are pre-seeded below. */
-        offsetGeneric?: { min: number; max: number };
+        offsetGeneric?: { min: number; max: number; perCard?: number };
         /** CR 701.59a (collect evidence) — exile ANY number of cards with
          *  total mana value ≥ this. When set, `count` is ignored. */
         minTotalManaValue?: number;
@@ -181,7 +181,9 @@ export default function CastExileCostDialog({
             }}
             title={
                 isDelve
-                    ? "Delve"
+                    ? zone === "hand"
+                        ? "Exile cards to reduce the cost"
+                        : "Delve"
                     : isEvidence
                       ? "Collect evidence"
                       : isVariable
@@ -190,7 +192,7 @@ export default function CastExileCostDialog({
             }
             subtitle={
                 isDelve
-                    ? `Exile up to ${offset.max} card(s) from your graveyard — each pays for {1}` +
+                    ? `Exile up to ${offset.max} card(s) from your ${zone} — each pays for {${offset.perCard ?? 1}}` +
                       (offset.min > 0
                           ? ` (at least ${offset.min} required)`
                           : "")

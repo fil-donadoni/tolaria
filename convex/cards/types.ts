@@ -23814,6 +23814,15 @@ export interface CardDefinition {
          *  spec (a flattened leg overwrites it). */
         oneOf?: AdditionalCostLeg[];
     };
+    /** CR 601.2b / 601.2f / 118.8 — an OPTIONAL additional cost that pays down
+     *  the spell's GENERIC cost: "As an additional cost to cast this spell, you
+     *  may exile any number of <colour> cards from your hand. This spell costs
+     *  {N} less to cast for each card exiled this way." The caster picks 0..max
+     *  matching cards from their own hand (never the spell itself) through the
+     *  `payWith` picker (`gre/payWith.ts`, the variable-offset mode Delve
+     *  shares); each card exiled reduces the generic cost by `perCard` and never
+     *  touches a coloured pip (CR 601.2f — reduced to no less than {0}). */
+    handExileCostReduction?: { color: Color; perCard: number };
     /** CR 118.9 — alternative casting costs the caster may choose at
      *  announcement INSTEAD of paying this spell's mana cost. Each entry pays
      *  by returning or sacrificing N matching permanents the caster controls.

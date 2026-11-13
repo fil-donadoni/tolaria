@@ -48875,6 +48875,14 @@
         "source": "compiled"
     },
     {
+        "name": "March of Otherworldly Light",
+        "scryfallId": "553fb946-2706-475b-89f9-e4355ec9ea2b",
+        "oracleId": "ed06e421-480c-40c8-8c3e-1e466e5327b2",
+        "firstSet": "neo",
+        "firstPrintId": "553fb946-2706-475b-89f9-e4355ec9ea2b",
+        "firstPrintSet": "neo"
+    },
+    {
         "name": "March of Souls",
         "scryfallId": "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5",
         "oracleId": "bca7101b-e74b-42af-ac63-1b3defb4137d",
