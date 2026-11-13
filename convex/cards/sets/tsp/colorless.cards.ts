@@ -87,3 +87,28 @@ export const gemstoneCaverns = defineCard(() => ({
         },
     ],
 }));
+
+// Vesuva — Land (TSP). "You may have this land enter tapped as a copy of any
+// land on the battlefield" is the declarative as-enters copy (CR 614.1c / 707.5)
+// over the battlefield; `entersTappedAsCopy` taps it only when a land is
+// chosen, so declining leaves the printed untapped Vesuva (CR 614.12). It has
+// no abilities of its own.
+// hand-tail: You may have this land enter tapped as a copy of any land on the battlefield. (#8644)
+export const vesuva = defineCard(() => ({
+    id: "82fc9498-7397-4857-87fe-7c9010944ed8",
+    name: "Vesuva",
+    rarity: "rare",
+    oracleText:
+        "You may have this land enter tapped as a copy of any land on the battlefield.",
+    manaCost: {},
+    types: ["Land"],
+    entersWith: {
+        asEnters: [
+            {
+                kind: "copy",
+                filter: { types: "Land" },
+                entersTappedAsCopy: true,
+            },
+        ],
+    },
+}));

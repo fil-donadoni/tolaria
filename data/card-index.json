@@ -89192,6 +89192,14 @@
         "source": "compiled"
     },
     {
+        "name": "Vesuva",
+        "scryfallId": "82fc9498-7397-4857-87fe-7c9010944ed8",
+        "oracleId": "4001b868-ada1-43f4-92e2-27ab0e80c913",
+        "firstSet": "tsp",
+        "firstPrintId": "82fc9498-7397-4857-87fe-7c9010944ed8",
+        "firstPrintSet": "tsp"
+    },
+    {
         "name": "Vesuvan Doppelganger",
         "scryfallId": "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
         "oracleId": "aeaccab9-3e2c-4a40-a483-52c4972b2014",
