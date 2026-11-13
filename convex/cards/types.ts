@@ -3672,6 +3672,23 @@ export interface OffBattlefieldCharacteristics {
  *  the delayed trigger {@link CardDefinition.openingHandReveal} declares. */
 export type OpeningHandAction = "begin-on-battlefield" | "reveal";
 
+/** CR 103.6a — the terms a card's "begin the game with it on the battlefield"
+ *  carries beyond the bare Leyline template, declared by
+ *  {@link CardDefinition.openingHandBegin} beside
+ *  `openingHandAction: "begin-on-battlefield"`:
+ *  - `notStartingPlayer`: "… and you're not the starting player" — the card
+ *    is offered only to a player other than the one who takes the first turn.
+ *  - `counters`: "… with a luck counter on it" — counters it enters with
+ *    (CR 122.6).
+ *  - `exileFromHand`: "If you do, exile a card from your hand" — once the card
+ *    has begun the game on the battlefield, its player exiles that many cards
+ *    of their choice from their hand (all of it, if they hold fewer). */
+export type OpeningHandBegin = {
+    notStartingPlayer?: true;
+    counters?: Record<string, number>;
+    exileFromHand?: number;
+};
+
 /** CR 103.6b — what a card that lets its owner reveal it from their opening
  *  hand (`openingHandAction: "reveal"`) does for having done so: a delayed
  *  triggered ability (CR 603.7) that triggers at the beginning of that
@@ -23127,6 +23144,9 @@ export interface CardDefinition {
      *  opening hand, once the mulligan process is complete and before the
      *  first turn begins. See {@link OpeningHandAction}. */
     openingHandAction?: OpeningHandAction;
+    /** CR 103.6a — the gate, entry counters and follow-up of a
+     *  `"begin-on-battlefield"` action. See {@link OpeningHandBegin}. */
+    openingHandBegin?: OpeningHandBegin;
     /** CR 103.6b — required with `openingHandAction: "reveal"`: the delayed
      *  trigger a reveal sets up. See {@link OpeningHandRevealTrigger}. */
     openingHandReveal?: OpeningHandRevealTrigger;

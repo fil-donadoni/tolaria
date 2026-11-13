@@ -37,6 +37,16 @@ import type { Phase } from "./types";
  *  `stackItemId` (CR 103.6) — there is no stack object behind it. */
 export const OPENING_HAND_STACK_ITEM_ID = "opening-hand";
 
+/** Prefix of the `choiceId` of the follow-up pick a begun card asks for
+ *  (`OpeningHandBegin.exileFromHand`), which shares the
+ *  `opening-hand-action` kind with the action pick itself. */
+const OPENING_HAND_EXILE_CHOICE_PREFIX = "opening-hand-exile-";
+
+/** Whether `head` is the exile-from-hand follow-up pick (CR 103.6a). */
+export function isOpeningHandExileChoice(head: PendingChoice): boolean {
+    return head.choiceId.startsWith(OPENING_HAND_EXILE_CHOICE_PREFIX);
+}
+
 /** Initial hand size (CR 103.5; constant for now — Vanguard / hand-modifier
  *  effects are out of scope). Mirrored from game.ts to avoid a cycle. */
 const STARTING_HAND_SIZE = 7;
@@ -271,8 +281,16 @@ export function openingHandActionCards(
     return player.hand.filter((card) => {
         const id = (card.card as { id?: string }).id;
         if (id === undefined) return false;
-        const action = tryGetDefinition(id)?.openingHandAction;
+        const definition = tryGetDefinition(id);
+        const action = definition?.openingHandAction;
         if (action === "reveal") return !revealed.includes(card.id);
+        // CR 103.6a — "and you're not the starting player": the starting
+        // player is the first turn's active player.
+        if (
+            definition?.openingHandBegin?.notStartingPlayer &&
+            player.id === state.activePlayerId
+        )
+            return false;
         return action === "begin-on-battlefield";
     });
 }
@@ -429,9 +447,73 @@ function continueOpeningHandWindow(state: GameState): void {
             advanceOpeningHandWindow(state);
             return;
         }
-        putHandCardOntoBattlefield(state, actor.id, next);
+        const rider = tryGetDefinition(
+            (actor.hand.find((c) => c.id === next)?.card as { id?: string })
+                ?.id ?? ""
+        )?.openingHandBegin;
+        const entered = putHandCardOntoBattlefield(
+            state,
+            actor.id,
+            next,
+            rider?.counters
+        );
+        // CR 103.6a — "If you do, exile a card from your hand": asked only
+        // once the card did begin the game on the battlefield.
+        if (entered && rider?.exileFromHand && actor.hand.length > 0)
+            raiseOpeningHandExileChoice(
+                state,
+                actor,
+                next,
+                rider.exileFromHand
+            );
     }
     state.priorityPlayerId = state.pendingChoices![0].playerId;
+}
+
+/** CR 103.6a — park the window on the actor's exile-from-hand pick for the
+ *  card that just began the game on the battlefield. Every hand card is a
+ *  candidate; a hand smaller than `count` exiles all of it. Private to the
+ *  chooser (CR 400.2). */
+function raiseOpeningHandExileChoice(
+    state: GameState,
+    actor: PlayerState,
+    sourceCardId: string,
+    count: number
+): void {
+    const exactly = Math.min(count, actor.hand.length);
+    state.pendingChoices = [
+        ...(state.pendingChoices ?? []),
+        {
+            stackItemId: OPENING_HAND_STACK_ITEM_ID,
+            step: 0,
+            choiceId: `${OPENING_HAND_EXILE_CHOICE_PREFIX}${sourceCardId}`,
+            playerId: actor.id,
+            kind: "opening-hand-action",
+            zone: "hand",
+            candidateIds: actor.hand.map((c) => c.id),
+            count: { min: exactly, max: exactly },
+            prompt: "Exile a card from your hand",
+            privateToChooser: true,
+        },
+    ];
+}
+
+/** Apply the exile-from-hand follow-up pick (CR 103.6a): the chosen cards go
+ *  from the actor's hand to exile, then the window carries on. */
+export function applyOpeningHandExile(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const choices = state.pendingChoices;
+    const choice = choices?.[0];
+    if (!choice || !isOpeningHandExileChoice(choice)) {
+        throw new Error("No opening-hand exile choice to apply");
+    }
+    choices!.shift();
+    state.pendingChoices = choices!.length > 0 ? choices : undefined;
+    const actor = state.players.find((p) => p.id === choice.playerId)!;
+    for (const id of selectedIds) moveCard(actor, id, "hand", "exile");
+    resumeOpeningHandWindow(state);
 }
 
 /** Clears the mulligan state and advances the engine to UPKEEP of turn 1

@@ -44,7 +44,12 @@ import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
 import { copyExceptName } from "../cards/cardNames";
 import { damageSourceChoicePool } from "./damageSourceChoice";
-import { applyMulliganBottomChoice, applyOpeningHandChoice } from "./mulligan";
+import {
+    applyMulliganBottomChoice,
+    applyOpeningHandChoice,
+    applyOpeningHandExile,
+    isOpeningHandExileChoice,
+} from "./mulligan";
 import {
     landTriggerAnnouncementPriority,
     raiseTriggerTargetSelection,
@@ -641,11 +646,13 @@ export function submitMulliganBottom(
  *  choice's `candidateIds`. */
 export function submitOpeningHandAction(
     state: GameState,
-    _head: PendingChoice,
+    head: PendingChoice,
     _queue: PendingChoice[],
     args: SubmitChoiceArgs
 ): void {
-    applyOpeningHandChoice(state, args.cardInstanceIds);
+    if (isOpeningHandExileChoice(head))
+        applyOpeningHandExile(state, args.cardInstanceIds);
+    else applyOpeningHandChoice(state, args.cardInstanceIds);
 }
 
 // CR 502.1: additional untap-pick constraints beyond zone validation.
