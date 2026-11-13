@@ -1,4 +1,4 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, v, type ObjectType } from "convex/values";
 import {
     type GenericMutationCtx,
     type GenericQueryCtx,
@@ -366,107 +366,124 @@ export const getDeckPool = query({
     },
 });
 
+/** `create`'s arguments — also what the `check:ui` seam's
+ *  `saveLimitedFixtureDeck` hands {@link insertUserDeck} (issue #9272). */
+const createDeckArgs = {
+    name: v.string(),
+    // Required, typed Format — chosen at creation (ADR 0036).
+    format: formatValidator,
+    colors: v.array(v.string()),
+    cards: v.array(deckCardValidator),
+    sideboard: v.optional(v.array(deckCardValidator)),
+    description: v.optional(v.string()),
+    // Featured Card override (PRD #589, issue #593). Optional Card ID;
+    // absent ⇒ the resolver defaults to the first Maindeck card on read.
+    featuredCardId: v.optional(v.string()),
+    // Limited Event + Seat reference (ADR 0054/0055, issue #1109). Set
+    // once at creation for a `format: "limited"` deck, exactly like
+    // `format` itself is immutable thereafter — `update` intentionally
+    // does not accept these two fields.
+    limitedEventId: v.optional(v.string()),
+    limitedSeatId: v.optional(v.string()),
+    // Column Layout (ADR 0075 §4, issue #1626) — manual Columns, deleted
+    // Columns and Card Pins. Optional at every level: a deck created
+    // before the player arranged anything simply carries none, and a
+    // client that never sends the field is unchanged.
+    layout: v.optional(storedDeckColumnLayoutValidator),
+};
+
+/**
+ * Insert a `userDecks` row for `userId` — `create`'s whole body, after the
+ * caller is known. Shared with the `check:ui` seam (issue #9272), whose lane
+ * shortcut saves a Limited fixture seat's deck through exactly the ownership
+ * check, Limited Origin, Pool refresh and play-phase opening a builder save
+ * goes through. The CALLER derives `userId` from its own authenticated gate;
+ * this never takes it from client input.
+ */
+export async function insertUserDeck(
+    ctx: MutationCtx,
+    userId: Id<"users">,
+    args: ObjectType<typeof createDeckArgs>
+): Promise<Id<"userDecks">> {
+    let limitedOrigin: string | undefined;
+
+    // Limited Event + Seat reference (issue #1111 AC: "a user builds
+    // only in their OWN seat — server-derive userId, never trust client
+    // seat id"). Both fields travel together or not at all; ownership is
+    // re-derived from the AUTHENTICATED userId against the event's real
+    // seats, never taken on the client's word.
+    if (args.limitedEventId !== undefined || args.limitedSeatId !== undefined) {
+        if (
+            args.limitedEventId === undefined ||
+            args.limitedSeatId === undefined
+        ) {
+            throw new Error(
+                "limitedEventId and limitedSeatId must be provided together."
+            );
+        }
+        const event = await ctx.db.get(
+            args.limitedEventId as Id<"limitedEvents">
+        );
+        assertLimitedSeatOwnership(event, args.limitedSeatId, userId);
+        // Limited Origin (ADR 0106 §6, issue #5393): copied from the event
+        // HERE, server-side, never taken from the client — and never
+        // re-read through the event, so deleting it later leaves the
+        // deck classified. Only a `limited` deck is classified by it.
+        if (args.format === "limited") {
+            limitedOrigin = limitedOriginKey(event);
+        }
+    }
+
+    // A Limited deck with no Event has no Pool to validate against, and
+    // `update` would then refuse every card added to it.
+    if (args.format === "limited" && args.limitedEventId === undefined) {
+        throw new ConvexError(
+            "A Limited deck can only be created from its Event."
+        );
+    }
+
+    const name = args.name.trim() || "Untitled deck";
+    const deckId = await ctx.db.insert("userDecks", {
+        userId,
+        name,
+        format: args.format,
+        colors: args.colors,
+        cards: await fillDefinitionIds(ctx, args.cards),
+        sideboard: args.sideboard
+            ? await fillDefinitionIds(ctx, args.sideboard)
+            : undefined,
+        description: args.description,
+        featuredCardId: args.featuredCardId,
+        limitedEventId: args.limitedEventId,
+        limitedSeatId: args.limitedSeatId,
+        limitedOrigin,
+        layout: args.layout,
+    });
+    await refreshDeckPool(ctx, deckId, args);
+
+    // Limited Event play phase (PRD #1628, ADR 0076, issue #1644): this
+    // insert may have been the LAST seat's deck, which is exactly the
+    // moment the event stops being a deckbuilding exercise and becomes an
+    // event — it flips to `playing` and round 1 is paired, with every
+    // bot-vs-bot pairing decided in this same transaction. Self-gating:
+    // `openPlayPhaseIfReady` re-derives completion from the database and
+    // no-ops when the table is still waiting on someone, so this needs no
+    // condition of its own beyond "is this even a Limited Event deck".
+    if (args.limitedEventId !== undefined) {
+        await openPlayPhaseIfReady(
+            ctx,
+            args.limitedEventId as Id<"limitedEvents">,
+            Date.now()
+        );
+    }
+    return deckId;
+}
+
 export const create = mutation({
-    args: {
-        name: v.string(),
-        // Required, typed Format — chosen at creation (ADR 0036).
-        format: formatValidator,
-        colors: v.array(v.string()),
-        cards: v.array(deckCardValidator),
-        sideboard: v.optional(v.array(deckCardValidator)),
-        description: v.optional(v.string()),
-        // Featured Card override (PRD #589, issue #593). Optional Card ID;
-        // absent ⇒ the resolver defaults to the first Maindeck card on read.
-        featuredCardId: v.optional(v.string()),
-        // Limited Event + Seat reference (ADR 0054/0055, issue #1109). Set
-        // once at creation for a `format: "limited"` deck, exactly like
-        // `format` itself is immutable thereafter — `update` intentionally
-        // does not accept these two fields.
-        limitedEventId: v.optional(v.string()),
-        limitedSeatId: v.optional(v.string()),
-        // Column Layout (ADR 0075 §4, issue #1626) — manual Columns, deleted
-        // Columns and Card Pins. Optional at every level: a deck created
-        // before the player arranged anything simply carries none, and a
-        // client that never sends the field is unchanged.
-        layout: v.optional(storedDeckColumnLayoutValidator),
-    },
+    args: createDeckArgs,
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
-        let limitedOrigin: string | undefined;
-
-        // Limited Event + Seat reference (issue #1111 AC: "a user builds
-        // only in their OWN seat — server-derive userId, never trust client
-        // seat id"). Both fields travel together or not at all; ownership is
-        // re-derived from the AUTHENTICATED userId against the event's real
-        // seats, never taken on the client's word.
-        if (
-            args.limitedEventId !== undefined ||
-            args.limitedSeatId !== undefined
-        ) {
-            if (
-                args.limitedEventId === undefined ||
-                args.limitedSeatId === undefined
-            ) {
-                throw new Error(
-                    "limitedEventId and limitedSeatId must be provided together."
-                );
-            }
-            const event = await ctx.db.get(
-                args.limitedEventId as Id<"limitedEvents">
-            );
-            assertLimitedSeatOwnership(event, args.limitedSeatId, userId);
-            // Limited Origin (ADR 0106 §6, issue #5393): copied from the event
-            // HERE, server-side, never taken from the client — and never
-            // re-read through the event, so deleting it later leaves the
-            // deck classified. Only a `limited` deck is classified by it.
-            if (args.format === "limited") {
-                limitedOrigin = limitedOriginKey(event);
-            }
-        }
-
-        // A Limited deck with no Event has no Pool to validate against, and
-        // `update` would then refuse every card added to it.
-        if (args.format === "limited" && args.limitedEventId === undefined) {
-            throw new ConvexError(
-                "A Limited deck can only be created from its Event."
-            );
-        }
-
-        const name = args.name.trim() || "Untitled deck";
-        const deckId = await ctx.db.insert("userDecks", {
-            userId,
-            name,
-            format: args.format,
-            colors: args.colors,
-            cards: await fillDefinitionIds(ctx, args.cards),
-            sideboard: args.sideboard
-                ? await fillDefinitionIds(ctx, args.sideboard)
-                : undefined,
-            description: args.description,
-            featuredCardId: args.featuredCardId,
-            limitedEventId: args.limitedEventId,
-            limitedSeatId: args.limitedSeatId,
-            limitedOrigin,
-            layout: args.layout,
-        });
-        await refreshDeckPool(ctx, deckId, args);
-
-        // Limited Event play phase (PRD #1628, ADR 0076, issue #1644): this
-        // insert may have been the LAST seat's deck, which is exactly the
-        // moment the event stops being a deckbuilding exercise and becomes an
-        // event — it flips to `playing` and round 1 is paired, with every
-        // bot-vs-bot pairing decided in this same transaction. Self-gating:
-        // `openPlayPhaseIfReady` re-derives completion from the database and
-        // no-ops when the table is still waiting on someone, so this needs no
-        // condition of its own beyond "is this even a Limited Event deck".
-        if (args.limitedEventId !== undefined) {
-            await openPlayPhaseIfReady(
-                ctx,
-                args.limitedEventId as Id<"limitedEvents">,
-                Date.now()
-            );
-        }
-        return deckId;
+        return await insertUserDeck(ctx, userId, args);
     },
 });
 
