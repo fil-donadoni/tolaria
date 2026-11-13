@@ -10,6 +10,7 @@ import type { AutoBuildCardMeta } from "@convex/limited/autoBuild";
 import {
     hasColouredPip as hasPip,
     hypergeometricAtLeast,
+    manaSourceKinds,
     pipCastability,
 } from "@convex/limited/castability";
 import {
@@ -17,7 +18,7 @@ import {
     curveBucket,
     CURVE_MAX_BUCKET,
     poolProfiles,
-    sourceCountsByColor,
+    sourceWeight,
 } from "@convex/limited/botDrafter";
 import {
     choosePlanArchetype,
@@ -37,9 +38,9 @@ import { draftLabGetAutoBuildCardMeta } from "./draftLabCardMeta";
 
 export { hypergeometricAtLeast };
 
-/** One Maindeck spell's castability under the declared model, a source being
- *  any OTHER Maindeck card that produces the colour (`producedColors`: lands,
- *  Moxen, mana creatures alike). A spell with no coloured pip is excluded from
+/** One Maindeck spell's castability under the declared model (each source
+ *  pays one pip), a source being any OTHER Maindeck card that produces a
+ *  colour (`producedColors`: lands, Moxen, mana creatures alike). A spell with no coloured pip is excluded from
  *  every mean (it is castable by this model whatever the mana base). */
 export function castabilityOf(
     spell: AutoBuildCardMeta,
@@ -51,7 +52,7 @@ export function castabilityOf(
         spell.pips,
         spell.manaValue,
         deck.length,
-        sourceCountsByColor(others)
+        manaSourceKinds(others, sourceWeight)
     );
 }
 
