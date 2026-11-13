@@ -612,9 +612,11 @@ export const ajaniNacatlPariah = defineCard(() => ({
 //     the chosen mode's targets are announced (CR 601.2c).
 //   - Damage is the `count` EffectValue with `times: 2` ("twice the number of"),
 //     read at resolution.
-//   - "Any number of target players" is a `{ min: 0 }` player requirement; the
-//     whole announced set is walked with `forEach { set: "targets" }` and each
-//     player's graveyard goes to exile, zero targets doing nothing.
+//   - "Any number of target players" is a `{ min: 0, max: 2 }` player
+//     requirement: a game has two players and one player is never targeted
+//     twice (CR 601.2c), so slots 0 and 1 cover every announcement. An unfilled
+//     slot skips its move (CR 608.2b), zero targets doing nothing. (A
+//     `forEach { set: "targets" }` `$each` is refused in a player position.)
 // hand-tail: Choose one — • {self} deals damage equal to twice the number of creatures you control to target creature. • Destroy target enchantment. • Exile any number of target players' graveyards. (#8639)
 export const thrabenCharm = defineCard(() => ({
     id: "dd28a646-f38f-4cdf-948c-969cd979e5e6",
@@ -657,19 +659,19 @@ export const thrabenCharm = defineCard(() => ({
             id: "exile-graveyards",
             label: "Exile any number of target players' graveyards",
             oracleText: "Exile any number of target players' graveyards.",
-            targetRequirement: { type: "player", count: { min: 0 } },
+            targetRequirement: { type: "player", count: { min: 0, max: 2 } },
             effects: [
                 {
-                    op: "forEach",
-                    select: { set: "targets" },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            player: { ref: "$each" },
-                            from: "graveyard",
-                            to: "exile",
-                        },
-                    ],
+                    op: "moveZone",
+                    player: { target: 0 },
+                    from: "graveyard",
+                    to: "exile",
+                },
+                {
+                    op: "moveZone",
+                    player: { target: 1 },
+                    from: "graveyard",
+                    to: "exile",
                 },
             ],
         },
