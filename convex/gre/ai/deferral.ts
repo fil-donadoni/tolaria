@@ -155,6 +155,11 @@ export type StackReading = {
     /** A stack of objects that cannot touch the mover's side reads as
      *  empty. Off by default: the strict reading of the last window. */
     throughInertStack?: boolean;
+    /** Clause 3 waived outright: the CALLER has proven the action commutes
+     *  with every object on the stack (`actionCommutesWithStack`, a
+     *  resolution probe that lives beside the search, issue #9116), so the
+     *  stack is no reason to answer now. Never set without that proof. */
+    throughAnyStack?: boolean;
 };
 
 /** Clause 3: the stack is empty, or — under `throughInertStack` — holds only
@@ -165,6 +170,7 @@ function stackAllowsDeferral(
     reading: StackReading
 ): boolean {
     if (state.stack.length === 0) return true;
+    if (reading.throughAnyStack) return true;
     return (
         !!reading.throughInertStack &&
         state.stack.every((item) => isInertStackItemFor(item, pid))

@@ -6540,7 +6540,14 @@ export function selectRootMove(
         rootState &&
         ruleOn("hold-trick") &&
         (isSorcerySpeedTrickDump(rootState, best.move) ||
-            (!!botId && isPointlessSelfActivation(rootState, botId, best.move)))
+            (!!botId &&
+                (isPointlessSelfActivation(rootState, botId, best.move) ||
+                    activationBuysNothing(
+                        rootState,
+                        botId,
+                        best.move,
+                        weights
+                    ))))
     ) {
         // Hold (`pass`) qualifies when it is outcome-equal on MEAN REWARD (within
         // `OUTCOME_EPS`) — NOT gated on the `VISIT_TOL` visit count the land-drop
@@ -6579,9 +6586,7 @@ export function selectRootMove(
         ruleOn("last-window-deferral") &&
         !isLastDeferralWindow(rootState, botId) &&
         !floatsMana(rootState, botId) &&
-        isDeferrableAction(rootState, botId, best.move, {
-            throughInertStack: true,
-        }) &&
+        defersPastStack(rootState, botId, best.move, weights) &&
         !isStandingSpendActivation(rootState, botId, best.move)
     ) {
         const hold = pool.find(
@@ -6960,6 +6965,8 @@ export function selectRootMove(
             if (!isFirstActivationThisTurn(rootState, botId, e.move)) continue;
             if (!waitsUnchanged(rootState, botId, e.move, weights, before))
                 continue;
+            if (activationBuysNothing(rootState, botId, e.move, weights))
+                continue;
             if (!act || meanMargin(e) > meanMargin(act)) act = e;
         }
         if (act) return finish(act, "last-window-deferral", act !== best);
@@ -7176,6 +7183,198 @@ export function waitsUnchanged(
     );
     if (opened.length > 0) return false;
     return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
+}
+
+/** The evaluation terms an activation's own PAYMENT moves: the mana it taps
+ *  (`mana`, `finiteManaUses`), the held option it spends (`flexibility`) and
+ *  the instant-speed reserve tapped below before combat (`combatReserve`).
+ *  {@link activationBuysNothing} reads every OTHER term. */
+const PAYMENT_TERMS: ReadonlySet<keyof PositionBreakdown["self"]> = new Set([
+    "mana",
+    "finiteManaUses",
+    "flexibility",
+    "combatReserve",
+]);
+
+/** `state` with its WHOLE stack resolved, through `settleStackForBreakdown`
+ *  (the mover's own choices with its best answer, the opponent's with the one
+ *  worst for the mover), or `undefined` when the settle cannot finish — a
+ *  probe that cannot see the end of the stack claims nothing about it. Pass a
+ *  clone: the settle may return `state` itself, advanced. */
+function settledWholeStack(
+    state: GameState,
+    pid: string,
+    weights: EvalWeights
+): GameState | undefined {
+    const report = { complete: false };
+    const settled = settleStackForBreakdown(
+        state,
+        pid,
+        weights,
+        0,
+        { left: MAX_CHOICE_BRANCH_WORK },
+        0,
+        report,
+        true
+    );
+    if (!report.complete || settled.stack.length > 0) return undefined;
+    return settled;
+}
+
+/**
+ * Does `move` — an activated ability — buy NOTHING but its own payment
+ * (issue #9116)?
+ *
+ * Read on two worlds settled to an empty stack: the one where the mover holds
+ * (`pass`) and the one where it activates first. Everything the stack already
+ * held resolves in both, so an activation whose payoff is that something
+ * BELOW it fizzles or misses (a protection grant in response to removal) is
+ * read with that payoff. The activation buys nothing when, outside
+ * {@link PAYMENT_TERMS}, no term of the mover's rises, no term of the
+ * opponent's falls, and the danger clock does not move toward the mover.
+ *
+ * The shape that surfaced it: "exile target card from a graveyard; if it was
+ * a permanent card, put a +1/+1 counter on this" aimed at the mover's OWN
+ * instant. Its own graveyard card is priced at zero unless the mover can
+ * reach it (`graveyardReach`), the rider never pays on a non-permanent card,
+ * so the settled board is the held one minus a tapped land — a pure loss the
+ * saturated reward band reads as a tie, and the material tie-break then took
+ * on subtree noise every time.
+ *
+ * SCOPED to an activation whose every target is a card in a graveyard
+ * (CR 115.1, CR 404.1): what it buys is a zone change of a card the
+ * evaluation prices where it lands (`graveyardReach`, the rider's own board
+ * change). A target on the battlefield or the stack can pay in a way the
+ * settled stack does not show — combat damage still to be dealt, an effect
+ * that lasts until end of turn and is worth only its window — so those stay
+ * the search's, as they were.
+ *
+ * Asked at the root only (`hold-trick`, and the `last-window-deferral` fire
+ * half): two settles per call, where the rollout policy's per-move probe
+ * would pay them on every ply. FAIL-CLOSED: a move that is not such an
+ * activation, an unsettleable stack, an ended game or a throwing probe all
+ * answer `false`, leaving the pick to the search.
+ */
+export function activationBuysNothing(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    if (
+        move.targets.length === 0 ||
+        !move.targets.every((t) => t.type === "graveyard-card")
+    ) {
+        return false;
+    }
+    try {
+        const held = settledWholeStack(cloneGameState(state), pid, weights);
+        const probe = cloneGameState(state);
+        applyMoveInSearch(probe, pid, move);
+        const acted = settledWholeStack(probe, pid, weights);
+        if (!held || !acted || held.gameOver || acted.gameOver) return false;
+        const h = evaluateBreakdown(held, pid, weights);
+        const a = evaluateBreakdown(acted, pid, weights);
+        if (a.danger > h.danger) return false;
+        for (const key of Object.keys(h.self) as (keyof typeof h.self)[]) {
+            if (PAYMENT_TERMS.has(key)) continue;
+            if (a.self[key] > h.self[key]) return false;
+            if (a.opp[key] < h.opp[key]) return false;
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Does `move` COMMUTE with everything on the stack — acting now, in response,
+ * and acting once the stack has resolved reach the same position (issue
+ * #9116)?
+ *
+ * The premise the `last-window-deferral` hold needs before it may hold an
+ * action THROUGH a stack that is not inert to the mover (`isDeferrableAction`
+ * clause 3). Priority comes back to the mover after each resolution — to
+ * the active player first, then through its pass (CR 117.3b, CR 117.3d) —
+ * so an action that the objects on the stack neither
+ * enable, disable nor change is not a response at all: it can be taken after
+ * them on the same board. Read off two settled worlds:
+ *
+ *  - NOW: the action applied on top, then the whole stack settled;
+ *  - LATER: the whole stack settled first, then the SAME action (its source,
+ *    ability and targets — the payment plan may differ) taken from the legal
+ *    move list of that position, then settled.
+ *
+ * They commute when both seats' evaluation terms and the danger clock are
+ * equal. The action is absent from the LATER list when the stack removes its
+ * source or a target (removal aimed at the activator, a sweeper) — the use-it-
+ * or-lose-it response, which stays the search's. FAIL-CLOSED: any settle that
+ * cannot finish, an ended game or a throwing probe answers `false`.
+ */
+export function actionCommutesWithStack(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): boolean {
+    if (state.stack.length === 0) return true;
+    try {
+        const nowProbe = cloneGameState(state);
+        applyMoveInSearch(nowProbe, pid, move);
+        const now = settledWholeStack(nowProbe, pid, weights);
+        const before = settledWholeStack(cloneGameState(state), pid, weights);
+        if (!now || !before || now.gameOver || before.gameOver) return false;
+        const later = cloneGameState(before);
+        // CR 117.3b, CR 117.3d — the mover gets priority back on the
+        // resolved board.
+        later.priorityPlayerId = pid;
+        const key = planlessKey(move);
+        const again = enumerateMoves(later, pid).find(
+            (m) => planlessKey(m) === key
+        );
+        if (!again) return false;
+        applyMoveInSearch(later, pid, again);
+        const after = settledWholeStack(later, pid, weights);
+        if (!after || after.gameOver) return false;
+        const n = evaluateBreakdown(now, pid, weights);
+        const l = evaluateBreakdown(after, pid, weights);
+        return (
+            n.danger === l.danger &&
+            JSON.stringify(n.self) === JSON.stringify(l.self) &&
+            JSON.stringify(n.opp) === JSON.stringify(l.opp)
+        );
+    } catch {
+        return false;
+    }
+}
+
+/** `move`'s key without its payment plan — HOW it is paid is not WHICH
+ *  action it is. */
+function planlessKey(move: Move): string {
+    return moveKey(
+        "tapPlan" in move ? ({ ...move, tapPlan: [] } as Move) : move
+    );
+}
+
+/** Is `move` an action the `last-window-deferral` hold — and the Verdict
+ *  lowering that must agree with it (`verdicts/evalPairs.ts`) — may defer
+ *  from this window: `isDeferrableAction` through an inert stack, or through
+ *  any stack it commutes with ({@link actionCommutesWithStack}, issue
+ *  #9116). */
+export function defersPastStack(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): boolean {
+    if (isDeferrableAction(state, pid, move, { throughInertStack: true }))
+        return true;
+    return (
+        state.stack.length > 0 &&
+        isDeferrableAction(state, pid, move, { throughAnyStack: true }) &&
+        actionCommutesWithStack(state, pid, move, weights)
+    );
 }
 
 /** The four readings {@link waitsUnchanged} compares, as comparable values. */

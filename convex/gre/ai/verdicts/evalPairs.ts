@@ -51,6 +51,7 @@ import {
     answeredTriggerId,
     applyMoveInSearch,
     decidingPlayer,
+    defersPastStack,
     moveKey,
     passEndsStep,
     policyProbeState,
@@ -382,11 +383,12 @@ export function resolveVerdictMoves(
  *  shape — two actions, or "pass" against an action outside the perimeter —
  *  is a question of WHAT, and stays in the fit.
  *
- *  Before the last window the perimeter reads an inert opposing stack as
- *  empty (`throughInertStack`), exactly as the `last-window-deferral` hold
- *  half does: holding through a surveil trigger is the same timing judgement
- *  as holding on an empty stack, and a weight bent to answer it would be
- *  bent for nothing. In the last window the strict reading stands — the
+ *  Before the last window the perimeter is the `last-window-deferral` hold
+ *  half's own (`defersPastStack`): an inert opposing stack reads as empty,
+ *  and so does any stack the action commutes with (issue #9116) — holding
+ *  through a surveil trigger, or through a spell the action neither answers
+ *  nor depends on, is the same timing judgement as holding on an empty
+ *  stack, and a weight bent to answer it would be bent for nothing. In the last window the strict reading stands — the
  *  rule's fire half acts only on an empty stack, so nothing else would own
  *  such a pair. */
 export function timingPairClassifier(
@@ -396,7 +398,9 @@ export function timingPairClassifier(
 ): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
     const last = isLastDeferralWindow(state, botId);
     const deferrable = moves.map((m) =>
-        isDeferrableAction(state, botId, m, { throughInertStack: !last })
+        last
+            ? isDeferrableAction(state, botId, m)
+            : defersPastStack(state, botId, m)
     );
     const isPass = moves.map((m) => m.kind === "pass");
     return ({ rightIndex, otherIndex }) =>

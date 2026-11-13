@@ -44,6 +44,8 @@ import {
     EXTRA_PLAINS,
     SEVEN_POISON,
     UNTAPPED_LAND_NEEDED,
+    SHOCK_AIMED_AT_EXILER,
+    OWN_PERMANENT_CARD_IN_GRAVEYARD,
     answersRaisedTargetLegally,
     submitsSoleTarget,
     boundedGraveyardCastIsOffered,
@@ -27183,5 +27185,200 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "play-land", card: "Forest" }] },
         note: "Issue #8701, the right-hand half of the land-tempo Minimal Pair. Forest on 5/5 seeds at 400 iterations when authored.",
+    },
+    // -----------------------------------------------------------------------
+    // Graveyard-exile activation (issue #9116). Lion Sash is the fixture for
+    // "{W}: exile target card from a graveyard, with a rider that pays only on
+    // a permanent card"; nothing under test reads a card name. Two Minimal
+    // Pairs: the RESPONSE window (an unrelated spell on the stack vs one aimed
+    // at the exiler) and the TARGET choice at the opponent's end step (own
+    // instant only vs an own permanent card vs an opponent's reachable card).
+    // -----------------------------------------------------------------------
+    {
+        label: "graveyard exile: holds the rider activation through an unrelated spell",
+        classification: {
+            kind: "conditional",
+            discriminant: SHOCK_AIMED_AT_EXILER,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Lion Sash",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Giant Growth", owner: "opp", zone: "graveyard" },
+                { name: "Howling Mine", owner: "opp", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Shock", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "cast", card: "Shock", by: "me", target: "opp" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #9116. A Shock aimed at the bot is on the stack, and the bot's own graveyard holds only an instant and an artifact. Exiling the artifact buys a +1/+1 counter, but the counter is the same after the Shock resolves — the activation commutes with the stack (`actionCommutesWithStack`), so it is no response and waits for the opponent's end step (`last-window-deferral`), keeping {W} open. DISCRIMINATING: on the pre-fix engine the bot exiled Howling Mine in response on 5/5 seeds (`material-tiebreak`); `pass` on 5/5 after.",
+    },
+    {
+        label: "graveyard exile: answers a Shock aimed at the exiler with the counter",
+        pairOf: {
+            anchor: "graveyard exile: holds the rider activation through an unrelated spell",
+            discriminant: SHOCK_AIMED_AT_EXILER,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Lion Sash",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Giant Growth", owner: "opp", zone: "graveyard" },
+                { name: "Howling Mine", owner: "opp", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Shock", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "cast", card: "Shock", by: "me", target: "Lion Sash" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Lion Sash",
+                    target: "Howling Mine",
+                },
+            ],
+        },
+        note: "Issue #9116, the right-hand half: the same Shock aimed at the 2/2 exiler. Exiling the artifact makes it 3/3 before the 2 damage lands, and after the Shock the exiler is gone, so the activation does NOT commute with the stack and the hold must leave it to the search. Not discriminating by construction (Howling Mine on 5/5 seeds before and after, `mean-reward`): it is the guard that the hold is no mute button for a real response, and that the target is the permanent card, never the instant.",
+    },
+    {
+        label: "graveyard exile: never exiles its own instant at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: OWN_PERMANENT_CARD_IN_GRAVEYARD,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Lion Sash",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Giant Growth", owner: "opp", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+            ],
+            phase: "END_STEP",
+            turn: 4,
+            priority: "opp",
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #9116. The only target is the bot's own instant: exiling it pays no rider, its graveyard worth is zero either way (no Graveyard Reach), so the settled position is the held one minus a tapped Plains (`activationBuysNothing`). DISCRIMINATING: the `last-window-deferral` fire half spent it on 5/5 seeds on the pre-fix engine; `pass` on 5/5 after.",
+    },
+    {
+        label: "graveyard exile: takes the counter off its own permanent card at the end step",
+        pairOf: {
+            anchor: "graveyard exile: never exiles its own instant at the opponent's end step",
+            discriminant: OWN_PERMANENT_CARD_IN_GRAVEYARD,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Lion Sash",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Giant Growth", owner: "opp", zone: "graveyard" },
+                { name: "Howling Mine", owner: "opp", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+            ],
+            phase: "END_STEP",
+            turn: 4,
+            priority: "opp",
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Lion Sash",
+                    target: "Howling Mine",
+                },
+            ],
+        },
+        note: "Issue #9116, right-hand half: an own permanent card joins the instant. The end step is the activation's last free window, and the permanent card is the only target the counter rider pays on, so it is exiled and the instant is not. Not discriminating (5/5 before and after): it pins that the payoff-free refusal does not refuse the paying target beside it.",
+    },
+    {
+        label: "graveyard exile: exiles the opponent's flashback card over its own instant",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Lion Sash",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Giant Growth", owner: "opp", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Think Twice", owner: "me", zone: "graveyard" },
+            ],
+            phase: "END_STEP",
+            turn: 4,
+            priority: "opp",
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Lion Sash",
+                    target: "Giant Growth",
+                },
+            ],
+        },
+        note: "Issue #9116. The opponent holds a flashback card it can cast with its Island, so exiling it removes the opponent's Graveyard Reach — a payoff — while exiling the bot's own instant pays nothing: aiming the exile at its own instant is wrong whatever else is on the board (`absolute`). Twin of `graveyard exile: never exiles its own instant at the opponent's end step` (the same board without the flashback card). Not discriminating (Think Twice on 5/5 seeds before and after): the guard that the payment-only refusal reads payoff per target.",
     },
 ];

@@ -646,6 +646,18 @@
             "needsSetup": true
         }
     ],
+    "Lion Sash": [
+        {
+            "label": "graveyard exile: answers a Shock aimed at the exiler with the counter",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "graveyard exile: takes the counter off its own permanent card at the end step",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Man-o'-War": [
         {
             "label": "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",
