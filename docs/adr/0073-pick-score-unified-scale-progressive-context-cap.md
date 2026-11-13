@@ -198,3 +198,16 @@ its slots before the rated, castability- and Capability-scored rest.
 A plan below the depth the pick scorer counts as settled is no plan, and a
 scope with no profiles builds exactly as before. Measurements and the
 ablations behind each choice: `docs/research/draft-table-audit-plan-first.md`.
+
+## Amendment II — colour set by castable value (issue #9336, PRD #8772)
+
+The colour rule of Amendment I retires: no signature ranking, no third-colour
+deficit gate, no cap of three. Auto-Build builds every candidate colour set
+(each subset of the colours the Pool holds a spell pip in, one to five) and
+keeps the one whose Maindeck has the best **castable value** — the sum over
+its spells of value times castability against that deck's own mana base. A
+spell's value is its base rating plus its Capability fit, plus a fixed bonus
+when it carries the plan: the plan is one input to a spell's value, never a
+veto on colours. The colour count is a consequence of the fixing, so a set
+Pool builds two colours and a splash and a cube Pool with duals may build
+four. Measurements: `docs/research/draft-table-audit-castable-value.md`.

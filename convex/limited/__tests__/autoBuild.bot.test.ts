@@ -18,8 +18,8 @@ import { getDefinitionProducibleColors, manaValue } from "../../gre/constants";
 import { makeRng } from "../../gre/rng";
 import { validateDeck, type Pool, type ResolvePool } from "../../formats";
 import {
-    MAX_DECK_COLORS,
     autoBuildDeck,
+    candidateColourSets,
     chooseDeckColors,
     computeBotAutoBuiltDeck,
     isEventPoolFinal,
@@ -137,15 +137,13 @@ function metaLookup(
     return (scryfallId) => entries[scryfallId] ?? null;
 }
 
-// --- chooseDeckColors: pip-weighted commitment + derived count (#1615) -----
+// --- chooseDeckColors: colour order (#1615, #9336) --------------------------
 //
-// The colour terms are `botDrafter.ts`'s own (`colourAffinityWeights`,
-// `pipDemandByColor`, `sourceCountsByColor`) — these tests assert Auto-Build
-// READS them, in the directions ADR 0073 specifies, not the weights
-// themselves (which `botDrafter.bot.test.ts` owns).
+// The colour SET is chosen by castable value (issue #9336, below); its ORDER
+// is the built Maindeck's pip demand, heaviest first, ties by WUBRG.
 
 /** A synthetic SPELL meta: real card quality (so `cardValueById` behaves), an
- *  overridden pip cost — the signal `chooseDeckColors` actually ranks by. */
+ *  overridden pip cost — the signal `chooseDeckColors` orders by. */
 function spellWithPips(
     base: AutoBuildCardMeta,
     pips: Partial<Record<Color, number>>
@@ -178,15 +176,14 @@ function sourceProducing(
     };
 }
 
-describe("chooseDeckColors — pip-weighted Colour Commitment (issue #1615)", () => {
+describe("chooseDeckColors — colour order by pip demand (issues #1615, #9336)", () => {
     const anchor = metaOf("Lightning Bolt");
 
-    it("ranks by PIPS, not by card count: one {U}{U}{U} outcommits two single-pip Red cards", () => {
-        // The defect this replaces summed `cardValueById × rarity` per card,
-        // so a colour's rank was a CARD COUNT. Every meta here shares one
-        // `cardId` (hence one quality), so quality cannot explain the answer —
-        // only the pip weighting can. A count-based ranking puts Red first
-        // (two cards vs one); a pip-weighted one puts Blue first (3 pips vs 2).
+    it("orders by PIPS, not by card count: one {U}{U}{U} leads two single-pip Red cards", () => {
+        // Every meta here shares one `cardId` (hence one quality), so quality
+        // cannot explain the order — only the pip demand can. A count-based
+        // order puts Red first (two cards vs one); the pip demand puts Blue
+        // first (3 pips vs 2).
         const blue = spellWithPips(anchor, { U: 3 });
         const red = spellWithPips(anchor, { R: 1 });
         const entries = { u1: blue, r1: red, r2: red };
@@ -198,11 +195,10 @@ describe("chooseDeckColors — pip-weighted Colour Commitment (issue #1615)", ()
         expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["U", "R"]);
     });
 
-    it("a mana SOURCE follows commitment rather than creating it: two duals lose to one real pip", () => {
+    it("a mana SOURCE never makes a colour: two green duals and one red spell build red", () => {
         // ADR 0073's load-bearing asymmetry — a strong land taken early must
-        // not marry the seat to a colour. Two Green-producing sources
-        // (2 × COLOUR_COMMIT_SOURCE_UNIT_WEIGHT = 0.8 units) still rank below
-        // one single-pip Red spell (1.0 unit).
+        // not marry the seat to a colour. A colour with sources and no spell
+        // is no candidate at all (`candidateColourSets`).
         const red = spellWithPips(anchor, { R: 1 });
         const greenSource = sourceProducing(anchor, ["G"]);
         const entries = { r1: red, g1: greenSource, g2: greenSource };
@@ -231,106 +227,139 @@ describe("chooseDeckColors — pip-weighted Colour Commitment (issue #1615)", ()
     });
 });
 
-// --- Derived colour COUNT (issue #1615) ------------------------------------
+// --- Colour set by castable value (issue #9336) ----------------------------
 
-/** One Pool shape, built twice: identical SPELLS (heavy W, heavy U, light B),
- *  differing only in whether the Pool also holds Black fixing. The pair is the
- *  whole acceptance criterion — "a pool with a three-colour mana base can
- *  build three colours; one without cannot" — as a direction, not a number. */
-function threeColorFixture(withFixing: boolean) {
-    const anchor = metaOf("Lightning Bolt");
-    const white = spellWithPips(anchor, { W: 1 });
-    const blue = spellWithPips(anchor, { U: 1 });
-    const black = spellWithPips(anchor, { B: 1 });
-    // Scrubland: a real LEA non-basic dual, producing {W} and {B}.
-    const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
-    const entries: Record<string, AutoBuildCardMeta> = {};
-    const pool: LimitedPoolCard[] = [];
-    const add = (key: string, meta: AutoBuildCardMeta) => {
-        entries[key] = meta;
-        pool.push(poolCard(key, meta));
-    };
-    for (let i = 0; i < 6; i++) add(`w${i}`, white);
-    for (let i = 0; i < 6; i++) add(`u${i}`, blue);
-    for (let i = 0; i < 2; i++) add(`b${i}`, black);
-    if (withFixing) for (let i = 0; i < 3; i++) add(`d${i}`, dual);
-    return { pool, getMeta: metaLookup(entries) };
+/** One set of spells, built with or without a cube-like fixing package: two
+ *  deep colours of middling cards (W, U) and two shallow colours of better
+ *  ones (B, G). The pair is the acceptance criterion — the count follows the
+ *  fixing, never a rule — as a direction, not a number. */
+const FILLER_RATING = 2.5;
+const BOMB_RATING = 5;
+
+function fixingFixture(fixing: "none" | "duals" | "basics" | "no-bg-spells") {
+    const white = spellWithPips(metaOf("Savannah Lions"), { W: 1 });
+    const blue = spellWithPips(metaOf("Merfolk of the Pearl Trident"), {
+        U: 1,
+    });
+    const black = spellWithPips(metaOf("Scathe Zombies"), { B: 1 });
+    const green = spellWithPips(metaOf("Grizzly Bears"), { G: 1 });
+    const rows: [string, AutoBuildCardMeta, number][] = [
+        ["w", white, 12],
+        ["u", blue, 12],
+    ];
+    if (fixing !== "no-bg-spells") {
+        rows.push(["b", black, 3], ["g", green, 3]);
+    }
+    if (fixing === "duals" || fixing === "no-bg-spells") {
+        // Every pair of the four colours, twice: a cube Pool's duals.
+        const duals = [
+            "Tundra",
+            "Scrubland",
+            "Savannah",
+            "Underground Sea",
+            "Tropical Island",
+            "Bayou",
+        ];
+        for (const name of duals) {
+            const meta = metaOf(name);
+            rows.push([`dual-${name}-`, meta, 2]);
+        }
+    }
+    if (fixing === "basics") {
+        rows.push(
+            ["swamp", metaOf("Swamp"), 6],
+            ["forest", metaOf("Forest"), 6]
+        );
+    }
+    const bombs = new Set([black.cardId, green.cardId]);
+    const getPickRating = (cardId: string) =>
+        bombs.has(cardId) ? BOMB_RATING : FILLER_RATING;
+    return { ...invariantPool(rows), getPickRating };
 }
 
-describe("derived colour count (issue #1615)", () => {
-    it("commits to a THIRD colour when the Pool's own non-basic sources cover it", () => {
-        const { pool, getMeta } = threeColorFixture(true);
-        const colors = chooseDeckColors(pool, getMeta);
-        expect(colors).toHaveLength(3);
-        expect(new Set(colors)).toEqual(new Set(["W", "U", "B"]));
-        expect(colors.length).toBeLessThanOrEqual(MAX_DECK_COLORS);
-    });
-
-    it("stays on TWO colours when the same spells come with no fixing for the third", () => {
-        // Identical spells, zero duals — the Black spells are still there and
-        // still rank third, but nothing in the Pool produces {B}, so the
-        // `max(0, need − sources)` deficit is positive and the splash is
-        // refused. Basics can't rescue it: a basic is a land slot taken from
-        // the top two colours, which is exactly why `isBasicLand` metas are
-        // excluded from the source count.
-        const { pool, getMeta } = threeColorFixture(false);
-        expect(chooseDeckColors(pool, getMeta)).toEqual(["W", "U"]);
-    });
-
-    it("basics in the Pool are NOT fixing — they never unlock a third colour", () => {
-        // Same shape as the positive case, but the three sources are BASIC
-        // Swamps instead of Scrublands. A basic is free to the builder, so
-        // counting it as evidence would make every Pool three-colour.
-        const anchor = metaOf("Lightning Bolt");
-        const white = spellWithPips(anchor, { W: 1 });
-        const blue = spellWithPips(anchor, { U: 1 });
-        const black = spellWithPips(anchor, { B: 1 });
-        const swamp: AutoBuildCardMeta = { ...metaOf("Swamp") };
-        expect(swamp.isBasicLand).toBe(true);
-        expect(swamp.producedColors).toContain("B");
-        const entries: Record<string, AutoBuildCardMeta> = {};
-        const pool: LimitedPoolCard[] = [];
-        const add = (key: string, meta: AutoBuildCardMeta) => {
-            entries[key] = meta;
-            pool.push(poolCard(key, meta));
-        };
-        for (let i = 0; i < 6; i++) add(`w${i}`, white);
-        for (let i = 0; i < 6; i++) add(`u${i}`, blue);
-        for (let i = 0; i < 2; i++) add(`b${i}`, black);
-        for (let i = 0; i < 3; i++) add(`s${i}`, swamp);
-        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
-    });
-
-    it("a colour the Pool has SOURCES but no SPELLS for is fixing, not a third colour", () => {
-        const anchor = metaOf("Lightning Bolt");
-        const white = spellWithPips(anchor, { W: 1 });
-        const blue = spellWithPips(anchor, { U: 1 });
-        const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
-        const entries: Record<string, AutoBuildCardMeta> = {};
-        const pool: LimitedPoolCard[] = [];
-        const add = (key: string, meta: AutoBuildCardMeta) => {
-            entries[key] = meta;
-            pool.push(poolCard(key, meta));
-        };
-        for (let i = 0; i < 6; i++) add(`w${i}`, white);
-        for (let i = 0; i < 6; i++) add(`u${i}`, blue);
-        for (let i = 0; i < 4; i++) add(`d${i}`, dual);
-        expect(chooseDeckColors(pool, metaLookup(entries))).toEqual(["W", "U"]);
-    });
-
-    it("the third colour's own fixing is MAINDECKED, not left in the Sideboard", () => {
-        // A derived colour count is incoherent if the duals that justified it
-        // sit in the Sideboard: the deck would have a colour it cannot cast.
-        const { pool, getMeta } = threeColorFixture(true);
-        const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
-        expect(built.colors).toHaveLength(3);
-        const scrublandId = getCardByName("Scrubland").id;
+describe("colour set by castable value (issue #9336)", () => {
+    it("Discriminating Pair: the same spells build two colours without fixing and four with a cube-like fixing package", () => {
+        const none = fixingFixture("none");
         expect(
-            built.cards.filter((c) => c.cardId === scrublandId)
-        ).toHaveLength(3);
+            chooseDeckColors(none.pool, none.getMeta, {
+                getPickRating: none.getPickRating,
+            })
+        ).toEqual(["W", "U"]);
+        const duals = fixingFixture("duals");
+        const colours = chooseDeckColors(duals.pool, duals.getMeta, {
+            getPickRating: duals.getPickRating,
+        });
+        expect(new Set(colours)).toEqual(new Set(["W", "U", "B", "G"]));
+    });
+
+    it("the fixing that pays for the extra colours is MAINDECKED", () => {
+        const { pool, getMeta, getPickRating } = fixingFixture("duals");
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getPickRating,
+        });
         expect(
-            built.sideboard.filter((c) => c.cardId === scrublandId)
-        ).toHaveLength(0);
+            built.cards.filter((c) => c.cardName.startsWith("dual-"))
+        ).toHaveLength(12);
+        // The bombs the duals pay for play.
+        expect(
+            built.cards.filter((c) => /^[bg]\d/.test(c.cardName))
+        ).toHaveLength(6);
+    });
+
+    it("basics in the Pool are NOT fixing: twelve Swamps and Forests build what no fixing builds", () => {
+        // The builder invents basics for free, so a basic in the Pool is
+        // no evidence that the mana base pays for another colour.
+        const { pool, getMeta, getPickRating } = fixingFixture("basics");
+        expect(chooseDeckColors(pool, getMeta, { getPickRating })).toEqual([
+            "W",
+            "U",
+        ]);
+    });
+
+    it("a colour the Pool has SOURCES but no SPELLS for is fixing, never a colour", () => {
+        const { pool, getMeta, getPickRating } = fixingFixture("no-bg-spells");
+        expect(chooseDeckColors(pool, getMeta, { getPickRating })).toEqual([
+            "W",
+            "U",
+        ]);
+        expect(
+            candidateColourSets(pool.map((p) => getMeta(p.scryfallId)!))
+        ).toEqual([["W"], ["U"], ["W", "U"]]);
+    });
+
+    it("a mostly colourless plan does not impose its two coloured cards' colours", () => {
+        // The Draft Lab's seed 5 seat 5 shape (issue #9336): an `artifacts`
+        // plan whose only coloured cards are one red and one white card, in
+        // a Pool deep in green. The plan's colourless cards play in
+        // every colour set; its two coloured cards are worth their own value
+        // and the plan's bonus, never the deck's colours.
+        const { pool, getMeta } = invariantPool([
+            ["juggernaut", metaOf("Juggernaut"), 4],
+            ["beast", metaOf("Clockwork Beast"), 3],
+            ["golem", metaOf("Obsianus Golem"), 3],
+            ["raiders", metaOf("Mons's Goblin Raiders"), 1],
+            ["lions", metaOf("Savannah Lions"), 1],
+            ["bears", metaOf("Grizzly Bears"), 6],
+            ["elves", metaOf("Llanowar Elves"), 3],
+            ["wurm", metaOf("Craw Wurm"), 2],
+            ["merfolk", metaOf("Merfolk of the Pearl Trident"), 6],
+            ["air", metaOf("Air Elemental"), 2],
+        ]);
+        const getCardProfile = profilesById(
+            [
+                "Juggernaut",
+                "Clockwork Beast",
+                "Obsianus Golem",
+                "Mons's Goblin Raiders",
+                "Savannah Lions",
+            ].map((n) => [n, archetypeProfile(["artifacts"])])
+        );
+        // The plan moves the colours by its cards' value alone: the deck is
+        // the green deck the Pool is, exactly as without a plan.
+        const colours = chooseDeckColors(pool, getMeta, { getCardProfile });
+        expect(colours[0]).toBe("G");
+        expect(colours).not.toContain("R");
+        expect(colours).toEqual(chooseDeckColors(pool, getMeta));
     });
 });
 
@@ -705,11 +734,11 @@ describe("autoBuildDeck (issue #1115)", () => {
         // practice, not the issue's literal "~17 spells + 17 lands" — see
         // `autoBuild.ts`'s module comment for why).
         expect(built.cards.length).toBeGreaterThanOrEqual(40);
-        // The colour COUNT is derived (issue #1615), so this asserts the
-        // BOUNDS rather than pinning a number a seed change could move: at
-        // least two colours, never more than `MAX_DECK_COLORS`, all distinct.
-        expect(built.colors.length).toBeGreaterThanOrEqual(2);
-        expect(built.colors.length).toBeLessThanOrEqual(MAX_DECK_COLORS);
+        // The colour COUNT follows the fixing (issue #9336), so this asserts
+        // the BOUNDS rather than pinning a number a seed change could move:
+        // one to five colours, all distinct.
+        expect(built.colors.length).toBeGreaterThanOrEqual(1);
+        expect(built.colors.length).toBeLessThanOrEqual(5);
         expect(new Set(built.colors).size).toBe(built.colors.length);
 
         // "~17" land count (issue AC: "~17/17 split") — a healthy Sealed
@@ -1116,17 +1145,15 @@ function redGreenBase(): [string, AutoBuildCardMeta, number][] {
 }
 
 describe("Build Invariants (PRD #8772)", () => {
-    it("no gold card with an unpayable pip: a {R}{B} bomb stays out of a R/G deck", () => {
+    it("no gold card with an unpayable pip: a {R}{B} bomb plays only in a set naming black", () => {
         const bomb = {
             ...spellWithPips(metaOf("Shivan Dragon"), { R: 1, B: 1 }),
             manaValue: 3,
         };
-        // Six R/B duals give the deck black SOURCES, so the black pip is not
-        // simply uncastable (the castability floor would cut it then): what
-        // keeps the bomb out is that black is not a colour of the deck.
-        // Three {U}{U} spells with no blue source make blue the third-ranked
-        // colour, and the one the mana base cannot pay, so the deck stays
-        // R/G and black is never considered.
+        // Six R/B duals give the Pool black SOURCES: the bomb is castable
+        // only in a set that names black too, so the build either names it
+        // or leaves the bomb out — never maindecks a pip its colours do not
+        // name.
         const { pool, getMeta } = invariantPool([
             ...redGreenBase(),
             ["dual", metaOf("Badlands"), 6],
@@ -1134,16 +1161,13 @@ describe("Build Invariants (PRD #8772)", () => {
             ["gold", bomb, 2],
         ]);
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
-        expect([...built.colors].sort()).toEqual(["G", "R"]);
-        expect(
-            built.cards.filter((c) => c.cardName.startsWith("dual"))
-        ).toHaveLength(6);
         const deck = new Set<Color>(built.colors);
         for (const m of maindeckMetas(built, getMeta)) {
             for (const [c, n] of Object.entries(m.pips) as [Color, number][]) {
                 if (n > 0) expect(deck.has(c)).toBe(true);
             }
         }
+        expect(deck.has("U")).toBe(false);
         // The guard is the PIP rule, not the bomb's value: the same card at
         // a payable cost is maindecked.
         const payable = {
@@ -1167,11 +1191,11 @@ describe("Build Invariants (PRD #8772)", () => {
     it("castability floor: a {G}{G}{G} splash-depth bomb loses its slot to castable spells", () => {
         // Green is the light colour (few green pips), so its basics are few:
         // a triple-green six-drop is rarely payable by turn six.
+        // Eighteen red spells cannot fill the Maindeck alone, so the build
+        // plays green.
         const rows: [string, AutoBuildCardMeta, number][] = [
             ["ogre", metaOf("Gray Ogre"), 10],
             ["giant", metaOf("Hill Giant"), 8],
-            ["bolt", metaOf("Lightning Bolt"), 4],
-            ["minotaur", metaOf("Hurloon Minotaur"), 4],
             ["bears", metaOf("Grizzly Bears"), 6],
         ];
         const heavy = spellWithPips(metaOf("Shivan Dragon"), { G: 3 });
@@ -1275,6 +1299,7 @@ function rivalPlansPool() {
         ["wurm", metaOf("Craw Wurm"), 2],
         ["merfolk", metaOf("Merfolk of the Pearl Trident"), 4],
         ["zombies", metaOf("Scathe Zombies"), 4],
+        ["juggernaut", metaOf("Juggernaut"), 6],
     ]);
 }
 
@@ -1362,21 +1387,25 @@ describe("Plan-first Auto-Build (issue #8898)", () => {
         ).toBeLessThan(14);
     });
 
-    it("colours follow the plan's signature, not the Pool's pip-weighted commitment", () => {
+    it("the plan moves the colours: its cards' value carries the set the Pool's pips would not", () => {
+        // Without profiles the control cards' colours win; the plan's value
+        // (`PLAN_CARD_RATING` per aggro card) carries R/G.
         const { pool, getMeta } = rivalPlansPool();
-        // Without profiles the double pips of the control cards win.
-        expect(chooseDeckColors(pool, getMeta)).toEqual(["U", "B"]);
-        expect(chooseDeckColors(pool, getMeta, rivalPlanProfiles())).toEqual([
-            "R",
-            "G",
-        ]);
+        expect(new Set(chooseDeckColors(pool, getMeta))).not.toEqual(
+            new Set(["R", "G"])
+        );
+        expect(
+            chooseDeckColors(pool, getMeta, {
+                getCardProfile: rivalPlanProfiles(),
+            })
+        ).toEqual(["R", "G"]);
     });
 
     it("an unreviewed Archetype counts half: eleven unreviewed aggro cards lose the plan to eight reviewed control cards", () => {
         // 11 × 0.5 = 5.5 units of aggro against 8 of control.
         const { pool, getMeta } = rivalPlansPool();
         const getCardProfile = rivalPlanProfiles(false);
-        expect(chooseDeckColors(pool, getMeta, getCardProfile)).toEqual([
+        expect(chooseDeckColors(pool, getMeta, { getCardProfile })).toEqual([
             "U",
             "B",
         ]);
@@ -1386,59 +1415,6 @@ describe("Plan-first Auto-Build (issue #8898)", () => {
         expect(
             built.cards.filter((c) => /^(air|vampire)/.test(c.cardName))
         ).toHaveLength(8);
-    });
-
-    it("a third plan colour is admitted only when the Pool's dual lands pay for it", () => {
-        // A W/R/G aggro plan, a third of its cards in each colour, beside the
-        // same U/B control rival. White is the plan's lightest colour by
-        // pips, so it ranks third; four W/B duals cover its share of 17
-        // lands, and without them the deck stays on two.
-        const dual = sourceProducing(metaOf("Scrubland"), ["W", "B"]);
-        const rows: [string, AutoBuildCardMeta, number][] = [
-            ["lions", metaOf("Savannah Lions"), 4],
-            [
-                "raiders",
-                spellWithPips(metaOf("Mons's Goblin Raiders"), { R: 2 }),
-                4,
-            ],
-            ["bears", spellWithPips(metaOf("Grizzly Bears"), { G: 2 }), 4],
-            ["air", metaOf("Air Elemental"), 4],
-            ["vampire", metaOf("Sengir Vampire"), 4],
-            ["merfolk", metaOf("Merfolk of the Pearl Trident"), 4],
-            ["zombies", metaOf("Scathe Zombies"), 4],
-        ];
-        const getCardProfile = profilesById([
-            ["Savannah Lions", archetypeProfile(["aggro"])],
-            ["Mons's Goblin Raiders", archetypeProfile(["aggro"])],
-            ["Grizzly Bears", archetypeProfile(["aggro"])],
-            ["Air Elemental", archetypeProfile(["control"])],
-            ["Sengir Vampire", archetypeProfile(["control"])],
-        ]);
-        const withDuals = invariantPool([...rows, ["dual", dual, 4]]);
-        const colours = chooseDeckColors(
-            withDuals.pool,
-            withDuals.getMeta,
-            getCardProfile
-        );
-        expect(new Set(colours)).toEqual(new Set(["W", "R", "G"]));
-        const built = autoBuildDeck(
-            withDuals.pool,
-            withDuals.getMeta,
-            resolveBasicLand,
-            { getCardProfile }
-        );
-        expect(built.colors).toHaveLength(3);
-        expect(
-            built.cards.filter((c) => c.cardName.startsWith("dual"))
-        ).toHaveLength(4);
-
-        const noDuals = invariantPool(rows);
-        const two = chooseDeckColors(
-            noDuals.pool,
-            noDuals.getMeta,
-            getCardProfile
-        );
-        expect(two).toEqual(["R", "G"]);
     });
 
     it("profile-less: the build is the plan-less build, card for card", () => {
@@ -1501,12 +1477,15 @@ describe("plan depth read against the scope (issue #9298)", () => {
     it("Discriminating Pair: the same Pool builds aggro by raw depth and control once the scope is read", () => {
         const { pool, getMeta } = rivalPlansPool();
         const getCardProfile = rivalPlanProfiles();
-        expect(chooseDeckColors(pool, getMeta, getCardProfile)).toEqual([
+        expect(chooseDeckColors(pool, getMeta, { getCardProfile })).toEqual([
             "R",
             "G",
         ]);
         expect(
-            chooseDeckColors(pool, getMeta, getCardProfile, broadAggroScope)
+            chooseDeckColors(pool, getMeta, {
+                getCardProfile,
+                archetypeScopeShare: broadAggroScope,
+            })
         ).toEqual(["U", "B"]);
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
             getCardProfile,
