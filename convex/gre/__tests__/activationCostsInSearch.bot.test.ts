@@ -22,7 +22,8 @@
 // in the ISMCTS leaf, (b) that the two sandboxes pay the SAME cards, and
 // (c) that the two field repros now score strictly below `pass`.
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../cards";
+import { getCardByName, preloadDefinitions } from "../../cards";
+import { streetWraith } from "../../cards/sets/fut/black.cards";
 import {
     applyActivationCostsForSearch,
     applyMoveForSearch,
@@ -466,6 +467,42 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
 
         expect(botOf(state).hand.map((c) => c.id)).not.toContain("harv");
         expect(botOf(state).graveyard.map((c) => c.id)).toContain("harv");
+    });
+
+    it("cost.life on a hand source — Cycling—Pay 2 life. pays the life (CR 119.4 / 702.29a)", () => {
+        // A new card is absent from a clean-tree registry; preload it.
+        preloadDefinitions([streetWraith()]);
+        const build = (life: number) =>
+            makeState({
+                players: [
+                    makePlayer(OPP),
+                    makePlayer(BOT, {
+                        hand: [inZone(streetWraith().id, "wraith", "hand")],
+                        life,
+                    }),
+                ],
+                activePlayerId: BOT,
+                priorityPlayerId: BOT,
+                phase: "PRECOMBAT_MAIN",
+            });
+        const move: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "wraith",
+            abilityId: "cycling",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+
+        const paid = build(20);
+        expect(applyActivationCostsForSearch(paid, BOT, move)).toBe(true);
+        expect(botOf(paid).life).toBe(18);
+        expect(botOf(paid).graveyard.map((c) => c.id)).toContain("wraith");
+
+        // Fail closed: at 1 life the cost is unpayable and nothing is paid.
+        const broke = build(1);
+        expect(applyActivationCostsForSearch(broke, BOT, move)).toBe(false);
+        expect(botOf(broke).life).toBe(1);
     });
 
     it("cost.discardFilter — the card leaves hand (CR 118.3)", () => {

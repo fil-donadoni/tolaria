@@ -468,7 +468,7 @@ describe("cycling cost marker (CR 702.29c/f)", () => {
      *  deliberately NOT by the ability id, which is exactly the fail-open
      *  string match the marker exists to avoid in production code. */
     const isPrintedCyclingAbility = (oracleText: string) =>
-        /^[A-Za-z]*[Cc]ycling \{/.test(oracleText);
+        /^[A-Za-z]*[Cc]ycling(?: \{|—)/.test(oracleText);
 
     const abilities = getAllCards().flatMap((card) =>
         (card.activatedAbilities ?? []).map((ability) => ({
