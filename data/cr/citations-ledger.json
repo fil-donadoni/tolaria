@@ -47877,6 +47877,7 @@
         {"id":"707.10","line":"// An INSTANT — `cloneSpellOntoStack` (CR 707.10) refuses anything that is not","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"// its tree explored the returning Kavu shooting itself (CR 603.3d: the Kavu","sites":1,"status":"confirmed","ruleHash":"ebc2c87f28be3a1e"},
         {"id":"305.6","line":"it(\"rewrites a basic Forest into an Island — subtype + intrinsic mana (CR 305.6/305.7)\", () => {","sites":1,"status":"baseline"},
+        {"id":"105.1","line":"/** The number of true colours (CR 105.1): a source producing this many is","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"303.4f","line":"// CR 303.4f — the effect specifies the host, so no prompt is raised.","sites":1,"status":"confirmed","ruleHash":"75d28e7d47cda34c"},
         {"id":"701.42a","line":"Bot's enumerator all see the one object CR 701.42a describes, with no reader","sites":1,"status":"confirmed","ruleHash":"4a91ba73c18ebc5f"},
         {"id":"702.170d","line":"/** CR 702.170d — true iff the plotted permission is the ONLY one licensing","sites":1,"status":"confirmed","ruleHash":"24ab406104454134"},

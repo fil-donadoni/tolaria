@@ -21,6 +21,7 @@ import {
 } from "../../src/lib/limited/draftLabEngine";
 import {
     auditSeatDeck,
+    EARLY_MANA_VALUE,
     mean,
     type DeckAudit,
 } from "../../src/lib/limited/draftTableAudit";
@@ -56,6 +57,20 @@ export interface AuditAggregate {
     meanCurve: number[];
     /** Decks by colour count (`"2"`, `"3"`). */
     colourCounts: Record<string, number>;
+    /** Colour coherence (issue #9335), report only — no Floor reads these.
+     *  Mean over every early spell of the run (`DeckAudit.earlyCastability`). */
+    earlyCastability: number | null;
+    /** Share of the run's early spells below `EARLY_CASTABILITY_THRESHOLD`. */
+    earlyBelowShare: number | null;
+    /** `earlyBelowShare` by deck colour count, keyed like `colourCounts`. */
+    earlyBelowShareByColours: Record<string, number | null>;
+    /** Decks with a splash colour (`DeckAudit.splash` non-null). */
+    splashDecks: number;
+    /** Mean splash cards per splashing deck. */
+    meanSplashCards: number | null;
+    /** Share of the run's splash cards that are strained. */
+    splashStrainedShare: number | null;
+    meanOffColourDuals: number;
     meanUnreviewedShare: {
         archetypes: number | null;
         capabilities: number | null;
@@ -73,6 +88,13 @@ function nonNull(values: readonly (number | null)[]): number[] {
     return values.filter((v): v is number => v !== null);
 }
 
+function earlyBelowShare(decks: readonly DeckAudit[]): number | null {
+    const spells = decks.reduce((a, d) => a + d.earlyCastability.spells, 0);
+    return spells === 0
+        ? null
+        : decks.reduce((a, d) => a + d.earlyCastability.below, 0) / spells;
+}
+
 export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
     const colourCounts: Record<string, number> = {};
     for (const d of decks) {
@@ -80,6 +102,8 @@ export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
         colourCounts[k] = (colourCounts[k] ?? 0) + 1;
     }
     const deckMeans = nonNull(decks.map((d) => d.meanCastability));
+    const splashes = decks.flatMap((d) => (d.splash ? [d.splash] : []));
+    const splashCards = splashes.reduce((a, s) => a + s.cards, 0);
     return {
         decks: decks.length,
         builtShare:
@@ -101,6 +125,29 @@ export function aggregateAudit(decks: readonly DeckAudit[]): AuditAggregate {
             (_, b) => mean(decks.map((d) => d.curve[b])) ?? 0
         ),
         colourCounts,
+        earlyCastability: mean(
+            decks.flatMap((d) =>
+                d.castability
+                    .filter((c) => c.manaValue <= EARLY_MANA_VALUE)
+                    .map((c) => c.p)
+            )
+        ),
+        earlyBelowShare: earlyBelowShare(decks),
+        earlyBelowShareByColours: Object.fromEntries(
+            Object.keys(colourCounts).map((k) => [
+                k,
+                earlyBelowShare(
+                    decks.filter((d) => String(d.colors.length) === k)
+                ),
+            ])
+        ),
+        splashDecks: splashes.length,
+        meanSplashCards: mean(splashes.map((s) => s.cards)),
+        splashStrainedShare:
+            splashCards === 0
+                ? null
+                : splashes.reduce((a, s) => a + s.strained, 0) / splashCards,
+        meanOffColourDuals: mean(decks.map((d) => d.offColourDuals)) ?? 0,
         meanUnreviewedShare: {
             archetypes: mean(
                 nonNull(decks.map((d) => d.unreviewedShare.archetypes))
@@ -256,6 +303,9 @@ export function formatDeckLine(d: DeckAudit): string {
         `lands ${d.landCount}`,
         `curve ${curve}`,
         `cast ${fmt(d.meanCastability)}`,
+        `early ${fmt(d.earlyCastability.mean)} (${d.earlyCastability.below}/${d.earlyCastability.spells} low)`,
+        `splash ${d.splash ? `${d.splash.cards} (${d.splash.strained} strained)` : "—"}`,
+        `offDuals ${d.offColourDuals}`,
         `plan ${d.planArchetype ?? "—"} ${fmt(d.planShare, 2)}`,
         `pairs ${d.capabilityPairs}`,
         `unreviewed A ${fmt(d.unreviewedShare.archetypes, 2)} C ${fmt(d.unreviewedShare.capabilities, 2)}`,
@@ -268,6 +318,10 @@ export function formatAggregate(run: DraftAuditRun): string[] {
         .sort(([x], [y]) => x.localeCompare(y))
         .map(([k, n]) => `${k}c ${n}`)
         .join(", ");
+    const earlyByColours = Object.entries(a.earlyBelowShareByColours)
+        .sort(([x], [y]) => x.localeCompare(y))
+        .map(([k, v]) => `${k}c ${fmt(v)}`)
+        .join(", ");
     return [
         `scope ${run.scope} · seeds ${run.seeds[0]}..${run.seeds[run.seeds.length - 1]} (${run.seeds.length}) · decks ${a.decks}`,
         `builtShare ${fmt(a.builtShare)} · unresolved ${a.unresolved}`,
@@ -279,6 +333,8 @@ export function formatAggregate(run: DraftAuditRun): string[] {
             .map((v) => v.toFixed(2))
             .join(" / ")}`,
         `meanUnreviewedShare archetypes ${fmt(a.meanUnreviewedShare.archetypes)} · capabilities ${fmt(a.meanUnreviewedShare.capabilities)}`,
+        `earlyCastability (MV ≤ ${EARLY_MANA_VALUE}) ${fmt(a.earlyCastability)} · earlyBelowShare ${fmt(a.earlyBelowShare)}${earlyByColours ? ` (${earlyByColours})` : ""}`,
+        `splashDecks ${a.splashDecks} · meanSplashCards ${fmt(a.meanSplashCards, 2)} · splashStrainedShare ${fmt(a.splashStrainedShare)} · meanOffColourDuals ${fmt(a.meanOffColourDuals, 2)}`,
     ];
 }
 

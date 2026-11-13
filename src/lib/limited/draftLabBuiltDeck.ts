@@ -6,7 +6,11 @@ import type { DeckCard } from "@convex/deckPresets";
 import { curveBucket, CURVE_MAX_BUCKET } from "@convex/limited/botDrafter";
 import type { DraftContext } from "@convex/botFindingsCore";
 import { SCORER_VERSION } from "@convex/limited/scorerVersion";
-import type { DeckAudit } from "./draftTableAudit";
+import {
+    EARLY_CASTABILITY_THRESHOLD,
+    EARLY_MANA_VALUE,
+    type DeckAudit,
+} from "./draftTableAudit";
 import type { DraftLabState } from "./draftLabEngine";
 import { draftLabGetAutoBuildCardMeta } from "./draftLabCardMeta";
 
@@ -111,11 +115,13 @@ export interface BuiltDeckAuditField {
 
 /** The Draft Table Audit's per-deck fields as the view prints them: plan and
  *  plan share, colours, Maindeck size, lands, curve, castability (mean, then
- *  by turn), Capability pairs, unreviewed share per layer. */
+ *  by turn), the colour-coherence fields (early castability, splash, off-colour
+ *  duals — issue #9335), Capability pairs, unreviewed share per layer. */
 export function builtDeckAuditFields(audit: DeckAudit): BuiltDeckAuditField[] {
     const byTurn = castabilityByTurn(audit)
         .map((t) => `${t.label} ${formatShare(t.mean)}`)
         .join(" ");
+    const early = audit.earlyCastability;
     return [
         {
             label: "plan",
@@ -138,6 +144,17 @@ export function builtDeckAuditFields(audit: DeckAudit): BuiltDeckAuditField[] {
             label: "castability",
             value: `${formatShare(audit.meanCastability)} · ${byTurn || "—"}`,
         },
+        {
+            label: "early castability",
+            value: `${formatShare(early.mean)} · ${early.below}/${early.spells} below ${formatShare(EARLY_CASTABILITY_THRESHOLD)}`,
+        },
+        {
+            label: "splash",
+            value: audit.splash
+                ? `${audit.splash.cards} cards · ${audit.splash.strained} double-pip or MV ≤ ${EARLY_MANA_VALUE}`
+                : "—",
+        },
+        { label: "off-colour duals", value: `${audit.offColourDuals}` },
         { label: "capability pairs", value: `${audit.capabilityPairs}` },
         {
             label: "unreviewed",
