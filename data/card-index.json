@@ -23958,6 +23958,14 @@
         "source": "compiled"
     },
     {
+        "name": "Eldrazi Temple",
+        "scryfallId": "315924c9-77e3-405b-9bbf-852ed563c6e3",
+        "oracleId": "7fab8d65-af51-47d3-8f10-2676bf6e8ba3",
+        "firstSet": "roe",
+        "firstPrintId": "315924c9-77e3-405b-9bbf-852ed563c6e3",
+        "firstPrintSet": "roe"
+    },
+    {
         "name": "Electric Eel",
         "scryfallId": "b8834c18-0e4e-4785-9d15-b33345e3789b",
         "oracleId": "ad8213db-074d-475c-b94a-9f1e81c8f4fd",
