@@ -491,32 +491,66 @@ export function resolveArrowHighlight(
     }
 
     const id = hovered.nodeId;
-    // A node sitting in a combat knot lights the whole cluster.
-    const inCombat = arrows.find(
-        (x) => x.kind === "combat" && (x.fromId === id || x.toId === id)
-    );
-    if (inCombat?.clusterId !== undefined) {
-        return combatCluster(arrows, inCombat.clusterId);
+    // CUMULATIVE (issue #9500): a node lights the UNION of every relationship
+    // it sits in. The attack graph is many-to-one — hovering a planeswalker
+    // or a player lights EVERY creature attacking it (each one's whole
+    // banding/blocking cluster), not the first arrow found; hovering one
+    // attacker still lights only its own cluster, which ends at its target.
+    const keys = new Set<string>();
+    const nodes = new Set<string>([id]);
+    const clusters = new Set<string>();
+    for (const a of arrows) {
+        if (a.kind !== "combat" || a.clusterId === undefined) continue;
+        if (a.fromId === id || a.toId === id) clusters.add(a.clusterId);
+    }
+    for (const c of clusters) {
+        const cluster = combatCluster(arrows, c);
+        for (const k of cluster.keys) keys.add(k);
+        for (const n of cluster.nodes) nodes.add(n);
     }
 
     // Directional over the target graph. A node that is a source shows its
-    // OUTGOING arrows; any other node shows its INCOMING arrows.
+    // OUTGOING arrows; any other node shows its INCOMING arrows — every one
+    // of them, the same many-to-one fan-in as the attack graph above.
     const isSource = arrows.some(
         (a) => a.kind === "target" && sourceNodesOf(a).includes(id)
     );
-    const keys = new Set<string>();
-    const nodes = new Set<string>([id]);
+    let targetHit = false;
     for (const a of arrows) {
         if (a.kind !== "target") continue;
         const hit = isSource ? sourceNodesOf(a).includes(id) : a.toId === id;
         if (hit) {
+            targetHit = true;
             keys.add(a.key);
             for (const n of sourceNodesOf(a)) nodes.add(n);
             nodes.add(a.toId);
         }
     }
     if (keys.size === 0) return null;
-    return { keys, nodes, focus: "target" };
+    return { keys, nodes, focus: targetHit ? "target" : "combat" };
+}
+
+/** Which hover wins (issue #9500). A hovered arrow beats the card under the
+ *  pointer only when that card is NOT in any relationship itself — the
+ *  arrow then disambiguates a wire crossing an unrelated card. A card that
+ *  owns arrows (an attacker, a planeswalker, a player, a stack source) wins:
+ *  every arrow into a target converges on its centre, and an attacker's card
+ *  is often crossed by its neighbours' arrows, so the arrow would otherwise
+ *  hijack the card's own highlight. */
+export function pickHoverSeed(
+    arrows: readonly TargetArrow[],
+    hoveredKey: string | null,
+    channelSeed: { key: string } | { nodeId: string } | null
+): { key: string } | { nodeId: string } | null {
+    if (!hoveredKey) return channelSeed;
+    if (channelSeed && "nodeId" in channelSeed) {
+        const id = channelSeed.nodeId;
+        const involved = arrows.some(
+            (a) => a.toId === id || sourceNodesOf(a).includes(id)
+        );
+        if (involved) return channelSeed;
+    }
+    return { key: hoveredKey };
 }
 
 /** Curvature of the arrow as a fraction of the chord length: the control point
