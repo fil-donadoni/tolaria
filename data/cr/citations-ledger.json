@@ -55965,7 +55965,7 @@
         {"id":"611.2a","line":"* CR 113.1 / 611.2a (issue #1880) — the id is resolved against the POST-LAYER","sites":1,"status":"baseline"},
         {"id":"702.19b","line":"// CR 702.19b's own first example: \"A 2/2 creature that can block an","sites":1,"status":"baseline"},
         {"id":"709.4a","line":"it(\"naming the COMBINED string locks nothing (CR 709.4a)\", () => {","sites":1,"status":"baseline"},
-        {"id":"701.6a","line":"// (CR 701.6a).","sites":1,"status":"confirmed","ruleHash":"c3142ba4935a36de"},
+        {"id":"701.6a","line":"// (CR 701.6a).","sites":2,"status":"confirmed","ruleHash":"c3142ba4935a36de"},
         {"id":"202.3b","line":"* (CR 202.3b — once on the stack, X is the chosen value, not 0). Used by","sites":1,"status":"baseline"},
         {"id":"611.3b","line":"* battlefield. Absent — the default and the CR 611.3b rule — means it","sites":1,"status":"confirmed","ruleHash":"e4898ecc198a957b"},
         {"id":"205.1a","line":"// that excludes Wall drives an until-end-of-turn type SET (CR 205.3m / 205.1a).","sites":1,"status":"confirmed","ruleHash":"90edcc6245b7300a"},
