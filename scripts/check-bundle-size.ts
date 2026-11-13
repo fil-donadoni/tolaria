@@ -100,14 +100,10 @@ function budgetBytes(budget: Budget): number {
 }
 
 const BUDGETS: Budget[] = [
-    // measured 440,553 B (issue #3053) as ONE `card-catalogue` chunk; since
-    // issue #5615 the Sets are one chunk each (`card-set-<code>`, 146 files)
-    // and the row bounds their SUM — 436,709 B gzip on the same tree (the
-    // helpers many Sets share moved to chunks of their own), under a fixed
-    // 490,000 B ceiling. Issue #9489: 2,266 hand-written cards later the sum
-    // was 490,902 B and the base tip went RED on ordinary card growth. The
-    // budget now scales with the card count (`SET_CHUNK_BUDGET`); pool
-    // re-entry still exceeds the headroom.
+    // The Sets are one chunk each (`card-set-<code>`) and the row bounds
+    // their SUM, a corpus that grows with every hand-written card: the
+    // budget scales with the card count (`SET_CHUNK_BUDGET`, issue #9489),
+    // and literal-pool re-entry still exceeds its headroom.
     { prefix: SET_CHUNK_PREFIX, scope: "sum", scaled: SET_CHUNK_BUDGET },
     // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
     // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time

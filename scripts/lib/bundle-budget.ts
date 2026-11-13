@@ -2,10 +2,9 @@
  * Corpus-scaled size budgets for `bun run check:bundle` (issue #9489).
  *
  * WHY THIS EXISTS. The `card-set-` budget row sums every hand-written Set
- * chunk (issue #5615). It was a fixed byte count (490,000 B). The corpus it
- * measures grows with every hand-written card, and hand-tail cards land
- * daily. `check:bundle` is health-only (12–24 s, issue #6989), so no `cards`
- * diff ever ran it. Ordinary card growth (2,097 → 2,266 `defineCard`, 436,709
+ * chunk. It was a fixed byte count (490,000 B). The corpus it measures grows
+ * with every hand-written card, and hand-tail cards land daily.
+ * `check:bundle` is health-only (12–24 s), so no `cards` diff ever ran it. Ordinary card growth (2,097 → 2,266 `defineCard`, 436,709
  * → 490,902 B gzip, ≈ 320 B per card) went over the number and turned base
  * tip `18ba7b7be854` RED. Nothing had gone wrong: the row exists to catch
  * the literal pool coming back into a client graph (+99 KB), and a fixed
