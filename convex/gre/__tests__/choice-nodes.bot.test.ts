@@ -272,7 +272,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // (Demonic Consultation). Only that shape applies; see
         // `librarySoughtName.bot.test.ts`.
         expect(hasChoiceCandidateGenerator("name-card")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(23);
+        // CR 601.2c (issue #9148) — "any target", the free cast's target step.
+        // Unregistered, the bot answered worst-first from a battlefield-only
+        // pool and froze on a graveyard or stack target.
+        expect(hasChoiceCandidateGenerator("choose-damage-target")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(24);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

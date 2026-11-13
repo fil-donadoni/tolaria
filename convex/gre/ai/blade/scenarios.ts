@@ -27381,4 +27381,109 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9116. The opponent holds a flashback card it can cast with its Island, so exiling it removes the opponent's Graveyard Reach — a payoff — while exiling the bot's own instant pays nothing: aiming the exile at its own instant is wrong whatever else is on the board (`absolute`). Twin of `graveyard exile: never exiles its own instant at the opponent's end step` (the same board without the flashback card). Not discriminating (Think Twice on 5/5 seeds before and after): the guard that the payment-only refusal reads payoff per target.",
     },
+    {
+        // CR 601.2c / CR 608.2g (issue #9148) — the free cast's TARGET pick,
+        // naming a card in a GRAVEYARD. Chandra's +1 exiles Raise Dead off the
+        // top and the Bot casts it mid-resolution; its target step is a
+        // `choose-damage-target` whose allow-list names graveyard cards.
+        label: "cast during resolution: Raise Dead off Chandra returns the best creature card",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Chandra, Torch of Defiance",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Shivan Dragon", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                {
+                    name: "Raise Dead",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        setup: [
+            {
+                kind: "activate",
+                card: "Chandra, Torch of Defiance",
+                ability: "chandra-torch-of-defiance-plus1-impulse",
+            },
+            { kind: "resolve-top" },
+            { kind: "choose-option", option: "cast" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Shivan Dragon" }],
+        },
+        note: "Issue #9148, graveyard half. The Bot reads the free cast's target pool off the allow-list across every public zone; before the fix it read battlefields only, found nothing, submitted [] and the `choice` ladder escalated to a stall report (Crabomination, the reported shape). Returning the Dragon over the Bears is right on any board (`absolute`): the same spell buys the bigger card. DISCRIMINATING: before the fix the target pick was no search node and the pool was empty — no move at all; the worst-first default, given a pool, takes the Bears.",
+    },
+    {
+        // CR 601.2c / CR 608.2g (issue #9148) — the free cast's TARGET pick,
+        // naming a SPELL on the stack. Chandra's +1 resolves above two of the
+        // opponent's creature spells and exiles Counterspell off the top.
+        label: "cast during resolution: Counterspell off Chandra counters the bigger spell",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Chandra, Torch of Defiance",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Counterspell",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            stack: [
+                {
+                    kind: "spell",
+                    name: "Shivan Dragon",
+                    controller: "opp",
+                    castOffSorceryTiming: true,
+                },
+                {
+                    kind: "spell",
+                    name: "Grizzly Bears",
+                    controller: "opp",
+                    castOffSorceryTiming: true,
+                },
+                {
+                    kind: "ability",
+                    name: "Chandra, Torch of Defiance",
+                    controller: "me",
+                    abilityId: "chandra-torch-of-defiance-plus1-impulse",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        setup: [
+            { kind: "resolve-top" },
+            { kind: "choose-option", option: "cast" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Shivan Dragon" }],
+        },
+        note: "Issue #9148, stack half: the twin of the Raise Dead entry with the target on the stack. Countering the opponent's Dragon over its Bears is right on any board (`absolute`). DISCRIMINATING: before the fix the pool held no spell — no move at all.",
+    },
 ];
