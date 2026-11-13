@@ -6945,6 +6945,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             destination: isCounterDestination,
             bindSource: bindingDeclaration("snapshot"),
+            bind: bindingDeclaration("snapshot"),
         },
     },
     // CR 701.6-adjacent (issue #2605) — move the target spell off the stack
