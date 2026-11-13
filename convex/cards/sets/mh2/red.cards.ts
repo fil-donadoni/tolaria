@@ -426,4 +426,49 @@ export const galvanicRelay = defineCard(() => ({
     ],
 }));
 
+// Obsidian Charmaw — {3}{R}{R} Creature — Dragon, 4/4 (MH2 137). "This spell
+// costs {1} less to cast for each land your opponents control that could
+// produce {C}. Flying. When this creature enters, destroy target nonbasic land
+// an opponent controls." (CR 601.2f self-host cost reduction; CR 106.7 "could
+// produce" counts the types of mana a land could add, {C} included — a Wastes
+// or a Rishadan Port counts, a Mountain does not; CR 702.9 flying; CR 701.8
+// destroy.) The count is `CensusDrivenCostReduction` mode
+// `opponent-lands-could-produce`, read on the live board at announcement.
+// hand-tail: This spell costs {1} less to cast for each land your opponents control that could produce {C}. (#8628)
+export const obsidianCharmaw = defineCard(() => ({
+    id: "ee6d08be-a6fc-44a5-932d-b6a8705534c0",
+    rarity: "rare",
+    name: "Obsidian Charmaw",
+    oracleText:
+        "This spell costs {1} less to cast for each land your opponents control that could produce {C}.\nFlying\nWhen this creature enters, destroy target nonbasic land an opponent controls.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    selfCostReduction: {
+        costReduction: {
+            perCount: { X: 1 },
+            countMode: "opponent-lands-could-produce",
+            producible: "C",
+        },
+    },
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "obsidian-charmaw-etb",
+            oracleText:
+                "When this creature enters, destroy target nonbasic land an opponent controls.",
+            scope: "self",
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                controller: "opponent",
+                excludeSupertypes: "Basic",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        }),
+    ],
+}));
+
 export {};

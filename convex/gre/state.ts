@@ -312,6 +312,8 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    getProducibleColorsOnBoard,
+    isLand,
     isLandDefinition,
     isPlaneswalker,
     isSpellStackItem,
@@ -25531,15 +25533,36 @@ function isManaCostReduction(
  *  such player: `PlayerState` has no left-the-game status, because the engine
  *  plays two-player games and a player leaving ends the game (CR 104.2a). */
 function censusOf(
-    mode: CensusDrivenCostReduction["countMode"],
+    reduction: CensusDrivenCostReduction,
     player: PlayerState,
     state: GameState
 ): number {
-    switch (mode) {
+    switch (reduction.countMode) {
         case "domain":
             return countDomain(state as never, player.id);
         case "opponents":
             return state.players.filter((p) => p.id !== player.id).length;
+        case "opponent-lands-could-produce": {
+            // CR 106.7 — the TYPES of mana a land could produce, {C}
+            // included, read on the live board. Lands are matched by
+            // CONTROLLER (CR 110.4), across every battlefield.
+            const mana = reduction.producible ?? "C";
+            const boards = state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }));
+            let n = 0;
+            for (const board of boards) {
+                for (const c of board.battlefield) {
+                    if (c.controllerId === player.id || !isLand(c)) continue;
+                    if (
+                        getProducibleColorsOnBoard(c, boards, 0, true).has(mana)
+                    )
+                        n++;
+                }
+            }
+            return n;
+        }
     }
 }
 
@@ -25578,7 +25601,7 @@ function resolveCostReductionGeneric(
     if (isCensusDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
         if (per <= 0) return 0;
-        return per * censusOf(reduction.countMode, player, state);
+        return per * censusOf(reduction, player, state);
     }
     if (isCountDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
