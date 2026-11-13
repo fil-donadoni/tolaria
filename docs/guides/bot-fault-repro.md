@@ -49,3 +49,31 @@ bunx convex run botLiveness:getConsultFailures '{"gameId":"<gameId>"}' --prod
 counters plus the most recent samples (state `seq`, turn, phase, whether a
 land drop was legal, the truncated Brain message). A report filed with a game
 id carries the counters on `bugReports:getReport` as `botConsultFailures`.
+
+## When the Bot played weakly: was it cut short?
+
+A Bot that answers every consult can still be starved: the search stops at its
+wall-clock cap long before its iteration budget, and nothing fails. Every
+vs-Bot game reports once, at game over or when the game is left, how its
+searches went on the player's device (issue #9526) — a structured log named
+`bot search`, counters and a coarse device class only, no consent-gated
+payload. A game with no Brain consult, or whose tab was closed mid-play, has no
+report.
+
+Read one game in Sentry (Explore → Logs):
+
+```
+message:"bot search" gameId:<gameId>
+```
+
+| Attribute                                                          | Reads as                                                        |
+| ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested   |
+| `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops  |
+| `msPerIteration.p50` / `.p90`                                      | the device's speed, comparable across games                     |
+| `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue) |
+| `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                  |
+| `device.engine` / `.cores` / `.mobile`                             | browser engine family, core-count bucket, mobile flag           |
+
+Across games, group the same query by `device.engine` or `device.cores` and
+average `iterations.ratio`.
