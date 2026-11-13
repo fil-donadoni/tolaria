@@ -72,6 +72,7 @@ import {
     pipDemandByColor,
     poolProfiles,
     sourceCountsByColor,
+    sourceWeight,
     type CardEvalMeta,
     type GetPickRating,
 } from "./botDrafter";
@@ -619,7 +620,8 @@ function castabilityAgainst(
         let own = sources;
         if (inDeck.has(entry.entry) && meta.producedColors.length > 0) {
             own = { ...sources };
-            for (const c of meta.producedColors) own[c] = (own[c] ?? 1) - 1;
+            for (const c of meta.producedColors)
+                own[c] = (own[c] ?? 0) - sourceWeight(meta, c);
         }
         return pipCastability(meta.pips, meta.manaValue, deckSize, own);
     };

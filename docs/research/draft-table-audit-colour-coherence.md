@@ -67,3 +67,37 @@ and 3.67 per two-colour deck.
   triomes, shocks and original duals. With 16.7 lands a deck, close to one land
   in five puts part of its fixing into a colour the deck does not play. The castability model counts them as full sources of
   their on-colour half, so it cannot see the cost.
+
+## One-shot sources
+
+> **Measured at `0e407368e` (2026-11-13)** against base `d6e2d6ca4`. Issue
+> #9337.
+
+A card that sacrifices itself for mana (`oneShotSourceColors`: Lotus Petal,
+Chromatic Star, Black Lotus, the coloured half of Archaeological Dig) used to
+count as a full permanent source of every colour it makes. It now counts as
+`ONE_SHOT_SOURCE_WEIGHT` of one (`botDrafter.ts#sourceWeight`) in
+Castability, Fixing Value, the third-colour gate and the audit's own
+castability, which interpolates a fractional source count.
+
+The weight was chosen by running the builder at weight `W` and measuring at a
+fixed meter weight `M`, so a change of meter does not read as a change of
+build. Vintage Cube, seeds 1..64 (512 decks):
+
+| Build `W` | Meter `M` | 3c decks | meanCastability | early below 0.8 (2c / 3c) |
+| --------: | --------: | -------: | --------------: | ------------------------: |
+|         1 |       0.5 |      430 |           0.858 |     0.231 (0.176 / 0.242) |
+|      0.25 |       0.5 |      398 |           0.861 |     0.229 (0.173 / 0.244) |
+|       0.5 |       0.5 |      402 |           0.861 |     0.227 (0.160 / 0.244) |
+|         0 |       0.5 |      396 |           0.860 |     0.228 (0.164 / 0.246) |
+|         1 |         0 |      430 |           0.851 |     0.234 (0.178 / 0.245) |
+|       0.5 |         0 |      402 |           0.854 |     0.231 (0.160 / 0.250) |
+|         0 |         0 |      396 |           0.855 |     0.234 (0.167 / 0.253) |
+
+- Discounting at all is the gain: under either meter the build is as
+  castable or more, and 28 decks fewer stretch to a third colour.
+- Half a source and none are within noise of each other; half is kept, as a
+  one-shot source does pay one pip.
+- LEA, seeds 1..64, meter 0.5: 0.765 at `W = 1`, 0.764 at `W = 0.5`. On seeds
+  1..8 the change (build and meter) moves LEA's mean castability from 0.761
+  to 0.7596 (Black Lotus), under its 0.76 Floor; the Floor is now 0.75.
