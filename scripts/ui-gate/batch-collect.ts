@@ -6,7 +6,9 @@
  *   CLEAN     → `ui-owed` removed, `land:ready <PR#>` run (it carries the
  *               receipt the batch wrote into the body);
  *   RED       → `ui-owed` removed, `land-failed` added, red lines commented;
- *   DROPPED / UNPROVEN → stays `ui-owed`, a comment says why;
+ *   DROPPED / UNPROVEN → stays `ui-owed`, a comment says why (cells left
+ *               `UNWALKED` / `INFRA` by the batch AND a solo re-walk are
+ *               UNPROVEN, never RED);
  *   no outcome (the walk was cut short: infra exit) → nothing touched.
  *
  * Runs on the lane machine (local Convex deployment, ADR 0156 lane slot).
@@ -40,16 +42,30 @@ import { INFRA_EXIT } from "../lib/infra-exit.ts";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable.ts";
 import { DEPLOYMENT_SKEW_EXIT } from "../lib/deployment-skew.ts";
 import { runBatch, type BatchOutcome } from "./batch-run.ts";
+import { unmeasuredCellsText } from "./batch-receipt.ts";
 
 export type CollectAction =
-    | { kind: "land"; pr: number }
+    | { kind: "land"; pr: number; comment?: string }
     | { kind: "fail"; pr: number; comment: string; partners: number[] }
     | { kind: "hold"; pr: number; comment: string; intrinsic: boolean };
 
 /** The action each PR of a settled batch gets. Pure. */
 export function planCollect(outcome: BatchOutcome): CollectAction[] {
     const actions: CollectAction[] = [];
-    for (const pr of outcome.clean) actions.push({ kind: "land", pr });
+    for (const pr of outcome.clean) {
+        // Cells the batch left unmeasured and a solo re-walk passed (issue
+        // #9549): the receipt covers them, the comment says how.
+        const cells = outcome.rewalked?.get(pr) ?? [];
+        actions.push(
+            cells.length > 0
+                ? {
+                      kind: "land",
+                      pr,
+                      comment: `check:ui batch walk: CLEAN — the batch left ${cells.map((c) => `\`${c}\``).join(", ")} unmeasured (UNWALKED / INFRA); re-walked on #${pr} alone, every cell PASS.`,
+                  }
+                : { kind: "land", pr }
+        );
+    }
     const combination = outcome.combination ?? [];
     for (const [pr, red] of outcome.red) {
         // A combination break's culprit (issue #9265): the repair pass reads
@@ -88,6 +104,16 @@ export function planCollect(outcome: BatchOutcome): CollectAction[] {
                 pr,
                 intrinsic: false,
                 comment: `check:ui batch walk: #${pr} rides the next batch — it was merged after ${culprits.join(", ")}, which breaks ${behind.map((c) => `\`${c.surface}\``).join(", ")} in combination, so it is unproven against a base that will change. It stays \`${UI_OWED_LABEL}\`.`,
+            });
+            continue;
+        }
+        const cells = (outcome.unmeasured ?? []).filter((u) => u.owner === pr);
+        if (cells.length > 0) {
+            actions.push({
+                kind: "hold",
+                pr,
+                intrinsic: false,
+                comment: `check:ui batch walk: #${pr} is UNPROVEN — ${cells.map((u) => `\`${unmeasuredCellsText(u)}\``).join(", ")} measured nothing in the batch (UNWALKED / INFRA) nor in a solo re-walk on #${pr} alone. Nothing failed: it stays \`${UI_OWED_LABEL}\`; the next batch walks it again, or walk it alone with \`bun run check:ui\`.`,
             });
             continue;
         }
@@ -210,6 +236,7 @@ function apply(
         comment(action.pr, action.comment);
         return;
     }
+    if (action.comment) comment(action.pr, action.comment);
     const refusal = landFromPrHead(action.pr);
     if (refusal !== null) {
         // The walk is done and its receipt is in the body: the label stays
