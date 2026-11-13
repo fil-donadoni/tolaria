@@ -3851,7 +3851,7 @@ export const OP_EXECUTORS: {
     restrictCasting(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        ctx.restrictSpellCasting(playerId, op.cardTypes);
+        ctx.restrictSpellCasting(playerId, op.cardTypes, op.excludeCardTypes);
     },
     // CR 602.1 / 605.1a (issue #1124) — impose a turn-scoped per-player "can't
     // activate abilities that aren't mana abilities" restriction (Abeyance).

@@ -6985,7 +6985,11 @@ export interface SpellContext {
      *  `cast-restriction` static it does not revert when a source leaves play.
      *  Enforced by the shared cast gate `castProhibitionReason` (read by the
      *  GRE and the client alike). */
-    restrictSpellCasting: (playerId: string, cardTypes?: CardType[]) => void;
+    restrictSpellCasting: (
+        playerId: string,
+        cardTypes?: CardType[],
+        excludeCardTypes?: CardType[]
+    ) => void;
     /** CR 602.1 / 605.1a — marks `playerId` unable to activate abilities that
      *  aren't mana abilities for the remainder of this turn (Abeyance). A
      *  turn-scoped per-player restriction, cleared at CLEANUP (CR 514.2).
@@ -17672,6 +17676,9 @@ export type EffectOp =
           op: "restrictCasting";
           player: EffectPlayerRef;
           cardTypes?: CardType[];
+          /** Negative filter ("noncreature spells" = `["Creature"]`): the
+           *  lock covers a spell with none of the listed printed types. */
+          excludeCardTypes?: CardType[];
       }
     /** CR 602.1 / 605.1a (issue #1124) — impose a turn-scoped "can't activate
      *  abilities that aren't mana abilities" restriction on `player` (Abeyance).
