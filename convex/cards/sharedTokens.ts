@@ -128,6 +128,32 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
     imagePrintId: "e32795e1-5548-43ef-8cd6-c605a19ef708",
 };
 
+/** Eldrazi Scion token (CR 111.1, issue #8645). "1/1 colorless Eldrazi
+ *  Scion creature token with 'Sacrifice this token: Add {C}.'" — the Spawn's
+ *  mana ability (`ELDRAZI_SPAWN_TOKEN` above, CR 605.3a), on a 1/1 body.
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN` treatment: the
+ *  art is the token of the PRODUCING card's own printing, resolved per
+ *  producer by the client's Token Print resolver (`src/lib/tokenArt.ts`). */
+export const ELDRAZI_SCION_TOKEN: EffectTokenSpec = {
+    name: "Eldrazi Scion",
+    types: ["Creature"],
+    subtypes: ["Eldrazi", "Scion"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "eldrazi-scion-sacrifice-mana",
+            oracleText: "Sacrifice this token: Add {C}.",
+            cost: { sacrifice: true },
+            useStack: false,
+            // CR 605.1a — the `manaProduced` descriptor every mana authority
+            // reads, as on the Spawn.
+            manaProduced: { C: 1 },
+            effects: [{ op: "addMana", mana: { C: 1 } }],
+        },
+    ],
+};
+
 /** Goblin token (CR 111 / 707.2). "1/1 red Goblin creature token" — created
  *  today by Empty the Warrens (`sets/tsp/red.cards.ts`) and Siege-Gang Commander
  *  (`sets/scg/red.cards.ts`). Vanilla, so `EffectTokenSpec` (JSON-pure, ADR 0046)
