@@ -611,10 +611,10 @@ export const ajaniNacatlPariah = defineCard(() => ({
 //   - A modal spell (CR 700.2) with `modeSelection` absent = exactly one; only
 //     the chosen mode's targets are announced (CR 601.2c).
 //   - Damage is the `count` EffectValue with `times: 2` ("twice the number of"),
-//     read at resolution so the creature it kills is still counted (CR 120.3).
+//     read at resolution.
 //   - "Any number of target players" is a `{ min: 0 }` player requirement; the
 //     whole announced set is walked with `forEach { set: "targets" }` and each
-//     player's graveyard goes to exile (CR 406.3), zero targets doing nothing.
+//     player's graveyard goes to exile, zero targets doing nothing.
 // hand-tail: Choose one — • {self} deals damage equal to twice the number of creatures you control to target creature. • Destroy target enchantment. • Exile any number of target players' graveyards. (#8639)
 export const thrabenCharm = defineCard(() => ({
     id: "dd28a646-f38f-4cdf-948c-969cd979e5e6",
