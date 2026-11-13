@@ -164,3 +164,41 @@ export const brazenBorrower = defineCard(() => ({
         effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
     },
 }));
+
+// Mystical Dispute — {2}{U} Instant (ELD). Modern Scryfall oracle text is
+// authoritative (ADR 0004).
+//
+// CR 601.2f — the "costs {2} less if it targets a blue spell" clause is a
+// self-host reduction gated on the announced targets (`ifTargetsSpell`):
+// targets are chosen before the total cost is determined (CR 601.2c precedes
+// 601.2f), so the commit prices against them. The counter-unless-pay body is
+// the shipped punisher template (Metallic Rebuke, aer/blue.cards.ts).
+// hand-tail: This spell costs {2} less to cast if it targets a blue spell. (#8627)
+export const mysticalDispute = defineCard(() => ({
+    id: "fbe04cb8-a8b9-4241-baae-b398a2509a3a",
+    name: "Mystical Dispute",
+    rarity: "uncommon",
+    oracleText:
+        "This spell costs {2} less to cast if it targets a blue spell.\nCounter target spell unless its controller pays {3}.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    selfCostReduction: {
+        costReduction: { X: 2 },
+        ifTargetsSpell: { colors: "U" },
+    },
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "mayPay",
+            player: { controllerOf: { target: 0 } },
+            cost: { X: 3 },
+            prompt: "Pay {3} or your spell is countered (Mystical Dispute)?",
+            bind: "$paid",
+        },
+        {
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+}));

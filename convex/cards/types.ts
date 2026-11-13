@@ -11189,6 +11189,15 @@ export type FixedGenericReduction = {
 export interface SelfCostReduction {
     costReduction: CostReductionAmount;
     minTotalMana?: number;
+    /** CR 601.2c / 601.2f — the reduction applies only if the spell targets a
+     *  SPELL matching this filter: "This spell costs {2} less to cast if it
+     *  targets a blue spell" (Mystical Dispute). Targets are chosen before the
+     *  total cost is determined (CR 601.2c precedes 601.2f), so the commit
+     *  prices against the announced targets. A pricing probe that runs before
+     *  any target exists (the castability gate, the Bot's enumerator) gives the
+     *  reduction whenever a matching spell is on the stack, since the caster
+     *  can then choose it. */
+    ifTargetsSpell?: SpellFilter;
 }
 
 /** Board-wide static NON-mana additional cost (CR 601.2f / 118.5). Unlike

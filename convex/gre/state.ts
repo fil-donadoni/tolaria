@@ -25670,6 +25670,34 @@ function resolveCostReductionGeneric(
     return normalizeManaCost(_exhaustive).X ?? 0;
 }
 
+/** CR 601.2c / 601.2f — does a spell on the stack matching `filter` satisfy a
+ *  "if it targets a <filter> spell" cost condition? With `announcedTargets` it
+ *  asks the chosen targets (stack-item ids); without (a probe before any
+ *  target exists) it asks whether the caster COULD choose one. An ability on
+ *  the stack is an object of its own, never a spell (CR 113.1c). */
+export function targetsMatchingSpellExist(
+    state: GameState,
+    filter: SpellFilter,
+    announcedTargets: ReadonlyArray<TargetSelection> | undefined
+): boolean {
+    return state.stack.some(
+        (item) =>
+            isSpellStackItem(item) &&
+            (announcedTargets === undefined ||
+                announcedTargets.some(
+                    (t) => t.type === "spell" && t.id === item.id
+                )) &&
+            matchesSpellFilter(
+                {
+                    types: item.types ?? [],
+                    subtypes: item.subtypes ?? [],
+                    colors: STATIC_EFFECT_CTX.getColors(item),
+                },
+                filter
+            )
+    );
+}
+
 /** Scan the battlefield for `cost-modifier` static effects that apply to the
  *  given spell or ability source, PLUS the spell's own self-host reduction if
  *  it declares one, and return the accumulated modifiers (CR 601.2f). Each
@@ -25729,7 +25757,8 @@ export function getCostModifiers(
         >,
     kind: "spell" | "ability",
     ability?: ActivatedAbility,
-    announcerId?: string
+    announcerId?: string,
+    announcedTargets?: ReadonlyArray<TargetSelection>
 ): CostModifiers {
     // CR 601.2a / 602.2b — "you" in every reduction below is the announcing
     // player, defaulted once here rather than at each of the four reads.
@@ -25910,7 +25939,15 @@ export function getCostModifiers(
             ?.id;
         const selfDef = selfCardId ? tryGetDefinition(selfCardId) : null;
         const selfReduction = selfDef?.selfCostReduction;
-        if (selfReduction) {
+        if (
+            selfReduction &&
+            (selfReduction.ifTargetsSpell === undefined ||
+                targetsMatchingSpellExist(
+                    state,
+                    selfReduction.ifTargetsSpell,
+                    announcedTargets
+                ))
+        ) {
             // CR 601.2a — the CASTER's board, not the zone owner's: a stolen
             // Emry counts the artifacts of whoever is casting her. Same
             // divergence, same class as the floating fold above.
