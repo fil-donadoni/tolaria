@@ -943,7 +943,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Teferi, Hero of Dominaria",
     "Tek",
     "Teleport",
-    "Territorial Kavu",
     "Tetravus",
     "The Abyss",
     "The Brute",
