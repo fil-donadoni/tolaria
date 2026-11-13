@@ -105,7 +105,9 @@ of eight seeds, out of 64:
 | Branch |   0.784 |           0.509 | .769 .796 .804 .806 .762 .784 .749 .792 (0.788) | .479 .512 .526 .504 .521 .515 .512 .500 (0.512) |
 
 - **No build regression.** Over 64 seeds neither metric moves on the
-  branch, and both block medians hold or rise.
+  branch, and both block medians hold or rise. One block's p5 does fall
+  (seeds 49..56, 0.783 → 0.749): the new pairs redraft every table, and the
+  whole-run p5 absorbs it.
 - **Seeds 1..8 are a low block.** For plan share they are the lowest block on
   both trees. For p5 they are the base's lowest block but one, and they do not
   move on the branch.
