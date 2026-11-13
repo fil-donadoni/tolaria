@@ -16891,6 +16891,7 @@ export function buildSpellContext(
                 | "while-exiled"
                 | "until-next-end-step"
                 | "until-end-of-your-next-turn"
+                | "during-your-next-turn"
                 | "until-your-next-upkeep"
                 | "after-this-turn" = "while-exiled",
             opts?: {
@@ -16964,7 +16965,16 @@ export function buildSpellContext(
             //     bound cannot express.
             if (window === "this-turn") {
                 card.castableFromExileUntilTurn = state.turn;
-            } else if (window === "until-end-of-your-next-turn") {
+            } else if (
+                window === "until-end-of-your-next-turn" ||
+                window === "during-your-next-turn"
+            ) {
+                //   - "during-your-next-turn" (CR 514.2 / 611.2a): "During your
+                //     next turn, you may play that card" (Galvanic Relay) —
+                //     the SAME upper bound as the window below, plus an
+                //     own-turn LOWER bound at the same count
+                //     (`castableFromExileFromOwnTurn`), so the permission is
+                //     closed for the rest of this turn and every opponent turn.
                 //   - "until-end-of-your-next-turn" (issue #3235): "Until the
                 //     end of your next turn, you may play those cards" (The
                 //     Legend of Roku, chapter I). The ONE window stamped on
@@ -16997,8 +17007,19 @@ export function buildSpellContext(
             // The three upper bounds are alternatives, never two at once: a
             // re-grant under a different window must not leave another one
             // standing.
-            if (window !== "until-end-of-your-next-turn") {
+            if (
+                window !== "until-end-of-your-next-turn" &&
+                window !== "during-your-next-turn"
+            ) {
                 delete card.castableFromExileUntilOwnTurn;
+            }
+            if (window === "during-your-next-turn") {
+                card.castableFromExileFromOwnTurn = untilEndOfYourNextOwnTurn(
+                    state,
+                    playerId
+                );
+            } else {
+                delete card.castableFromExileFromOwnTurn;
             }
             if (window !== "until-your-next-upkeep") {
                 delete card.castableFromExileUntilOwnUpkeep;
@@ -23338,6 +23359,7 @@ export function moveCard(
         // exile" referent ride the same permission window as the seven riders
         // beside them; a card pulled back out of exile keeps neither.
         delete card.castableFromExileFromTurn;
+        delete card.castableFromExileFromOwnTurn;
         delete card.warpExiledOnTurn;
         // CR 702.170d / 400.7 — the plotted designation, and so the permission
         // derived from it, leaves exile with the card.
@@ -23698,6 +23720,7 @@ export function removeFromZone(
     // the upper bound directly above: the card is on the stack now, and a warp
     // recast must never leave a stale window behind for its next exile.
     delete card.castableFromExileFromTurn;
+    delete card.castableFromExileFromOwnTurn;
     delete card.warpExiledOnTurn;
     // CR 702.170d — the plotted designation is consumed with the permission
     // derived from it.

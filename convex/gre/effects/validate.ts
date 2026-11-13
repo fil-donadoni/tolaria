@@ -4638,7 +4638,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             window: (v: unknown) =>
                 v === "this-turn" ||
                 v === "while-exiled" ||
-                v === "until-end-of-your-next-turn",
+                v === "until-end-of-your-next-turn" ||
+                v === "during-your-next-turn",
             withoutPayingManaCost: isBoolean,
             // CR 611.2b (issue #7295) — "you may play them if you control a
             // Wizard": the permission is live only while a board predicate
