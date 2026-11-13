@@ -1,5 +1,5 @@
 // The `check:ui` lane's test-only seam — its server half (issue #9271,
-// ADR 0179).
+// ADR 0180).
 //
 // THE ONE MODULE lane shortcuts' queries and mutations live in. A shortcut
 // that jumps the lane straight to a state (a declared position, the end of a

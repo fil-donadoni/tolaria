@@ -1,4 +1,4 @@
-// The `check:ui` seam's trivial page (issue #9271, ADR 0179): prints the
+// The `check:ui` seam's trivial page (issue #9271, ADR 0180): prints the
 // server seam's echo of `?__uiseam_echo=` plus the lane run id the caller's
 // account carries. Rendering a value proves the client gate (this route exists
 // only in a DEV bundle) and both server gates (local deployment, lane account)

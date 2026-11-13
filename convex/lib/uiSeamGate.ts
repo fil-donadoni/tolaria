@@ -1,6 +1,6 @@
 /**
  * The double gate every `check:ui` seam server function opens on (issue
- * #9271, ADR 0179).
+ * #9271, ADR 0180).
  *
  * The client gate (`import.meta.env.DEV`) keeps the seam's ROUTES out of a
  * production bundle, but a Convex function deploys to EVERY deployment and is

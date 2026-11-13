@@ -1,6 +1,6 @@
 /**
  * The `check:ui` lane's test-only seam — its ONE namespace (issue #9271,
- * ADR 0179).
+ * ADR 0180).
  *
  * A lane shortcut — a route or a query parameter that jumps straight to a
  * state instead of clicking through the lobby — lives here or nowhere:

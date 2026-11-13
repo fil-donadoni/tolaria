@@ -1,4 +1,4 @@
-// The `check:ui` seam's client routes (issue #9271, ADR 0179).
+// The `check:ui` seam's client routes (issue #9271, ADR 0180).
 //
 // DEV ONLY. `router.tsx` calls `buildUiSeamRoutes` behind
 // `import.meta.env.DEV`, which a production `vite build` replaces with

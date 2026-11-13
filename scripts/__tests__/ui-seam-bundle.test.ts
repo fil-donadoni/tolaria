@@ -1,5 +1,5 @@
 // The production-bundle scan behind `check:bundle`'s ui-seam row (issue
-// #9271, ADR 0179), over a hand-built `dist/`. The real-build half — a
+// #9271, ADR 0180), over a hand-built `dist/`. The real-build half — a
 // production `vite build` with the DEV gate removed reds the row — is proven
 // by hand in the PR (the build is minutes; this file is milliseconds).
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

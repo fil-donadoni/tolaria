@@ -426,7 +426,7 @@ const routeTree = rootRoute.addChildren([
     ]),
 ]);
 
-// The `check:ui` lane's test-only seam (issue #9271, ADR 0179): its routes
+// The `check:ui` lane's test-only seam (issue #9271, ADR 0180): its routes
 // join the tree in a DEV bundle only. A production `vite build` replaces
 // `import.meta.env.DEV` with `false`, so the branch — and with it the whole
 // seam module — is dead-code eliminated, and a seam path falls through to the

@@ -239,7 +239,7 @@ function main(): void {
         failures.push(`brain worker: ${v.chunk} — ${v.reason}`);
     }
 
-    // Issue #9271 (ADR 0179): the check:ui seam is ABSENT in production — its
+    // Issue #9271 (ADR 0180): the check:ui seam is ABSENT in production — its
     // routes are registered under `import.meta.env.DEV` only, so no emitted
     // asset may carry the namespace marker.
     const seamHits = uiSeamMarkerViolations(distDir);
@@ -248,7 +248,7 @@ function main(): void {
     );
     for (const v of seamHits) {
         failures.push(
-            `ui seam: ${v.file} carries the seam namespace marker ${v.count}× — seam code reached a production bundle (ADR 0179: register it under import.meta.env.DEV only, never import convex/lib/uiSeamNamespace.ts from product code)`
+            `ui seam: ${v.file} carries the seam namespace marker ${v.count}× — seam code reached a production bundle (ADR 0180: register it under import.meta.env.DEV only, never import convex/lib/uiSeamNamespace.ts from product code)`
         );
     }
 

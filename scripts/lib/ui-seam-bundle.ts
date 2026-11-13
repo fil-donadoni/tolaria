@@ -1,6 +1,6 @@
 /**
  * The production half of the `check:ui` seam's client gate (issue #9271,
- * ADR 0179): no built asset may carry the seam namespace's marker.
+ * ADR 0180): no built asset may carry the seam namespace's marker.
  *
  * The router registers the seam's routes behind `import.meta.env.DEV`, which
  * `vite build` inlines as `false`, so the branch and the whole seam module are

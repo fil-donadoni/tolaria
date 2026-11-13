@@ -1,4 +1,4 @@
-// The `check:ui` seam's server boundary (issue #9271, ADR 0179).
+// The `check:ui` seam's server boundary (issue #9271, ADR 0180).
 //
 // Two halves:
 //   1. DYNAMIC — the real `uiSeam.echo` handler against the in-memory ctx: a
@@ -80,7 +80,7 @@ function recordingCtx(identitySubject?: string) {
 
 const echo = handlerOf(uiSeam.echo);
 
-describe("uiSeam double gate (issue #9271, ADR 0179)", () => {
+describe("uiSeam double gate (issue #9271, ADR 0180)", () => {
     beforeEach(() => {
         vi.stubEnv("CONVEX_CLOUD_URL", LOCAL_URL);
     });

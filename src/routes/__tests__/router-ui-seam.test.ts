@@ -1,4 +1,4 @@
-// The `check:ui` seam's client gate (issue #9271, ADR 0179): its routes join
+// The `check:ui` seam's client gate (issue #9271, ADR 0180): its routes join
 // the tree only when `import.meta.env.DEV` is true. Vitest runs with DEV true
 // (the lane's bundle carries it too), so the dev half imports the router as
 // is; the production half re-imports it fresh with DEV stubbed false — the
