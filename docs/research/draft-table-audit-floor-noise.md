@@ -63,3 +63,26 @@ bun run draft:audit -- --scope vintage-cube --seeds 64 --json
 - **What follows for the next red.** The worst-deck Floor sits inside its own
   block-to-block noise. Before reading a broken Floor as a regression, run the
   same 64-seed comparison.
+
+## Issue #9323: the `sacrifice-fodder` Capability
+
+> **Measured at `19c92bf15` (2026-11-13)**, base against the branch.
+
+The new Capability breaks `worstDeckCastability` on seeds 1..8 (0.795 →
+0.728). The 64-seed comparison this section asks for:
+
+| Tree   | Mean cast (64) | Plan share (64) | Worst deck per block (median)                   |   p1 |   p5 |  p10 | Decks < 0.76 |
+| ------ | -------------: | --------------: | ----------------------------------------------- | ---: | ---: | ---: | -----------: |
+| Base   |          0.865 |           0.513 | .795 .727 .760 .781 .739 .567 .723 .584 (0.733) | .723 | .784 | .803 |           17 |
+| Branch |          0.866 |           0.514 | .728 .727 .760 .781 .739 .567 .723 .584 (0.728) | .723 | .780 | .804 |           19 |
+
+- **No build regression.** Only block 1 (seeds 1..8) changes its worst
+  deck. It falls from the base's best block to the base's median. The mean
+  and p1 hold.
+- **The worst deck is the same class on both trees.** Seed 1 seat 6 drafts
+  RWB with a splash on the base. On the branch it is built straight RW, yet
+  it keeps Liliana of the Veil, Grist and Ancestral Recall in the main (p
+  0.12, 0.12, 0). The base's worst decks (seed 43 and seed 58, seat 6, both
+  RW) are the same shape: two colours, no splash, near-uncastable off-colour
+  cards. That is the colour-set choice of issue #9336, not this Capability.
+- **The Floor moved** 0.76 → 0.72, rounded down from the seeds 1..8 run.
