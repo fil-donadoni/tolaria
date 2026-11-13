@@ -12,6 +12,7 @@ import { isProtectedFromSource } from "../../../../gre/protection";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { castProhibitionReason } from "../../../castRestrictions";
 
 const giverOfRunes = getDefinition("4e117771-5a8b-4812-b487-32ba34b7f724");
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
@@ -125,5 +126,54 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         submitChoice(state, ["protection-blue"]);
         const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from blue");
+    });
+});
+
+// Ranger-Captain of Eos — "Sacrifice this creature: Your opponents can't cast
+// noncreature spells this turn." (CR 601.3a cast prohibition; CR 514.2 cleared
+// at cleanup; CR 205.2a "noncreature" = no Creature type, so an artifact
+// creature stays castable.)
+describe("Ranger-Captain of Eos (CR 601.3a noncreature cast lock)", () => {
+    const captain = getDefinition("af3928b4-813a-4120-8799-de34235d60ac");
+
+    function lockedState() {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const source = makeInstance(captain.id, {
+            id: "captain",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        resolveActivated(state, source, "ranger-captain-of-eos-lock");
+        return state;
+    }
+
+    it("locks the opponent out of noncreature spells only", () => {
+        const state = lockedState();
+        const bolt = makeInstance(lightningBolt.id, { id: "bolt" });
+        const bears = makeInstance(balduvianBears.id, { id: "bears" });
+        const jugg = makeInstance(juggernaut.id, { id: "jugg" });
+        expect(castProhibitionReason("p2", bolt, state)).toBeDefined();
+        expect(castProhibitionReason("p2", bears, state)).toBeUndefined();
+        expect(castProhibitionReason("p2", jugg, state)).toBeUndefined();
+        expect(castProhibitionReason("p1", bolt, state)).toBeUndefined();
+    });
+
+    it("survives the wire projection so the client gate agrees", () => {
+        const state = lockedState();
+        const projected = projectPublicState(state, 1, "p1");
+        const bolt = makeInstance(lightningBolt.id, { id: "bolt" });
+        expect(castProhibitionReason("p2", bolt, projected)).toBeDefined();
+    });
+
+    it("stacks with an instant/sorcery lock instead of being swallowed", () => {
+        const state = lockedState();
+        const ctxLock = { playerId: "p2", cardTypes: ["Instant" as const] };
+        state.cannotCastSpellsThisTurn!.unshift(ctxLock);
+        const jugg = makeInstance(juggernaut.id, { id: "jugg" });
+        const bolt = makeInstance(lightningBolt.id, { id: "bolt" });
+        expect(castProhibitionReason("p2", bolt, state)).toBeDefined();
+        expect(castProhibitionReason("p2", jugg, state)).toBeUndefined();
     });
 });
