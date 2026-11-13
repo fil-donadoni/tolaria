@@ -6,8 +6,9 @@
  * it at landing. These assertions pin the policy that closes the class:
  *
  *  - ordinary growth (cards at the observed marginal) never uses up the
- *    headroom, however many land;
- *  - the accident the row exists for (literal pool re-entry) still goes red;
+ *    headroom, up to the re-anchor horizon;
+ *  - the accident the row exists for (literal pool re-entry) still goes red
+ *    within that horizon, and the live corpus is inside it;
  *  - the count the script scales by is the corpus the chunks bundle.
  *
  * The other half of the guard is the `Budget` type in
@@ -27,28 +28,31 @@ import {
 
 const ROOT = join(__dirname, "..", "..");
 
+const { anchorUnits, anchorBytes, reanchorHorizon } = SET_CHUNK_BUDGET;
+/** Corpus sizes from the anchor to the re-anchor horizon. */
+const ADDED = [0, 1, 100, 500, 1_000, reanchorHorizon];
+/** The Set chunks' sum after `added` cards at the observed marginal. */
+const grown = (added: number) =>
+    anchorBytes + OBSERVED_SET_BYTES_PER_CARD * added;
+
 describe("card-set bundle budget scales with the hand-written corpus (issue #9489)", () => {
-    it("allows at least the observed per-card marginal, so card growth never uses up the headroom", () => {
-        expect(SET_CHUNK_BUDGET.perUnitBytes).toBeGreaterThanOrEqual(
-            OBSERVED_SET_BYTES_PER_CARD
-        );
-        // 5,000 more cards at the observed marginal: still under budget.
-        const { anchorUnits, anchorBytes } = SET_CHUNK_BUDGET;
-        for (const added of [0, 1, 100, 1_000, 5_000]) {
-            const measured = anchorBytes + OBSERVED_SET_BYTES_PER_CARD * added;
-            expect(measured).toBeLessThanOrEqual(
+    it("ordinary card growth stays under budget up to the re-anchor horizon", () => {
+        for (const added of ADDED)
+            expect(grown(added)).toBeLessThanOrEqual(
                 scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits + added)
             );
-        }
     });
 
-    it("still reds on literal-pool re-entry at any corpus size", () => {
-        expect(SET_CHUNK_BUDGET.headroomBytes).toBeLessThan(
-            POOL_REENTRY_GZIP_BYTES
-        );
-        const { anchorUnits, anchorBytes } = SET_CHUNK_BUDGET;
-        expect(anchorBytes + POOL_REENTRY_GZIP_BYTES).toBeGreaterThan(
-            scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits)
+    it("literal-pool re-entry reds at every corpus size up to the re-anchor horizon", () => {
+        for (const added of ADDED)
+            expect(grown(added) + POOL_REENTRY_GZIP_BYTES).toBeGreaterThan(
+                scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits + added)
+            );
+    });
+
+    it("the live corpus is within the re-anchor horizon (else: re-measure, move the anchor)", () => {
+        expect(countHandWrittenCards(ROOT) - anchorUnits).toBeLessThanOrEqual(
+            reanchorHorizon
         );
     });
 

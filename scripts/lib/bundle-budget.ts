@@ -13,9 +13,14 @@
  *
  * So a `sum` row's budget is a function of the corpus it sums: an anchor
  * measurement plus headroom, plus a per-unit allowance for every unit added
- * since. The allowance sits above the observed marginal, so ordinary growth
- * never uses up the headroom. The headroom sits below the re-entry jump, so
- * re-entry still goes red.
+ * since. The allowance sits just above the observed marginal, so ordinary
+ * growth never uses up the headroom. The headroom sits below the re-entry
+ * jump, so re-entry still goes red. The two pull against each other: every
+ * unit adds `perUnitBytes − marginal` of slack, so re-entry is caught only
+ * within `reanchorHorizon` units of the anchor. Past the horizon
+ * `bundle-budget.test.ts` goes red and asks for a re-anchor: re-measure
+ * (`bun run check:bundle` prints the sum) and move the anchor. That is a
+ * one-line edit, made deliberately, about once per doubling of the corpus.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,6 +36,10 @@ export interface ScaledBudget {
     /** gzip bytes allowed per unit added since the anchor. Must stay at or
      *  above the observed marginal, or ordinary growth uses up the headroom. */
     perUnitBytes: number;
+    /** Units past the anchor within which the row still catches its jump
+     *  (the slack `perUnitBytes − marginal` adds up per unit). The live corpus
+     *  past this → re-anchor. */
+    reanchorHorizon: number;
 }
 
 /** The budget for a corpus of `units`. */
@@ -56,7 +65,8 @@ export const SET_CHUNK_BUDGET: ScaledBudget = {
     anchorUnits: 2_266,
     anchorBytes: 490_902,
     headroomBytes: 49_000,
-    perUnitBytes: 400,
+    perUnitBytes: 340,
+    reanchorHorizon: 2_000,
 };
 
 const DEFINE_CARD = /\bdefineCard\(/g;
