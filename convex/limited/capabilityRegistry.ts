@@ -267,6 +267,19 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         description:
             "PROVIDES: nothing directly — a card providing `cheap-artifact` satisfies this row exactly when its mana value is 1 or less (see `cheap-artifact` for the provider side). REQUIRES: an effect that finds or returns an artifact with mana value 1 or less (a tutor for an artifact costing {0} or {1}, a recursion of an artifact card with mana value 1 or less) requires this instead of `cheap-artifact`: a two-mana Signet or Talisman can never be fetched, so that pair scores nothing. Accepted imprecision: a tutor reading mana COST ({0} or {1}) also misses an `{X}` artifact whose mana value is 0, which this bound would accept; no such artifact provides `cheap-artifact`, so the bound loses nothing.",
     },
+    {
+        id: "big-artifact",
+        cluster: "Artifacts",
+        gloss: {
+            provides:
+                "An artifact far above the deck's curve, worth putting onto the battlefield for free.",
+            requires:
+                "An artifact cheat from library, graveyard or by swap (Tinker, Goblin Welder) needs this.",
+        },
+        example: { provider: "Blightsteel Colossus", requirer: "Tinker" },
+        description:
+            "PROVIDES: an artifact whose mana value is far above what the deck casts — in practice mana value 6 or more, at least twice what the effect cheating it costs — and that is worth having on the battlefield without paying for it (Blightsteel Colossus, a twelve-drop for Tinker's three mana; Myr Battlesphere, Portal to Phyrexia). REQUIRES: an effect that puts an ARTIFACT onto the battlefield without paying its cost — from library (Tinker sacrifices a cheap artifact to fetch one), from graveyard or by swapping it with an artifact already in play (Goblin Welder) — or that sets the cheat up by putting the chosen big artifact where such an effect reaches it (Goblin Engineer's enters trigger puts one into the graveyard for the Welder) requires this from its target. Distinct from `cheap-artifact`, the opposite end (a Signet fills the artifact count and is Tinker's sacrifice, never its target); from `cheat-target`, which carries no type axis — Tinker requires this row INSTEAD, so it never pairs with Griselbrand; and from `reanimatable`, which speaks of graveyards only: Tinker never touches one, and Blightsteel Colossus shuffles itself out of the graveyard yet is Tinker's best target. Accepted imprecision: a graveyard requirer (Goblin Welder) also matches a provider that never stays in the graveyard (Blightsteel Colossus), as `cheat-target` accepts for its subset-restricted requirers.",
+    },
 
     // ── Spells cluster ───────────────────────────────────────────────────
     {

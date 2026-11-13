@@ -339,9 +339,10 @@
             "reviewed": false
         },
         "85a89077-b384-4fca-9d26-7297962c1541": {
-            "provides": [],
+            "provides": ["big-artifact"],
             "requires": ["cheap-artifact"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a six-drop artifact creature with improvise and ward 4 that grows and turns unblockable on each artifact entering; worth putting onto the battlefield for free (big-artifact), and its improvise counts cheap artifacts"
         },
         "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378": {
             "provides": ["value-on-attack"],
@@ -683,8 +684,9 @@
         },
         "7da23b15-dfb8-4267-9b33-d7a4c035c434": {
             "provides": [],
-            "requires": ["cheap-artifact"],
-            "reviewed": false
+            "requires": ["cheap-artifact", "big-artifact"],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices an artifact (a cheap one, cheap-artifact) to search the library for an artifact card and put it onto the battlefield (an expensive one, big-artifact)"
         },
         "224d904a-5972-4152-878a-9a922e7a55b6": {
             "provides": ["value-on-etb", "go-wide"],
@@ -1156,8 +1158,9 @@
         },
         "6171e136-1167-4329-acb2-6853d3a814e5": {
             "provides": [],
-            "requires": ["cheap-artifact"],
-            "reviewed": false
+            "requires": ["cheap-artifact", "big-artifact"],
+            "reviewed": false,
+            "rationale": "oracle: swaps an artifact on the battlefield (a cheap one, cheap-artifact) with an artifact card in the same graveyard (an expensive one, big-artifact), putting it onto the battlefield without paying its cost"
         },
         "b81c6c8b-a9cf-4866-89ba-7f8ad077b836": {
             "provides": [],
@@ -1194,9 +1197,9 @@
         },
         "a55c4d47-5252-40af-961d-c08bc688028a": {
             "provides": ["value-on-etb", "discard-outlet"],
-            "requires": ["cheap-artifact"],
+            "requires": ["cheap-artifact", "big-artifact"],
             "reviewed": false,
-            "rationale": "oracle: its ETB searches the library for an artifact card and puts it into the graveyard (a chosen card to the graveyard), and its sacrifice ability reanimates a cheap artifact"
+            "rationale": "oracle: its ETB searches the library for an artifact card and puts it into the graveyard (a chosen card to the graveyard), and its sacrifice ability reanimates a cheap artifact; the artifact its ETB puts into the graveyard is an expensive one for a Welder swap (big-artifact)"
         },
         "2ba70366-b6ae-423a-a8d8-29d2b8afd939": {
             "provides": ["value-on-etb", "discard-outlet"],
@@ -1374,11 +1377,12 @@
                 "value-on-attack",
                 "reanimatable",
                 "cheat-target",
-                "go-wide"
+                "go-wide",
+                "big-artifact"
             ],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a seven-drop that brings four Myr and pings on every attack while it stays; reanimatable on its size, so also a cheat-target; enters with four 1/1 Myr tokens beside its own body"
+            "rationale": "oracle: a seven-drop that brings four Myr and pings on every attack while it stays; reanimatable on its size, so also a cheat-target; enters with four 1/1 Myr tokens beside its own body; a seven-drop artifact, a Tinker target (big-artifact)"
         },
         "67600383-bbb8-411c-b8e6-2296650bc747": {
             "provides": ["value-on-attack", "value-on-cast", "cheat-target"],
@@ -1484,10 +1488,10 @@
             "reviewed": false
         },
         "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab": {
-            "provides": ["value-on-etb", "cheat-target"],
+            "provides": ["value-on-etb", "cheat-target", "big-artifact"],
             "requires": ["reanimatable"],
             "reviewed": false,
-            "rationale": "oracle: a nine-drop artifact that edicts three creatures and reanimates a card every upkeep it stays; worth having for good without paying its cost"
+            "rationale": "oracle: a nine-drop artifact that edicts three creatures and reanimates a card every upkeep it stays; worth having for good without paying its cost; a nine-drop artifact, a Tinker target (big-artifact)"
         },
         "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4": {
             "provides": ["value-on-etb"],
@@ -2242,16 +2246,16 @@
             "rationale": "oracle: copies an instant or sorcery you control when cast; needs a cheap spell on the stack"
         },
         "7928bb14-7631-4830-a756-26d1ea832ba2": {
-            "provides": ["cheat-target"],
+            "provides": ["cheat-target", "big-artifact"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a twelve-drop 11/11 infect indestructible; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable"
+            "rationale": "oracle: a twelve-drop 11/11 infect indestructible; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable; a twelve-drop artifact, Tinker's best target (big-artifact)"
         },
         "87cc2855-6b14-44dd-a398-7dc2bbae081f": {
-            "provides": ["cheat-target"],
+            "provides": ["cheat-target", "big-artifact"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a seven-drop living-weapon Equipment making a 5/5 indestructible haste germ; an artifact worth having for good without paying its cost"
+            "rationale": "oracle: a seven-drop living-weapon Equipment making a 5/5 indestructible haste germ; an artifact worth having for good without paying its cost; a seven-drop artifact, a Tinker target (big-artifact)"
         },
         "4b851c17-55ed-4671-b471-dc7b34944432": {
             "provides": [],
