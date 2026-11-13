@@ -306,6 +306,8 @@ const {
     getAiDecisions,
     clearAiDecisions,
 } = await import("~/lib/ai/trace-store");
+const { botSearchSink, REPORT_KEYS } =
+    await import("~/lib/ai/bot-search-telemetry");
 // The real mount point, so the rung-5 tests exercise the actual UI seam
 // (`VsAiDriver` → `reportStall` → `BotStuckNotice`) rather than a stand-in.
 const VsAiDriver = (await import("~/components/board/vs-ai-driver")).default;
@@ -1201,5 +1203,213 @@ describe("failed Brain consults reach the server (issue #9502)", () => {
             throw new Error("client threw");
         };
         expect(await play()).toEqual(baseline);
+    });
+});
+
+// ── The game's Bot search report (issue #9526) ──────────────────────────────
+//
+// Every consult's ending is folded into ONE report per game, emitted at game
+// over or when the game is left. Driven through the real decision path, like
+// the #9502 block above: the REAL `decideBotAction` routes the window to the
+// consult, and the consult's verdict and trace reach the driver exactly as
+// `brain-client.ts` resolves them. The report is observed at its sink.
+describe("the game's Bot search report (issue #9526)", () => {
+    const GAME_2 = "game2" as Id<"games">;
+
+    /** CR 305.2 — the Bot's main phase with a land in hand: a window worth
+     *  searching, so the decision is routed to the Brain. */
+    function searchWindow(seq: number): GameState {
+        stubDecideNone = false;
+        const board = priorityBoard();
+        board.players[1].hand = [
+            makeInstance(FOREST, {
+                id: "land1",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "hand",
+            }),
+        ];
+        publish(board, seq);
+        return board;
+    }
+
+    /** A search the clock cut at a quarter of its budget. */
+    const CUT_SHORT = {
+        iterationsRequested: 1320,
+        iterationsCompleted: 330,
+        elapsedMs: 3300,
+        stoppedBy: "time",
+    };
+
+    function answered() {
+        brainResult = {
+            move: { kind: "play-land", cardInstanceId: "land1" },
+            trace: CUT_SHORT,
+            outcome: "move",
+            via: "worker",
+        };
+    }
+
+    function timedOut() {
+        brainResult = {
+            move: null,
+            trace: null,
+            outcome: "timeout",
+            via: "worker",
+        };
+    }
+
+    let log: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+        log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+    });
+    afterEach(() => {
+        log.mockRestore();
+    });
+
+    it("reports a game's consults once, when the game ends on the board", async () => {
+        const board = searchWindow(1);
+        answered();
+        const { rerender, unmount } = renderHook(() =>
+            useVsAiDriver(GAME, BOT)
+        );
+        await advance(500);
+
+        searchWindow(2);
+        timedOut();
+        rerender();
+        await advance(500);
+        expect(log).not.toHaveBeenCalled();
+
+        board.gameOver = { winnerId: HUMAN, loserId: BOT, reason: "life" };
+        publish(board, 3);
+        rerender();
+        await advance(50);
+
+        expect(log).toHaveBeenCalledTimes(1);
+        const report = log.mock.calls[0]![0] as Record<string, unknown>;
+        expect(report).toMatchObject({
+            gameId: GAME,
+            consults: 2,
+            "consults.move": 1,
+            "consults.timeout": 1,
+            searches: 1,
+            "iterations.requested": 1320,
+            "iterations.completed": 330,
+            "iterations.ratio": 0.25,
+            "stopped.time": 1,
+            "searchMs.max": 3300,
+            "msPerIteration.p50": 10,
+        });
+        expect(typeof report.difficulty).toBe("string");
+        const allowed = new Set<string>(REPORT_KEYS);
+        expect(Object.keys(report).filter((k) => !allowed.has(k))).toEqual([]);
+
+        // Leaving the game-over screen does not report the game again.
+        unmount();
+        expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a game that is LEFT, once, and starts the next game from zero", async () => {
+        searchWindow(1);
+        answered();
+        let game = GAME;
+        const { rerender, unmount } = renderHook(() =>
+            useVsAiDriver(game, BOT)
+        );
+        await advance(500);
+        expect(log).not.toHaveBeenCalled();
+
+        // A rematch swaps the game on the same hook instance.
+        game = GAME_2;
+        searchWindow(1);
+        timedOut();
+        rerender();
+        await advance(500);
+
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(log.mock.calls[0]![0]).toMatchObject({
+            gameId: GAME,
+            consults: 1,
+            "consults.move": 1,
+        });
+
+        unmount();
+        expect(log).toHaveBeenCalledTimes(2);
+        const second = log.mock.calls[1]![0] as Record<string, unknown>;
+        expect(second).toMatchObject({
+            gameId: GAME_2,
+            consults: 1,
+            "consults.timeout": 1,
+            searches: 0,
+        });
+        expect(second).not.toHaveProperty("consults.move");
+    });
+
+    it("files a verdict that lands after a swap under NEITHER game's report", async () => {
+        searchWindow(1);
+        deferConsult = true;
+        let game = GAME;
+        const { rerender, unmount } = renderHook(() =>
+            useVsAiDriver(game, BOT)
+        );
+        await advance(500);
+        expect(releaseConsult).toBeDefined();
+
+        // The player moves to the next game while the search is still running…
+        game = GAME_2;
+        publish(priorityBoard(), 1);
+        stubDecideNone = true;
+        rerender();
+        await advance(50);
+
+        // …and only then does the old game's consult settle.
+        releaseConsult!({
+            move: null,
+            trace: null,
+            outcome: "worker-error",
+            via: "worker",
+            message: "Brain disposed",
+        });
+        await advance(50);
+        unmount();
+
+        // The old game was left with no settled consult, the new one never
+        // consulted the Brain: neither has anything to report.
+        expect(log).not.toHaveBeenCalled();
+    });
+
+    it("reports nothing for a game the Brain was never consulted in", async () => {
+        publish(priorityBoard(), 1);
+        const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+        unmount();
+        expect(log).not.toHaveBeenCalled();
+    });
+
+    it("a throwing sink leaves the Bot's play exactly as it was", async () => {
+        /** The mutations the driver submits over one ladder round after a
+         *  timed-out consult, then the game is left. */
+        async function play(): Promise<unknown[]> {
+            calls.length = 0;
+            clearAiDecisions();
+            clearAiEscalations();
+            searchWindow(1);
+            timedOut();
+            const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+            await runToWatchdog();
+            expect(() => unmount()).not.toThrow();
+            return calls.map((c) => c.ref);
+        }
+
+        const baseline = await play();
+        expect(baseline.length).toBeGreaterThan(0);
+        expect(log).toHaveBeenCalledTimes(1);
+
+        log.mockImplementation(() => {
+            throw new Error("monitoring is down");
+        });
+        expect(await play()).toEqual(baseline);
+        expect(log).toHaveBeenCalledTimes(2);
     });
 });

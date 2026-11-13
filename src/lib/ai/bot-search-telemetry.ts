@@ -1,0 +1,264 @@
+// How the Bot's own searches went in one vs-Bot game, reported ONCE, somewhere
+// a maintainer can read it (issue #9526).
+//
+// The Brain runs on the player's device, at a budget of iterations capped by
+// wall-clock time. Every measurement of that budget was taken on a development
+// machine; nothing said how much of it a real decision completes on a phone,
+// a small laptop or another browser engine. A Bot cut short by the clock does
+// not fail — it plays worse, and nothing on screen or in a bug report says so.
+//
+// The vs-Bot driver folds every Brain consult into a per-game accumulator
+// (`openBotSearchReport`) and flushes it when the game ends or is left,
+// whichever comes first: one structured log per game, never one per consult.
+// A game with no consult reports nothing. A game whose tab is closed mid-play
+// loses its report; that is accepted.
+//
+// WHAT TRAVELS, and the boundary it must keep. This report is NOT consented:
+// it leaves the device without the bug-report consent gate
+// (`components/bug-report/`), which is what protects the user agent, the hand,
+// the decklist and the client diagnostics blob. So it carries counters and
+// durations only, the game id, the difficulty preset, and a COARSE device
+// class: the browser ENGINE family (three values), a core-count BUCKET and a
+// mobile flag. The user-agent string is read here to derive the family and is
+// never sent. No player, no card, no board state. `REPORT_KEYS` is the
+// allowlist; a test reds on a key outside it.
+//
+// Monitoring is best-effort: a throwing sink never reaches the driver.
+
+import * as Sentry from "@sentry/react";
+import type { DecisionTrace } from "@convex/gre";
+import type { BrainOutcome } from "./brain-request";
+
+/** The search's own account of one decision — the four `DecisionTrace` fields
+ *  this report reads. Absent when the consult produced no trace (a failed
+ *  consult, or a window with no real decision to search). */
+export type SearchStats = {
+    iterationsRequested: number;
+    iterationsCompleted: number;
+    elapsedMs: number;
+    stoppedBy: DecisionTrace["stoppedBy"];
+};
+
+/** One Brain consult, as the driver saw it end. */
+export type ConsultSample = {
+    outcome: BrainOutcome;
+    via: "worker" | "inline";
+    /** Wall-clock time from posting the consult to its verdict: the search
+     *  plus whatever stood before it (Worker start, shard install, a queue). */
+    consultMs: number;
+    /** The difficulty preset the consult's budget came from. */
+    difficulty: string;
+    search?: SearchStats;
+};
+
+/** The coarse device class — see the module header for why it is this coarse. */
+export type DeviceClass = {
+    engine: "chromium" | "gecko" | "webkit" | "other";
+    cores: "1-2" | "3-4" | "5-8" | "9+" | "unknown";
+    mobile: boolean;
+};
+
+/** Every attribute a report may carry. Flat primitives: the shape a structured
+ *  log's attributes accept. */
+export const REPORT_KEYS = [
+    "gameId",
+    "difficulty",
+    "consults",
+    "consults.move",
+    "consults.no-move",
+    "consults.timeout",
+    "consults.worker-error",
+    "consults.search-error",
+    "consults.inline",
+    "searches",
+    "iterations.requested",
+    "iterations.completed",
+    "iterations.ratio",
+    "stopped.iterations",
+    "stopped.time",
+    "stopped.settled",
+    "searchMs.p50",
+    "searchMs.p90",
+    "searchMs.max",
+    "consultMs.p50",
+    "consultMs.p90",
+    "consultMs.max",
+    "msPerIteration.p50",
+    "msPerIteration.p90",
+    "device.engine",
+    "device.cores",
+    "device.mobile",
+] as const;
+
+export type BotSearchReportKey = (typeof REPORT_KEYS)[number];
+export type BotSearchReport = Partial<
+    Record<BotSearchReportKey, string | number | boolean>
+>;
+
+/** Where a report goes. An object, so a test observes the routing by spying on
+ *  it instead of mocking a module. */
+export const botSearchSink = {
+    log(report: BotSearchReport): void {
+        Sentry.logger.info("bot search", report);
+    },
+};
+
+/** The `p`-th percentile of `values` by nearest rank (`p` in 0..100), or
+ *  `undefined` for no values. One value is every percentile of itself. */
+export function percentile(
+    values: readonly number[],
+    p: number
+): number | undefined {
+    if (values.length === 0) return undefined;
+    const sorted = [...values].sort((a, b) => a - b);
+    const rank = Math.ceil((p / 100) * sorted.length);
+    return sorted[Math.min(sorted.length, Math.max(1, rank)) - 1];
+}
+
+const round = (value: number, digits = 0): number => {
+    const scale = 10 ** digits;
+    return Math.round(value * scale) / scale;
+};
+
+/** The browser engine family behind a user-agent string. Every browser on iOS
+ *  is WebKit whatever its name says, so those are matched first. */
+export function engineFamily(userAgent: string): DeviceClass["engine"] {
+    if (/(CriOS|FxiOS|EdgiOS)\//.test(userAgent)) return "webkit";
+    if (/Firefox\//.test(userAgent)) return "gecko";
+    if (/(Chrome|Chromium)\//.test(userAgent)) return "chromium";
+    if (/AppleWebKit\//.test(userAgent)) return "webkit";
+    return "other";
+}
+
+/** The bucket a logical-core count falls in. */
+export function coresBucket(cores: number | undefined): DeviceClass["cores"] {
+    if (cores === undefined || !Number.isFinite(cores) || cores < 1) {
+        return "unknown";
+    }
+    if (cores <= 2) return "1-2";
+    if (cores <= 4) return "3-4";
+    if (cores <= 8) return "5-8";
+    return "9+";
+}
+
+type NavigatorLike = {
+    userAgent?: string;
+    hardwareConcurrency?: number;
+    userAgentData?: { mobile?: boolean };
+};
+
+/** This device's coarse class. Reads the navigator; returns only the class. */
+export function deviceClass(
+    nav: NavigatorLike | undefined = typeof navigator === "undefined"
+        ? undefined
+        : (navigator as NavigatorLike)
+): DeviceClass {
+    const userAgent = nav?.userAgent ?? "";
+    return {
+        engine: engineFamily(userAgent),
+        cores: coresBucket(nav?.hardwareConcurrency),
+        mobile:
+            nav?.userAgentData?.mobile ??
+            /Mobi|Android|iPhone|iPad|iPod/.test(userAgent),
+    };
+}
+
+/** Fold a game's consults into its report. Pure. A statistic with no sample
+ *  behind it is LEFT OUT rather than reported as zero: "no search had a trace"
+ *  and "every search took 0 ms" must not read the same. */
+export function summarizeBotSearch(
+    gameId: string,
+    samples: readonly ConsultSample[],
+    device: DeviceClass
+): BotSearchReport {
+    const difficulties = new Set(samples.map((s) => s.difficulty));
+    const report: BotSearchReport = {
+        gameId,
+        difficulty: difficulties.size === 1 ? [...difficulties][0]! : "mixed",
+        consults: samples.length,
+        "device.engine": device.engine,
+        "device.cores": device.cores,
+        "device.mobile": device.mobile,
+    };
+
+    for (const sample of samples) {
+        const key = `consults.${sample.outcome}` as BotSearchReportKey;
+        report[key] = ((report[key] as number | undefined) ?? 0) + 1;
+    }
+    const inline = samples.filter((s) => s.via === "inline").length;
+    if (inline > 0) report["consults.inline"] = inline;
+
+    const consultMs = samples.map((s) => s.consultMs);
+    report["consultMs.p50"] = round(percentile(consultMs, 50)!);
+    report["consultMs.p90"] = round(percentile(consultMs, 90)!);
+    report["consultMs.max"] = round(Math.max(...consultMs));
+
+    const searches = samples.flatMap((s) => (s.search ? [s.search] : []));
+    report.searches = searches.length;
+    if (searches.length === 0) return report;
+
+    const requested = searches.reduce(
+        (sum, s) => sum + s.iterationsRequested,
+        0
+    );
+    const completed = searches.reduce(
+        (sum, s) => sum + s.iterationsCompleted,
+        0
+    );
+    report["iterations.requested"] = requested;
+    report["iterations.completed"] = completed;
+    if (requested > 0)
+        report["iterations.ratio"] = round(completed / requested, 3);
+
+    for (const search of searches) {
+        const key = `stopped.${search.stoppedBy}` as BotSearchReportKey;
+        report[key] = ((report[key] as number | undefined) ?? 0) + 1;
+    }
+
+    const searchMs = searches.map((s) => s.elapsedMs);
+    report["searchMs.p50"] = round(percentile(searchMs, 50)!);
+    report["searchMs.p90"] = round(percentile(searchMs, 90)!);
+    report["searchMs.max"] = round(Math.max(...searchMs));
+
+    const perIteration = searches
+        .filter((s) => s.iterationsCompleted > 0)
+        .map((s) => s.elapsedMs / s.iterationsCompleted);
+    const p50 = percentile(perIteration, 50);
+    const p90 = percentile(perIteration, 90);
+    if (p50 !== undefined) report["msPerIteration.p50"] = round(p50, 2);
+    if (p90 !== undefined) report["msPerIteration.p90"] = round(p90, 2);
+
+    return report;
+}
+
+/** One game's accumulator. */
+export type BotSearchRecorder = {
+    /** Fold one consult in. A no-op once flushed. */
+    record: (sample: ConsultSample) => void;
+    /** Emit the game's report, once. A game with no consult emits nothing.
+     *  Never throws. */
+    flush: () => void;
+};
+
+/** Open the accumulator of one game's Bot searches. */
+export function openBotSearchReport(gameId: string): BotSearchRecorder {
+    const samples: ConsultSample[] = [];
+    let flushed = false;
+    return {
+        record(sample) {
+            if (!flushed) samples.push(sample);
+        },
+        flush() {
+            if (flushed) return;
+            flushed = true;
+            if (samples.length === 0) return;
+            try {
+                botSearchSink.log(
+                    summarizeBotSearch(gameId, samples, deviceClass())
+                );
+            } catch {
+                // Monitoring never costs the game anything.
+            }
+        },
+    };
+}
