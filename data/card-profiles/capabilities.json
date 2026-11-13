@@ -89,7 +89,7 @@
             "provides": ["value-on-etb"],
             "requires": ["cheap-artifact-mv-1"],
             "reviewed": false,
-            "rationale": "oracle: finds or returns an artifact with mana value 1 or less, so it requires cheap-artifact-mv-1, not plain cheap-artifact"
+            "rationale": "oracle: searches for artifact, creature and/or enchantment cards with mana value 1 or less, so its artifact half requires cheap-artifact-mv-1, not plain cheap-artifact"
         },
         "5403b49d-03a7-4cc3-af3c-df098c1c9c2e": {
             "provides": ["value-on-cast", "cheap-spell"],
