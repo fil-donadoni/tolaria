@@ -593,7 +593,8 @@ export const ONE_SHOT_SOURCE_WEIGHT = 0.5;
 /** How much of a mana source of colour `c` this card is: 0 when it does not
  *  produce `c`, `ONE_SHOT_SOURCE_WEIGHT` when it produces `c` only by
  *  sacrificing itself (`oneShotColors`), else 1. The one weight Castability,
- *  Fixing Value, the third-colour gate and the audit's castability read. */
+ *  Fixing Value, the build's colour choice and the audit's castability
+ *  read. */
 export function sourceWeight(meta: CardEvalMeta, c: Color): number {
     if (!meta.producedColors.includes(c)) return 0;
     return meta.oneShotColors?.includes(c) ? ONE_SHOT_SOURCE_WEIGHT : 1;
