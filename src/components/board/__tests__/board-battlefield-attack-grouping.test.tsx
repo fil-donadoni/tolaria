@@ -134,7 +134,7 @@ function renderBoard(me: Player, combat?: Combat) {
                     showAllCards: false,
                     debugAllActions: false,
                     combat,
-                } as React.ContextType<typeof GameContext>
+                } as unknown as React.ContextType<typeof GameContext>
             }
         >
             <BoardBattlefield player={me} />
