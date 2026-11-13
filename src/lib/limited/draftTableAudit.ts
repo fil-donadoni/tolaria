@@ -4,6 +4,7 @@
 // the Floors) and the Draft Lab's Built deck view (issue #8899), so the owner
 // judges a deck by eye with the very numbers the gate holds — one module,
 // never a copy. Pure: no DB, no Convex call (ADR 0074).
+import type { Color } from "@convex/cards/types";
 import { FORMAT_RULES } from "@convex/formats";
 import type { AutoBuildCardMeta } from "@convex/limited/autoBuild";
 import {
@@ -82,6 +83,12 @@ export interface DeckAudit {
     castability: SpellCastability[];
     /** Mean of `castability[].p`; `null` with no coloured spell. */
     meanCastability: number | null;
+    /** `castability[]` restricted to the early spells (issue #9335). */
+    earlyCastability: EarlyCastability;
+    /** `null` for a two-colour deck (issue #9335). */
+    splash: SplashDiscipline | null;
+    /** Maindeck lands producing a colour outside `colors` (issue #9335). */
+    offColourDuals: number;
     /** The Pool's deepest Archetype: most Pool cards tagged with it (copies
      *  count), ties by id. `null` when no Pool card carries one. */
     planArchetype: string | null;
@@ -128,6 +135,89 @@ function unreviewedShare(
         ? null
         : carrying.filter((p) => !reviewed(p)).length / carrying.length;
 }
+
+// ── Colour coherence (issue #9335) ─────────────────────────────────────────
+// Report only, no Floor: the baseline the third-colour, one-shot-source and
+// castability-model follow-ups are measured against.
+
+/** A spell is EARLY at this mana value or below: the turns a stumble costs
+ *  most, and the splash cards a deck cannot wait to cast. */
+export const EARLY_MANA_VALUE = 2;
+
+/** An early spell below this castability counts as a stumble. */
+export const EARLY_CASTABILITY_THRESHOLD = 0.8;
+
+/** The number of true colours (CR 105.1): a source producing this many is
+ *  any-colour fixing, never off-colour. */
+const TRUE_COLOR_COUNT = 5;
+
+export interface EarlyCastability {
+    /** Coloured Maindeck spells of mana value ≤ `EARLY_MANA_VALUE`. */
+    spells: number;
+    /** Mean of their castability; `null` with none. */
+    mean: number | null;
+    /** How many read below `EARLY_CASTABILITY_THRESHOLD`. */
+    below: number;
+}
+
+export interface SplashDiscipline {
+    /** Maindeck cards with a pip in a colour past the deck's first two
+     *  (`colors[2..]`, the third colour Auto-Build adds last). */
+    cards: number;
+    /** Of those, how many have a double pip in a splash colour or mana value
+     *  ≤ `EARLY_MANA_VALUE`: the splash cards a third colour pays worst. */
+    strained: number;
+}
+
+export function earlyCastability(
+    castability: readonly SpellCastability[]
+): EarlyCastability {
+    const early = castability.filter((c) => c.manaValue <= EARLY_MANA_VALUE);
+    return {
+        spells: early.length,
+        mean: mean(early.map((c) => c.p)),
+        below: early.filter((c) => c.p < EARLY_CASTABILITY_THRESHOLD).length,
+    };
+}
+
+export function splashDiscipline(
+    colors: readonly string[],
+    main: readonly AutoBuildCardMeta[]
+): SplashDiscipline | null {
+    const splash = colors.slice(2) as Color[];
+    if (splash.length === 0) return null;
+    const splashing = main.filter((m) =>
+        splash.some((c) => (m.pips[c] ?? 0) > 0)
+    );
+    return {
+        cards: splashing.length,
+        strained: splashing.filter(
+            (m) =>
+                m.manaValue <= EARLY_MANA_VALUE ||
+                splash.some((c) => (m.pips[c] ?? 0) >= 2)
+        ).length,
+    };
+}
+
+/** Maindeck lands producing a true colour outside the deck's. A land that
+ *  produces every colour (City of Brass, a basic-land fetch) is any-colour
+ *  fixing and never counts. */
+export function countOffColourDuals(
+    colors: readonly string[],
+    main: readonly AutoBuildCardMeta[]
+): number {
+    const deckColors = new Set(colors);
+    return main.filter((m) => {
+        if (!m.isLand) return false;
+        const produced = new Set(m.producedColors.filter((c) => c !== "C"));
+        return (
+            produced.size < TRUE_COLOR_COUNT &&
+            [...produced].some((c) => !deckColors.has(c))
+        );
+    }).length;
+}
+
+// ── Measure ────────────────────────────────────────────────────────────────
 
 /** Measures one Auto-Built seat. */
 export function auditSeatDeck(
@@ -192,6 +282,9 @@ export function auditSeatDeck(
         curve,
         castability,
         meanCastability: mean(castability.map((c) => c.p)),
+        earlyCastability: earlyCastability(castability),
+        splash: splashDiscipline(seat.deck.colors, main),
+        offColourDuals: countOffColourDuals(seat.deck.colors, main),
         planArchetype,
         planShare,
         capabilityPairs: countCapabilityPairs(profiles),

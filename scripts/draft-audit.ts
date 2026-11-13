@@ -2,9 +2,11 @@
 /**
  * Draft Table Audit (issue #8894, PRD #8772): for each seed, eight Bots draft
  * the scope through the Draft Lab's synthetic engine and every seat is
- * Auto-Built; per deck it prints plan, colours, castability, curve, land
- * count, Capability pairs and the unreviewed share per layer, then the run's
- * aggregate and the Floors' verdict (`scripts/lib/draft-audit.ts`).
+ * Auto-Built; per deck it prints plan, colours, castability, the colour
+ * coherence measures (early castability, splash, off-colour duals — issue
+ * #9335, report only), curve, land count, Capability pairs and the unreviewed
+ * share per layer, then the run's aggregate and the Floors' verdict
+ * (`scripts/lib/draft-audit.ts`).
  *
  * Offline and deterministic: seed profile layers only, no DB, no clock.
  *

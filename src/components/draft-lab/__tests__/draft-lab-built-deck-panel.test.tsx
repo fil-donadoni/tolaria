@@ -46,6 +46,16 @@ describe("DraftLabBuiltDeckPanel (issue #8899)", () => {
         expect(fieldValue("castability")).toMatch(
             new RegExp(`^${Math.round(audit.meanCastability! * 100)}% · T`)
         );
+        const early = audit.earlyCastability;
+        expect(fieldValue("early castability")).toBe(
+            `${early.mean === null ? "—" : `${Math.round(early.mean * 100)}%`} · ${early.below}/${early.spells} below 80%`
+        );
+        expect(fieldValue("splash")).toBe(
+            audit.splash
+                ? `${audit.splash.cards} cards · ${audit.splash.strained} double-pip or MV ≤ 2`
+                : "—"
+        );
+        expect(fieldValue("off-colour duals")).toBe(`${audit.offColourDuals}`);
         expect(fieldValue("capability pairs")).toBe(`${audit.capabilityPairs}`);
         expect(fieldValue("unreviewed")).toMatch(
             /^archetypes .+ · capabilities /
