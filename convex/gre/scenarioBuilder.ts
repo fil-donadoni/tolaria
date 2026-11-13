@@ -184,6 +184,7 @@ import {
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import type { Phase } from "./types";
+import { openPeekTopCount } from "./libraryKnownRuns";
 
 /** CR 106.4 / 603.3 / 502.1 (issue #3451) — stamp one battlefield entry's
  *  TAP STATE onto the instance the rebuild just placed: the two markers that
@@ -5297,6 +5298,75 @@ function reportPlayerStateResidue(
     }
 }
 
+/** The looked-at window of the open top-N look choice, as lowered. */
+type LookedAtWindow = { owner: "me" | "opp"; cards: ScenarioCard[] };
+
+/**
+ * CR 401.2 / 608.2 — the cards the queue head's CHOOSER is looking at through
+ * an open top-N look (`openPeekTopCount`: `look-distribute`, `order-top`,
+ * `draw-look-keep`), lowered as named library cards at their own depth.
+ *
+ * A checkpointed resolution is rebuilt by RE-RUNNING the step that raised the
+ * choice, and that step re-reads the top of the library. With the library
+ * left out, the rebuild looks at whatever the base deck holds there, so the
+ * choice it regenerates is about different cards — a filtered keep counts a
+ * different number of eligible cards, and no answer means the same thing.
+ * The window is the one stretch of the library the deciding seat has SEEN,
+ * so naming it leaks nothing; everything below it stays hidden (CR 401.2)
+ * and out of the spec.
+ *
+ * All or nothing, like the stack: a window the state cannot name in full (a
+ * placeholder the capturing view was never shown, a face-down sentinel) or
+ * whose candidates are not the library's top run is not lowered, and says so.
+ */
+function lowerLookedAtWindow(
+    state: GameState,
+    mySeatId: string,
+    dropped: string[]
+): LookedAtWindow | undefined {
+    const head = state.pendingChoices?.[0];
+    if (!head) return undefined;
+    const ownerId = head.zoneOwnerId ?? head.playerId;
+    const count = openPeekTopCount(head, ownerId, head.playerId);
+    if (count === 0) return undefined;
+    const owner = ownerId === mySeatId ? "me" : "opp";
+    const library = state.players.find((p) => p.id === ownerId)?.library ?? [];
+    const window = library.slice(0, count);
+    const candidates = new Set(head.candidateIds);
+    if (
+        window.length !== count ||
+        window.some((card) => !candidates.has(card.id))
+    ) {
+        dropped.push(
+            `${owner}'s looked-at window: the open ${head.kind} choice's ${count} candidate(s) are not the top of the library, so the window cannot be placed by depth; not lowered`
+        );
+        return undefined;
+    }
+    if (
+        window.some(
+            (card) =>
+                (card.card as { id?: string }).id === PLACEHOLDER_CARD_ID ||
+                hidesIdentity(card)
+        )
+    ) {
+        dropped.push(
+            `${owner}'s looked-at window: the open ${head.kind} choice looks at ${count} card(s) whose identity this state does not carry in full; not lowered`
+        );
+        return undefined;
+    }
+    return {
+        owner,
+        // `position` 1 = the top: placed in this order, each lands just below
+        // the one before it, so the rebuilt top run is the window in order.
+        cards: window.map((card, index) => ({
+            name: entryIdentity(card).name,
+            owner,
+            zone: "library",
+            position: index + 1,
+        })),
+    };
+}
+
 /**
  * The inverse of {@link buildStateFromScenario}: lower a live `GameState`
  * into a `ScenarioSpec` a human (or the blade suite) can read, plus
@@ -5751,6 +5821,11 @@ export function specFromState(
         );
     }
 
+    // CR 608.2 — the window an open top-N look is about, so the resumed step
+    // looks at the same cards; the rest of the library stays out (CR 401.2).
+    const window = lowerLookedAtWindow(state, opts.mySeatId, dropped);
+    if (window) cards.push(...window.cards);
+
     for (const [label, p] of [
         ["me", me],
         ["opp", opp],
@@ -5806,8 +5881,11 @@ export function specFromState(
             );
         }
         if (p.library.length > 0) {
+            const seen = window?.owner === label ? window.cards.length : 0;
             dropped.push(
-                `${label}'s library: ${p.library.length} card(s) — library contents/order are out of scope for a scenario spec`
+                seen > 0
+                    ? `${label}'s library: ${p.library.length} card(s) — the top ${seen}, the open choice's looked-at window, lowered by name; the rest's contents/order are out of scope for a scenario spec`
+                    : `${label}'s library: ${p.library.length} card(s) — library contents/order are out of scope for a scenario spec`
             );
         }
         reportPlayerStateResidue(label, p, dropped);
