@@ -193,11 +193,11 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
             provides:
                 "An enters trigger that pays even if the permanent leaves at once.",
             requires:
-                "A one-shot cheat (Sneak Attack) needs this from its target.",
+                "A one-shot cheat (Sneak Attack) or a flicker/blink (Flickerwisp) needs this.",
         },
         example: { provider: "Craterhoof Behemoth", requirer: "Sneak Attack" },
         description:
-            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.cards.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this.",
+            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.cards.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this. A flicker or blink effect requires it too (issue #9324): an effect that exiles and returns, or bounces and replays, its controller's own permanent (Flickerwisp, Parallax Wave, Displacer Kitten, Recurring Nightmare) gains nothing from the move itself — it re-buys the enters trigger, so it pays off exactly on a target that provides this. That is the same property seen from a second requirer, never a separate 'repeatable-etb' row.",
     },
     {
         id: "value-on-attack",
