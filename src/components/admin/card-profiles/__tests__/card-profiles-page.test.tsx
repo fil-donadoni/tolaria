@@ -388,7 +388,7 @@ describe("CardProfilesPage (issue #1614)", () => {
         await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
         expect(onSave).toHaveBeenCalledWith(cardId("Griselbrand"), {
             layer: "capabilities",
-            provides: ["reanimatable"],
+            provides: ["reanimatable", "cheat-target"],
             requires: ["value-on-etb"],
             comboEdges: undefined,
             reviewed: true,
@@ -687,7 +687,7 @@ describe("CardProfilesPage — the focus dialog (issue #8904)", () => {
         await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
         expect(onSave.mock.calls[1][1]).toEqual({
             layer: "capabilities",
-            provides: ["reanimatable"],
+            provides: ["reanimatable", "cheat-target"],
             requires: [],
             comboEdges: undefined,
             reviewed: true,
