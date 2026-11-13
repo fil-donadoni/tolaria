@@ -13886,7 +13886,7 @@
         {"id":"702.103b","line":"/** CR 702.103b — the effect applies to the bestowed object ITSELF and to","sites":1,"status":"baseline"},
         {"id":"608.2","line":"\"it is checkpointed but no Pending Choice of its own awaits input — a mid-flight target selection or an interrupted resolution, which a resume cannot reproduce (CR 608.2)\"","sites":1,"status":"confirmed","ruleHash":"9fae3cec44bb97b3"},
         {"id":"614.1c","line":"// CR 122.1/614.1c ETB counters, CR 702.36 fear.)","sites":1,"status":"baseline"},
-        {"id":"119.4","line":"// CR 119.4 — a life cost is payable only with at least N life.","sites":2,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
+        {"id":"119.4","line":"// CR 119.4 — a life cost is payable only with at least N life.","sites":1,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
         {"id":"608.2","line":"// CR 608.2 / 101.4 — mid-resolution choice through the","sites":1,"status":"confirmed","ruleHash":"9fae3cec44bb97b3"},
         {"id":"603.4","line":"// ability with a CR 603.4 intervening-if. It resolves from the stack","sites":1,"status":"baseline"},
         {"id":"205.3i","line":"* Engineered Plague and Conspiracy, a basic land type (CR 205.3i) for","sites":1,"status":"baseline"},
