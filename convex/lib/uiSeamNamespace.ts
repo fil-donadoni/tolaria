@@ -114,6 +114,28 @@ export const UI_SEAM_FIXTURE_PARAM = "__uiseam_fixture";
 /** The Limited deck deep link's deck name. */
 export const UI_SEAM_DECK_NAME_PARAM = "__uiseam_deck_name";
 
+/** The Limited screen deep link (issue #9560): resolves a Limited fixture's
+ *  event (`uiSeam.limitedFixtureEvent`) and routes straight to the screen
+ *  under test — pool, build, end of draft — instead of the event list's
+ *  `?label=` filter and View click. The fixture rides
+ *  {@link UI_SEAM_FIXTURE_PARAM}; the screen {@link UI_SEAM_SCREEN_PARAM}. */
+export const UI_SEAM_LIMITED_SCREEN_PATH = "/__uiseam/limited-screen";
+
+/** The Limited screen deep link's destination, one of
+ *  {@link UI_SEAM_LIMITED_SCREENS}. */
+export const UI_SEAM_SCREEN_PARAM = "__uiseam_screen";
+
+/** The screens the Limited deep link reaches: the event page, the Draft Room
+ *  and the pool deck builder. */
+export const UI_SEAM_LIMITED_SCREENS = ["event", "draft", "build"] as const;
+
+export type UiSeamLimitedScreen = (typeof UI_SEAM_LIMITED_SCREENS)[number];
+
+/** The sideboarding deep link (issue #9560): puts the lane's own solo game's
+ *  Match at the Bo3 sideboarding gate (`uiSeam.forceSideboarding`), then
+ *  routes to the board, whose Game-Over interstitial offers the step. */
+export const UI_SEAM_SIDEBOARDING_PATH = "/__uiseam/sideboarding";
+
 /**
  * A seam URL: `path` plus each parameter as a JSON STRING literal. TanStack
  * JSON-parses every search value, so a bare `12` or `true` would arrive as a

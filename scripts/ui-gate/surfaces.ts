@@ -44,7 +44,11 @@ import {
     UI_SEAM_DECK_NAME_PARAM,
     UI_SEAM_FIXTURE_PARAM,
     UI_SEAM_LIMITED_DECK_PATH,
+    UI_SEAM_LIMITED_SCREEN_PATH,
     UI_SEAM_NO_SOLO_GAME_IN_PLAY,
+    UI_SEAM_SCREEN_PARAM,
+    UI_SEAM_SIDEBOARDING_PATH,
+    type UiSeamLimitedScreen,
     uiSeamUrl,
 } from "../../convex/lib/uiSeamNamespace";
 import {
@@ -53,7 +57,9 @@ import {
     POSITION_SETTLED_SOURCE,
     READ_POSITION_RECORD_SOURCE,
     SEAM_LIMITED_DECK_ERROR,
+    SEAM_LIMITED_SCREEN_ERROR,
     SEAM_POSITION_ERROR,
+    SEAM_SIDEBOARDING_ERROR,
     seamPositionPath,
     type LoadedPosition,
 } from "./seam-position.ts";
@@ -643,31 +649,25 @@ async function pinDraftSelection(page: Page): Promise<void> {
  * Land on `/limited/<id>/draft` with a live pack for this seat, with the
  * Selected Card seat state pinned (`pinDraftSelection`, issue #2677).
  *
- * Issue #2587 moved the pick screen OFF the event page onto its own immersive
- * route. Two ways in, and the walk takes whichever the deployment offers: the
- * event page redirects a seated player while a Pick is pending (one-shot per
- * tab), and once that shot is spent the event page offers "Enter the Draft
- * Room". Shared by both draft surfaces, so the two can never drift apart
- * about what "the room" means OR what seat state they measure in.
+ * The pick screen is its own immersive route (issue #2587); the seam's
+ * Limited screen link lands on it in one navigation. Shared by every draft
+ * surface, so the rows can never drift apart about what "the room" means OR
+ * what seat state they measure in. `label` picks the fixture: the mid-draft
+ * one by default, the final-pick one for `draft-final-pick`.
  */
-async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
-    const landed = await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
-    if (landed === "event") {
-        if (
-            !(await clickIfVisible(page, "button[data-hero-cta='draft']", 4000))
-        ) {
-            throw new Unreachable(
-                `the "${ctx.fixtureLabels.draft}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. ${FIXTURE_SEED_HINT}`
-            );
-        }
-        await page
-            .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
-            .catch(() => {});
-        await settle(page);
-    }
+async function reachDraftRoom(
+    page: Page,
+    ctx: WalkContext,
+    label: string = ctx.fixtureLabels.draft
+): Promise<void> {
+    // One navigation through the seam (issue #9560): the Draft Room addressed
+    // by the fixture's label. The event-list path to it (View, the redirect,
+    // "Enter the Draft Room") stays walked by `limited-antechamber` and the
+    // list rows — a deep link proves the screen, never the path to it.
+    await openFixtureScreenThroughSeam(page, ctx, label, "draft");
     if (!page.url().endsWith("/draft")) {
         throw new Unreachable(
-            `the "${ctx.fixtureLabels.draft}" fixture did not land in the Draft Room — the page is at ${page.url()}`
+            `the "${label}" fixture did not land in the Draft Room — the page is at ${page.url()}`
         );
     }
     // The room renders for a Sealed seat too (reveal mode), so reaching the
@@ -675,7 +675,7 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     // its tiles are the proof.
     if (!(await visible(page, DRAFT_PICK_TILE, 4000))) {
         throw new Unreachable(
-            `the "${ctx.fixtureLabels.draft}" fixture's Draft Room rendered no pack tile for this seat. ${FIXTURE_SEED_HINT}`
+            `the "${label}" fixture's Draft Room rendered no pack tile for this seat. ${FIXTURE_SEED_HINT}`
         );
     }
     await pinDraftSelection(page);
@@ -1521,6 +1521,116 @@ async function saveFixtureDeckThroughSeam(
             .locator("[data-surface-ready]")
             .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
         ctx.log(`saved Limited fixture "${label}"'s deck through the seam`);
+    });
+}
+
+/** Route the app to a seam URL: in place when it already holds the app (no
+ *  bundle boot, no sign-in), by `goto` when it does not. */
+async function followSeamPath(
+    page: Page,
+    ctx: WalkContext,
+    path: string
+): Promise<void> {
+    if (page.url().startsWith(ctx.baseUrl)) {
+        await page.evaluate(inAppNavigateSource(path));
+    } else {
+        await page.goto(`${ctx.baseUrl}${path}`, {
+            waitUntil: "domcontentloaded",
+            timeout: NAV_TIMEOUT,
+        });
+    }
+}
+
+/** The pathname each Limited seam screen settles on. */
+const SEAM_LIMITED_SCREEN_PATH_PATTERN: Record<UiSeamLimitedScreen, RegExp> = {
+    event: /^\/limited\/[^/]+$/,
+    draft: /^\/limited\/[^/]+\/draft$/,
+    build: /^\/limited\/[^/]+\/build$/,
+};
+
+/**
+ * Land on `screen` of Limited fixture `label` in ONE navigation through the
+ * seam (issue #9560): the event page, the Draft Room or the pool builder,
+ * addressed by the fixture's label — what `openFixtureEvent` plus a second
+ * navigation did through the event list. Charged to `position` like the
+ * path it replaces. A deep link proves the screen, never the path to it:
+ * `limited-antechamber` and the list rows keep the event list.
+ */
+async function openFixtureScreenThroughSeam(
+    page: Page,
+    ctx: WalkContext,
+    label: string,
+    screen: UiSeamLimitedScreen
+): Promise<void> {
+    await chargeSub(walkLedgerOf(page), "position", async () => {
+        await followSeamPath(
+            page,
+            ctx,
+            uiSeamUrl(UI_SEAM_LIMITED_SCREEN_PATH, {
+                [UI_SEAM_FIXTURE_PARAM]: label,
+                [UI_SEAM_SCREEN_PARAM]: screen,
+            })
+        );
+        const landed = await page
+            .waitForURL(
+                (url) =>
+                    SEAM_LIMITED_SCREEN_PATH_PATTERN[screen].test(url.pathname),
+                { timeout: NAV_TIMEOUT }
+            )
+            .then(() => true)
+            .catch(() => false);
+        if (!landed) {
+            const refusal = await page
+                .locator(SEAM_LIMITED_SCREEN_ERROR)
+                .first()
+                .textContent({ timeout: 250 })
+                .catch(() => null);
+            throw new Unreachable(
+                refusal
+                    ? `the seam refused Limited fixture "${label}"'s ${screen} screen: ${refusal.trim()}`
+                    : `the seam's Limited screen link for "${label}" never reached its ${screen} screen (at ${page.url()}). ${FIXTURE_SEED_HINT}`
+            );
+        }
+        await settle(page);
+        ctx.log(`opened Limited fixture "${label}" ${screen} through the seam`);
+    });
+}
+
+/**
+ * Put the lane's own solo game's Match at the Bo3 sideboarding gate through
+ * the seam (issue #9560) and land on the board, where the Game-Over
+ * interstitial offers "Continue to Sideboarding". `false` when the lane holds
+ * no solo game in play (the caller deals one and asks again), like
+ * `loadScenarioThroughSeam`.
+ */
+async function forceSideboardingThroughSeam(
+    page: Page,
+    ctx: WalkContext
+): Promise<boolean> {
+    return await chargeSub(walkLedgerOf(page), "position", async () => {
+        await followSeamPath(
+            page,
+            ctx,
+            uiSeamUrl(UI_SEAM_SIDEBOARDING_PATH, {})
+        );
+        const landed = await page
+            .waitForURL((url) => url.pathname === "/game", {
+                timeout: NAV_TIMEOUT,
+            })
+            .then(() => true)
+            .catch(() => false);
+        if (landed) return true;
+        const refusal = await page
+            .locator(SEAM_SIDEBOARDING_ERROR)
+            .first()
+            .textContent({ timeout: 250 })
+            .catch(() => null);
+        if (refusal?.includes(UI_SEAM_NO_SOLO_GAME_IN_PLAY)) return false;
+        throw new Unreachable(
+            refusal
+                ? `the seam refused the sideboarding gate: ${refusal.trim()}`
+                : `the seam's sideboarding link never reached /game (at ${page.url()})`
+        );
     });
 }
 
@@ -4441,9 +4551,13 @@ export const SURFACES: readonly Surface[] = [
                 .locator("[data-surface-ready]")
                 .waitFor({ state: "attached", timeout: NAV_TIMEOUT });
             if ((await page.locator(ARCHIVE_DECK).count()) === 0) {
-                await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+                await openFixtureScreenThroughSeam(
+                    page,
+                    ctx,
+                    ctx.fixtureLabels.draft,
+                    "build"
+                );
                 const eventId = currentEventId(page);
-                await goto(page, ctx, `/limited/${eventId}/build`);
                 if (!(await visible(page, "[data-card-tile]", 10_000))) {
                     throw new Unreachable(
                         `/limited/${eventId}/build rendered no card tile, so no Limited deck can be saved. ${FIXTURE_SEED_HINT}`
@@ -4731,9 +4845,13 @@ export const SURFACES: readonly Surface[] = [
             // Build Deck control on the event page (it appears once the pool
             // is FINAL), and the id comes from the fixture's own row, so this
             // is still label-addressed.
-            await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+            await openFixtureScreenThroughSeam(
+                page,
+                ctx,
+                ctx.fixtureLabels.draft,
+                "build"
+            );
             const eventId = currentEventId(page);
-            await goto(page, ctx, `/limited/${eventId}/build`);
             // A CARD TILE, not the "Build Limited Deck" heading: on a short
             // viewport `DeckBuilderHeader` hides the whole Back+title band by
             // design (`short-viewport:hidden`), so a title assertion reports
@@ -4787,9 +4905,13 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+            await openFixtureScreenThroughSeam(
+                page,
+                ctx,
+                ctx.fixtureLabels.draft,
+                "build"
+            );
             const eventId = currentEventId(page);
-            await goto(page, ctx, `/limited/${eventId}/build`);
             // Client state only — the preference is read on mount, so it is
             // written first and the screen loaded again.
             await page.evaluate(
@@ -4901,6 +5023,55 @@ export const SURFACES: readonly Surface[] = [
             // This is the only place it is asserted against a real scroller.
             await assertTwoSnapStops(page);
             await assertPackRingMatchesImage(page);
+        },
+    },
+    {
+        // Fixture, not a declared position — see `draft-pick` above. The state
+        // is the END of a draft (issue #9560): seat 0 holds the last card of
+        // the last pack over a full-size pool, so picking it completes the
+        // draft. Reached through the seam's Limited screen link; the path to a
+        // Draft Room stays walked by `limited-antechamber`.
+        id: "draft-final-pick",
+        cards: true,
+        settleTargets: [DRAFT_SNAP_SCROLLER, DRAFT_POOL],
+        entries: ["src/routes/limited-draft-room.route.tsx"],
+        label: "Draft Room, final pick (/limited/<id>/draft, last card of the last pack)",
+        /**
+         * The pick screen's promises over a pack of ONE: the bar, the single
+         * pack tile and the pool the whole draft built. The tile count is
+         * checked by the walk (a pack of more than one is the mid-draft
+         * fixture, not this state).
+         */
+        asserts: [
+            {
+                label: "room bar",
+                locator: { selector: "[data-slot=draft-room-bar]" },
+                check: "visible",
+            },
+            {
+                label: "final pack tile",
+                locator: { selector: DRAFT_PICK_TILE },
+                check: "visible",
+            },
+            {
+                label: "pool pane",
+                locator: { selector: "[data-slot=draft-pool]" },
+                check: "visible",
+            },
+            {
+                label: "Table Ring entry",
+                locator: { selector: "[data-draft-table-entry]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await reachDraftRoom(page, ctx, ctx.fixtureLabels.finalPick);
+            const tiles = await page.locator(DRAFT_PICK_TILE).count();
+            if (tiles !== 1) {
+                throw new Unreachable(
+                    `the "${ctx.fixtureLabels.finalPick}" fixture's Draft Room shows ${tiles} pack tiles, not the one card of the last pack. ${FIXTURE_SEED_HINT}`
+                );
+            }
         },
     },
     {
@@ -5770,6 +5941,77 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             await settle(page);
+        },
+    },
+    {
+        // The Bo3 between-Games gate (issue #9560). The lane's solo game is
+        // forced to it through the seam, which shares the Debug panel's body
+        // (`forceBo3Sideboarding`); the Game-Over interstitial's "Continue to
+        // Sideboarding" is the one click the walk makes, so the dialog is
+        // reached the way a player reaches it. The row ENDS the Match it
+        // forced (cleanup concedes it): an undecided Match blocks the next
+        // row's fresh game.
+        id: "game-sideboarding",
+        mounts: ["src/components/board/sideboarding-dialog.tsx"],
+        needsGame: true,
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Sideboarding between Bo3 games (score 0–1)",
+        asserts: [
+            {
+                label: "dialog: Sideboarding",
+                locator: { role: "dialog", name: "Sideboarding" },
+                check: "visible",
+            },
+            {
+                label: "primary: Ready",
+                locator: { role: "button", name: "Ready" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            if (
+                !ctx.createdGame ||
+                !(await forceSideboardingThroughSeam(page, ctx))
+            ) {
+                await ensureBoard(page, ctx);
+                if (!ctx.createdGame) {
+                    throw new Unreachable(
+                        "an active game the lane did not create is in progress; forcing its Match to sideboarding would clobber it. Finish or concede it, then re-run"
+                    );
+                }
+                if (!(await forceSideboardingThroughSeam(page, ctx))) {
+                    throw new Unreachable(
+                        "the seam found no solo game in play to put at the sideboarding gate, right after the lobby reached the lane's board"
+                    );
+                }
+            }
+            // The position the last seam load recorded is gone with the game.
+            ctx.loadedPosition = undefined;
+            if (
+                !(await clickIfVisible(
+                    page,
+                    'button:has-text("Continue to Sideboarding")',
+                    10_000
+                ))
+            ) {
+                throw new Unreachable(
+                    'the board offered no "Continue to Sideboarding" after the seam forced the gate'
+                );
+            }
+            await settle(page);
+        },
+        async cleanup(page, ctx) {
+            await page.keyboard.press("Escape");
+            await settle(page);
+            if (!ctx.createdGame) return;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdGame = false;
+                return;
+            }
+            throw new Error(
+                `could not end the Match the sideboarding row forced — the next rows will read as unreachable [${trace.join("; ")}]`
+            );
         },
     },
     {
