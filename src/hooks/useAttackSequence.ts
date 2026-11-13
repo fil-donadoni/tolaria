@@ -42,6 +42,8 @@ export type AttackSequence = {
     undecidedAttackerIds: string[];
     /** True while any attacker still needs its target chosen. */
     choosingTarget: boolean;
+    /** PROTOTYPE (issue #9500): make `id` the attacker choosing now. */
+    jumpTo?: (id: string) => void;
 };
 
 /** Inactive singleton returned when no provider is mounted (tests, classic
@@ -114,6 +116,21 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
     // last attacker, so `advance` needn't read `order.length` from a closure.
     const advance = useCallback(() => setIndex((prev) => prev + 1), []);
 
+    // PROTOTYPE (issue #9500): move `id` to the cursor. A pending one is
+    // pulled forward; a done one is pulled back (it re-chooses).
+    const jumpTo = useCallback(
+        (id: string) => {
+            const pos = order.indexOf(id);
+            if (pos < 0 || pos === index) return;
+            const next = order.filter((x) => x !== id);
+            const at = pos < index ? index - 1 : index;
+            next.splice(at, 0, id);
+            setOrder(next);
+            setIndex(at);
+        },
+        [order, index]
+    );
+
     const reset = useCallback(() => {
         setAwaiting([]);
         setActive(false);
@@ -143,5 +160,6 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
         begin,
         advance,
         reset,
+        jumpTo,
     };
 }

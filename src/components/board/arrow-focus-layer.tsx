@@ -11,6 +11,7 @@ const FOCUS_DEF_IDS = {
     grad: "focus-arrow-grad",
     head: "focus-arrowhead",
     shadow: "focus-arrow-shadow",
+    tail: "focus-arrow-tail",
 };
 
 type Measured = {

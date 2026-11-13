@@ -231,7 +231,13 @@ export function groupBattlefield(
      *  the group's (keyed by the old lead's id) and kill the cross-zone flight
      *  mid-animation — they render standalone for the arrival window, then
      *  merge into the fan. Presentation-only; grouping logic is unchanged. */
-    deferStackIds?: ReadonlySet<string>
+    deferStackIds?: ReadonlySet<string>,
+    /** PROTOTYPE (issue #9500): an extra identity segment per permanent —
+     *  the attack destination of a declared attacker (CR 508.1b). Two
+     *  identical creatures attacking different targets are no longer
+     *  interchangeable, so they leave the fan; the creature choosing its
+     *  target right now gets a unique segment so it always stands alone. */
+    extraKeyOf?: (card: CardInstance) => string | undefined
 ): PermanentGroup[] {
     if (disableStacking) {
         return permanents.map((card) => ({
@@ -259,7 +265,8 @@ export function groupBattlefield(
             entries.push({ kind: "singleton", card, pos: i });
             return;
         }
-        const key = identityKey(card);
+        const extra = extraKeyOf?.(card);
+        const key = extra ? `${identityKey(card)}|${extra}` : identityKey(card);
         const existing = stackByKey.get(key);
         if (existing) {
             existing.members.push(card);

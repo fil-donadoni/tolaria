@@ -27,6 +27,30 @@ export default function ArrowDefs({ ids }: { ids: ArrowDefIds }) {
                     fill={ARROW_STRONG}
                 />
             </marker>
+            {/* PROTOTYPE (issue #9500): origin socket — a gold ring with a
+                dark core where the arrow leaves its source, so a wire reads
+                as FROM this card, not just TO its target. */}
+            {ids.tail && (
+                <marker
+                    id={ids.tail}
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="8"
+                    refY="8"
+                    orient="auto"
+                    markerUnits="userSpaceOnUse"
+                >
+                    <circle
+                        cx="8"
+                        cy="8"
+                        r="5.5"
+                        fill="#111"
+                        stroke={ARROW_STRONG}
+                        strokeWidth="2.2"
+                    />
+                    <circle cx="8" cy="8" r="2" fill={ARROW_STRONG} />
+                </marker>
+            )}
             <filter
                 id={ids.shadow}
                 x="-20%"

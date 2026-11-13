@@ -60,6 +60,7 @@ const BOARD_DEF_IDS = {
     grad: "board-arrow-grad",
     head: "board-arrowhead",
     shadow: "board-arrow-shadow",
+    tail: "board-arrow-tail",
 };
 
 /** A stack target arrow (issue #9326) — drawn quiet at rest. Combat and

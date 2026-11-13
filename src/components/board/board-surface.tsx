@@ -1,3 +1,4 @@
+import AttackSeqPrototype from "~/components/board/attack-seq-prototype/attack-seq-prototype";
 import { useState, type CSSProperties } from "react";
 import { LayoutGroup } from "motion/react";
 import type { Combat, Player, StackItem } from "~/types/game";
@@ -486,6 +487,8 @@ export default function BoardSurface({
                             }
                             anchorRevision={`${me?.id ?? ""}:${opponent?.id ?? ""}`}
                         />
+                        {/* PROTOTYPE (issue #9500) — throwaway */}
+                        <AttackSeqPrototype />
                     </div>
                 </LayoutGroup>
             </ArrowHighlightProvider>

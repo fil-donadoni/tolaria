@@ -1,3 +1,4 @@
+import { atkProtoFreePick } from "~/components/board/attack-seq-prototype/atk-proto-store";
 import { useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
@@ -775,6 +776,12 @@ export function useBattlefieldInteraction(player: Player) {
                     return;
                 }
             } else if (attackSequence.active) {
+                // PROTOTYPE (issue #9500): free pick in variants B/C/D.
+                if (
+                    atkProtoFreePick() &&
+                    attackSequence.order.includes(card.id)
+                )
+                    attackSequence.jumpTo?.(card.id);
                 return;
             }
             if (alreadySelected && card.mustAttack) {

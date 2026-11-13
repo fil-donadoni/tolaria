@@ -1,3 +1,4 @@
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -138,6 +139,23 @@ export default function BoardBattlefield({
     // to this player alone when the context has no roster (minimal test
     // contexts) so own-battlefield auras still resolve and nothing crashes.
     const ctx = useGameContext();
+    // PROTOTYPE (issue #9500): split a fan whose members attack different
+    // targets; the creature choosing its target now stands alone.
+    const attackSequence = useAttackSequence();
+    const attackCombat = ctx.combat;
+    const choosingId = attackSequence.active
+        ? attackSequence.currentAttackerId
+        : undefined;
+    const undecidedKey = attackSequence.undecidedAttackerIds.join(",");
+    const attackKeyOf = useMemo(() => {
+        const undecided = new Set(undecidedKey ? undecidedKey.split(",") : []);
+        return (card: CardInstance): string | undefined => {
+            if (card.id === choosingId) return `atk:choosing:${card.id}`;
+            if (undecided.has(card.id)) return "atk:undecided";
+            if (!attackCombat?.attackerIds.includes(card.id)) return undefined;
+            return `atk:${attackCombat.attackTargets?.[card.id] ?? "player"}`;
+        };
+    }, [attackCombat, choosingId, undecidedKey]);
     const allPlayers = useMemo(
         () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
         [ctx.allPlayers, player]
@@ -487,7 +505,8 @@ export default function BoardBattlefield({
             creatures,
             attachedAurasByHost,
             stackingDisabled,
-            arrivalDeferIds
+            arrivalDeferIds,
+            attackKeyOf
         );
         const landGroups = groupBattlefield(
             lands,
@@ -569,6 +588,7 @@ export default function BoardBattlefield({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         player.battlefield,
+        attackKeyOf,
         hostExistsAnywhere,
         attachedAurasByHost,
         stackingDisabled,

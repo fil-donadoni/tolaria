@@ -55,6 +55,11 @@ export default function BoardArrowPath({
                 strokeWidth={emphasized ? 3.4 : quiet ? 1.2 : 2.4}
                 strokeLinecap="round"
                 markerEnd={`url(#${ids.head})`}
+                markerStart={
+                    ids.tail && arrow.kind === "combat"
+                        ? `url(#${ids.tail})`
+                        : undefined
+                }
             />
             {/* Bright hairline highlight along the top — gives the filament
                 its metallic catch-light. */}

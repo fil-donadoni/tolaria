@@ -8,6 +8,8 @@ import EnlistChoicePanel from "./enlist-choice-panel";
 import ExertChoicePanel from "./exert-choice-panel";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import AttackDirectionBanner from "./attack-direction-banner";
+import ProtoSeqBanner from "./attack-seq-prototype/proto-seq-banner";
+import { useAtkProtoVariant } from "./attack-seq-prototype/atk-proto-store";
 
 /** Combat declaration / damage modals for one player's battlefield on the
  *  spatial board ({@link BoardBattlefield}, PRD #249 / slice #281).
@@ -29,6 +31,7 @@ import AttackDirectionBanner from "./attack-direction-banner";
  *  the correct combat steps. Reads ONLY projected game-context fields (no GRE
  *  import). */
 export default function CombatPanels({ player }: { player: Player }) {
+    const atkProtoVariant = useAtkProtoVariant();
     const {
         gameId,
         playerId,
@@ -99,10 +102,15 @@ export default function CombatPanels({ player }: { player: Player }) {
                    life indicator. Over the battlefield it covered the very
                    creatures the step asks you to click. */
                 <div className="play-area-center-x fixed top-24 z-modal flex w-max max-w-[70vw] -translate-x-1/2 flex-col items-center gap-2">
-                    <AttackDirectionBanner
-                        planeswalkerPresent={defenderHasPlaneswalker}
-                        choosingTarget={attackSequence.choosingTarget}
-                    />
+                    {/* PROTOTYPE (issue #9500) */}
+                    {atkProtoVariant && attackSequence.choosingTarget ? (
+                        <ProtoSeqBanner variant={atkProtoVariant} />
+                    ) : (
+                        <AttackDirectionBanner
+                            planeswalkerPresent={defenderHasPlaneswalker}
+                            choosingTarget={attackSequence.choosingTarget}
+                        />
+                    )}
                     <BandFormationPanel
                         combat={combat}
                         attackers={player.battlefield.filter((c) =>
