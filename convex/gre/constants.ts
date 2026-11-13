@@ -3005,11 +3005,26 @@ function getContinuousLandManaOverride(
             if ("color" in sub) return sub.color;
             // A chosen-colour shape fixes no colour: it is read by
             // `landManaColorIsChosen`, never here.
-            if ("chosenColor" in sub) continue;
+            if ("chosenColor" in sub || "collapseMultiMana" in sub) continue;
             for (const subtype of card.subtypes) {
                 const mapped = sub.byBasicSubtype[subtype];
                 if (mapped) return mapped;
             }
+        }
+    }
+    return null;
+}
+
+/** The colour a live `collapseMultiMana` {@link LandManaSubstitution} reduces a
+ *  multi-mana land tap to, or null when no permanent declares one. Global, like
+ *  the fixed substitutions; the first source wins. */
+function collapseMultiManaColor(
+    battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>
+): Color | null {
+    for (const player of battlefields) {
+        for (const source of player.battlefield) {
+            const sub = liveStaticDefinition(source)?.landManaSubstitution;
+            if (sub && "collapseMultiMana" in sub) return sub.collapseMultiMana;
         }
     }
     return null;
@@ -3143,6 +3158,13 @@ export function replaceLandManaType(
             const total = totalManaCount(result);
             if (total > 0) result = { [rider.color]: total };
         }
+    }
+    // CR 614.1 — "tapped for two or more mana, it produces {C} instead of any
+    // other type and amount" (Damping Sphere): runs after the type rewrites
+    // above, so a land they made two-or-more mana still collapses.
+    if (isLand(card) && totalManaCount(result) >= 2) {
+        const collapse = collapseMultiManaColor(battlefields);
+        if (collapse) result = { [collapse]: 1 };
     }
     // CR 614.1a / 106.3 — runs on the source's own (possibly overridden)
     // output, BEFORE the additive riders of {@link applyLandManaReplacement}.

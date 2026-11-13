@@ -136,7 +136,14 @@ export type TextChange = {
  *    choice is not a prompt of its own: the tap option list offers one option
  *    per colour (`getManaTapOptionsDetailed`), so the pick is the tap index.
  *
- *  Exactly one of `color` / `byBasicSubtype` / `chosenColor` is set. The two
+ *  - `collapseMultiMana` — an AMOUNT-and-type collapse: a land tapped for two
+ *    or more mana produces exactly ONE mana of that colour instead (Damping
+ *    Sphere, "If a land is tapped for two or more mana, it produces {C}
+ *    instead of any other type and amount"). A land producing one mana is
+ *    left alone.
+ *
+ *  Exactly one of `color` / `byBasicSubtype` / `chosenColor` /
+ *  `collapseMultiMana` is set. The two
  *  fixed shapes are global (they affect every player's lands, like the
  *  printed cards), so the source's controller is not consulted for them.
  *  Multiple fixed substitutions apply in battlefield order, first source wins
@@ -149,7 +156,8 @@ export type TextChange = {
 export type LandManaSubstitution =
     | { color: Color }
     | { byBasicSubtype: Partial<Record<string, Color>> }
-    | { chosenColor: LandManaChoiceScope };
+    | { chosenColor: LandManaChoiceScope }
+    | { collapseMultiMana: Color };
 
 /** Which lands a `chosenColor` {@link LandManaSubstitution} reaches. */
 export type LandManaChoiceScope = "basic-lands-you-control";
@@ -11019,6 +11027,13 @@ export interface StaticCostModifier {
      *  collector answers this from where the card still sits. A field for the
      *  same reason as the one above: zones live only in game state. */
     onlyOutsideAnnouncersHand?: true;
+    /** CR 601.2f — the `costIncrease` is added once per OTHER spell the
+     *  announcer has already cast this turn: "Each spell a player casts costs
+     *  {1} more to cast for each other spell that player has cast this turn"
+     *  (Damping Sphere). Read from the announcer's `spellsCastThisTurn` BEFORE
+     *  the spell being priced is counted, so the first spell owes nothing. A
+     *  field because `appliesToSpell` sees no game state. */
+    perOtherSpellCastByAnnouncerThisTurn?: true;
 }
 
 /** Count-driven CR 601.2f cost-reduction amount: `perCount`'s generic portion
