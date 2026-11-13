@@ -425,3 +425,63 @@ describe("Dragon's Rage Channeler (delirium +2/+2, flying, must-attack — CR 50
         expect(getEffectiveToughness(projected, slimDrc)).toBe(3);
     });
 });
+
+// ── Obsidian Charmaw — self cost reduction per opposing land that could produce {C} (CR 601.2f / 106.7, issue #8628) ──
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+} from "../../../../gre/state";
+
+const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+const ADARKAR_WASTES_ID = "09dd9023-f7ee-4e99-8821-7059deb83730"; // {T}: Add {C}/{W}/{U}
+
+const obsidianCharmaw = getDefinition("ee6d08be-a6fc-44a5-932d-b6a8705534c0");
+
+function charmawCost(state: GameState): Record<string, number> {
+    const spellView = makeInstance(obsidianCharmaw.id, {
+        id: "charmaw-spell-view",
+        controllerId: "p1",
+        zone: "hand",
+    });
+    const cost = normalizeManaCost(obsidianCharmaw.manaCost ?? {});
+    applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+    return cost;
+}
+
+function landOf(defId: string, id: string, controllerId: "p1" | "p2") {
+    return makeInstance(defId, { id, controllerId, ownerId: controllerId });
+}
+
+describe("Obsidian Charmaw cost reduction (CR 601.2f, CR 106.7)", () => {
+    it("costs {1} less per opponent land that could produce {C}, ignoring Mountains and own lands", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    // Own colourless-capable land never counts ("your opponents control").
+                    battlefield: [landOf(ADARKAR_WASTES_ID, "own-aw", "p1")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        landOf(ADARKAR_WASTES_ID, "opp-aw1", "p2"),
+                        landOf(ADARKAR_WASTES_ID, "opp-aw2", "p2"),
+                        landOf(MOUNTAIN_ID, "opp-mtn", "p2"),
+                    ],
+                }),
+            ],
+        });
+        expect(charmawCost(state)).toEqual({ X: 1, R: 2 });
+    });
+
+    it("pays full price against only coloured-only lands", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [landOf(MOUNTAIN_ID, "opp-mtn", "p2")],
+                }),
+            ],
+        });
+        expect(charmawCost(state)).toEqual({ X: 3, R: 2 });
+    });
+});
