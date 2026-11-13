@@ -830,6 +830,7 @@ const FACE_DOWN_EXILE_PUBLIC_KEYS = [
     "castableFromExileUntilOwnTurn",
     "castableFromExileUntilOwnUpkeep",
     "castableFromExileFromTurn",
+    "castableFromExileFromOwnTurn",
     // CR 702.143e — that a face-down card is FORETOLD (and so which of a
     // player's face-down exiles are foretold cards) is public: everyone saw
     // the special action. Its identity is not.

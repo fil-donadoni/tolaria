@@ -6009,6 +6009,11 @@ export interface SpellContext {
      *      instant-speed discard) — see `untilNextEndStepTurn` in
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
+     *    - "during-your-next-turn": "During your next turn, you may play
+     *      that card" (Galvanic Relay). Closed for the rest of this turn and
+     *      every opponent turn, open for exactly `playerId`'s next turn, then
+     *      revoked at its cleanup: the own-turn upper bound plus an own-turn
+     *      lower bound (`castableFromExileFromOwnTurn`).
      *    - "until-your-next-upkeep": "Until the beginning of
      *      your next upkeep, you may play that card" (Elkin Bottle). Spans
      *      the rest of this turn and every opponent turn in between; revoked
@@ -6045,6 +6050,7 @@ export interface SpellContext {
             | "while-exiled"
             | "until-next-end-step"
             | "until-end-of-your-next-turn"
+            | "during-your-next-turn"
             | "until-your-next-upkeep",
         opts?: {
             withoutPayingManaCost?: boolean;
@@ -17936,8 +17942,15 @@ export type EffectOp =
            *     of your next turn, you may play those cards" (The Legend of
            *     Roku, chapter I) — the same absolute-turn stamp one turn
            *     further out, so the window survives the opponent's turn in
-           *     between. */
-          window?: "this-turn" | "while-exiled" | "until-end-of-your-next-turn";
+           *     between.
+           *   - `"during-your-next-turn"`: "During your next turn, you may
+           *     play that card" (Galvanic Relay) — the same upper bound plus
+           *     an own-turn lower bound, so nothing is playable before it. */
+          window?:
+              | "this-turn"
+              | "while-exiled"
+              | "until-end-of-your-next-turn"
+              | "during-your-next-turn";
           withoutPayingManaCost?: boolean;
           includesLand?: boolean;
           /** CR 601.2f (issue #2383) — an object-scoped cost increase the

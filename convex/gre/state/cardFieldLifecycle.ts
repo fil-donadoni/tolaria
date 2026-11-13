@@ -270,6 +270,7 @@ export const CARD_FIELD_LIFECYCLE = {
     castableFromExileUntilOwnUpkeep: { codec: "defined", reset: ["custom:turn"] },
     castableFromExileUntilTurn: { codec: "defined", reset: ["custom:turn"] },
     castableFromExileFromTurn:  { codec: "defined", reset: ["custom:turn"] },
+    castableFromExileFromOwnTurn: { codec: "defined", reset: ["custom:turn"] },
     plottedOnTurn:              { codec: "defined", reset: NONE },
     foretold:                   { codec: "flag",    reset: ZONE_STACK },
     foretoldOnTurn:             { codec: "defined", reset: NONE },

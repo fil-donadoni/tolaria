@@ -386,4 +386,44 @@ export const dragonsRageChanneler = defineCard(() => ({
     ],
 }));
 
+// Galvanic Relay — {2}{R} Sorcery. "Exile the top card of your library. During
+// your next turn, you may play that card. Storm (When you cast this spell,
+// copy it for each spell cast before it this turn.)" (CR 702.40 Storm, ADR
+// 0052; CR 701.13 exile; CR 116.2a "play" includes a land.)
+//
+// `staticAbilities: ["storm"]` drives the copy mechanism; the spell is two
+// already-censused Ops. `exileTopOfLibrary` publishes the exiled card as a
+// picks binding (`bindAll`) rather than a source link, so a storm copy, or a
+// later recast of the same card, grants only the card ITS resolution exiled.
+// `grantCastFromExile` carries the `"during-your-next-turn"` window: an own-turn
+// lower bound beside the own-turn upper bound, so the card is unplayable for the
+// rest of this turn and on every opponent turn, live for exactly the
+// controller's next turn (CR 514.2 / 611.2a) and revoked at its cleanup.
+// hand-tail: Exile the top card of your library. During your next turn, you may play that card. (#8619)
+export const galvanicRelay = defineCard(() => ({
+    id: "06373318-e548-4664-b227-17e3b6fd0a88", // MH2 127
+    name: "Galvanic Relay",
+    rarity: "common",
+    oracleText:
+        "Exile the top card of your library. During your next turn, you may play that card.\nStorm (When you cast this spell, copy it for each spell cast before it this turn.)",
+    manaCost: { X: 2, R: 1 },
+    types: ["Sorcery"],
+    staticAbilities: ["storm"],
+    effects: [
+        {
+            op: "exileTopOfLibrary",
+            player: "controller",
+            count: 1,
+            bindAll: "$exiled",
+        },
+        {
+            op: "grantCastFromExile",
+            card: { ref: "$exiled" },
+            player: "controller",
+            window: "during-your-next-turn",
+            includesLand: true,
+        },
+    ],
+}));
+
 export {};

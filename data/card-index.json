@@ -31468,6 +31468,14 @@
         "source": "compiled"
     },
     {
+        "name": "Galvanic Relay",
+        "scryfallId": "06373318-e548-4664-b227-17e3b6fd0a88",
+        "oracleId": "973c684c-a396-4e40-8aaa-365bc64a6f9a",
+        "firstSet": "mh2",
+        "firstPrintId": "06373318-e548-4664-b227-17e3b6fd0a88",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Game of Chaos",
         "scryfallId": "08265332-2c0e-4c42-8c51-83ac20462eed",
         "oracleId": "b6756608-a618-4e26-a090-ea8fc992def1",
