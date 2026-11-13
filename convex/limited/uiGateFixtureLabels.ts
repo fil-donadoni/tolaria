@@ -51,3 +51,11 @@ export function uiGateOpenLabel(runId: string): string {
 export function uiGateDraftLabel(runId: string): string {
     return `${uiGateRunLabelPrefix(runId)}draft`;
 }
+
+/** The end of a mocked draft: the viewer at seat 0 holds the LAST pack of the
+ *  LAST round — one card — over a full-size pool. Picking it completes the
+ *  draft, which is the state that carries the Draft Room's final-pick framing
+ *  and routes the seat on to the deck builder. */
+export function uiGateFinalPickLabel(runId: string): string {
+    return `${uiGateRunLabelPrefix(runId)}final-pick`;
+}
