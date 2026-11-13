@@ -245,3 +245,39 @@ export const tersaLightshatter = defineCard(() => ({
         }),
     ],
 }));
+
+// Stormscale Scion (TDM, issue #8633) — {4}{R}{R} Creature — Dragon 4/4.
+// "Flying / Other Dragons you control get +1/+1. / Storm (When you cast this
+// spell, copy it for each spell cast before it this turn. Copies become
+// tokens.)" Flying (CR 702.9) and Storm (CR 702.40) are registry keywords
+// (`staticAbilities`). The lord clause is a layer 7c `pt-buff` static effect
+// (CR 611 / 613.4c) read at stat time: "Other" excludes the source itself, "you
+// control" restricts to the source's controller, and the Dragon subtype is
+// matched on the target. A storm copy is a token Dragon that gets the buff from
+// the original and, as a lord itself, buffs the other copies.
+// hand-tail: Other Dragons you control get +1/+1. (#8633)
+export const stormscaleScion = defineCard(() => ({
+    id: "0ac43386-bd32-425c-8776-cec00b064cbc",
+    name: "Stormscale Scion",
+    rarity: "mythic",
+    oracleText:
+        "Flying\nOther Dragons you control get +1/+1.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. Copies become tokens.)",
+    manaCost: { X: 4, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying", "storm"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                ctx.hasSubtype(target, "Dragon"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+}));
