@@ -79018,6 +79018,14 @@
         "source": "compiled"
     },
     {
+        "name": "Strix Serenade",
+        "scryfallId": "42ac5ac7-b2f9-4e6f-af41-7e42ac816374",
+        "oracleId": "7ca3aa03-e62d-464a-9111-e754abe17f76",
+        "firstSet": "mh3",
+        "firstPrintId": "42ac5ac7-b2f9-4e6f-af41-7e42ac816374",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Strixhaven Skycoach",
         "scryfallId": "87741fbb-b426-4f83-a358-587b0907f081",
         "oracleId": "e286a191-39d4-4073-b844-11d2aba911b4",

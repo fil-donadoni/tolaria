@@ -282,20 +282,20 @@ export const consignToMemory = defineCard(() => ({
 // with flying."
 //
 // The target is a SPELL filtered to any of three card types: `spellTypeFilter`
-// as an array admits a spell with at least one of them (CR 114.1; Fork /
+// as an array admits a spell with at least one of them (CR 115.1a; Fork /
 // Mystic Confluence's "instant or sorcery" shape). `counter` removes it
 // (CR 701.6a).
 //
-// "Its controller" is the countered spell's caster (CR 109.5), read by
+// "Its controller" is the countered spell's caster (CR 112.2), read by
 // `{ controllerOf: { target: 0 } }` off the LIVE stack item. `counter` removes
 // the spell, so the token Op is written FIRST and the counter second — the
 // shipped idiom for every spell-slot `controllerOf` (Undermine,
 // `sets/inv/multicolor.cards.ts`, issue #2287). Observationally identical to
 // the printed order: nothing can act between two Ops of one resolution
-// (CR 704.4, CR 117.5). If the spell is already gone, the whole spell is
-// countered on resolution for lack of a legal target (CR 608.2b).
+// (CR 704.4, CR 117.5). If the target is already gone, this spell does not
+// resolve for lack of a legal target (CR 608.2b).
 //
-// The Bird is an inline JSON-pure `EffectTokenSpec` (CR 111, ADR 0046) — the
+// The Bird is an inline JSON-pure `EffectTokenSpec` (CR 111.1, ADR 0046) — the
 // first 2/2 blue Bird producer; art resolved per producer from the token
 // print lockfile against this card's own MH3 printing.
 // hand-tail: Counter target artifact, creature, or planeswalker spell. Its controller creates a 2/2 blue Bird creature token with flying. (#8635)
