@@ -13,7 +13,14 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { pastInFlames as pastInFlamesExport } from "../red.cards";
 
+// The PR head carries no `definition-index.json` row for the card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition rather than depend on the lazy catalogue source.
+preloadDefinitions([resolveCardExport(pastInFlamesExport)!]);
 const pastInFlames = getDefinition("23af6033-4930-48e4-821d-14cbbe1754b4");
 const firebolt = getDefinition("d5e45005-dd81-4d80-b043-02f719aca929");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
