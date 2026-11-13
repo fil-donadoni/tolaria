@@ -1,8 +1,9 @@
 # Draft Table Audit — colour set by castable value
 
-> **Measured on the branch of issue #9336 (2026-11-13)**, on top of base
-> `e7274cdab`. Same script, seeds 1..16 (128 decks per scope) unless a line
-> says 1..8 (the Floors' seeds); only the Auto-Build's colour choice changed.
+> **Measured at `cee665148` (2026-11-13)**, the branch of issue #9336 on top
+> of base `e7274cdab`. Same script, seeds 1..16 (128 decks per scope) unless a
+> line says 1..8 (the Floors' seeds); only the Auto-Build's colour choice
+> changed.
 
 ## What changed in the build
 
