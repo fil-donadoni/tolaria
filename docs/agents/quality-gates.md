@@ -752,7 +752,15 @@ then lands the clean, labels a red one `land-failed`, and leaves DROPPED /
 UNPROVEN PRs `ui-owed` with a comment (a DROPPED one's names the logged reason).
 A surface red in the batch and reached by several PRs is re-walked on each
 alone; only a measured `FAIL` there blames a PR — an `UNWALKED` / `INFRA` solo
-row leaves it UNPROVEN, never `land-failed` (issue #9210). A surface still
+row leaves it UNPROVEN, never `land-failed` (issue #9210). A surface ONE PR
+reaches whose non-`PASS` rows are all `UNWALKED` / `INFRA` measured nothing
+and reds nobody straight from the batch (issue #9549): those cells only are
+re-walked on that PR alone (`--surface=` + `--viewport=`, one batch of one PR
+included) — `PASS` on every cell clears the surface (the PR lands if the rest
+of its scope passed, a comment naming the re-walked cells), a measured `FAIL`
+is `land-failed`, `UNWALKED` / `INFRA` again leaves it UNPROVEN, `ui-owed` with
+a comment. A surface with a measured `FAIL` row keeps direct attribution. A
+surface still
 owned by no single PR — green on every candidate alone, or reached by no PR's
 scope — is settled on merge-order prefixes (issue #9265): the base alone, then
 base + head₁, base + head₁ + head₂, … , every open orphan in one `--surface=`

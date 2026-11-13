@@ -18,7 +18,12 @@
  *   5. attribute every red surface to the PRs whose scope holds it
  *      (`attributeBatch`); a surface several PRs reach is re-walked on each
  *      candidate ALONE (base + that head, `--surface=` — a DIAGNOSTIC, never
- *      a receipt) and settled (`settleAmbiguous`); a surface still owned
+ *      a receipt) and settled (`settleAmbiguous`); a surface ONE PR reaches
+ *      whose non-`PASS` rows are all `UNWALKED` / `INFRA` measured nothing:
+ *      its cells are re-walked on that PR alone (`--surface=` +
+ *      `--viewport=`) and settled (`settleUnmeasured`) — PASS
+ *      clears it, FAIL reds the PR, unmeasured again leaves the PR
+ *      UNPROVEN; a surface still owned
  *      by no PR (an orphan) is walked on merge-order prefixes — the base,
  *      base + head₁, … — and the first prefix measuring `FAIL` blames its
  *      last head (`settleOrphans`, issue #9265);
@@ -43,12 +48,15 @@ import {
     formatBatchHead,
     parseBatchBanner,
     settleAmbiguous,
+    settleUnmeasured,
+    unmeasuredCellsText,
     withBatchReceipt,
     type BatchAttribution,
     type BatchHead,
     type CombinationBreak,
     type PrefixProbe,
     type DomEntry,
+    type UnmeasuredSurface,
 } from "./batch-receipt.ts";
 import { verdictDigestLines } from "./receipt.ts";
 import {
@@ -131,6 +139,12 @@ export interface BatchOutcome {
     combination?: CombinationBreak[];
     /** Orphans green on every merge-order prefix (issue #9265). */
     nonReproducible?: string[];
+    /** Clean PR → the cells the batch left unmeasured and its solo re-walk
+     *  measured `PASS` (issue #9549): named in its landing comment. */
+    rewalked?: Map<number, string[]>;
+    /** Surfaces still unmeasured after the solo re-walk: their owner is
+     *  UNPROVEN, never red (issue #9549). */
+    unmeasured?: UnmeasuredSurface[];
 }
 
 /** A PR the batch could not carry, and why (issue #9210). */
@@ -358,15 +372,39 @@ export function prefixProbesOf(
     output: string,
     surfaces: readonly string[]
 ): Map<string, PrefixProbe> {
+    return cellProbesOf(
+        output,
+        surfaces.map((surface) => ({ surface, viewports: null }))
+    );
+}
+
+/**
+ * `prefixProbesOf` over chosen cells (issue #9549): each surface judged on
+ * the rows of `viewports` only (`null` = every row of the surface), so a
+ * re-walk of the cells the batch left unmeasured settles exactly those.
+ * Pure.
+ */
+export function cellProbesOf(
+    output: string,
+    cells: readonly { surface: string; viewports: readonly string[] | null }[]
+): Map<string, PrefixProbe> {
     const { block } = extractVerdictBlock(output, LANE_VOCABULARY);
     const out = new Map<string, PrefixProbe>();
-    for (const surface of surfaces) {
+    for (const { surface, viewports } of cells) {
         if (!block) {
             out.set(surface, { verdict: "unsettled" });
             continue;
         }
-        const rows = block.rows.filter((r) => r.surface === surface);
-        const asserts = block.assertRows.filter((a) => a.surface === surface);
+        const inCell = (viewport: string | null) =>
+            viewports === null ||
+            viewport === null ||
+            viewports.includes(viewport);
+        const rows = block.rows.filter(
+            (r) => r.surface === surface && inCell(r.viewport)
+        );
+        const asserts = block.assertRows.filter(
+            (a) => a.surface === surface && inCell(a.viewport)
+        );
         const lines = [
             ...rows
                 .filter((r) => r.verdict === "FAIL")
@@ -447,6 +485,62 @@ async function prefixRewalks(
         for (const s of open)
             probes.get(s)!.push(measured.get(s) ?? { verdict: "unsettled" });
         open = open.filter((s) => probes.get(s)!.at(-1)!.verdict === "pass");
+    }
+    return probes;
+}
+
+/**
+ * Re-walk each unmeasured surface on its owning PR alone, at the cells the
+ * batch left unmeasured only (`--surface=` + `--viewport=`, a DIAGNOSTIC;
+ * issue #9549). One tree per owner, one walk per surface. A surface whose
+ * re-walk could not run or was cut short gets no probe: `settleUnmeasured`
+ * leaves it unsettled, its owner UNPROVEN.
+ */
+async function unmeasuredRewalks(
+    unmeasured: readonly UnmeasuredSurface[],
+    byPr: ReadonlyMap<number, Merged>,
+    baseSha: string,
+    passthrough: readonly string[],
+    root: string,
+    log: Log
+): Promise<Map<string, PrefixProbe>> {
+    const byOwner = new Map<number, UnmeasuredSurface[]>();
+    for (const u of unmeasured)
+        byOwner.set(u.owner, [...(byOwner.get(u.owner) ?? []), u]);
+    const probes = new Map<string, PrefixProbe>();
+    for (const [pr, surfaces] of byOwner) {
+        const m = byPr.get(pr)!;
+        const dir = newTreeDir(`cells-${pr}`);
+        try {
+            if (buildTree(dir, baseSha, [m], root, log).length === 0) continue;
+            initTree(dir, log);
+            for (const u of surfaces) {
+                log(
+                    `batch: re-walking ${unmeasuredCellsText(u)} on #${pr} alone — unmeasured in the batch (DIAGNOSTIC)`
+                );
+                const { code, output } = await walk(
+                    dir,
+                    [
+                        `--surface=${u.surface}`,
+                        ...(u.viewports
+                            ? [`--viewport=${u.viewports.join(",")}`]
+                            : []),
+                        "--no-publish",
+                        ...passthrough,
+                    ],
+                    log
+                );
+                if (code === 0 || code === 1) {
+                    const probe = cellProbesOf(output, [u]).get(u.surface);
+                    if (probe) probes.set(u.surface, probe);
+                } else
+                    log(
+                        `batch: cell re-walk of ${u.surface} on #${pr} exited ${code} — it settles nothing`
+                    );
+            }
+        } finally {
+            removeTree(dir, root);
+        }
     }
     return probes;
 }
@@ -659,6 +753,22 @@ export async function runBatch(
             );
             attribution = settleAmbiguous(attribution, solo);
         }
+        let rewalked = new Map<number, string[]>();
+        if (attribution.unmeasured.length > 0) {
+            const probes = await unmeasuredRewalks(
+                attribution.unmeasured,
+                new Map(merged.map((m) => [m.head.pr, m])),
+                baseSha,
+                passthrough,
+                root,
+                log
+            );
+            ({ attribution, rewalked } = settleUnmeasured(
+                attribution,
+                scopes,
+                probes
+            ));
+        }
         let combination: CombinationBreak[] = [];
         let nonReproducible: string[] = [];
         let baseRed: string[] = [];
@@ -705,6 +815,8 @@ export async function runBatch(
             }
             log(`#${pr}: CLEAN — receipt:`);
             for (const l of lines) log(`    ${l}`);
+            for (const c of rewalked.get(pr) ?? [])
+                log(`    re-walked alone, PASS: ${c}`);
             if (writeReceipts) writeReceipt(pr, lines, log);
         }
         for (const [pr, red] of attribution.red) {
@@ -734,8 +846,11 @@ export async function runBatch(
             .map((m) => m.head.pr)
             .filter((pr) => !clean.includes(pr) && !attribution.red.has(pr));
         for (const pr of unproven) {
+            const cells = attribution.unmeasured.filter((u) => u.owner === pr);
             log(
-                `#${pr}: UNPROVEN — a red surface of its scope stays unattributed`
+                cells.length > 0
+                    ? `#${pr}: UNPROVEN — still unmeasured after a solo re-walk: ${cells.map(unmeasuredCellsText).join("; ")}`
+                    : `#${pr}: UNPROVEN — a red surface of its scope stays unattributed`
             );
         }
         onOutcome?.({
@@ -746,6 +861,10 @@ export async function runBatch(
             base: baseSha,
             combination: combination.map((c) => ({ ...c })),
             nonReproducible: [...nonReproducible],
+            rewalked: new Map(
+                [...rewalked].filter(([pr]) => clean.includes(pr))
+            ),
+            unmeasured: attribution.unmeasured.map((u) => ({ ...u })),
         });
         return clean.length === prs.length ? 0 : 1;
     }
