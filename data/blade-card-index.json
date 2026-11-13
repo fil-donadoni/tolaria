@@ -1025,6 +1025,16 @@
     ],
     "Shivan Dragon": [
         {
+            "label": "cast during resolution: Counterspell off Chandra counters the bigger spell",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "cast during resolution: Raise Dead off Chandra returns the best creature card",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
             "tier": "must",
             "needsSetup": true

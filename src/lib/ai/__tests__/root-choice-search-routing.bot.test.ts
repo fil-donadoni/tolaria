@@ -414,6 +414,28 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
         );
         return state;
     },
+    // CR 601.2c (issue #9148) — a free cast's "any target" pick naming a card
+    // in the opponent's GRAVEYARD beside a player: the shape whose pool the
+    // battlefield-only reader left empty.
+    "choose-damage-target": () => {
+        const state = stateWithBotChoice({
+            kind: "choose-damage-target",
+            zone: "battlefield",
+            count: 1,
+            candidateIds: ["gy-ogre"],
+            candidatePlayerIds: [HUMAN],
+            prompt: "Choose a target for the card you are casting.",
+        });
+        state.players[0]!.graveyard.push(
+            makeInstance(getCardByName("Gray Ogre").id, {
+                id: "gy-ogre",
+                controllerId: HUMAN,
+                ownerId: HUMAN,
+                zone: "graveyard",
+            })
+        );
+        return state;
+    },
     // CR 400.11b (issue #6523) — a Wish's "you may reveal a sorcery card you
     // own from outside the game": two sorceries of different worth in the
     // bot's outside-the-game holder, both on the allow-list, so taking one

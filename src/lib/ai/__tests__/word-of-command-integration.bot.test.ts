@@ -37,6 +37,7 @@ import {
 } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
 import { decideBotAction } from "../brain";
+import { consultBrain } from "../brain-client";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
@@ -114,7 +115,13 @@ async function driveBotChoice(state: GameState): Promise<string> {
     const projected = projectPublicState(state, 1, BOT);
     const view = buildBotView(projected, BOT);
     const action = decideBotAction(view);
-    const move = botActionToMove(action, projected, BOT);
+    // A generator-covered choice (the cast spell's target, issue #9148) is a
+    // search node: the driver consults the search exactly as here —
+    // `consultBrain` runs the Worker's inline search when no Worker exists.
+    const move =
+        action.kind === "search-choice"
+            ? (await consultBrain(projected, BOT, { iterations: 24 })).move
+            : botActionToMove(action, projected, BOT);
     if (!move) {
         throw new Error(
             `bot owes no resolution move for choice kind ${
@@ -190,7 +197,7 @@ describe("Word of Command — bot controls it (Acting Player = bot, #581)", () =
         expect(await driveBotChoice(state)).toBe("resolution-choice");
         // 2) Target pick for the controlled Bolt (any-target → choose-damage-target).
         expect(state.pendingChoices?.[0]?.kind).toBe("choose-damage-target");
-        expect(await driveBotChoice(state)).toBe("resolution-choice");
+        expect(await driveBotChoice(state)).toBe("search-choice");
 
         // No freeze: the choice queue drained.
         expect(state.pendingChoices).toBeUndefined();
