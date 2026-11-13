@@ -80,6 +80,7 @@ import {
     getAbilityManaSubstitutions,
     getCostModifiers,
     applyCostModifiers,
+    absorbRaiseIntoFoldedMana,
     getStaticAdditionalSacrifices,
     emitBecameTargetEvents,
     emitPermanentTapped,
@@ -5538,7 +5539,7 @@ export function finalizeTargetSelection(
     // against the printed card (PR #3302 review finding 1: Mana Matrix reduced
     // Petty Theft at the gate and not here, parking an unpayable cast; Thalia
     // taxed it at the gate and not here, undercharging it).
-    applyCostModifiers(
+    const raisedToFloor = applyCostModifiers(
         manaCost,
         // CR 601.2a — the CASTER, explicitly (see `announcerId`): this total
         // must equal the gate's, which names the caster too.
@@ -5569,6 +5570,11 @@ export function finalizeTargetSelection(
     for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
         if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
     }
+    absorbRaiseIntoFoldedMana(
+        manaCost,
+        raisedToFloor,
+        phyrexianPayment.manaAdditions
+    );
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
     // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
     // symbol"). Gate on affordability at announcement; pip count comes from the
@@ -8043,7 +8049,7 @@ export const announceCast = mutation({
             cardDef.flashSurcharge,
             flashSurchargePaid
         );
-        applyCostModifiers(
+        const raisedToFloor = applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell", undefined, player.id)
         );
@@ -8072,6 +8078,11 @@ export const announceCast = mutation({
         for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
             if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
         }
+        absorbRaiseIntoFoldedMana(
+            manaCost,
+            raisedToFloor,
+            phyrexianPayment.manaAdditions
+        );
         // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker joins the
         // Phyrexian life on this cast's single life payment (ADR 0079).
         //
