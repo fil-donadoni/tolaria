@@ -85998,6 +85998,14 @@
         "source": "compiled"
     },
     {
+        "name": "Trinisphere",
+        "scryfallId": "d465597a-362e-4bd0-b547-f11d8807e597",
+        "oracleId": "69d994f2-b8f6-425f-9655-977c2144d40c",
+        "firstSet": "dst",
+        "firstPrintId": "d465597a-362e-4bd0-b547-f11d8807e597",
+        "firstPrintSet": "dst"
+    },
+    {
         "name": "Trip Noose",
         "scryfallId": "1b2b3dd8-cedb-4577-8897-967952dd3c13",
         "oracleId": "456f2991-ab64-41bc-9bd1-a1b1e7993ed6",
