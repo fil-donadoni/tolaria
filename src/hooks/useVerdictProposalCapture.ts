@@ -45,9 +45,8 @@ import {
     reportNoDecisionCaptured,
     reportProposalCounts,
     reportSampleFailed,
-    type JudgeOutcomeTally,
 } from "~/lib/ai/verdict-proposal-telemetry";
-import { consultBrain } from "~/lib/ai/brain-client";
+import { openVerdictJudge } from "~/lib/ai/verdict-judge";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
 export function useVerdictProposalCapture(
@@ -134,28 +133,21 @@ async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
         reportNoDecisionCaptured(gameId);
         return;
     }
-    const judged: JudgeOutcomeTally = {};
+    // The judge's OWN Brain, never the Bot's (issue #9514): on the Bot's
+    // Worker its iteration-only searches left a backlog the next game's Bot
+    // consults timed out behind. Its own channel also outlives the driver's
+    // `disposeBrain()` at the Game 1 → Game 2 swap.
+    const { judge, tally, close } = openVerdictJudge();
     try {
         const { proposeVerdicts } = await import("~/lib/ai/verdict-proposals");
         const list = await proposeVerdicts(
             decisions,
             VERDICT_PROPOSAL_CONFIG,
-            (source, budget, seed) =>
-                consultBrain(
-                    source.state,
-                    source.botId,
-                    budget,
-                    source.knowledge,
-                    undefined,
-                    seed
-                ).then((r) => {
-                    judged[r.outcome] = (judged[r.outcome] ?? 0) + 1;
-                    return r.outcome === "move" ? r.move : null;
-                })
+            judge
         );
         // Why a game offers no review, or a shorter one than expected — to
         // Sentry as well as the console (issue #8732).
-        reportProposalCounts(proposalCountsReport(gameId, list, judged));
+        reportProposalCounts(proposalCountsReport(gameId, list, tally));
         if (capturingGame() === gameId) {
             setVerdictProposals(gameId, list);
         }
@@ -163,5 +155,7 @@ async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
         // A failed sample costs only questions, but it takes the post-game
         // review with it: loud, or nobody can tell why.
         reportSampleFailed(gameId, cause);
+    } finally {
+        close();
     }
 }

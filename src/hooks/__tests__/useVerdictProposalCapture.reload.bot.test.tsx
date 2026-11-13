@@ -20,7 +20,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
     tick: { gameOver: true } as Record<string, unknown> | null,
+    /** The judge channel's consult — what the game-end judge must call. */
     consultBrain: null as unknown as ReturnType<typeof vi.fn>,
+    /** The Bot's own consult: the judge must never reach it (issue #9514). */
+    botConsult: null as unknown as ReturnType<typeof vi.fn>,
+    channels: [] as Array<{ options: unknown; disposed: boolean }>,
 }));
 
 vi.mock("convex/react", () => {
@@ -56,7 +60,27 @@ vi.mock("~/lib/ai/brain-client", () => {
         outcome: "move",
         move: { kind: "pass" },
     }));
-    return { consultBrain: h.consultBrain };
+    h.botConsult = vi.fn(async () => ({
+        outcome: "move",
+        move: { kind: "pass" },
+    }));
+    const JUDGE_CHANNEL = { judge: true };
+    return {
+        consultBrain: h.botConsult,
+        JUDGE_CHANNEL,
+        createBrainChannel: (options: unknown) => {
+            const channel = { options, disposed: false };
+            h.channels.push(channel);
+            return {
+                warm: () => {},
+                prime: () => {},
+                consult: h.consultBrain,
+                dispose: () => {
+                    channel.disposed = true;
+                },
+            };
+        },
+    };
 });
 
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
@@ -217,6 +241,8 @@ beforeEach(() => {
     setProposalStorageForTest(storage);
     h.tick = { gameOver: true };
     h.consultBrain.mockClear();
+    h.botConsult.mockClear();
+    h.channels.length = 0;
 });
 
 afterEach(() => {
@@ -310,6 +336,19 @@ describe("issue #8889 — the game-over review survives a reload", () => {
             name: "Review your decisions (1)",
         });
         expect(h.consultBrain).toHaveBeenCalled();
+    });
+
+    it("judges on a Brain channel of its own, never the Bot's, and closes it (issue #9514)", async () => {
+        const { human, bot } = await captureLandDrop();
+        renderGameOver(human, bot);
+        await screen.findByRole("button", {
+            name: "Review your decisions (1)",
+        });
+        expect(h.consultBrain).toHaveBeenCalled();
+        expect(h.botConsult).not.toHaveBeenCalled();
+        expect(h.channels).toEqual([
+            { options: { judge: true }, disposed: true },
+        ]);
     });
 
     it("a list built before the reload is offered again with the same count, the Brain not consulted again", async () => {

@@ -21,7 +21,13 @@
 //
 // Field evidence (issue #9514, Firefox on macOS): the judge logged
 // `worker-error: 1, timeout: 17`; Game 2's Bot answered its first consult
-// (a land) and then timed out 15 consults of 15 over four minutes.
+// (a land) and then timed out 15 consults of 15 over four minutes. Before the
+// fix this file reproduced exactly that tally.
+//
+// The fix: the judge consults a Brain channel of its own (`verdict-judge.ts`,
+// `createBrainChannel(JUDGE_CHANNEL)`), with a Worker of its own and a timeout
+// sized for an iteration-only search, so it neither stacks its own requests
+// nor shares the Bot's queue, and the driver's dispose does not reach it.
 //
 // The fake Worker reproduces only the scheduling: FIFO, one request at a time,
 // each occupying it for a service time derived from its budget. The judge's
@@ -32,12 +38,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
 import { DIFFICULTY_BUDGETS } from "@convex/gre/difficulty";
 import type { SearchBudget } from "@convex/gre/search";
-import {
-    BRAIN_CONSULT_TIMEOUT_MS,
-    consultBrain,
-    disposeBrain,
-} from "../brain-client";
+import { consultBrain, disposeBrain } from "../brain-client";
 import { VERDICT_PROPOSAL_CONFIG } from "../verdict-proposal-config";
+import { openVerdictJudge } from "../verdict-judge";
 
 /** A judge search on a slow device: longer than the consult timeout. */
 const JUDGE_SEARCH_MS = 8_000;
@@ -93,55 +96,56 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-/** The judge's loop shape (`proposeVerdicts`): one consult per decision,
- *  each awaited before the next is posted, at the fixed iteration budget. */
-async function gameEndJudge(outcomes: string[]): Promise<void> {
-    for (let i = 0; i < JUDGED_DECISIONS; i++) {
-        const result = await consultBrain(
-            STATE,
-            BOT,
-            { iterations: VERDICT_PROPOSAL_CONFIG.iterations },
-            undefined,
-            undefined,
-            VERDICT_PROPOSAL_CONFIG.seed
-        );
-        outcomes.push(result.outcome);
+/** The judge's loop shape (`proposeVerdicts`), through the judge's real
+ *  Brain (`openVerdictJudge`, what `useVerdictProposalCapture` runs): one
+ *  consult per decision, each awaited before the next is posted, at the fixed
+ *  iteration budget. */
+async function gameEndJudge(): Promise<Record<string, number>> {
+    const { judge, tally, close } = openVerdictJudge();
+    try {
+        for (let i = 0; i < JUDGED_DECISIONS; i++) {
+            await judge(
+                { state: STATE, botId: BOT },
+                { iterations: VERDICT_PROPOSAL_CONFIG.iterations },
+                VERDICT_PROPOSAL_CONFIG.seed
+            );
+        }
+    } finally {
+        close();
     }
+    return tally;
 }
 
 /** Game 1 ends (the judge starts), Game 2 replaces it a second later (the
- *  driver disposes the Brain), and Game 2's Bot consults the Brain every
- *  {@link BOT_CONSULT_EVERY_MS} at the medium preset until the judge is done
- *  and for as long again. */
+ *  driver disposes the Bot's Brain), and Game 2's Bot consults the Brain every
+ *  {@link BOT_CONSULT_EVERY_MS} at the medium preset for as long as the
+ *  judge's backlog took to drain in the field, twice over. */
 async function bo3GameOneToGameTwo(): Promise<{
-    judge: string[];
+    judge: Record<string, number>;
     bot: string[];
 }> {
-    const judge: string[] = [];
-    const judging = gameEndJudge(judge);
+    const judging = gameEndJudge();
     await vi.advanceTimersByTimeAsync(1_000);
     disposeBrain();
 
     const bot: string[] = [];
-    const window = 2 * JUDGED_DECISIONS * (BRAIN_CONSULT_TIMEOUT_MS + 1);
+    const window = 2 * JUDGED_DECISIONS * JUDGE_SEARCH_MS;
     for (let t = 0; t < window; t += BOT_CONSULT_EVERY_MS) {
         const consult = consultBrain(STATE, BOT, DIFFICULTY_BUDGETS.medium);
         await vi.advanceTimersByTimeAsync(BOT_CONSULT_EVERY_MS);
         bot.push((await consult).outcome);
     }
-    await judging;
-    return { judge, bot };
+    return { judge: await judging, bot };
 }
 
-describe("a timed-out consult leaves no backlog in the Worker (issue #9514)", () => {
-    it("reproduces the field's judge tally: one disposed consult, then timeouts", async () => {
-        const { judge } = await bo3GameOneToGameTwo();
-        expect(judge[0]).toBe("worker-error");
-        expect(judge.slice(1).every((o) => o === "timeout")).toBe(true);
-    });
-
+describe("the game-end judge never stands between the Bot and its next decision (issue #9514)", () => {
     it("answers every Game 2 Bot consult while the Game 1 judge runs and after", async () => {
         const { bot } = await bo3GameOneToGameTwo();
         expect(bot.filter((o) => o !== "move")).toEqual([]);
+    });
+
+    it("lets the judge answer every decision across the Game 1 → Game 2 swap", async () => {
+        const { judge } = await bo3GameOneToGameTwo();
+        expect(judge).toEqual({ move: JUDGED_DECISIONS });
     });
 });
