@@ -19,9 +19,15 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../game";
 import { normalizeManaCost, resolveTopOfStack, type GameState } from "../state";
-import { getAllCards, getCardByName, getDefinition } from "../../cards";
+import {
+    getAllCards,
+    getCardByName,
+    getDefinition,
+    preloadDefinitions,
+} from "../../cards";
 import { raugrinTriome } from "../../cards/sets/iko/colorless.cards";
 import { cyclingAbility } from "../../cards/abilities/cycling";
+import { streetWraith } from "../../cards/sets/fut/black.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { trollOfKhazadDum } from "../../cards/sets/ltr/black.cards";
 import { lorienRevealed } from "../../cards/sets/ltr/blue.cards";
@@ -181,6 +187,48 @@ describe("cycling (CR 702.29)", () => {
 // ability ("Op 'choice' suspends for player input"), which is exactly the
 // signal to hand-write the suspension/resume coverage here.
 // ---------------------------------------------------------------------------
+describe("life-cost cycling (CR 702.29a, 119.4)", () => {
+    function setup(life: number) {
+        // A new card is absent from a clean-tree registry; preload it.
+        preloadDefinitions([streetWraith()]);
+        const wraith = makeInstance(streetWraith().id, {
+            id: "wraith-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const top = makeInstance(grizzlyBears().id, {
+            id: "lib-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [wraith], library: [top], life }),
+                makePlayer("p2"),
+            ],
+        });
+        return state;
+    }
+
+    it("Street Wraith pays 2 life, discards itself, and draws a card", () => {
+        const state = setup(20);
+        const result = cycleFromHand(
+            state,
+            "p1",
+            "wraith-1",
+            streetWraith().id
+        );
+        expect(result).not.toBeNull();
+        const p1 = state.players[0];
+        expect(p1.life).toBe(18);
+        expect(p1.graveyard.some((c) => c.id === "wraith-1")).toBe(true);
+        resolveTopOfStack(state);
+        expect(p1.hand.some((c) => c.id === "lib-1")).toBe(true);
+    });
+});
+
 describe("typecycling (CR 702.29e/f)", () => {
     const SWAMP = getCardByName("Swamp").id;
     const ISLAND = getCardByName("Island").id;
