@@ -17872,6 +17872,14 @@
         "source": "compiled"
     },
     {
+        "name": "Damping Sphere",
+        "scryfallId": "a5c7d16b-8f4e-42b9-be24-3cb091932d7c",
+        "oracleId": "fd50d76c-7654-47b9-a5b6-d075874e4357",
+        "firstSet": "dom",
+        "firstPrintId": "a5c7d16b-8f4e-42b9-be24-3cb091932d7c",
+        "firstPrintSet": "dom"
+    },
+    {
         "name": "Dance of Many",
         "scryfallId": "13453abe-3f05-4956-8493-382d7d2af699",
         "oracleId": "72e1a239-11a7-4dbe-b093-65d395e3ccc9",

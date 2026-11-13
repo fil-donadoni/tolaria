@@ -152,3 +152,31 @@ export const karnScionOfUrza = defineCard(() => ({
         },
     ],
 }));
+
+// Damping Sphere — {2} Artifact. "If a land is tapped for two or more mana, it
+// produces {C} instead of any other type and amount.\nEach spell a player casts
+// costs {1} more to cast for each other spell that player has cast this turn."
+// Two global statics: the land clause is a `collapseMultiMana` land-mana
+// substitution (CR 614.1a — an "instead" replacement, read live by the
+// `applyLandManaReplacement` funnel); the tax is a `cost-modifier` (CR 601.2f)
+// scaled by the announcer's spells cast so far this turn, so the first spell
+// owes nothing. Both reach every player, the Sphere's controller included.
+// hand-tail: Each spell a player casts costs {1} more to cast for each other spell that player has cast this turn. (#8612)
+export const dampingSphere = defineCard(() => ({
+    id: "a5c7d16b-8f4e-42b9-be24-3cb091932d7c",
+    name: "Damping Sphere",
+    rarity: "uncommon",
+    oracleText:
+        "If a land is tapped for two or more mana, it produces {C} instead of any other type and amount.\nEach spell a player casts costs {1} more to cast for each other spell that player has cast this turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    landManaSubstitution: { collapseMultiMana: "C" },
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: () => true,
+            costIncrease: { X: 1 },
+            perOtherSpellCastByAnnouncerThisTurn: true,
+        },
+    ],
+}));

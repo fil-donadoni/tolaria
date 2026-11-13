@@ -2185,7 +2185,9 @@ export function tapSourceIntoPayment(
     // `refundFixedManaOutput` fallback cannot express it.
     if (
         !isSacrifice &&
-        (!manaColor || dynamic || added[manaColor] === undefined)
+        (!manaColor ||
+            dynamic ||
+            (added[manaColor] ?? 0) < (base[manaColor] ?? 0))
     ) {
         card.chosenMana = added;
     }
@@ -14079,26 +14081,33 @@ export const tapUntap = mutation({
                         // production-colour replacement; a rewritten colour is
                         // snapshotted so every untap site refunds what was
                         // actually added (`refundChosenManaOutput`).
-                        const added = replaceProducedManaColor(
+                        // CR 614.1 — the land-mana funnel as well, so a
+                        // multi-mana tap collapses (Damping Sphere) like the
+                        // payment-path tap does; the collapsed amount is
+                        // snapshotted too so an untap refunds what was added.
+                        const added = applyLandManaReplacement(
                             state,
                             player.id,
+                            card,
                             { [manaColor]: amount } as ManaCost
                         );
                         const addedColor =
                             (MANA_COLORS.find((c) => (added[c] ?? 0) > 0) as
                                 | Color
                                 | undefined) ?? manaColor;
-                        if (addedColor !== manaColor) card.chosenMana = added;
+                        const addedAmount = added[addedColor] ?? amount;
+                        if (addedColor !== manaColor || addedAmount < amount)
+                            card.chosenMana = added;
                         addRestrictedManaToPool(
                             player,
                             addedColor,
-                            amount,
+                            addedAmount,
                             restriction ?? undefined,
                             undefined,
                             fixedRiders
                         );
                         producedThisActivation = {
-                            [addedColor]: amount,
+                            [addedColor]: addedAmount,
                         } as ManaCost;
                         emitPermanentTapped(
                             state,
@@ -14131,7 +14140,8 @@ export const tapUntap = mutation({
                             [manaColor]: amount,
                         } as ManaCost
                     );
-                    const replaced = added[manaColor] === undefined;
+                    // A rewritten colour OR a collapsed amount (Damping Sphere).
+                    const replaced = (added[manaColor] ?? 0) < amount;
                     if (isDynamic || replaced) {
                         card.chosenMana = added;
                     }
