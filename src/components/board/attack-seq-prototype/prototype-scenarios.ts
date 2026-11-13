@@ -1,6 +1,6 @@
 // PROTOTYPE (issue #9500) — REAL scenarios the switcher loads into the current
-// game (debugSetupScenario), opened in DECLARE_ATTACKERS so "Attack with all"
-// starts the sequence at once. Two identical Grizzly Bears on purpose: the
+// game (debugSetupScenario), opened at BEGINNING_OF_COMBAT (owner, 2026-11-13):
+// pass priority into declare attackers, then "Attack with all". Two identical Grizzly Bears on purpose: the
 // banner's name alone cannot tell them apart.
 const LANDS = [
     { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
@@ -16,7 +16,7 @@ export const PROTO_SCENARIOS: ProtoScenario[] = [
         key: "5v2pw",
         label: "5 attackers (2x Grizzly Bears) vs Jace + Liliana",
         spec: {
-            phase: "DECLARE_ATTACKERS",
+            phase: "BEGINNING_OF_COMBAT",
             turn: 6,
             cards: [
                 ...LANDS,
@@ -42,7 +42,7 @@ export const PROTO_SCENARIOS: ProtoScenario[] = [
         key: "2v1pw",
         label: "2 attackers vs Chandra",
         spec: {
-            phase: "DECLARE_ATTACKERS",
+            phase: "BEGINNING_OF_COMBAT",
             turn: 6,
             cards: [
                 ...LANDS,

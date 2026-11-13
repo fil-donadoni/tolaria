@@ -9,7 +9,7 @@
 // on the board + click any attacker to choose for it · C a clickable queue
 // strip with each attacker's chosen target · D a target menu on the creature.
 // The bar's "load" buttons put a REAL scenario into the current game, opened
-// in DECLARE_ATTACKERS: press "Attack with all" to start the sequence.
+// at BEGINNING_OF_COMBAT: pass, then "Attack with all" starts the sequence.
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
