@@ -54,6 +54,7 @@ export const CAPABILITY_CLUSTERS = [
     "Reanimator / graveyard",
     "Cheat into play",
     "Artifacts",
+    "Spells",
 ] as const;
 
 export type CapabilityCluster = (typeof CAPABILITY_CLUSTERS)[number];
@@ -237,6 +238,21 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         example: { provider: "Mox Pearl", requirer: "Tolarian Academy" },
         description:
             "PROVIDES: a low mana-value artifact whose primary draft value is filling the artifact-count column for an artifact-count payoff (Moxen, Signets, cantrip artifacts) rather than its standalone rate. REQUIRES: an artifact-count/Metalcraft payoff card (its cost or effect scales with artifacts controlled) declares this directly, by name, in ITS OWN `requires` array — there is no separate 'artifact-payoff' capability name, matching the `self-mills`/`discard-outlet` discipline above.",
+    },
+
+    // ── Spells cluster ───────────────────────────────────────────────────
+    {
+        id: "cheap-spell",
+        cluster: "Spells",
+        gloss: {
+            provides:
+                "A cheap instant or sorcery (mana value ≤ 2) cast often in a game.",
+            requires:
+                "Prowess, a noncreature-cast trigger or a spell rebuy needs these beside it.",
+        },
+        example: { provider: "Lightning Bolt", requirer: "Snapcaster Mage" },
+        description:
+            "PROVIDES: an instant or sorcery with mana value 2 or less — cheap enough that a deck casts it, often more than one a turn, across a normal game, and worth its card on resolution (Lightning Bolt deals its 3 damage and feeds a prowess trigger on the way). Distinct from `value-on-cast`, which pays the moment it is cast whether or not it resolves (the storm/cascade feeder): Lightning Bolt does not provide that row, yet it is exactly what this row's requirers want. REQUIRES: a card that pays off CASTING instants and sorceries or noncreature spells (prowess, magecraft, a 'whenever you cast a noncreature spell' trigger) or that replays or copies them (Snapcaster Mage granting one flashback, Lutri copying one on the stack) requires this from the spells beside it — it is worth its cost only with cheap instants and sorceries in the deck, whatever plan the deck carries.",
     },
 ];
 
