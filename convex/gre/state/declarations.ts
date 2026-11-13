@@ -6581,6 +6581,10 @@ export interface CostModifiers {
     /** Largest `minTotalMana` among matching reduction effects (CR 601.2f /
      *  118.7 — the cost can't drop below this many total mana). 0 = no floor. */
     minTotalMana: number;
+    /** Largest `raiseTotalCostTo` among matching effects (CR 601.2f — the
+     *  total cost is raised to at least this many mana once every increase and
+     *  reduction is applied, Trinisphere). 0 = no floor. */
+    raiseTotalTo: number;
 }
 
 /** One resolved static NON-mana additional-cost requirement (CR 601.2f / 118.5,

@@ -25824,6 +25824,7 @@ export function getCostModifiers(
     }
     let reductionGeneric = 0;
     let minTotalMana = 0;
+    let raiseTotalTo = 0;
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
@@ -25883,6 +25884,12 @@ export function getCostModifiers(
                     for (const [k, v] of Object.entries(norm)) {
                         increase[k] = (increase[k] ?? 0) + v * times;
                     }
+                }
+                if (
+                    effect.raiseTotalCostTo !== undefined &&
+                    effect.raiseTotalCostTo > raiseTotalTo
+                ) {
+                    raiseTotalTo = effect.raiseTotalCostTo;
                 }
                 if (effect.costReduction) {
                     reductionGeneric += resolveCostReductionGeneric(
@@ -26014,7 +26021,7 @@ export function getCostModifiers(
             );
         }
     }
-    return { increase, reductionGeneric, minTotalMana };
+    return { increase, reductionGeneric, minTotalMana, raiseTotalTo };
 }
 
 /** Count of `color` mana SYMBOLS in a printed mana cost — colored pips only.
@@ -26467,7 +26474,7 @@ export function consumeSpellManaSubstitutionGrant(
 
 /** Apply accumulated cost modifiers to a base normalized cost (mutates),
  *  CR 601.2f. Order: increases first, then generic reductions, then the
- *  total-mana floor. Only the generic portion (`X`) is reducible — colored
+ *  total-mana floor, then the `raiseTotalTo` raise (Trinisphere). Only the generic portion (`X`) is reducible — colored
  *  pips are never removed by a generic reduction. The floor guarantees the
  *  post-reduction total mana (generic + every colored pip) is at least
  *  `minTotalMana`, so Power Artifact's "can't reduce below one mana" holds
@@ -26505,6 +26512,18 @@ export function applyCostModifiers(
         }
         takeGenericPoints(baseCost, generic - reduced);
         if (!baseCost.X) delete baseCost.X;
+    }
+    // CR 601.2f — "any effects that directly affect the total cost are applied"
+    // once the total is determined, i.e. after every increase and reduction
+    // (Trinisphere). Raises with generic mana; never lowers a cost.
+    if (modifiers.raiseTotalTo > 0) {
+        const total = Object.values(baseCost).reduce(
+            (sum, v) => (typeof v === "number" ? sum + v : sum),
+            0
+        );
+        if (total < modifiers.raiseTotalTo) {
+            baseCost.X = (baseCost.X ?? 0) + (modifiers.raiseTotalTo - total);
+        }
     }
 }
 
