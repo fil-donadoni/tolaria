@@ -69,6 +69,13 @@ const EXEMPT: Record<string, string> = {
     // Issue #9271, ADR 0180: the check:ui seam's echo page.
     "src/routes/ui-seam/ui-seam-echo.route.tsx":
         "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it prints a parameter for the lane to read",
+    // Issue #9272: the seam's deep links. Each runs one server shortcut and
+    // routes on to the screen the lane measures (the board, the Limited Deck
+    // Archive); the page itself is a status line nobody sees for long.
+    "src/routes/ui-seam/ui-seam-position.route.tsx":
+        "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it loads a declared position and routes to /game, which the game surfaces measure",
+    "src/routes/ui-seam/ui-seam-limited-deck.route.tsx":
+        "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it saves a Limited fixture seat's deck and routes to /limited/decks, which limited-deck-archive measures",
 };
 
 /**

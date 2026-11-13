@@ -68,3 +68,63 @@ export function pickUiSeamParams(
     }
     return out;
 }
+
+/** The declared-position deep link (issue #9272): loads a `debugScenarios`
+ *  row into the lane's own solo game (`uiSeam.loadPosition`), then routes to
+ *  the board — the Debug sheet's Scenarios load in one navigation. */
+export const UI_SEAM_POSITION_PATH = "/__uiseam/position";
+
+/** The position deep link's label: the `debugScenarios` row to load. */
+export const UI_SEAM_POSITION_PARAM = "__uiseam_position";
+
+/** The position deep link's repeat guard, `<gameId>@<seq>`: the game and
+ *  `seq` an earlier load of the SAME label returned. That game still standing
+ *  at that `seq` means nothing was saved since, so the position is not rebuilt
+ *  (`uiSeam.loadPosition`). */
+export const UI_SEAM_UNLESS_AT_PARAM = "__uiseam_unless_at";
+
+/** The `sessionStorage` key the position page records its last load under,
+ *  `{ label, gameId, seq, loaded }` — how the lane learns the guard to pass
+ *  back as {@link UI_SEAM_UNLESS_AT_PARAM} on the next row's load. */
+export const UI_SEAM_POSITION_RECORD_KEY = "__uiseam_position_record";
+
+/** What the position page stores under {@link UI_SEAM_POSITION_RECORD_KEY}. */
+export interface UiSeamPositionRecord {
+    label: string;
+    gameId: string;
+    seq: number;
+    loaded: boolean;
+}
+
+/** The Limited deck deep link (issue #9272): saves the lane's seat of a
+ *  Limited fixture as a Limited deck (`uiSeam.saveLimitedFixtureDeck`), then
+ *  routes to the Limited Deck Archive — a saved deck without driving the
+ *  builder. */
+export const UI_SEAM_LIMITED_DECK_PATH = "/__uiseam/limited-deck";
+
+/** The Limited deck deep link's fixture: the event `label` whose seat is
+ *  saved. */
+export const UI_SEAM_FIXTURE_PARAM = "__uiseam_fixture";
+
+/** The Limited deck deep link's deck name. */
+export const UI_SEAM_DECK_NAME_PARAM = "__uiseam_deck_name";
+
+/**
+ * A seam URL: `path` plus each parameter as a JSON STRING literal. TanStack
+ * JSON-parses every search value, so a bare `12` or `true` would arrive as a
+ * number or a boolean and {@link pickUiSeamParams} would drop it; quoted, it
+ * arrives as the string it was. The lane builds every seam URL here, so the
+ * encoding has one author.
+ */
+export function uiSeamUrl(
+    path: string,
+    params: Record<string, string>
+): string {
+    const query = Object.entries(params)
+        .map(
+            ([key, value]) =>
+                `${encodeURIComponent(key)}=${encodeURIComponent(JSON.stringify(value))}`
+        )
+        .join("&");
+    return query ? `${path}?${query}` : path;
+}

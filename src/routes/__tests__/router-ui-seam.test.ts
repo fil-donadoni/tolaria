@@ -10,12 +10,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     pickUiSeamParams,
+    UI_SEAM_DECK_NAME_PARAM,
     UI_SEAM_ECHO_PARAM,
     UI_SEAM_ECHO_PATH,
+    UI_SEAM_FIXTURE_PARAM,
+    UI_SEAM_LIMITED_DECK_PATH,
     UI_SEAM_MARKER,
     UI_SEAM_PARAM_PREFIX,
+    UI_SEAM_POSITION_PARAM,
+    UI_SEAM_POSITION_PATH,
+    UI_SEAM_POSITION_RECORD_KEY,
     UI_SEAM_ROUTE_PREFIX,
+    UI_SEAM_UNLESS_AT_PARAM,
 } from "@convex/lib/uiSeamNamespace";
+
+/** Every seam route path the router registers in a DEV bundle. */
+const SEAM_PATHS = [
+    UI_SEAM_ECHO_PATH,
+    UI_SEAM_POSITION_PATH,
+    UI_SEAM_LIMITED_DECK_PATH,
+];
 
 async function freshRouter(dev: boolean) {
     vi.resetModules();
@@ -30,17 +44,17 @@ describe("router: check:ui seam routes (issue #9271)", () => {
         vi.resetModules();
     });
 
-    it("registers the echo route in a DEV bundle", async () => {
+    it.each(SEAM_PATHS)("registers %s in a DEV bundle", async (path) => {
         const router = await freshRouter(true);
-        const result = router.getMatchedRoutes(UI_SEAM_ECHO_PATH);
-        expect(result.foundRoute?.id).toBe(UI_SEAM_ECHO_PATH);
+        const result = router.getMatchedRoutes(path);
+        expect(result.foundRoute?.id).toBe(path);
     });
 
     it("leaves every seam path unmatched in a production bundle", async () => {
         const router = await freshRouter(false);
-        expect(router.getMatchedRoutes(UI_SEAM_ECHO_PATH).foundRoute).toBe(
-            undefined
-        );
+        for (const path of SEAM_PATHS) {
+            expect(router.getMatchedRoutes(path).foundRoute).toBe(undefined);
+        }
         const ids = Object.keys(router.routesById);
         expect(ids.filter((id) => id.startsWith(UI_SEAM_ROUTE_PREFIX))).toEqual(
             []
@@ -54,10 +68,21 @@ describe("router: check:ui seam routes (issue #9271)", () => {
     it("spells every seam path and parameter under the one marker", () => {
         expect(UI_SEAM_ROUTE_PREFIX).toBe(`/${UI_SEAM_MARKER}`);
         expect(UI_SEAM_PARAM_PREFIX).toBe(`${UI_SEAM_MARKER}_`);
-        expect(UI_SEAM_ECHO_PATH.startsWith(`${UI_SEAM_ROUTE_PREFIX}/`)).toBe(
-            true
-        );
-        expect(UI_SEAM_ECHO_PARAM.startsWith(UI_SEAM_PARAM_PREFIX)).toBe(true);
+        for (const path of SEAM_PATHS) {
+            expect(path.startsWith(`${UI_SEAM_ROUTE_PREFIX}/`)).toBe(true);
+        }
+        for (const key of [
+            UI_SEAM_ECHO_PARAM,
+            UI_SEAM_POSITION_PARAM,
+            UI_SEAM_UNLESS_AT_PARAM,
+            UI_SEAM_FIXTURE_PARAM,
+            UI_SEAM_DECK_NAME_PARAM,
+            // Not a URL parameter, but a seam spelling all the same: the
+            // `sessionStorage` key the position page records under.
+            UI_SEAM_POSITION_RECORD_KEY,
+        ]) {
+            expect(key.startsWith(UI_SEAM_PARAM_PREFIX)).toBe(true);
+        }
     });
 
     it("keeps only string parameters under the reserved prefix", () => {

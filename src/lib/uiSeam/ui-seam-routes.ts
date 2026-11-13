@@ -18,6 +18,8 @@ import {
 import {
     pickUiSeamParams,
     UI_SEAM_ECHO_PATH,
+    UI_SEAM_LIMITED_DECK_PATH,
+    UI_SEAM_POSITION_PATH,
 } from "@convex/lib/uiSeamNamespace";
 
 export function buildUiSeamRoutes(rootRoute: AnyRoute): AnyRoute[] {
@@ -32,5 +34,34 @@ export function buildUiSeamRoutes(rootRoute: AnyRoute): AnyRoute[] {
             () => import("~/routes/ui-seam/ui-seam-echo.route")
         ),
     });
-    return [echoRoute as unknown as AnyRoute];
+    // Issue #9272: a declared position loaded into the lane's own solo game,
+    // then the board. The page itself renders one status line; the board it
+    // routes to carries its own catalogue gate.
+    const positionRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: UI_SEAM_POSITION_PATH,
+        staticData: { lightSurface: true },
+        validateSearch: (search: Record<string, unknown>) =>
+            pickUiSeamParams(search),
+        component: lazyRouteComponent(
+            () => import("~/routes/ui-seam/ui-seam-position.route")
+        ),
+    });
+    // Issue #9272: a Limited fixture seat saved as a deck, then the Limited
+    // Deck Archive.
+    const limitedDeckRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: UI_SEAM_LIMITED_DECK_PATH,
+        staticData: { lightSurface: true },
+        validateSearch: (search: Record<string, unknown>) =>
+            pickUiSeamParams(search),
+        component: lazyRouteComponent(
+            () => import("~/routes/ui-seam/ui-seam-limited-deck.route")
+        ),
+    });
+    return [
+        echoRoute as unknown as AnyRoute,
+        positionRoute as unknown as AnyRoute,
+        limitedDeckRoute as unknown as AnyRoute,
+    ];
 }
