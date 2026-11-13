@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import {
+    CONVEX_ENGINE_NODE_BUNDLE_BUDGET_BYTES,
     CONVEX_NODE_BUNDLE_BUDGET_BYTES,
+    ENGINE_NODE_ENTRY_POINTS,
     measureConvexNodeBundle,
 } from "../lib/convex-bundle-size";
 
@@ -31,6 +33,12 @@ import {
  *     the hand-written sets and the engine come with it).
  *
  * It runs in the light lane: one esbuild pass over one entry point, ~1 s.
+ *
+ * ONE sanctioned exception (issue #9528): the entries in
+ * `ENGINE_NODE_ENTRY_POINTS` run the engine on the server (the game-end
+ * Verdict Proposal judge), which needs the catalogue. They are left out of the
+ * two checks above — every other node entry is still held to them — and held
+ * instead to a budget of their own, measured alone.
  */
 
 const CONVEX_DIR = resolve(__dirname, "../../convex");
@@ -49,7 +57,9 @@ const FORBIDDEN = [
 
 describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
     it("reaches neither the compiled pool nor the registry that imports it", async () => {
-        const m = await measureConvexNodeBundle(CONVEX_DIR);
+        const m = await measureConvexNodeBundle(CONVEX_DIR, {
+            exclude: ENGINE_NODE_ENTRY_POINTS,
+        });
 
         // A vacuous pass is the one way this guard fails silently: delete the
         // last `"use node"` file and every assertion below holds trivially.
@@ -72,7 +82,9 @@ describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
     });
 
     it("stays under a budget one re-entry of the pool could not fit beneath", async () => {
-        const m = await measureConvexNodeBundle(CONVEX_DIR);
+        const m = await measureConvexNodeBundle(CONVEX_DIR, {
+            exclude: ENGINE_NODE_ENTRY_POINTS,
+        });
         expect(
             m.totalBytes,
             `the \`use node\` half is ${m.totalBytes.toLocaleString("en-US")} B against a budget of ` +
@@ -80,5 +92,17 @@ describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
                 `Something large entered the Node graph; ` +
                 `\`bun run check:convex-bundle\` will show it in the total.`
         ).toBeLessThanOrEqual(CONVEX_NODE_BUNDLE_BUDGET_BYTES);
+    });
+
+    it("the engine-carrying node entries stay under their own budget (issue #9528)", async () => {
+        const m = await measureConvexNodeBundle(CONVEX_DIR, {
+            only: ENGINE_NODE_ENTRY_POINTS,
+        });
+        expect(m.entryPoints).toEqual([...ENGINE_NODE_ENTRY_POINTS]);
+        expect(
+            m.totalBytes,
+            `the engine-carrying \`use node\` graph is ${m.totalBytes.toLocaleString("en-US")} B ` +
+                `against a budget of ${CONVEX_ENGINE_NODE_BUNDLE_BUDGET_BYTES.toLocaleString("en-US")} B.`
+        ).toBeLessThanOrEqual(CONVEX_ENGINE_NODE_BUNDLE_BUDGET_BYTES);
     });
 });

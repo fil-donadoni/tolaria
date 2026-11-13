@@ -533,6 +533,14 @@ The rule it encodes, for any future Node action: **a `"use node"` module pays
 for its whole import graph a second time.** Reach shared server state through
 `ctx.runQuery`, not through an import.
 
+One sanctioned exception (issue #9528): a Node action that RUNS the engine — the
+game-end Verdict Proposal judge, `convex/verdictJudge.ts` — needs the
+definitions in its own graph, and pays for them on purpose: 11,494,696 B
+measured alone, moving the push from ~23.7 MB to ~35.1 MB (~10.4 MB zipped).
+Such entries are listed in `ENGINE_NODE_ENTRY_POINTS`
+(`scripts/lib/convex-bundle-size.ts`), left out of the two checks above and
+held to a budget of their own, 16 MiB, measured alone.
+
 ## Amendment III (2026-09-20) — the ceiling was never tested, and the corpus stays resident, packed
 
 Amendments I and II reasoned from a 32 MiB hard ceiling. Nobody had watched

@@ -527,6 +527,31 @@ export function assessConvexBundle(
 export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
 /**
+ * The `"use node"` entry points that run the ENGINE, and so carry the card
+ * catalogue into the node graph on purpose — the one sanctioned exception to
+ * the seam above. The game-end Verdict Proposal judge runs a Brain search on
+ * the server, and a search needs the engine and the definitions; the default
+ * runtime's per-call memory cannot hold a search on top of them, so it is a
+ * Node action (issue #9528). Every OTHER node entry stays held to the seam and
+ * to {@link CONVEX_NODE_BUNDLE_BUDGET_BYTES}.
+ */
+export const ENGINE_NODE_ENTRY_POINTS: readonly string[] = [
+    "convex/verdictJudge.ts",
+];
+
+/**
+ * Budget on the engine-carrying node entries' graph, measured alone (issue
+ * #9528). Measured at 11,494,696 B on 2026-11-13: the engine, the
+ * hand-written sets and the packed corpus, a second time — which moves the
+ * whole push from ~23.7 MB to ~35.1 MB (~10.4 MB zipped), past the documented
+ * 32 MiB `check:convex-bundle` warns about and far under the enforced
+ * ceilings. 16 MiB is ~1.46x the measurement — room for the corpus and the
+ * engine to grow — and less than one more copy of the catalogue, so a second
+ * engine entry or a doubled corpus inside this graph still reds.
+ */
+export const CONVEX_ENGINE_NODE_BUNDLE_BUDGET_BYTES = 16 * 1024 * 1024;
+
+/**
  * The `"use node"` half of the push, on its own — entry points, the esbuild
  * INPUTS its graph pulled in, and its bytes (issue #3444).
  *
@@ -542,7 +567,12 @@ export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
  * the graph) and by EFFECT (how many bytes), that the cut stays cut —
  * `scripts/__tests__/convex-node-bundle-seam.test.ts`.
  */
-export async function measureConvexNodeBundle(convexDir: string): Promise<{
+export async function measureConvexNodeBundle(
+    convexDir: string,
+    /** Which `"use node"` entries to bundle, by repo-relative path: all of
+     *  them by default, `exclude` drops some, `only` keeps just those. */
+    select: { exclude?: readonly string[]; only?: readonly string[] } = {}
+): Promise<{
     /** `"use node"` entry points, repo-relative. Empty means the guard reading
      *  this is vacuous, and it must say so rather than pass. */
     entryPoints: string[];
@@ -552,12 +582,18 @@ export async function measureConvexNodeBundle(convexDir: string): Promise<{
     /** Source + source-map bytes of the node half alone. */
     totalBytes: number;
 }> {
-    const node = discoverEntryPoints(convexDir).filter((fpath) =>
-        USE_NODE_DIRECTIVE.test(readFileSync(fpath, "utf8"))
+    const repoRelative = (f: string) =>
+        relative(join(convexDir, ".."), f).split(sep).join("/");
+    const node = discoverEntryPoints(convexDir).filter(
+        (fpath) =>
+            USE_NODE_DIRECTIVE.test(readFileSync(fpath, "utf8")) &&
+            !select.exclude?.includes(repoRelative(fpath)) &&
+            (select.only === undefined ||
+                select.only.includes(repoRelative(fpath)))
     );
     const built = await build(convexDir, node, "node", join("_deps", "node"));
     return {
-        entryPoints: node.map((f) => relative(join(convexDir, ".."), f)),
+        entryPoints: node.map(repoRelative),
         inputs: built.inputs,
         totalBytes: built.source + built.map,
     };

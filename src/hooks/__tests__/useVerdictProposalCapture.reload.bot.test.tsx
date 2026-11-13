@@ -19,13 +19,21 @@
 // one call per sampled decision, never a Brain on this device — and a call the
 // server refuses or that fails costs that decision, not the game-end path.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+    type Mock,
+} from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
     tick: { gameOver: true } as Record<string, unknown> | null,
     /** The server judge action — what the game-end judge must call. */
-    action: null as unknown as ReturnType<typeof vi.fn>,
+    action: null as unknown as Mock<(...args: unknown[]) => Promise<unknown>>,
     /** Every export of the client Brain: the judge must reach none. */
     brain: {} as Record<string, ReturnType<typeof vi.fn>>,
     /** Workers constructed: the judge must spawn none. */
