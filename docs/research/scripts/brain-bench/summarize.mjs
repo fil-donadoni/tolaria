@@ -75,6 +75,7 @@ function engines() {
             console.log(
                 row(
                     "K",
+                    "device ms per iteration",
                     "stopped by time",
                     "iterations completed (all searches)",
                     "median search completes",
@@ -82,7 +83,7 @@ function engines() {
                     "past the consult timeout"
                 )
             );
-            console.log(row("---", "---", "---", "---", "---", "---"));
+            console.log(row("---", "---", "---", "---", "---", "---", "---"));
             for (const scale of data.scales) {
                 const at = rows.filter(
                     (r) => r.scale === scale && r.completed !== null
@@ -91,14 +92,21 @@ function engines() {
                 const full = new Map(
                     data.cost.map((r) => [r.index, r.completed])
                 );
+                // …and no more than this preset asks for.
+                const goal = (r) =>
+                    Math.min(full.get(r.index), budget.iterations);
                 const ratios = at.map((r) =>
-                    Math.min(1, r.completed / full.get(r.index))
+                    Math.min(1, r.completed / goal(r))
                 );
-                const completed = at.reduce((s, r) => s + r.completed, 0);
-                const wanted = at.reduce((s, r) => s + full.get(r.index), 0);
+                const completed = at.reduce(
+                    (s, r) => s + Math.min(r.completed, goal(r)),
+                    0
+                );
+                const wanted = at.reduce((s, r) => s + goal(r), 0);
                 console.log(
                     row(
                         `${scale}x`,
+                        fmt(scale * median(perIteration), 1),
                         `${at.filter((r) => r.stoppedBy === "time").length} / ${at.length}`,
                         pct(completed / wanted),
                         pct(median(ratios)),
@@ -151,7 +159,7 @@ function engines() {
 function browsers() {
     const data = read(files[0]);
     console.log(
-        `\n${data.cpu}, ${data.cores} cores${data.backgroundQos ? ", browsers under background QoS (efficiency cores only)" : ""}; ${data.positions.length} positions, ${data.iterations} iterations, ${data.rounds - 1} measured rounds.\n`
+        `\n${data.cpu}, ${data.cores} cores; ${data.positions.length} positions, ${data.iterations} iterations, ${data.rounds - 1} measured rounds.\n`
     );
     for (const e of data.engines) {
         console.log(

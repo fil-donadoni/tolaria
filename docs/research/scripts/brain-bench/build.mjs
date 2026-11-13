@@ -20,7 +20,10 @@ await build({
     format: "iife",
     platform: "browser",
     target: "es2022",
-    keepNames: true,
+    // No `keepNames`: its `__name` helper runs at every closure creation and
+    // took 5–7% of a search in the profile. Nothing is minified, so function
+    // names survive without it — and the app's own Worker chunk has no such
+    // helper either.
     outfile,
     logLevel: "warning",
 });

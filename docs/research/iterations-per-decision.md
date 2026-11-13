@@ -200,6 +200,10 @@ vitest/gate processes on the same host — see Caveats):
   is meaningfully slower than this dev machine's V8. The wall-clock
   constraint this document finds mostly slack on desktop-class hardware
   could bind far more often on the actual devices players use.
+- **Both gaps above are taken up in `brain-search-off-the-dev-machine.md`**
+  (issue #9527): `expert`, the three browser engines, and the search on a
+  slower core. It still measures one laptop; real devices are the field
+  report's (issue #9526).
 
 ## Reproduce
 
