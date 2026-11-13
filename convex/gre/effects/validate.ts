@@ -4516,6 +4516,9 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: { player: isPlayerRef },
         optional: {
             cardTypes: (v: unknown) => isStringArray(v, TOKEN_CARD_TYPES),
+            // Negative filter: "noncreature spells" = ["Creature"].
+            excludeCardTypes: (v: unknown) =>
+                isStringArray(v, TOKEN_CARD_TYPES),
         },
     },
     // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
