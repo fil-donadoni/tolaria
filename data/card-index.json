@@ -44408,6 +44408,14 @@
         "source": "compiled"
     },
     {
+        "name": "Kozilek's Command",
+        "scryfallId": "92585587-cfdc-406a-9114-4f6dd8802c37",
+        "oracleId": "2f2c549d-0293-4b9d-b9a8-ff392800f3a5",
+        "firstSet": "mh3",
+        "firstPrintId": "92585587-cfdc-406a-9114-4f6dd8802c37",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Kraken Hatchling",
         "scryfallId": "45d100a3-93f2-428c-8f54-8807e71f2638",
         "oracleId": "08e6c786-d553-4c23-9137-cfad84146739",
