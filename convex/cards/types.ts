@@ -21975,6 +21975,17 @@ export type EffectOp =
            *  later `ref` to it skip its own Op (CR 608.2b, the standard
            *  uncaptured-binding contract). */
           bindSource?: string;
+          /** CR 608.2h — snapshots the target SPELL (its name and its
+           *  controller) as last-known information BEFORE it is countered, so
+           *  a following Op can read `{ ref: "$<name>.name" }` /
+           *  `{ ref: "$<name>.controller" }` after the spell has left the
+           *  stack: "Counter target spell. Its controller …" (Test of
+           *  Talents). The stack item is gone once countered and the engine
+           *  keeps no other last-known-controller table. Written only when the
+           *  spell is still on the stack; an uncaptured binding makes every
+           *  later `ref` skip its own Op (CR 608.2b). A different binding
+           *  from `bindSource`, which names a countered ABILITY's permanent. */
+          bind?: string;
       }
     /** CR 701.6-adjacent (issue #2605) — move the announced target SPELL off
      *  the stack into a zone of its OWNER's, WITHOUT countering it: "return
