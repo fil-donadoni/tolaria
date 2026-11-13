@@ -88,7 +88,7 @@ function cyclingCostLabel(cost: ManaCost): string {
  *  reminder text and the Effect Script body. */
 function cyclingActivationShell(args: {
     id: string;
-    cost: ManaCost;
+    cost: ActivatedAbility["cost"];
     oracleText: string;
     effects: EffectOp[];
 }): ActivatedAbility {
@@ -105,7 +105,7 @@ function cyclingActivationShell(args: {
         // ("typecycling costs are cycling costs") holds structurally: neither
         // public factory can forget it, and nothing downstream has to sniff an
         // ability id or oracle text to recognise a cycling cost.
-        cost: { mana: args.cost, discardThis: true, cyclingCost: true },
+        cost: { ...args.cost, discardThis: true, cyclingCost: true },
         // CR 702.29a — the ability functions only while the card is in hand.
         activateFromHand: true,
         // CR 605 — this is NOT a mana ability; it uses the stack (can be
@@ -127,10 +127,27 @@ export function cyclingAbility(
     const label = cyclingCostLabel(cost);
     return cyclingActivationShell({
         id,
-        cost,
+        cost: { mana: cost },
         oracleText: `Cycling ${label} (${label}, Discard this card: Draw a card.)`,
         // CR 702.29a — "Draw a card." Authored as a plain Effect Script Op; the
         // cost (mana + discard-this) is the only cycling-specific part.
+        effects: [{ op: "draw", player: "controller", count: 1 }],
+    });
+}
+
+/** Builds a Cycling ability whose cycling cost is life, not mana — "Cycling—Pay
+ *  N life." (CR 702.29a: "[Cost], Discard this card: Draw a card", and a cost
+ *  may be any cost, CR 118.1). The life leg is `cost.life` (CR 119.4 — payable
+ *  only while the player's life total is at least N); everything else is the
+ *  shared cycling shell, so it stays a cycling ability (CR 702.29f). */
+export function cyclingLifeAbility(
+    life: number,
+    id = CYCLING_ABILITY_ID
+): ActivatedAbility {
+    return cyclingActivationShell({
+        id,
+        cost: { life },
+        oracleText: `Cycling—Pay ${life} life. (Pay ${life} life, Discard this card: Draw a card.)`,
         effects: [{ op: "draw", player: "controller", count: 1 }],
     });
 }
@@ -225,7 +242,7 @@ export function typecyclingAbility(
     const reminder = `${label}, Discard this card: Search your library for ${article} ${subtype} card, reveal it, put it into your hand, then shuffle.`;
     return cyclingActivationShell({
         id,
-        cost,
+        cost: { mana: cost },
         oracleText: `${keyword} ${label} (${reminder})`,
         effects: [
             // CR 701.23a / 401.4 — a genuine library search: the whole library

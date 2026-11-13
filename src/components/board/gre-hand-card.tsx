@@ -230,7 +230,8 @@ export default function GreHandCard({
                   // CR 702.49a — combat, so a ninjutsu ability is offered only
                   // while its return leg is payable (`getHandStackAbilities`
                   // fails closed without it).
-                  { combat, players: allPlayers }
+                  { combat, players: allPlayers },
+                  allPlayers.find((p) => p.id === card.ownerId)?.life
               )
             : [];
     const manaAbilities =

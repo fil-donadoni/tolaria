@@ -48,6 +48,7 @@ import type { CardInstance } from "../../types/game";
 import {
     getStackAbilities,
     getGraveyardStackAbilities,
+    getHandStackAbilities,
     getManaCostMenuAbility,
     buildTriggerStateView,
 } from "../card-utils";
@@ -897,6 +898,17 @@ function surfacedAbilityIds(c: Case, env_: ReturnType<typeof env>): string[] {
         return getGraveyardStackAbilities(source, undefined, view).map(
             (x) => x.id
         );
+    }
+    // CR 702.29a — a hand-source ability (Cycling) is listed by the hand
+    // helper; `getStackAbilities` drops every `activateFromHand` ability.
+    if (c.ability.activateFromHand) {
+        return getHandStackAbilities(
+            source,
+            undefined,
+            view,
+            undefined,
+            payerLife
+        ).map((x) => x.id);
     }
     return getStackAbilities(
         source,
