@@ -23406,6 +23406,10 @@ export interface CardDefinition {
      *  "enters with X +1/+1 counters, where X is the discarded card's mana
      *  value", Dralnu's Pet), off `StackItem.additionalSacrificeSnapshot`;
      *  0 on every uncast path and when nothing was given up.
+     *  `count: { cardsExiledWithIt: { types } }` counts the cards exiled to
+     *  pay the cost of the spell that became this permanent (CR 607.2q —
+     *  Delve, Murktide Regent), still in exile as it enters, optionally kept
+     *  by card type; 0 on every uncast path.
      *  `count: "sunburst"` reads how many DISTINCT COLORS of mana were spent to
      *  cast the spell (CR 702.44a — colors, not pips: `{R}{R}` is one), off the
      *  `notedManaSpent` capture the cast-commit step records when the card also

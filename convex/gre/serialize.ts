@@ -940,6 +940,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.additionalSacrificeSnapshot) {
         base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
     }
+    // CR 607.2q — the cards exiled to pay the spell's cost, read by its
+    // permanent at entry; a cast parked on the stack across a save keeps them.
+    if (item.castExiledCardIds?.length) {
+        base.castExiledCardIds = item.castExiledCardIds;
+    }
     // CR 106.10 — noted-mana battery: the mana spent on the activation must
     // survive a save/load while the ability is on the stack waiting to resolve.
     if (item.notedManaSpent && Object.keys(item.notedManaSpent).length > 0) {
@@ -1182,6 +1187,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.additionalSacrificeSnapshot) {
         item.additionalSacrificeSnapshot =
             compact.additionalSacrificeSnapshot as StackItem["additionalSacrificeSnapshot"];
+    }
+    if (compact.castExiledCardIds) {
+        item.castExiledCardIds = compact.castExiledCardIds as string[];
     }
     if (compact.notedManaSpent) {
         item.notedManaSpent = compact.notedManaSpent as Record<string, number>;

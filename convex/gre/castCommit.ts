@@ -351,6 +351,15 @@ export function commitCast(
     // for exile. The picks never include the cast card itself (CR 601.2a).
     // CR 118.9 / 601.2h — a POSITIONAL alternative-cost exile ("the top three
     // black cards of your graveyard") is re-derived here, at payment.
+    // CR 607.2q — every card this commit exiles to pay the spell's cost, so
+    // the permanent the spell becomes can count the cards "exiled with it"
+    // (Delve — Murktide Regent). Stamped on the stack item below.
+    const castExiledCardIds: string[] = [];
+    if (legs.alternativeCostHandChoice?.action === "exile") {
+        castExiledCardIds.push(
+            ...(legs.alternativeCostHandChoice.pickedCardIds ?? [])
+        );
+    }
     const exilePicks = legs.exileFromGraveyardChoice;
     const exilePickIds = exilePicks
         ? castExileCostPickIds(caster, exilePicks)
@@ -376,6 +385,7 @@ export function commitCast(
         for (const id of exilePickIds) {
             moveCard(caster, id, exileSourceZone, "exile");
         }
+        castExiledCardIds.push(...exilePickIds);
     }
     // CR 702.51a (issue #1338) — pay Convoke: TAP each chosen creature as the
     // spell moves to the stack. Deferred to commit so a cancelled cast leaves
@@ -453,6 +463,7 @@ export function commitCast(
             ...costVictimTypeFields(exiled),
         };
         removePermanentTo(state, exiled.id, "exile");
+        castExiledCardIds.push(exiled.id);
     }
     // CR 601.2b / 119.4 — pay the life leg as the spell moves to the stack
     // (Fire Covenant, a Phyrexian pip paid with life). Affordability was
@@ -521,6 +532,7 @@ export function commitCast(
             : {}),
         ...announcedModeFields(record),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
+        ...(castExiledCardIds.length > 0 ? { castExiledCardIds } : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
         ...restrictedXManaOwedStamp(plan.cardDef, plan.manaCost),
         // CR 106.6 riders (issues #1559 / #3354) — mana spent on this cast
