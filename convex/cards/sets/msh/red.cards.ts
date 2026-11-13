@@ -7,8 +7,8 @@ import { defineCard } from "../../types";
 
 // Hex Magic — {2}{R} Sorcery — Arcane. "Exile all the cards from your hand,
 // then draw that many cards. Until the end of your next turn, you may play
-// cards exiled this way." (CR 406.1 exile zone, CR 121.1 draw, CR 305.9 /
-// CR 601.3 "play" = cast or land drop.) The whole-zone `moveZone` exiles the
+// cards exiled this way." (CR 406.1 exile zone, CR 121.1 draw; "play" also
+// covers a land drop, CR 305.1.) The whole-zone `moveZone` exiles the
 // hand and binds how many cards it took (`bindCount`, read BEFORE the move, so
 // an empty hand binds 0) and which ones (`bindAll`); the draw reads the count
 // back, and the play permission reaches exactly the bound cards — never the
