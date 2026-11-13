@@ -218,6 +218,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromExileUntilOwnTurn: 21,
         castableFromExileUntilOwnUpkeep: 23,
         castableFromExileFromTurn: 22,
+        castableFromExileFromOwnTurn: 22,
         plottedOnTurn: 24,
         foretold: true,
         foretoldOnTurn: 25,
