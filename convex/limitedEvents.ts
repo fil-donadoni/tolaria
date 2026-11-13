@@ -5,7 +5,10 @@
 // `convex/limited/eventProjection.ts`, so they're unit-testable without a
 // convex-test harness (the project has none — see
 // `convex/__tests__/adminAuth.test.ts`).
-import { limitedSourceColors } from "./limited/manaSourceColors";
+import {
+    limitedSourceColors,
+    oneShotSourceColors,
+} from "./limited/manaSourceColors";
 import { v, type Infer } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -650,6 +653,7 @@ const makeCardEvalMeta =
             rarity: meta.rarity,
             pips: getPipCountsFromCost(def.manaCost),
             producedColors: limitedSourceColors(def),
+            oneShotColors: oneShotSourceColors(def),
         };
     };
 
@@ -809,6 +813,7 @@ const makeAutoBuildCardMeta =
             rarity: meta.rarity,
             pips: getPipCountsFromCost(def.manaCost),
             producedColors: limitedSourceColors(def),
+            oneShotColors: oneShotSourceColors(def),
             isLand: def.types.includes("Land"),
             isBasicLand:
                 def.types.includes("Land") &&
