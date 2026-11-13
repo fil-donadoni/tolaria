@@ -182,9 +182,10 @@
             "reviewed": false
         },
         "b841bfa8-7c17-4df2-8466-780ab9a4a53a": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "a1b0da17-d595-441d-811c-a2d28d2bb232": {
             "provides": ["discard-outlet", "cheap-spell"],
@@ -220,9 +221,10 @@
             "reviewed": false
         },
         "b4e3d844-d3b4-41d8-921d-c1cb3af343f8": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "e9be371c-c688-44ad-ab71-bd4c9f242d58": {
             "provides": ["value-on-cast"],
@@ -317,9 +319,10 @@
             "reviewed": false
         },
         "d9482aab-6ddf-48e1-84fa-b13d5ff81e69": {
-            "provides": ["self-mills"],
-            "requires": [],
-            "reviewed": false
+            "provides": ["self-mills", "land-enters"],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: an extra land play and lands from the graveyard, plus a landfall mill trigger"
         },
         "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd": {
             "provides": ["value-on-attack", "discard-outlet"],
@@ -424,9 +427,10 @@
             "reviewed": false
         },
         "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "2573e694-eaa0-42ca-b470-2ab507cbcec1": {
             "provides": [],
@@ -482,8 +486,9 @@
         },
         "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617": {
             "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — life, mana, then damage as lands enter in one turn"
         },
         "78cef262-c753-4658-b3ec-fec8db47f944": {
             "provides": ["value-on-etb"],
@@ -501,9 +506,10 @@
             "reviewed": false
         },
         "0f7585c8-9e21-4eef-afc1-2852de23db2f": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "ba6b6fc5-5077-4812-b8e9-906783dbaf67": {
             "provides": ["value-on-cast", "cheap-spell"],
@@ -518,9 +524,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
         },
         "e37da81e-be12-45a2-9128-376f1ad7b3e8": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "68924203-c3d9-41ce-8ca8-c6dd491eb3ca": {
             "provides": ["discard-outlet"],
@@ -549,9 +556,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
         },
         "327cf118-cc92-4073-85d0-94d2a0a6989a": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: a fetch land — two land entries from one land drop"
         },
         "69c1b656-1d67-499c-bf0f-417682a86c7d": {
             "provides": ["self-mills"],
@@ -727,9 +735,10 @@
             "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
         },
         "a0b6a71e-56cb-4d25-8f2b-7a4f1b60900d": {
-            "provides": ["value-on-etb", "value-on-attack"],
+            "provides": ["value-on-etb", "value-on-attack", "land-enters"],
             "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: each enter or attack may put a land from hand onto the battlefield"
         },
         "58c9e9a7-e170-4361-b7d5-22fc0771c489": {
             "provides": ["cheap-artifact", "value-on-cast"],
@@ -1261,9 +1270,10 @@
             "reviewed": false
         },
         "1b406cc5-75c9-430a-83a2-de0f2a8aeae6": {
-            "provides": ["self-mills"],
-            "requires": [],
-            "reviewed": false
+            "provides": ["self-mills", "land-enters"],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: plays lands from the graveyard, plus a landfall token trigger"
         },
         "eeeffc0b-dc92-458e-ad58-86ff6077a508": {
             "provides": ["value-on-etb", "value-on-attack"],
@@ -1281,9 +1291,10 @@
             "reviewed": false
         },
         "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a": {
-            "provides": ["value-on-cast"],
+            "provides": ["value-on-cast", "land-enters"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its cast trigger puts a land from library onto the battlefield"
         },
         "85d22d5d-3875-42ff-b51e-c6e21db201f5": {
             "provides": ["value-on-etb"],
@@ -1508,9 +1519,10 @@
             "reviewed": false
         },
         "ad8b8518-c09e-4cb7-95b2-08e4e370d89c": {
-            "provides": [],
+            "provides": ["land-enters"],
             "requires": ["self-mills"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its tap ability puts a land from library onto the battlefield, repeatable"
         },
         "18ee486e-dc25-4de7-a71f-f11fdf100176": {
             "provides": ["value-on-etb"],
@@ -2237,6 +2249,48 @@
             "requires": ["go-wide"],
             "reviewed": false,
             "rationale": "oracle: adds one green mana for each creature you control"
+        },
+        "3e26c10b-179f-4a6e-bc8d-3ec1d6783fb9": {
+            "provides": ["land-enters"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: an additional land play this turn, plus lands among the exiled cards"
+        },
+        "39c431d7-d94b-46c4-bb89-f3db56214ab4": {
+            "provides": ["land-enters"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices a land to put a land from library onto the battlefield"
+        },
+        "ee8e9928-d9b2-4570-adb8-44b34115decd": {
+            "provides": [],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — a Clue per land entering"
+        },
+        "b3dd3c7d-4685-4579-b483-14ddaaaddf5b": {
+            "provides": [],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — +1/+1 counters, doubled on the second land in a turn"
+        },
+        "54a3ea87-005e-4985-b2a5-21711d0b71c0": {
+            "provides": [],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — a token copy or an Insect per land entering"
+        },
+        "52eef0d6-24b7-40b7-8403-e8e863d0cd55": {
+            "provides": [],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — a +1/+1 counter per land entering"
+        },
+        "5905995b-7a20-4602-a7cc-90aa5089a082": {
+            "provides": [],
+            "requires": ["land-enters"],
+            "reviewed": false,
+            "rationale": "oracle: landfall — empowers Jace per land entering"
         }
     }
 }

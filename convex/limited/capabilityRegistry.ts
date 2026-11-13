@@ -56,6 +56,7 @@ export const CAPABILITY_CLUSTERS = [
     "Artifacts",
     "Spells",
     "Bodies",
+    "Lands",
 ] as const;
 
 export type CapabilityCluster = (typeof CAPABILITY_CLUSTERS)[number];
@@ -282,6 +283,21 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         example: { provider: "Lingering Souls", requirer: "Gaea's Cradle" },
         description:
             "PROVIDES: a card that puts two or more creature bodies onto the battlefield under its controller's control — at once (a spell or enters trigger creating two or more creature tokens, Lingering Souls) or over turns (a repeating trigger or activated ability creating one each time, Third Path Iconoclast; a creature that leaves bodies behind when it dies, Worldspine Wurm). One creature, however large, does not provide it. REQUIRES: a payoff whose amount reads the NUMBER of creatures its controller has — mana per creature (Gaea's Cradle), power or damage per creature, an anthem or team pump that is worth more the more bodies it touches, convoke — requires this from the cards around it. The bodies must STAY: a sacrifice outlet that wants expendable bodies to throw away is not a requirer of this row, even though the same token makers feed it.",
+    },
+
+    // ── Lands cluster ────────────────────────────────────────────────────
+    {
+        id: "land-enters",
+        cluster: "Lands",
+        gloss: {
+            provides:
+                "Makes more than one land enter per turn: fetch lands, extra land plays, lands put onto the battlefield.",
+            requires:
+                "A landfall payoff, triggered whenever a land enters under your control.",
+        },
+        example: { provider: "Polluted Delta", requirer: "Tireless Tracker" },
+        description:
+            "PROVIDES: makes MORE land entries than the one land drop a turn gives — a fetch land (two land entries from one land drop: the fetch itself, then the land it searches for), an extra land play (Escape to the Wilds, a 'you may play an additional land' static), or a land put onto the battlefield from library, hand or graveyard by an effect (Knight of the Reliquary, Uro's enters/attacks trigger, a play-lands-from-graveyard permission). REQUIRES: a landfall payoff — a trigger on 'whenever a land you control enters' (Tireless Tracker's Clue, Omnath's escalating landfall) — requires this from its deck-mates: every extra land entry is one more trigger. Distinct from `self-mills` (a fetch land provides both): this row's requirer wants a land ENTERING, never land cards sitting in the graveyard.",
     },
 ];
 
