@@ -214,6 +214,12 @@ export interface CardEvalMeta {
      *  which kind of source a card is. A card with no mana ability yields
      *  `[]`. */
     producedColors: Color[];
+    /** The subset of `producedColors` this card makes only by sacrificing
+     *  itself for mana (`manaSourceColors.ts#oneShotSourceColors`): a Lotus
+     *  Petal, a Chromatic Star. Such a colour counts as `ONE_SHOT_SOURCE_WEIGHT`
+     *  of a source, not one (`sourceWeight`). Omitted = none, every produced
+     *  colour a permanent source. */
+    oneShotColors?: Color[];
 }
 
 /** Resolves a drawn card's Scryfall id to its `CardEvalMeta`, or `null` when
@@ -563,10 +569,27 @@ export function sourceCountsByColor(
     const counts: Partial<Record<Color, number>> = {};
     for (const meta of poolMeta) {
         for (const c of meta.producedColors) {
-            counts[c] = (counts[c] ?? 0) + 1;
+            counts[c] = (counts[c] ?? 0) + sourceWeight(meta, c);
         }
     }
     return counts;
+}
+
+/** What one copy of a one-shot source of a colour counts for, against the
+ *  one full source a land or a Mox of that colour is. A card that sacrifices
+ *  itself for mana pays one spell's pip once, then is gone: it fixes a single
+ *  turn, never the deck. Half a source, measured against the Draft Table
+ *  Audit's colour-coherence metrics (`docs/research/
+ *  draft-table-audit-colour-coherence.md` § One-shot sources). */
+export const ONE_SHOT_SOURCE_WEIGHT = 0.5;
+
+/** How much of a mana source of colour `c` this card is: 0 when it does not
+ *  produce `c`, `ONE_SHOT_SOURCE_WEIGHT` when it produces `c` only by
+ *  sacrificing itself (`oneShotColors`), else 1. The one weight Castability,
+ *  Fixing Value, the third-colour gate and the audit's castability read. */
+export function sourceWeight(meta: CardEvalMeta, c: Color): number {
+    if (!meta.producedColors.includes(c)) return 0;
+    return meta.oneShotColors?.includes(c) ? ONE_SHOT_SOURCE_WEIGHT : 1;
 }
 
 /** Per-colour colour-COMMITMENT affinity (ADR 0073, issue #1610): a Pool
@@ -849,7 +872,12 @@ function fixingValueTerm(
         const deficit = Math.max(0, (demand[c] ?? 0) - (sources[c] ?? 0));
         if (deficit <= 0) continue;
         reliefByColour[c] = deficit;
-        rawTotal += deficit * FIXING_VALUE_RATING_PER_DEFICIT_PIP;
+        // A one-shot source relieves the deficit for one turn only: its
+        // credit is scaled by the same weight it counts for as a source.
+        rawTotal +=
+            deficit *
+            FIXING_VALUE_RATING_PER_DEFICIT_PIP *
+            sourceWeight(candidate, c);
     }
     const raw = Math.min(FIXING_VALUE_RAW_CAP, rawTotal);
 

@@ -73,3 +73,32 @@ export function limitedSourceColors(def: CardDefinition): Color[] {
     for (const c of fetchableColors(def)) colours.add(c);
     return ALL_COLOURS.filter((c) => colours.has(c));
 }
+
+/** True for a mana ability that sacrifices its own source to pay its cost
+ *  (`cost.sacrifice`, CR 602.1 / 701.21): it produces mana once and is gone.
+ *  A mana ability is one that does not use the stack (CR 605.1a, 605.3b). */
+function isOneShotManaAbility(
+    ability: NonNullable<CardDefinition["activatedAbilities"]>[number]
+): boolean {
+    return !ability.useStack && ability.cost.sacrifice === true;
+}
+
+/** The colours a card supplies to a Limited mana base ONLY by sacrificing
+ *  itself for mana — a one-shot source of that colour (Lotus Petal, Chromatic
+ *  Star, the coloured half of Archaeological Dig), never a permanent one. A
+ *  subset of `limitedSourceColors`, in WUBRG order: a colour the card also
+ *  makes by a mana ability that keeps it (a land subtype, a `{T}` ability) or
+ *  fetches is a permanent source and is not listed. A fetch land sacrifices
+ *  itself too, but to put a land onto the battlefield, which stays: its
+ *  colours are permanent. */
+export function oneShotSourceColors(def: CardDefinition): Color[] {
+    const abilities = def.activatedAbilities ?? [];
+    if (!abilities.some(isOneShotManaAbility)) return [];
+    const permanent = getDefinitionProducibleColors({
+        ...def,
+        activatedAbilities: abilities.filter((a) => !isOneShotManaAbility(a)),
+    });
+    for (const c of fetchableColors(def)) permanent.add(c);
+    const produced = new Set(limitedSourceColors(def));
+    return ALL_COLOURS.filter((c) => produced.has(c) && !permanent.has(c));
+}

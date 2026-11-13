@@ -1428,11 +1428,11 @@ How far a **Seat**'s **Pool** has already invested in each colour, and therefore
 _Avoid_: Colour identity (CR 903.4, a different thing), on-colour (that is the derived verdict, not the measure)
 
 **Castability**:
-Whether a **Seat**'s **Pool** can actually cast a card, measured as its coloured pip requirement against the mana sources the Pool already holds for those colours. A triple-pipped bomb in a Pool with two sources of that colour is worth less to a **Bot Drafter** than its raw power says. Distinct from **Colour Commitment**: commitment is where the seat is going, castability is what it can pay for.
+Whether a **Seat**'s **Pool** can actually cast a card, measured as its coloured pip requirement against the mana sources the Pool already holds for those colours. A triple-pipped bomb in a Pool with two sources of that colour is worth less to a **Bot Drafter** than its raw power says. Distinct from **Colour Commitment**: commitment is where the seat is going, castability is what it can pay for. A card that sacrifices itself for mana (Lotus Petal) counts as half a source of its colours: it pays one pip once, then is gone.
 _Avoid_: Playability (broader — includes curve and role), fixing
 
 **Fixing Value**:
-What a mana source is worth to a **Seat** right now — driven by **deficit**, not by **Colour Commitment**. A source's value is the pip demand its **Pool** already has for the colours it produces, minus the sources it already holds for them. A Temur pool heavy in `{R}` pips but short on red sources values Volcanic Island above Tropical Island, though both are on-colour. Capped, so a large deficit cannot make a basic land rival a genuine bomb.
+What a mana source is worth to a **Seat** right now — driven by **deficit**, not by **Colour Commitment**. A source's value is the pip demand its **Pool** already has for the colours it produces, minus the sources it already holds for them. A Temur pool heavy in `{R}` pips but short on red sources values Volcanic Island above Tropical Island, though both are on-colour. Capped, so a large deficit cannot make a basic land rival a genuine bomb. A source that sacrifices itself for mana earns half the credit, as it counts for half a source in **Castability**.
 _Avoid_: Mana fixing (the card property), colour fit
 
 **Draft Signal**:

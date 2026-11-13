@@ -61,6 +61,7 @@ Each fix was switched off in turn (temporary knobs, not shipped):
 `DRAFT_AUDIT_FLOORS` re-declared from these numbers, rounded down to two
 decimals: Vintage Cube `meanCastability ≥ 0.85`, `worstDeckCastability ≥
 0.74`, `meanCapabilityPairs ≥ 13.82` (tightened), `meanPlanShare ≥ 0.42`
-(loosened, reason above); LEA `meanCastability ≥ 0.76`,
+(loosened, reason above); LEA `meanCastability ≥ 0.76` (0.75 since issue
+#9337, `draft-table-audit-colour-coherence.md` § One-shot sources),
 `worstDeckCastability ≥ 0.49` (loosened, reason above). `builtShare ≥ 1` on
 both.
