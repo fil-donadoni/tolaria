@@ -112,9 +112,11 @@ describe("one-shot mana sources (issue #9337)", () => {
         expect(at(7.5)).toBeCloseTo((at(7) + at(8)) / 2);
         expect(at(7)).toBeLessThan(at(7.5));
         expect(at(7.5)).toBeLessThan(at(8));
-        expect(pipCastability({ W: 1 }, 2, 40, { W: 7.5 })).toBeCloseTo(
-            (pipCastability({ W: 1 }, 2, 40, { W: 7 }) +
-                pipCastability({ W: 1 }, 2, 40, { W: 8 })) /
+        expect(
+            pipCastability({ W: 1 }, 2, 40, new Map([["W", 7.5]]))
+        ).toBeCloseTo(
+            (pipCastability({ W: 1 }, 2, 40, new Map([["W", 7]])) +
+                pipCastability({ W: 1 }, 2, 40, new Map([["W", 8]]))) /
                 2
         );
     });
