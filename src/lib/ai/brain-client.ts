@@ -1,6 +1,6 @@
 // Client-side handle to the Brain Web Worker (ADR 0000, issues #109/#110).
 //
-// Lazily spawns a single module Worker and exposes `consultBrain(state, botId)`,
+// Lazily spawns the Bot's module Worker and exposes `consultBrain(state, botId)`,
 // which resolves with the bot's chosen Move (or null when it owes nothing). A
 // request-id map matches each reply to its caller so concurrent consults never
 // cross. The Worker is a thin shell; enumeration + selection live in the GRE and
@@ -19,8 +19,8 @@
 // nothing on screen said the AI was broken. Recovery has two stages, and the
 // caller is never handed "no move" while either can still answer:
 //
-//   1. terminate + clear the singleton, so the next consult constructs a FRESH
-//      Worker — bounded by MAX_BRAIN_WORKER_SPAWNS per game, or a permanently
+//   1. terminate + clear the installed Worker, so the next consult constructs a FRESH
+//      Worker — bounded by MAX_BRAIN_WORKER_FAILURES per game, or a permanently
 //      broken script would spin;
 //   2. once that budget is spent, consults run the SAME handler in-thread at
 //      BRAIN_FALLBACK_BUDGET. A weak move beats no move.
@@ -163,8 +163,9 @@ export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
  *  reproducible, so never wall-clock), on its own channel — a slow device
  *  makes it slow, never wrong. The timeout only keeps the standing promise
  *  that a consult always settles (issue #2284); it is sized well past a
- *  400-iteration search on a slow device, so the judge waits for its answer
- *  instead of posting the next request on top of a search still running. */
+ *  400-iteration search on a slow device, so the judge waits for its answer;
+ *  a search that outlasts even this takes its Worker with it
+ *  (`abandonOnTimeout`), so the next judge consult never queues behind it. */
 export const JUDGE_CONSULT_TIMEOUT_MS = 60_000;
 
 /** How one Brain channel behaves (issue #9514). */
@@ -179,6 +180,12 @@ export type BrainChannelOptions = {
      *  pass for the Bot; a different budget is a different answer for the
      *  judge. */
     inlineFallback: boolean;
+    /** Whether a consult that times out takes its Worker with it, so the
+     *  search still running there cannot delay the channel's next consult
+     *  (issue #9514). The Bot keeps its Worker: its searches are wall-clock
+     *  capped well under the timeout, and a respawn would re-pay the shards'
+     *  install inside its next 5 s. */
+    abandonOnTimeout: boolean;
 };
 
 /** One Brain: one Worker, its in-flight consults, its respawn budget and its
@@ -209,21 +216,25 @@ export type BrainChannel = {
 };
 
 /** The Bot's own channel: the turn-by-turn consults of `useVsAiDriver`. */
-const BOT_CHANNEL: BrainChannelOptions = {
+const BOT_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
     consultTimeoutMs: BRAIN_CONSULT_TIMEOUT_MS,
     recordsToDecisionRing: true,
     inlineFallback: true,
-};
+    abandonOnTimeout: false,
+});
 
 /** The game-end Verdict Proposal judge's channel (issue #9514). */
-export const JUDGE_CHANNEL: BrainChannelOptions = {
+export const JUDGE_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
     consultTimeoutMs: JUDGE_CONSULT_TIMEOUT_MS,
     recordsToDecisionRing: false,
     inlineFallback: false,
-};
+    abandonOnTimeout: true,
+});
 
 /** Build a Brain channel with its own Worker (issue #9514). */
-export function createBrainChannel(options: BrainChannelOptions): BrainChannel {
+export function createBrainChannel(
+    options: Readonly<BrainChannelOptions>
+): BrainChannel {
     let worker: Worker | null = null;
     let nextId = 1;
     const pending = new Map<number, InFlight>();
@@ -239,12 +250,12 @@ export function createBrainChannel(options: BrainChannelOptions): BrainChannel {
     function getWorker(): Worker | null {
         if (typeof Worker === "undefined") return null;
         // Out of respawns: the in-thread fallback owns the rest of this game. Fall
-        // through to `consultBrain`'s `!w` branch rather than handing back a handle
+        // through to `consult`'s `!w` branch rather than handing back a handle
         // known to die (issue #3040) — that is what made every later consult pay
         // the full consult timeout for nothing.
         if (exhausted) return null;
         if (worker) return worker;
-        // Held in a local as well as in the module singleton, so both handlers can
+        // Held in a local as well as in the channel's `worker`, so both handlers can
         // ask "am I still the installed Worker?" — see `onerror` below.
         const spawned = new Worker(brainWorkerUrl, { type: "module" });
         worker = spawned;
@@ -266,7 +277,7 @@ export function createBrainChannel(options: BrainChannelOptions): BrainChannel {
             // can fire again after it has been replaced; and React StrictMode's
             // mount → cleanup → mount makes "the handle that fires is not the
             // handle that is installed" ordinary rather than exotic. Without this
-            // the late event would null the singleton, terminate the LIVE Worker,
+            // the late event would null the installed handle, terminate the LIVE Worker,
             // spend a failure and record a breadcrumb for a Worker nobody is using.
             if (worker !== spawned) return;
             handleWorkerFailure(e);
@@ -287,7 +298,7 @@ export function createBrainChannel(options: BrainChannelOptions): BrainChannel {
         const dead = worker;
         worker = null;
         // Terminate AFTER dropping the reference: a throw from `terminate()` must
-        // not leave the dead singleton installed. `onerror` is detached first so a
+        // not leave the dead handle installed. `onerror` is detached first so a
         // handle that fires again on its way out cannot re-enter here.
         try {
             if (dead) dead.onerror = null;
@@ -410,13 +421,33 @@ export function createBrainChannel(options: BrainChannelOptions): BrainChannel {
             // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
             // pending entry and is dropped.
             const timer = setTimeout(() => {
-                if (pending.delete(id))
-                    resolve({
-                        move: null,
-                        trace: null,
-                        outcome: "timeout",
-                        via: "worker",
-                    });
+                if (!pending.delete(id)) return;
+                resolve({
+                    move: null,
+                    trace: null,
+                    outcome: "timeout",
+                    via: "worker",
+                });
+                // The timed-out search is still running in `w`, and the Worker
+                // serves one request at a time: the next consult would queue
+                // behind it (issue #9514). A channel that abandons a timed-out
+                // Worker terminates it — once nothing else is waiting on it —
+                // so its next consult starts on a fresh one. Not a failure: the
+                // script loaded and answered before; the respawn budget is for
+                // Workers that die.
+                if (
+                    options.abandonOnTimeout &&
+                    worker === w &&
+                    pending.size === 0
+                ) {
+                    worker = null;
+                    try {
+                        w.onerror = null;
+                        w.terminate();
+                    } catch {
+                        // Gone from here either way.
+                    }
+                }
             }, options.consultTimeoutMs);
             pending.set(id, {
                 request,
@@ -598,7 +629,7 @@ const botBrain = createBrainChannel(BOT_CHANNEL);
  * filled from the same `immutable` URLs. Idempotent; safe where `Worker` is
  * undefined.
  *
- * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_SPAWNS}: a script
+ * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_FAILURES}: a script
  * that cannot load fails here, with no consult pending, which is why that
  * failure has to be recorded rather than resolved (issue #3040).
  */
@@ -648,7 +679,7 @@ export function consultBrain(
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.
  *
  *  Also resets the respawn budget, which is what makes
- *  {@link MAX_BRAIN_WORKER_SPAWNS} a per-GAME cap rather than a per-tab one: a
+ *  {@link MAX_BRAIN_WORKER_FAILURES} a per-GAME cap rather than a per-tab one: a
  *  game that exhausted its Worker must not hand the next game in the same tab
  *  an already-dead Brain. */
 export function disposeBrain(): void {

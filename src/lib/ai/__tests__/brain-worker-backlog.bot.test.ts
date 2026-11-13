@@ -38,12 +38,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
 import { DIFFICULTY_BUDGETS } from "@convex/gre/difficulty";
 import type { SearchBudget } from "@convex/gre/search";
-import { consultBrain, disposeBrain } from "../brain-client";
+import {
+    consultBrain,
+    disposeBrain,
+    JUDGE_CONSULT_TIMEOUT_MS,
+} from "../brain-client";
 import { VERDICT_PROPOSAL_CONFIG } from "../verdict-proposal-config";
 import { openVerdictJudge } from "../verdict-judge";
 
-/** A judge search on a slow device: longer than the consult timeout. */
+/** A judge search on a slow device: longer than the Bot's consult timeout. */
 const JUDGE_SEARCH_MS = 8_000;
+
+/** The judge's search time in the current test. */
+let judgeSearchMs = JUDGE_SEARCH_MS;
 
 /** Decisions the judge consults at one game end (the field report's 18). */
 const JUDGED_DECISIONS = 18;
@@ -54,17 +61,25 @@ const BOT_CONSULT_EVERY_MS = 10_000;
 /** How long a request occupies the Worker: its wall-clock cap when it has
  *  one, else the slow device's iteration-only search time. */
 function serviceMs(budget: SearchBudget | undefined): number {
-    return budget?.timeMs ?? JUDGE_SEARCH_MS;
+    return budget?.timeMs ?? judgeSearchMs;
 }
 
 /** The Worker's scheduling, and nothing else: requests are served one at a
  *  time in arrival order, and a request is never abandoned once posted. */
 class SerialWorker {
+    /** Every Worker constructed, in order. */
+    static spawned: SerialWorker[] = [];
+    constructor() {
+        SerialWorker.spawned.push(this);
+    }
     onmessage: ((e: { data: unknown }) => void) | null = null;
     onerror: unknown = null;
     private busyUntil = 0;
-    private terminated = false;
+    terminated = false;
+    /** Requests this Worker was posted. */
+    posted = 0;
     postMessage(req: { id: number; budget?: SearchBudget }) {
+        this.posted += 1;
         const start = Math.max(Date.now(), this.busyUntil);
         this.busyUntil = start + serviceMs(req.budget);
         setTimeout(() => {
@@ -86,6 +101,8 @@ const originalWorker = globalThis.Worker;
 
 beforeEach(() => {
     vi.useFakeTimers();
+    judgeSearchMs = JUDGE_SEARCH_MS;
+    SerialWorker.spawned = [];
     (globalThis as { Worker?: unknown }).Worker =
         SerialWorker as unknown as typeof Worker;
 });
@@ -147,5 +164,43 @@ describe("the game-end judge never stands between the Bot and its next decision 
     it("lets the judge answer every decision across the Game 1 → Game 2 swap", async () => {
         const { judge } = await bo3GameOneToGameTwo();
         expect(judge).toEqual({ move: JUDGED_DECISIONS });
+    });
+
+    it("runs the judge on a Worker of its own, terminated when the judge closes", async () => {
+        await bo3GameOneToGameTwo();
+        // The judge's Worker is the first spawned (Game 1 ends before the
+        // Bot's Game 2 Worker exists); every judge consult went to it alone.
+        const [judgeWorker, ...botWorkers] = SerialWorker.spawned;
+        expect(judgeWorker!.posted).toBe(JUDGED_DECISIONS);
+        expect(judgeWorker!.terminated).toBe(true);
+        expect(botWorkers.length).toBeGreaterThan(0);
+        expect(botWorkers.some((w) => w === judgeWorker)).toBe(false);
+    });
+
+    it("drops a judge Worker whose search outlasts the judge's timeout, so the next consult does not queue behind it", async () => {
+        judgeSearchMs = JUDGE_CONSULT_TIMEOUT_MS + 10_000;
+        const { judge, tally, close } = openVerdictJudge();
+        const ask = () =>
+            judge(
+                { state: STATE, botId: BOT },
+                { iterations: VERDICT_PROPOSAL_CONFIG.iterations },
+                VERDICT_PROPOSAL_CONFIG.seed
+            );
+        const first = ask();
+        await vi.advanceTimersByTimeAsync(JUDGE_CONSULT_TIMEOUT_MS + 1);
+        await first;
+        expect(tally).toEqual({ timeout: 1 });
+        expect(SerialWorker.spawned).toHaveLength(1);
+        expect(SerialWorker.spawned[0]!.terminated).toBe(true);
+
+        // A fast search now: on a fresh Worker it answers, where behind the
+        // abandoned one it would wait out the rest of that search and more.
+        judgeSearchMs = 1_000;
+        const second = ask();
+        await vi.advanceTimersByTimeAsync(judgeSearchMs + 1);
+        await second;
+        close();
+        expect(tally).toEqual({ timeout: 1, move: 1 });
+        expect(SerialWorker.spawned).toHaveLength(2);
     });
 });

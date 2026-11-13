@@ -346,9 +346,11 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         });
         expect(h.consultBrain).toHaveBeenCalled();
         expect(h.botConsult).not.toHaveBeenCalled();
-        expect(h.channels).toEqual([
-            { options: { judge: true }, disposed: true },
-        ]);
+        await waitFor(() =>
+            expect(h.channels).toEqual([
+                { options: { judge: true }, disposed: true },
+            ])
+        );
     });
 
     it("a list built before the reload is offered again with the same count, the Brain not consulted again", async () => {
