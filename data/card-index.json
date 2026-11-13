@@ -86856,6 +86856,14 @@
         "firstPrintSet": "tdm"
     },
     {
+        "name": "Ugin's Labyrinth",
+        "scryfallId": "020e1348-1a35-4cc8-bad6-9fbddfa79277",
+        "oracleId": "d565cd3d-68d4-4039-9e45-7e69e31d0ffb",
+        "firstSet": "mh3",
+        "firstPrintId": "020e1348-1a35-4cc8-bad6-9fbddfa79277",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Uktabi Drake",
         "scryfallId": "8ed3fcd5-0e84-4332-ac84-19b75265ab52",
         "oracleId": "c12b4b1a-fab0-4e9f-8e04-d8a409a965bc",
