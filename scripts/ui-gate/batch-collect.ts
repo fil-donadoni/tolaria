@@ -8,7 +8,7 @@
  *   RED       → `ui-owed` removed, `land-failed` added, red lines commented;
  *   DROPPED / UNPROVEN → stays `ui-owed`, a comment says why (cells left
  *               `UNWALKED` / `INFRA` by the batch AND a solo re-walk are
- *               UNPROVEN, never RED — issue #9549);
+ *               UNPROVEN, never RED);
  *   no outcome (the walk was cut short: infra exit) → nothing touched.
  *
  * Runs on the lane machine (local Convex deployment, ADR 0156 lane slot).

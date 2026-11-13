@@ -21,7 +21,7 @@
  *      a receipt) and settled (`settleAmbiguous`); a surface ONE PR reaches
  *      whose non-`PASS` rows are all `UNWALKED` / `INFRA` measured nothing:
  *      its cells are re-walked on that PR alone (`--surface=` +
- *      `--viewport=`) and settled (`settleUnmeasured`, issue #9549) — PASS
+ *      `--viewport=`) and settled (`settleUnmeasured`) — PASS
  *      clears it, FAIL reds the PR, unmeasured again leaves the PR
  *      UNPROVEN; a surface still owned
  *      by no PR (an orphan) is walked on merge-order prefixes — the base,
