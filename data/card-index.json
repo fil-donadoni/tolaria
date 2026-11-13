@@ -92846,6 +92846,14 @@
         "source": "compiled"
     },
     {
+        "name": "Whipflare",
+        "scryfallId": "5a7e6c10-d066-4967-932f-5b6c8d74568b",
+        "oracleId": "a6b599db-8d45-4a11-9765-ae7eb235b4b2",
+        "firstSet": "nph",
+        "firstPrintId": "5a7e6c10-d066-4967-932f-5b6c8d74568b",
+        "firstPrintSet": "nph"
+    },
+    {
         "name": "Whippoorwill",
         "scryfallId": "e56146bf-5db0-4bef-83bb-efa5ebec6684",
         "oracleId": "84050a10-e1f1-413e-aa21-5c1f47bb2a64",
