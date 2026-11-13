@@ -1443,6 +1443,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     powerFilter: true,
     toughnessFilter: true,
     totalPowerToughnessFilter: true,
+    powerOrToughnessFilter: true,
     mvFilter: true,
     sameController: true,
     zoneOwnerId: true,
@@ -13529,6 +13530,9 @@ export function requestCopyRetargetOn(
         ...(req.totalPowerToughnessFilter
             ? { totalPowerToughnessFilter: req.totalPowerToughnessFilter }
             : {}),
+        ...(req.powerOrToughnessFilter
+            ? { powerOrToughnessFilter: req.powerOrToughnessFilter }
+            : {}),
         ...(excludeSubtypes ? { excludeSubtypes } : {}),
         ...(excludeSupertypes ? { excludeSupertypes } : {}),
         ...(mvFilter ? { mvFilter } : {}),
@@ -19450,6 +19454,12 @@ export function buildSpellContext(
                     ? {
                           totalPowerToughnessFilter:
                               requirement.totalPowerToughnessFilter,
+                      }
+                    : {}),
+                ...(requirement.powerOrToughnessFilter
+                    ? {
+                          powerOrToughnessFilter:
+                              requirement.powerOrToughnessFilter,
                       }
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
