@@ -163,13 +163,13 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         cluster: "Reanimator / graveyard",
         gloss: {
             provides:
-                "Puts a CHOSEN card from hand into the graveyard on demand.",
+                "Puts a CHOSEN card from hand or library into the graveyard on demand.",
             requires:
                 "A graveyard-scaling card names this directly as its enabler.",
         },
         example: { provider: "Faithless Looting", requirer: "Treasure Cruise" },
         description:
-            "PROVIDES: lets its controller (or another player) put a SPECIFIC, chosen card from hand into a graveyard on demand (looting, discard-for-effect, cycling) — the reliable enabler that gets a KNOWN reanimation/flashback target into the graveyard on purpose, distinct from self-mills' random top-of-library dump. REQUIRES: same discipline as `self-mills` — a graveyard-scaling card requires this directly, by name, in its own `requires` array.",
+            "PROVIDES: lets its controller (or another player) put a SPECIFIC, chosen card into a graveyard on demand, from hand (looting, discard-for-effect, cycling) or from library (a search whose destination is the graveyard, e.g. Entomb) — the reliable enabler that gets a KNOWN reanimation/flashback target into the graveyard on purpose, distinct from self-mills' random top-of-library dump. REQUIRES: same discipline as `self-mills` — a graveyard-scaling card requires this directly, by name, in its own `requires` array.",
     },
 
     // ── Cheat-into-play cluster (ADR 0072's motivating example) ─────────
