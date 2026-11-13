@@ -25617,7 +25617,7 @@ function resolveCostReductionGeneric(
  *  "if it targets a <filter> spell" cost condition? With `announcedTargets` it
  *  asks the chosen targets (stack-item ids); without (a probe before any
  *  target exists) it asks whether the caster COULD choose one. An ability on
- *  the stack is never a spell (CR 113.7a). */
+ *  the stack is an object of its own, never a spell (CR 113.1c). */
 function targetsMatchingSpellExist(
     state: GameState,
     filter: SpellFilter,
