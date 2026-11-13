@@ -1,4 +1,4 @@
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, Combat } from "~/types/game";
 import { displayCardId } from "~/lib/card-utils";
 import type { BattlefieldGrouping } from "~/lib/boardViewPrefs";
 
@@ -231,7 +231,13 @@ export function groupBattlefield(
      *  the group's (keyed by the old lead's id) and kill the cross-zone flight
      *  mid-animation — they render standalone for the arrival window, then
      *  merge into the fan. Presentation-only; grouping logic is unchanged. */
-    deferStackIds?: ReadonlySet<string>
+    deferStackIds?: ReadonlySet<string>,
+    /** Issue #9500 — an extra identity segment per permanent —
+     *  the attack destination of a declared attacker (CR 508.1b). Two
+     *  identical creatures attacking different targets are no longer
+     *  interchangeable, so they leave the fan; the creature choosing its
+     *  target right now gets a unique segment so it always stands alone. */
+    extraKeyOf?: (card: CardInstance) => string | undefined
 ): PermanentGroup[] {
     if (disableStacking) {
         return permanents.map((card) => ({
@@ -259,7 +265,8 @@ export function groupBattlefield(
             entries.push({ kind: "singleton", card, pos: i });
             return;
         }
-        const key = identityKey(card);
+        const extra = extraKeyOf?.(card);
+        const key = extra ? `${identityKey(card)}|${extra}` : identityKey(card);
         const existing = stackByKey.get(key);
         if (existing) {
             existing.members.push(card);
@@ -293,4 +300,22 @@ export function groupBattlefield(
             stackKey: entry.key,
         };
     });
+}
+
+/** Issue #9500 — the attack-declaration segment of a permanent's grouping
+ *  identity (`groupBattlefield`'s `extraKeyOf`). CR 508.1b: each attacker is
+ *  announced against one player or planeswalker, so identical attackers
+ *  with different destinations are no longer interchangeable. The creature
+ *  choosing its destination right now is always alone; creatures still
+ *  awaiting one group together; a non-attacker adds nothing. */
+export function attackGroupingKey(
+    cardId: string,
+    combat: Pick<Combat, "attackerIds" | "attackTargets"> | undefined,
+    choosingId: string | undefined,
+    undecided: ReadonlySet<string>
+): string | undefined {
+    if (cardId === choosingId) return `atk:choosing:${cardId}`;
+    if (undecided.has(cardId)) return "atk:undecided";
+    if (!combat?.attackerIds.includes(cardId)) return undefined;
+    return `atk:${combat.attackTargets?.[cardId] ?? "player"}`;
 }

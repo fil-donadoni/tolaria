@@ -69,12 +69,32 @@ export function useAttackSequence(): AttackSequence {
     return useContext(AttackSequenceContext) ?? INACTIVE;
 }
 
+/** The first cursor position at or after `from` whose member is still live
+ *  (issue #9500); `order.length` when none is. */
+function firstLiveIndex(
+    order: readonly string[],
+    from: number,
+    isLive: (id: string) => boolean
+): number {
+    let i = from;
+    while (i < order.length && !isLive(order[i])) i += 1;
+    return i;
+}
+
 /** Owns the sequence state. Mounted by the board so all three consumers (the
  *  controller button, the click router, the current-attacker ring) share one
  *  source of truth. Auto-resets when it stops being relevant — a new
  *  DECLARE_ATTACKERS window, a confirmed declaration, or leaving the phase —
  *  keyed by `resetKey`. */
-export function useAttackSequenceState(resetKey: string): AttackSequence {
+export function useAttackSequenceState(
+    resetKey: string,
+    /** The creatures that can still choose (issue #9500): the declared
+     *  attackers (the walk's members) and the attacking player's battlefield
+     *  (the awaiting ones, not yet declared). A member that left is skipped,
+     *  so the walk never waits on a creature that no longer exists. Omitted ⇒
+     *  every id is taken as live (tests, the manual board). */
+    live?: { declared: readonly string[]; present: readonly string[] }
+): AttackSequence {
     const [order, setOrder] = useState<string[]>([]);
     const [index, setIndex] = useState(0);
     const [active, setActive] = useState(false);
@@ -110,9 +130,17 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
         setActive(next.length > 0);
     }, []);
 
-    // Just bump the cursor — `stillActive` below deactivates once it passes the
-    // last attacker, so `advance` needn't read `order.length` from a closure.
-    const advance = useCallback(() => setIndex((prev) => prev + 1), []);
+    // The cursor skips any member that stopped being a declared attacker
+    // (issue #9500): removed mid-walk, or the board replaced under it.
+    const declared = live ? new Set(live.declared) : null;
+    const isLiveMember = (id: string) => !declared || declared.has(id);
+    const liveIndex = firstLiveIndex(order, index, isLiveMember);
+
+    // Bump the cursor past the LIVE current member — `stillActive` below
+    // deactivates once it passes the last one, so `advance` needn't read
+    // `order.length`. `Math.max` keeps a stale closure safe: the cursor
+    // never moves backwards.
+    const advance = () => setIndex((prev) => Math.max(prev, liveIndex) + 1);
 
     const reset = useCallback(() => {
         setAwaiting([]);
@@ -121,24 +149,27 @@ export function useAttackSequenceState(resetKey: string): AttackSequence {
         setIndex(0);
     }, []);
 
-    // Derive active/current from index vs order length each render so `advance`
-    // needn't read `order.length` from a stale closure.
-    const stillActive = active && index < order.length;
-    const currentAttackerId = stillActive ? order[index] : undefined;
+    // Derive active/current from the live cursor each render.
+    const stillActive = active && liveIndex < order.length;
+    const currentAttackerId = stillActive ? order[liveIndex] : undefined;
 
-    const undecidedAttackerIds = stillActive
-        ? [...order.slice(index), ...awaiting]
+    const present = live ? new Set(live.present) : null;
+    const liveAwaiting = present
+        ? awaiting.filter((id) => present.has(id))
         : awaiting;
+    const undecidedAttackerIds = stillActive
+        ? [...order.slice(liveIndex).filter(isLiveMember), ...liveAwaiting]
+        : liveAwaiting;
 
     return {
-        awaiting,
+        awaiting: liveAwaiting,
         toggleAwaiting,
         resolveAwaiting,
         undecidedAttackerIds,
         choosingTarget: undecidedAttackerIds.length > 0,
         active: stillActive,
         order,
-        index,
+        index: liveIndex,
         currentAttackerId,
         begin,
         advance,

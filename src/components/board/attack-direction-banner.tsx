@@ -1,5 +1,7 @@
 import { Swords } from "lucide-react";
 import { Banner } from "~/components/ui/banner";
+import CardImage from "~/components/cards/card-image";
+import type { AttackChooserSummary } from "~/lib/attack-chooser-summary";
 
 /**
  * Declare-attackers guidance (QA): while the active player is declaring
@@ -15,13 +17,57 @@ import { Banner } from "~/components/ui/banner";
 export default function AttackDirectionBanner({
     planeswalkerPresent,
     choosingTarget = false,
+    chooser = null,
 }: {
     /** Whether the defending player controls a planeswalker — only then is
      *  the retarget hint relevant. */
     planeswalkerPresent: boolean;
     /** Creatures are waiting for their attack target. */
     choosingTarget?: boolean;
+    /** Who is choosing (issue #9500): named, with its place in the
+     *  "Attack with all" walk and who comes next. `null` → generic copy. */
+    chooser?: AttackChooserSummary | null;
 }) {
+    if (choosingTarget && chooser) {
+        const walk = chooser.total !== undefined && chooser.total > 1;
+        return (
+            <Banner
+                tone="info"
+                icon={
+                    <span
+                        className="relative block w-8 shrink-0 overflow-hidden rounded-[6%]"
+                        style={{ aspectRatio: "5 / 7" }}
+                    >
+                        <CardImage
+                            card={chooser.card}
+                            sizes="32px"
+                            includeThumb
+                        />
+                    </span>
+                }
+                className="panel-physical pointer-events-none max-w-lg"
+            >
+                <span data-testid="attack-chooser">
+                    <span className="font-semibold">
+                        {chooser.names.join(", ")}
+                    </span>
+                    {walk && (
+                        <span className="ml-1.5 rounded bg-accent-strong/20 px-1.5 text-xs tabular-nums">
+                            {chooser.position} of {chooser.total}
+                        </span>
+                    )}
+                    : attack the opponent or a planeswalker?
+                </span>
+                <span className="block text-xs text-text-muted">
+                    Select the opponent&apos;s nameplate or a planeswalker.
+                    {walk &&
+                        (chooser.nextNames.length > 0
+                            ? ` Then: ${chooser.nextNames.join(", ")}.`
+                            : " Last one.")}
+                </span>
+            </Banner>
+        );
+    }
     return (
         <Banner
             tone="info"

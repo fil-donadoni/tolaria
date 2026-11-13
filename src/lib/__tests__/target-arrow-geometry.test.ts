@@ -7,6 +7,7 @@ import {
     buildCombatArrows,
     buildManualArrows,
     resolveArrowHighlight,
+    pickHoverSeed,
     arrowPath,
     hitTestArrows,
     distanceToArrow,
@@ -649,5 +650,87 @@ describe("resolveArrowHighlight — the focus of a zone-card relationship (issue
         })!;
         expect(h.focus).toBe("target");
         expect(h.nodes).toEqual(new Set(["s2", pile]));
+    });
+});
+
+// Issue #9500 — the attack graph is many-to-one (CR 508.1b: each attacker
+// picks one player or planeswalker), so hover is cumulative on the TARGET
+// side: pointing at a planeswalker or a player lights every creature
+// attacking it; pointing at one attacker lights only it and its target.
+describe("resolveArrowHighlight — attack targets fan in (issue #9500)", () => {
+    const c = combat({
+        attackerIds: ["a1", "a2", "a3"],
+        attackTargets: { a1: "pw1", a2: "pw1" },
+    });
+    const map = anchors({
+        permanent: {
+            a1: { x: 100, y: 400 },
+            a2: { x: 200, y: 400 },
+            a3: { x: 300, y: 400 },
+            pw1: { x: 300, y: 200 },
+        },
+        player: { p2: { x: 500, y: 40 } },
+    });
+    const arrows = buildCombatArrows(c, map, "p2");
+
+    it("hovering a planeswalker lights every attacker on it, and only those", () => {
+        const h = resolveArrowHighlight(arrows, { nodeId: "pw1" });
+        expect([...(h?.keys ?? [])].sort()).toEqual([
+            "attack:a1->pw1",
+            "attack:a2->pw1",
+        ]);
+        expect([...(h?.nodes ?? [])].sort()).toEqual(["a1", "a2", "pw1"]);
+    });
+
+    it("hovering the player lights the attacker on the player", () => {
+        const h = resolveArrowHighlight(arrows, { nodeId: "p2" });
+        expect([...(h?.keys ?? [])]).toEqual(["attack:a3->p2"]);
+    });
+
+    it("hovering one attacker (or its arrow) lights only it and its target", () => {
+        for (const seed of [{ nodeId: "a1" }, { key: "attack:a1->pw1" }]) {
+            const h = resolveArrowHighlight(arrows, seed);
+            expect([...(h?.keys ?? [])]).toEqual(["attack:a1->pw1"]);
+            expect([...(h?.nodes ?? [])].sort()).toEqual(["a1", "pw1"]);
+        }
+    });
+});
+
+// Issue #9500 — every arrow into a target converges on its centre, so the
+// pointer on a planeswalker is always within reach of ONE incoming arrow. On
+// the arrow's own endpoint the node seed must win, or the cumulative
+// highlight above is unreachable from the board.
+describe("pickHoverSeed — a node beats its own arrow (issue #9500)", () => {
+    const c = combat({
+        attackerIds: ["a1", "a2"],
+        attackTargets: { a1: "pw1", a2: "pw1" },
+    });
+    const map = anchors({
+        permanent: {
+            a1: { x: 100, y: 400 },
+            a2: { x: 200, y: 400 },
+            pw1: { x: 300, y: 200 },
+            other: { x: 150, y: 300 },
+        },
+    });
+    const arrows = buildCombatArrows(c, map, "p2");
+
+    it("pointer on the target card: the node wins over the arrow it ends on", () => {
+        const seed = pickHoverSeed(arrows, "attack:a1->pw1", { nodeId: "pw1" });
+        expect(seed).toEqual({ nodeId: "pw1" });
+        const h = resolveArrowHighlight(arrows, seed);
+        expect(h?.keys.size).toBe(2);
+    });
+
+    it("pointer on an attacker crossed by a neighbour's arrow: the attacker wins", () => {
+        expect(
+            pickHoverSeed(arrows, "attack:a1->pw1", { nodeId: "a2" })
+        ).toEqual({ nodeId: "a2" });
+    });
+
+    it("pointer on an unrelated card an arrow crosses: the arrow wins", () => {
+        expect(
+            pickHoverSeed(arrows, "attack:a1->pw1", { nodeId: "other" })
+        ).toEqual({ key: "attack:a1->pw1" });
     });
 });

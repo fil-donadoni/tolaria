@@ -332,8 +332,24 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
         expect(getByTestId("nodes").textContent).toBe("none");
     });
 
-    it("arrow hover wins over a hovered card; away from the arrow the card seed is back", () => {
-        // A second, far-away relationship s2 → bear, seeded by hovering bear.
+    it("arrow hover wins over a hovered card with no arrow of its own; away from the arrow it clears", () => {
+        // `bear` is in no relationship: the arrow crossing it disambiguates.
+        const { getByTestId } = renderHoverBoard(HOVER_STACK, [
+            ...HOVER_ANCHORS,
+            { kind: "permanent", id: "bear", point: { x: 200, y: 500 } },
+        ]);
+        const root = getByTestId("board-root");
+        fireEvent.pointerEnter(getByTestId("card-bear"));
+        expect(getByTestId("nodes").textContent).toBe("none");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("a hovered card with its own arrows beats a neighbour's arrow crossing it (issue #9500)", () => {
+        // A second relationship s2 → bear: the pointer on `bear` shows bear's
+        // own relationship even within reach of the s1 arrow.
         const { getByTestId } = renderHoverBoard(
             [
                 ...HOVER_STACK,
@@ -349,8 +365,6 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
         fireEvent.pointerEnter(getByTestId("card-bear"));
         expect(getByTestId("nodes").textContent).toBe("bear,s2");
         fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
-        expect(getByTestId("nodes").textContent).toBe("perm,s1");
-        fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
         expect(getByTestId("nodes").textContent).toBe("bear,s2");
     });
 
@@ -477,5 +491,55 @@ describe("BoardArrows — quiet at rest, hovered relationship above a focus veil
         expect(document.querySelector("[data-testid='arrow-focus-veil']")).toBe(
             null
         );
+    });
+});
+
+// Issue #9500 — an open target choice keeps its candidates lit AND still
+// answers hover: pointing at a planeswalker while choosing shows every
+// creature already attacking it (it used to replace the hover entirely).
+describe("BoardArrows — hover stays live during a target choice (issue #9500)", () => {
+    it("candidates stay lit and the hovered target adds its attackers", () => {
+        const combat = {
+            attackerIds: ["a1", "a2"],
+            attackTargets: { a1: "pw1" },
+            blockerAssignments: {},
+        } as unknown as Combat;
+        const { getByTestId } = render(
+            <div data-board-root data-testid="board-root">
+                <ArrowAnchorProvider>
+                    <ArrowHighlightProvider>
+                        <Publisher
+                            entries={[
+                                {
+                                    kind: "permanent",
+                                    id: "a1",
+                                    point: { x: 0, y: 400 },
+                                },
+                                {
+                                    kind: "permanent",
+                                    id: "a2",
+                                    point: { x: 100, y: 400 },
+                                },
+                                {
+                                    kind: "permanent",
+                                    id: "pw1",
+                                    point: { x: 400, y: 0 },
+                                },
+                            ]}
+                        />
+                        <CardSeeder id="pw1" />
+                        <NodesProbe />
+                        <BoardArrows
+                            stack={[]}
+                            combat={combat}
+                            targetingNodeIds={new Set(["pw1", "p2"])}
+                        />
+                    </ArrowHighlightProvider>
+                </ArrowAnchorProvider>
+            </div>
+        );
+        expect(getByTestId("nodes").textContent).toBe("p2,pw1");
+        fireEvent.pointerEnter(getByTestId("card-pw1"));
+        expect(getByTestId("nodes").textContent).toBe("a1,p2,pw1");
     });
 });

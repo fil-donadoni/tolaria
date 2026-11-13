@@ -1,3 +1,4 @@
+import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -12,7 +13,11 @@ import {
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
 import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
-import { groupBattlefield, isStackingDisabled } from "~/lib/battlefield-stacks";
+import {
+    attackGroupingKey,
+    groupBattlefield,
+    isStackingDisabled,
+} from "~/lib/battlefield-stacks";
 import { useBattlefieldGrouping } from "~/hooks/useBattlefieldGrouping";
 import { attachmentHostName, attachmentLabel } from "~/lib/attachment";
 import { toLayerState } from "~/lib/effective-stats";
@@ -94,6 +99,20 @@ function backRowRank(card: CardInstance): number {
     return isLand(card) ? 0 : 1;
 }
 
+/** Issue #9500 — the back row's RIGHT block (noncreature, nonland: the
+ *  planeswalkers, battles and noncreature artifacts / enchantments) sits
+ *  under the right-edge hover dock, so its preview docks left. Read through
+ *  the injected classifier, i.e. by effective type, exactly as the layout
+ *  places the card. */
+function sitsInBackRowRightBlock(
+    classifier: BattlefieldRowClassifier,
+    card: CardInstance
+): boolean {
+    return (
+        classifier.bandOf(card) === "back" && classifier.backRowRank(card) !== 0
+    );
+}
+
 /** The classification `BoardBattlefield` uses absent a `rowClassifier` prop —
  *  the real GRE board's classic behaviour, definition-backed via
  *  `isCreature`/`isLand` (`~/lib/card-utils`). */
@@ -138,6 +157,19 @@ export default function BoardBattlefield({
     // to this player alone when the context has no roster (minimal test
     // contexts) so own-battlefield auras still resolve and nothing crashes.
     const ctx = useGameContext();
+    // Issue #9500 — split a fan whose members attack different
+    // targets; the creature choosing its target now stands alone.
+    const attackSequence = useAttackSequence();
+    const attackCombat = ctx.combat;
+    const choosingId = attackSequence.active
+        ? attackSequence.currentAttackerId
+        : undefined;
+    const undecidedKey = attackSequence.undecidedAttackerIds.join(",");
+    const attackKeyOf = useMemo(() => {
+        const undecided = new Set(undecidedKey ? undecidedKey.split(",") : []);
+        return (card: CardInstance) =>
+            attackGroupingKey(card.id, attackCombat, choosingId, undecided);
+    }, [attackCombat, choosingId, undecidedKey]);
     const allPlayers = useMemo(
         () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
         [ctx.allPlayers, player]
@@ -303,6 +335,11 @@ export default function BoardBattlefield({
                 clickActsWithAbilities={clickActsWithAbilities}
                 compactCardHeight={compact?.cardHeight}
                 layerState={layerState}
+                previewDockSide={
+                    sitsInBackRowRightBlock(rowClassifier, card)
+                        ? "left"
+                        : undefined
+                }
             />
         );
     }
@@ -487,7 +524,8 @@ export default function BoardBattlefield({
             creatures,
             attachedAurasByHost,
             stackingDisabled,
-            arrivalDeferIds
+            arrivalDeferIds,
+            attackKeyOf
         );
         const landGroups = groupBattlefield(
             lands,
@@ -569,6 +607,7 @@ export default function BoardBattlefield({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         player.battlefield,
+        attackKeyOf,
         hostExistsAnywhere,
         attachedAurasByHost,
         stackingDisabled,
