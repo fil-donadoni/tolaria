@@ -115,6 +115,19 @@ cell, then the measured `fixed floor:` steps
 (`scripts/ui-gate/phase-timing.ts`). Every lever above was ranked on those
 numbers: `docs/agents/quality-gates.md` § Affordability.
 
+**Positions and the archive deck load through the seam's deep links**
+(issue #9272, ADR 0180). `pos` was the largest walk sub-phase, so the lane
+stopped paying it in clicks. Every game row except `game-manage-yields` loads
+its declared position with `/__uiseam/position?__uiseam_position="<label>"`
+into the solo game the lobby already dealt. `game-manage-yields` keeps the
+Debug sheet's clicks. A row on the same position as the previous seam load
+skips the rebuild while the game's `seq` has not moved. `limited-deck-archive`
+saves its deck with `/__uiseam/limited-deck` instead of driving the builder.
+Inside the app the lane routes in place, with a history push and `popstate`,
+so the bundle is not booted again. The routes and their guards are
+documented in `docs/guides/ui-runbooks.md` § Load a debug scenario and § The
+seeded Limited fixture the lane walks.
+
 Each viewport now reaches its own verdict on every surface, where a surface
 that failed at the first viewport used to be skipped at the other four. That is
 the price of the guarantee below: which viewport fails first is a property of

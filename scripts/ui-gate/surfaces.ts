@@ -44,6 +44,7 @@ import {
     UI_SEAM_DECK_NAME_PARAM,
     UI_SEAM_FIXTURE_PARAM,
     UI_SEAM_LIMITED_DECK_PATH,
+    UI_SEAM_NO_SOLO_GAME_IN_PLAY,
     uiSeamUrl,
 } from "../../convex/lib/uiSeamNamespace";
 import {
@@ -1378,8 +1379,6 @@ async function ensureScenarioBoard(
     }
 }
 
-/** What the position page prints when the lane's game is not in play yet. */
-const SEAM_NO_GAME_IN_PLAY = "no solo game in play";
 /** The board's own surface (`board-surface.tsx`): present in every
  *  position, whatever its phase or command slot shows — a declared position
  *  can sit in a block window where none of `ensureBoard`'s words render. */
@@ -1433,7 +1432,7 @@ async function loadScenarioThroughSeamSteps(
         .textContent({ timeout: 250 })
         .catch(() => null);
     if (refusal !== null) {
-        if (refusal.includes(SEAM_NO_GAME_IN_PLAY)) return false;
+        if (refusal.includes(UI_SEAM_NO_SOLO_GAME_IN_PLAY)) return false;
         throw new Unreachable(
             `the seam refused declared position "${label}": ${refusal.trim()}`
         );

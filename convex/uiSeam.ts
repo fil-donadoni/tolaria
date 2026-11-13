@@ -17,19 +17,20 @@
 // namespace (`lib/uiSeamNamespace.ts`), registered only in a DEV bundle.
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { tryGetDefinition } from "./cards";
-import { getCardColorIdentity } from "./cards/colors";
 import { normalizeScenarioSpec } from "./debugScenarioSpec";
 import { findActiveGameForUser } from "./gameLifecycle";
 import { getLatestGameState } from "./gameStateStore";
 import { hydrateSeat } from "./limitedSeatStore";
 import { loadScenarioIntoGame } from "./lib/scenarioLoad";
+import { UI_SEAM_NO_SOLO_GAME_IN_PLAY } from "./lib/uiSeamNamespace";
+import {
+    fixtureSeatDeck,
+    isLanePositionGame,
+    positionStillLoaded,
+} from "./lib/uiSeamShortcuts";
 import { assertUiSeamCaller } from "./lib/uiSeamGate";
 import { runIdOfLaneEmail } from "./lib/uiGateLaneAccount";
 import { insertUserDeck } from "./userDecks";
-
-/** WUBRG, the order a builder save stores a deck's colours in. */
-const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
 
 /** The trivial seam function: proves both gates end to end and touches no
  *  state. The echo route (`/__uiseam/echo`) renders its answer. */
@@ -79,9 +80,9 @@ export const loadPosition = mutation({
     handler: async (ctx, args) => {
         const user = await assertUiSeamCaller(ctx);
         const game = await findActiveGameForUser(ctx, user._id);
-        if (!game || game.solo !== true || game.status !== "playing") {
+        if (!game || !isLanePositionGame(game)) {
             throw new Error(
-                `ui seam: the lane account has no solo game in play to load "${args.label}" into — the lane deals one through the lobby first`
+                `ui seam: the lane account has ${UI_SEAM_NO_SOLO_GAME_IN_PLAY} to load "${args.label}" into — the lane deals one through the lobby first`
             );
         }
         const current = await getLatestGameState(ctx, game._id);
@@ -91,9 +92,10 @@ export const loadPosition = mutation({
             );
         }
         if (
-            args.unlessAt !== undefined &&
-            args.unlessAt.gameId === game._id &&
-            args.unlessAt.seq === current.seq
+            positionStillLoaded(args.unlessAt, {
+                gameId: game._id,
+                seq: current.seq,
+            })
         ) {
             return { gameId: game._id, seq: current.seq, loaded: false };
         }
@@ -163,24 +165,15 @@ export const saveLimitedFixtureDeck = mutation({
         const [hydrated] = (
             await hydrateSeat(ctx, event, seat.seatIndex)
         ).filter((s) => s.seatIndex === seat.seatIndex);
-        const pool = hydrated?.pool ?? [];
-        const colors = new Set<string>();
-        for (const card of pool) {
-            const def = tryGetDefinition(card.scryfallId);
-            for (const c of def ? getCardColorIdentity(def) : []) colors.add(c);
-        }
-        const deckId = await insertUserDeck(ctx, user._id, {
-            name: args.name,
-            format: "limited",
-            colors: COLOR_ORDER.filter((c) => colors.has(c)),
-            cards: pool.map((c) => ({
-                cardId: c.cardId,
-                cardName: c.cardName,
-            })),
-            sideboard: [],
-            limitedEventId: event._id,
-            limitedSeatId: String(seat.seatIndex),
-        });
+        const deckId = await insertUserDeck(
+            ctx,
+            user._id,
+            fixtureSeatDeck(
+                hydrated?.pool ?? [],
+                { eventId: event._id, seatIndex: seat.seatIndex },
+                args.name
+            )
+        );
         return { deckId, created: true };
     },
 });

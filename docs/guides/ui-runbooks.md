@@ -469,6 +469,35 @@ The walk writes nothing, and the lane is non-destructive by construction
 than options, because an option's accessible name is its label AND its
 description line.
 
+### How the lane loads them: the seam deep link (issue #9272)
+
+The lane does not click through the sheet on every row. Its test-only seam
+(ADR 0180: DEV bundle, local deployment, lane account) has a route that does
+the same load in one navigation:
+
+```
+/__uiseam/position?__uiseam_position="<label>"
+```
+
+The page calls `uiSeam.loadPosition`. It runs the sheet's own build and
+refusals (`convex/lib/scenarioLoad.ts`) against the lane account's own solo
+game, then routes to `/game`. A refusal is printed on the page
+(`[data-testid="ui-seam-position-error"]`): no solo game in play, an absent
+label, a position the loader refuses. Each value is a JSON string literal
+(`uiSeamUrl` writes it), because TanStack JSON-parses search values.
+
+- **The game still comes from the real path.** The first game row of a
+  viewport deals the solo game through the lobby (`game-pregame`). The deep
+  link only loads into it.
+- **One row keeps the sheet.** `game-manage-yields` loads its position by the
+  clicks above, so the sheet a tester uses stays proven. A deep link proves
+  the board, never the path to it.
+- **A repeated position is not rebuilt.** When the previous seam load had the
+  same label, the link carries `__uiseam_unless_at="<gameId>@<seq>"`. If that
+  game still stands at that `seq`, nothing has been saved since, so the board
+  already is the position and the server skips the rebuild. `game-zone-pile`
+  after `game-board` is the case today.
+
 ## The seeded Limited fixture the lane walks (2026-08-26)
 
 `bun run check:ui`'s Limited and Draft surfaces do **not** walk whatever event
@@ -506,6 +535,19 @@ a pending pick) nor auto-opens the deck builder (`useAutoOpenLimitedBuilder`
 needs a final pool). Both of those are **one-shot per tab**, so any fixture
 that tripped one would land on the antechamber at some viewports and on a
 different screen at others.
+
+**A saved Limited deck, without the builder** (issue #9272).
+`limited-deck-archive` needs one deck in the archive. The seam saves the
+`draft` fixture seat's Pool as that deck and lands on the archive:
+
+```
+/__uiseam/limited-deck?__uiseam_fixture="ui-gate/<runId>/draft"&__uiseam_deck_name="ui-gate archive deck"
+```
+
+`uiSeam.saveLimitedFixtureDeck` runs the same insert as the builder's
+`userDecks.create` (`insertUserDeck`), with the whole Pool in the Maindeck. If
+the seat already has a deck it is kept, not saved twice. The builder itself
+stays walked by `limited-build`.
 
 The fixture's cards are pinned BY NAME in `convex/limitedFixtures.ts`, not
 dealt by `startDraft`: a seeded deal is only as stable as the set's implemented

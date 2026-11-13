@@ -88,6 +88,11 @@ export const UI_SEAM_UNLESS_AT_PARAM = "__uiseam_unless_at";
  *  back as {@link UI_SEAM_UNLESS_AT_PARAM} on the next row's load. */
 export const UI_SEAM_POSITION_RECORD_KEY = "__uiseam_position_record";
 
+/** The phrase `uiSeam.loadPosition`'s refusal carries when the lane holds no
+ *  solo game in play. The lane reads it off the position page to deal one
+ *  through the lobby and ask again (`scripts/ui-gate/surfaces.ts`). */
+export const UI_SEAM_NO_SOLO_GAME_IN_PLAY = "no solo game in play";
+
 /** What the position page stores under {@link UI_SEAM_POSITION_RECORD_KEY}. */
 export interface UiSeamPositionRecord {
     label: string;
