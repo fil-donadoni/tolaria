@@ -596,6 +596,21 @@ export const SEVEN_POISON: Discriminant = {
     detail: "the bot at seven poison counters, two infect hits from losing",
 };
 // Issue #8701 — the land-tempo Minimal Pair of the 1-ply policy.
+/** Issue #9116 — the Shock on the stack is aimed at the graveyard-exile
+ *  permanent itself, so the +1/+1 counter its rider buys is the toughness
+ *  that survives it: answering now is the only window. */
+export const SHOCK_AIMED_AT_EXILER: Discriminant = {
+    kind: "other",
+    detail: "the Shock on the stack targets Lion Sash instead of the bot",
+};
+
+/** Issue #9116 — a permanent card in the bot's own graveyard, the one target
+ *  the exile's "+1/+1 counter if it was a permanent card" rider pays on. */
+export const OWN_PERMANENT_CARD_IN_GRAVEYARD: Discriminant = {
+    kind: "card",
+    detail: "Howling Mine in the bot's own graveyard",
+};
+
 export const UNTAPPED_LAND_NEEDED: Discriminant = {
     kind: "card",
     detail: "Giant Spider in hand, castable this turn only off an untapped land drop",
