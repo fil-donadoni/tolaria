@@ -2,6 +2,7 @@ import { ConvexError, v, type GenericId, type Infer } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, isAdminUser } from "./auth";
+import { forceBo3Sideboarding } from "./lib/forceBo3Sideboarding";
 import {
     internalMutation,
     mutation,
@@ -15273,52 +15274,7 @@ export const debugBo3Sideboard = mutation({
     args: { gameId: v.id("games") },
     handler: async (ctx, args) => {
         await assertIsAdmin(ctx);
-
-        const game = await ctx.db.get(args.gameId);
-        if (!game) throw new Error("Game not found");
-        if (!game.matchId) throw new Error("Game has no owning Match");
-        const match = await ctx.db.get(game.matchId);
-        if (!match) throw new Error("Match not found");
-
-        // The second seat "wins" Game 1 — for a solo Match this is `-p2`, so the
-        // human's `-p1` seat becomes the play/draw chooser (loser, CR 103.4).
-        const winnerSeat = match.players[1] ?? match.players[0];
-        const loserSeat = match.players.find((p) => p.id !== winnerSeat.id);
-
-        // Promote to Bo3 first, then route through the SAME pure transition the
-        // production game-over path uses, so the debug state is realistic.
-        const bo3: Doc<"matches"> = { ...match, bestOf: 3 };
-        const patch = recordGameResult(bo3, winnerSeat.id);
-        const now = Date.now();
-        await ctx.db.patch(game.matchId, {
-            bestOf: 3,
-            ...(patch ?? {}),
-            updatedAt: now,
-        });
-
-        // Mark the current Game finished and stamp `gameOver` so the board opens
-        // the interstitial Game-Over dialog (→ Continue to Sideboarding).
-        const existing = await getLatestGameState(ctx, args.gameId);
-        if (existing) {
-            const state = structuredClone(existing.state) as GameState;
-            endGame(state, {
-                winnerId: winnerSeat.id,
-                loserId: loserSeat?.id ?? winnerSeat.id,
-                reason: "concede",
-            });
-            await saveGameState(
-                ctx,
-                args.gameId,
-                existing.seq,
-                state,
-                existing
-            );
-        }
-        await ctx.db.patch(args.gameId, {
-            status: "finished",
-            winner: winnerSeat.id,
-            updatedAt: now,
-        });
+        await forceBo3Sideboarding(ctx, args.gameId);
     },
 });
 

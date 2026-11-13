@@ -44,6 +44,7 @@ import { anyApi } from "convex/server";
 import { laneAccountEmail } from "../../convex/lib/uiGateLaneAccount";
 import {
     uiGateDraftLabel,
+    uiGateFinalPickLabel,
     uiGateOpenLabel,
     uiGateRunLabelPrefix,
 } from "../../convex/limited/uiGateFixtureLabels";
@@ -63,6 +64,8 @@ export interface FixtureLabels {
     prefix: string;
     open: string;
     draft: string;
+    /** The last pick of a mocked draft (one card left in the last pack). */
+    finalPick: string;
 }
 
 /** The 12-hex id a run — and each of its accounts — is named by.
@@ -92,6 +95,7 @@ export function fixtureLabelsFor(runId: string): FixtureLabels {
         prefix: uiGateRunLabelPrefix(runId),
         open: uiGateOpenLabel(runId),
         draft: uiGateDraftLabel(runId),
+        finalPick: uiGateFinalPickLabel(runId),
     };
 }
 

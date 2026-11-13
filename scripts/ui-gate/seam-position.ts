@@ -83,6 +83,14 @@ export const SEAM_POSITION_ERROR = '[data-testid="ui-seam-position-error"]';
 export const SEAM_LIMITED_DECK_ERROR =
     '[data-testid="ui-seam-limited-deck-error"]';
 
+/** The Limited screen page's refusal line (`ui-seam-limited-screen.route.tsx`). */
+export const SEAM_LIMITED_SCREEN_ERROR =
+    '[data-testid="ui-seam-limited-screen-error"]';
+
+/** The sideboarding page's refusal line (`ui-seam-sideboarding.route.tsx`). */
+export const SEAM_SIDEBOARDING_ERROR =
+    '[data-testid="ui-seam-sideboarding-error"]';
+
 /**
  * Page predicate (`page.waitForFunction`) for "the load is over": either the
  * page recorded a load AND the app is on `/game`, or it printed a refusal.
