@@ -21,6 +21,7 @@ import { normalizeScenarioSpec } from "./debugScenarioSpec";
 import { findActiveGameForUser } from "./gameLifecycle";
 import { getLatestGameState } from "./gameStateStore";
 import { hydrateSeat } from "./limitedSeatStore";
+import { forceBo3Sideboarding } from "./lib/forceBo3Sideboarding";
 import { loadScenarioIntoGame } from "./lib/scenarioLoad";
 import { UI_SEAM_NO_SOLO_GAME_IN_PLAY } from "./lib/uiSeamNamespace";
 import {
@@ -175,5 +176,60 @@ export const saveLimitedFixtureDeck = mutation({
             )
         );
         return { deckId, created: true };
+    },
+});
+
+/**
+ * The event id of the Limited fixture `label` (issue #9560): where a Limited
+ * screen's deep link lands (`/limited/<id>`, `/draft`, `/build`) without the
+ * event list's `?label=` filter and View click. Only a fixture the caller is
+ * seated at — the lane's own run-scoped labels.
+ */
+export const limitedFixtureEvent = query({
+    args: { label: v.string() },
+    returns: v.id("limitedEvents"),
+    handler: async (ctx, args) => {
+        const user = await assertUiSeamCaller(ctx);
+        const event = await ctx.db
+            .query("limitedEvents")
+            .withIndex("by_label", (q) => q.eq("label", args.label))
+            .first();
+        if (!event) {
+            throw new Error(
+                `ui seam: Limited fixture "${args.label}" is absent from this deployment — the lane seeds it at bootstrap (limitedFixtures:seedUiGateFixtures)`
+            );
+        }
+        if (!event.seats.some((s) => s.userId === user._id)) {
+            throw new Error(
+                `ui seam: the lane account holds no seat at Limited fixture "${args.label}"`
+            );
+        }
+        return event._id;
+    },
+});
+
+/**
+ * Put the lane's OWN solo game's Match at the Bo3 sideboarding gate (issue
+ * #9560) — the Debug panel's "Bo3 Sideboard" (`forceBo3Sideboarding`, the
+ * shared body): Game 1 recorded for the second seat, score 0–1, the Game
+ * ended, so the board opens the Game-Over interstitial one click from the
+ * Sideboarding step.
+ *
+ * Same game rule as `loadPosition`: the caller's active SOLO game past its
+ * pregame, never a table another account plays in.
+ */
+export const forceSideboarding = mutation({
+    args: {},
+    returns: v.object({ gameId: v.id("games") }),
+    handler: async (ctx) => {
+        const user = await assertUiSeamCaller(ctx);
+        const game = await findActiveGameForUser(ctx, user._id);
+        if (!game || !isLanePositionGame(game)) {
+            throw new Error(
+                `ui seam: the lane account has ${UI_SEAM_NO_SOLO_GAME_IN_PLAY} to put at the sideboarding gate — the lane deals one through the lobby first`
+            );
+        }
+        await forceBo3Sideboarding(ctx, game._id);
+        return { gameId: game._id };
     },
 });
