@@ -21,4 +21,6 @@
 // land plays now pair with landfall payoffs.
 // v4: the `sacrifice-fodder` Capability — token makers now
 // pair with sacrifice outlets and sacrifice costs.
-export const SCORER_VERSION = 4;
+// v5 (issue #9337): a mana source that sacrifices itself for mana counts as
+// half a source in Castability, Fixing Value and the third-colour gate.
+export const SCORER_VERSION = 5;
