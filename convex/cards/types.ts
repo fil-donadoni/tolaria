@@ -4088,7 +4088,8 @@ export interface EffectTokenSpec {
 export type TokenTriggeredEventKind =
     | "PERMANENT_ENTERED"
     | "CREATURE_DIED"
-    | "ATTACKERS_DECLARED";
+    | "ATTACKERS_DECLARED"
+    | "PERMANENT_LEFT";
 
 /** JSON-pure, restricted triggered-ability descriptor for
  *  `EffectTokenSpec.triggeredAbilities` (issue #2364). Always CR 109.2
@@ -4123,6 +4124,11 @@ export interface TokenTriggeredAbility {
      *  this restricted surface has no `resolve()` escape hatch, so an
      *  ability with nothing to run is not expressible. */
     effects: EffectOp[];
+    /** CR 603.3d — announcement-time target requirement for a TARGETED token
+     *  trigger ("When this token leaves the battlefield, it deals 2 damage to
+     *  any target"). JSON-pure, forwarded verbatim to the trigger factory; the
+     *  body reads the announced slot as `{ target: 0 }`. */
+    targetRequirement?: TargetRequirement;
 }
 
 // --- As-enters choices (CR 614.1c / 614.12, ADR 0100) ---
