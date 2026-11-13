@@ -14,6 +14,7 @@ import type {
     ManaCost,
     AsEntersChoice,
     StaticEffect,
+    TargetRequirement,
     TokenSpec,
     TokenStaticEffectKey,
     TriggeredAbility,
