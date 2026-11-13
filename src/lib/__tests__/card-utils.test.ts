@@ -136,6 +136,7 @@ import {
 } from "@convex/cards/sets/leg/index.cards";
 import { miracleWorker } from "@convex/cards/sets/drk/index.cards";
 import { cutDown } from "@convex/cards/sets/dmu/index.cards";
+import { warpingWail } from "@convex/cards/sets/ogw/index.cards";
 import { holyStrength } from "@convex/cards/sets/lea/white.cards";
 import {
     pendingTargetFiltersFromRequirement,
@@ -559,6 +560,38 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
                 undefined
             )
         ).toBe(true);
+    });
+
+    // CR 208.1 / CR 613.4c (issue #8645) — Warping Wail's "power or toughness 1
+    // or less" reaches the client through the real projection: a 5/1 is ringed,
+    // a 2/2 is not.
+    it("powerOrToughnessFilter (Warping Wail): accepts a creature with one value at the bound, rejects one over it on both, through the real wire projection", () => {
+        const exileMode = warpingWail().modes![0].targetRequirement!;
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(
+                exileMode,
+                { power: 5, toughness: 1 },
+                { power: 2, toughness: 2 }
+            );
+        expect(pendingTarget.powerOrToughnessFilter).toEqual({ max: 1 });
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(true);
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
     });
 
     it("powerFilter under a command-zone emblem anthem: matches the server's effective power only when emblems are folded in (CR 114, over-filter regression)", () => {

@@ -87,7 +87,7 @@ export const mirrorpool = defineCard(() => ({
 //   - "Power or toughness 1 or less" is `powerOrToughnessFilter` (CR 208.1,
 //     CR 613.4c): one value at the bound qualifies, so the conjunctive
 //     `powerFilter` / `toughnessFilter` cannot say it.
-//   - Counter: `spellTypeFilter: "Sorcery"` (CR 114.1) then `counter`
+//   - Counter: `spellTypeFilter: "Sorcery"` (CR 115.1a) then `counter`
 //     (CR 701.6a).
 //   - The Scion shares the Spawn's sacrifice mana ability (CR 605.3a).
 // hand-tail: Choose one — • Exile target creature with power or toughness 1 or less. • Counter target sorcery spell. • Create a 1/1 colorless Eldrazi Scion creature token. It has "Sacrifice this token: Add {C}." (#8645)

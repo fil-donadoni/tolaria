@@ -128,7 +128,7 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
     imagePrintId: "e32795e1-5548-43ef-8cd6-c605a19ef708",
 };
 
-/** Eldrazi Scion token (CR 111 / 707.2, issue #8645). "1/1 colorless Eldrazi
+/** Eldrazi Scion token (CR 111.1, issue #8645). "1/1 colorless Eldrazi
  *  Scion creature token with 'Sacrifice this token: Add {C}.'" — the Spawn's
  *  mana ability (`ELDRAZI_SPAWN_TOKEN` above, CR 605.3a), on a 1/1 body.
  *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN` treatment: the
