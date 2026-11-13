@@ -7,7 +7,7 @@
  * The Match is promoted to `bestOf: 3`, the SECOND seat is recorded as Game
  * 1's winner through the same pure transition the game-over path uses
  * (`recordGameResult`, so a solo human's `-p1` seat is the play/draw chooser,
- * CR 103.4), the Match goes to "sideboarding", and the Game's state is ended
+ * CR 103.1), the Match goes to "sideboarding", and the Game's state is ended
  * (`endGame`) so the board opens the Game-Over interstitial.
  */
 import type { Doc, Id } from "../_generated/dataModel";
@@ -27,7 +27,7 @@ export async function forceBo3Sideboarding(
     if (!match) throw new Error("Match not found");
 
     // The second seat "wins" Game 1 — for a solo Match this is `-p2`, so the
-    // human's `-p1` seat becomes the play/draw chooser (loser, CR 103.4).
+    // human's `-p1` seat becomes the play/draw chooser (loser, CR 103.1).
     const winnerSeat = match.players[1] ?? match.players[0];
     const loserSeat = match.players.find((p) => p.id !== winnerSeat.id);
 
