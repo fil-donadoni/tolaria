@@ -92,7 +92,7 @@ export const mirrorpool = defineCard(() => ({
 //   - The Scion shares the Spawn's sacrifice mana ability (CR 605.3a).
 // hand-tail: Choose one — • Exile target creature with power or toughness 1 or less. • Counter target sorcery spell. • Create a 1/1 colorless Eldrazi Scion creature token. It has "Sacrifice this token: Add {C}." (#8645)
 export const warpingWail = defineCard(() => ({
-    id: "c8b9fa02-0a0c-4a87-9a00-3c1c7e2f4bfd",
+    id: "f2ef4db8-b51c-4f52-84f1-6fee31c4a14c",
     rarity: "uncommon",
     name: "Warping Wail",
     oracleText:

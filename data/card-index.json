@@ -91916,6 +91916,14 @@
         "source": "compiled"
     },
     {
+        "name": "Warping Wail",
+        "scryfallId": "f2ef4db8-b51c-4f52-84f1-6fee31c4a14c",
+        "oracleId": "c8b9fa02-0a0c-4a87-9a00-3c1c7e2f4bfd",
+        "firstSet": "ogw",
+        "firstPrintId": "f2ef4db8-b51c-4f52-84f1-6fee31c4a14c",
+        "firstPrintSet": "ogw"
+    },
+    {
         "name": "Warren Elder",
         "scryfallId": "4bf20069-5a20-4f95-976b-6af2b69f3ad0",
         "oracleId": "33fcb05b-246d-4b82-8b0f-44d5f891b612",
