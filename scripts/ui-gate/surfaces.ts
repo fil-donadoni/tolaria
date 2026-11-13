@@ -5050,7 +5050,7 @@ export const SURFACES: readonly Surface[] = [
             },
             {
                 label: "final pack tile",
-                locator: { selector: DRAFT_PICK_TILE },
+                locator: { selector: "[data-draft-pick-tile]" },
                 check: "visible",
             },
             {
