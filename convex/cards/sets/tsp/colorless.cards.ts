@@ -55,7 +55,7 @@ export const chromaticStar = defineCard(() => ({
 // starting player, enters with the luck counter (CR 122.6) and, once it has,
 // its player exiles a card from their hand. CR 605.1a — the mana ability is a
 // {T} ability whose `getManaChoices` reads the live luck counter: {C} alone
-// without one (a single choice, so no prompt), any of the five colours with it.
+// without one, any of the five colours with it.
 // hand-tail: If this card is in your opening hand and you're not the starting player, you may begin the game with {self} on the battlefield with a luck counter on it. If you do, exile a card from your hand. (#8620)
 export const gemstoneCaverns = defineCard(() => ({
     id: "94d74254-4750-4fb3-9e53-473a5f98b315",
