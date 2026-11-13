@@ -200,7 +200,7 @@ import { foretellInSearch, foretoldCastStackFlags } from "./foretell";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { COMPANION_SUMMON_COST, moveCompanionToHand } from "./companion";
-import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
+import { genericFuelCards, genericFuelOf, genericPortion } from "./payWith";
 import { genericManaShortfall, spendGraveyardPlayPermission } from "./rules";
 import {
     buildCastExileCostChoice,
@@ -295,8 +295,10 @@ export function applyDelveExileForSearch(
     card: CardInstanceState,
     chosenX: number | undefined
 ): string[] {
-    if (!spellHasDelve(card)) return [];
-    const delveFuel = delveEligibleCards(player, card.id).length;
+    const fuel = genericFuelOf(card);
+    if (!fuel) return [];
+    const fuelCards = genericFuelCards(player, card);
+    const delveFuel = fuelCards.length;
     if (delveFuel === 0) return [];
     const rawCost = getInstanceManaCost(card) ?? {};
     const normCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
@@ -311,10 +313,15 @@ export function applyDelveExileForSearch(
         );
     }
     const shortfall = genericManaShortfall(player, card, normCost, state);
+    // CR 601.2f — each card pays `fuel.perCard` generic points (1 for Delve).
     const delveCount = Math.min(
         delveFuel,
-        genericPortion(normCost),
-        Number.isFinite(shortfall) ? shortfall : 0
+        Math.ceil(
+            Math.min(
+                genericPortion(normCost),
+                Number.isFinite(shortfall) ? shortfall : 0
+            ) / fuel.perCard
+        )
     );
     if (delveCount <= 0) return [];
     // CHEAPEST FIRST, matching `castExileViewFor` + `chooseCastExileCost`
@@ -324,12 +331,9 @@ export function applyDelveExileForSearch(
     // post-cast graveyard than the bot actually produces, and which cards leave
     // is observable (threshold, delirium, escape fodder, a graveyard-counting
     // CDA).
-    const exiled = cheapestFirst(delveEligibleCards(player, card.id)).slice(
-        0,
-        delveCount
-    );
+    const exiled = cheapestFirst(fuelCards).slice(0, delveCount);
     for (const c of exiled) {
-        moveCard(player, c.id, "graveyard", "exile");
+        moveCard(player, c.id, fuel.zone, "exile");
     }
     // CR 607.2q — the exiled ids, stamped on the stack item as the cards
     // "exiled with" the spell, exactly as `commitCast` stamps them.

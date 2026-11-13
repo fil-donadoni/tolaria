@@ -35,6 +35,7 @@ import type {
 } from "./state/declarations";
 import type { Color } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { isExileCostEligible } from "../cards/exileCostEligibility";
 import {
     MANA_COLORS,
     COLORED_MANA_COLORS,
@@ -56,6 +57,31 @@ export function spellHasDelve(card: CardInstanceState): boolean {
     );
 }
 
+/** CR 702.66a / 601.2f — the `payWith` generic-fuel a cast may exile to pay
+ *  down its GENERIC cost: Delve's graveyard cards ({1} each), or a
+ *  `handExileCostReduction` spell's matching hand cards ({N} each). One shape so
+ *  every payWith site (picker, castability probe, enumerator, search leaf)
+ *  reads the same zone, colour filter and per-card value. */
+export interface GenericFuel {
+    zone: "graveyard" | "hand";
+    color?: Color;
+    perCard: number;
+}
+
+/** The spell's generic-fuel declaration, or `undefined` when it has none. */
+export function genericFuelOf(
+    card: CardInstanceState
+): GenericFuel | undefined {
+    if (spellHasDelve(card)) return { zone: "graveyard", perCard: 1 };
+    const cardId = (card.card as { id?: string }).id;
+    const reduction = cardId
+        ? tryGetDefinition(cardId)?.handExileCostReduction
+        : undefined;
+    return reduction
+        ? { zone: "hand", color: reduction.color, perCard: reduction.perCard }
+        : undefined;
+}
+
 /** CR 702.66a — the cards in `player`'s graveyard that may be exiled to pay for
  *  this cast. Every graveyard card qualifies (delve has no colour/type filter),
  *  except the spell itself when it is being cast FROM the graveyard — a card
@@ -65,6 +91,19 @@ export function delveEligibleCards(
     castInstanceId: string
 ): CardInstanceState[] {
     return player.graveyard.filter((c) => c.id !== castInstanceId);
+}
+
+/** CR 601.2b / 702.66a — the cards `player` may exile as generic fuel for
+ *  `card`: its zone's cards that pass the colour filter (CR 105.2), never the
+ *  spell itself. Empty when the spell has no generic fuel. */
+export function genericFuelCards(
+    player: PlayerState,
+    card: CardInstanceState
+): CardInstanceState[] {
+    const fuel = genericFuelOf(card);
+    if (!fuel) return [];
+    const pool = fuel.zone === "hand" ? player.hand : player.graveyard;
+    return pool.filter((c) => isExileCostEligible(c, card.id, fuel.color));
 }
 
 /** The GENERIC portion of a normalized cost: the numeric `X` key plus any
@@ -114,16 +153,41 @@ export function buildDelveExileChoice(
      *  the castability gate uses. */
     shortfall: number
 ): NonNullable<PendingCast["exileFromGraveyardChoice"]> | undefined {
-    if (!spellHasDelve(card)) return undefined;
-    const eligible = delveEligibleCards(player, castInstanceId);
-    const max = Math.min(eligible.length, genericPortion(manaCost));
+    const fuel = genericFuelOf(card);
+    if (!fuel) return undefined;
+    // CR 601.2f — a card pays `perCard` generic points (1 for Delve, N for a
+    // `handExileCostReduction`), so the count bounds divide the points by it.
+    const eligible = genericFuelCards(player, card);
+    const max = Math.min(
+        eligible.length,
+        Math.ceil(genericPortion(manaCost) / fuel.perCard)
+    );
     if (max <= 0) return undefined;
-    const min = Math.max(0, Math.min(shortfall, max));
+    const min = Math.max(0, Math.min(Math.ceil(shortfall / fuel.perCard), max));
     return {
         count: 0,
         excludeInstanceId: castInstanceId,
-        offsetGeneric: { min, max },
+        ...(fuel.zone === "hand" ? { zone: "hand" as const } : {}),
+        ...(fuel.color !== undefined ? { color: fuel.color } : {}),
+        offsetGeneric: {
+            min,
+            max,
+            ...(fuel.perCard !== 1 ? { perCard: fuel.perCard } : {}),
+        },
     };
+}
+
+/** The cards a variable-offset picker may still exile: its zone's cards that
+ *  pass its colour filter, minus the spell itself. Reads the CHOICE, so the
+ *  collapse and the record step need no card definition. */
+export function offsetChoiceEligibleCards(
+    player: PlayerState,
+    choice: NonNullable<PendingCast["exileFromGraveyardChoice"]>
+): CardInstanceState[] {
+    const pool = choice.zone === "hand" ? player.hand : player.graveyard;
+    return pool.filter((c) =>
+        isExileCostEligible(c, choice.excludeInstanceId, choice.color)
+    );
 }
 
 /** CR 601.2g / 702.66 — collapse a delve pick that has NO real branch left,
@@ -171,7 +235,7 @@ export function buildDelveExileChoice(
  *  back. */
 export function collapseForcedDelvePick(
     player: PlayerState,
-    castInstanceId: string,
+    _castInstanceId: string,
     choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> | undefined,
     manaCost: Record<string, number>
 ): void {
@@ -180,10 +244,10 @@ export function collapseForcedDelvePick(
     if (!offset) return;
     const { min, max } = offset;
     if (max <= 0 || min !== max) return;
-    const eligible = delveEligibleCards(player, castInstanceId);
+    const eligible = offsetChoiceEligibleCards(player, choice);
     if (max !== eligible.length) return;
     const pickedCardIds = eligible.map((c) => c.id);
-    applyGenericOffset(manaCost, pickedCardIds.length);
+    applyGenericOffset(manaCost, pickedCardIds.length * (offset.perCard ?? 1));
     choice.pickedCardIds = pickedCardIds;
 }
 

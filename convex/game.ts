@@ -160,7 +160,7 @@ import {
     coverColoredAndHybridPips,
     creatureConvokeColors,
     spellHasConvoke,
-    spellHasDelve,
+    genericFuelOf,
 } from "./gre/payWith";
 import {
     buildRestrictedXSplitChoice,
@@ -10031,12 +10031,12 @@ export function recordCastExileCostPick(
         const { min, max } = ec.offsetGeneric;
         if (cardInstanceIds.length < min) {
             throw new Error(
-                `Must exile at least ${min} card(s) from your graveyard to pay for this spell`
+                `Must exile at least ${min} card(s) from your ${ec.zone ?? "graveyard"} to pay for this spell`
             );
         }
         if (cardInstanceIds.length > max) {
             throw new Error(
-                `Can't exile more than ${max} card(s) from your graveyard for this spell`
+                `Can't exile more than ${max} card(s) from your ${ec.zone ?? "graveyard"} for this spell`
             );
         }
     } else if (
@@ -10116,7 +10116,10 @@ export function recordCastExileCostPick(
     // themselves don't move until commit, so cancelling leaves the graveyard
     // untouched (`rollbackPendingCast` drops the whole pendingCast).
     if (ec.offsetGeneric) {
-        applyGenericOffset(pc.manaCost, cardInstanceIds.length);
+        applyGenericOffset(
+            pc.manaCost,
+            cardInstanceIds.length * (ec.offsetGeneric.perCard ?? 1)
+        );
         // CR 601.2f — delve has answered, so what it covered can now be split.
         const castCard = locateCastSource(
             state,
@@ -10333,7 +10336,7 @@ export function recordConvokeCreaturePick(
     // REMAINING generic (Hogaak carries both). Arena prompt policy applies: the
     // picker is undefined when nothing generic is left (all convoked).
     const castCard = locateCastSource(state, player, pc.cardInstanceId).card;
-    if (castCard && spellHasDelve(castCard) && !pc.exileFromGraveyardChoice) {
+    if (castCard && genericFuelOf(castCard) && !pc.exileFromGraveyardChoice) {
         // CR 601.2g ordering (ADR 0063) — this is the SECOND leg of a chained
         // payWith pick: `recordConvokeCreaturePick` is a pure record step, and
         // its own caller hasn't had a chance to attempt

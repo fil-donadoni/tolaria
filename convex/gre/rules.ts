@@ -138,9 +138,9 @@ import {
     consumeColoredAndHybridPips,
     greedyDistinctColorMatch,
     creatureConvokeColors,
-    delveEligibleCards,
+    genericFuelCards,
+    genericFuelOf,
     spellHasConvoke,
-    spellHasDelve,
 } from "./payWith";
 import { spellHasAssist } from "./assist";
 import {
@@ -2929,8 +2929,12 @@ export function buildManaSourceUnits(
     // by the solver. Without it `getLegalActions` would drop "cast" for a spell
     // payable only by delving (Treasure Cruise off two lands) and the client
     // would gray it out.
-    if (includePayWith && spellHasDelve(card)) {
-        const fuel = delveEligibleCards(player, card.id).length;
+    // A `handExileCostReduction` spell rides the same seam: each matching hand
+    // card pays `perCard` generic points (CR 601.2f), so it adds that many
+    // generic-only pseudo-sources.
+    const probeFuel = includePayWith ? genericFuelOf(card) : undefined;
+    if (probeFuel) {
+        const fuel = genericFuelCards(player, card).length * probeFuel.perCard;
         for (let i = 0; i < fuel; i++) sources.push(new Set<Color>());
     }
 
@@ -2999,13 +3003,13 @@ function coloredCostLeftover(
     // a fixed generic one (exiling spends no mana), and X is the half mana finds
     // harder, so the probe spends the fuel there first. Delve's pseudo-source has
     // an empty colour set, so the greedy below cannot place it on the pip itself.
-    const delved =
-        (opts.payWith ?? true) && spellHasDelve(card)
-            ? Math.min(
-                  delveEligibleCards(player, card.id).length,
-                  restrictedXPipCount(cost)
-              )
-            : 0;
+    const delveFuel = (opts.payWith ?? true) ? genericFuelOf(card) : undefined;
+    const delved = delveFuel
+        ? Math.min(
+              genericFuelCards(player, card).length * delveFuel.perCard,
+              restrictedXPipCount(cost)
+          )
+        : 0;
     let priced = cost;
     if (delved > 0) {
         priced = { ...cost };
