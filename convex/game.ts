@@ -5547,7 +5547,8 @@ export function finalizeTargetSelection(
             castSubjectView(cardInHand, pt.alternativeCostId),
             "spell",
             undefined,
-            player.id
+            player.id,
+            targets
         )
     );
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
