@@ -382,6 +382,11 @@
     ],
     "Forest": [
         {
+            "label": "cast during resolution: Plague Spores off Chandra aims its land target at the opponent's land",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "Fastbond: plays the extra land with life to spare",
             "tier": "must",
             "needsSetup": false
@@ -1026,6 +1031,11 @@
     "Shivan Dragon": [
         {
             "label": "cast during resolution: Counterspell off Chandra counters the bigger spell",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "cast during resolution: Plague Spores off Chandra aims its creature target at the Dragon",
             "tier": "must",
             "needsSetup": true
         },

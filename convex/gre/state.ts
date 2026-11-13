@@ -295,6 +295,11 @@ import {
     totalKickerCount,
 } from "./kicker";
 import {
+    excludingPriorTargets,
+    zoneOwnedByPriorPlayerTarget,
+} from "./targetGroupWalk";
+import { announcedTargetCount } from "./pendingTargetOrigin";
+import {
     modeInstances,
     modeInstanceTargetGroups,
     soleChosenModeId,
@@ -21425,17 +21430,6 @@ export function buildSpellContext(
             // stack item; a copy carries none (CR 707.10).
             return item.castFromZone === "graveyard";
         },
-        getCardTargetRequirement(casterId, cardInstanceId, alternativeCostId) {
-            // CR 108.1 — read the chosen card's target requirement from the
-            // registry so a controlled cast (Word of Command) or a
-            // cast-during-resolution (Malcolm, issue #1477) can branch on
-            // whether the caster must choose targets. Zone-broad (issue #1477).
-            // CR 709.3a / 712.11c / 715.3a — of the announced face alone.
-            return castSubjectDefinition(
-                getHandCardDef(state, casterId, cardInstanceId),
-                alternativeCostId
-            )?.targetRequirement;
-        },
         getPublicCardIdentity(playerId, cardInstanceId, zone) {
             // CR 406.3 / ADR 0026 (issue #3413) — the definition id it is safe
             // to disclose, or nothing. The one caller that matters is a dialog
@@ -21610,16 +21604,22 @@ export function buildSpellContext(
                         return false;
                     }
                     // CR 601.2c — a mode's requirement is asked of the mode
-                    // once it is chosen, not here.
-                    const req = subject?.targetRequirement;
+                    // once it is chosen, not here: the first group of the
+                    // face's own announcement, with no mode.
+                    const firstGroup = ctx.getCastTargetSlot(
+                        playerId,
+                        cardInstanceId,
+                        {
+                            alternativeCostId: alt.id,
+                            groupIndex: 0,
+                            groupTargets: [],
+                            priorTargets: [],
+                        }
+                    );
                     if (
-                        req &&
-                        ctx.getLegalTargetsForCard(
-                            playerId,
-                            cardInstanceId,
-                            req,
-                            alt.id
-                        ).length === 0
+                        firstGroup &&
+                        firstGroup.min > 0 &&
+                        firstGroup.legal.length === 0
                     ) {
                         return false;
                     }
@@ -21762,19 +21762,6 @@ export function buildSpellContext(
                 label: m.label,
             }));
         },
-        getCardModeTargetRequirement(
-            casterId,
-            cardInstanceId,
-            modeId,
-            alternativeCostId
-        ) {
-            // CR 700.2d — only the chosen mode's target requirement is honored.
-            const def = castSubjectDefinition(
-                getHandCardDef(state, casterId, cardInstanceId),
-                alternativeCostId
-            );
-            return def?.modes?.find((m) => m.id === modeId)?.targetRequirement;
-        },
         cardHasXCost(casterId, cardInstanceId, alternativeCostId) {
             // CR 107.3 — a variable {X} is a string-valued X in the cost.
             const def = castSubjectDefinition(
@@ -21880,47 +21867,82 @@ export function buildSpellContext(
             }
             return best < 0 ? 0 : best;
         },
-        getLegalTargetsForCard(
-            casterId,
-            cardInstanceId,
-            requirement,
-            alternativeCostId
-        ) {
-            // ADR 0037 / CR 601.2c — enumerate the legal targets for the chosen
-            // card cast under `casterId`'s control (Word of Command's spell
-            // branch). Reuses `getLegalTargets` exactly as a normal cast does
-            // (moves.ts) so the candidate set is identical: "any target",
-            // opponent-relative restrictions, color/type/power filters all come
-            // out the same. The relationship filters ("opponent", "you") are
-            // resolved against `casterId` — the controlled opponent, whose spell
-            // it is — so an "any target" spell (Lightning Bolt) places no
-            // restriction and the Acting Player may aim it at the opponent
-            // (the controlled player) themselves.
+        getCastTargetSlot(casterId, cardInstanceId, query) {
+            // CR 601.2c (issue #9536) — one pick of a resolve-time cast's
+            // target announcement (Word of Command's controlled cast, ADR
+            // 0037; the cast-during-resolution Op, issue #1477). The group
+            // list is `announceCast`'s: the chosen mode's primary requirement
+            // (CR 700.2c) falling back to the card's, then the mode's or the
+            // card's `additionalTargetRequirements`. Unkicked: neither cast
+            // pays a kicker (CR 702.33g drops the gated groups).
+            // CR 709.3a / 712.11c / 715.3a — of the announced face alone.
+            const def = castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                query.alternativeCostId
+            );
+            if (!def) return undefined;
+            const mode =
+                query.modeId !== undefined
+                    ? def.modes?.find((m) => m.id === query.modeId)
+                    : undefined;
+            const base = castAnnouncedTargetGroups(
+                [
+                    mode?.targetRequirement ?? def.targetRequirement,
+                    ...(mode?.additionalTargetRequirements ??
+                        def.additionalTargetRequirements ??
+                        []),
+                ],
+                false
+            )[query.groupIndex];
+            if (!base) return undefined;
+            // CR 115.3 / 601.2c — the directives a later group reads off the
+            // earlier groups' picks, lowered exactly as the normal walk's
+            // group hand-off lowers them (`advancePendingTargetGroup`).
+            const prior = query.priorTargets;
+            const requirement = zoneOwnedByPriorPlayerTarget(
+                excludingPriorTargets(base, prior),
+                prior,
+                state
+            );
+            const count = announcedTargetCount(requirement, query.chosenX, {
+                announcement: {
+                    state,
+                    controllerId: casterId,
+                    sourceInstanceId: cardInstanceId,
+                    priorTargets: prior,
+                },
+            });
+            if (count === undefined) return { min: 0, max: 0, legal: [] };
             const owner = getPlayer(state, casterId);
-            // Zone-broad (issue #1477) — enumerate targets for a card cast from
-            // hand (Word of Command) or graveyard/exile (cast-during-resolution).
+            // Zone-broad (issue #1477) — a card cast from hand (Word of
+            // Command) or graveyard/exile (cast-during-resolution).
             const found = findCastSource(state, owner, cardInstanceId);
-            return getLegalTargets(
+            // The relationship filters ("opponent", "you") resolve against
+            // `casterId` — the spell's controller (CR 601) — so an "any
+            // target" spell places no restriction and Word of Command's
+            // controller may aim the opponent's Bolt at the opponent.
+            const legal = getLegalTargets(
                 state,
                 requirement,
-                // The chosen card is being cast as a spell (CR 601), not an
-                // activated ability — mirror moves.ts, which reads the same
-                // characteristics off the INSTANCE through the one factory.
-                // (`getEffectiveColors` falls back to the printed cost when no
-                // colour override / grant applies, so this is value-identical
-                // to the old cost-derived read for a plain card and strictly
-                // more correct for a recoloured one.)
                 // CR 709.3a / 712.11c / 715.3a — the announced face is the
-                // source a protection or "can't be the target" clause reads.
+                // source a protection or "can't be the target" clause reads;
+                // the characteristics come off the INSTANCE (moves.ts).
                 found
                     ? targetingSourceFromCard(
-                          castSubjectView(found.card, alternativeCostId),
+                          castSubjectView(found.card, query.alternativeCostId),
                           true
                       )
                     : NO_TARGETING_SOURCE,
                 casterId,
-                undefined
+                query.chosenX,
+                // CR 115.3 — no object twice for one instance of "target";
+                // CR 601.2c (issue #1104) — `sameController` narrows to the
+                // first pick's controller.
+                query.groupTargets
             );
+            return typeof count === "number"
+                ? { min: count, max: count, legal }
+                : { min: count.min, max: count.max, legal };
         },
         castChosenSpell(
             controllerId,

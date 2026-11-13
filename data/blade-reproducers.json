@@ -403,6 +403,8 @@
         }
     },
     "cast during resolution: Counterspell off Chandra counters the bigger spell": null,
+    "cast during resolution: Plague Spores off Chandra aims its creature target at the Dragon": null,
+    "cast during resolution: Plague Spores off Chandra aims its land target at the opponent's land": null,
     "cast during resolution: Raise Dead off Chandra returns the best creature card": null,
     "cast permission: casts a creature for free under Aluren with no lands": {
         "cards": [
