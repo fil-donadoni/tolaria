@@ -181,7 +181,10 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // seat's draw: across eight blocks of eight seeds it spans
         // 0.58–0.79 on trees whose mean castability is equal. On the old
         // tree, seeds 1..8 were the best block of the eight (0.772, median
-        // 0.730). The 64-seed mean is unchanged (0.864 → 0.865).
+        // 0.730). The 64-seed mean is unchanged (0.864 → 0.865), and so is
+        // the 5th percentile. Only the last percent thickens, and that comes
+        // from the scope-relative plan
+        // (docs/research/draft-table-audit-floor-noise.md).
         worstDeckCastability: 0.76,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):

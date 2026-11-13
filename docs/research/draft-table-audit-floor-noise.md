@@ -44,6 +44,16 @@ bun run draft:audit -- --scope vintage-cube --seeds 64 --json
   across blocks. On the base, seeds 1..8 happened to be its best block. Fetch
   lands change Fixing Value, so every pick changes and every table is drafted
   again. That is enough to lose a lucky block.
+- **The tail, all 512 decks.** Fetch lands do not hurt it. PR #9320 thickens
+  only its last percent; p5 and above do not move.
+
+    | Tree     |   p1 |   p5 |  p10 | Decks < 0.77 |
+    | -------- | ---: | ---: | ---: | -----------: |
+    | Base     | .734 | .782 | .806 |           16 |
+    | PR #9345 | .751 | .786 | .811 |           14 |
+    | PR #9320 | .712 | .778 | .806 |           21 |
+    | Both     | .703 | .781 | .811 |           20 |
+
 - **Plan share falls because of PR #9320**, as that PR measured. On the tip,
   seeds 1..8 are the lowest block (0.482).
 - **Floors moved** in `scripts/lib/draft-audit.ts`, rounded down from the
