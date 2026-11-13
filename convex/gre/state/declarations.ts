@@ -5648,7 +5648,13 @@ export type GameState = {
      *  when a source leaves play — it is cleared unconditionally at CLEANUP.
      *  An omitted/empty `cardTypes` forbids ALL spells (the original Xantid
      *  Swarm shape); a non-empty list narrows the lock to those card types. */
-    cannotCastSpellsThisTurn?: { playerId: string; cardTypes?: CardType[] }[];
+    cannotCastSpellsThisTurn?: {
+        playerId: string;
+        cardTypes?: CardType[];
+        /** "Noncreature spells": the lock covers a spell having NONE of
+         *  these printed types. Combined with `cardTypes`, both must hold. */
+        excludeCardTypes?: CardType[];
+    }[];
     /** CR 602.1 / 605.1a / 514.2 — player ids under a turn-scoped "can't
      *  activate abilities that aren't mana abilities" restriction (Abeyance).
      *  Mana abilities (`useStack: false`) are structurally exempt: they never
