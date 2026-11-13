@@ -56,9 +56,9 @@ export const echo = query({
  * refusals, reached in one navigation through `/__uiseam/position`.
  *
  * Only the caller's active SOLO game, and only once it is `playing` (its
- * snapshot exists past the pregame gate): the lane account can also sit at the
- * run's join table, a two-seat game whose other seat is a real account, and
- * the seam never writes a game another account plays in.
+ * snapshot exists past the pregame gate). A two-seat game has another account
+ * in it — the run's join table belongs to the host account, and the lane only
+ * views it — and the seam never writes a game another account plays in.
  *
  * `unlessAt` makes a repeat load free: it is the game and `seq` an earlier
  * load of the SAME label returned, and when that same game still stands at
