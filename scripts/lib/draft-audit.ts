@@ -22,6 +22,7 @@ import {
 import {
     auditSeatDeck,
     EARLY_MANA_VALUE,
+    formatPlans,
     mean,
     type DeckAudit,
 } from "../../src/lib/limited/draftTableAudit";
@@ -272,7 +273,10 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // seeds p5 is 0.783 and seeds 1..8 are the lowest block but one.
         // Tightened 0.76 → 0.79 by the castable-value colour choice (issue
         // #9336): 0.767 → 0.793 on seeds 1..8.
-        p5DeckCastability: 0.79,
+        // Loosened 0.79 → 0.77 by the soft plan weights (issue #9356): over
+        // 64 seeds p5 does not move (0.806 → 0.807), but seeds 1..8 become
+        // the lowest of eight blocks (0.793 → 0.776; median 0.809).
+        p5DeckCastability: 0.77,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.
@@ -289,7 +293,11 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // Tightened 0.47 → 0.49 by the castable-value colour choice (issue
         // #9336): a plan card is worth `PLAN_CARD_RATING` more in the colour
         // set's score (0.478 → 0.492 on seeds 1..8).
-        meanPlanShare: 0.49,
+        // Re-set 0.49 → 0.70 by the soft plan weights (issue #9356): plan
+        // share now counts a spell carrying ANY Archetype the Pool is
+        // committed to. The old build reads 0.679 by that definition on
+        // seeds 1..8 (0.699 over 64), the soft-weight build 0.707 (0.725).
+        meanPlanShare: 0.7,
         meanCapabilityPairs: 16.71,
     },
     lea: {
@@ -361,7 +369,7 @@ export function formatDeckLine(d: DeckAudit): string {
         `splash ${d.splash ? `${d.splash.cards} (${d.splash.strained} strained)` : "—"}`,
         `offDuals ${d.offColourDuals}`,
         `offSpells ${d.offColourSpells}`,
-        `plan ${d.planArchetype ?? "—"} ${fmt(d.planShare, 2)}`,
+        `plan ${formatPlans(d.planArchetypes)} ${fmt(d.planShare, 2)}`,
         `pairs ${d.capabilityPairs}`,
         `unreviewed A ${fmt(d.unreviewedShare.archetypes, 2)} C ${fmt(d.unreviewedShare.capabilities, 2)}`,
     ].join(" · ");

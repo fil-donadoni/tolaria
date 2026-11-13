@@ -211,3 +211,19 @@ when it carries the plan: the plan is one input to a spell's value, never a
 veto on colours. The colour count is a consequence of the fixing, so a set
 Pool builds two colours and a splash and a cube Pool with duals may build
 four. Measurements: `docs/research/draft-table-audit-castable-value.md`.
+
+## Amendment III — plans as soft weights (issue #9356, PRD #8772)
+
+The single plan of Amendment I retires. Every settled Archetype with a
+positive surplus over its scope expectation is a plan, weighed by its surplus
+over the largest one (`planArchetypeWeights` in `planArchetype.ts`): the
+deepest weighs 1, a second in proportion to its own surplus. When no settled
+Archetype is above its expectation, the least diluted weighs 1 alone, as the
+single plan did. A spell's value gains `PLAN_CARD_RATING` times the summed
+weights of the plans it carries, in the Maindeck's selection and in the
+colour set's castable value alike; no plan card holds a reserved slot, so the
+plan's core (its cards, their Capability partners, the deck's mana-producing
+spells) is no longer taken first. A Pool split between two plans keeps both
+packages; a Pool twice as deep in one keeps that one's core. The Draft Table
+Audit's plan share counts a spell carrying any of the plans. Measurements:
+`docs/research/draft-table-audit-soft-plans.md`.

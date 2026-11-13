@@ -213,8 +213,8 @@ describe("Draft Lab Card Profile snapshot (ADR 0072, issue #1611)", () => {
             DRAFT_LAB_SEAT_COUNT,
             rows
         );
-        const plans = buildDraftLabBuiltSeats(state).map(
-            (s) => s.audit.planArchetype
+        const plans = buildDraftLabBuiltSeats(state).flatMap(
+            (s) => s.audit.planArchetypes
         );
         expect(plans).toContain("lab-archetype");
     });

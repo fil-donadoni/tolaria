@@ -67,7 +67,7 @@ describe("draft:audit builds every seat and reports every field", () => {
         );
         for (const deck of cube.decks) {
             expectEveryField(deck);
-            expect(deck.planArchetype).not.toBeNull();
+            expect(deck.planArchetypes.length).toBeGreaterThan(0);
             expect(deck.planShare).toBeGreaterThan(0);
             expect(deck.unreviewedShare.archetypes).not.toBeNull();
         }
@@ -79,7 +79,7 @@ describe("draft:audit builds every seat and reports every field", () => {
         expect(lea.decks).toHaveLength(DRAFT_LAB_SEAT_COUNT);
         for (const deck of lea.decks) {
             expectEveryField(deck);
-            expect(deck.planArchetype).toBeNull();
+            expect(deck.planArchetypes).toEqual([]);
             expect(deck.planShare).toBeNull();
             expect(deck.unreviewedShare.archetypes).toBeNull();
         }
