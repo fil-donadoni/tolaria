@@ -257,7 +257,11 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // the curve and LEA's low curve plays 16 lands, not 17. The
         // castability model counts sources and not land drops, so one land
         // fewer always reads lower; it cannot see the spell it buys.
-        meanCastability: 0.76,
+        // Loosened 0.76 → 0.75 when the model began counting a source that
+        // sacrifices itself for mana as half a source (issue #9337): Black
+        // Lotus is LEA's one (0.761 → 0.7596 on seeds 1..8; 0.765 → 0.764
+        // over 64 seeds at one meter).
+        meanCastability: 0.75,
         worstDeckCastability: 0.49,
     },
 };
