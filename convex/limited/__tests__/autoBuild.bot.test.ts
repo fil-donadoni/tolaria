@@ -29,13 +29,18 @@ import {
     type ResolveBasicLand,
 } from "../autoBuild";
 import type { CardProfile, GetCardProfile } from "../cardProfilesCore";
-import { archetypeScopeShareOf, choosePlanArchetype } from "../planArchetype";
+import {
+    archetypeScopeShareOf,
+    choosePlanArchetype,
+    planArchetypeWeights,
+} from "../planArchetype";
 import {
     runBotAutoPicks,
     startDraft,
     type ChooseBotPick,
 } from "../draftEngine";
 import {
+    archetypeCommitment,
     candidateQuality,
     capabilityFitTerm,
     chooseBotPick,
@@ -1288,11 +1293,12 @@ function profilesById(rows: readonly [string, CardProfile][]): GetCardProfile {
 
 /** Eleven single-pip R/G `aggro` cards against eight double-pip U/B
  *  `control` cards: by Colour Commitment the Pool is U/B (the control
- *  cards' pips outweigh the aggro cards'), by depth it is aggro. */
-function rivalPlansPool() {
+ *  cards' pips outweigh the aggro cards'), by depth it is aggro.
+ *  `aggroCopies` overrides the Gray Ogre / Grizzly Bears counts. */
+function rivalPlansPool(aggroCopies: [number, number] = [6, 5]) {
     return invariantPool([
-        ["ogre", metaOf("Gray Ogre"), 6],
-        ["bears", metaOf("Grizzly Bears"), 5],
+        ["ogre", metaOf("Gray Ogre"), aggroCopies[0]],
+        ["bears", metaOf("Grizzly Bears"), aggroCopies[1]],
         ["air", metaOf("Air Elemental"), 4],
         ["vampire", metaOf("Sengir Vampire"), 4],
         ["giant", metaOf("Hill Giant"), 4],
@@ -1344,8 +1350,11 @@ function planShareOf(
 }
 
 describe("Plan-first Auto-Build (issue #8898)", () => {
-    it("Build Invariant: the deepest plan survives the build against a higher-rated rival plan with fewer cards", () => {
-        const { pool, getMeta } = rivalPlansPool();
+    it("Build Invariant: a plan twice as deep survives the build against a higher-rated rival plan", () => {
+        // Sixteen aggro cards against eight control cards: control weighs a
+        // half (issue #9356), so its two rating points over aggro buy one
+        // point of plan bonus where aggro buys two.
+        const { pool, getMeta } = rivalPlansPool([8, 8]);
         const getCardProfile = rivalPlanProfiles();
         const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
             getCardProfile,
@@ -1355,10 +1364,10 @@ describe("Plan-first Auto-Build (issue #8898)", () => {
         expect(
             planShareOf(built, getMeta, getCardProfile, "aggro")
         ).toBeGreaterThan(PLAN_SHARE_THRESHOLD);
-        // Every aggro card plays: the plan's cards go first.
+        // Every aggro card plays.
         expect(
             built.cards.filter((c) => /^(ogre|bears)/.test(c.cardName))
-        ).toHaveLength(11);
+        ).toHaveLength(16);
     });
 
     it("the plan's cards take their slots ahead of better-rated on-colour cards", () => {
@@ -1401,20 +1410,24 @@ describe("Plan-first Auto-Build (issue #8898)", () => {
         ).toEqual(["R", "G"]);
     });
 
-    it("an unreviewed Archetype counts half: eleven unreviewed aggro cards lose the plan to eight reviewed control cards", () => {
-        // 11 × 0.5 = 5.5 units of aggro against 8 of control.
+    it("an unreviewed Archetype counts half: eleven unreviewed aggro cards weigh under eight reviewed control cards", () => {
+        // 11 × 0.5 = 5.5 units of aggro against 8 of control: control is
+        // the plan, aggro a second one at 5.5 / 8.
         const { pool, getMeta } = rivalPlansPool();
-        const getCardProfile = rivalPlanProfiles(false);
-        expect(chooseDeckColors(pool, getMeta, { getCardProfile })).toEqual([
-            "U",
-            "B",
-        ]);
-        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
-            getCardProfile,
-        });
-        expect(
-            built.cards.filter((c) => /^(air|vampire)/.test(c.cardName))
-        ).toHaveLength(8);
+        const metas = pool.map((c) => getMeta(c.scryfallId)!);
+        const commitment = archetypeCommitment(
+            poolProfiles(metas, rivalPlanProfiles(false))
+        );
+        const weights = planArchetypeWeights(commitment, metas.length, null);
+        expect([...weights.keys()]).toEqual(["control", "aggro"]);
+        expect(weights.get("control")).toBe(1);
+        expect(weights.get("aggro")).toBeCloseTo(5.5 / 8);
+        const reviewed = planArchetypeWeights(
+            archetypeCommitment(poolProfiles(metas, rivalPlanProfiles())),
+            metas.length,
+            null
+        );
+        expect([...reviewed.keys()]).toEqual(["aggro", "control"]);
     });
 
     it("profile-less: the build is the plan-less build, card for card", () => {
@@ -1551,5 +1564,87 @@ describe("plan depth read against the scope (issue #9298)", () => {
         expect(share.get("aggro")).toBeCloseTo(0.5);
         expect(share.get("tokens")).toBeCloseTo(1 / 6);
         expect(archetypeScopeShareOf([], getCardProfile)).toBeNull();
+    });
+});
+
+describe("plans as soft weights: mixed plans (issue #9356)", () => {
+    /** A mono-red Pool of one card shape (Hill Giant, {3}{R}), so colour,
+     *  curve and castability are equal for every card and only the value
+     *  decides: `aggroCopies` cards on `aggro`, eight on `tempo`, sixteen
+     *  untagged fillers rated 1.5 points above the plan cards. A plan card
+     *  at weight 1 outbids a filler (2.5 + 2 > 4); at weight one half it
+     *  does not (2.5 + 1 < 4). */
+    function mixedPlansPool(aggroCopies: number) {
+        const giant = metaOf("Hill Giant");
+        const card = (cardId: string) => ({ ...giant, cardId });
+        const built = invariantPool([
+            ["aggro", card("plan-aggro"), aggroCopies],
+            ["tempo", card("plan-tempo"), 8],
+            ["filler", card("filler"), 16],
+        ]);
+        const getCardProfile: GetCardProfile = (cardId) =>
+            cardId === "plan-aggro"
+                ? archetypeProfile(["aggro"])
+                : cardId === "plan-tempo"
+                  ? archetypeProfile(["tempo"])
+                  : null;
+        const getPickRating = (cardId: string) =>
+            cardId === "filler" ? 4 : 2.5;
+        const deck = autoBuildDeck(
+            built.pool,
+            built.getMeta,
+            resolveBasicLand,
+            { getCardProfile, getPickRating }
+        );
+        const count = (prefix: string) =>
+            deck.cards.filter((c) => c.cardName.startsWith(prefix)).length;
+        return { deck, count };
+    }
+
+    it("Discriminating Pair: a Pool split between two plans keeps both packages; with one plan doubled it keeps that one's core", () => {
+        const split = mixedPlansPool(8);
+        expect(split.deck.cards.length).toBeGreaterThanOrEqual(40);
+        expect(split.count("aggro")).toBe(8);
+        expect(split.count("tempo")).toBe(8);
+
+        const doubled = mixedPlansPool(16);
+        expect(doubled.count("aggro")).toBe(16);
+        expect(doubled.count("tempo")).toBe(0);
+    });
+
+    it("weights are the surplus over the largest one; a negative surplus is no plan unless every settled one is", () => {
+        const scope = new Map([
+            ["aggro", 0.1],
+            ["tempo", 0.1],
+            ["control", 0.5],
+        ]);
+        // 40 cards: expected 4, 4, 20 units.
+        const weights = planArchetypeWeights(
+            new Map([
+                ["aggro", 16],
+                ["tempo", 10],
+                ["control", 12],
+            ]),
+            40,
+            scope
+        );
+        expect([...weights]).toEqual([
+            ["aggro", 1],
+            ["tempo", 0.5],
+        ]);
+        // Every settled one under its expectation: the least diluted alone.
+        expect([
+            ...planArchetypeWeights(
+                new Map([
+                    ["aggro", 5],
+                    ["control", 12],
+                ]),
+                80,
+                scope
+            ),
+        ]).toEqual([["aggro", 1]]);
+        expect(
+            planArchetypeWeights(new Map([["aggro", 3]]), 40, null).size
+        ).toBe(0);
     });
 });

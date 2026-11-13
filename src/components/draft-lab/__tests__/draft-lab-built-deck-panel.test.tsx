@@ -23,7 +23,7 @@ function fieldValue(label: string): string {
 describe("DraftLabBuiltDeckPanel (issue #8899)", () => {
     const state = runFullDraftLab(3, standardPackSlots(CUBE_SOURCE_KEY));
     const built = buildDraftLabBuiltSeats(state).find(
-        (s) => s.audit.planArchetype !== null && s.audit.planShare !== null
+        (s) => s.audit.planArchetypes.length > 0 && s.audit.planShare !== null
     )!;
 
     it("renders the audit's per-deck fields for the seat", () => {
@@ -32,7 +32,7 @@ describe("DraftLabBuiltDeckPanel (issue #8899)", () => {
 
         expect(screen.getByText("Bot 1 — built deck")).not.toBeNull();
         expect(fieldValue("plan")).toBe(
-            `${audit.planArchetype} · ${Math.round(audit.planShare! * 100)}%`
+            `${audit.planArchetypes.join("+")} · ${Math.round(audit.planShare! * 100)}%`
         );
         expect(fieldValue("colours")).toBe(audit.colors.join(""));
         expect(fieldValue("main")).toBe(`${audit.mainSize}`);

@@ -22,6 +22,7 @@ import {
 import {
     auditSeatDeck,
     EARLY_MANA_VALUE,
+    formatPlans,
     mean,
     type DeckAudit,
 } from "../../src/lib/limited/draftTableAudit";
@@ -361,7 +362,7 @@ export function formatDeckLine(d: DeckAudit): string {
         `splash ${d.splash ? `${d.splash.cards} (${d.splash.strained} strained)` : "—"}`,
         `offDuals ${d.offColourDuals}`,
         `offSpells ${d.offColourSpells}`,
-        `plan ${d.planArchetype ?? "—"} ${fmt(d.planShare, 2)}`,
+        `plan ${formatPlans(d.planArchetypes)} ${fmt(d.planShare, 2)}`,
         `pairs ${d.capabilityPairs}`,
         `unreviewed A ${fmt(d.unreviewedShare.archetypes, 2)} C ${fmt(d.unreviewedShare.capabilities, 2)}`,
     ].join(" · ");
