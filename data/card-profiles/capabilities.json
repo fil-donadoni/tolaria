@@ -264,8 +264,9 @@
         },
         "179e954f-1d90-4ef4-b800-25845cc338e2": {
             "provides": [],
-            "requires": ["value-on-death"],
-            "reviewed": false
+            "requires": ["value-on-death", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: free repeatable outlet — sacrifice a creature, deal 1 damage to any target"
         },
         "e6befbc4-1320-4f26-bd9f-b1814fedda10": {
             "provides": ["value-on-etb"],
@@ -355,10 +356,10 @@
             "reviewed": false
         },
         "891a92d7-9ccf-4de1-8286-aa5254f27ba9": {
-            "provides": ["go-wide"],
+            "provides": ["go-wide", "sacrifice-fodder"],
             "requires": ["discard-outlet", "self-mills"],
             "reviewed": false,
-            "rationale": "oracle: creates two 1/1 flying Spirits, and two more on flashback"
+            "rationale": "oracle: creates two 1/1 flying Spirits, and two more on flashback — four expendable bodies for two cards' worth of mana"
         },
         "63bacc32-d6ba-420c-9b49-299c08e5fb39": {
             "provides": ["cheap-artifact", "value-on-cast", "discard-outlet"],
@@ -381,10 +382,10 @@
             "reviewed": false
         },
         "a178cfe8-f9fa-4255-88d0-54a0bed079f5": {
-            "provides": ["self-mills", "cheap-spell"],
+            "provides": ["self-mills", "cheap-spell", "sacrifice-fodder"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause; oracle: creates a 0/1 Eldrazi Spawn token beside its card selection"
         },
         "19499cb7-eccb-4e69-af32-6002d447a160": {
             "provides": ["cheap-artifact", "value-on-cast"],
@@ -418,8 +419,9 @@
         },
         "928036c9-11b8-493e-b9f2-8fbd3487cd19": {
             "provides": [],
-            "requires": ["value-on-death"],
-            "reviewed": false
+            "requires": ["value-on-death", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: its −2 sacrifices a creature to deal damage equal to its power"
         },
         "8a720448-017f-4f4a-9501-678245eaed17": {
             "provides": ["cheap-artifact", "value-on-cast"],
@@ -1093,9 +1095,9 @@
         },
         "1ee98955-4c47-4d45-9377-608dfa755337": {
             "provides": ["discard-outlet", "cheap-spell"],
-            "requires": [],
+            "requires": ["sacrifice-fodder"],
             "reviewed": false,
-            "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause; oracle: sacrifice a creature as an additional cost to destroy a creature or planeswalker"
         },
         "6bfe64f9-8b03-41f6-a47b-fade397ad9d1": {
             "provides": ["discard-outlet", "cheap-spell"],
@@ -1125,9 +1127,11 @@
                 "reanimatable",
                 "value-on-etb",
                 "self-mills",
-                "discard-outlet"
+                "discard-outlet",
+                "sacrifice-fodder"
             ],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: sacrifice a creature as its activation cost to return a creature card from the graveyard"
         },
         "19e1224f-82cb-4f41-8739-f880cba61bbb": {
             "provides": [],
@@ -1207,8 +1211,9 @@
         },
         "ec9df172-9fdb-4b0c-a23a-865b83c8fa40": {
             "provides": [],
-            "requires": ["value-on-death"],
-            "reviewed": false
+            "requires": ["value-on-death", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: Boast — sacrifice another creature or artifact to deal 2 plus its mana value to any target"
         },
         "e2a01edd-dbc0-4ed4-b827-9b608290e9a1": {
             "provides": [],
@@ -1223,14 +1228,20 @@
         },
         "3d8ca18d-9099-4f1e-95c1-f04da58a26bd": {
             "provides": ["value-on-attack"],
-            "requires": ["value-on-death"],
-            "reviewed": false
+            "requires": ["value-on-death", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: whenever you attack, sacrifice another creature or an artifact for a 4/1 menace Skeleton"
         },
         "2e139ad1-1079-49e9-babd-6399c44ad333": {
-            "provides": ["value-on-etb", "discard-outlet", "go-wide"],
+            "provides": [
+                "value-on-etb",
+                "discard-outlet",
+                "go-wide",
+                "sacrifice-fodder"
+            ],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: creates a 1/1 Elemental per nonland card discarded on entry, and two more from the graveyard"
+            "rationale": "oracle: creates a 1/1 Elemental per nonland card discarded on entry, and two more from the graveyard; its own body has already drawn its cards"
         },
         "6989018c-37b1-4282-a4af-9cc97f160b4d": {
             "provides": ["value-on-attack"],
@@ -1478,9 +1489,10 @@
             "reviewed": false
         },
         "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9": {
-            "provides": ["discard-outlet"],
+            "provides": ["discard-outlet", "sacrifice-fodder"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: makes a 1/1 Pilot token every activation"
         },
         "55a14f30-4ff9-4472-90a6-c3139f1c18e5": {
             "provides": ["self-mills"],
@@ -1542,8 +1554,9 @@
         },
         "a15570c0-4210-4959-8584-987ec85f8283": {
             "provides": [],
-            "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false
+            "requires": ["self-mills", "discard-outlet", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: tap and sacrifice another creature to put a land from library onto the battlefield"
         },
         "7f80a11b-188b-464c-b00d-c9d1cfb8ddee": {
             "provides": [],
@@ -1552,9 +1565,10 @@
             "rationale": "oracle: magecraft drains on each instant or sorcery cast or copied"
         },
         "69af2825-18c2-4463-b6ba-42eaa070ccc1": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "sacrifice-fodder"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its +1 creates a 1/1 Insect token every turn"
         },
         "ca4c8b04-66af-4cb3-8003-9088d8344b20": {
             "provides": ["value-on-etb", "reanimatable", "cheat-target"],
@@ -1580,8 +1594,9 @@
         },
         "42b8d797-b01d-49cf-9818-d84bba17029d": {
             "provides": [],
-            "requires": ["cheap-artifact"],
-            "reviewed": false
+            "requires": ["cheap-artifact", "sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: sacrifice a nontoken artifact for a 1/1 Thopter and 1 life, repeatably"
         },
         "c28aea19-2a39-4934-afda-909e234fa3ba": {
             "provides": [],
@@ -2167,10 +2182,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
         },
         "4720b4f2-e6af-4223-9250-a0ed21ed5693": {
-            "provides": ["cheap-spell"],
+            "provides": ["cheap-spell", "sacrifice-fodder"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause; oracle: creates twice X 1/1 Pest tokens that gain 1 life when they die"
         },
         "1e0c695d-62f9-4805-9e2f-7032e8464136": {
             "provides": ["cheap-spell"],
@@ -2209,7 +2224,7 @@
             "rationale": "rubric+oracle: instant at mana value 2, the cheap-spell PROVIDES clause"
         },
         "06c053d3-028e-4961-93a5-5b7bb5a8601c": {
-            "provides": ["cheap-spell", "go-wide"],
+            "provides": ["cheap-spell", "go-wide", "sacrifice-fodder"],
             "requires": [],
             "reviewed": false,
             "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause; creates X 2/2 Knight tokens with haste in one spell"
@@ -2240,9 +2255,9 @@
         },
         "0845f0b0-9413-4ddd-861d-9607636bebc6": {
             "provides": [],
-            "requires": ["cheat-target"],
+            "requires": ["cheat-target", "sacrifice-fodder"],
             "reviewed": false,
-            "rationale": "oracle: sacrifice a green creature to put a green creature from library onto the battlefield for good; wants a cheat-target (green only, accepted imprecision)"
+            "rationale": "oracle: sacrifice a green creature to put a green creature from library onto the battlefield for good; wants a cheat-target (green only, accepted imprecision); the sacrificed green creature wants sacrifice-fodder"
         },
         "25b0b816-0583-44aa-9dc5-f3ff48993a51": {
             "provides": [],
@@ -2291,6 +2306,18 @@
             "requires": ["land-enters"],
             "reviewed": false,
             "rationale": "oracle: landfall — empowers Jace per land entering"
+        },
+        "5da578b8-19e6-4068-9336-e7cd33c585f1": {
+            "provides": ["sacrifice-fodder"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: makes a 1/1 Servo token every activation"
+        },
+        "55318397-de3c-47ea-a088-72a24df5c8fa": {
+            "provides": [],
+            "requires": ["sacrifice-fodder"],
+            "reviewed": false,
+            "rationale": "oracle: draws two cards whenever the equipped creature dies — a 1-toughness token dies on equip"
         }
     }
 }
