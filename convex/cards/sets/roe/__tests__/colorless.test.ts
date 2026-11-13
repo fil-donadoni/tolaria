@@ -24,15 +24,23 @@ import {
     resolveTopOfStack,
     moveCard,
     getPlayer,
+    spendablePoolForAbility,
+    spendablePoolForSpell,
+    sourceRestrictionSubject,
+    spellRestrictionSubject,
 } from "../../../../gre/state";
+import { getLegalActions } from "../../../../gre/rules";
 import { pushSpell } from "../../../__tests__/setup.helper";
 import { annihilatorTriggerId } from "../../../abilities/annihilator";
 // SEAM EXCEPTION (issue #3048): this file's annihilator test asserts the
 // difference between the RAW module export and what the seam serves, so it is
 // the one place a set-module import IS the point. Allowlisted in
 // `scripts/__tests__/card-test-seam-boundary.test.ts`.
-import { emrakulTheAeonsTorn as rawEmrakulModuleExport } from "../colorless.cards";
-import { getDefinition } from "../../..";
+import {
+    eldraziTemple as eldraziTempleDefinition,
+    emrakulTheAeonsTorn as rawEmrakulModuleExport,
+} from "../colorless.cards";
+import { getDefinition, preloadDefinitions } from "../../..";
 
 const emrakulTheAeonsTorn = getDefinition(
     "67600383-bbb8-411c-b8e6-2296650bc747"
@@ -289,5 +297,109 @@ describe("Emrakul, the Aeons Torn — extra turn on CAST (CR 603.6e / 500.7)", (
         state.stack = state.stack.filter((s) => s.id !== spell.id);
         resolveTopOfStack(state);
         expect(state.extraTurns).toEqual(["p1"]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eldrazi Temple (issue #8615) — "Spend this mana only to cast colorless
+// Eldrazi spells or activate abilities of colorless Eldrazi" (CR 106.6).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// A new hand-written card is absent from a clean-tree registry (the catalogue
+// is base-owned); preload it so the test reads the same definition the pack ships.
+preloadDefinitions([eldraziTempleDefinition()]);
+const eldraziTemple = getDefinition("315924c9-77e3-405b-9bbf-852ed563c6e3");
+const devourerOfDestiny = getDefinition("560debcd-feb4-4534-991e-a7aa1cca2409");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+
+function templeMana(amount: number) {
+    return {
+        color: "C",
+        amount,
+        restriction: "colorless-eldrazi" as const,
+    };
+}
+
+describe("Eldrazi Temple — colorless-eldrazi mana (CR 106.6 / 105.2c / 205.3)", () => {
+    it("the restricted {C}{C} ability floats tagged mana beside the plain {C} one", () => {
+        const restricted = eldraziTemple.activatedAbilities?.find(
+            (a) => a.manaRestriction !== undefined
+        );
+        expect(restricted?.manaRestriction).toBe("colorless-eldrazi");
+        expect(restricted?.manaProduced).toEqual({ C: 2 });
+        expect(eldraziTemple.activatedAbilities).toHaveLength(2);
+    });
+
+    it("a colorless Eldrazi spell may spend it; a colorless non-Eldrazi and a colored spell may not", () => {
+        const caster = makePlayer("p1", { restrictedMana: [templeMana(2)] });
+        const spendable = (def: typeof solRing) =>
+            spendablePoolForSpell(
+                caster,
+                def.types,
+                undefined,
+                def.supertypes ?? [],
+                spellRestrictionSubject(def)
+            ).C ?? 0;
+        expect(spendable(devourerOfDestiny)).toBe(2);
+        expect(spendable(solRing)).toBe(0);
+        expect(spendable(grizzlyBears)).toBe(0);
+    });
+
+    it("a site that supplies no subject fails closed", () => {
+        const caster = makePlayer("p1", { restrictedMana: [templeMana(2)] });
+        expect(
+            spendablePoolForSpell(caster, devourerOfDestiny.types).C ?? 0
+        ).toBe(0);
+    });
+
+    it("an ability of a colorless Eldrazi permanent may spend it; any other source may not", () => {
+        const caster = makePlayer("p1", { restrictedMana: [templeMana(2)] });
+        const eldrazi = makeInstance(devourerOfDestiny.id, { id: "eldrazi" });
+        const ring = makeInstance(solRing.id, { id: "ring" });
+        const bears = makeInstance(grizzlyBears.id, { id: "bears" });
+        const poolFor = (card: typeof eldrazi) =>
+            spendablePoolForAbility(
+                caster,
+                card.types,
+                sourceRestrictionSubject(card)
+            ).C ?? 0;
+        expect(poolFor(eldrazi)).toBe(2);
+        expect(poolFor(ring)).toBe(0);
+        expect(poolFor(bears)).toBe(0);
+    });
+
+    it("a colored Eldrazi permanent (color granted) is no longer colorless Eldrazi", () => {
+        const caster = makePlayer("p1", { restrictedMana: [templeMana(2)] });
+        const painted = makeInstance(devourerOfDestiny.id, {
+            id: "painted",
+            colorOverride: ["R"],
+        });
+        expect(
+            spendablePoolForAbility(
+                caster,
+                painted.types,
+                sourceRestrictionSubject(painted)
+            ).C ?? 0
+        ).toBe(0);
+    });
+
+    it("the cast gate offers Cast on a colorless Eldrazi paid wholly from Temple mana, never on a non-Eldrazi", () => {
+        const eldrazi = makeInstance(devourerOfDestiny.id, { id: "in-hand-e" });
+        const ring = makeInstance(solRing.id, { id: "in-hand-r" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [eldrazi, ring],
+                    restrictedMana: [templeMana(7)],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const player = getPlayer(state, "p1");
+        expect(getLegalActions(state, player, eldrazi)).toContain("cast");
+        expect(getLegalActions(state, player, ring)).not.toContain("cast");
     });
 });
