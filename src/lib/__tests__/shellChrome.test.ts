@@ -25,16 +25,21 @@ import {
     shellShowsReturnBanner,
 } from "@/lib/shellChrome";
 import { router } from "~/router";
+import { UI_SEAM_ROUTE_PREFIX } from "@convex/lib/uiSeamNamespace";
 
 /** `/admin/` (the admin index route) and `/admin` (its layout) are one URL. */
 function normalizeRouteId(id: string): string {
     return id.length > 1 ? id.replace(/\/+$/, "") : id;
 }
 
-/** Every URL the router can match, as path patterns. */
+/** Every URL the router can match, as path patterns. The check:ui seam's
+ *  routes (issue #9271, ADR 0180) are left out: they join the tree only under
+ *  `import.meta.env.DEV`, never reach a user, and classifying them would put
+ *  the seam marker into product code that `check:bundle` scans. */
 function routerPatterns(): string[] {
     const ids = Object.keys(router.routesById)
         .filter((id) => id !== "__root__")
+        .filter((id) => !id.startsWith(UI_SEAM_ROUTE_PREFIX))
         .map(normalizeRouteId);
     return [...new Set(ids)].sort();
 }

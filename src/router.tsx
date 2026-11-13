@@ -1,4 +1,5 @@
 import {
+    type AnyRoute,
     createRootRoute,
     createRoute,
     createRouter,
@@ -17,6 +18,7 @@ import AppShell from "./components/chrome/app-shell";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
+import { buildUiSeamRoutes } from "./lib/uiSeam/ui-seam-routes";
 
 // Route components are fetched on first navigation, never bundled into the
 // entry (issue #4854): `lazyRouteComponent` for a bare route component,
@@ -423,6 +425,20 @@ const routeTree = rootRoute.addChildren([
         adminDesignSystemRoute,
     ]),
 ]);
+
+// The `check:ui` lane's test-only seam (issue #9271, ADR 0180): its routes
+// join the tree in a DEV bundle only. A production `vite build` replaces
+// `import.meta.env.DEV` with `false`, so the branch — and with it the whole
+// seam module — is dead-code eliminated, and a seam path falls through to the
+// ordinary not-found page (`bun run check:bundle` asserts the absence). The
+// seam routes stay out of `Register`'s typed tree on purpose: nothing in the
+// product links to them; only the lane types their URL.
+if (import.meta.env.DEV) {
+    rootRoute.addChildren([
+        ...(rootRoute.children as unknown as AnyRoute[]),
+        ...buildUiSeamRoutes(rootRoute as unknown as AnyRoute),
+    ] as never);
+}
 
 // One 404 for the whole app. TanStack Router's built-in fallback is a bare
 // "Not Found" string with no chrome; `NotFoundPage` is the real page, and it

@@ -66,6 +66,9 @@ const EXEMPT: Record<string, string> = {
         STAFF_ONLY_REASON,
     "src/components/admin/pick-ratings/pick-ratings-dialog.tsx":
         STAFF_ONLY_REASON,
+    // Issue #9271, ADR 0180: the check:ui seam's echo page.
+    "src/routes/ui-seam/ui-seam-echo.route.tsx":
+        "a test-only seam page no user reaches: registered under import.meta.env.DEV only and absent from production builds, it prints a parameter for the lane to read",
 };
 
 /**
