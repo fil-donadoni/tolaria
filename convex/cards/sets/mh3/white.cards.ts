@@ -677,3 +677,90 @@ export const thrabenCharm = defineCard(() => ({
         },
     ],
 }));
+
+// Wrath of the Skies — {X}{W}{W} Sorcery. "You get X {E}, then you may pay any
+// amount of {E}. Destroy each artifact, creature, and enchantment with mana
+// value less than or equal to the amount of {E} paid this way." CR 107.14 —
+// {E} is one energy counter, paid by removing it from yourself. Composed from
+// shipped Ops, no new one: `addPlayerCounter` (the X energy), `chooseNumber`
+// capped at the controller's live energy (the "any amount" nomination, CR
+// 107.1c), `mayPay` with a dynamic `energyEqualTo` leg (the payment), then a
+// CR 701.8a `forEach` sweep keyed on the nominated amount. Declining the pay
+// prompt is paying nothing, so the sweep falls to mana value 0 (tokens), the
+// same outcome as nominating 0.
+// hand-tail: You get X {E} , then you may pay any amount of {E}. Destroy each artifact, creature, and enchantment with mana value less than or equal to the amount of {E} paid this way. (#8649)
+export const wrathOfTheSkies = defineCard(() => ({
+    id: "4ef1882e-b422-4f30-8a6c-bd71c2601660",
+    name: "Wrath of the Skies",
+    rarity: "rare",
+    oracleText:
+        "You get X {E} (energy counters), then you may pay any amount of {E}. Destroy each artifact, creature, and enchantment with mana value less than or equal to the amount of {E} paid this way.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "addPlayerCounter",
+            player: "controller",
+            counter: "energy",
+            amount: { X: true },
+        },
+        {
+            op: "chooseNumber",
+            player: "controller",
+            prompt: "Choose an amount of {E} to pay.",
+            min: 0,
+            max: { playerCounters: { of: "controller", type: "energy" } },
+            bind: "$amount",
+        },
+        {
+            op: "mayPay",
+            player: "controller",
+            cost: { energyEqualTo: { ref: "$amount" } },
+            prompt: "Pay the chosen amount of {E}?",
+            bind: "$paid",
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: ["Artifact", "Creature", "Enchantment"] },
+            },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { manaValue: { of: { ref: "$each" } } },
+                        op: "le",
+                        right: { ref: "$amount" },
+                    },
+                    then: [
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid" },
+                            then: [{ op: "destroy", target: { ref: "$each" } }],
+                            else: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            manaValue: { of: { ref: "$each" } },
+                                        },
+                                        op: "lt",
+                                        right: 1,
+                                    },
+                                    then: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
