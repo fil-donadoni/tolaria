@@ -293,7 +293,6 @@
     "src/lib/ai/bot-view.ts#ca4ca018b1",
     "src/lib/ai/brain-client.ts#e9f650e1dc",
     "src/lib/ai/brain.ts#8166873a10",
-    "src/lib/ai/state-adapter.ts#6a4b1ddef2",
     "src/lib/ai/verdict-quiz.ts#5752de2e50",
     "src/lib/board-layout.ts#3960799f99",
     "src/lib/card-utils.ts#9dc822695b",

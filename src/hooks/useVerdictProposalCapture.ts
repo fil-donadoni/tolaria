@@ -9,10 +9,10 @@
 // submits is recorded against it through a read-only tap on the Convex client.
 //
 // AT GAME END the game-end module is loaded (a lazy chunk — the identification
-// and the sample never weigh on the board's bundle) and the Brain is consulted
-// once per sampled decision at a fixed budget and seed. The list lands in
-// `verdict-proposal-store.ts` for the panel (issue #3986); nothing reaches the
-// server.
+// and the sample never weigh on the board's bundle) and the server judge
+// (`convex/verdictJudge.ts`) is asked once per sampled decision at a fixed
+// budget and seed. The list lands in `verdict-proposal-store.ts` for the panel
+// (issue #3986); the server keeps no proposal.
 //
 // A RELOAD costs nothing: the capture and the list are kept in
 // client storage, so a remount of the same game resumes the capture, and a
@@ -46,7 +46,7 @@ import {
     reportProposalCounts,
     reportSampleFailed,
 } from "~/lib/ai/verdict-proposal-telemetry";
-import { openVerdictJudge } from "~/lib/ai/verdict-judge";
+import { openVerdictJudge, type JudgeClient } from "~/lib/ai/verdict-judge";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
 export function useVerdictProposalCapture(
@@ -118,14 +118,17 @@ export function useVerdictProposalCapture(
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
-        void buildProposalsAtGameEnd(gameId);
-    }, [active, gameId, gameOver]);
+        void buildProposalsAtGameEnd(convex, gameId);
+    }, [active, convex, gameId, gameOver]);
 }
 
 /** The game is over: offer the stored list if this game already has one (a
  *  reload after it was built — the Brain is not consulted again), else build
  *  it from the captured decisions, rehydrated first (issue #8889). */
-async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
+async function buildProposalsAtGameEnd(
+    convex: JudgeClient,
+    gameId: Id<"games">
+): Promise<void> {
     if (await loadVerdictProposals(gameId)) return;
     await humanCaptureReady(gameId);
     const decisions = takeHumanDecisions(gameId);
@@ -133,11 +136,10 @@ async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
         reportNoDecisionCaptured(gameId);
         return;
     }
-    // The judge's OWN Brain, never the Bot's (issue #9514): on the Bot's
-    // Worker its iteration-only searches left a backlog the next game's Bot
-    // consults timed out behind. Its own channel also outlives the driver's
-    // `disposeBrain()` at the Game 1 → Game 2 swap.
-    const { judge, tally, close } = openVerdictJudge();
+    // The judge runs on the SERVER, one action call per sampled decision —
+    // never a Brain on this device, so nothing it does can stand between the
+    // next game's Bot and its decisions. A failed call costs that decision.
+    const { judge, tally, timings, close } = openVerdictJudge(convex, gameId);
     try {
         const { proposeVerdicts } = await import("~/lib/ai/verdict-proposals");
         const list = await proposeVerdicts(
@@ -147,7 +149,9 @@ async function buildProposalsAtGameEnd(gameId: string): Promise<void> {
         );
         // Why a game offers no review, or a shorter one than expected — to
         // Sentry as well as the console (issue #8732).
-        reportProposalCounts(proposalCountsReport(gameId, list, tally));
+        reportProposalCounts(
+            proposalCountsReport(gameId, list, tally, timings)
+        );
         if (capturingGame() === gameId) {
             setVerdictProposals(gameId, list);
         }

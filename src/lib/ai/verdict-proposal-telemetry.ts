@@ -19,10 +19,25 @@ import * as Sentry from "@sentry/react";
 import type { BrainOutcome } from "./brain-request";
 import type { VerdictProposalList } from "./verdict-proposals";
 
+/** How one game-end consult ended: the server search's own outcome, or the
+ *  call failing — `server-rejected` when the server's guard refused it
+ *  (`ConvexError`), `server-error` for any other failure of the call. */
+export type JudgeOutcome = BrainOutcome | "server-rejected" | "server-error";
+
 /** How each game-end consult ended, by outcome — what tells `unjudged` apart:
- *  a production Worker timing out reads differently from a search that
- *  threw. */
-export type JudgeOutcomeTally = Partial<Record<BrainOutcome, number>>;
+ *  a call the server refused reads differently from a search that threw. */
+export type JudgeOutcomeTally = Partial<Record<JudgeOutcome, number>>;
+
+/** The server judge's measurements, one entry per ANSWERED consult: the
+ *  server's own search time, the client's round trip of the same call (their
+ *  difference is cold start + module load + network), and the server
+ *  process's memory where it could be read. */
+export type JudgeTimings = {
+    serverMs: number[];
+    roundTripMs: number[];
+    heapMb: number[];
+    peakRssMb: number[];
+};
 
 /** The structured attributes of one report — flat primitives, the shape
  *  Sentry log attributes accept. */
@@ -58,15 +73,38 @@ function bestEffort(send: () => void): void {
     }
 }
 
-/** The attributes of a finished sample: its counts and the consult
- *  outcomes, `judge.<outcome>` per outcome seen. */
+/** The nearest-rank median of a non-empty sample. */
+function median(values: readonly number[]): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.ceil(sorted.length / 2) - 1];
+}
+
+/** `<key>.p50` and `<key>.max` of a sample, rounded to `digits` decimals —
+ *  nothing at all for an empty one: no sample is not a zero. */
+function summarise(
+    report: VerdictProposalReport,
+    key: string,
+    values: readonly number[],
+    digits: number
+): void {
+    if (values.length === 0) return;
+    const scale = 10 ** digits;
+    const round = (n: number) => Math.round(n * scale) / scale;
+    report[`${key}.p50`] = round(median(values));
+    report[`${key}.max`] = round(Math.max(...values));
+}
+
+/** The attributes of a finished sample: its counts, the consult outcomes
+ *  (`judge.<outcome>` per outcome seen) and the server judge's measurements
+ *  (p50 / max over the game's answered consults; memory as max only). */
 export function proposalCountsReport(
     gameId: string,
     list: Pick<
         VerdictProposalList,
         "proposals" | "captured" | "unidentified" | "unjudged"
     >,
-    judged: JudgeOutcomeTally
+    judged: JudgeOutcomeTally,
+    timings?: JudgeTimings
 ): VerdictProposalReport {
     const report: VerdictProposalReport = {
         gameId,
@@ -77,6 +115,16 @@ export function proposalCountsReport(
     };
     for (const [outcome, count] of Object.entries(judged)) {
         if (count) report[`judge.${outcome}`] = count;
+    }
+    if (timings) {
+        summarise(report, "judge.serverMs", timings.serverMs, 0);
+        summarise(report, "judge.roundTripMs", timings.roundTripMs, 0);
+        if (timings.heapMb.length > 0) {
+            report["judge.heapMb.max"] = Math.max(...timings.heapMb);
+        }
+        if (timings.peakRssMb.length > 0) {
+            report["judge.peakRssMb.max"] = Math.max(...timings.peakRssMb);
+        }
     }
     return report;
 }

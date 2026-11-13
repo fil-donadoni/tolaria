@@ -212,6 +212,17 @@ export default defineSchema({
         "by_gameId",
         ["gameId"]
     ),
+    // The game-end Verdict Proposal judge's per-game position counter
+    // (`convex/verdictJudgeGuard.ts`): ONE row per game, incremented by every
+    // judge consult the guard accepts and refusing past a fixed bound, so the
+    // public judge action cannot be used to burn compute. It records nothing
+    // else — the proposals stay client state. Deleted with its game by
+    // `deleteGameCascade` (`matches.ts`).
+    verdictJudgeBudgets: defineTable({
+        gameId: v.id("games"),
+        positions: v.number(),
+        updatedAt: v.number(),
+    }).index("by_gameId", ["gameId"]),
     // Manual Mode state (ADR 0080) — mirrors gameStates, one row per game,
     // patched in place. State is opaque JSON (no compile-time shape); the
     // import-graph boundary guard ensures nothing here imports from convex/gre/.

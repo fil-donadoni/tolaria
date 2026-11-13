@@ -320,12 +320,12 @@ vi.mock("~/lib/ai/brain-client", async (importOriginal) => {
 });
 
 // The adapter is the real one — only WRAPPED, so what it was called with and
-// what it produced are both observable. `brain-request` imports it as
-// `./state-adapter`; vitest mocks by resolved path, so this alias hits the same
-// module.
-vi.mock("~/lib/ai/state-adapter", async (importOriginal) => {
+// what it produced are both observable. Mocked at its engine path: the Brain's
+// request handler (`convex/gre/ai/brainRequest.ts`) imports it there, and the
+// client's `~/lib/ai/state-adapter` is a re-export of the same module.
+vi.mock("@convex/gre/ai/stateAdapter", async (importOriginal) => {
     const actual =
-        await importOriginal<typeof import("~/lib/ai/state-adapter")>();
+        await importOriginal<typeof import("@convex/gre/ai/stateAdapter")>();
     return {
         ...actual,
         projectedToGameState: (

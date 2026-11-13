@@ -158,50 +158,13 @@ const BRAIN_WORKER_SCRIPT = "brain.worker.ts";
  *  #3040's report named neither the script nor the position. */
 export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
 
-/** The game-end Verdict Proposal judge's consult timeout (issue #9514).
- *  The judge searches at an ITERATION-only budget (its answers must be
- *  reproducible, so never wall-clock), on its own channel — a slow device
- *  makes it slow, never wrong. The timeout only keeps the standing promise
- *  that a consult always settles (issue #2284); it is sized well past a
- *  400-iteration search on a slow device, so the judge waits for its answer;
- *  a search that outlasts even this takes its Worker with it
- *  (`abandonOnTimeout`), so the next judge consult never queues behind it. */
-export const JUDGE_CONSULT_TIMEOUT_MS = 60_000;
-
-/** How one Brain channel behaves (issue #9514). */
-export type BrainChannelOptions = {
-    /** How long a consult may run before it settles as `timeout`. */
-    consultTimeoutMs: number;
-    /** Whether a Worker failure nobody is waiting on is written to the Bot's
-     *  decision ring — the bug report's evidence of what the BOT saw. */
-    recordsToDecisionRing: boolean;
-    /** Whether an exhausted Worker hands its consults to the in-thread search
-     *  at {@link BRAIN_FALLBACK_BUDGET} (issue #3040) — a weak move beats a
-     *  pass for the Bot; a different budget is a different answer for the
-     *  judge. */
-    inlineFallback: boolean;
-    /** Whether a consult that times out takes its Worker with it, so the
-     *  search still running there cannot delay the channel's next consult
-     *  (issue #9514). The Bot keeps its Worker: its searches are wall-clock
-     *  capped well under the timeout, and a respawn would re-pay the shards'
-     *  install inside its next 5 s. */
-    abandonOnTimeout: boolean;
-};
-
 /** One Brain: one Worker, its in-flight consults, its respawn budget and its
- *  primed Manifest.
- *
- *  There is more than one because a Worker serves its requests ONE AT A TIME
- *  in arrival order (`brain.worker.ts`), and a consult that times out is not
- *  cancelled there: its search keeps the Worker busy and every later request
- *  waits behind it. The game-end Verdict Proposal judge consults at an
- *  iteration-only budget, and on a slow device each of its searches outlasted
- *  the consult timeout; sharing the Bot's Worker, it left a backlog the next
- *  game's Bot consults queued behind — every one timed out, the ladder passed
- *  every window, and the Bot played one land in a whole game (issue #9514). A
- *  consumer that is not the Bot's turn-by-turn play gets its own channel, so
- *  nothing it queues can stand between the Bot and its next decision. */
-export type BrainChannel = {
+ *  primed Manifest. The Bot's turn-by-turn play is its only consumer: a Worker
+ *  serves its requests ONE AT A TIME in arrival order (`brain.worker.ts`) and
+ *  never cancels a consult that timed out, so anything else queued here would
+ *  stand between the Bot and its next decision — the game-end Verdict
+ *  Proposal judge runs on the server instead (`verdict-judge.ts`). */
+type BrainChannel = {
     warm: () => void;
     prime: (entries: readonly DefinitionManifestEntry[]) => void;
     consult: (
@@ -215,26 +178,8 @@ export type BrainChannel = {
     dispose: () => void;
 };
 
-/** The Bot's own channel: the turn-by-turn consults of `useVsAiDriver`. */
-const BOT_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
-    consultTimeoutMs: BRAIN_CONSULT_TIMEOUT_MS,
-    recordsToDecisionRing: true,
-    inlineFallback: true,
-    abandonOnTimeout: false,
-});
-
-/** The game-end Verdict Proposal judge's channel (issue #9514). */
-export const JUDGE_CHANNEL: Readonly<BrainChannelOptions> = Object.freeze({
-    consultTimeoutMs: JUDGE_CONSULT_TIMEOUT_MS,
-    recordsToDecisionRing: false,
-    inlineFallback: false,
-    abandonOnTimeout: true,
-});
-
-/** Build a Brain channel with its own Worker (issue #9514). */
-export function createBrainChannel(
-    options: Readonly<BrainChannelOptions>
-): BrainChannel {
+/** Build the Bot's Brain channel: its Worker, spawned lazily. */
+function createBrainChannel(): BrainChannel {
     let worker: Worker | null = null;
     let nextId = 1;
     const pending = new Map<number, InFlight>();
@@ -318,10 +263,7 @@ export function createBrainChannel(
         // spawn (no consult pending at all) and the exhausting failure (whose
         // consults now report the INLINE outcome instead). Record it here for
         // those, so it reaches a bug report either way (issue #3040).
-        if (
-            options.recordsToDecisionRing &&
-            (exhausted || inFlight.length === 0)
-        ) {
+        if (exhausted || inFlight.length === 0) {
             recordWorkerFailure(
                 exhausted
                     ? `${reason} — out of respawns, falling back to the in-thread search`
@@ -330,7 +272,7 @@ export function createBrainChannel(
         }
 
         for (const entry of inFlight) {
-            if (exhausted && options.inlineFallback) {
+            if (exhausted) {
                 entry.resolve(
                     runInline({
                         ...entry.request,
@@ -380,19 +322,6 @@ export function createBrainChannel(
             // caller's, while the issue #3040 FALLBACK clamps it, because there it
             // is the game's UI thread paying for the search.
             const id = nextId++;
-            // A channel with no in-thread fallback (the judge's) settles an
-            // exhausted Worker as the failure it is: its fixed budget is what makes
-            // its answer reproducible, and a clamped search would be a different
-            // question answered silently.
-            if (exhausted && !options.inlineFallback) {
-                return Promise.resolve({
-                    move: null,
-                    trace: null,
-                    outcome: "worker-error",
-                    via: "worker",
-                    message: "Brain Worker out of respawns",
-                });
-            }
             return Promise.resolve(
                 runInline({
                     id,
@@ -428,27 +357,7 @@ export function createBrainChannel(
                     outcome: "timeout",
                     via: "worker",
                 });
-                // The timed-out search is still running in `w`, and the Worker
-                // serves one request at a time: the next consult would queue
-                // behind it (issue #9514). A channel that abandons a timed-out
-                // Worker terminates it — once nothing else is waiting on it —
-                // so its next consult starts on a fresh one. Not a failure: the
-                // script loaded and answered before; the respawn budget is for
-                // Workers that die.
-                if (
-                    options.abandonOnTimeout &&
-                    worker === w &&
-                    pending.size === 0
-                ) {
-                    worker = null;
-                    try {
-                        w.onerror = null;
-                        w.terminate();
-                    } catch {
-                        // Gone from here either way.
-                    }
-                }
-            }, options.consultTimeoutMs);
+            }, BRAIN_CONSULT_TIMEOUT_MS);
             pending.set(id, {
                 request,
                 resolve: (result) => {
@@ -606,8 +515,8 @@ function fromResponse(
     };
 }
 
-/** The Bot's Brain (issue #9514: the judge has its own). */
-const botBrain = createBrainChannel(BOT_CHANNEL);
+/** The Bot's Brain. */
+const botBrain = createBrainChannel();
 
 /**
  * Spawn the Worker now, so its own catalogue hydration is NOT charged to the
