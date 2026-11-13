@@ -88,3 +88,49 @@ describe("useAttackSequenceState (design 2026-07-23)", () => {
         expect(result.current.undecidedAttackerIds).toEqual(["b", "c"]);
     });
 });
+
+// Issue #9500 — the walk never waits on a creature that stopped being a
+// declared attacker (removed mid-walk, or the board replaced under it): the
+// controller used to show "Choose a target (n/m)" with nothing choosing.
+describe("useAttackSequenceState — skips members that left (issue #9500)", () => {
+    it("a current member no longer declared is skipped; past the last, the walk ends", () => {
+        let declared = ["a", "b"];
+        const { result, rerender } = renderHook(() =>
+            useAttackSequenceState("k", { declared, present: declared })
+        );
+        act(() => result.current.begin(["a", "b"]));
+        expect(result.current.currentAttackerId).toBe("a");
+        declared = ["b"];
+        rerender();
+        expect(result.current.currentAttackerId).toBe("b");
+        expect(result.current.undecidedAttackerIds).toEqual(["b"]);
+        declared = [];
+        rerender();
+        expect(result.current.active).toBe(false);
+        expect(result.current.choosingTarget).toBe(false);
+    });
+
+    it("advance moves past the LIVE current member, not the stale cursor", () => {
+        let declared = ["a", "b", "c"];
+        const { result, rerender } = renderHook(() =>
+            useAttackSequenceState("k", { declared, present: declared })
+        );
+        act(() => result.current.begin(["a", "b", "c"]));
+        declared = ["b", "c"];
+        rerender();
+        act(() => result.current.advance());
+        expect(result.current.currentAttackerId).toBe("c");
+    });
+
+    it("an awaiting creature that left the battlefield stops awaiting", () => {
+        let present = ["x", "y"];
+        const { result, rerender } = renderHook(() =>
+            useAttackSequenceState("k", { declared: [], present })
+        );
+        act(() => result.current.toggleAwaiting("x"));
+        act(() => result.current.toggleAwaiting("y"));
+        present = ["y"];
+        rerender();
+        expect(result.current.awaiting).toEqual(["y"]);
+    });
+});

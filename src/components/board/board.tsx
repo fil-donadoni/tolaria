@@ -310,7 +310,16 @@ export default function Board({
     const attackSequence = useAttackSequenceState(
         `${state?.turn ?? 0}:${state?.phase ?? ""}:${
             state?.combat?.confirmed ? "confirmed" : "open"
-        }`
+        }`,
+        // Issue #9500 — a walk member that is no longer a declared attacker
+        // (or an awaiting creature no longer on the battlefield) is skipped.
+        {
+            declared: state?.combat?.attackerIds ?? [],
+            present:
+                state?.players
+                    .find((p) => p.id === state.activePlayerId)
+                    ?.battlefield.map((c) => c.id) ?? [],
+        }
     );
 
     // Divide-as-you-choose distribution buffer (CR 601.2d, Pyrokinesis / Fire

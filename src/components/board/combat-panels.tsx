@@ -8,6 +8,7 @@ import EnlistChoicePanel from "./enlist-choice-panel";
 import ExertChoicePanel from "./exert-choice-panel";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import AttackDirectionBanner from "./attack-direction-banner";
+import { summarizeAttackChooser } from "~/lib/attack-chooser-summary";
 
 /** Combat declaration / damage modals for one player's battlefield on the
  *  spatial board ({@link BoardBattlefield}, PRD #249 / slice #281).
@@ -102,6 +103,10 @@ export default function CombatPanels({ player }: { player: Player }) {
                     <AttackDirectionBanner
                         planeswalkerPresent={defenderHasPlaneswalker}
                         choosingTarget={attackSequence.choosingTarget}
+                        chooser={summarizeAttackChooser(
+                            attackSequence,
+                            player.battlefield
+                        )}
                     />
                     <BandFormationPanel
                         combat={combat}

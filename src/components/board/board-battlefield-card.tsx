@@ -108,6 +108,11 @@ type BoardBattlefieldCardProps = {
      *  old per-call rebuild, so a caller/test that doesn't pass it (still
      *  correct, just unshared) keeps working unchanged. */
     layerState?: LayerStateView;
+    /** Issue #9500 — the hover preview docks on THIS side. Set `left` by the
+     *  battlefield for the back row's right block (planeswalkers, battles,
+     *  noncreature artifacts / enchantments), which sits under the right-edge
+     *  dock. Omitted ⇒ the preview's own rule. */
+    previewDockSide?: "left";
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -153,6 +158,7 @@ export default function BoardBattlefieldCard({
     phased = false,
     compactCardHeight,
     layerState,
+    previewDockSide,
 }: BoardBattlefieldCardProps) {
     const { allPlayers, emblems, playerId, continuousEffects } =
         useGameContext();
@@ -493,6 +499,7 @@ export default function BoardBattlefieldCard({
     const cardContent = (
         <div
             data-arrow-anchor-permanent={card.id}
+            data-preview-dock-side={previewDockSide}
             data-tapped={card.isTapped ? "true" : undefined}
             data-phased={phased ? "true" : undefined}
             className={`relative w-full h-full ${combatOffsetClassName} ${

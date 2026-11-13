@@ -8,6 +8,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import AttackDirectionBanner from "../attack-direction-banner";
+import type { CardInstance } from "~/types/game";
 
 afterEach(cleanup);
 
@@ -48,5 +49,64 @@ describe("AttackDirectionBanner wording (issue #1762)", () => {
         expect(container.textContent).toContain("What do they attack?");
         expect(container.textContent).toMatch(/planeswalker or the opponent/);
         expect(container.textContent).not.toMatch(/click/i);
+    });
+});
+
+// Issue #9500 — the reporter could not tell WHICH creature was choosing its
+// attack target during "Attack with all" and read it as a freeze. The banner
+// names it, gives its place in the walk and who comes next.
+describe("AttackDirectionBanner names the creature choosing (issue #9500)", () => {
+    const chooserCard = {
+        id: "a1",
+        card: { id: "f8ac5006-91bd-4803-93da-f87cf196dd2f" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        types: ["Creature"],
+        subtypes: [],
+    } as unknown as CardInstance;
+
+    it("walk: name, n of m, and the remaining attackers", () => {
+        render(
+            <AttackDirectionBanner
+                planeswalkerPresent
+                choosingTarget
+                chooser={{
+                    card: chooserCard,
+                    names: ["Serra Angel"],
+                    position: 2,
+                    total: 3,
+                    nextNames: ["Grizzly Bears"],
+                }}
+            />
+        );
+        const line = screen.getByTestId("attack-chooser").textContent ?? "";
+        expect(line).toContain("Serra Angel");
+        expect(line).toContain("2 of 3");
+        expect(screen.getByText(/Then: Grizzly Bears\./)).toBeTruthy();
+    });
+
+    it("walk: the last attacker says so", () => {
+        render(
+            <AttackDirectionBanner
+                planeswalkerPresent
+                choosingTarget
+                chooser={{
+                    card: chooserCard,
+                    names: ["Serra Angel"],
+                    position: 3,
+                    total: 3,
+                    nextNames: [],
+                }}
+            />
+        );
+        expect(screen.getByText(/Last one\./)).toBeTruthy();
+    });
+
+    it("no chooser keeps the generic copy", () => {
+        const { container } = render(
+            <AttackDirectionBanner planeswalkerPresent choosingTarget />
+        );
+        expect(container.textContent).toContain("What do they attack?");
     });
 });
