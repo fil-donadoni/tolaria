@@ -1,5 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import {
+    consultFailureCountsValidator,
+    readConsultFailures,
+} from "./botConsultFailureStore";
+import {
     action,
     internalAction,
     internalMutation,
@@ -445,11 +449,18 @@ export const getReport = internalQuery({
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),
+            // Issue #9502 — the game's failed Brain consult counters, when
+            // its Bot failed any. Counters only; the samples are one
+            // `botLiveness:getConsultFailures` away.
+            botConsultFailures: v.optional(consultFailureCountsValidator),
         })
     ),
     handler: async (ctx, args) => {
         const row = await ctx.db.get(args.reportId);
         if (!row) return null;
+        const consultFailures = row.gameId
+            ? await readConsultFailures(ctx, row.gameId)
+            : null;
         return {
             ...systemRowColumns(row),
             name: row.name,
@@ -474,6 +485,9 @@ export const getReport = internalQuery({
             issueNumber: row.issueNumber,
             issueUrl: row.issueUrl,
             filedAt: row._creationTime,
+            ...(consultFailures
+                ? { botConsultFailures: consultFailures.counts }
+                : {}),
         };
     },
 });
