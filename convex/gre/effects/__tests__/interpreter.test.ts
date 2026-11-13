@@ -27942,6 +27942,74 @@ describe("Effect Script Op: grantFlashback (CR 702.34a / 514.2, issue #4756)", (
         ).toBeUndefined();
     });
 
+    it("mass form: grants every instant and sorcery in the controller's graveyard, no one else's, nothing else (CR 702.34a)", () => {
+        const id = registerScript("test-op-grant-flashback-each", [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: ["Instant", "Sorcery"] },
+                },
+                effects: [{ op: "grantFlashback", card: { ref: "$each" } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        graveyardInstant("gy-a"),
+                        graveyardInstant("gy-b"),
+                        makeInstance(BEAR_ID, {
+                            id: "gy-bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    graveyard: [
+                        makeInstance(BLACK_CARD_ID, {
+                            id: "gy-theirs",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const mine = state.players[0].graveyard;
+        // CR 702.34a — each at its own mana cost.
+        expect(mine.find((c) => c.id === "gy-a")!.grantedFlashback).toEqual({
+            X: 1,
+            B: 1,
+        });
+        expect(mine.find((c) => c.id === "gy-b")!.grantedFlashback).toEqual({
+            X: 1,
+            B: 1,
+        });
+        expect(
+            mine.find((c) => c.id === "gy-bear")!.grantedFlashback
+        ).toBeUndefined();
+        expect(state.players[1].graveyard[0].grantedFlashback).toBeUndefined();
+
+        // Wire format: both grants cross the projection as the cast affordance.
+        const projected = projectPublicState(state, 1, "p1");
+        const kind = (cardId: string) =>
+            projected.players[0].graveyard.find((c) => c.id === cardId)!
+                .castKind;
+        expect([kind("gy-a"), kind("gy-b"), kind("gy-bear")]).toEqual([
+            "flashback",
+            "flashback",
+            undefined,
+        ]);
+    });
+
     it("ends at cleanup with every 'until end of turn' effect (CR 514.2)", () => {
         const id = script();
         const state = makeState({

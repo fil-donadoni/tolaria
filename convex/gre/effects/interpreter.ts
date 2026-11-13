@@ -4072,8 +4072,20 @@ export const OP_EXECUTORS: {
     // `graveyard-card` selection (CR 608.2b); the primitive re-checks that the
     // card is still in that graveyard and stamps `grantedFlashback`, which the
     // cleanup step clears (CR 514.2).
+    // The mass form (Past in Flames) names a `forEach { set: "graveyard" }`
+    // member by its bare `$each` ref: the snapshot id, re-found in whichever
+    // graveyard holds it now (CR 608.2b — a member that left is skipped).
     grantFlashback(ctx, op) {
-        const selection = resolveTargetRef(ctx, op.card);
+        let selection: TargetSelection | undefined;
+        if ("target" in op.card) {
+            selection = resolveTargetRef(ctx, op.card);
+        } else {
+            const id = readBinding(ctx, op.card.ref)?.[SNAP_ID];
+            const owner = id ? ctx.getGraveyardCardOwner(id) : undefined;
+            if (id && owner !== undefined) {
+                selection = { type: "graveyard-card", id, playerId: owner };
+            }
+        }
         if (selection?.type !== "graveyard-card") return;
         ctx.grantFlashback(selection);
     },

@@ -57601,6 +57601,14 @@
         "source": "compiled"
     },
     {
+        "name": "Past in Flames",
+        "scryfallId": "23af6033-4930-48e4-821d-14cbbe1754b4",
+        "oracleId": "37a18736-5fe2-4897-809b-013497bdd890",
+        "firstSet": "isd",
+        "firstPrintId": "23af6033-4930-48e4-821d-14cbbe1754b4",
+        "firstPrintSet": "isd"
+    },
+    {
         "name": "Patagia Golem",
         "scryfallId": "89920b7a-fd56-4fa8-96c9-fb66c2af6fbf",
         "oracleId": "85308fb8-e5a1-4ff1-8606-283cf2056895",
