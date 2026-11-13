@@ -86,3 +86,28 @@ The new Capability breaks `worstDeckCastability` on seeds 1..8 (0.795 →
   RW) are the same shape: two colours, no splash, near-uncastable off-colour
   cards. That is the colour-set choice of issue #9336, not this Capability.
 - **The Floor moved** 0.76 → 0.72, rounded down from the seeds 1..8 run.
+
+## Issue #9321: the `big-artifact` Capability
+
+> **Measured at `32fc2d721` (2026-11-13)**, base against the branch rebased
+> on it.
+
+The base tip already fails `p5DeckCastability` on seeds 1..8 (0.769 < 0.77).
+PR #9357 set that Floor from 0.777. PR #9516 (the bounded
+`cheap-artifact-mv-1` Capability) landed next and moved it: 0.777 at
+`0dbe4d904`, 0.769 at `df5a243bf`. The branch also breaks
+`meanPlanShare` (0.482 → 0.479 < 0.48). The p5 and plan share of each block
+of eight seeds, out of 64:
+
+| Tree   | p5 (64) | Plan share (64) | p5 per block (median)                           | Plan share per block (median)                   |
+| ------ | ------: | --------------: | ----------------------------------------------- | ----------------------------------------------- |
+| Base   |   0.783 |           0.509 | .769 .799 .797 .806 .762 .784 .783 .792 (0.788) | .482 .513 .528 .504 .521 .514 .506 .500 (0.510) |
+| Branch |   0.784 |           0.509 | .769 .796 .804 .806 .762 .784 .749 .792 (0.788) | .479 .512 .526 .504 .521 .515 .512 .500 (0.512) |
+
+- **No build regression.** Over 64 seeds neither metric moves on the
+  branch, and both block medians hold or rise.
+- **Seeds 1..8 are a low block.** For plan share they are the lowest block on
+  both trees. For p5 they are the base's lowest block but one, and they do not
+  move on the branch.
+- **The Floors moved**, rounded down from the seeds 1..8 run:
+  `p5DeckCastability` 0.77 → 0.76, `meanPlanShare` 0.48 → 0.47.
