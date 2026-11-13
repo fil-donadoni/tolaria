@@ -1420,6 +1420,41 @@ describe("target-filter registry — checkPermanentTargetFilters (ADR 0068, #140
         ).toBe("Target must have total power and toughness ≥ 6");
     });
 
+    // CR 208.1 / CR 613.4c (issue #8645, Warping Wail) — power OR toughness at
+    // the bound is enough; only a creature over it on BOTH values is illegal.
+    it("powerOrToughnessFilter: accepts a creature with either value at the bound, counters included", () => {
+        const lowPower = makeCard({
+            types: ["Creature"],
+            power: 1,
+            toughness: 5,
+        });
+        const lowToughness = makeCard({
+            types: ["Creature"],
+            power: 5,
+            toughness: 1,
+        });
+        const both = makeCard({ types: ["Creature"], power: 2, toughness: 2 });
+        // Printed 1/1 lifted to 2/2 by a +1/+1 counter (layer 7c): now over on both.
+        const countered = makeCard({
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+            counters: { "+1/+1": 1 },
+        });
+        const ctx = baseCtx();
+        const values = { powerOrToughnessFilter: { max: 1 } };
+        expect(checkPermanentTargetFilters(ctx, lowPower, values)).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, lowToughness, values)
+        ).toBeNull();
+        expect(checkPermanentTargetFilters(ctx, both, values)).toBe(
+            "Target must have power or toughness ≤ 1"
+        );
+        expect(checkPermanentTargetFilters(ctx, countered, values)).toBe(
+            "Target must have power or toughness ≤ 1"
+        );
+    });
+
     it("mvFilter: accepts a permanent matching the mana-value bound, rejects one that doesn't", () => {
         const cheap = makeCard({
             types: ["Creature"],
@@ -3035,6 +3070,9 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
         toughnessFilter: { req: { toughnessFilter: { min: 99 } } },
         totalPowerToughnessFilter: {
             req: { totalPowerToughnessFilter: { min: 99 } },
+        },
+        powerOrToughnessFilter: {
+            req: { powerOrToughnessFilter: { max: -1 } },
         },
         mvFilter: { req: { mvFilter: { equals: 99 } } },
         sameController: {

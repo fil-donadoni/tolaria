@@ -1058,6 +1058,14 @@ export interface TargetRequirement {
      *  to `powerFilter` / `toughnessFilter`, which bound each value on its
      *  own. Ignored for player / spell targets. */
     totalPowerToughnessFilter?: { min?: number; max?: number };
+    /** Restricts legal permanent targets to those whose effective power OR
+     *  effective toughness (CR 208.1, CR 613.4c) is at most `max` —
+     *  "target creature with power or toughness 1 or less" (Warping Wail,
+     *  issue #8645). Disjunctive: one value under the bound is enough, which
+     *  `powerFilter` / `toughnessFilter` (each a conjunct) cannot say. The
+     *  permanent twin of `spellCreaturePtFilter`. Ignored for player / spell
+     *  targets. */
+    powerOrToughnessFilter?: { max: number };
     /** Restricts legal SPELL targets (`type: "spell"`) by the spell's card
      *  type (CR 114.1). Only stack items that are actual spells (not
      *  activated/triggered abilities) and whose `types` include at least one
