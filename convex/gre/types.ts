@@ -411,14 +411,29 @@ export type RandomRevealSource = {
  *    spells" (The Mightstone and Weakstone). A PROHIBITION rather
  *    than `artifact-spell`'s permission: the two agree on spells and differ on
  *    everything else, because this mana may still pay to activate an ability
- *    (CR 106.6 restricts only what the text names). */
+ *    (CR 106.6 restricts only what the text names).
+ *  - `colorless-eldrazi`: "Spend this mana only to cast colorless Eldrazi
+ *    spells or activate abilities of colorless Eldrazi" (Eldrazi Temple). The
+ *    first restriction keyed on BOTH paths at once and on colour plus subtype:
+ *    eligible at a spell-cast site when the spell is colorless and an Eldrazi,
+ *    and at an activation when the source is. Both read a `RestrictionSubject`. */
 export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
     | "cumulative-upkeep"
     | "artifact-ability"
     | "legendary-spell"
-    | "not-nonartifact-spell";
+    | "not-nonartifact-spell"
+    | "colorless-eldrazi";
+/** The characteristics a mana restriction keyed on COLOUR or SUBTYPE reads off
+ *  the spell being cast or the source whose ability is being activated
+ *  (CR 106.6). Colour and subtype are not on the type line the older
+ *  `spellTypes` / `sourceTypes` channels carry. Absent at a site that has no
+ *  subject, which fails such a restriction CLOSED. */
+export type RestrictionSubject = {
+    colors: readonly string[];
+    subtypes: readonly string[];
+};
 /** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
  *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
  *  members driven by ONE `divideIntoPiles` Effect Script Op:

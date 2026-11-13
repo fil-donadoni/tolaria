@@ -43,7 +43,12 @@
 //
 // PURE. No async, no state mutation.
 
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+    RestrictionSubject,
+} from "./state";
 import {
     normalizeManaCost,
     restrictionAllowsSpell,
@@ -78,6 +83,8 @@ export type ManaUnits = ReadonlyArray<ReadonlySet<Color>>;
 export type ManaSpellContext = {
     types: readonly string[];
     supertypes: readonly string[];
+    /** Colour + subtypes, for restrictions keyed on them (`colorless-eldrazi`). */
+    subject?: RestrictionSubject;
     /** `handDiscardCostsNothing` for this cast: the census then counts a "Discard
      *  your hand" mana ability, as `planManaPayment` does. */
     handDiscardFree?: boolean;
@@ -229,7 +236,8 @@ function producibleManaUnitsWithDebt(
                   restrictionAllowsSpell(
                       restriction,
                       spell.types,
-                      spell.supertypes
+                      spell.supertypes,
+                      spell.subject
                   )
               );
           })

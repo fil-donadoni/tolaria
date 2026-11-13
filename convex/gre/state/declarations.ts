@@ -2991,6 +2991,9 @@ export type AssistPaymentWindow = {
     spellCardId: string;
     spellTypes: string[];
     spellSupertypes: string[];
+    /** Colour + subtypes, for the `colorless-eldrazi` restriction (CR 106.6). */
+    spellColors?: string[];
+    spellSubtypes?: string[];
 };
 
 /** Where a cast with Assist stands (CR 702.132a), in rule order:

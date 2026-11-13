@@ -897,6 +897,7 @@ import type {
     RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
+    RestrictionSubject,
     LibraryDestination,
     LookDistributeDestination,
     LookDistributeKeepTo,
@@ -915,6 +916,7 @@ export type {
     RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
+    RestrictionSubject,
     LibraryDestination,
     LookDistributeDestination,
     LookDistributeKeepTo,
@@ -1101,7 +1103,11 @@ export function spendableManaForAssist(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     spell: Pick<
         AssistPaymentWindow,
-        "spellCardId" | "spellTypes" | "spellSupertypes"
+        | "spellCardId"
+        | "spellTypes"
+        | "spellSupertypes"
+        | "spellColors"
+        | "spellSubtypes"
     >
 ): number {
     let total = 0;
@@ -1110,7 +1116,10 @@ export function spendableManaForAssist(
             player,
             spell.spellTypes,
             spell.spellCardId,
-            spell.spellSupertypes
+            spell.spellSupertypes,
+            spell.spellColors && spell.spellSubtypes
+                ? { colors: spell.spellColors, subtypes: spell.spellSubtypes }
+                : undefined
         )
     )) {
         total += amount;
@@ -24469,7 +24478,8 @@ export function manaSpentDelta(
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
     spellTypes: readonly string[],
-    spellSupertypes: readonly string[] = []
+    spellSupertypes: readonly string[] = [],
+    spellSubject?: RestrictionSubject
 ): boolean {
     switch (restriction) {
         case "creature-spell":
@@ -24491,7 +24501,37 @@ export function restrictionAllowsSpell(
             // CR 106.6 / 205.4a (issue #1559, Delighted Halfling) — keyed on
             // the SUPERTYPE "Legendary", not a card type.
             return spellSupertypes.includes("Legendary");
+        case "colorless-eldrazi":
+            // CR 106.6 / 105.2c — "colorless Eldrazi spells": no colour AND the
+            // Eldrazi subtype. No subject at the site → fail closed.
+            return (
+                spellSubject !== undefined && isColorlessEldrazi(spellSubject)
+            );
     }
+}
+
+/** The subject of a spell being cast, read off its definition (a card in hand
+ *  or on the stack has its printed colour and subtypes). */
+export function spellRestrictionSubject(
+    def: Pick<CardDefinition, "manaCost" | "subtypes" | "staticAbilities">
+): RestrictionSubject {
+    return {
+        colors: getCardColors(def as CardDefinition),
+        subtypes: def.subtypes ?? [],
+    };
+}
+
+/** The subject of an activated ability's source permanent: its effective
+ *  colour (layer 5) and subtypes. */
+export function sourceRestrictionSubject(
+    card: PermanentView
+): RestrictionSubject {
+    return { colors: getEffectiveColors(card), subtypes: card.subtypes };
+}
+
+/** CR 105.2c / 205.3 — a colorless object with the subtype Eldrazi. */
+export function isColorlessEldrazi(subject: RestrictionSubject): boolean {
+    return subject.colors.length === 0 && subject.subtypes.includes("Eldrazi");
 }
 
 /** True if restricted mana with `restriction` may pay for an ACTIVATED ability
@@ -24505,7 +24545,8 @@ export function restrictionAllowsSpell(
  *  it. */
 export function restrictionAllowsAbility(
     restriction: ManaRestriction,
-    sourceTypes: readonly string[]
+    sourceTypes: readonly string[],
+    sourceSubject?: RestrictionSubject
 ): boolean {
     switch (restriction) {
         case "creature-spell":
@@ -24521,6 +24562,12 @@ export function restrictionAllowsAbility(
             return true;
         case "artifact-ability":
             return sourceTypes.includes("Artifact");
+        case "colorless-eldrazi":
+            // CR 106.6 — "activate abilities of colorless Eldrazi": the source
+            // is a colorless Eldrazi. No subject at the site → fail closed.
+            return (
+                sourceSubject !== undefined && isColorlessEldrazi(sourceSubject)
+            );
     }
 }
 
@@ -24532,11 +24579,16 @@ export function restrictionAllowsAbility(
  *  one). */
 export function restrictedUnitAllowsAbility(
     unit: RestrictedMana,
-    sourceTypes: readonly string[]
+    sourceTypes: readonly string[],
+    sourceSubject?: RestrictionSubject
 ): boolean {
     if (unit.castableCardId !== undefined) return false;
     if (unit.restriction !== undefined) {
-        return restrictionAllowsAbility(unit.restriction, sourceTypes);
+        return restrictionAllowsAbility(
+            unit.restriction,
+            sourceTypes,
+            sourceSubject
+        );
     }
     return true;
 }
@@ -24553,11 +24605,12 @@ export function restrictedUnitAllowsAbility(
  *  check on the exact same logic. */
 export function spendablePoolForAbility(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">,
-    sourceTypes: readonly string[]
+    sourceTypes: readonly string[],
+    sourceSubject?: RestrictionSubject
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
-        if (restrictedUnitAllowsAbility(r, sourceTypes)) {
+        if (restrictedUnitAllowsAbility(r, sourceTypes, sourceSubject)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
@@ -24596,10 +24649,11 @@ export function payManaCostForAbility(
     cost: Record<string, number>,
     sourceTypes: readonly string[],
     substitutions: ManaSubstitution[] = [],
-    genericSpendOrder?: readonly string[]
+    genericSpendOrder?: readonly string[],
+    sourceSubject?: RestrictionSubject
 ): void {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictedUnitAllowsAbility(r, sourceTypes)
+        restrictedUnitAllowsAbility(r, sourceTypes, sourceSubject)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
@@ -24701,7 +24755,8 @@ export function restrictedUnitAllowsSpell(
     unit: RestrictedMana,
     spellTypes: readonly string[],
     spellCardId?: string,
-    spellSupertypes: readonly string[] = []
+    spellSupertypes: readonly string[] = [],
+    spellSubject?: RestrictionSubject
 ): boolean {
     if (unit.castableCardId !== undefined) {
         return spellCardId !== undefined && unit.castableCardId === spellCardId;
@@ -24710,7 +24765,8 @@ export function restrictedUnitAllowsSpell(
         return restrictionAllowsSpell(
             unit.restriction,
             spellTypes,
-            spellSupertypes
+            spellSupertypes,
+            spellSubject
         );
     }
     return true;
@@ -24989,7 +25045,8 @@ export function spendablePoolForSpell(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     spellTypes: readonly string[],
     spellCardId?: string,
-    spellSupertypes: readonly string[] = []
+    spellSupertypes: readonly string[] = [],
+    spellSubject?: RestrictionSubject
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
@@ -24998,7 +25055,8 @@ export function spendablePoolForSpell(
                 r,
                 spellTypes,
                 spellCardId,
-                spellSupertypes
+                spellSupertypes,
+                spellSubject
             )
         ) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
@@ -25028,10 +25086,17 @@ export function payManaCostForSpell(
     substitutions: ManaSubstitution[] = [],
     spellCardId?: string,
     genericSpendOrder?: readonly string[],
-    spellSupertypes: readonly string[] = []
+    spellSupertypes: readonly string[] = [],
+    spellSubject?: RestrictionSubject
 ): SpellManaRiders {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictedUnitAllowsSpell(r, spellTypes, spellCardId, spellSupertypes)
+        restrictedUnitAllowsSpell(
+            r,
+            spellTypes,
+            spellCardId,
+            spellSupertypes,
+            spellSubject
+        )
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
@@ -26208,7 +26273,8 @@ export function settleSpellManaSubstitutionGrant(
         player,
         cardDef?.types ?? [],
         cardInstanceId,
-        cardDef?.supertypes ?? []
+        cardDef?.supertypes ?? [],
+        cardDef ? spellRestrictionSubject(cardDef) : undefined
     );
     if (isManaCostCovered(pool, cost, withoutGrant)) return;
     consumeSpellManaSubstitutionGrant(state, player.id);
