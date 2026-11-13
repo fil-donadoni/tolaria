@@ -12,7 +12,7 @@ import { defineCard } from "../../types";
 // hand-tail: Metalcraft — {self} deals 4 damage instead if you control three or more artifacts. (#8618)
 export const galvanicBlast = defineCard(() => ({
     id: "f5881bbc-8600-464d-9dcd-5a7780918d1d",
-    rarity: "uncommon",
+    rarity: "common",
     name: "Galvanic Blast",
     oracleText:
         "Galvanic Blast deals 2 damage to any target.\nMetalcraft — Galvanic Blast deals 4 damage instead if you control three or more artifacts.",
