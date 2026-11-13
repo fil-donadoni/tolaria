@@ -4717,11 +4717,12 @@ const OP_SCHEMAS: OpSchemaTable = {
     },
     // CR 702.34a (issue #4756) — grant flashback until end of turn to an
     // announced graveyard-card target, cost = its own mana cost. `card` is a
-    // target slot ONLY: no picks ref and no explicit cost until a card prints
-    // one (the Op's doc in `convex/cards/types.ts`).
+    // target slot or a `forEach` member's bare ref (the mass form): no picks
+    // ref and no explicit cost until a card prints one (the Op's doc in
+    // `convex/cards/types.ts`).
     grantFlashback: {
         required: {
-            card: isTargetRef,
+            card: (v: unknown) => isTargetRef(v) || isBareRef(v),
         },
     },
     // CR 608.2g (issue #1477 / #1478 / #1961) — play a card as part of this
@@ -9022,6 +9023,13 @@ function checkOpListRefs(
                 k === "source"
             ) {
                 collectRefUses(v, "picks", uses);
+                continue;
+            }
+            // `grantFlashback.card` is a `forEach` member's `$each` snapshot (the
+            // mass form), an object-position ref — not the picks ref the bare
+            // key `card` means on `grantCastFromExile`.
+            if (entry.op === "grantFlashback" && k === "card") {
+                collectRefUses(v, "target", uses);
                 continue;
             }
             // CR 400.7e (issue #4127) — `moveZone.target` may name the card a

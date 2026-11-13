@@ -1488,6 +1488,44 @@ describe("preventDamage all-from-source `to` — a player only (CR 615.1a, issue
     });
 });
 
+describe("grantFlashback `card` — a target slot or a forEach member (CR 702.34a)", () => {
+    const eachScript = (card: unknown): EffectOp[] => [
+        {
+            op: "forEach",
+            select: { set: "graveyard", controller: "controller" },
+            effects: [{ op: "grantFlashback", card } as never],
+        },
+    ];
+
+    it("accepts a graveyard forEach member's `$each` and an announced slot", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: eachScript({ ref: "$each" }) })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [{ op: "grantFlashback", card: { target: 0 } }],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("REJECTS a `$each` outside a forEach and a malformed selector", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [{ op: "grantFlashback", card: { ref: "$each" } }],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(host({ effects: eachScript("$each") })).length
+        ).toBeGreaterThan(0);
+    });
+});
+
 // --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
 //
 // `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`

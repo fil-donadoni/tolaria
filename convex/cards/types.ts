@@ -18080,10 +18080,14 @@ export type EffectOp =
      *  {2}{R}{G} until end of turn") and a picks-ref selector — the shape
      *  widens when a card that prints them asks. `card` is an announced
      *  TARGET slot (CR 115.1) that must still hold a `graveyard-card`
-     *  selection at resolution; anything else skips the Op (CR 608.2b). */
+     *  selection at resolution, or — the mass form ("each instant and sorcery
+     *  card in your graveyard gains flashback", Past in Flames) — the bare
+     *  `{ ref: "$each" }` member of a `forEach { set: "graveyard" }` sweep
+     *  (its member set is frozen at construct entry); a card no
+     *  longer in a graveyard skips the Op (CR 608.2b). */
     | {
           op: "grantFlashback";
-          card: EffectTargetRef;
+          card: EffectTargetRef | EffectRef;
       }
     /** CR 608.2g — PLAY a card as PART OF THIS resolution: a
      *  "you may cast/play <card>" permission with NO stated duration, which per
