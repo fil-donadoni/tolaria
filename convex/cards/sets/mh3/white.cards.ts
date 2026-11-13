@@ -603,3 +603,75 @@ export const ajaniNacatlPariah = defineCard(() => ({
         ],
     },
 }));
+
+// Thraben Charm — {1}{W} Instant (MH3, issue #8639, modern-metagame).
+// "Choose one — • Thraben Charm deals damage equal to twice the number of
+// creatures you control to target creature. • Destroy target enchantment. •
+// Exile any number of target players' graveyards."
+//   - A modal spell (CR 700.2) with `modeSelection` absent = exactly one; only
+//     the chosen mode's targets are announced (CR 601.2c).
+//   - Damage is the `count` EffectValue with `times: 2` ("twice the number of"),
+//     read at resolution so the creature it kills is still counted (CR 120.3).
+//   - "Any number of target players" is a `{ min: 0 }` player requirement; the
+//     whole announced set is walked with `forEach { set: "targets" }` and each
+//     player's graveyard goes to exile (CR 406.3), zero targets doing nothing.
+// hand-tail: Choose one — • {self} deals damage equal to twice the number of creatures you control to target creature. • Destroy target enchantment. • Exile any number of target players' graveyards. (#8639)
+export const thrabenCharm = defineCard(() => ({
+    id: "dd28a646-f38f-4cdf-948c-969cd979e5e6",
+    rarity: "common",
+    name: "Thraben Charm",
+    oracleText:
+        "Choose one —\n• Thraben Charm deals damage equal to twice the number of creatures you control to target creature.\n• Destroy target enchantment.\n• Exile any number of target players' graveyards.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "damage",
+            label: "Damage equal to twice your creatures",
+            oracleText:
+                "Thraben Charm deals damage equal to twice the number of creatures you control to target creature.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { type: "Creature" },
+                            times: 2,
+                        },
+                    },
+                    to: { target: 0 },
+                },
+            ],
+        },
+        {
+            id: "destroy-enchantment",
+            label: "Destroy target enchantment",
+            oracleText: "Destroy target enchantment.",
+            targetRequirement: { type: "Enchantment", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "exile-graveyards",
+            label: "Exile any number of target players' graveyards",
+            oracleText: "Exile any number of target players' graveyards.",
+            targetRequirement: { type: "player", count: { min: 0 } },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: { ref: "$each" },
+                            from: "graveyard",
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
