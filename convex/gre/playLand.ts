@@ -423,6 +423,7 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // CR 702.185a (issue #1268) — the LOWER bound and the "warped card in
     // exile" referent ride the same consumed permission.
     delete card.castableFromExileFromTurn;
+    delete card.castableFromExileFromOwnTurn;
     delete card.warpExiledOnTurn;
     // CR 702.170d — the plotted designation, likewise.
     delete card.plottedOnTurn;

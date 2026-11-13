@@ -683,6 +683,7 @@ type ExileCastWindowFields = Pick<
     CardInstanceState,
     | "castableFromExileBy"
     | "castableFromExileFromTurn"
+    | "castableFromExileFromOwnTurn"
     | "ownerId"
     | "plottedOnTurn"
     | "foretoldOnTurn"
@@ -719,6 +720,28 @@ function designationPermissions(
         out.push({ route: "warp", opensOn: card.warpExiledOnTurn + 1 });
     }
     return out;
+}
+
+/** CR 514.2 / 611.2a — whether `casterId`'s grant carries an own-turn LOWER
+ *  bound ("during your next turn") that their own turn count has not reached
+ *  yet. Counted on the grantee's `turnsTaken`, so it reads the live state
+ *  rather than the pure turn number {@link exileGrantOpen} takes. */
+function exileOwnTurnWindowPending(
+    state: GameState,
+    card: Pick<
+        CardInstanceState,
+        "castableFromExileBy" | "castableFromExileFromOwnTurn"
+    >,
+    casterId: string
+): boolean {
+    if (
+        card.castableFromExileBy !== casterId ||
+        card.castableFromExileFromOwnTurn === undefined
+    ) {
+        return false;
+    }
+    const caster = state.players.find((p) => p.id === casterId);
+    return (caster?.turnsTaken ?? 0) < card.castableFromExileFromOwnTurn;
 }
 
 /** The grant half of {@link exileCastPermission}: the `castableFromExile*`
@@ -887,11 +910,13 @@ export function exileGrantPermitted(
         CardInstanceState,
         | "castableFromExileBy"
         | "castableFromExileFromTurn"
+        | "castableFromExileFromOwnTurn"
         | "castableFromExileCondition"
     >,
     casterId: string
 ): boolean {
     if (!exileGrantOpen(card, casterId, state.turn)) return false;
+    if (exileOwnTurnWindowPending(state, card, casterId)) return false;
     return alternativeCostConditionMet(
         state,
         casterId,
@@ -1190,7 +1215,10 @@ export function exileCastOpensLater(
     card: ExileCastWindowFields,
     casterId: string
 ): boolean {
-    return exileCastOpensOnTurn(card, casterId, state.turn) !== undefined;
+    return (
+        exileCastOpensOnTurn(card, casterId, state.turn) !== undefined ||
+        exileOwnTurnWindowPending(state, card, casterId)
+    );
 }
 
 /** Issue #7587 — whether an exiled `card` is LATENT material for `casterId`:

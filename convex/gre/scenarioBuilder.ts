@@ -3012,6 +3012,7 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // referent, and the grant's LOWER turn bound. Spec-keyed state like the
     // three exile-grant keys around them, not continuous-effect residue.
     "castableFromExileFromTurn",
+    "castableFromExileFromOwnTurn",
     "warped",
     "warpExiledOnTurn",
     "castableFromExileIncludesLand",

@@ -1545,6 +1545,19 @@ export type CardInstanceState = {
      *  `castableFromExileBy` wherever that field is cleared. Persisted so the
      *  window survives a DB round-trip. */
     castableFromExileFromTurn?: number;
+    /** CR 514.2 / 611.2a — the OWN-TURN lower bound of the "during your next
+     *  turn" window ("Exile the top card of your library. During your next
+     *  turn, you may play that card"): the grantee's {@link
+     *  PlayerState.turnsTaken} count at which the permission opens, stamped as
+     *  `turnsTaken + 1` ("your next turn", extra and skipped turns included).
+     *  It pairs with {@link castableFromExileUntilOwnTurn} stamped to the same
+     *  value, so the permission is inert for the rest of the granting turn and
+     *  every opponent turn in between, live during exactly that one turn of the
+     *  grantee's, and revoked at its cleanup. The twin of
+     *  {@link castableFromExileFromTurn}, which counts GLOBAL turns and so
+     *  cannot name "my turn" under extra turns (CR 500.7). Read by
+     *  `exileGrantPermitted` (`gre/castCost.ts`). Persisted. */
+    castableFromExileFromOwnTurn?: number;
     /** CR 702.170a/c/d — the PLOTTED designation on a card in exile: the turn
      *  it became plotted, set by `becomePlotted` (`gre/plot.ts`) — the plot
      *  special action, or any effect that makes an exiled card plotted. The
