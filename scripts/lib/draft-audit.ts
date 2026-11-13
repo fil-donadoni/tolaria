@@ -232,7 +232,12 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // the 5th percentile. Only the last percent thickens, and that comes
         // from the scope-relative plan
         // (docs/research/draft-table-audit-floor-noise.md).
-        worstDeckCastability: 0.76,
+        // Loosened 0.76 → 0.72 by the `sacrifice-fodder` Capability (issue
+        // #9323): its pairs redraft seeds 1..8 only, and they fall from the
+        // base's best block (0.795) to its median (0.733 base, 0.728 here).
+        // The other seven blocks keep their worst deck, the 64-seed mean
+        // holds (0.865 → 0.866) and so does p1 (0.723).
+        worstDeckCastability: 0.72,
         // The plan-first build raised it past the baseline's 0.47.
         // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
         // control is the plan of 18 seats (was 38) and six plans are built.

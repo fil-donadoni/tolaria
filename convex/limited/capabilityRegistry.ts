@@ -284,6 +284,22 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         description:
             "PROVIDES: a card that puts two or more creature bodies onto the battlefield under its controller's control — at once (a spell or enters trigger creating two or more creature tokens, Lingering Souls) or over turns (a repeating trigger or activated ability creating one each time, Third Path Iconoclast; a creature that leaves bodies behind when it dies, Worldspine Wurm). One creature, however large, does not provide it. REQUIRES: a payoff whose amount reads the NUMBER of creatures its controller has — mana per creature (Gaea's Cradle), power or damage per creature, an anthem or team pump that is worth more the more bodies it touches, convoke — requires this from the cards around it. The bodies must STAY: a sacrifice outlet that wants expendable bodies to throw away is not a requirer of this row, even though the same token makers feed it.",
     },
+    {
+        id: "sacrifice-fodder",
+        cluster: "Bodies",
+        gloss: {
+            provides:
+                "Cheap or token permanents whose loss costs their controller little.",
+            requires:
+                "A sacrifice outlet or sacrifice cost that turns its controller's own permanents into value.",
+        },
+        example: {
+            provider: "Lingering Souls",
+            requirer: "Goblin Bombardment",
+        },
+        description:
+            "PROVIDES: a card that gives its controller permanents cheap enough to throw away — creature or artifact tokens (Lingering Souls' four Spirits for two cards' worth of mana, a Servo or Eldrazi Spawn), or a body that has already left its value behind (an enters trigger that drew or made tokens). The point is expendability: losing the permanent costs its controller almost nothing. REQUIRES: a sacrifice outlet or a sacrifice cost that turns its controller's OWN permanents into value — a free repeatable outlet (Goblin Bombardment, one damage per creature), a spell or ability with a sacrifice-a-permanent additional cost (Bone Shards, Natural Order, Recurring Nightmare), or a payoff that cashes in a body's death (Skullclamp) — requires this from the cards around it. Distinct from `value-on-death` (a death trigger ON the fodder, Worldspine Wurm: that card is the payoff of dying, not a body worth little) and from `go-wide`, whose payoff counts creatures and wants bodies that STAY on the battlefield where this row's requirer wants bodies to throw away.",
+    },
 
     // ── Lands cluster ────────────────────────────────────────────────────
     {
