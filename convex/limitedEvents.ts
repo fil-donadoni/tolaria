@@ -331,9 +331,9 @@ const deckCardValidator = v.object({
 });
 
 // The five true colors a Auto-Built deck can be built in (CR 105.1) — never
-// "C": `chooseDeckColors` (`convex/limited/autoBuild.ts`) only ever returns
-// two or three of these (the count is DERIVED from the Pool's mana base,
-// issue #1615 — hence `v.array`, not a fixed-length tuple).
+// "C": `chooseDeckColors` (`convex/limited/autoBuild.ts`) returns one to
+// five of these (the count follows the Pool's fixing, issues #1615, #9336 —
+// hence `v.array`, not a fixed-length tuple).
 const colorValidator = v.union(
     v.literal("W"),
     v.literal("U"),
