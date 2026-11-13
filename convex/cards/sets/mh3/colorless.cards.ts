@@ -12,6 +12,7 @@ import {
     type LandEntryStateView,
     type TargetRequirement,
 } from "../../types";
+import { ELDRAZI_SPAWN_TOKEN } from "../../sharedTokens";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Shifting Woodland — Land.
@@ -223,5 +224,97 @@ export const devourerOfDestiny = defineCard(() => ({
             targetRequirement: DEVOURER_COLORED_PERMANENT,
             effects: [{ op: "exile", target: { target: 0 } }],
         }),
+    ],
+}));
+
+// Kozilek's Command — {X}{C}{C} Kindred Instant — Eldrazi. "Choose two —" a
+// fixed count of two DISTINCT modes (`modeSelection`, ADR 0094; no repeats
+// clause, CR 700.2d), resolved in printed order (CR 608.2c). Each mode carries
+// its own announced target(s) (CR 601.2c); X is the cast's chosen X (CR 107.3)
+// read through `{ X: true }`, `mvFilter.max: "X"` and the `"X"` target count.
+//
+// CR 111.1 — mode 1 makes the targeted player the token's controller.
+// CR 701.22a — mode 2 scries X for the targeted player, then that player draws.
+// CR 202.3 — mode 3's "mana value X or less" is the `mvFilter` ceiling.
+// CR 601.2c — mode 4's "up to X target cards" is the optional variable count
+// `{ min: 0, max: "X" }`, each exiled through the announced target set.
+// hand-tail: Choose two — • Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with "Sacrifice this token: Add {C}." • Target player scries X, then draws a card. • Exile target creature with mana value X or less. • Exile up to X target cards from graveyards. (#8624)
+export const kozileksCommand = defineCard(() => ({
+    id: "92585587-cfdc-406a-9114-4f6dd8802c37",
+    rarity: "rare",
+    name: "Kozilek's Command",
+    oracleText:
+        'Choose two —\n• Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with "Sacrifice this token: Add {C}."\n• Target player scries X, then draws a card.\n• Exile target creature with mana value X or less.\n• Exile up to X target cards from graveyards.',
+    manaCost: { X: "X", C: 2 },
+    types: ["Kindred", "Instant"],
+    subtypes: ["Eldrazi"],
+    modeSelection: { min: 2, max: 2 },
+    modes: [
+        {
+            id: "spawn",
+            label: "Target player creates X Eldrazi Spawn tokens",
+            oracleText:
+                'Target player creates X 0/1 colorless Eldrazi Spawn creature tokens with "Sacrifice this token: Add {C}."',
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "createToken",
+                    token: ELDRAZI_SPAWN_TOKEN,
+                    controller: { target: 0 },
+                    count: { X: true },
+                },
+            ],
+        },
+        {
+            id: "scry-draw",
+            label: "Target player scries X, then draws a card",
+            oracleText: "Target player scries X, then draws a card.",
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "scryReorder",
+                    player: { target: 0 },
+                    count: { X: true },
+                    destination: "library-bottom",
+                    prompt: "Scry X — keep cards on top (drag to order) or send them to the bottom.",
+                },
+                { op: "draw", player: { target: 0 }, count: 1 },
+            ],
+        },
+        {
+            id: "exile-creature",
+            label: "Exile target creature with mana value X or less",
+            oracleText: "Exile target creature with mana value X or less.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                mvFilter: { max: "X" },
+            },
+            effects: [{ op: "exile", target: { target: 0 } }],
+        },
+        {
+            id: "exile-graveyards",
+            label: "Exile up to X target cards from graveyards",
+            oracleText: "Exile up to X target cards from graveyards.",
+            targetRequirement: {
+                type: "card",
+                count: { min: 0, max: "X" },
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
+        },
     ],
 }));
