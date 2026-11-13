@@ -21,7 +21,7 @@ import {
     sourceWeight,
 } from "@convex/limited/botDrafter";
 import {
-    choosePlanArchetype,
+    planArchetypeWeights,
     type ArchetypeScopeShare,
 } from "@convex/limited/planArchetype";
 import type {
@@ -93,10 +93,12 @@ export interface DeckAudit {
     offColourDuals: number;
     /** Maindeck spells with a coloured pip outside `colors` (issue #9336). */
     offColourSpells: number;
-    /** The Pool's deepest Archetype: most Pool cards tagged with it (copies
-     *  count), ties by id. `null` when no Pool card carries one. */
-    planArchetype: string | null;
-    /** Share of the Maindeck's spells tagged with `planArchetype`. */
+    /** Every Archetype the Pool is committed to, heaviest first — the plans
+     *  the build weighed (`planArchetypeWeights`, issue #9356). Empty when no
+     *  Archetype is settled. */
+    planArchetypes: string[];
+    /** Share of the Maindeck's spells tagged with ANY of `planArchetypes`;
+     *  `null` with no plan or no spell. */
     planShare: number | null;
     /** Distinct `(provider, requirer, capability)` with both cards in the
      *  Maindeck, provider ≠ requirer. */
@@ -110,6 +112,11 @@ export function mean(values: readonly number[]): number | null {
     return values.length === 0
         ? null
         : values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/** A deck's plans as one label: `aggro+control`, `—` with none. */
+export function formatPlans(planArchetypes: readonly string[]): string {
+    return planArchetypes.length === 0 ? "—" : planArchetypes.join("+");
 }
 
 function countCapabilityPairs(
@@ -272,18 +279,23 @@ export function auditSeatDeck(
     const poolMetas = seat.pool
         .map((c) => draftLabGetAutoBuildCardMeta(c.scryfallId))
         .filter((m): m is AutoBuildCardMeta => m !== null);
-    // The plan the build chose: the same function, the same scope share
-    // (issue #9298).
-    const planArchetype = choosePlanArchetype(
-        archetypeCommitment(poolProfiles(poolMetas, getCardProfile)),
-        poolMetas.length,
-        scopeShare
-    );
+    // The plans the build weighed: the same function, the same scope share
+    // (issues #9298, #9356). A multi-plan deck's share counts a spell on any
+    // of them once.
+    const planArchetypes = [
+        ...planArchetypeWeights(
+            archetypeCommitment(poolProfiles(poolMetas, getCardProfile)),
+            poolMetas.length,
+            scopeShare
+        ).keys(),
+    ];
     const planShare =
-        planArchetype === null || spells.length === 0
+        planArchetypes.length === 0 || spells.length === 0
             ? null
             : spells.filter((s) =>
-                  getCardProfile(s.cardId)?.archetypes.includes(planArchetype)
+                  (getCardProfile(s.cardId)?.archetypes ?? []).some((a) =>
+                      planArchetypes.includes(a)
+                  )
               ).length / spells.length;
 
     const profiles = new Map<string, CardProfile>();
@@ -310,7 +322,7 @@ export function auditSeatDeck(
         splash: splashDiscipline(seat.deck.colors, main),
         offColourDuals: countOffColourDuals(seat.deck.colors, main),
         offColourSpells: countOffColourSpells(seat.deck.colors, main),
-        planArchetype,
+        planArchetypes,
         planShare,
         capabilityPairs: countCapabilityPairs(profiles),
         unreviewedShare: {

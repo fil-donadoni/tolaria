@@ -9,6 +9,7 @@ import { SCORER_VERSION } from "@convex/limited/scorerVersion";
 import {
     EARLY_CASTABILITY_THRESHOLD,
     EARLY_MANA_VALUE,
+    formatPlans,
     type DeckAudit,
 } from "./draftTableAudit";
 import type { DraftLabState } from "./draftLabEngine";
@@ -125,7 +126,7 @@ export function builtDeckAuditFields(audit: DeckAudit): BuiltDeckAuditField[] {
     return [
         {
             label: "plan",
-            value: `${audit.planArchetype ?? "—"} · ${formatShare(audit.planShare)}`,
+            value: `${formatPlans(audit.planArchetypes)} · ${formatShare(audit.planShare)}`,
         },
         { label: "colours", value: audit.colors.join("") || "—" },
         {
