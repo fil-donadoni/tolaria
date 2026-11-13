@@ -23744,6 +23744,14 @@
         "source": "compiled"
     },
     {
+        "name": "Echoing Deeps",
+        "scryfallId": "244c06b3-532d-426e-8bee-ee9461d092a6",
+        "oracleId": "2ef88214-f46d-473e-a55b-795a647e2f03",
+        "firstSet": "lci",
+        "firstPrintId": "244c06b3-532d-426e-8bee-ee9461d092a6",
+        "firstPrintSet": "lci"
+    },
+    {
         "name": "Ecologist's Terrarium",
         "scryfallId": "1d981026-b2df-4d8d-a9b4-296b011d9925",
         "oracleId": "04b33a43-57f1-46e9-b2c2-1dd3f8a4935c",

@@ -778,7 +778,7 @@ function settleEnteredLand(
     // play, players can't respond before you get the city's blessing".
     checkAscendCityBlessing(state);
 
-    if (willEnterTapped) card.isTapped = true;
+    if (willEnterTapped || asEntersAnswers?.entersTapped) card.isTapped = true;
 
     // CR 121.6 / 614.1c (issue #1693) — the entry-counters self-replacement
     // applies at THIS entry site too. Every one of this helper's callers
@@ -913,7 +913,10 @@ export function resumePlayedLandEntry(
     // Snapshotted BEFORE the card goes back: a hidden zone's codec (the
     // library) keeps no instance state across a save point, so the answers
     // travel beside the card, never on it.
-    const answers = stagedEntryAnswers(card);
+    const answers: StagedEntryAnswers = {
+        ...stagedEntryAnswers(card),
+        ...(entry.authoredEntry?.entersTapped ? { entersTapped: true } : {}),
+    };
     switch (play.sourceZone) {
         case "hand":
             card.zone = "hand";

@@ -6384,6 +6384,9 @@ export type StagedEntryAnswers = {
     chosenName?: string;
     chosenSubtypes?: string[];
     chosenPlayerId?: string;
+    /** CR 614.1c — the entry's own "enter tapped" answer (a `copy` answer
+     *  with `entersTappedAsCopy`), carried to the play-a-land tail. */
+    entersTapped?: boolean;
     copy: {
         colorOverride?: readonly Color[];
         grantedTriggeredAbilities?: CardInstanceState["grantedTriggeredAbilities"];

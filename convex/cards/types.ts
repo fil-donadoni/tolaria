@@ -4226,6 +4226,10 @@ export type AsEntersChoice =
            *  empty filter admits any card. `filter` (a permanent filter) is
            *  ignored when this is set. */
           fromGraveyard?: EffectCardFilter;
+          /** CR 614.1c — "you may have this enter tapped as a copy of …": the
+           *  permanent enters tapped only when a copy source is chosen;
+           *  declining the copy leaves it entering untapped. */
+          entersTappedAsCopy?: boolean;
           opts?: CopyEffectOptions;
           /** CR 603.11 / 707.9g — a triggered ability written in the same
            *  paragraph as the copy ("When you do, exile that card"), linked to
