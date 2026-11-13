@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:1970daf87e86b7a46d0b147c4bbda34658adf922e76bd368b2a180e330fb8c37",
         "registryHash": "sha256:280f482e4961c3bdf43e861ad66924762c98c26f2e7d0c426b375a6566a19aee",
-        "botHash": "sha256:1209090130118113143757a3c8d6016f9316a26362300c0351ae984d62da2c26",
+        "botHash": "sha256:7d4695dea5f8c833458d8422049f470c7fae93347d4c41454fba4b8e172947d8",
         "poolHash": "sha256:0127095cdc0ae5a03355bbc2b72b236f37077de1fd8c3cf0842113e823e7aeef",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29606,6 +29606,7 @@
         {"key":"never-chosen › Creature › pump+skipNextTurn","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
@@ -29622,7 +29623,6 @@
         {"key":"never-chosen › Sorcery target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › exile+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Artifact|Creature › destroy+fight","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery target:Creature › choice+discard+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › gainLife+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
@@ -86697,7 +86697,7 @@
 
         {"oracleId":"cf751552-156f-4f81-ac94-9814dce099f9","name":"Strionic Resonator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e48aeacd44a8"]},
 
-        {"oracleId":"cf75dbd8-b65a-48d9-b96b-4afb43f336d1","name":"Macabre Waltz","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","moveZone"],"definition":{"name":"Macabre Waltz","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"Return up to two target creature cards from your graveyard to your hand, then discard a card.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":2},"zone":"graveyard","controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Creature › choice+discard+moveZone"},
+        {"oracleId":"cf75dbd8-b65a-48d9-b96b-4afb43f336d1","name":"Macabre Waltz","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","moveZone"],"definition":{"name":"Macabre Waltz","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"Return up to two target creature cards from your graveyard to your hand, then discard a card.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":2},"zone":"graveyard","controller":"you"}},"botReach":"played"},
 
         {"oracleId":"cf765efe-884c-48e2-9edb-9d45cf2756dd","name":"Lake-town Lookout","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["83abc8bdb0e6"]},
 
@@ -96103,7 +96103,7 @@
 
         {"oracleId":"f0adab66-c3fe-4989-b7c8-ab7bdc7f0fd1","name":"Temporal Machinations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6835d8794470"]},
 
-        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"played"},
+        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone"},
 
         {"oracleId":"f0b1dcdc-4fbb-4bcb-a4b0-1aa5928347f9","name":"Scepter of Fugue","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","discard"],"definition":{"name":"Scepter of Fugue","types":["Artifact"],"manaCost":{"B":2},"oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","activatedAbilities":[{"id":"scepter-of-fugue-ability","oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","cost":{"mana":{"X":1,"B":1},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"controllerTurnOnly":true}]},"botReach":"played"},
 
