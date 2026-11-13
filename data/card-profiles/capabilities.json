@@ -352,9 +352,10 @@
             "reviewed": false
         },
         "891a92d7-9ccf-4de1-8286-aa5254f27ba9": {
-            "provides": [],
+            "provides": ["go-wide"],
             "requires": ["discard-outlet", "self-mills"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: creates two 1/1 flying Spirits, and two more on flashback"
         },
         "63bacc32-d6ba-420c-9b49-299c08e5fb39": {
             "provides": ["cheap-artifact", "value-on-cast", "discard-outlet"],
@@ -640,7 +641,7 @@
             "reviewed": false
         },
         "f1a21287-e244-4960-84fb-c4f6e5c346d9": {
-            "provides": [],
+            "provides": ["go-wide"],
             "requires": ["value-on-cast", "cheap-spell"],
             "reviewed": false,
             "rationale": "oracle: a Soldier token on each noncreature spell cast; cheap spells make the bodies"
@@ -672,9 +673,10 @@
             "reviewed": false
         },
         "224d904a-5972-4152-878a-9a922e7a55b6": {
-            "provides": ["value-on-etb"],
+            "provides": ["value-on-etb", "go-wide"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: creates a 5/3 Elemental each time a land you control goes to the graveyard"
         },
         "ad7ac9a5-340f-4509-826c-7b9416d47887": {
             "provides": [],
@@ -766,10 +768,10 @@
             "reviewed": false
         },
         "543d55cb-3a6b-4620-af25-10ae74ed32c4": {
-            "provides": ["value-on-death", "cheat-target"],
+            "provides": ["value-on-death", "cheat-target", "go-wide"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: an eleven-drop 15/15 trampler; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable"
+            "rationale": "oracle: an eleven-drop 15/15 trampler; shuffles itself out of the graveyard, so a cheat-target from hand or library but never reanimatable; leaves three 5/5 Wurm tokens behind when it dies"
         },
         "6d3e3c3a-d351-4d91-8884-312d4b6f540d": {
             "provides": [],
@@ -802,9 +804,10 @@
             "reviewed": false
         },
         "18092f68-b96e-4084-9eba-b240d2195d81": {
-            "provides": ["value-on-attack"],
-            "requires": [],
-            "reviewed": false
+            "provides": ["value-on-attack", "go-wide"],
+            "requires": ["go-wide"],
+            "reviewed": false,
+            "rationale": "oracle: creates a Human token every time you attack, and her power equals the number of creatures you control"
         },
         "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b": {
             "provides": ["value-on-etb"],
@@ -843,8 +846,9 @@
         },
         "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41": {
             "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false
+            "requires": ["go-wide"],
+            "reviewed": false,
+            "rationale": "oracle: its enters trigger pumps every creature you control, worth more the more bodies there are"
         },
         "6bcafc2e-cef6-412d-8c5d-1658c3337292": {
             "provides": [
@@ -1023,7 +1027,7 @@
             "reviewed": false
         },
         "e900c1eb-968b-4046-b824-c167a7a5b682": {
-            "provides": [],
+            "provides": ["go-wide"],
             "requires": ["value-on-cast", "cheap-spell"],
             "reviewed": false,
             "rationale": "oracle: magecraft makes a Pest on each instant or sorcery cast or copied"
@@ -1214,9 +1218,10 @@
             "reviewed": false
         },
         "2e139ad1-1079-49e9-babd-6399c44ad333": {
-            "provides": ["value-on-etb", "discard-outlet"],
+            "provides": ["value-on-etb", "discard-outlet", "go-wide"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: creates a 1/1 Elemental per nonland card discarded on entry, and two more from the graveyard"
         },
         "6989018c-37b1-4282-a4af-9cc97f160b4d": {
             "provides": ["value-on-attack"],
@@ -1314,9 +1319,10 @@
             "rationale": "rubric+oracle: instant at mana value 2, the cheap-spell PROVIDES clause"
         },
         "a87606cc-fbf0-4e2c-9798-f1c935d0573d": {
-            "provides": ["value-on-etb", "value-on-attack"],
+            "provides": ["value-on-etb", "value-on-attack", "go-wide"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: enters with two 2/2 Cats and copies a token each time it attacks"
         },
         "cf14de50-d123-400c-862e-2c95fd2aa23f": {
             "provides": ["self-mills"],
@@ -1339,11 +1345,12 @@
                 "value-on-etb",
                 "value-on-attack",
                 "reanimatable",
-                "cheat-target"
+                "cheat-target",
+                "go-wide"
             ],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a seven-drop that brings four Myr and pings on every attack while it stays; reanimatable on its size, so also a cheat-target"
+            "rationale": "oracle: a seven-drop that brings four Myr and pings on every attack while it stays; reanimatable on its size, so also a cheat-target; enters with four 1/1 Myr tokens beside its own body"
         },
         "67600383-bbb8-411c-b8e6-2296650bc747": {
             "provides": ["value-on-attack", "value-on-cast", "cheat-target"],
@@ -1544,9 +1551,10 @@
             "rationale": "oracle: a six-drop menace trampler destroying a permanent on entering; reanimatable on its size, so also a cheat-target"
         },
         "80c72839-0fa6-4b5f-83b7-6553ebf09bef": {
-            "provides": ["value-on-attack"],
+            "provides": ["value-on-attack", "go-wide"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: creates a growing number of 2/2 Rebels each time it attacks"
         },
         "76776b24-a2e1-4590-88e7-8a421baf2fc4": {
             "provides": ["self-mills"],
@@ -1819,9 +1827,10 @@
             "reviewed": false
         },
         "c1e0f201-42cb-46a1-901a-65bb4fc18f6c": {
-            "provides": [],
+            "provides": ["go-wide"],
             "requires": ["cheap-artifact"],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: chapter II grants a repeatable ability creating a Construct token each activation"
         },
         "e2b826be-4256-4fd6-ad4d-6c80933ee940": {
             "provides": ["reanimatable"],
@@ -2188,10 +2197,10 @@
             "rationale": "rubric+oracle: instant at mana value 2, the cheap-spell PROVIDES clause"
         },
         "06c053d3-028e-4961-93a5-5b7bb5a8601c": {
-            "provides": ["cheap-spell"],
+            "provides": ["cheap-spell", "go-wide"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause; creates X 2/2 Knight tokens with haste in one spell"
         },
         "fb1189c9-7842-466e-8238-1e02677d8494": {
             "provides": [],
@@ -2222,6 +2231,12 @@
             "requires": ["cheat-target"],
             "reviewed": false,
             "rationale": "oracle: sacrifice a green creature to put a green creature from library onto the battlefield for good; wants a cheat-target (green only, accepted imprecision)"
+        },
+        "25b0b816-0583-44aa-9dc5-f3ff48993a51": {
+            "provides": [],
+            "requires": ["go-wide"],
+            "reviewed": false,
+            "rationale": "oracle: adds one green mana for each creature you control"
         }
     }
 }
