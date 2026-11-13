@@ -1394,6 +1394,8 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         expect(xHead?.kind).toBe("option-pick");
         expect(xHead?.playerId).toBe("p1");
         submitViaMutationPath(state, "1");
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitViaMutationPath(state, "1");
         submitViaMutationPath(state, "p1");
 
         const fb = state.stack.find(

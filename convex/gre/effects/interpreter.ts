@@ -150,6 +150,7 @@ import {
     LAND_SUBTYPES,
 } from "../../oracle/grammar/shared/subtypes";
 import { attachmentsLast } from "../umbraArmor";
+import { announceResolveTimeCastTargets } from "./resolveTimeCastTargets";
 import {
     isSimultaneousPlayerMayPayBody,
     mayPayBodyPhase,
@@ -10242,52 +10243,27 @@ function castPickedCard(
         additionalSacrificeIds = pickedSac;
     }
 
-    // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
-    // (the chosen mode's requirement for a modal card, CR 700.2d). Reuses
-    // `getLegalTargetsForCard` exactly as a normal cast does. No legal
-    // target => the card is NOT cast ("if able").
-    const targetReq = chosenModeId
-        ? ctx.getCardModeTargetRequirement(
-              playerId,
-              cardInstanceId,
-              chosenModeId,
-              faceId
-          )
-        : ctx.getCardTargetRequirement(playerId, cardInstanceId, faceId);
-    let chosenTargets: TargetSelection[] | undefined;
-    if (targetReq) {
-        const legal = ctx.getLegalTargetsForCard(
-            playerId,
-            cardInstanceId,
-            targetReq,
-            faceId
-        );
-        if (legal.length === 0) {
-            return "pass"; // no legal target — not cast
-        }
-        const candidatePlayerIds = legal
-            .filter((t) => t.type === "player")
-            .map((t) => t.id);
-        const candidateIds = legal
-            .filter((t) => t.type !== "player")
-            .map((t) => t.id);
-        const pickedTarget = ctx.requestChoice({
-            playerId,
-            choiceId: `cdr:target${idSuffix}`,
-            kind: "choose-damage-target",
-            zone: "battlefield",
-            count: 1,
-            candidateIds,
-            candidatePlayerIds,
-            prompt: "Choose a target for the card you are casting.",
-        });
-        if (pickedTarget === undefined) return "suspend";
-        const pickedId = pickedTarget[0];
-        if (!pickedId) return "abort";
-        const selected = legal.find((t) => t.id === pickedId);
-        if (!selected) return "abort"; // pick no longer legal (CR 608.2b)
-        chosenTargets = [selected];
-    }
+    // TARGETS (CR 601.2c) — the caster announces every target the cast card
+    // requires, group by group (the chosen mode's requirement for a modal
+    // card, CR 700.2c), from the candidate set a normal cast offers (issue
+    // #9536 — a single `count: 1` pick cast "two target creatures" with one).
+    // A required target with no legal choice => the card is NOT cast ("if
+    // able").
+    const announced = announceResolveTimeCastTargets(ctx, {
+        chooserId: playerId,
+        casterId: playerId,
+        cardInstanceId,
+        modeId: chosenModeId,
+        alternativeCostId: faceId,
+        chosenX,
+        choiceId: `cdr:target${idSuffix}`,
+        subject: "the card you are casting",
+    });
+    if (announced === "suspend") return "suspend";
+    if (announced === "abort") return "abort";
+    if (announced === "unfillable") return "pass"; // no legal target — not cast
+    const chosenTargets: TargetSelection[] | undefined =
+        announced.length > 0 ? announced : undefined;
 
     // Commit the mini-cast. Self-cast: actingPlayerId == playerId. The
     // spell is spliced onto the stack just BELOW the resolving ability

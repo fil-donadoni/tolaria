@@ -77,3 +77,26 @@ describe("choose-damage-target fallback with no candidate (issue #9148, #2497)",
         expect(action).toEqual({ kind: "none" });
     });
 });
+
+// Issue #9536 — a multi-group free cast (CR 601.2c) asks one pick per target:
+// the Bot answers each, the second group's pick included.
+const FIRST_GROUP =
+    "cast during resolution: Plague Spores off Chandra aims its creature target at the Dragon";
+const SECOND_GROUP =
+    "cast during resolution: Plague Spores off Chandra aims its land target at the opponent's land";
+
+describe("free cast announcing two target groups (issue #9536)", () => {
+    it("the second group's pick is owed after the first", () => {
+        const head = buildBladeState(entry(SECOND_GROUP)).pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-damage-target");
+        expect(head?.choiceId).toBe("cdr:target@1.0");
+    });
+
+    it.each([FIRST_GROUP, SECOND_GROUP])(
+        "the search answers %s on every seed",
+        (label) => {
+            const result = runBladeScenario(entry(label));
+            expect(result.ok, result.failureMessage).toBe(true);
+        }
+    );
+});
