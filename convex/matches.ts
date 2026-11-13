@@ -807,6 +807,12 @@ export async function deleteGameCascade(
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .collect();
     for (const m of manualLog) await ctx.db.delete(m._id);
+    // Failed Bot consult record (issue #9502) — same key, same orphan risk.
+    const consultFailures = await ctx.db
+        .query("botConsultFailures")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const f of consultFailures) await ctx.db.delete(f._id);
     // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
     await deleteGameDecks(ctx, gameId);
     // Definition Manifest companion (issue #5614) — same key, same risk.

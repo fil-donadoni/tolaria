@@ -116,6 +116,7 @@ import {
     clearAiTraces,
 } from "~/lib/ai/trace-store";
 import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
+import { isConsultFailureOutcome } from "@convex/botConsultFailureStore";
 import {
     decideBotAction,
     botActionRealisation,
@@ -601,6 +602,16 @@ export function useVsAiDriver(
     useEffect(() => {
         reportStallRef.current = reportStall;
     }, [reportStall]);
+    // Issue #9502 — a failed Brain consult, reported for the server's record.
+    // Reached from inside a consult's promise callback, so read through a ref
+    // like `reportStall`.
+    const reportConsultFailure = useMutation(
+        api.botLiveness.reportConsultFailure
+    );
+    const reportConsultFailureRef = useRef(reportConsultFailure);
+    useEffect(() => {
+        reportConsultFailureRef.current = reportConsultFailure;
+    }, [reportConsultFailure]);
 
     const directMutations: DirectMutations = {
         setDamageAssignment,
@@ -1394,6 +1405,26 @@ export function useVsAiDriver(
                                 },
                                 at
                             );
+                            // Issue #9502 — the same verdict, for the server,
+                            // when it says the Brain gave NO answer: the
+                            // fallbacks below pass legally, which leaves no
+                            // other server trace. Fire-and-forget: a throw or
+                            // a rejection is swallowed and changes nothing
+                            // about what the bot does next.
+                            if (isConsultFailureOutcome(outcome)) {
+                                try {
+                                    void reportConsultFailureRef
+                                        .current({
+                                            gameId,
+                                            seq: at.seq,
+                                            outcome,
+                                            ...(message ? { message } : {}),
+                                        })
+                                        .catch(() => {});
+                                } catch {
+                                    // A lost report, never a lost move.
+                                }
+                            }
                             // Safety net for a searched pending choice (issue #1506)
                             // and for a searched engine-raised TARGET selection
                             // (issue #2283): either window suppresses every other

@@ -200,7 +200,10 @@ vi.mock("@convex/_generated/api", () => ({
             getDefinitionManifest: "getDefinitionManifest",
             getMatchBotDifficulty: "getMatchBotDifficulty",
         },
-        botLiveness: { reportStall: "reportStall" },
+        botLiveness: {
+            reportStall: "reportStall",
+            reportConsultFailure: "reportConsultFailure",
+        },
     },
 }));
 
