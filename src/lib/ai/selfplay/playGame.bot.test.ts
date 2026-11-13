@@ -221,7 +221,7 @@ describe("listCandidates no-zone fallback diagnostic (issue #2689 fixup 2)", () 
         const state = createInitialGameState(basePlayers(), 1234);
         const choice = baseChoice({
             playerId: "A",
-            kind: "choose-damage-target",
+            kind: "choose-permanents",
             candidateIds: ["not-a-real-id"],
             count: 1,
         });

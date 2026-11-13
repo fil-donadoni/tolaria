@@ -155,7 +155,12 @@ export function listCandidates(
 
     // CR 400.11b — a Wish pick names no zone (outside the game is not one):
     // the engine's own eligibility is the pool.
-    if (head.kind === "choose-outside-game-card") {
+    // CR 115.1 / 601.2c (issue #9148) — "any target": every public zone, by
+    // id, through the same engine authority the submit path mirrors.
+    if (
+        head.kind === "choose-outside-game-card" ||
+        head.kind === "choose-damage-target"
+    ) {
         return eligibleZonePickCards(state, head);
     }
 
@@ -258,10 +263,9 @@ export function listCandidates(
         // out of scope for it by construction.
         return [];
     }
-    // No zone (e.g. `choose-damage-target`, whose every construction sets
-    // `zone: "battlefield"` in practice, so this is truly the fallback for an
-    // UNANTICIPATED zone-less permanent pick): fall back to the permanent
-    // allow-list.
+    // No zone (`choose-damage-target` is read id-driven above, so this is
+    // truly the fallback for an UNANTICIPATED zone-less permanent pick): fall
+    // back to the permanent allow-list.
     if (head.candidateIds) {
         const all = state.players.flatMap((p) => p.battlefield);
         const found = all.filter((c) => head.candidateIds!.includes(c.id));

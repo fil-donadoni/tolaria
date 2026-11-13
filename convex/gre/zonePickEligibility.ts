@@ -35,6 +35,49 @@ export function choiceSpansAllGraveyards(head: PendingChoice): boolean {
     return head.zone === "graveyard" && head.allControllers === true;
 }
 
+/** The public zones an "any target" pick may name an object in — the shape
+ *  both the server `GameState` and the Bot's projected `PublicGameState`
+ *  share, so ONE resolver serves the enumerator, the live Bot view and the
+ *  self-play lister. */
+export type AnyTargetZones<C extends { id: string }> = {
+    players: readonly {
+        battlefield: readonly C[];
+        graveyard: readonly C[];
+        exile: readonly C[];
+    }[];
+    stack: readonly C[];
+};
+
+/** CR 115.1 / CR 601.2c (issue #9148) — the OBJECTS a `choose-damage-target`
+ *  pick may name, resolved from its `candidateIds` allow-list across every
+ *  public zone: a permanent, a card in a graveyard or exile, a spell on the
+ *  stack. Id-driven like its submit validator (`submitDamageTargetPick`
+ *  trusts `candidateIds` alone, whatever `zone` the raise was labelled with):
+ *  a free cast during resolution (`castDuringResolution`'s target step) or
+ *  Word of Command's pick lists every non-player legal target of the cast
+ *  spell, and a pool read from battlefields alone left the Bot an EMPTY
+ *  answer for a graveyard or stack target. Allow-list order; an id found on
+ *  a battlefield wins over the activated-ability stack item that borrows its
+ *  source's id (CR 113.7a), as `getLegalTargets` lists permanents first. */
+export function anyTargetChoicePool<C extends { id: string }>(
+    zones: AnyTargetZones<C>,
+    candidateIds: readonly string[] | undefined
+): C[] {
+    if (!candidateIds || candidateIds.length === 0) return [];
+    const byId = new Map<string, C>();
+    const add = (c: C) => {
+        if (!byId.has(c.id)) byId.set(c.id, c);
+    };
+    for (const p of zones.players) p.battlefield.forEach(add);
+    zones.stack.forEach(add);
+    for (const p of zones.players) p.graveyard.forEach(add);
+    for (const p of zones.players) p.exile.forEach(add);
+    return candidateIds.flatMap((id) => {
+        const c = byId.get(id);
+        return c ? [c] : [];
+    });
+}
+
 /** The cards the chooser may legally include in a zone-pick submission — the
  *  enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation: zone
  *  membership (of `zoneOwnerId ?? playerId`, or every battlefield for
@@ -53,6 +96,11 @@ export function eligibleZonePickCards(
         return outsideGamePool(zoneOwner).filter(
             (c) => head.candidateIds?.includes(c.id) ?? false
         );
+    }
+    // CR 115.1 / 601.2c (issue #9148) — "any target": id-driven across every
+    // public zone, never the `zone` label.
+    if (head.kind === "choose-damage-target") {
+        return anyTargetChoicePool(state, head.candidateIds);
     }
     let pool: CardInstanceState[];
     switch (head.zone) {
