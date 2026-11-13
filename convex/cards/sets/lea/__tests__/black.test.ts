@@ -3809,9 +3809,9 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
 
         submitOption(state, "1"); // choose X = 1
         // Fireball is "any target" — the controller then aims it. Target p1.
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitOption(state, "1");
         submitTarget(state, "p1");
-        // CR 601.2c — "any number of targets": stop at one (issue #9536).
-        submitOption(state, "done");
 
         const fb = state.stack.find(
             (s) => (s.card as { id?: string }).id === fireball.id
@@ -3849,6 +3849,8 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         // X is offered as just {0} (the only candidate), the target is aimed,
         // then the cast fails on payment.
         submitOption(state, "0");
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitOption(state, "1");
         submitTarget(state, "p1");
 
         expect(
@@ -4005,9 +4007,9 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         castWordOfCommand(state);
         submitPick(state, "opp-phase");
         submitOption(state, "1");
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitOption(state, "1");
         submitTarget(state, "p1");
-        // CR 601.2c — "any number of targets": stop at one (issue #9536).
-        submitOption(state, "done");
 
         expect(state.stack.find((s) => s.id === "opp-phase")?.castById).toBe(
             "p2"
@@ -4310,9 +4312,9 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         castWordOfCommand(state);
         submitPick(state, "opp-fireball");
         submitOption(state, "1");
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitOption(state, "1");
         submitTarget(state, "p1");
-        // CR 601.2c — "any number of targets": stop at one (issue #9536).
-        submitOption(state, "done");
 
         for (const viewer of ["p1", "p2"]) {
             const projected = projectPublicState(state, 1, viewer);

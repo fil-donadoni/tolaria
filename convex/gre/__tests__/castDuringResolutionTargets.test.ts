@@ -183,7 +183,7 @@ describe("castDuringResolution announces every target (CR 601.2c, issue #9536)",
         expect(targetsOf(state, "top")).toEqual(["b", "a"]);
     });
 
-    it("an 'up to' tail asks whether to add another, and may stop at the minimum", () => {
+    it("an 'up to' group announces how many targets first (CR 601.2c)", () => {
         const state = freeCastOf(
             ONE_OR_TWO,
             [],
@@ -192,17 +192,15 @@ describe("castDuringResolution announces every target (CR 601.2c, issue #9536)",
                 card("Grizzly Bears", "b", "p2", "battlefield"),
             ]
         );
-        submit(state, "a");
         expect(head(state)?.kind).toBe("option-pick");
-        expect(head(state)?.options?.map((o) => o.id)).toEqual([
-            "more",
-            "done",
-        ]);
-        submit(state, "done");
+        expect(head(state)?.options?.map((o) => o.id)).toEqual(["1", "2"]);
+        submit(state, "1");
+        expect(head(state)?.candidateIds).toEqual(["a", "b"]);
+        submit(state, "a");
         expect(targetsOf(state, "top")).toEqual(["a"]);
     });
 
-    it("an 'up to' tail takes the second target when asked for it", () => {
+    it("an 'up to' group announced at two takes two targets", () => {
         const state = freeCastOf(
             ONE_OR_TWO,
             [],
@@ -211,11 +209,22 @@ describe("castDuringResolution announces every target (CR 601.2c, issue #9536)",
                 card("Grizzly Bears", "b", "p2", "battlefield"),
             ]
         );
+        submit(state, "2");
         submit(state, "a");
-        submit(state, "more");
         expect(head(state)?.candidateIds).toEqual(["b"]);
         submit(state, "b");
         expect(targetsOf(state, "top")).toEqual(["a", "b"]);
+    });
+
+    it("an 'up to' group with one legal object asks no count (no real choice)", () => {
+        const state = freeCastOf(
+            ONE_OR_TWO,
+            [],
+            [card("Hill Giant", "a", "p2", "battlefield")]
+        );
+        expect(head(state)?.kind).toBe("choose-damage-target");
+        submit(state, "a");
+        expect(targetsOf(state, "top")).toEqual(["a"]);
     });
 });
 

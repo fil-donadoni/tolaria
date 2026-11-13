@@ -1394,9 +1394,9 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         expect(xHead?.kind).toBe("option-pick");
         expect(xHead?.playerId).toBe("p1");
         submitViaMutationPath(state, "1");
+        // CR 601.2c — "any number of targets": announce one (issue #9536).
+        submitViaMutationPath(state, "1");
         submitViaMutationPath(state, "p1");
-        // CR 601.2c — "any number of targets": stop at one (issue #9536).
-        submitViaMutationPath(state, "done");
 
         const fb = state.stack.find(
             (s) => (s.card as { id?: string }).id === fireball().id

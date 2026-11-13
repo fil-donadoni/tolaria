@@ -41,27 +41,25 @@ export type ResolveTimeCastTargetsOutcome =
     | "unfillable"
     | "abort";
 
-const MORE = "more";
-const DONE = "done";
-
 /** CR 601.2c — announce every target of a spell cast mid-resolution: each
  *  target group in order (the primary requirement, then every
- *  `additionalTargetRequirements` entry, card- or mode-level), each group
- *  filled one target at a time. A pick below the group's minimum is required;
- *  above it ("up to N", "any number") the chooser is first asked whether to
- *  announce another. The legal set of every pick comes from
+ *  `additionalTargetRequirements` entry, card- or mode-level). A group with a
+ *  variable number of targets ("up to N", "any number") first announces HOW
+ *  MANY ("the player announces how many targets they will choose before they
+ *  announce those targets") — asked only when there is a real choice — then
+ *  its targets one at a time. The legal set of every pick comes from
  *  `ctx.getCastTargetSlot`, which applies the cross-slot constraints the
- *  normal walk applies: no object twice for one instance of "target"
- *  (CR 115.3), `sameController` (Barrin's Spite), `excludePriorTargets`
- *  ("another target") and the zone-owner directives.
+ *  normal walk applies: no object twice for one instance of "target",
+ *  `sameController` (Barrin's Spite), `excludePriorTargets` ("another
+ *  target") and the zone-owner directives.
  *
  *  One `choose-damage-target` per target, never one multi-pick: the kind is a
  *  singleton on every consumer (submit validator, legal-action lister, Bot
- *  candidate generator), so a spell of N targets asks N questions. A required
- *  pick offers only the candidates that leave the group's remaining minimum
- *  fillable — picking a creature whose controller has no second one would
- *  otherwise sink a "two target creatures controlled by the same player"
- *  cast after the fact. */
+ *  candidate generator), so a spell of N targets asks N questions. A pick
+ *  offers only the candidates that leave the rest of the group's announced
+ *  number fillable — picking a creature whose controller has no second one
+ *  would otherwise sink a "two target creatures controlled by the same
+ *  player" cast after the fact. */
 export function announceResolveTimeCastTargets(
     ctx: SpellContext,
     args: ResolveTimeCastTargetsArgs
@@ -86,47 +84,61 @@ export function announceResolveTimeCastTargets(
             : {};
     for (let group = 0; ; group++) {
         const prior = [...chosen];
+        const first = slotQuery(group, [], prior);
+        if (!first) return chosen; // every group announced
+        // The most targets this group could take: its own bound, never more
+        // than there are legal objects to name.
+        const cap =
+            first.max === undefined
+                ? first.legal.length
+                : Math.min(first.max, first.legal.length);
+        if (cap < first.min) return "unfillable";
+        let count = first.min;
+        if (cap > first.min) {
+            const options = Array.from(
+                { length: cap - first.min + 1 },
+                (_, i) => first.min + i
+            ).map((k) => ({
+                id: String(k),
+                label:
+                    k === 0
+                        ? "No targets"
+                        : k === 1
+                          ? "1 target"
+                          : `${k} targets`,
+            }));
+            const announced = ctx.requestOptionChoice({
+                playerId: args.chooserId,
+                choiceId: `${args.choiceId}:count${group === 0 ? "" : `@${group}`}`,
+                ...acting,
+                options,
+                prompt: `Choose how many targets ${args.subject} will have.`,
+            });
+            if (announced === undefined) return "suspend";
+            count = Number(announced);
+            if (!Number.isInteger(count) || count < first.min || count > cap) {
+                return "abort";
+            }
+        }
         const picks: TargetSelection[] = [];
-        for (;;) {
-            const slot = slotQuery(group, picks, prior);
-            if (!slot) return chosen; // every group announced
-            const n = picks.length;
-            if (slot.max !== undefined && n >= slot.max) break;
-            const required = n < slot.min;
-            const slotKey = group === 0 && n === 0 ? "" : `@${group}.${n}`;
-            let legal = slot.legal;
-            if (required && n + 1 < slot.min) {
-                // Keep a candidate only when the rest of the group's minimum
-                // can still be met after it.
-                legal = legal.filter((t) => {
-                    const after = slotQuery(group, [...picks, t], prior);
-                    return (
-                        after !== undefined &&
-                        after.legal.length >= slot.min - (n + 1)
-                    );
-                });
-            }
-            if (legal.length === 0) {
-                if (required) return "unfillable";
-                break;
-            }
-            if (!required) {
-                const more = ctx.requestOptionChoice({
-                    playerId: args.chooserId,
-                    choiceId: `${args.choiceId}:more${slotKey}`,
-                    ...acting,
-                    options: [
-                        { id: MORE, label: "Choose a target" },
-                        { id: DONE, label: "No more targets" },
-                    ],
-                    prompt: `Choose another target for ${args.subject}?`,
-                });
-                if (more === undefined) return "suspend";
-                if (more !== MORE) break;
-            }
+        for (let n = 0; n < count; n++) {
+            const slot = n === 0 ? first : slotQuery(group, picks, prior);
+            if (!slot) return "abort";
+            // Keep a candidate only when the rest of the announced number can
+            // still be named after it.
+            const legal =
+                n + 1 < count
+                    ? slot.legal.filter(
+                          (t) =>
+                              (slotQuery(group, [...picks, t], prior)?.legal
+                                  .length ?? 0) >=
+                              count - (n + 1)
+                      )
+                    : slot.legal;
+            if (legal.length === 0) return "unfillable";
             const picked = ctx.requestChoice({
                 playerId: args.chooserId,
-                choiceId: `${args.choiceId}${slotKey}`,
+                choiceId: `${args.choiceId}${group === 0 && n === 0 ? "" : `@${group}.${n}`}`,
                 ...acting,
                 kind: "choose-damage-target",
                 zone: "battlefield",
@@ -138,9 +150,9 @@ export function announceResolveTimeCastTargets(
                     .filter((t) => t.type === "player")
                     .map((t) => t.id),
                 prompt:
-                    slot.max === 1 && n === 0
+                    count === 1
                         ? `Choose a target for ${args.subject}.`
-                        : `Choose target ${n + 1} for ${args.subject}.`,
+                        : `Choose target ${n + 1} of ${count} for ${args.subject}.`,
             });
             if (picked === undefined) return "suspend";
             const pickedId = picked[0];
