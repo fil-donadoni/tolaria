@@ -320,6 +320,8 @@ export const gristTheHungerTide = defineCard(() => ({
 // same {@link AbilityMode} list `enteredTrigger` already forwards for a modal
 // ETB (Deceiver Exarch, `nph/blue.cards.ts`): a modal trigger differs only in WHICH
 // event puts it on the stack.
+//
+// hand-tail: Domain — Territorial Kavu's power and toughness are each equal to the number of basic land types among lands you control. (#8636)
 export const territorialKavu = defineCard(() => ({
     id: "2605df98-0b02-4aab-bc36-01e93c693743",
     rarity: "rare",
