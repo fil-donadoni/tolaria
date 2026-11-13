@@ -26,7 +26,11 @@
 // the caster's payment (CR 601.2h). Cancelling therefore has only taps to undo.
 
 import { tryGetDefinition } from "../cards/index";
-import { getPlayer, spendableManaForAssist } from "./state";
+import {
+    getPlayer,
+    spellRestrictionSubject,
+    spendableManaForAssist,
+} from "./state";
 import type {
     AssistChoice,
     AssistPaymentWindow,
@@ -68,6 +72,12 @@ export function buildAssistChoice(
             spellName: def?.name ?? "this spell",
             spellTypes: [...(def?.types ?? [])],
             spellSupertypes: [...(def?.supertypes ?? [])],
+            ...(def
+                ? {
+                      spellColors: [...spellRestrictionSubject(def).colors],
+                      spellSubtypes: [...(def.subtypes ?? [])],
+                  }
+                : {}),
         },
     };
 }
@@ -93,7 +103,13 @@ function raiseAssistantWindow(
     numberMax: number,
     prompt: string
 ): void {
-    const { spellCardId, spellTypes, spellSupertypes } = assist.spell;
+    const {
+        spellCardId,
+        spellTypes,
+        spellSupertypes,
+        spellColors,
+        spellSubtypes,
+    } = assist.spell;
     const entry: PendingChoice = {
         stackItemId: "",
         step: 0,
@@ -104,7 +120,14 @@ function raiseAssistantWindow(
         prompt,
         numberMax,
         paysMana: true,
-        assistPayment: { stage, spellCardId, spellTypes, spellSupertypes },
+        assistPayment: {
+            stage,
+            spellCardId,
+            spellTypes,
+            spellSupertypes,
+            spellColors,
+            spellSubtypes,
+        },
     };
     state.pendingChoices = [...(state.pendingChoices ?? []), entry];
 }

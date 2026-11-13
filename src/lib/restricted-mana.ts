@@ -57,6 +57,8 @@ export function restrictedManaLabel(
                 return "Legendary spells only";
             case "not-nonartifact-spell":
                 return "Not for nonartifact spells";
+            case "colorless-eldrazi":
+                return "Colorless Eldrazi only";
             default:
                 return "Restricted";
         }

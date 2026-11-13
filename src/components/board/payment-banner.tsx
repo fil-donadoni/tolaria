@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
+import type { PermanentView } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
@@ -22,6 +23,8 @@ import {
 import {
     spendablePoolForAbility,
     spendablePoolForSpell,
+    sourceRestrictionSubject,
+    spellRestrictionSubject,
 } from "@convex/gre/state";
 import {
     describeSacrificeChoice,
@@ -126,7 +129,10 @@ export default function PaymentBanner(props: Props) {
                         props.me,
                         castCardDef?.types ?? [],
                         props.pendingCast.cardInstanceId,
-                        castCardDef?.supertypes ?? []
+                        castCardDef?.supertypes ?? [],
+                        castCardDef
+                            ? spellRestrictionSubject(castCardDef)
+                            : undefined
                     ),
                     props.pendingCast.manaCost
                 ));
@@ -176,13 +182,22 @@ export default function PaymentBanner(props: Props) {
         // also looks in hand, purely so the banner can NAME the card) would
         // let the client conclude "covered" and hide Auto-tap while the server
         // refuses to auto-commit — a dead banner.
-        const sourceTypes = onBattlefield?.types ?? inGraveyard?.types ?? [];
+        const sourceCard = onBattlefield ?? inGraveyard;
+        const sourceTypes = sourceCard?.types ?? [];
         manaOwed =
             Object.keys(props.pendingActivation.manaCost).length > 0 &&
             !(
                 props.me !== undefined &&
                 isManaCostCovered(
-                    spendablePoolForAbility(props.me, sourceTypes),
+                    spendablePoolForAbility(
+                        props.me,
+                        sourceTypes,
+                        sourceCard
+                            ? sourceRestrictionSubject(
+                                  sourceCard as unknown as PermanentView
+                              )
+                            : undefined
+                    ),
                     props.pendingActivation.manaCost
                 )
             );

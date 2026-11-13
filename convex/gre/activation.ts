@@ -155,6 +155,8 @@ import {
     settleSpellManaSubstitutionGrant,
     spendablePoolForAbility,
     spendablePoolForSpell,
+    sourceRestrictionSubject,
+    spellRestrictionSubject,
     tapPermanent,
     type CardInstanceState,
     type TargetCountAnnouncement,
@@ -169,7 +171,7 @@ import {
 } from "./state";
 import type { ManaRiders, SpellManaRiders } from "./state";
 import { canPayTapOtherCost } from "./tapOtherCost";
-import type { ManaRestriction } from "./types";
+import type { ManaRestriction, RestrictionSubject } from "./types";
 import { ConvexError } from "convex/values";
 
 /** Guard: reject actions on a finished game. */
@@ -905,16 +907,34 @@ export function activationSourceTypes(
     state: GameState,
     cardInstanceId: string | undefined
 ): readonly string[] {
-    if (!cardInstanceId) return [];
+    return findActivationSource(state, cardInstanceId)?.types ?? [];
+}
+
+/** The colour / subtype subject of the same source {@link activationSourceTypes}
+ *  finds (CR 106.6 — "activate abilities of colorless Eldrazi"). Absent when the
+ *  source can't be found, which fails every subject-keyed restriction closed. */
+export function activationSourceSubject(
+    state: GameState,
+    cardInstanceId: string | undefined
+): RestrictionSubject | undefined {
+    const found = findActivationSource(state, cardInstanceId);
+    return found ? sourceRestrictionSubject(found) : undefined;
+}
+
+function findActivationSource(
+    state: GameState,
+    cardInstanceId: string | undefined
+): CardInstanceState | undefined {
+    if (!cardInstanceId) return undefined;
     for (const p of state.players) {
         const found = p.battlefield.find((c) => c.id === cardInstanceId);
-        if (found) return found.types;
+        if (found) return found;
     }
     for (const p of state.players) {
         const found = p.graveyard.find((c) => c.id === cardInstanceId);
-        if (found) return found.types;
+        if (found) return found;
     }
-    return [];
+    return undefined;
 }
 
 /** The permanent (or graveyard / hand card) a parked `pendingActivation` names
@@ -981,7 +1001,8 @@ export function offerGenericSubstitution(
     const covered = isManaCostCovered(
         spendablePoolForAbility(
             player,
-            activationSourceTypes(state, pa.cardInstanceId)
+            activationSourceTypes(state, pa.cardInstanceId),
+            activationSourceSubject(state, pa.cardInstanceId)
         ),
         pa.manaCost,
         getAbilityManaSubstitutions(
@@ -1036,7 +1057,11 @@ export function tryAutoCommitPendingActivation(
     const paSourceTypes = activationSourceTypes(state, pa.cardInstanceId);
     if (
         !isManaCostCovered(
-            spendablePoolForAbility(player, paSourceTypes),
+            spendablePoolForAbility(
+                player,
+                paSourceTypes,
+                activationSourceSubject(state, pa.cardInstanceId)
+            ),
             pa.manaCost,
             getAbilityManaSubstitutions(state, player.id, card)
         )
@@ -1106,7 +1131,8 @@ export function tryAutoCommitPendingActivation(
         pa.manaCost,
         paSourceTypes,
         getAbilityManaSubstitutions(state, player.id, card),
-        genericSpendOrder
+        genericSpendOrder,
+        activationSourceSubject(state, pa.cardInstanceId)
     );
     const notedManaSpent = poolBeforePayment
         ? manaSpentDelta(poolBeforePayment, player.manaPool)
@@ -1675,7 +1701,8 @@ export function payCastManaCost(
         substitutions,
         cardInstanceId,
         genericSpendOrder,
-        cardDef?.supertypes ?? []
+        cardDef?.supertypes ?? [],
+        cardDef ? spellRestrictionSubject(cardDef) : undefined
     );
     return {
         riders,
@@ -1750,7 +1777,8 @@ export function tryAutoCommitPendingCast(
                 player,
                 castTypes,
                 castInstanceId,
-                castSupertypes
+                castSupertypes,
+                castDef ? spellRestrictionSubject(castDef) : undefined
             ),
             state.pendingCast.manaCost,
             getCastManaSubstitutions(
@@ -1806,7 +1834,8 @@ export function tryAutoCommitPendingCast(
                 player,
                 castTypes,
                 castInstanceId,
-                castSupertypes
+                castSupertypes,
+                castDef ? spellRestrictionSubject(castDef) : undefined
             ),
             state.pendingCast.manaCost,
             getCastManaSubstitutions(
@@ -2886,7 +2915,11 @@ export function activateAbilityOnState(
     const manaUncovered =
         !!manaCost &&
         !isManaCostCovered(
-            spendablePoolForAbility(player, abilitySourceTypes),
+            spendablePoolForAbility(
+                player,
+                abilitySourceTypes,
+                sourceRestrictionSubject(card)
+            ),
             manaCost,
             getAbilityManaSubstitutions(state, player.id, card)
         );
@@ -2959,7 +2992,9 @@ export function activateAbilityOnState(
             player,
             manaCost,
             abilitySourceTypes,
-            getAbilityManaSubstitutions(state, player.id, card)
+            getAbilityManaSubstitutions(state, player.id, card),
+            undefined,
+            sourceRestrictionSubject(card)
         );
         commitLandsForCost(player, manaCost);
     }
