@@ -321,3 +321,71 @@ describe("the candidate-set guard still refuses a real mismatch (issue #3483)", 
         ).toBe("3 move(s) in play against 2 on the rebuild");
     });
 });
+
+describe("canonicalMoveKey — a handle embedded in a choiceId (issue #9119)", () => {
+    /** One seat holding `cards` (id → definition id) on its battlefield, and
+     *  a Seal of Fire on the stack under `stackId`. */
+    const board = (
+        stackId: string,
+        cards: Record<string, string>
+    ): GameState => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: Object.entries(cards).map(([id, def]) =>
+                        makeInstance(def, {
+                            id,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(sealOfFire().id, {
+                id: stackId,
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            zone: "stack",
+            castById: "p1",
+        } as GameState["stack"][number]);
+        return state;
+    };
+    const pick = (stackItemId: string, choiceId: string): Move => ({
+        kind: "resolution-choice",
+        stackItemId,
+        step: 0,
+        choiceId,
+        cardInstanceIds: [],
+    });
+
+    it("keys `order-top-<stack item>` alike when the two builds number the item differently", () => {
+        const live = board("161", {});
+        const rebuilt = board("125", {});
+        expect(canonicalMoveKey(pick("161", "order-top-161"), live, "p1")).toBe(
+            canonicalMoveKey(pick("125", "order-top-125"), rebuilt, "p1")
+        );
+    });
+
+    it("leaves a loop-counter tail verbatim, even where it is some card's instance id", () => {
+        // `pick-1` is the FIRST pick, on both builds — not the card each build
+        // happened to number 1.
+        const giantAt1 = board("161", { "1": hillGiant().id });
+        const bearsAt1 = board("125", { "1": grizzlyBears().id });
+        expect(canonicalMoveKey(pick("161", "pick-1"), giantAt1, "p1")).toBe(
+            canonicalMoveKey(pick("125", "pick-1"), bearsAt1, "p1")
+        );
+        // And two different picks stay apart even when both counters name
+        // cards of the same definition.
+        const twins = board("161", {
+            "1": hillGiant().id,
+            "2": hillGiant().id,
+        });
+        expect(canonicalMoveKey(pick("161", "pick-1"), twins, "p1")).not.toBe(
+            canonicalMoveKey(pick("161", "pick-2"), twins, "p1")
+        );
+    });
+});
