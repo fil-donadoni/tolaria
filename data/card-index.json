@@ -82434,6 +82434,14 @@
         "firstPrintSet": "tdm"
     },
     {
+        "name": "Test of Talents",
+        "scryfallId": "6e2b6236-b40c-430c-98b0-7940b942657a",
+        "oracleId": "d808262d-43ca-46f8-ab8b-b584773f9c58",
+        "firstSet": "stx",
+        "firstPrintId": "6e2b6236-b40c-430c-98b0-7940b942657a",
+        "firstPrintSet": "stx"
+    },
+    {
         "name": "Testament Bearer",
         "scryfallId": "a5424859-628a-4c19-acd0-0c63c21c8338",
         "oracleId": "ce0f6cd6-35d5-4f52-b81e-6d15e3bf916e",

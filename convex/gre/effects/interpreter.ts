@@ -2787,7 +2787,14 @@ function bindSnapshot(
     const chars = ctx.getCharacteristics(target);
     // A PLAYER (a `dealDamage` recipient) is its own controller and owner, so
     // "that player or that permanent's controller" is one `.controller` read.
-    const holder = target.type === "player" ? target.id : target.playerId;
+    // A SPELL's controller is its caster, read off the stack while
+    // it is still there; its owner is not tracked here, so that slot stays "".
+    const holder =
+        target.type === "player"
+            ? target.id
+            : target.type === "spell"
+              ? ctx.findController(target)
+              : target.playerId;
     ctx.noteChoice(name, [
         String(isPermanent ? ctx.getPower(target) : 0),
         String(isPermanent ? ctx.getToughness(target) : 0),
@@ -2807,7 +2814,11 @@ function bindSnapshot(
         // `getController`, so it's read here, BEFORE the zone change, and
         // falls back to "" only defensively (the target is still on the
         // battlefield at bind time by construction).
-        (isPermanent ? ctx.getOwnerId(target.id) : holder) ?? "",
+        (isPermanent
+            ? ctx.getOwnerId(target.id)
+            : target.type === "spell"
+              ? undefined
+              : holder) ?? "",
         // SNAP_IS_PERMANENT_CARD (issue #1311) — CR 205/110.1, read BEFORE
         // the object moves (mirrors SNAP_MANA_VALUE's own pre-move capture;
         // `isPermanentCard`'s graveyard-card/hand-card branches require the
@@ -7624,6 +7635,10 @@ export const OP_EXECUTORS: {
                 ? resolveTargetRef(ctx, op.target)
                 : resolveStackObjectRef(ctx, op.target);
         if (!target || target.type !== "spell") return;
+        // CR 608.2h — last-known name and controller, read while the spell is
+        // still on the stack (nothing can look them up once it is countered).
+        if (op.bind && ctx.findController(target) !== undefined)
+            bindSnapshot(ctx, op.bind, target);
         const outcome = ctx.counter(target, op.destination);
         // CR 113.7a (issue #2708) — `bindSource` snapshots the PERMANENT whose
         // ability was just countered, so Teferi's Response's "if a permanent's
