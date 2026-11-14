@@ -28,6 +28,9 @@ import { advancePhase } from "../phases";
 import { drought } from "../../cards/sets/ice/white.cards";
 import { wrennAndSix } from "../../cards/sets/mh1/multicolor.cards";
 import { swamp } from "../../cards/sets/lea/colorless.cards";
+import { mightstone } from "../../cards/sets/atq/colorless.cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { GameEvent } from "../../cards/types";
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
 /** Grizzly Bears — a vanilla body to attack with. */
@@ -449,5 +452,62 @@ describe("Ninjutsu reaches its window through the real phase advance (CR 117.3a,
         expect(shinobi!.isTapped).toBe(true);
         expect(shinobi!.isAttacking).toBe(true);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a1");
+    });
+});
+
+describe("Ninjutsu enters tapped and attacking — not tapped and attacking AFTER entry (CR 508.4 / 110.5b)", () => {
+    // A PERMANENT_ENTERED watcher on an "Attacking creatures get +1/+0"
+    // permanent (Mightstone, CR 613.4c). The entry event snapshots the
+    // entering creature's EFFECTIVE P/T and its tapped status at the moment it
+    // is announced, so the watcher sees what the permanent looked like AS it
+    // entered: attacking (the +1/+0 already applies) and tapped.
+    function withEntryWatcher(seen: GameEvent[], run: () => void): void {
+        const base = mightstone();
+        withTemporaryDefinition(
+            {
+                ...base,
+                triggeredAbilities: [
+                    {
+                        id: "test-3728-entry-watcher",
+                        event: "PERMANENT_ENTERED",
+                        oracleText: "Whenever a creature enters, …",
+                        matches: (event: GameEvent) => {
+                            seen.push(structuredClone(event));
+                            return false;
+                        },
+                        effects: [],
+                    },
+                ],
+            },
+            run
+        );
+    }
+
+    it("the PERMANENT_ENTERED snapshot sees the ninja tapped and already attacking", () => {
+        const { state, shinobiId } = combatBoard({ attackerIds: ["a1"] });
+        state.players[0].battlefield.push(
+            makeInstance(mightstone().id, {
+                id: "mightstone",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const seen: GameEvent[] = [];
+        withEntryWatcher(seen, () => {
+            ninjutsu(state, shinobiId);
+            resolveTopOfStack(state);
+        });
+
+        const entry = seen.find(
+            (e) => e.type === "PERMANENT_ENTERED" && e.instanceId === shinobiId
+        );
+        expect(entry).toBeDefined();
+        const shinobi = battlefieldOf(state, "p1").find(
+            (c) => c.id === shinobiId
+        )!;
+        expect(shinobi.isAttacking).toBe(true);
+        // Fallen Shinobi is a 5/4; attacking under Mightstone it is 6/4. An
+        // entry that joined combat only after the announcement snapshots 5.
+        expect(entry).toMatchObject({ power: 6, enteredTapped: true });
     });
 });

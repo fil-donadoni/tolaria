@@ -822,6 +822,13 @@ export type CombatRole = "attacking" | "blocking" | "blocked";
 export interface AuthoredEntryState {
     entersTapped?: boolean;
     entersAttacking?: boolean;
+    /** CR 508.4 — "unless the effect that put it onto the battlefield
+     *  specifies what it's attacking": the effect names the defender itself,
+     *  so no as-enters `attack-target` choice is owed. The defender is the
+     *  entering permanent's own `enterAttackingTarget` stamp (Ninjutsu's CR
+     *  702.49c inheritance), read by `joinCombatAttacking`; no stamp is the
+     *  defending player. Meaningful only with `entersAttacking`. */
+    attackTargetSpecified?: boolean;
 }
 
 export interface TargetRequirement {
@@ -7272,27 +7279,6 @@ export interface SpellContext {
      *  combat damage to the defender without trample. Use `becomeUnblocked`
      *  for the rare effect that actually un-blocks an attacker. */
     removeFromCombat: (target: TargetSelection) => void;
-    /** CR 506.3c / 508.4 — puts a permanent that is ALREADY on the battlefield
-     *  into the CURRENT combat as an attacking creature, the inverse of
-     *  `removeFromCombat`. Sets BOTH representations of "attacking"
-     *  (`combat.attackerIds` membership and the per-permanent `isAttacking`
-     *  flag) through the one shared `markAttacking` helper the enters-attacking
-     *  token path uses, so a creature that joins here is not half-attacking.
-     *
-     *  Deliberately does NOT record the creature as having been DECLARED as an
-     *  attacker: CR 506.3c makes such a creature "attacking" but never
-     *  "attacked", so "whenever a creature attacks" abilities correctly never
-     *  see it (the same split `markAttacking` / `recordAttackerDeclared` draws).
-     *
-     *  DEFENDER (CR 508.1a): a planeswalker or battle stamped on the permanent
-     *  as `enterAttackingTarget` is consumed here — that is CR 702.49c's "the
-     *  same player, planeswalker or battle as the creature that was returned".
-     *  No stamp means the defending player, which `combat.attackTargets`
-     *  records nothing for.
-     *
-     *  No-op when there is no combat to join, or when the id is on no
-     *  battlefield (CR 608.2b). */
-    enterCombatAttacking: (cardInstanceId: string) => void;
     /** Makes an attacker that became blocked count as unblocked (CR 509.1h),
      *  so it deals its combat damage to the defending player. Strips it from
      *  the blocked set and from every blocker's assignment. Used by Ydwen
@@ -18928,24 +18914,16 @@ export type EffectOp =
            *  source below, which is the one zone a printed "put this onto the
            *  battlefield tapped and attacking" ever names (Ninjutsu).
            *
-           *  Composed AFTER the entry through the `enterCombatAttacking`
-           *  primitive, the same way `tapped` is a direct `tap` after entry
-           *  rather than an as-enters replacement. CR 506.3c removes the half
-           *  of the ordering that would otherwise be observable — such a
-           *  creature is attacking but was never DECLARED as an attacker, so
-           *  no "whenever a creature attacks" watcher can see the gap. What
-           *  the gap DOES leave visible is the entry itself: `PERMANENT_ENTERED`
-           *  and every "whenever a creature enters" watcher observe the
-           *  permanent untapped and not yet attacking, so a static keyed on
-           *  "attacking creatures get +X/+0" would snapshot the pre-attack
-           *  P/T. No shipped card is affected (no such static exists in the
-           *  pool), and closing it means threading the two flags through
-           *  `putFromHandOntoBattlefield` into the entry funnel — the same
-           *  as-enters gap `tapped` has carried on this Op since issue #1469.
-           *  tracked-by: #3728. The defender comes from the
-           *  permanent's own `enterAttackingTarget` stamp (CR 702.49c),
-           *  consumed by that primitive; with no stamp it attacks the defending
-           *  player. Outside combat it is a clean no-op. */
+           *  Part of HOW it enters (CR 508.4 / 110.5b): both riders thread
+           *  through `putFromHandOntoBattlefield` into the entry funnel as an
+           *  `AuthoredEntryState`, so the permanent is tapped and attacking
+           *  before `PERMANENT_ENTERED` is announced — an entry watcher, and
+           *  the event's P/T snapshot under an "attacking creatures get +X"
+           *  static, see it already attacking. The effect specifies the
+           *  defender (`attackTargetSpecified`): the permanent's own
+           *  `enterAttackingTarget` stamp (CR 702.49c); with no stamp it
+           *  attacks the defending player. Outside combat it is a clean
+           *  no-op. */
           attacking?: boolean;
           /** issue #1726 — battlefield → library at a POSITION (1-based from
            *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
