@@ -1,6 +1,7 @@
 // mh2 — blue cards (ADR 0043 colour split).
 import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { cardLeftGraveyardTrigger } from "../../abilities/triggers/cardLeftGraveyardTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { affinityForArtifacts } from "../../abilities/affinity";
 
@@ -179,6 +180,55 @@ export const thoughtMonitor = defineCard(() => ({
             oracleText: "When this creature enters, draw two cards.",
             scope: "self",
             effects: [{ op: "draw", player: "controller", count: 2 }],
+        }),
+    ],
+}));
+
+// Murktide Regent — {5}{U}{U} Creature — Dragon, 3/3 (MH2, issue #8626).
+// "Delve. Flying. This creature enters with a +1/+1 counter on it for each
+// instant and sorcery card exiled with it. Whenever an instant or sorcery card
+// leaves your graveyard, put a +1/+1 counter on this creature."
+// The entry clause reads the cards the delve cost exiled (`entersWith`,
+// `cardsExiledWithIt`); the trigger is the generic
+// leaves-a-graveyard watcher (`CARD_LEFT_GRAVEYARD`), one trigger
+// per qualifying card (CR 603.2c).
+// hand-tail: This creature enters with a +1/+1 counter on it for each instant and sorcery card exiled with it. (#8626)
+export const murktideRegent = defineCard(() => ({
+    id: "20c4aae1-7665-4df7-bd51-a1d95bf8a17d", // MH2 52
+    name: "Murktide Regent",
+    rarity: "mythic",
+    oracleText:
+        "Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nFlying\nThis creature enters with a +1/+1 counter on it for each instant and sorcery card exiled with it.\nWhenever an instant or sorcery card leaves your graveyard, put a +1/+1 counter on this creature.",
+    manaCost: { X: 5, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["delve", "flying"],
+    entersWith: {
+        counters: [
+            {
+                type: "+1/+1",
+                count: { cardsExiledWithIt: { types: ["Instant", "Sorcery"] } },
+            },
+        ],
+    },
+    triggeredAbilities: [
+        cardLeftGraveyardTrigger({
+            id: "murktide-regent-grow",
+            oracleText:
+                "Whenever an instant or sorcery card leaves your graveyard, put a +1/+1 counter on this creature.",
+            graveyard: "yours",
+            cardTypes: ["Instant", "Sorcery"],
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 }));
