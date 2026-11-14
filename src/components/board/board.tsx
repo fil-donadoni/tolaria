@@ -557,6 +557,7 @@ export default function Board({
                 allPlayers,
                 emblems: state.emblems,
                 continuousEffects: state.continuousEffects,
+                targetPreventionShields: state.targetPreventionShields,
                 phasedOutCards,
                 monarchId: state.monarchId,
                 cityBlessingIds: state.cityBlessingIds,

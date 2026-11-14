@@ -14841,6 +14841,7 @@ export function buildSpellContext(
                     targetType: target.type,
                     targetId: target.id,
                     remaining: amount,
+                    amount,
                     duration: resolveDuration(duration, item.castById, state),
                     ...(tallyId !== undefined ? { tallyId } : {}),
                 },

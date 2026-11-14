@@ -3,6 +3,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
 import type { EmblemInstance } from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
+import type { TargetPreventionShield } from "@convex/gre/state/declarations";
 import type { PlayerRestriction } from "@convex/gre/state";
 import type { TickClock } from "@convex/matchClock";
 import type {
@@ -154,6 +155,10 @@ type GameContext = {
      *  `effectivePower`/`effectiveToughness` need in order to see a pump at
      *  all — the exact role `emblems` plays for an emblem anthem. */
     continuousEffects?: ContinuousEffect[];
+    /** CR 615.1 — active "prevent the next N damage" shields, forwarded from
+     *  the wire `GameState.targetPreventionShields` so the card preview can list
+     *  the ones on a permanent. */
+    targetPreventionShields?: TargetPreventionShield[];
     /** CR 702.26 — permanents currently phased out (host + attachments),
      *  flattened across all bundles. Each card keeps its `controllerId` so the
      *  battlefield renders it dimmed/inert on the controller's side rather than

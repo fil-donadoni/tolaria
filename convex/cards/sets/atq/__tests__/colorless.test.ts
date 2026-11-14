@@ -2109,6 +2109,7 @@ describe("Amulet of Kroog (prevent next 1 to any target, CR 615.1)", () => {
                 targetType: "permanent",
                 targetId: "bear",
                 remaining: 1,
+                amount: 1,
                 duration: { phase: "end-of-turn" },
             },
         ]);
