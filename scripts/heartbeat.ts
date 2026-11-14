@@ -13,7 +13,7 @@
 // prints it). Exits 1 when a read or a dispatch
 // failed, so the service manager's status shows it; otherwise 0.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
 import { deploymentSizes, WEDGE_THRESHOLD_MS } from "./lib/convex-wedge";
@@ -37,7 +37,6 @@ import {
     type WorkflowClock,
 } from "./lib/heartbeat";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { readFileSync } from "node:fs";
 
 const root = primaryCheckout();
 const repo = originRepo(root);
@@ -145,6 +144,8 @@ function convexTick(): ConvexOutcome {
         "bun",
         [
             "scripts/convex-ensure.ts",
+            "--start-timeout-ms",
+            "60000",
             "--wedge-threshold-ms",
             String(WEDGE_THRESHOLD_MS),
         ],

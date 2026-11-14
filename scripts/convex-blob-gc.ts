@@ -98,11 +98,15 @@ if (process.argv.includes("--auto")) {
             const report = await sweepBlobs(deps, true);
             // Orphans left AFTER the sweep: what `runner status` shows (issue #9227).
             if (report.kind === "swept")
-                recordOrphans(
-                    root,
-                    report.orphaned - report.removed,
-                    Date.now()
-                );
+                try {
+                    recordOrphans(
+                        root,
+                        report.orphaned - report.removed,
+                        Date.now()
+                    );
+                } catch {
+                    /* a status line must never cost the sweep its stamp */
+                }
             return report;
         },
         stamp: () => writeSweepStamp(stampPath, Date.now()),
