@@ -16748,10 +16748,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         //
         // WHAT IT GUARDS. The Seal's option is read against this board
         // (`dslSelfConsumingOption`, `ai/cardScriptValue.ts`): its best
-        // victim lifts the Seal in play above its `base + MV` floor. The lift
-        // is bounded by the trade itself — the victim's measured loss, net of
-        // the activation's cost and the Seal's own presence — so the Seal can
-        // never read as worth more than the artifact it exists to destroy.
+        // victim lifts the Seal in play above its `base + MV` floor. The
+        // entry pins that the lift never stops the trade it prices.
         label: "self-consuming option: Seal of Cleansing trades itself for the opponent's attacking Juggernaut (issue #9597)",
         classification: { kind: "absolute" },
         spec: {
@@ -16771,16 +16769,19 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3],
         tier: "must",
+        // A FLOOR, so a predicate: kept out of the weight fit, as the
+        // reachability entries are.
         expect: {
-            moves: [
-                {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
                     kind: "activate-ability",
                     card: "Seal of Cleansing",
                     target: "Juggernaut",
-                },
-            ],
+                }),
+            describe:
+                "activates Seal of Cleansing targeting the attacking Juggernaut",
         },
-        note: "Issue #9597. Green before the change too (the Seal sat at its floor); it pins that the board reading never lifts the Seal past the trade. Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) lifted past its ceiling turns this entry red.",
+        note: "Issue #9597. A floor: green before the change (the Seal sat at its `base + MV` floor) and after it. No valuation break flips it — measured with `withSelfConsumingOption` (`cardValue.ts`) lifting the Seal to three times its ceiling, and to the `MAX_LATENT_SCRIPT_VALUE` clamp, both green — because the attack it stops outweighs any reading of the Seal. The bound that keeps the Seal below its victim is pinned where it can fail: `selfConsumingOption.bot.test.ts`.",
     },
     {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds

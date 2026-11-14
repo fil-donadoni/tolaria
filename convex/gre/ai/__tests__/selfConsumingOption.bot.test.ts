@@ -24,6 +24,7 @@ import {
 } from "../../evaluate";
 import { cardValueById, withSelfConsumingOption } from "../../cardValue";
 import { dslSelfConsumingOption } from "../cardScriptValue";
+import { contextFreeGrounding } from "../grounding";
 import { tokenDefinitionId, tryGetDefinition } from "../../../cards/registry";
 import { findTokenSpec } from "../../../cards/tokenCatalogue";
 import { getCardByName } from "../../../cards";
@@ -271,9 +272,25 @@ describe("a self-consuming ability's foreign target is read on the board (issue 
     });
 
     it("with no opposing permanent its target could name, the option reads nothing (the bot's own artifact is no victim)", () => {
-        expect(
-            realised([on(SEAL, "me"), on("Umezawa's Jitte", "me")], SEAL)
-        ).toBe(floor());
+        const optionBeside = (owner: "me" | "opp") => {
+            const state = buildBladeState(
+                board([on(SEAL, "me"), on("Umezawa's Jitte", owner)])
+            );
+            const lens = handLatentLens(
+                state,
+                seatPlayerId(state, "me"),
+                permanent(state, SEAL, "me")
+            );
+            expect(lens, "the board must lend a lens").toBeDefined();
+            return dslSelfConsumingOption(
+                getCardByName(SEAL),
+                contextFreeGrounding(),
+                lens
+            );
+        };
+        expect(optionBeside("me")).toBeUndefined();
+        // The same board with the Jitte across the table reads one.
+        expect(optionBeside("opp")).toBeDefined();
     });
 
     it.each([
