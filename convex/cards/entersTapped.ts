@@ -57,6 +57,50 @@ export function entersTappedByReplacement(
     return false;
 }
 
+/** CR 614.1d — scans EVERY permanent on the battlefield for
+ *  `enters-untapped-replacement` static effects (Spelunking: "Lands you
+ *  control enter untapped") and returns `true` when a source makes the
+ *  `entering` permanent (about to enter under `entering.controllerId`) enter
+ *  untapped. Like `entersTappedByReplacement`, the source's predicate owns the
+ *  controller and type filter, so no card is named here.
+ *
+ *  CR 616.1 / 616.1e — when this and an "enters tapped" replacement both
+ *  apply, the entering permanent's controller orders them; applying this one
+ *  last yields an untapped permanent. The engine takes that order without
+ *  asking: an untapped permanent can do everything a tapped one can and more,
+ *  so the tapped order is dominated (Arena orders it the same way). Gatherer's
+ *  Spelunking ruling also makes a permanent an effect simply "puts onto the
+ *  battlefield tapped" — no replacement applied — enter untapped, so every
+ *  authored tapped entry asks this predicate too. A source entering AT THE
+ *  SAME TIME as the permanent is not on the battlefield yet and does not
+ *  apply (the second Spelunking ruling), which the pre-move scan gives for
+ *  free. */
+export function entersUntappedByReplacement(
+    entering: PermanentView,
+    state: StaticEffectStateView
+): boolean {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const def = liveDefinitionOf(source);
+            if (!def?.staticEffects) continue;
+            for (const effect of def.staticEffects) {
+                if (effect.kind !== "enters-untapped-replacement") continue;
+                if (
+                    effect.forcesUntapped(
+                        entering,
+                        source,
+                        state,
+                        ATTACK_RESTRICTION_CTX
+                    )
+                ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /** The context an entry condition reads its filter through: the pure
  *  battlefield-scan context, with the live supertype status (CR 205.4c — a
  *  land that lost or gained "basic" is read as it is now, not as printed).
@@ -82,7 +126,9 @@ function getEntryConditionCtx(): StaticEffectContext {
  *      Arena of Glory, Starting Town) — taps unless the predicate holds;
  *      and its JSON-pure twin `entersTappedUnlessControls` (CR 614.1d, "unless
  *      you control a basic land");
- *   3. a battlefield-scanned opponent-forced replacement (Kismet).
+ *   3. a battlefield-scanned opponent-forced replacement (Kismet);
+ *  all of them overridden by a battlefield-scanned "enter untapped"
+ *  replacement (Spelunking), applied last per CR 616.1.
  *  `def` is looked up by the caller (from `entering`'s card id) so this stays
  *  usable both where a full `CardDefinition` is already in hand and where only
  *  the bare `entering` view is. Frontend-safe: no GameState-only fields read. */
@@ -100,6 +146,9 @@ export function resolveEntersTapped(
     entering: PermanentView,
     state: StaticEffectStateView & LandEntryStateView
 ): boolean {
+    // CR 616.1 — an "enter untapped" replacement is applied last, so it wins
+    // over every tapped source below (`entersUntappedByReplacement`).
+    if (entersUntappedByReplacement(entering, state)) return false;
     if (def?.entersTapped === true) return true;
     if (
         def?.entersTappedUnless &&

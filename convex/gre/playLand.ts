@@ -33,6 +33,7 @@ import {
     emitPermanentEntered,
     processPendingActionTriggers,
     shouldEnterTapped,
+    shouldEnterUntapped,
     applyEntersWithCounters,
     applyExistingGrantsTo,
     beginApplyingStaticEffects,
@@ -80,6 +81,39 @@ function landEntryCostForFace(
     face: PlayLandFace
 ): MayPayCost | undefined {
     return playLandFaceDefinition(card, face)?.entersTappedUnlessPay;
+}
+
+/** CR 614.12 / 616.1 — the land-entry pay-choice the PLAYED face still owes,
+ *  or `undefined` when there is none to ask.
+ *
+ *  An "enter untapped" replacement (Spelunking, CR 614.1d) applied last makes
+ *  the land enter untapped whatever the controller answers, so paying the cost
+ *  would buy nothing: the prompt is not raised, nothing is paid and the play
+ *  takes the plain entry, whose `shouldEnterTapped` then answers "untapped".
+ *  The replacement is asked about the face being PLAYED, read off its
+ *  definition, because the instance in hand still wears its front face until
+ *  `stampChosenFace` runs past the window (CR 712.8a). */
+function landEntryCostOwed(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    face: PlayLandFace
+): MayPayCost | undefined {
+    const cost = landEntryCostForFace(card, face);
+    if (!cost) return undefined;
+    const faceDef =
+        face === "front" ? undefined : playLandFaceDefinition(card, face);
+    const entering = {
+        ...card,
+        controllerId: player.id,
+        ...(faceDef
+            ? {
+                  types: [...faceDef.types],
+                  subtypes: [...(faceDef.subtypes ?? [])],
+              }
+            : {}),
+    };
+    return shouldEnterUntapped(state, entering) ? undefined : cost;
 }
 
 /** CR 712.12 / 614.12 — the object the land-entry prompt NAMES, for the face
@@ -202,7 +236,7 @@ export function applyPlayLand(
     // on-battlefield instance yet) — both callers (`playCard`, search
     // `applyMove`) ignore the return.
     const entryCost = handCard
-        ? landEntryCostForFace(handCard, face)
+        ? landEntryCostOwed(state, player, handCard, face)
         : undefined;
     if (handCard && entryCost) {
         enqueueLandEntryChoice(
@@ -347,7 +381,7 @@ export function applyPlayLandFromExile(
     // there) for the choice window and `finalizeLandEntry` moves it, so the
     // grant flags below are consumed there instead — see
     // `consumeExilePlayGrant`.
-    const exileEntryCost = landEntryCostForFace(exileCard, face);
+    const exileEntryCost = landEntryCostOwed(state, player, exileCard, face);
     if (exileEntryCost) {
         enqueueLandEntryChoice(
             state,
@@ -497,7 +531,12 @@ export function applyPlayLandFromGraveyard(
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand, library-top and exile paths; the land stays in
     // the graveyard for the window.
-    const graveEntryCost = landEntryCostForFace(graveyardCard, face);
+    const graveEntryCost = landEntryCostOwed(
+        state,
+        player,
+        graveyardCard,
+        face
+    );
     if (graveEntryCost) {
         enqueueLandEntryChoice(
             state,
@@ -572,7 +611,7 @@ export function applyPlayLandFromLibraryTop(
 
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand path; the land stays on top for the window.
-    const topEntryCost = landEntryCostForFace(top, face);
+    const topEntryCost = landEntryCostOwed(state, player, top, face);
     if (topEntryCost) {
         enqueueLandEntryChoice(
             state,
@@ -779,7 +818,14 @@ function settleEnteredLand(
     // play, players can't respond before you get the city's blessing".
     checkAscendCityBlessing(state);
 
-    if (willEnterTapped || asEntersAnswers?.entersTapped) card.isTapped = true;
+    // CR 616.1 — the as-enters "enter tapped" answer is a replacement too, so
+    // an "enter untapped" one (Spelunking) applied after it wins.
+    if (
+        willEnterTapped ||
+        (asEntersAnswers?.entersTapped && !shouldEnterUntapped(state, card))
+    ) {
+        card.isTapped = true;
+    }
 
     // CR 121.6 / 614.1c (issue #1693) — the entry-counters self-replacement
     // applies at THIS entry site too. Every one of this helper's callers
@@ -1161,7 +1207,17 @@ export function finalizeLandEntry(
         // about the LAND that is entering.
         stampChosenFace(state, playSource.card, face);
         const forcedTapped = shouldEnterTapped(state, playSource.card);
-        const willEnterTapped = forcedTapped || !accept;
+        // CR 616.1 — an "enter untapped" replacement outranks the declined
+        // pay-choice too (the prompt is normally not raised under one).
+        // Asked under the PLAYER's control: a cross-player exile card still
+        // names its owner until `moveCardAcrossPlayers` re-stamps it.
+        const willEnterTapped =
+            forcedTapped ||
+            (!accept &&
+                !shouldEnterUntapped(state, {
+                    ...playSource.card,
+                    controllerId: player.id,
+                }));
         const card =
             playSource.owner === player
                 ? moveCard(
@@ -1201,7 +1257,8 @@ export function finalizeLandEntry(
         throw new Error("land-entry target is no longer on the battlefield");
     }
     const forcedTapped = shouldEnterTapped(state, card);
-    card.isTapped = forcedTapped || !accept;
+    card.isTapped =
+        forcedTapped || (!accept && !shouldEnterUntapped(state, card));
     // CR 722.3a — "enters prepared", at every entry site.
     applyEntersPrepared(state, card);
     emitPermanentEntered(state, card);
