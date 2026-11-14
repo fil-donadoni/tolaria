@@ -12,9 +12,11 @@
 // Writes the tick to ~/.cache/tolaria/heartbeat/last.json (`bun run runner status`
 // prints it). Exits 1 when a read or a dispatch
 // failed, so the service manager's status shows it; otherwise 0.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
+import { deploymentSizes, WEDGE_THRESHOLD_MS } from "./lib/convex-wedge";
 import { gh } from "./lib/gh";
 import { RUN_IN_FLIGHT_MAX_MS } from "./lib/health-batch-due";
 import { pivotRunInFlight } from "./lib/health-pivot";
@@ -26,6 +28,7 @@ import {
 import {
     HEARTBEAT_STATE,
     heartbeatLines,
+    type ConvexOutcome,
     QUEUE_GATE_WORKFLOWS,
     settlesTip,
     tick,
@@ -128,6 +131,49 @@ function queueGateFacts() {
     return { workflows, prs };
 }
 
+/** Issue #9227: `convex:ensure` with the wedge probe restarts an answering
+ *  but wedged service (a down one is its ordinary job, so it starts that too);
+ *  the sizes are stat calls. A machine with no local deployment is `skipped`. */
+function convexTick(): ConvexOutcome {
+    if (!process.env.CONVEX_DEPLOYMENT?.startsWith("local:") && !localEnv()) {
+        return { probe: "skipped", detail: "no local deployment" };
+    }
+    const sizes = deploymentSizes(root, Date.now());
+    if (dryRun) return { probe: "skipped", detail: "dry run", sizes };
+    const r = spawnSync(
+        "bun",
+        [
+            "scripts/convex-ensure.ts",
+            "--start-timeout-ms",
+            "60000",
+            "--wedge-threshold-ms",
+            String(WEDGE_THRESHOLD_MS),
+        ],
+        { cwd: root, encoding: "utf8", timeout: 5 * 60_000 }
+    );
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().split("\n").pop();
+    if (r.status !== 0) {
+        return { probe: "failed", detail: out || r.error?.message, sizes };
+    }
+    return {
+        probe: /was wedged/.test(r.stdout ?? "") ? "restarted" : "ok",
+        detail: /was wedged/.test(r.stdout ?? "") ? out : undefined,
+        sizes,
+    };
+}
+
+function readEnvText(dir: string): string {
+    try {
+        return readFileSync(`${dir}/.env.local`, "utf8");
+    } catch {
+        return "";
+    }
+}
+
+function localEnv(): boolean {
+    return /^\s*CONVEX_DEPLOYMENT\s*=\s*["']?local:/m.test(readEnvText(root));
+}
+
 const state = tick({
     host: machineName(),
     now: Date.now,
@@ -150,6 +196,7 @@ const state = tick({
         };
     },
     queueGateFacts,
+    convexTick,
     // No `--ref`: the default branch, as afk-pass.yml dispatches it.
     dispatchAfk: () =>
         void gh(["workflow", "run", "afk-dispatch.yml", "--repo", repo]),
@@ -176,7 +223,8 @@ for (const line of heartbeatLines(text, Date.parse(state.at)))
     console.log(line.trimStart());
 // A flag is a failure too (issue #9065): the service status shows a stalled queue.
 process.exit(
-    state.afkDispatch.error ||
+    state.convex?.probe === "failed" ||
+        state.afkDispatch.error ||
         state.health.error ||
         state.queueGate?.error ||
         state.queueGate?.flags.length

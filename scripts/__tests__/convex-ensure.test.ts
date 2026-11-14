@@ -609,6 +609,32 @@ describe("convex:ensure — the backend is a systemd unit (issue #5468)", () => 
         expect(await answers(url)).toBe(true);
     });
 
+    it("an ANSWERING unit whose trivial query hangs is restarted (issue #9227)", async () => {
+        const { port, args } = await unitArgs(["--wedge-threshold-ms", "300"]);
+        // Answers `/`, never answers `/api/query`: the wedge.
+        const srv = http.createServer((q, s) => {
+            if (q.url !== "/api/query") s.end("ok");
+        });
+        servers.push(srv);
+        await new Promise<void>((r) => srv.listen(port, "127.0.0.1", r));
+        fs.writeFileSync(path.join(tmp, "unit-state"), "active");
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toMatch(/was wedged \(no answer within 300 ms\)/);
+        expect(unitCalls()).toEqual(["restart"]);
+    });
+
+    it("a healthy ANSWERING unit is not restarted by the probe (issue #9227)", async () => {
+        const { port, args } = await unitArgs(["--wedge-threshold-ms", "300"]);
+        const srv = http.createServer((_q, s) => s.end("{}"));
+        servers.push(srv);
+        await new Promise<void>((r) => srv.listen(port, "127.0.0.1", r));
+        fs.writeFileSync(path.join(tmp, "unit-state"), "active");
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(unitCalls()).toEqual([]);
+    });
+
     it("a unit that answers is left alone", async () => {
         const { port, args } = await unitArgs();
         const srv = http.createServer((_q, s) => s.end("ok"));

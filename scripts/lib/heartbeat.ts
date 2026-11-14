@@ -33,6 +33,7 @@
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { sizesLine, type DeploymentSizes } from "./convex-wedge";
 
 /** The unit's period: launchd `StartInterval`, the systemd timer's
  *  `OnUnitActiveSec` (both read 600 s). */
@@ -245,6 +246,16 @@ export interface QueueGateOutcome {
     error?: string;
 }
 
+/** The local Convex backend's tick (issue #9227): what the wedge probe did,
+ *  and the deployment's sizes for a human to read. */
+export interface ConvexOutcome {
+    /** `ok`, `restarted` (it answered but was wedged), `failed`, `skipped`
+     *  (no local deployment on this machine). */
+    probe: "ok" | "restarted" | "failed" | "skipped";
+    detail?: string;
+    sizes?: DeploymentSizes;
+}
+
 /** The last tick, as `HEARTBEAT_STATE` holds it. */
 export interface HeartbeatState {
     at: string;
@@ -253,6 +264,8 @@ export interface HeartbeatState {
     health: ClockOutcome;
     /** Absent in a state file written before issue #9065. */
     queueGate?: QueueGateOutcome;
+    /** Absent in a state file written before issue #9227. */
+    convex?: ConvexOutcome;
 }
 
 /** The effects a tick needs — `scripts/heartbeat.ts` wires them to `gh`. */
@@ -260,6 +273,8 @@ export interface HeartbeatDeps {
     afkDispatchClock(): WorkflowClock;
     healthFacts(): HealthFacts;
     queueGateFacts(): QueueGateFacts;
+    /** Probe the backend (restarting a wedged one) and read the sizes. */
+    convexTick(): ConvexOutcome;
     dispatchAfk(): void;
     dispatchHealthGate(): void;
     now(): number;
@@ -303,6 +318,22 @@ function readQueueGate(deps: HeartbeatDeps): QueueGateOutcome {
     }
 }
 
+function readConvex(deps: HeartbeatDeps): ConvexOutcome {
+    try {
+        return deps.convexTick();
+    } catch (e) {
+        return { probe: "failed", detail: (e as Error).message.split("\n")[0] };
+    }
+}
+
+function convexLines(c: ConvexOutcome | undefined): string[] {
+    if (!c) return [];
+    const head = `    convex         ${c.probe.toUpperCase()}${c.detail ? ` — ${c.detail}` : ""}`;
+    return c.sizes
+        ? [head, `    convex sizes   ${sizesLine(c.sizes)}`]
+        : [head];
+}
+
 /** One heartbeat: read both clocks, dispatch the stale ones. Total. */
 export function tick(deps: HeartbeatDeps): HeartbeatState {
     const dryRun = deps.dryRun ?? false;
@@ -325,6 +356,7 @@ export function tick(deps: HeartbeatDeps): HeartbeatState {
             dryRun
         ),
         queueGate: readQueueGate(deps),
+        convex: readConvex(deps),
     };
 }
 
@@ -367,5 +399,6 @@ export function heartbeatLines(text: string | null, now: number): string[] {
         `    afk-dispatch   ${outcomeLine(s.afkDispatch)}`,
         `    health gate    ${outcomeLine(s.health)}`,
         ...queueGateLines(s.queueGate),
+        ...convexLines(s.convex),
     ];
 }
