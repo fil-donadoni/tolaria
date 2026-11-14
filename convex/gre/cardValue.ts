@@ -710,16 +710,16 @@ export function dslRealizedAbilityValueById(
     );
 }
 
-/** Issue #5155 — the standing-ability worth a LAND IN PLAY contributes to its
- *  controller's `permanents` term, from its REGISTRY id (projection-safe, like
+/** The standing-ability worth a LAND IN PLAY contributes to its controller's
+ *  `permanents` term, from its REGISTRY id (projection-safe, like
  *  `dslRealizedAbilityValueById`): the same `"standing"` reading its hand face
  *  takes through `latentValue` (mana abilities skipped — the `mana` term
- *  scores them beside this; sacrifice-cost abilities skipped — issue #5145,
- *  read instead as the option they give, issue #9592), clamped to the same
+ *  scores them beside this; an ability that sacrifices the land is read as
+ *  the option it gives, `withSelfConsumingOption`), clamped to the same
  *  `[0, MAX_LATENT_SCRIPT_VALUE]` band, so the two faces move together and
  *  playing the land is never a value loss this reading causes. A land has no
- *  `nonCreatureBodyValue` on the board (its body IS the mana term, issue
- *  #149), so this is the only script worth a land carries there. 0 for a land
+ *  `nonCreatureBodyValue` on the board (its body IS the mana term), so this
+ *  is the only script worth a land carries there (issue #5155). 0 for a land
  *  with no readable non-mana ability (a basic, a dual) and for an unknown
  *  id. Not restricted to lands by type: the caller branches on `isLand`. */
 export function standingAbilityValueById(
