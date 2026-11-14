@@ -1228,7 +1228,7 @@ export function dslSelfConsumingOption(
 }
 
 /** True when `requirement` can name a battlefield permanent its activator
- *  does not control (CR 115.1 — a target is chosen on the board at
+ *  does not control (CR 115.1c — a target is chosen on the board at
  *  activation). */
 function reachesForeignPermanent(
     requirement: TargetRequirement | undefined

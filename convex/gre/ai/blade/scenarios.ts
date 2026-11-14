@@ -16641,10 +16641,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // SELF-CONSUMING OPTION (issue #9592). The bot's Uktabi Orangutan has
-        // just entered and its trigger must destroy target artifact (CR 603.3d
-        // — a mandatory target). The only artifacts are the opponent's: a Clue
-        // ("{2}, sacrifice: draw a card") and a blank artifact token. The Clue
-        // is a card the opponent can still draw; the blank token is nothing.
+        // just entered and its trigger must destroy target artifact (CR 115.1d
+        // — chosen as it goes on the stack). The only artifacts are the
+        // opponent's: a Clue ("{2}, sacrifice: draw a card") and a blank
+        // artifact token. The Clue is a card the opponent can still draw; the
+        // blank token is nothing.
         //
         // WHY IT WAS WRONG. The standing reading skips an ability whose cost
         // sacrifices its own source (issue #5145, one asset, never charged
