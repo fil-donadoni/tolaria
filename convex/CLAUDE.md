@@ -156,8 +156,6 @@ non-trivial card gets a `describe` block in the parallel per-colour test file
 (`sets/lea/red.cards.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
 `convex/cards/__tests__/setup.helper.ts` (`makeInstance`, `makePlayer`, `makeState`,
 `pushSpell`) — never duplicate them.
-A `describe` title naming a card whose colour module is not the file's own is red
-(`card-test-colour-placement.test.ts`, issue #2256): put the block in the card's file.
 
 | Card has                     | GRE test                                               | Wire format test                                |
 | ---------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
