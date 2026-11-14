@@ -40,6 +40,8 @@ const LIBRARY_FREE_FIELDS: ReadonlySet<string> = new Set([
     "canActivate",
     "controllerTurnOnly",
     "oncePerTurn",
+    // CR 702.178a — a gate on whether the ability exists ("Max speed —").
+    "requiresMaxSpeed",
     // What is produced.
     "effect",
     "effects",

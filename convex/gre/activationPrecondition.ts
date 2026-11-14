@@ -13,7 +13,7 @@ import type {
 } from "../cards/types";
 import { activationRestrictionViolation } from "./activationRestrictions";
 import { COLORED_MANA_COLORS, isManaAbilityForRules } from "./constants";
-import { hasMaxSpeed } from "./speed";
+import { maxSpeedGateOpen } from "./speed";
 
 /**
  * CR 602.1b / 602.5 — an activated ability's own printed restriction ("Activate only
@@ -79,16 +79,9 @@ export function activationPreconditionViolation(
         return "Ability cannot be activated right now";
     }
     // CR 702.178a — "Max speed — <ability>": the ability exists only while
-    // "your" speed is 4. CR 109.5 — "you" is the would-be activator: the
-    // controller, or for a graveyard ability (CR 702.178b) the card's owner.
-    if (ability.requiresMaxSpeed === true) {
-        const reader = ability.activateFromGraveyard
-            ? source.ownerId
-            : source.controllerId;
-        const player = state.players.find((p) => p.id === reader);
-        if (player === undefined || !hasMaxSpeed(player)) {
-            return "Ability cannot be activated right now";
-        }
+    // "your" speed is 4 (`maxSpeedGateOpen`).
+    if (!maxSpeedGateOpen(ability, source, state.players)) {
+        return "Ability cannot be activated right now";
     }
     if (
         ability.activationCondition !== undefined &&
