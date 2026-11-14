@@ -222,7 +222,10 @@ import type {
     SpellFilterKey,
     TargetFilterCtx,
 } from "./targetFilters";
-import { resolveEntersTapped } from "../cards/entersTapped";
+import {
+    entersUntappedByReplacement,
+    resolveEntersTapped,
+} from "../cards/entersTapped";
 import {
     applyEntersPrepared,
     becomePrepared,
@@ -3534,6 +3537,23 @@ export function shouldEnterTapped(
     );
 }
 
+/** CR 614.1d / 616.1 — true when a battlefield-scanned "enter untapped"
+ *  replacement (Spelunking) makes `entering` enter untapped. Already folded
+ *  into `shouldEnterTapped`; this is the question the sites that tap for a
+ *  reason OUTSIDE that oracle ask — an effect that "puts it onto the
+ *  battlefield tapped" (`tapOnEntry`), an as-enters "enter tapped" answer, a
+ *  land's "pay or enter tapped" prompt, which buys nothing while this holds.
+ *  `entering.controllerId` must already be its prospective controller. */
+export function shouldEnterUntapped(
+    state: GameState,
+    entering: Pick<CardInstanceState, "controllerId" | "types" | "subtypes">
+): boolean {
+    return entersUntappedByReplacement(
+        entering as unknown as PermanentView,
+        state as never
+    );
+}
+
 /** CR 607.2q / 607.2a — the card types of each of `ids` (the cards exiled to
  *  pay a spell's cost, `StackItem.castExiledCardIds`) that is STILL in some
  *  player's exile zone. A card that has left exile is a new object (CR 400.7)
@@ -4342,8 +4362,12 @@ function finalizeSpellResolution(
         // CR 614.1c + 110.5b — a permanent enters tapped if its own card flag
         // says so OR a battlefield-scanned replacement (Kismet — "Artifacts,
         // creatures, and lands your opponents control enter tapped") forces it.
+        // CR 616.1 — an "enter untapped" replacement (Spelunking) is applied
+        // last and wins over both (`shouldEnterUntapped`).
         item.isTapped =
-            cardDef?.entersTapped === true || shouldEnterTapped(state, item);
+            shouldEnterTapped(state, item) ||
+            (cardDef?.entersTapped === true &&
+                !shouldEnterUntapped(state, item));
         // CR 302.6 — every permanent begins tracking control continuity when
         // it enters: the `isSummoningSick` flag is set on entry and cleared at
         // the controller's untap step (see `untapStep`). For creatures this is
@@ -11278,7 +11302,11 @@ function stageReanimatedOnBattlefield(
             loyalty: (card.counters?.loyalty ?? 0) + putDef.loyalty,
         };
     }
-    if (putDef?.entersTappedUnlessPay) {
+    // CR 616.1 — under an "enter untapped" replacement (Spelunking) the
+    // land's "pay or enter tapped" prompt buys nothing: its controller applies
+    // that replacement last, so the land enters untapped with nothing paid
+    // and the entry takes the plain tail below.
+    if (putDef?.entersTappedUnlessPay && !shouldEnterUntapped(state, card)) {
         card.isTapped = true;
         getPlayer(state, controllerId).battlefield.push(card);
         // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`).
@@ -11331,13 +11359,20 @@ function attackTargetOwedOnEntry(
 }
 
 /** CR 614.1c + 110.5b — a Kismet-style replacement taps the entering permanent;
- *  OR'd with the effect's own CR 508.4 "enters tapped". Either reason taps it. */
+ *  OR'd with the effect's own CR 508.4 "enters tapped". Either reason taps it,
+ *  unless an "enter untapped" replacement (Spelunking, CR 614.1d) applies:
+ *  `shouldEnterTapped` already folds it in, and Gatherer's Spelunking ruling
+ *  makes a permanent an effect "puts onto the battlefield tapped" enter
+ *  untapped too. */
 function tapOnEntry(
     state: GameState,
     card: CardInstanceState,
     authored: AuthoredEntryState | undefined
 ): void {
-    if (authored?.entersTapped || shouldEnterTapped(state, card)) {
+    if (
+        shouldEnterTapped(state, card) ||
+        (authored?.entersTapped && !shouldEnterUntapped(state, card))
+    ) {
         card.isTapped = true;
     }
 }
