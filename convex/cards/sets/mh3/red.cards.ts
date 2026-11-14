@@ -202,20 +202,19 @@ export const ralMonsoonMage = defineCard(() => ({
                             "You may exile Ral and return him transformed.",
                         effects: [
                             {
-                                op: "optionChoice",
+                                op: "mayPay",
                                 player: "controller",
                                 prompt: "Exile Ral and return him transformed?",
-                                modes: [
+                                bind: "$exileRal",
+                            },
+                            {
+                                op: "if",
+                                predicate: { binding: "$exileRal" },
+                                then: [
                                     {
-                                        label: "Exile and return transformed",
-                                        effects: [
-                                            {
-                                                op: "exileAndReturnTransformed",
-                                                target: { ref: "$source" },
-                                            },
-                                        ],
+                                        op: "exileAndReturnTransformed",
+                                        target: { ref: "$source" },
                                     },
-                                    { label: "Do nothing", effects: [] },
                                 ],
                             },
                         ],
