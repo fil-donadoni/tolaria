@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { FORMAT_RULES } from "@convex/formats";
+import { limitedOriginLabel } from "@convex/limited/limitedOrigin";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cardBase } from "~/lib/cardSizing";
 import { computeDeckStats } from "~/lib/deckStats";
@@ -57,6 +58,12 @@ export default function DeckDetail({
         [deck.cards]
     );
 
+    // Provenance (issue #2818): where a Limited deck came from, readable
+    // without the event. A deck with no recorded origin says so plainly.
+    const provenance = deck.limitedOrigin
+        ? (limitedOriginLabel(deck.limitedOrigin) ?? "Origin unknown")
+        : "Origin unknown";
+
     return (
         <div className="flex w-full flex-col gap-4 p-6 text-text">
             <SurfaceReadyMarker />
@@ -81,6 +88,14 @@ export default function DeckDetail({
                         {deck.cards.length} cards ·{" "}
                         {FORMAT_RULES[deck.format].label}
                     </span>
+                    {deck.format === "limited" && (
+                        <span
+                            className="text-xs text-text-muted"
+                            data-deck-provenance=""
+                        >
+                            {provenance}
+                        </span>
+                    )}
                     {deck.description && (
                         <p className="text-sm text-text-muted">
                             {deck.description}
