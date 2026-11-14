@@ -276,7 +276,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // Unregistered, the bot answered worst-first from a battlefield-only
         // pool and froze on a graveyard or stack target.
         expect(hasChoiceCandidateGenerator("choose-damage-target")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(24);
+        // CR 404.3 (issue #9555) — a graveyard batch's arrangement, a node only
+        // under a graveyard-position reader; see
+        // `graveyard-order-choice-node.bot.test.ts`.
+        expect(hasChoiceCandidateGenerator("graveyard-order")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(25);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

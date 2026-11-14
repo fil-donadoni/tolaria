@@ -888,7 +888,7 @@ function buildOwedChoice(
         // paid a Worker round-trip plus `THINK_DELAY_MS` and then landed on the
         // driver's emergency fallback).
         searchable:
-            isSearchableChoiceNode(head) &&
+            isSearchableChoiceNode(head, state) &&
             !state.pendingCast &&
             !state.pendingTarget &&
             !state.pendingActivation &&

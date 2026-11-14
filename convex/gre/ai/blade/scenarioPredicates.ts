@@ -587,6 +587,12 @@ export const TITANIA_PAYOFF: Discriminant = {
     kind: "card",
     detail: "Titania, Protector of Argoth on the battlefield",
 };
+/** Issue #9555 — the graveyard-position reader that turns a self-mill into a
+ *  line: the same board with and without it. */
+export const GRAVEYARD_TOP_READER: Discriminant = {
+    kind: "card",
+    detail: "Volrath's Shapeshifter on the battlefield, reading the top creature card of the graveyard",
+};
 export const EXTRA_PLAINS: Discriminant = {
     kind: "card",
     detail: "one extra Plains",
