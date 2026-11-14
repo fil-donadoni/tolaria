@@ -11382,8 +11382,6 @@ function stageReanimatedOnBattlefield(
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     tapOnEntry(state, card, entryOpts?.authoredEntry);
     getPlayer(state, controllerId).battlefield.push(card);
-    // Ahead of the ETB announcement (`finishReanimatedEntry`), as a token's is.
-    joinCombatOnEntry(state, card, entryOpts?.authoredEntry);
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): reanimation
     // / put-onto-battlefield happens MID-resolution, so the SBA sweep is too
     // late for a later clause of the same effect to read the designation.
@@ -11461,7 +11459,9 @@ function joinCombatOnEntry(
 function finishReanimatedEntry(
     state: GameState,
     card: CardInstanceState,
-    enteredFromGraveyard?: boolean
+    enteredFromGraveyard?: boolean,
+    /** CR 508.4 — the putting effect's "attacking", joined below. */
+    authoredEntry?: AuthoredEntryState
 ): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
@@ -11471,6 +11471,11 @@ function finishReanimatedEntry(
     // push out to matching battlefield permanents (e.g. a reanimated
     // Goblin King re-grants mountainwalk to allied Goblins).
     beginApplyingStaticEffects(state, card);
+    // CR 508.4 / 506.3a — join combat once the permanent's OWN statics apply
+    // (a planeswalker that is a creature on its controller's turn is one on
+    // the battlefield, CR 614.12), and still ahead of the ETB announcement,
+    // so PERMANENT_ENTERED reports it attacking.
+    joinCombatOnEntry(state, card, authoredEntry);
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
@@ -11515,7 +11520,7 @@ function putReanimatedOnBattlefield(
             ...(authoredEntry ? { authoredEntry } : {}),
         })
     ) {
-        finishReanimatedEntry(state, card, enteredFromGraveyard);
+        finishReanimatedEntry(state, card, enteredFromGraveyard, authoredEntry);
         return true;
     }
     return false;
@@ -13059,7 +13064,8 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     finishReanimatedEntry(
                         state,
                         entry.card,
-                        entry.enteredFromGraveyard
+                        entry.enteredFromGraveyard,
+                        entry.authoredEntry
                     );
             }
             return;
