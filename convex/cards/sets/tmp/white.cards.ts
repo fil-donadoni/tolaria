@@ -19,8 +19,8 @@ import { defineCard } from "../../types";
 // to an ability defining another object's P/T. So "have base power and
 // toughness 1/1" is expressible only in 7b, and a 7c buff still applies over
 // it — a Humility'd creature with a +1/+1 counter is 2/2 (CR 613.4c).
-// Humility is an Enchantment, not a creature, so it never strips or resizes
-// itself.
+// Humility is an Enchantment, not a creature, so it strips and resizes itself
+// only while another effect makes it one (Opalescence, below).
 //
 // CR 613.8 (issue #2068) — in layer 6 this card's removal and an ability GRANTED
 // by a creature's own static ability (Lord of Atlantis's islandwalk) are
@@ -28,16 +28,11 @@ import { defineCard } from "../../types";
 // clause (b)), so CR 613.8b applies the grant last, which is to say never — at
 // either timestamp, including a Lord that entered after Humility.
 //
-// Second, SEPARATE divergence (tracked-by: #3170), not a case of the above:
-// the layer-7 walk reads a source's `staticEffects[]` off its definition
-// without asking whether layer 6 already suppressed that source's abilities,
-// so a lord stripped by this card still hands out its +1/+1 in 7c (measured:
-// Humility + two Lord of Atlantis leaves the second at 2/2, CR says 1/1). It
-// predates this card — Titania's Song + Mightstone reproduces it with no
-// Humility on the board — and the fix is not a gate on suppression alone:
-// CR 613.6 keeps the layer-7 part of an ability whose EARLIER-layer part
-// already applied, which this engine cannot yet tell apart because one Oracle
-// line becomes several independent per-layer `StaticEffect` entries.
+// CR 613.6 — the strip does not take this card's own 1/1 with it when Humility
+// is itself a creature (Opalescence): its `ability-loss` has applied to it by
+// then, so the `pt-set` of the same ability goes on applying in 7b. A lord it
+// strips hands out nothing in 7c, because the lord's ability has no part that
+// applied before layer 6 (`survivesAbilityRemoval`, `gre/layers.ts`).
 export const humility = defineCard(() => ({
     id: "a2fb7128-806b-4148-80fe-eb967f248021",
     rarity: "rare",

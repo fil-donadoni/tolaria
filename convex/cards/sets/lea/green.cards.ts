@@ -428,6 +428,10 @@ export const gaeasLiege = defineCard(() => ({
         },
         {
             kind: "subtype-set",
+            // CR 113.2c — the {T} paragraph's effect, a separate ability from
+            // the P/T one above: its layer-4 part must not carry the CDA past
+            // a layer-6 strip (CR 613.6).
+            ability: "make-forest",
             // CR 613.5 (issue #1711) — `subtype-set` is a MATERIALIZED kind
             // (written onto the target's `subtypes[]`), so the marker-counter
             // gate only tracks the counter if the dependency is declared.

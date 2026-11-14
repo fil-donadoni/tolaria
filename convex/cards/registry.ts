@@ -182,8 +182,10 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
  *  Duplicated from `gre/layers2to5.ts`'s own table rather than imported: this
  *  module is the registry, and `gre/**` imports IT. The membership test below
- *  is the only consumer, and `layers2to5.ts` asserts the two agree. */
-const LAYER_2_5_STATIC_KINDS = new Set<string>([
+ *  is one consumer; the other is layer 7's CR 613.6 test (`gre/layers.ts`),
+ *  which cannot import `layers2to5.ts` without a cycle.
+ *  `layer7Registry.test.ts` asserts the two agree. */
+export const LAYER_2_5_STATIC_KINDS: ReadonlySet<string> = new Set<string>([
     "control-change",
     "type-add",
     "type-remove",

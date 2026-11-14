@@ -305,6 +305,11 @@
         "reason": "Cross-file guard: game.ts re-export is reference-identical to the gre source function."
     },
     {
+        "file": "convex/gre/__tests__/layer7Registry.test.ts",
+        "test": "a source layer 6 stripped generates no layer-7 effect, unless CR 613.6 carries it (CR 613.1f) > the registry's layer-2-5 kinds are the derivation's (`LAYER_2_5_STATIC_KINDS`)",
+        "reason": "Drift guard: the registry's duplicated layer-2-5 kind set must equal layers2to5.ts's table, which it cannot import."
+    },
+    {
         "file": "convex/gre/__tests__/lookup.test.ts",
         "test": "lookup leaf — finders (CR 400.1) > the core re-exports the leaf's helpers, not copies of them",
         "reason": "Proves re-export not re-implementation via object identity across two modules (core vs lookup leaf)."

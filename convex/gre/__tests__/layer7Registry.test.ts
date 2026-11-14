@@ -16,7 +16,14 @@ import {
     getPermanentEffectivePower,
     getPermanentEffectiveToughness,
 } from "../layers";
-import { declaresLayer7StaticEffect } from "../../cards/registry";
+import {
+    declaresLayer7StaticEffect,
+    LAYER_2_5_STATIC_KINDS,
+} from "../../cards/registry";
+import { LAYER_2_5_STATIC_EFFECT_KINDS } from "../layers2to5";
+import { syncLayer6 } from "../layer6";
+import { projectPublicState } from "../../gameProjections";
+import type { LayerStateView } from "../layers";
 import {
     getDefinition,
     tokenDefinitionId,
@@ -25,8 +32,16 @@ import {
 import type { CardDefinition, StaticEffect } from "../../cards/types";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
-import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
-import { removePermanentTo, resetBattlefieldTransientState } from "../state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
+import {
+    beginApplyingStaticEffects,
+    removePermanentTo,
+    resetBattlefieldTransientState,
+} from "../state";
 import { crusade } from "../../cards/sets/lea/index.cards";
 
 /** A vanilla creature with no registry entry — every effect in this file
@@ -800,5 +815,149 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
         withTemporaryDefinition(probe, () => {
             expect(declaresLayer7StaticEffect(id)).toBe(true);
         });
+    });
+});
+
+describe("a source layer 6 stripped generates no layer-7 effect, unless CR 613.6 carries it (CR 613.1f)", () => {
+    const humility = getDefinition("a2fb7128-806b-4148-80fe-eb967f248021");
+    const lordOfAtlantis = getDefinition(
+        "210c4a90-fc7a-4c76-aeaa-20a005e45386"
+    );
+    const titaniasSong = getDefinition("583a53af-2e2a-4f3f-8eab-bd874c6ed80a");
+    const mightstone = getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
+    const opalescence = getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
+    const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+    const gaeasLiege = getDefinition("e2b15221-c8b0-4861-9f8b-8a65834ad499");
+    const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+
+    /** One battlefield whose permanents begin applying their statics in the
+     *  order given, so the order IS their CR 613.7a timestamp order. */
+    function boardInOrder(permanents: CardInstanceState[]): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: permanents }),
+                makePlayer("p2"),
+            ],
+        });
+        for (const permanent of permanents) {
+            beginApplyingStaticEffects(state, permanent);
+        }
+        return state;
+    }
+
+    const on = (cardId: string, id: string, overrides = {}) =>
+        makeInstance(cardId, { id, zone: "battlefield", ...overrides });
+
+    it("Humility + two Lord of Atlantis: neither lord pumps the other (CR 613.1f)", () => {
+        // A lord's ability is a layer-6 grant and a 7c anthem. Humility's
+        // strip destroys the grant before it applies (CR 613.8a/b), so the
+        // ability never started in an earlier layer and its 7c part goes too.
+        const lord1 = on(lordOfAtlantis.id, "lord-1");
+        const lord2 = on(lordOfAtlantis.id, "lord-2");
+        const state = boardInOrder([on(humility.id, "humility"), lord1, lord2]);
+
+        expect(lord2.abilitiesSuppressedBy).toEqual([
+            { sourceId: "humility", seq: expect.any(Number) },
+        ]);
+        expect(getEffectivePower(state, lord2)).toBe(1);
+        expect(getEffectiveToughness(state, lord2)).toBe(1);
+        expect(getEffectivePower(state, lord1)).toBe(1);
+
+        // The projection ships the strip record the gate reads, so the board
+        // shows the same 1/1 the server counts.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lord-2"
+        )!;
+        const wire = projected as unknown as LayerStateView;
+        expect(getEffectivePower(wire, slim as CardInstanceState)).toBe(1);
+        expect(getEffectiveToughness(wire, slim as CardInstanceState)).toBe(1);
+    });
+
+    it("Titania's Song + Mightstone: an attacker keeps its printed power", () => {
+        // Mightstone is a noncreature artifact, so the Song strips it: its
+        // pure-7c "attacking creatures get +1/+0" generates nothing.
+        const bears = on(grizzlyBears.id, "bears", { isAttacking: true });
+        const state = boardInOrder([
+            on(titaniasSong.id, "song"),
+            on(mightstone.id, "stone"),
+            bears,
+        ]);
+
+        expect(getEffectivePower(state, bears)).toBe(2);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+    });
+
+    it("keeps the layer-7 part of an ability whose layer-4 part already applied (CR 613.6)", () => {
+        // Two Opalescences make each other creatures in layer 4, so Humility
+        // strips both in layer 6 — after their `type-add` part has applied.
+        // Their `pt-set` part goes on applying in 7b, later than Humility's
+        // 1/1, so every enchantment is a 4/4 (mana value 4). Without CR 613.6
+        // the strip would leave them at Humility's 1/1.
+        const opalescenceA = on(opalescence.id, "opal-a");
+        const opalescenceB = on(opalescence.id, "opal-b");
+        const humilityInstance = on(humility.id, "humility");
+        const state = boardInOrder([
+            humilityInstance,
+            opalescenceA,
+            opalescenceB,
+        ]);
+
+        expect(opalescenceA.abilitiesSuppressedBy).toEqual([
+            { sourceId: "humility", seq: expect.any(Number) },
+        ]);
+        expect(getEffectivePower(state, opalescenceA)).toBe(4);
+        expect(getEffectiveToughness(state, opalescenceA)).toBe(4);
+        expect(getEffectivePower(state, opalescenceB)).toBe(4);
+        expect(getEffectivePower(state, humilityInstance)).toBe(4);
+    });
+
+    it("keeps a stripper's own layer-7 part once its strip applied to itself (CR 613.6)", () => {
+        // Opalescence first, Humility later: Opalescence makes Humility a
+        // creature, Humility strips itself, and that strip has applied by the
+        // time it does — so its 1/1 still lands in 7b, after Opalescence's
+        // 4/4. Everything is 1/1, Humility included.
+        const humilityInstance = on(humility.id, "humility");
+        const bears = on(grizzlyBears.id, "bears");
+        const state = boardInOrder([
+            on(opalescence.id, "opal"),
+            humilityInstance,
+            bears,
+        ]);
+
+        expect(humilityInstance.abilitiesSuppressedBy).toEqual([
+            { sourceId: "humility", seq: expect.any(Number) },
+        ]);
+        expect(getEffectivePower(state, humilityInstance)).toBe(1);
+        expect(getEffectiveToughness(state, humilityInstance)).toBe(1);
+        expect(getEffectivePower(state, bears)).toBe(1);
+    });
+
+    it("does not let a SEPARATE ability's layer-4 part carry a CDA past the strip (CR 113.2c)", () => {
+        // Gaea's Liege's {T} paragraph declares a layer-4 `subtype-set`; its
+        // P/T paragraph is a 7a CDA alone. Stripped by a resolved "loses all
+        // abilities", the CDA goes, and the Liege is its printed 0/0.
+        const liege = on(gaeasLiege.id, "liege");
+        const state = boardInOrder([
+            on(forest.id, "forest-1"),
+            on(forest.id, "forest-2"),
+            liege,
+        ]);
+        expect(getEffectivePower(state, liege)).toBe(2);
+
+        liege.abilityLossHolds = [{ sourceId: "indefinite", seq: 1000 }];
+        syncLayer6(state);
+
+        expect(liege.abilitiesSuppressedBy).toEqual([
+            { sourceId: "indefinite", seq: 1000 },
+        ]);
+        expect(getEffectivePower(state, liege)).toBe(0);
+        expect(getEffectiveToughness(state, liege)).toBe(0);
+    });
+
+    it("the registry's layer-2-5 kinds are the derivation's (`LAYER_2_5_STATIC_KINDS`)", () => {
+        expect([...LAYER_2_5_STATIC_KINDS].sort()).toEqual(
+            Object.keys(LAYER_2_5_STATIC_EFFECT_KINDS).sort()
+        );
     });
 });

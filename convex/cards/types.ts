@@ -11941,6 +11941,39 @@ export interface SourceZoneScope {
     zone?: "graveyard";
 }
 
+/** CR 113.2c — WHICH ABILITY of its card a static effect is a part of. One
+ *  Oracle ability often becomes several entries, one per layer it applies in
+ *  (Opalescence's "is a creature ... and has base power and base toughness ..."
+ *  is a layer-4 `type-add` beside a layer-7b `pt-set`), and CR 613.6 is a rule
+ *  about the ability, not the entry: "If an effect starts to apply in one layer
+ *  and/or sublayer, it will continue to be applied ... in each other applicable
+ *  layer and/or sublayer, even if the ability generating the effect is removed
+ *  during this process." Layer 7 asks it whenever layer 6 has stripped a
+ *  source (`gre/layers.ts`): a layer-7 entry outlives the strip only through a
+ *  part of the SAME ability that already applied in an earlier layer.
+ *
+ *  Absent — the default — puts the entry in the card's one UNKEYED ability,
+ *  shared by every other entry that declares none. That is the right answer
+ *  for the usual card whose static effects are all one paragraph (a lord, an
+ *  Aura's "gets +1/+1 and has flying", Titania's Song). A card whose static
+ *  effects come from SEPARATE paragraphs, where one of them carries an
+ *  earlier-layer part, keys the odd one out, so that part cannot keep another
+ *  paragraph's layer-7 entry alive. Entries sharing a key are one ability;
+ *  the key is a label read only for equality, never displayed.
+ *
+ *  Declarable only on the characteristic-changing kinds, for the reason
+ *  {@link SourceDepartureLinger} gives: only those are layer parts at all. */
+export interface StaticAbilityIdentity {
+    ability?: string;
+}
+
+/** The {@link StaticAbilityIdentity} key of `effect`, `undefined` for the
+ *  card's unkeyed ability. Read through here so a rules-modifying kind, which
+ *  cannot declare one, answers like an unkeyed entry. */
+export function staticEffectAbility(effect: StaticEffect): string | undefined {
+    return (effect as StaticAbilityIdentity).ability;
+}
+
 /** CR 113.6b — does `effect` function from the zone a source walk is reading?
  *  `zone` is `undefined` for the default walks (battlefield, command zone,
  *  stack) and `"graveyard"` for the graveyard walk; an effect matches exactly
@@ -12080,7 +12113,8 @@ export type StaticEffect =
               | StaticColorSet
           ) &
               SourceDepartureLinger &
-              SourceZoneScope)
+              SourceZoneScope &
+              StaticAbilityIdentity)
         /** `activated-grant` is deliberately NOT in the group above, though it is a
          *  layer-6 kind. Its `abilitiesOf` arm reads every activated ability of
          *  every card in the pile LINKED TO THE SOURCE (Agatha's Soul Cauldron's
