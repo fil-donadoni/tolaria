@@ -58,7 +58,7 @@
 //   --start-cmd <json argv> --start-timeout-ms <n> --wait-alive-ms <n>
 //   --reclaim-grace-ms <n> --unit <name|""> --systemctl <json argv>
 //   --launchd <label|""> --launchctl <json argv> --launchd-plist <path>
-//   --wedge-threshold-ms <n>   (issue #9227: restart an ANSWERING service
+//   --wedge-threshold-ms <n>   (restart an ANSWERING service
 //                               whose trivial query exceeds n ms; the
 //                               heartbeat tick passes it, 0 = off)
 // `--start-cmd` without `--unit`/`--launchd` means "spawn this": no service
