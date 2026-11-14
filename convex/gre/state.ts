@@ -16945,7 +16945,7 @@ export function buildSpellContext(
         addRestrictedMana(
             playerId: string,
             cost: CardManaCost,
-            restriction: ManaRestriction
+            restriction: Exclude<ManaRestriction, "chosen-type-creature-spell">
         ): void {
             const player = getPlayer(state, playerId);
             const produced = replaceProducedManaColor(

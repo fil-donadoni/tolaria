@@ -3,7 +3,7 @@
 // and that spell can't be countered" — Cavern of Souls), walked through the
 // real mutation handlers: the payment tap (`tapForPayment`), the reversal
 // (`untapForPayment`), the priority tap (`tapUntap`), the wire projection the
-// client reads, and the client label it renders.
+// client reads (the label it renders: `src/lib/__tests__/restricted-mana.test.ts`).
 //
 // The source is a TEST variant of Delighted Halfling's shape (a {C} ability and
 // an any-colour ability carrying a restriction + the can't-be-countered rider)
@@ -25,7 +25,6 @@ import { withTemporaryDefinitionAsync } from "../cards/registry";
 import type { CardDefinition } from "../cards/types";
 import type { GameState, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
-import { restrictedManaLabel } from "../../src/lib/restricted-mana";
 import {
     makeMutationCtx,
     runMutation,
@@ -204,7 +203,7 @@ describe("chosen-type-creature-spell mana — payment path (CR 106.6, issue #938
 });
 
 describe("chosen-type-creature-spell mana — priority tap, wire and label (issue #9388)", () => {
-    it("tapUntap snapshots the chosen type; the projection keeps it and the client labels it", async () => {
+    it("tapUntap snapshots the chosen type and the projection keeps it", async () => {
         await withTemporaryDefinitionAsync(chosenTypeLand(), async () => {
             const land = makeInstance("test-chosen-type-mana-land", {
                 id: "land",
@@ -242,9 +241,6 @@ describe("chosen-type-creature-spell mana — priority tap, wire and label (issu
             expect(after.players[0].restrictedMana).toEqual([expected]);
             const projected = projectPublicState(after, 1, "p1");
             expect(projected.players[0].restrictedMana).toEqual([expected]);
-            expect(
-                restrictedManaLabel(projected.players[0].restrictedMana![0])
-            ).toBe("Merfolk creature spells only — can't be countered");
         });
     });
 });

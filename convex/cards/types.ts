@@ -6016,11 +6016,14 @@ export interface SpellContext {
     /** Adds restricted mana to `playerId`'s pool (CR 106.6) — mana that can
      *  only pay for costs the `restriction` permits (e.g. Metamorphosis:
      *  "Spend this mana only to cast creature spells"). Empties at end of
-     *  step/phase like normal mana (CR 500.5). */
+     *  step/phase like normal mana (CR 500.5). `chosen-type-creature-spell`
+     *  is excluded: it is keyed on a SOURCE's chosen creature type, which this
+     *  sourceless deposit cannot snapshot (issue #9388) — such mana would pay
+     *  for nothing. */
     addRestrictedMana: (
         playerId: string,
         cost: ManaCost,
-        restriction: ManaRestriction
+        restriction: Exclude<ManaRestriction, "chosen-type-creature-spell">
     ) => void;
     /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
      *  Per-colour counts, captured at activation commit. Only populated when the
