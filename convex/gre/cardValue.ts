@@ -31,6 +31,8 @@ import {
     dslEtbAbilityScriptValue,
     dslLatentDelayedTemplateValue,
     dslStandingAbilityScriptValue,
+    dslSelfConsumingOption,
+    type SelfConsumingOption,
     carriesEachStepEngine,
     etbSelfSacrificeWeight,
     isCompleteScript,
@@ -253,6 +255,10 @@ export function latentValue(chars: {
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
      *  every creature that keeps its body. */
     etbSelfSacrificeWeight?: number;
+    /** Issue #9592 — the option a NON-CREATURE permanent's self-consuming
+     *  ability gives it (`dslSelfConsumingOption`): read by the non-creature
+     *  branch only, through `withSelfConsumingOption`. */
+    selfConsumingOption?: SelfConsumingOption;
 }): number {
     if (chars.isCreature) {
         const discount =
@@ -301,6 +307,17 @@ export function latentValue(chars: {
                 DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount
         );
     }
+    return withSelfConsumingOption(
+        nonCreatureScriptWorth(chars),
+        chars.selfConsumingOption
+    );
+}
+
+/** The non-creature branch of `latentValue` past its `aiValue` override,
+ *  before the self-consuming option (issue #9592) is applied to it. */
+function nonCreatureScriptWorth(
+    chars: Parameters<typeof latentValue>[0]
+): number {
     // No override: its DSL spell-script value (real `effects[]`, else its
     // `aiEffects` shadow script) if it has one, floored at the `base + MV`
     // fallback. The floor makes the semantic layer an UPLIFT — a card whose
@@ -389,6 +406,24 @@ export function latentValue(chars: {
     return Math.min(
         nonCreatureBodyRaw(chars.manaValue) + delayed,
         MAX_LATENT_SCRIPT_VALUE
+    );
+}
+
+/** Issue #9592 — `worth` lifted by a self-consuming ability's option: by its
+ *  `uplift`, never past its `ceiling` — the net the activation yields — and
+ *  never below `worth` itself. So the permanent in play reads above a blank
+ *  one of the same body (a Clue above an empty artifact token), and trading
+ *  it for its effect never reads as a loss this lift causes (issue #5145's
+ *  invariant): what the activation gives up is at most what it buys, or what
+ *  the permanent already read without the option. */
+export function withSelfConsumingOption(
+    worth: number,
+    option: SelfConsumingOption | undefined
+): number {
+    if (!option) return worth;
+    return Math.max(
+        worth,
+        Math.min(worth + option.uplift, option.ceiling, MAX_LATENT_SCRIPT_VALUE)
     );
 }
 
@@ -494,6 +529,7 @@ export function dslLatentPieces(
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
+    selfConsumingOption?: SelfConsumingOption;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
     const selfSacrificeWeight = etbSelfSacrificeWeight(def, route);
@@ -562,6 +598,11 @@ export function dslLatentPieces(
             engine?.measured() === true ? board?.heldEngineFraction : undefined,
         // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
         dslScriptComplete: isCompleteScript(def),
+        // Issue #9592 — read by the NON-CREATURE branch only, so only the
+        // class that carries standing ability worth reads it.
+        selfConsumingOption: standingWorth
+            ? dslSelfConsumingOption(def, contextFreeGrounding(latent))
+            : undefined,
         // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
         // board the lens is attached to; context-free (no lens) it stays
         // unmeasured and keeps the floor.
@@ -617,6 +658,7 @@ export function dslLatentPiecesById(
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
+    selfConsumingOption?: SelfConsumingOption;
 } {
     const def = tryGetDefinition(cardId);
     return def ? dslLatentPieces(def, board, latent) : {};
@@ -673,7 +715,7 @@ export function dslRealizedAbilityValueById(
  *  `dslRealizedAbilityValueById`): the same `"standing"` reading its hand face
  *  takes through `latentValue` (mana abilities skipped — the `mana` term
  *  scores them beside this; sacrifice-cost abilities skipped — issue #5145,
- *  the effect is priced where it is spent), clamped to the same
+ *  read instead as the option they give, issue #9592), clamped to the same
  *  `[0, MAX_LATENT_SCRIPT_VALUE]` band, so the two faces move together and
  *  playing the land is never a value loss this reading causes. A land has no
  *  `nonCreatureBodyValue` on the board (its body IS the mana term, issue
@@ -695,12 +737,14 @@ export function standingAbilityValueById(
     ) {
         return 0;
     }
-    const standing = dslStandingAbilityScriptValue(
-        def,
-        contextFreeGrounding(latent)
+    const ctx = contextFreeGrounding(latent);
+    const standing = dslStandingAbilityScriptValue(def, ctx);
+    // Issue #9592 — the same self-consuming option the hand face reads
+    // (`latentValue`), so the two faces still move together.
+    return withSelfConsumingOption(
+        Math.max(0, Math.min(standing ?? 0, MAX_LATENT_SCRIPT_VALUE)),
+        dslSelfConsumingOption(def, ctx)
     );
-    if (standing === undefined) return 0;
-    return Math.max(0, Math.min(standing, MAX_LATENT_SCRIPT_VALUE));
 }
 
 /** Issue #6334 — the ETB Abilities of a card that will ENTER the battlefield

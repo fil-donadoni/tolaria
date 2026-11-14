@@ -48,6 +48,7 @@ import {
     OWN_PERMANENT_CARD_IN_GRAVEYARD,
     answersRaisedTargetLegally,
     submitsSoleTarget,
+    submitsTargetPermanentNamed,
     boundedGraveyardCastIsOffered,
     STARVED_TARGET_FANOUT_BOARD,
     castSparesOwnPermanents,
@@ -16637,6 +16638,105 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #5151. Measured at 400 iterations over 20 seeds: with `latent.recurrence` forced to 1 (the pre-#5151 reading) the Vise is taken 6/20 in this listing order (10/20 with the Vise listed first; the rest Bear Trap or a pass — the tie), 20/20 in either order with the multiplier. Proof of failure: dropping Black Vise's `aiEffects` shadow (`lea/colorless.cards.ts`) puts it back at the floor and turns this entry red — the criterion issue #4141 waived, discharged here. Re-proved after ADR 0151's slices (issue #5165; `fit:weights` left the committed vector unchanged, no weight edit): the Vise 20/20 over 20 seeds; with the shadow dropped, Bear Trap 10, the Vise 7, a pass 3 — red on the declared seeds.",
+    },
+    {
+        // SELF-CONSUMING OPTION (issue #9592). The bot's Uktabi Orangutan has
+        // just entered and its trigger must destroy target artifact (CR 603.3d
+        // — a mandatory target). The only artifacts are the opponent's: a Clue
+        // ("{2}, sacrifice: draw a card") and a blank artifact token. The Clue
+        // is a card the opponent can still draw; the blank token is nothing.
+        //
+        // WHY IT WAS WRONG. The standing reading skips an ability whose cost
+        // sacrifices its own source (issue #5145, one asset, never charged
+        // twice), which left the Clue at its `base + MV` floor — exactly the
+        // blank token's — so the removal lens priced the two identically and
+        // the pick fell to listing order. `dslSelfConsumingOption`
+        // (`ai/cardScriptValue.ts`) prices the option the Clue holds.
+        label: "discriminating pair: Uktabi Orangutan's forced destroy takes the opponent's Clue, not its blank artifact token (issue #9592)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Uktabi Orangutan",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                // Listed first on purpose: in the tie this entry guards
+                // against, listing order is part of what decides the pick.
+                {
+                    name: "token:Artifact|Artifact||||||||||||||",
+                    owner: "opp",
+                    zone: "battlefield",
+                    token: true,
+                },
+                {
+                    name: "Clue",
+                    owner: "opp",
+                    zone: "battlefield",
+                    token: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Uktabi Orangutan" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                submitsTargetPermanentNamed(move, state, "Clue", "opp"),
+            describe: "a `submit-target` naming the opponent's Clue token",
+        },
+        note: "Issue #9592. Before the change the Clue and the blank token read the same `base + MV` floor and the target fell to listing order (the blank token, listed first). Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) returning `worth` unchanged turns this entry red. Partner: `discriminating pair: Uktabi Orangutan's forced destroy takes the bot's own blank artifact token, not its Clue (issue #9592)`.",
+    },
+    {
+        // SELF-CONSUMING OPTION (issue #9592) — the partner of the entry
+        // above, the same trigger aimed the other way: both artifacts are the
+        // BOT's own, so the forced destroy should take the blank token and keep
+        // the Clue. A reading that cannot tell the two apart passes at most one
+        // of the pair, whichever the listing order favours.
+        label: "discriminating pair: Uktabi Orangutan's forced destroy takes the bot's own blank artifact token, not its Clue (issue #9592)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Uktabi Orangutan",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                // Listed first on purpose: in the tie this entry guards
+                // against, listing order is part of what decides the pick.
+                { name: "Clue", owner: "me", zone: "battlefield", token: true },
+                {
+                    name: "token:Artifact|Artifact||||||||||||||",
+                    owner: "me",
+                    zone: "battlefield",
+                    token: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Uktabi Orangutan" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                submitsTargetPermanentNamed(move, state, "Artifact", "me"),
+            describe:
+                "a `submit-target` naming the bot's own blank artifact token",
+        },
+        note: "Issue #9592. Before the change the two read the same floor and the bot destroyed its own Clue (listed first). Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) returning `worth` unchanged turns this entry red. Partner: `discriminating pair: Uktabi Orangutan's forced destroy takes the opponent's Clue, not its blank artifact token (issue #9592)`.",
     },
     {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
