@@ -11,8 +11,11 @@
 import type { CardBackFace, TokenSpec } from "./types";
 
 /** Reshapes a `CardBackFace` into the `TokenSpec` shape `tokenDefinitionId`
- *  expects (same field vocabulary minus `entersWith`/`backFace` — a back
- *  face is never itself given a further back face).
+ *  expects (same field vocabulary minus `backFace` — a back face is never
+ *  itself given a further back face). The face's own `entersWith.counters`
+ *  maps to `copiableEntersWithCounters`, NOT `TokenSpec.entersWith`: it is
+ *  an ability of the face (CR 614.1c), not counters a creating effect
+ *  stamps on an instance (issue #9434).
  *
  *  Stamps `imagePrintFace: "back"` (issue #1595) whenever the back face
  *  carries its own `imagePrintId` — a real double-faced Scryfall print
@@ -54,6 +57,12 @@ export function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
         // the CR 714.3a lore counter from the definition the id presents.
         ...(backFace.chapterAbilities
             ? { chapterAbilities: backFace.chapterAbilities }
+            : {}),
+        // CR 614.1c (issue #9434) — the face's "enters with N counters"
+        // ability rides the id, so the synthesized definition carries it
+        // however it was obtained (registration or a cold decode).
+        ...(backFace.entersWith?.counters?.length
+            ? { copiableEntersWithCounters: backFace.entersWith.counters }
             : {}),
         imagePrintId: backFace.imagePrintId,
         ...(backFace.imagePrintId ? { imagePrintFace: "back" as const } : {}),

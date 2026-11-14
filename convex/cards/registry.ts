@@ -1078,19 +1078,31 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         spec.chapterAbilities && spec.chapterAbilities.length > 0
             ? spec.chapterAbilities
             : undefined;
-    if (spec.crewPowerBonus !== undefined || spec.manaCost || chapters) {
-        parts.push(spec.crewPowerBonus ?? "");
-    }
-    if (spec.manaCost || chapters) {
-        parts.push(
-            spec.manaCost
-                ? encodeURIComponent(JSON.stringify(spec.manaCost))
-                : ""
-        );
-    }
-    if (chapters) {
-        parts.push(encodeURIComponent(JSON.stringify(chapters)));
-    }
+    // 20th segment (index 19, issue #9434, CR 614.1c / 707.2) — the
+    // definition's own "enters with N counters" ability
+    // (`copiableEntersWithCounters`, a back face's `CardBackFace.entersWith`),
+    // JSON like `activatedAbilities`. Unlike `entersWith.counters` (index 11's
+    // note) it IS a characteristic of the shared definition. Appended only
+    // when present, like the three before it.
+    const copiableCounters =
+        spec.copiableEntersWithCounters &&
+        spec.copiableEntersWithCounters.length > 0
+            ? spec.copiableEntersWithCounters
+            : undefined;
+    // The trailing optional segments, in index order: each is written only
+    // when it or a LATER one is present (earlier absent ones hold their slot
+    // empty), so an id minted without any of them stays byte-identical.
+    const optionalTail: string[] = [
+        spec.crewPowerBonus !== undefined ? String(spec.crewPowerBonus) : "",
+        spec.manaCost ? encodeURIComponent(JSON.stringify(spec.manaCost)) : "",
+        chapters ? encodeURIComponent(JSON.stringify(chapters)) : "",
+        copiableCounters
+            ? encodeURIComponent(JSON.stringify(copiableCounters))
+            : "",
+    ];
+    let lastPresent = optionalTail.length - 1;
+    while (lastPresent >= 0 && optionalTail[lastPresent] === "") lastPresent--;
+    parts.push(...optionalTail.slice(0, lastPresent + 1));
     return `token:${parts.join("|")}`;
 }
 
@@ -1447,6 +1459,14 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
               decodeURIComponent(chaptersRaw)
           ) as ChapterAbilityDefinition[])
         : undefined;
+    // CR 614.1c (issue #9434) — the definition's own entry counters (see
+    // `tokenDefinitionId`'s 20th segment).
+    const copiableCountersRaw = parts[19];
+    const copiableEntersWithCounters = copiableCountersRaw
+        ? (JSON.parse(decodeURIComponent(copiableCountersRaw)) as NonNullable<
+              TokenSpec["copiableEntersWithCounters"]
+          >)
+        : undefined;
     const def: CardDefinition = {
         id: cardId,
         name,
@@ -1474,6 +1494,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
             ? { triggeredAbilities }
             : {}),
         ...(chapterAbilities ? { chapterAbilities } : {}),
+        ...(copiableEntersWithCounters
+            ? { entersWith: { counters: copiableEntersWithCounters } }
+            : {}),
         ...(backFace ? { backFace } : {}),
     };
     setRegistryEntry(cardId, def);
@@ -1520,6 +1543,9 @@ function decodeTokenSpec(defId: string): TokenSpec | undefined {
         .filter(Boolean) as TokenStaticEffectKey[];
     const asEnters = decodeJson<AsEntersChoice[]>(parts[15]);
     const manaCost = decodeJson<ManaCost>(parts[17]);
+    const copiableEntersWithCounters = decodeJson<
+        NonNullable<TokenSpec["copiableEntersWithCounters"]>
+    >(parts[19]);
     const spec: TokenSpec = {
         name: def.name,
         types: [...def.types],
@@ -1550,6 +1576,9 @@ function decodeTokenSpec(defId: string): TokenSpec | undefined {
             ? { chapterAbilities: def.chapterAbilities }
             : {}),
         ...(asEnters?.length ? { entersWith: { asEnters } } : {}),
+        ...(copiableEntersWithCounters?.length
+            ? { copiableEntersWithCounters }
+            : {}),
     };
     return tokenDefinitionId(spec) === defId ? spec : undefined;
 }

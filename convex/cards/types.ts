@@ -3461,6 +3461,20 @@ export interface CardBackFace {
      *  CR 704.5i SBA). Folded into the content-derived definition id
      *  (`tokenDefinitionId`) so a client-side decode rebuilds it too. */
     loyalty?: number;
+    /** CR 614.1c / 122.6 (issue #9434) — the back face's own "[this
+     *  permanent] enters with N counters on it" replacement, the back-face
+     *  twin of {@link CardDefinition.entersWith}`.counters` (same count
+     *  vocabulary, `EntersWithCount`). Read when the card ENTERS showing this
+     *  face — "exile it, then return it transformed" (Ral, Leyline Prodigy:
+     *  "enters with an additional loyalty counter on him for each instant and
+     *  sorcery spell you've cast this turn", on top of {@link loyalty}). Rides
+     *  the content-derived id as `TokenSpec.copiableEntersWithCounters`
+     *  (`backFaceAsTokenSpec`), so a cold decode rebuilds it too. NONMODAL
+     *  faces only: a modal face is a module-registered twin carrying a whole
+     *  `CardDefinition.entersWith` of its own. */
+    entersWith?: {
+        counters?: { type: string; count: EntersWithCount }[];
+    };
     /** Colors of the back face (CR 712.2 — a back face's color is fixed by
      *  its own printed characteristics, independent of the front). */
     colors?: Color[];
@@ -3882,6 +3896,16 @@ export interface TokenSpec {
          *  it reads a printed card's. */
         asEnters?: AsEntersChoice[];
     };
+    /** CR 614.1c / 707.2 (issue #9434) — the DEFINITION's own "enters with N
+     *  counters" ability, as opposed to `entersWith.counters` above, which the
+     *  creating effect stamps on each created instance. This one is a
+     *  copiable value (an ability of the object, CR 707.2), so it rides the
+     *  synthesized definition as `CardDefinition.entersWith.counters` and its
+     *  content-derived id (`tokenDefinitionId`), and it IS gated by a
+     *  "loses all abilities" effect (CR 613.1f). Reached through
+     *  `backFaceAsTokenSpec` (`CardBackFace.entersWith`) — a back face
+     *  entering already transformed. */
+    copiableEntersWithCounters?: { type: string; count: EntersWithCount }[];
     /** This token's BACK face (CR 712, issue #1210/#924 — the Incubator's
      *  "{2}: Transform this artifact" flips it to a Construct creature
      *  token). See {@link CardBackFace} for the full contract. Undefined for
