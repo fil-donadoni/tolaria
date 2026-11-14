@@ -3939,7 +3939,14 @@ export const OP_EXECUTORS: {
     reduceSpellCostThisTurn(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        ctx.reduceSpellCostThisTurn(playerId, op.amount, op.filter);
+        // CR 611.2a (issue #9435) — "until YOUR next turn": the expiry is
+        // keyed to the resolving ability's controller, not to `player`.
+        ctx.reduceSpellCostThisTurn(
+            playerId,
+            op.amount,
+            op.filter,
+            op.duration === "until-your-next-turn" ? ctx.controller : undefined
+        );
     },
     // CR 609.4b / 118.14 (issue #2890, North Star) — grant `player` a one-shot
     // "for one spell this turn, you may spend mana as though it were mana of

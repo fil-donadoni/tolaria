@@ -18706,8 +18706,32 @@ export function buildSpellContext(
         reduceSpellCostThisTurn(
             playerId: string,
             costReduction: CostReductionAmount,
-            filter?: SpellFilter
+            filter?: SpellFilter,
+            untilNextTurnOf?: string
         ): void {
+            // CR 611.2a (issue #9435) — "until your next turn" (Ral, Leyline
+            // Prodigy's +1): the same entry in the twin list `advanceTurn`
+            // prunes as `untilNextTurnOf`'s next turn begins, so it survives
+            // CLEANUP and the opponent's turn in between.
+            if (untilNextTurnOf !== undefined) {
+                const lasting = state.spellCostReductionsUntilNextTurn ?? [];
+                lasting.push(
+                    filter
+                        ? {
+                              playerId,
+                              costReduction,
+                              filter,
+                              expiresAtTurnOf: untilNextTurnOf,
+                          }
+                        : {
+                              playerId,
+                              costReduction,
+                              expiresAtTurnOf: untilNextTurnOf,
+                          }
+                );
+                state.spellCostReductionsUntilNextTurn = lasting;
+                return;
+            }
             // CR 601.2f — "spells you cast this turn cost {N} less to cast"
             // (Urza, Planeswalker's +2). Additive, NOT idempotent: 601.2f is
             // "minus ALL cost reductions", so two activations in one turn
@@ -25974,7 +25998,13 @@ export function getCostModifiers(
     // NOT `card.controllerId` — see this function's `announcerId` doc for the
     // cross-player exile cast where the two diverge. So an entry only applies
     // to its own player's casts; an opponent's spell is never reduced.
-    if (kind === "spell" && state.spellCostReductionsThisTurn?.length) {
+    // The "until your next turn" twin list (issue #9435, CR 611.2a) is the
+    // SAME fold: only the boundary that empties it differs (`advanceTurn`).
+    const floatingReductions = [
+        ...(state.spellCostReductionsThisTurn ?? []),
+        ...(state.spellCostReductionsUntilNextTurn ?? []),
+    ];
+    if (kind === "spell" && floatingReductions.length) {
         // The announced object as a `MatchableSpell`. Colours come from
         // `getEffectiveColors` (`cards/effectiveColors.ts`), which is the ONE
         // declared derivation of a card's CURRENT colours: it routes through
@@ -25999,7 +26029,7 @@ export function getCostModifiers(
             subtypes: card.subtypes,
             colors: getEffectiveColors(card),
         };
-        for (const entry of state.spellCostReductionsThisTurn) {
+        for (const entry of floatingReductions) {
             if (entry.playerId !== announcer) continue;
             if (
                 entry.filter !== undefined &&
