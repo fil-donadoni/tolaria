@@ -1554,6 +1554,9 @@ export function buildStateFromScenario(
             if (unit.restriction !== undefined) {
                 next.restriction = unit.restriction;
             }
+            if (unit.chosenCreatureType !== undefined) {
+                next.chosenCreatureType = unit.chosenCreatureType;
+            }
             if (unit.cantBeCounteredRider) next.cantBeCounteredRider = true;
             if (unit.hasteRider) next.hasteRider = true;
             // CR 702.189a (issue #3235) — the unit's lifetime. A rebuilt
@@ -4765,6 +4768,9 @@ export const RESTRICTED_MANA_KEY_DISPOSITION = {
     color: "lowered",
     amount: "lowered",
     restriction: "lowered",
+    /** CR 106.6 (issue #9388) — a creature-type string, not an instance id,
+     *  so a rebuild honours it. */
+    chosenCreatureType: "lowered",
     cantBeCounteredRider: "lowered",
     hasteRider: "lowered",
     /** CR 702.189a (issue #3235) — a closed union of engine-honoured
@@ -5895,6 +5901,9 @@ export function specFromState(
                 };
                 if (u.restriction !== undefined) {
                     unit.restriction = u.restriction;
+                }
+                if (u.chosenCreatureType !== undefined) {
+                    unit.chosenCreatureType = u.chosenCreatureType;
                 }
                 if (u.cantBeCounteredRider) unit.cantBeCounteredRider = true;
                 if (u.hasteRider) unit.hasteRider = true;

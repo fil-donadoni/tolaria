@@ -242,6 +242,7 @@ const MANA_RESTRICTION_PRESENCE = {
     "legendary-spell": true,
     "not-nonartifact-spell": true,
     "colorless-eldrazi": true,
+    "chosen-type-creature-spell": true,
 } satisfies Record<ManaRestriction, true>;
 
 /** The restriction members a spec may name, derived from the mirror above. */
@@ -276,6 +277,9 @@ export const scenarioRestrictedManaValidator = v.object({
     restriction: v.optional(
         v.union(...SCENARIO_MANA_RESTRICTIONS.map((r) => v.literal(r)))
     ),
+    /** CR 106.6 (issue #9388) — the creature type a
+     *  `chosen-type-creature-spell` unit is keyed on, snapshotted at deposit. */
+    chosenCreatureType: v.optional(v.string()),
     /** CR 106.6 riders (Delighted Halfling, Arena of Glory) — what happens to
      *  the spell this mana is spent on, orthogonal to which spells it may pay
      *  for. */
@@ -1112,6 +1116,8 @@ export type ScenarioRestrictedMana = {
     color: string;
     amount: number;
     restriction?: ManaRestriction;
+    /** CR 106.6 (issue #9388) — `RestrictedMana.chosenCreatureType`. */
+    chosenCreatureType?: string;
     cantBeCounteredRider?: boolean;
     hasteRider?: boolean;
     /** CR 702.189a (issue #3235) — the engine's own union, not a restated
@@ -1759,6 +1765,7 @@ function pickRestrictedMana(
                 continue;
             unit.restriction = restriction as ManaRestriction;
         }
+        set(unit, "chosenCreatureType", pickString(entry.chosenCreatureType));
         set(
             unit,
             "cantBeCounteredRider",

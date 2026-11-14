@@ -3395,7 +3395,10 @@ describe("scenario spec — floating mana (issue #3460)", () => {
             {
                 color: "G",
                 amount: 2,
-                restriction: "creature-spell",
+                restriction: "chosen-type-creature-spell",
+                // Issue #9388 — the chosen creature type a
+                // `chosen-type-creature-spell` unit is keyed on.
+                chosenCreatureType: "Elf",
                 cantBeCounteredRider: true,
                 hasteRider: true,
                 // CR 702.189a (issue #3235) — the LIFETIME field. The fixture
