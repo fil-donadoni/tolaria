@@ -27,16 +27,17 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { applyPlayLand } from "../../gre/playLand";
 import { routeLine } from "../grammar/router";
+import type { StaticClauseIR } from "../grammar/shared/staticClause";
 import { staticSlot } from "../grammar/slots/staticSlot";
 import { lowerStaticClause } from "../lowerStatic";
 import { parseContext } from "./oracle.fixture";
 
 const SENTENCE = "Lands you control enter untapped.";
 
-const CLAUSE = {
+const CLAUSE: StaticClauseIR = {
     kind: "enters-untapped-replacement",
     filter: { types: ["Land"], controllerRelation: "you" },
-} as const;
+};
 
 /** The clause alone, through the static slot. */
 function clause(line: string) {
