@@ -4,7 +4,7 @@
 //
 // CR 400.7a — an effect from a triggered ability that changes the
 // characteristics of a permanent spell on the stack continues to apply to the
-// permanent that spell becomes. The cast trigger (CR 603.6e) resolves while the
+// permanent that spell becomes. The cast trigger (CR 113.6k) resolves while the
 // spell is still on the stack, so `grantAbility { target: $source,
 // grantedTriggeredId }` stamps an entry grant rider on the stack item, and the
 // permanent branch of `finalizeSpellResolution` converts it into an indefinite
@@ -110,7 +110,7 @@ function pushCounterspellAt(state: GameState, spellId: string): void {
     });
 }
 
-describe("a cast trigger grants its own spell an ability carried onto the battlefield (CR 400.7a, CR 603.6e)", () => {
+describe("a cast trigger grants its own spell an ability carried onto the battlefield (CR 400.7a, CR 113.6k)", () => {
     it("the resolved cast trigger stamps the grant on the spell; the permanent enters with it, and it survives the projection", () => {
         const { state, spellId } = cast();
         expect(state.stack).toHaveLength(2);
@@ -168,7 +168,7 @@ describe("a cast trigger grants its own spell an ability carried onto the battle
         expect(selfGrants(card)).toEqual([]);
     });
 
-    it("a spell countered BEFORE the cast trigger resolves: the trigger finds no spell and grants nothing (CR 608.2b)", () => {
+    it("a spell countered BEFORE the cast trigger resolves: the trigger finds no spell and grants nothing (CR 400.7)", () => {
         const { state, spellId } = cast();
         // Counter the spell in response to its own cast trigger.
         pushCounterspellAt(state, spellId);

@@ -3505,7 +3505,7 @@ function attackerIdOf(
  *  (`grantTriggeredAbilityPermanent`'s `"spell"` branch) re-checks that the
  *  id names a permanent spell still on the stack, so an activated ability
  *  whose source left the battlefield, or a spell countered in response, grants
- *  nothing (CR 608.2b / 400.7). */
+ *  nothing (CR 400.7). */
 function sourceSpellGrantTarget(
     ctx: SpellContext,
     op: Extract<EffectOp, { op: "grantAbility" }>
