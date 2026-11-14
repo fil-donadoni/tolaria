@@ -141,6 +141,7 @@ export function indexManualCards(
     state: ProjectedManualGameState
 ): Map<string, ProjectedManualCard> {
     const byId = new Map<string, ProjectedManualCard>();
+    for (const card of state.stack ?? []) byId.set(card.id, card);
     for (const player of state.players) {
         for (const card of player.battlefield) byId.set(card.id, card);
         for (const card of player.hand) if (card) byId.set(card.id, card);

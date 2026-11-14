@@ -43,7 +43,7 @@ const GAME_CTX = {
 const MANUAL_GAME_CTX = makeManualGameContext({
     gameId: "g1" as Id<"games">,
     viewerId: "p1",
-    state: { players: [], turn: 1, activePlayerId: "p1" },
+    state: { players: [], stack: [], turn: 1, activePlayerId: "p1" },
     allPlayers: [],
     onSwitchGame: () => {},
 });

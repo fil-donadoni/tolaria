@@ -263,3 +263,56 @@ describe("manual drop resolution (#2169)", () => {
         ).toBeNull();
     });
 });
+
+describe("dropping on the stack (issue #2351)", () => {
+    const probe = { permanentId: null, zone: "stack" as const };
+    it("moves any seat's card to the game-wide stack, owner or not", () => {
+        for (const zoneOwnerId of [null, "me", "opp"]) {
+            expect(
+                resolveManualDrop({
+                    card: manualCard("c", { zone: "hand", ownerId: "me" }),
+                    probe: { ...probe, zoneOwnerId },
+                    dx: 5,
+                    dy: 5,
+                })
+            ).toEqual({ kind: "move", instanceId: "c", toZone: "stack" });
+        }
+    });
+    it("a card already on the stack dropped there is a no-op", () => {
+        expect(
+            resolveManualDrop({
+                card: manualCard("c", { zone: "stack" }),
+                probe: { ...probe, zoneOwnerId: null },
+                dx: 5,
+                dy: 5,
+            })
+        ).toBeNull();
+    });
+    it("a stack card dropped on its owner's graveyard moves there, on another seat's does not", () => {
+        const card = manualCard("c", { zone: "stack", ownerId: "me" });
+        expect(
+            resolveManualDrop({
+                card,
+                probe: {
+                    permanentId: null,
+                    zone: "graveyard",
+                    zoneOwnerId: "me",
+                },
+                dx: 5,
+                dy: 5,
+            })
+        ).toEqual({ kind: "move", instanceId: "c", toZone: "graveyard" });
+        expect(
+            resolveManualDrop({
+                card,
+                probe: {
+                    permanentId: null,
+                    zone: "graveyard",
+                    zoneOwnerId: "opp",
+                },
+                dx: 5,
+                dy: 5,
+            })
+        ).toBeNull();
+    });
+});

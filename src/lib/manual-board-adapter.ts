@@ -21,7 +21,7 @@ import type {
     ProjectedManualGameState,
     ProjectedManualPlayer,
 } from "@convex/manual";
-import { emptyManaPool, type Player } from "~/types/game";
+import { emptyManaPool, type Player, type StackItem } from "~/types/game";
 
 /** Adapts one projected manual seat to the board's player view type. The
  *  opponent's hand is already `null[]` and the library already `{ count }`
@@ -46,4 +46,16 @@ export function adaptManualPlayer(player: ProjectedManualPlayer): Player {
 /** Adapts every seat in a projected manual game state, in roster order. */
 export function adaptManualPlayers(state: ProjectedManualGameState): Player[] {
     return state.players.map(adaptManualPlayer);
+}
+
+/** Adapts the game-wide manual stack (issue #2351) to the board's
+ *  `stackItems`. A projected manual card already satisfies every other field
+ *  of `StackItem`'s base; the one it requires and a card has no notion of is
+ *  `castById`, supplied from the card's controller. Bottom first, top last —
+ *  the order `GameStack` expects. */
+export function adaptManualStack(state: ProjectedManualGameState): StackItem[] {
+    return state.stack.map((card) => ({
+        ...card,
+        castById: card.controllerId,
+    }));
 }

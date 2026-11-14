@@ -353,7 +353,8 @@ export const manualMoveCard = mutation({
             v.literal("hand"),
             v.literal("battlefield"),
             v.literal("graveyard"),
-            v.literal("exile")
+            v.literal("exile"),
+            v.literal("stack")
         ),
         index: v.optional(v.number()),
     },

@@ -19,6 +19,7 @@
 //
 // Pure: no Convex, no React, no DOM.
 
+import { adaptManualStack } from "./manual-board-adapter";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
 import { MANUAL_PHASE_ORDER } from "@convex/manual";
@@ -66,6 +67,9 @@ export function makeManualGameContext(args: {
     onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
 }) {
     const { gameId, viewerId, state, allPlayers, onSwitchGame } = args;
+    // The landscape-compact strip draws the stack from THIS context, not from
+    // `BoardSurface`'s prop (issue #2351).
+    const stackItems = adaptManualStack(state);
     return {
         gameId,
         playerId: viewerId,
@@ -74,8 +78,8 @@ export function makeManualGameContext(args: {
         phase: manualPhase(state.phase),
         turn: state.turn,
         engineTurn: state.turn,
-        stackCount: 0,
-        stackItems: [],
+        stackCount: stackItems.length,
+        stackItems,
         allPlayers,
         showAllCards: false,
         debugAllActions: false,

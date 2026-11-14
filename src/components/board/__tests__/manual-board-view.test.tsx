@@ -587,3 +587,162 @@ describe("the manual back row split through the real battlefield (#2348)", () =>
         expect(lastSplit()).toEqual({ left: 1, right: 1 });
     });
 });
+
+// Issue #2351 — the game-wide Manual Stack, end to end through the real board:
+// projected `state.stack` → `adaptManualStack` → the shared `GameStack` column →
+// `StackRow` (no registry definition behind the card) → verb menu / drag →
+// `manualMoveCard`.
+describe("the Manual Stack on the shared stack column (issue #2351)", () => {
+    function renderWithStack(stack = [spell("spell1", "opp")]) {
+        const state = manualState(
+            [
+                manualSeat("me", {
+                    hand: [manualCard("hand1", { zone: "hand" })],
+                }),
+                manualSeat("opp", { hand: [null] }),
+            ],
+            { stack }
+        );
+        return render(
+            <ManualBoardView
+                gameId={"game-id" as never}
+                viewerId="me"
+                state={state}
+            />
+        );
+    }
+    function spell(id: string, owner: string) {
+        return manualCard(id, {
+            zone: "stack",
+            controllerId: owner,
+            ownerId: owner,
+            name: "Counterspell",
+        });
+    }
+    function stackRow(id: string) {
+        return document.querySelector<HTMLElement>(`[data-flight-id="${id}"]`)!;
+    }
+
+    it("mounts the shared stack column with the row's printed name, never the raw print id", () => {
+        renderWithStack();
+        expect(screen.getByTestId("game-stack")).toBeTruthy();
+        const row = stackRow("spell1");
+        expect(within(row).getByText("Counterspell")).toBeTruthy();
+        expect(row.textContent).not.toContain("def-spell1");
+    });
+
+    it("lists both seats' spells in one order, top first", () => {
+        renderWithStack([spell("a", "me"), spell("b", "opp")]);
+        const ids = [
+            ...screen
+                .getByTestId("game-stack")
+                .querySelectorAll("[data-flight-id]"),
+        ].map((el) => el.getAttribute("data-flight-id"));
+        expect(ids).toEqual(["b", "a"]);
+    });
+
+    it("the column is the stack drop zone, and an empty stack keeps a drop target", () => {
+        const { unmount } = renderWithStack();
+        expect(
+            screen
+                .getByTestId("game-stack")
+                .closest('[data-zone-drop="stack"]') ??
+                screen
+                    .getByTestId("game-stack")
+                    .querySelector('[data-zone-drop="stack"]')
+        ).not.toBeNull();
+        unmount();
+        renderWithStack([]);
+        expect(screen.queryByTestId("game-stack")).toBeNull();
+        expect(screen.getByTestId("manual-stack-drop-zone")).toBeTruthy();
+    });
+
+    it("a hand card's menu offers Move to stack and dispatches manualMoveCard to the stack", () => {
+        renderWithStack([]);
+        fireEvent.click(
+            document.querySelector<HTMLElement>(
+                '[data-board-hand-card="hand1"]'
+            )!
+        );
+        fireEvent.click(screen.getByText("Move to stack"));
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            toZone: "stack",
+        });
+    });
+
+    it("a stack row opens the full destination menu and sends the card on", () => {
+        renderWithStack();
+        fireEvent.click(
+            within(stackRow("spell1")).getByRole("button", {
+                name: /Counterspell/,
+            })
+        );
+        for (const label of [
+            "Put onto battlefield",
+            "Move to hand",
+            "Move to graveyard",
+            "Move to exile",
+            "Move to library (top)",
+        ]) {
+            expect(screen.getByText(label)).toBeTruthy();
+        }
+        expect(screen.queryByText("Move to stack")).toBeNull();
+        fireEvent.click(screen.getByText("Move to graveyard"));
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "spell1",
+            toZone: "graveyard",
+        });
+    });
+
+    it("dragging a stack row onto a zone moves it there", () => {
+        renderWithStack();
+        const band = document.querySelector<HTMLElement>(
+            '[data-zone-drop="battlefield"][data-zone-owner="opp"]'
+        );
+        (
+            document as unknown as {
+                elementFromPoint: () => Element | null;
+            }
+        ).elementFromPoint = () => band;
+        fireEvent.pointerDown(stackRow("spell1"), {
+            button: 0,
+            clientX: 900,
+            clientY: 300,
+        });
+        fireEvent.pointerMove(window, { clientX: 700, clientY: 300 });
+        fireEvent.pointerUp(window, { clientX: 700, clientY: 300 });
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "spell1",
+            toZone: "battlefield",
+        });
+    });
+
+    it("dragging a hand card onto the stack column moves it to the stack, whoever owns the zone", () => {
+        renderWithStack();
+        const zone = document.querySelector<HTMLElement>(
+            '[data-zone-drop="stack"]'
+        );
+        (
+            document as unknown as {
+                elementFromPoint: () => Element | null;
+            }
+        ).elementFromPoint = () => zone;
+        fireEvent.pointerDown(
+            document.querySelector<HTMLElement>(
+                '[data-board-hand-card="hand1"]'
+            )!,
+            { button: 0, clientX: 100, clientY: 600 }
+        );
+        fireEvent.pointerMove(window, { clientX: 900, clientY: 300 });
+        fireEvent.pointerUp(window, { clientX: 900, clientY: 300 });
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            toZone: "stack",
+        });
+    });
+});
