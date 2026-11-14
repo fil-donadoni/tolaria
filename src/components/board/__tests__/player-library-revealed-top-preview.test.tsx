@@ -166,11 +166,17 @@ describe("revealed library top card preview (issue #2401)", () => {
             expect(alts).toEqual(["Card back"]);
         }
         const slot = container.querySelector("[data-flight-id]") as HTMLElement;
+        const root = slot.querySelector("[data-card-tilt-root]") as HTMLElement;
+        expect(root).toBeTruthy();
         act(() => {
-            fireEvent.touchStart(slot, {
+            fireEvent.touchStart(root, {
                 touches: [{ clientX: 10, clientY: 10 }],
             });
             vi.advanceTimersByTime(PAST_LONG_PRESS_MS);
+        });
+        act(() => {
+            fireEvent.pointerEnter(root, { pointerType: "mouse" });
+            vi.advanceTimersByTime(HOVER_DWELL_MS);
         });
         expect(overlay()).toBeNull();
         expect(dock()).toBeNull();
