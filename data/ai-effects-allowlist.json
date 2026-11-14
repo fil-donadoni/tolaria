@@ -1138,13 +1138,6 @@
     },
     {
         "class": "ability",
-        "cardId": "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
-        "name": "Freyalise Supplicant",
-        "abilityId": "freyalise-supplicant-sacrifice-ping",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "b11cd2e0-9419-4267-807e-5b73915c748a",
         "name": "Freyalise's Winds",
         "abilityId": "freyalises-winds-tapped",
