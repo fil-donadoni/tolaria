@@ -10321,7 +10321,6 @@
         {"key":"6e4a678b07bb","text":"Lands you control are Swamps in addition to their other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control are Swamps in addition to their other types"}},
         {"key":"bd9e26a5b82f","text":"Lands you control are the chosen type in addition to their other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control are the chosen type in addition to their other types"}},
         {"key":"cb724cbb2b0f","text":"Lands you control enter the battlefield untapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control enter the battlefield untapped"}},
-        {"key":"a3500a513b1e","text":"Lands you control enter untapped.","reason":"no slot consumed the line","cards":4,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control enter untapped"}},
         {"key":"e961874937bf","text":"Lands you control gain all basic land types until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Lands you control gain all basic land types until end of turn"}},
         {"key":"c5038867275e","text":"Lands you control have \"{T}: Add one mana of any color.\"","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control have \"{T}: Add one mana of any color.\""}},
         {"key":"7c360410a5fa","text":"Lands you control have \"{T}: Add three mana of any one color.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Lands you control have \"{T}: Add three mana of any one color.\""}},
@@ -40883,7 +40882,7 @@
 
         {"oracleId":"2962cfc6-6557-4aee-a95a-8ca3bb06eb29","name":"Crimson Cowl, Master of Evil","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5abbf4596fa5"]},
 
-        {"oracleId":"2962fe4c-bf48-454b-8a6b-0f8253352ae8","name":"Spelunking","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["44c35f7845fb","a3500a513b1e"]},
+        {"oracleId":"2962fe4c-bf48-454b-8a6b-0f8253352ae8","name":"Spelunking","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["44c35f7845fb"]},
 
         {"oracleId":"29646827-7b69-48c5-8273-4e66076e2384","name":"Mass of Ghouls","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Mass of Ghouls","types":["Creature"],"subtypes":["Zombie","Warrior"],"manaCost":{"X":3,"B":2},"power":5,"toughness":3},"botReach":"played"},
 
@@ -54415,7 +54414,7 @@
 
         {"oracleId":"5a8196ef-24ee-40b6-97d1-8a2257180f86","name":"Feral Encounter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ac560054e6cf"]},
 
-        {"oracleId":"5a824931-2b65-42b1-8653-d4313a6693d2","name":"Warp Speed","state":"unparsed","gaps":["854955b9663e","a3500a513b1e","bf434359be0b"]},
+        {"oracleId":"5a824931-2b65-42b1-8653-d4313a6693d2","name":"Warp Speed","state":"unparsed","gaps":["854955b9663e","bf434359be0b"]},
 
         {"oracleId":"5a824aff-52fe-4402-b074-884afb5286d4","name":"Amazing Alliance","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1ab40da22b3f"]},
 
@@ -93159,7 +93158,7 @@
 
         {"oracleId":"e6e4ad3c-079d-429b-9f29-b9e42a1a236f","name":"Slickshot Lockpicker","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["grantFlashback"],"definition":{"name":"Slickshot Lockpicker","types":["Creature"],"subtypes":["Human","Rogue"],"manaCost":{"X":2,"U":1},"power":2,"toughness":3,"oracleText":"When this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost. (You may cast that card from your graveyard for its flashback cost. Then exile it.)\nPlot {2}{U} (You may pay {2}{U} and exile this card from your hand. Cast it as a sorcery on a later turn without paying its mana cost. Plot only as a sorcery.)","compiledTriggeredAbilities":[{"id":"slickshot-lockpicker-trigger","oracleText":"When this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Instant","Sorcery"],"count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"grantFlashback","card":{"target":0}}]}],"plot":{"X":2,"U":1}},"botReach":"played"},
 
-        {"oracleId":"e6e6e3d2-f2fb-46a1-8798-13a2f2efe8cc","name":"The Wandering Minstrel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0764c549f56a","6c0caa83a2f7","a3500a513b1e"]},
+        {"oracleId":"e6e6e3d2-f2fb-46a1-8798-13a2f2efe8cc","name":"The Wandering Minstrel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0764c549f56a","6c0caa83a2f7"]},
 
         {"oracleId":"e6e6fce8-0f6a-4b84-865e-d4e4a4182f9f","name":"Temple of Silence","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability","static","triggered"],"opsUsed":["scryReorder"],"definition":{"name":"Temple of Silence","types":["Land"],"oracleText":"This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W} or {B}.","activatedAbilities":[{"id":"temple-of-silence-mana","oracleText":"{T}: Add {W} or {B}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"B":1}]}],"compiledTriggeredAbilities":[{"id":"temple-of-silence-trigger","oracleText":"When this land enters, scry 1.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"scryReorder","player":"controller","count":1,"destination":"library-bottom"}]}],"entersTapped":true},"botReach":"played"},
 
@@ -93769,7 +93768,7 @@
 
         {"oracleId":"e8d18dc7-f44b-47f6-8400-3f563c2f19b7","name":"Revered Elder","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["fdeea032c525"]},
 
-        {"oracleId":"e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2","name":"Horizon Explorer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0cc82b9895f1","a3500a513b1e"]},
+        {"oracleId":"e8d20361-d9b7-4f9c-8ec5-3ac7c460dcb2","name":"Horizon Explorer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0cc82b9895f1"]},
 
         {"oracleId":"e8d44867-9519-41f2-aa0f-4079444aeef9","name":"Kami of the Palace Fields","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e82ac0a8f5fd"]},
 
