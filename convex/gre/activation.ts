@@ -50,7 +50,7 @@ import { buildActivationSacrificeSelection } from "./activationCostPicks";
 import { refreshRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import { commitCast } from "./castCommit";
 import { handCardMatchesFilter } from "./alternativeCost";
-import { exileCastPermitted } from "./castCost";
+import { exileCastPermitted, intrinsicGraveyardCastScope } from "./castCost";
 import type { CastFromZone } from "./castCost";
 import {
     isTapLockedBySummoningSickness,
@@ -404,8 +404,9 @@ function findIntrinsicGraveyardCastable(
 ): CardInstanceState | undefined {
     const card = player.graveyard.find((c) => c.id === instanceId);
     if (!card || card.types.includes("Land")) return undefined;
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return def?.castableFromOwnGraveyard ? card : undefined;
+    // CR 702.178a — a permission behind max speed is read through the one
+    // reader, against the graveyard's owner.
+    return intrinsicGraveyardCastScope(player, card) ? card : undefined;
 }
 
 /** CR 601.3 (issue #2398, Bolas's Citadel) — the cast-from-top-of-

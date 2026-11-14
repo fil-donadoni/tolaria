@@ -32,6 +32,7 @@ import type { Zone } from "./types";
 import { alternativeCostConditionMet } from "./alternativeCost";
 import { getForetellCost, isForetellCast } from "./foretell";
 import { getMadnessCost } from "./madness";
+import { hasMaxSpeed } from "./speed";
 import {
     countDistinctCardTypes,
     getEscapeExileSpec,
@@ -580,9 +581,7 @@ export function graveyardCastMechanismForMember(
     // CR 601.3 (issue #1344) — the per-card grant (Malcolm, Emry), which may
     // also waive the mana cost.
     if (card.castableFromGraveyardBy === casterId) return "grant";
-    const intrinsic = tryGetDefinition(
-        (card.card as { id?: string }).id ?? ""
-    )?.castableFromOwnGraveyard;
+    const intrinsic = intrinsicGraveyardCastScope(player, card);
     // CR 702.51 (issue #1338, Hogaak) — the card's own intrinsic permission.
     if (intrinsic === true) return "intrinsic";
     // CR 601.3 (ADR 0093, issue #2244) — a graveyard play permission, whatever
@@ -807,7 +806,7 @@ export function requiredGraveyardAlternativeCostId(
         return undefined;
     }
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    const scope = def?.castableFromOwnGraveyard;
+    const scope = intrinsicGraveyardCastScope(player, card);
     if (typeof scope !== "object") return undefined;
     switch (scope.requiredAlternativeCost) {
         // CR 702.103a — the card's own Bestow cost. A card declaring the
@@ -1599,4 +1598,25 @@ export function castExileCostOccupiesPayWithSlot(
     return (
         buildCastExileCostChoice(state, player, card, zone, opts) !== undefined
     );
+}
+
+/** CR 702.51 / 601.3 — the card's OWN "You may cast this card from your
+ *  graveyard" permission (`castableFromOwnGraveyard`) as it stands for
+ *  `owner`, the graveyard's owner and would-be caster (CR 109.5): the
+ *  declared scope, or `undefined` when the card has none or it is gated off.
+ *  CR 702.178a / 702.178b — behind "Max speed —" the permission exists only
+ *  while that player's speed is 4 (CR 702.179e). The ONE reader of the
+ *  field: the legality gate (`getLegalActions`), the cast mutation's source
+ *  lookup and the mechanism precedence all ask here, so a gated permission
+ *  can never be offered where it is refused. */
+export function intrinsicGraveyardCastScope(
+    owner: Pick<PlayerState, "speed">,
+    card: CardInstanceState
+): boolean | { requiredAlternativeCost: "bestow" } | undefined {
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const scope = def?.castableFromOwnGraveyard;
+    if (!scope) return undefined;
+    if (def?.castableFromOwnGraveyardRequiresMaxSpeed && !hasMaxSpeed(owner))
+        return undefined;
+    return scope;
 }

@@ -2021,6 +2021,11 @@ export function buildTriggerStateView(
             ...(p.leftGraveyardThisTurn !== undefined
                 ? { leftGraveyardThisTurn: p.leftGraveyardThisTurn }
                 : {}),
+            // CR 702.179b — the player's speed, read by an ability behind
+            // "Max speed —" (CR 702.178a, `activationPreconditionViolation`).
+            // Dropped, every such ability would read as no speed and never be
+            // offered, though the server accepts it.
+            ...(p.speed !== undefined ? { speed: p.speed } : {}),
             graveyard: (p.graveyard ?? []).map((c) =>
                 triggerViewGraveyardCard(c as unknown as CardInstanceState)
             ),
