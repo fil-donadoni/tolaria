@@ -113,3 +113,25 @@ of eight seeds, out of 64:
   move on the branch.
 - **The Floors moved**, rounded down from the seeds 1..8 run:
   `p5DeckCastability` 0.77 → 0.76, `meanPlanShare` 0.48 → 0.47.
+
+## Issue #9322: the `lands-in-graveyard` Capability
+
+> **Measured at `25ea326af` (2026-11-14)**, base `309ea073c` against the
+> branch on it.
+
+The branch breaks `meanPlanShare` on seeds 1..8 (0.707 → 0.699 < 0.70).
+PR #9566 (issue #9356) set that Floor from the base's 0.707, a 0.007 margin.
+The plan share and Capability pairs of each block of eight seeds, out of 64:
+
+| Tree   | Plan share (64) | Pairs (64) | Plan share per block (median)                   |
+| ------ | --------------: | ---------: | ----------------------------------------------- |
+| Base   |           0.725 |      24.03 | .707 .755 .699 .726 .738 .738 .720 .714 (0.723) |
+| Branch |           0.728 |      24.88 | .699 .742 .724 .724 .760 .731 .734 .711 (0.728) |
+
+- **No build regression.** Over 64 seeds the share rises (0.725 → 0.728) and
+  so does the block median (0.723 → 0.728). The new pairs (24.03 → 24.88)
+  redraft every table, and seeds 1..8 happen to fall while seeds 17..24 and
+  33..40 rise.
+- **The base sits under the Floor in one block too** (seeds 17..24, 0.699):
+  0.70 was a run's own value rounded down, with no room for a redraft.
+- **The Floor moved** 0.70 → 0.69, rounded down from the seeds 1..8 run.
