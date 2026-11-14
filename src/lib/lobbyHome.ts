@@ -21,6 +21,7 @@ import {
     type MatchSetup,
 } from "./matchSetup";
 import { deckSearchHit } from "./matchSetupDeckGrid";
+import { deckPassesOrigin, type DeckOriginFilter } from "./deckOriginFilter";
 import type { DeckFormatFilter } from "./session";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 
@@ -179,15 +180,19 @@ export interface HomeDecks {
 }
 
 /** The Decks section: every deck of the Format (or all), matching the
- *  deck-or-card search, split into the player's own and the presets. */
+ *  deck-or-card search, split into the player's own and the presets. Under
+ *  Limited, `origin` narrows further to one Limited Origin. */
 export function homeDecks(
     decks: readonly LobbyDeck[],
     format: DeckFormatFilter,
-    query: string
+    query: string,
+    origin: DeckOriginFilter = "all"
 ): HomeDecks {
     const out: HomeDecks = { mine: [], presets: [] };
     for (const deck of decks) {
         if (format !== "all" && deck.format !== format) continue;
+        // The Origin select exists only under Limited (issue #2818).
+        if (format === "limited" && !deckPassesOrigin(deck, origin)) continue;
         const hit = deckSearchHit(deck, query);
         if (!hit) continue;
         (deck.kind === "user" ? out.mine : out.presets).push({
