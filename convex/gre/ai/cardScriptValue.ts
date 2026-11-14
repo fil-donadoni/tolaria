@@ -56,7 +56,12 @@ import {
     valueEffectScript,
 } from "./opValuers";
 import { withTypedRepresentativeVictim } from "./representativeVictim";
-import { stepTargetHolds, tappedOnNextStepOf } from "./latentBoard";
+import {
+    admitsPermanents,
+    stepTargetHolds,
+    tappedOnNextStepOf,
+} from "./latentBoard";
+import { activationCostPrice } from "./activationCostPrice";
 import type { CardInstanceState } from "../state";
 import type { OpValue, ValueTag } from "./featureBasis";
 
@@ -664,8 +669,10 @@ function abilityScriptOpValue(
         // so reading the ability as STANDING worth would charge the permanent's
         // worth twice (once held, once as the effect) and make using it read as
         // a loss — Seal of Cleansing worth 86 in play would never trade itself
-        // for a 48-point artifact. Such a card keeps its `base + MV` worth; the
-        // effect is priced where it is spent (the move that activates it).
+        // for a 48-point artifact. The effect is priced where it is spent (the
+        // move that activates it); what the permanent holds is the OPTION to
+        // spend it, read beside this reading (`dslSelfConsumingOption`, issue
+        // #9592) and bounded by what the activation yields.
         // Issue #5155 (review) — the same class on its HAND side: an ability
         // activated only from hand (`activateFromHand`) that discards the
         // card as its cost (`cost.discardThis`) — cycling,
@@ -1141,6 +1148,104 @@ export function dslStandingAbilityScriptValue(
         engineLens
     );
     return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
+}
+
+/** Issue #9592 — the OPTION a self-consuming ability gives its permanent:
+ *  `ceiling` is the best NET such ability yields (its script's value minus
+ *  the price of the rest of its cost, `activationCostPrice`), `uplift` that
+ *  net at `ABILITY_SCRIPT_DISCOUNT`. `latentValue` lifts the permanent by
+ *  `uplift` and never past `ceiling` (`withSelfConsumingOption`). */
+export interface SelfConsumingOption {
+    readonly uplift: number;
+    readonly ceiling: number;
+}
+
+/** Issue #9592 — the option worth of `def`'s activated abilities that consume
+ *  their own source as their cost (`cost.sacrifice` / `cost.exileThis`,
+ *  CR 602.1a): a Clue's "{2}, sacrifice: draw", a Food's "gain 3 life".
+ *  The standing reading skips them (issue #5145 — the permanent and the effect
+ *  it buys by consuming itself are ONE asset, so reading the effect as
+ *  standing worth charges it twice), which left a Clue at a blank artifact's
+ *  floor. Here they are read as what they are: the right to trade the
+ *  permanent for the effect. Only the BEST one counts — using any consumes
+ *  the permanent, so a second can never also be used.
+ *
+ *  Skipped, each fail-closed (the permanent keeps the reading it had):
+ *   - a MANA ability (CR 605.1a): the `mana` term prices it (a Treasure);
+ *   - one activated from a hand or a graveyard: not a permanent's option;
+ *   - one whose cost this reader cannot price (`activationCostPrice`);
+ *   - one whose target can be a permanent its controller does not control
+ *     (Seal of Cleansing's "destroy target artifact", Aeolipile's "any
+ *     target"): what it yields is a fact of the board, and a context-free
+ *     reading prices it at the representative victim — 157 for the Seal,
+ *     whose best victim may be a 48-point artifact. Read so, the Seal in
+ *     play would outvalue the trade it exists to make (the #5145 bug).
+ *     A target it controls (a Map's "target creature you control explores")
+ *     or a player is no board question;
+ *   - one whose script's reading board-scales (`"board-scaling"`: a
+ *     `forEach` over the battlefield, Pernicious Deed's "destroy each
+ *     artifact, creature and enchantment with mana value X or less"), for the
+ *     same reason — untargeted, it is still a fact of the board;
+ *   - one with no readable script, or whose net is not positive.
+ *  `undefined` when no ability qualifies. */
+export function dslSelfConsumingOption(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): SelfConsumingOption | undefined {
+    let best = 0;
+    for (const ability of def.activatedAbilities ?? []) {
+        if (
+            ability.cost.sacrifice !== true &&
+            ability.cost.exileThis !== true
+        ) {
+            continue;
+        }
+        if (
+            isManaAbilityDefinition(ability) ||
+            ability.activateFromHand === true ||
+            ability.activateFromGraveyard === true
+        ) {
+            continue;
+        }
+        const requirements = [
+            ability.targetRequirement,
+            ...(ability.additionalTargetRequirements ?? []),
+            ...(ability.modes ?? []).map((mode) => mode.targetRequirement),
+        ];
+        if (requirements.some(reachesForeignPermanent)) continue;
+        const price = activationCostPrice(ability.cost, ctx.latent.weights);
+        if (price === undefined) continue;
+        const script = effectiveScript(ability);
+        const raw = script
+            ? valueEffectScript(script, ctx)
+            : bestModeCombinationOpValue(
+                  ability.modes,
+                  ability.modeSelection,
+                  ctx
+              );
+        // An untargeted reading that board-scales (a `forEach` over the
+        // battlefield — Pernicious Deed, Powder Keg) is the same board
+        // question as a foreign target: context-free it reads the
+        // representative victim, not this board's.
+        if (!raw || raw.tags.includes("board-scaling")) continue;
+        best = Math.max(best, raw.points - price);
+    }
+    return best > 0
+        ? { uplift: best * ABILITY_SCRIPT_DISCOUNT, ceiling: best }
+        : undefined;
+}
+
+/** True when `requirement` can name a battlefield permanent its activator
+ *  does not control (CR 115.1c — a target is chosen on the board at
+ *  activation). */
+function reachesForeignPermanent(
+    requirement: TargetRequirement | undefined
+): boolean {
+    return (
+        requirement !== undefined &&
+        admitsPermanents(requirement) &&
+        requirement.controller !== "you"
+    );
 }
 
 /** Issue #5574 — a standing each-step engine's CR 603.4 gate, asked for

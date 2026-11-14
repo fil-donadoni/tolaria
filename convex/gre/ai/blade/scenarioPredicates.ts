@@ -682,6 +682,30 @@ export function submitsSoleTarget(
     );
 }
 
+/** Issue #9592 — the Bot answered a raised target selection naming exactly
+ *  one battlefield permanent, controlled by `controller`, whose registry
+ *  definition is named `name` — the token-aware twin of a `submit-target`
+ *  matcher, which resolves only CATALOGUE card names (`instanceIdsForName`)
+ *  and so cannot name a Clue or a blank artifact token. */
+export function submitsTargetPermanentNamed(
+    move: Move | null,
+    state: GameState,
+    name: string,
+    controller: BladeSeat
+): boolean {
+    if (move?.kind !== "submit-target" || move.targets.length !== 1) {
+        return false;
+    }
+    const player = state.players.find(
+        (p) => p.id === seatPlayerId(state, controller)
+    );
+    const perm = player?.battlefield.find((c) => c.id === move.targets[0].id);
+    return (
+        perm !== undefined &&
+        tryGetDefinition(String(perm.card.id ?? ""))?.name === name
+    );
+}
+
 /** "A text-bounded 'up to X' graveyard cast is OFFERED at exactly its bound" —
  *  the reachability guard for a target group whose size the spell's TEXT
  *  defines (CR 601.2c: "the number of targets will be defined by the spell's

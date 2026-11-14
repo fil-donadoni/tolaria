@@ -874,6 +874,19 @@ zero), which shares nothing but the word.
 _Avoid_: Floor (alone), base value, minimum value, uplift (the mechanism, not the
 name)
 
+**Self-Consuming Option**:
+What a non-creature **Permanent** is worth for holding an activated ability
+whose cost sacrifices or exiles that same permanent (a Clue's "{2}, sacrifice:
+draw a card"). The ability is never standing worth (issue #5145: the permanent
+and the effect it buys are one asset), so it is read as an option instead: the
+effect's value net of the rest of the cost, lifting the permanent by half that
+net and never past the net itself, so trading the permanent for its effect
+never reads as a loss (issue #9592). Only the best such ability counts; a mana
+ability (Treasure) is the `mana` term's, and an ability whose target can be a
+permanent its controller does not control keeps the **Latent Floor** — what it
+yields is a fact of the board.
+_Avoid_: sacrifice value, token value, standing sacrifice worth
+
 **Complete Script**:
 An **Effect Script** every Op of which resolves to a valuer whose beneficence is
 declared (not `neutral`) and which names no "each player" reference — the
