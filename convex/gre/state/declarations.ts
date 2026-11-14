@@ -2109,6 +2109,11 @@ export type TargetPreventionShield = {
     targetType: "permanent" | "player";
     targetId: string;
     remaining: number;
+    /** The ORIGINAL N of "prevent the next N damage", set once at creation
+     *  (`remaining` only counts down). Lets the card preview state how much the
+     *  shield has already prevented. Absent on a shield persisted before the
+     *  field existed — readers fall back to `remaining`. */
+    amount?: number;
     duration: Duration;
     /** Optional readback tag (CR 615.1). When set, every point this shield
      *  actually absorbs is accumulated into `state.preventionTallies[tallyId]`

@@ -56,6 +56,10 @@ import type {
     SplitHalf,
 } from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
+import type {
+    Duration,
+    TargetPreventionShield,
+} from "@convex/gre/state/declarations";
 import {
     computeEngineViewBadge,
     type EngineViewBadge,
@@ -176,6 +180,44 @@ export function combatRestrictionLines(
     return lines;
 }
 
+/** Phrase closing a shield line, per the phase its {@link Duration} ends at. */
+function shieldDurationPhrase(duration: Duration): string {
+    switch (duration.phase) {
+        case "end-of-turn":
+            return "this turn";
+        case "end-of-combat":
+            return "until end of combat";
+        case "upkeep":
+            return "until an upkeep";
+        case "untap":
+            return "until an untap step";
+    }
+}
+
+/** CR 615.1 / 615.7 — one live-text line per active "prevent the next N
+ *  damage" shield on this permanent, in shield order. N is the ORIGINAL amount;
+ *  once the shield has absorbed damage the line says how much. Shields on other
+ *  permanents or on players contribute nothing. */
+export function preventionShieldLines(
+    cardId: string | undefined,
+    shields: readonly TargetPreventionShield[] | undefined
+): string[] {
+    if (!cardId || !shields) return [];
+    const lines: string[] = [];
+    for (const shield of shields) {
+        if (shield.targetType !== "permanent" || shield.targetId !== cardId) {
+            continue;
+        }
+        const original = shield.amount ?? shield.remaining;
+        const prevented = original - shield.remaining;
+        const base = `Prevent the next ${original} damage that would be dealt to this permanent ${shieldDurationPhrase(shield.duration)}.`;
+        lines.push(
+            prevented > 0 ? `${base} (${prevented} already prevented)` : base
+        );
+    }
+    return lines;
+}
+
 export const BACK_FACE_HALF_LABEL = "Back face";
 
 /** CR 709.1 / 709.4 (issue #5490) — one half of a SPLIT card, rendered as a
@@ -270,6 +312,9 @@ export type PreviewBodyContent = {
      *  Live text like {@link skipNextUntap}: the engine clears each flag at
      *  CLEANUP, so the line goes with it. Empty when none applies. */
     combatRestrictions?: string[];
+    /** CR 615.1 — live "prevent the next N damage" shield lines on this
+     *  permanent, from {@link preventionShieldLines}. Empty when none. */
+    preventionShields?: string[];
     /** CR 111.1 / 111.7 — true iff this face is a live TOKEN permanent (a
      *  marker for a permanent not represented by a card, which ceases to exist
      *  as an SBA the moment it leaves the battlefield). Read off the projected
@@ -488,6 +533,9 @@ type PreviewGameCtx = {
      *  structurally forwarded from `GameContext.continuousEffects`, so a
      *  preview's effective P/T folds in an until-boundary pump. */
     continuousEffects?: ContinuousEffect[];
+    /** Structurally forwarded from `GameContext.targetPreventionShields` — the
+     *  CR 615.1 "prevent the next N damage" shields the preview lists. */
+    targetPreventionShields?: TargetPreventionShield[];
     /** Manual Game discriminator (issue #2346) — structurally forwarded from
      *  `GameContext.isManualGame`. Only `makeManualGameContext`
      *  (`~/lib/manual-game-context`) ever sets it; the GRE's own context value
@@ -701,6 +749,10 @@ export function buildPreviewBody(
         skipNextUntap: !!cardInstance?.skipNextUntap,
         exertPending: exertStatus(cardInstance, gameCtx?.combat) === "pending",
         combatRestrictions: combatRestrictionLines(cardInstance),
+        preventionShields: preventionShieldLines(
+            cardInstance?.id,
+            gameCtx?.targetPreventionShields
+        ),
         isToken: cardInstance?.isToken === true,
         abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,

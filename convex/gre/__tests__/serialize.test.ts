@@ -2367,6 +2367,7 @@ describe("optional field round-trip smoke tests", () => {
                 targetType: "permanent",
                 targetId: "c1",
                 remaining: 3,
+                amount: 5,
                 duration: { phase: "end-of-turn" },
             },
         ];
