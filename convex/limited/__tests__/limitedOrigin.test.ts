@@ -44,6 +44,34 @@ describe("limitedOriginKey", () => {
         );
     });
 
+    it("collapses two events of the same environment into one key", () => {
+        // Pack COUNT is not part of the origin (ADR 0106 §6, issue #2814):
+        // a 6-booster and a 9-booster Sealed of the same set are one origin,
+        // and so are two block drafts repeating their sets differently.
+        expect(
+            limitedOriginKey({
+                type: "sealed",
+                packSlots: Array(6).fill("lea"),
+            })
+        ).toBe(
+            limitedOriginKey({
+                type: "sealed",
+                packSlots: Array(9).fill("lea"),
+            })
+        );
+        expect(
+            limitedOriginKey({
+                type: "draft",
+                packSlots: ["inv", "inv", "pls"],
+            })
+        ).toBe(
+            limitedOriginKey({
+                type: "draft",
+                packSlots: ["inv", "pls", "pls"],
+            })
+        );
+    });
+
     it("lower-cases set codes so a typed code keys the same origin", () => {
         expect(limitedOriginKey({ type: "sealed", packSlots: ["LEA"] })).toBe(
             "sealed:lea"
