@@ -5,6 +5,7 @@
 
 import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { createMapTokenOp } from "../../abilities/tokens/mapToken";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Sentinel of the Nameless City — {2}{G} Creature — Merfolk Warrior Scout 3/4
 // (LCI, issue #2376, parent PRD #1525). "Vigilance. Whenever this creature
@@ -52,6 +53,77 @@ export const sentinelOfTheNamelessCity = defineCard(() => ({
                 (event.type === "ATTACKERS_DECLARED" &&
                     event.attackerIds.includes(self.id)),
             effects: [createMapTokenOp()],
+        },
+    ],
+}));
+
+// Spelunking — {2}{G} Enchantment (LCI, issue #9645). "When this enchantment
+// enters, draw a card, then you may put a land card from your hand onto the
+// battlefield. If you put a Cave onto the battlefield this way, you gain 4
+// life.\nLands you control enter untapped."
+//
+// Two debts, one marker. The Cave rider is below the Hand Tail floor (issue
+// #9645), so the trigger is written by hand. The static line is still an open
+// Grammar Gap above the floor (issue #8586), and a card carrying such a gap
+// may not wear the Hand Tail marker, so it wears the Grammar Gap one.
+// The land put in is the Uro shape (`choose-hand-card` + `moveZone`, CR 400.7);
+// `moveZone.bind` snapshots the permanent that entered and the rider reads it
+// back through `objectMatchesFilter`, false when the player declined (nothing
+// bound). "Lands you control enter untapped" is the compiled replacement
+// static (CR 614.1d), the descriptor the grammar emits for it.
+//
+// compiler-gap: Lands you control enter untapped. (#8586)
+export const spelunking = defineCard(() => ({
+    id: "d3be4257-2316-4a2e-b347-f71c0368a947",
+    name: "Spelunking",
+    rarity: "uncommon",
+    oracleText:
+        "When this enchantment enters, draw a card, then you may put a land card from your hand onto the battlefield. If you put a Cave onto the battlefield this way, you gain 4 life.\nLands you control enter untapped.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "spelunking-enters",
+            oracleText:
+                "When this enchantment enters, draw a card, then you may put a land card from your hand onto the battlefield. If you put a Cave onto the battlefield this way, you gain 4 life.",
+            scope: "self",
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Land" },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a land card from your hand onto the battlefield.",
+                    bind: "$land",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$land" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                    bind: "$entered",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: { ref: "$entered" },
+                        filter: { subtype: "Cave" },
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 4 }],
+                },
+            ],
+        }),
+    ],
+    compiledStaticEffects: [
+        {
+            kind: "enters-untapped-replacement",
+            id: "spelunking-lands-enter-untapped",
+            oracleText: "Lands you control enter untapped.",
+            filter: { types: ["Land"], controllerRelation: "you" },
         },
     ],
 }));
