@@ -1227,8 +1227,10 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // permutation is legal, and the minimal-legal default (ADR 0016) is
         // the order the engine put the cards there. `candidates` arrive in
         // ZONE order — a graveyard's bottom first — and the submission is
-        // topmost first, so the engine order is their reverse. Exploiting the
-        // order (a Volrath's Shapeshifter plan) is separate planning work.
+        // topmost first, so the engine order is their reverse. Under a
+        // graveyard-position reader the choice is `searchable` and the
+        // Worker decides which card goes on top (`graveyardOrderCandidates`,
+        // issue #9555); this default is the no-reader answer.
         case "graveyard-order":
             return [...candidates].reverse().map((c) => c.id);
 

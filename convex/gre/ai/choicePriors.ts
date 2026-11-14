@@ -302,6 +302,14 @@ export function heuristicChoicePrior(
     if (choice.kind === "order-top") {
         return signedMaterialPrior(candidate);
     }
+    // CR 404.3 (issue #9555) — a graveyard batch's arrangement is a partition
+    // too (which card goes on TOP, under a graveyard-position reader): the
+    // generator's `materialGained` is the top card's worth, and the engine
+    // order carries no hint, so it sits at the neutral baseline below every
+    // readable top.
+    if (choice.kind === "graveyard-order") {
+        return signedMaterialPrior(candidate);
+    }
     // CR 608.2c (issue #3388) — an optional hand pick is not a yes/no answer
     // either: its answers are `resolution-choice` submissions, so `acceptOf`
     // returns `undefined` and every branch would sit at the flat
@@ -390,7 +398,6 @@ export function heuristicChoicePrior(
         case "choose-categorized":
         case "legend-keep":
         case "meld-arrange":
-        case "graveyard-order":
         case "choose-aura-host":
         case "mulligan-bottom":
         case "opening-hand-action":
