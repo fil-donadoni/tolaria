@@ -1686,7 +1686,7 @@ function isLiteralList<T extends string>(
  *  "this spell removes permanents and the board is empty" (0 units) from
  *  "this spell was never about permanents" (unknown, keep the representative
  *  fallback). */
-function admitsPermanents(requirement: TargetRequirement): boolean {
+export function admitsPermanents(requirement: TargetRequirement): boolean {
     if (requirement.zone && requirement.zone !== "battlefield") return false;
     const types = Array.isArray(requirement.type)
         ? requirement.type
