@@ -33150,6 +33150,16 @@
         "firstPrintSet": "mom"
     },
     {
+        "name": "Glitch Ghost Surveyor",
+        "scryfallId": "b9bb89b9-50dd-4b36-aa10-aba585e50246",
+        "oracleId": "f0f83ab8-6185-4139-b41e-a11500036915",
+        "firstSet": "dft",
+        "firstPrintId": "b9bb89b9-50dd-4b36-aa10-aba585e50246",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Glitterfang",
         "scryfallId": "a1519521-7f53-4f13-a104-daf52e8c7234",
         "oracleId": "226dca3d-9da3-4c3f-89d0-67264fd19c51",
@@ -34230,6 +34240,16 @@
         "firstSet": "fdn",
         "firstPrintId": "527dd5d4-5f72-40bb-8a9d-1f5ac3f81e2e",
         "firstPrintSet": "fdn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Surveyor",
+        "scryfallId": "e1efffe9-00f8-4177-a9e6-4ad62887d32f",
+        "oracleId": "237758f3-84b2-4e5b-a2c7-b28c893e2790",
+        "firstSet": "dft",
+        "firstPrintId": "e1efffe9-00f8-4177-a9e6-4ad62887d32f",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },
@@ -46381,6 +46401,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lightwheel Enhancements",
+        "scryfallId": "9ab169c1-4e25-4a5d-8961-4f06298c3781",
+        "oracleId": "17fae94e-558f-449a-b30c-e3c37a068b79",
+        "firstSet": "dft",
+        "firstPrintId": "9ab169c1-4e25-4a5d-8961-4f06298c3781",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Liliana of the Veil",
         "scryfallId": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
         "oracleId": "0ba134d8-ee7d-48ec-8dc6-57942b8e9261",
@@ -47442,6 +47472,16 @@
         "firstPrintId": "0e58f4fb-5b4e-45bc-99b3-d09cd79132df",
         "firstPrintSet": "5dn",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Loxodon Surveyor",
+        "scryfallId": "cd1cecb1-6776-4495-be56-b7dde65453f1",
+        "oracleId": "970f26d4-c916-444a-a2d2-4c1f5bb5556b",
+        "firstSet": "dft",
+        "firstPrintId": "cd1cecb1-6776-4495-be56-b7dde65453f1",
+        "firstPrintSet": "dft",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -53043,6 +53083,16 @@
         "firstSet": "nph",
         "firstPrintId": "af2d23da-70a1-49ba-91bf-c110cc4bbedc",
         "firstPrintSet": "nph",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mutant Surveyor",
+        "scryfallId": "7cec5105-3907-40d2-8e46-95acfaaaa0cc",
+        "oracleId": "f35aace7-57b5-44b8-91d2-4710eb7d5548",
+        "firstSet": "dft",
+        "firstPrintId": "7cec5105-3907-40d2-8e46-95acfaaaa0cc",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },

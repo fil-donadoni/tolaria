@@ -85,6 +85,7 @@ import {
     exileCastOnlyUnderPlotPermission,
     exileGrantPermitted,
     modalBackCastLicensed,
+    intrinsicGraveyardCastScope,
     requiredGraveyardAlternativeCostId,
 } from "./castCost";
 import {
@@ -1640,9 +1641,9 @@ export function getLegalActions(
     // permission's (`requiredGraveyardAlternativeCostId` answers `undefined`)
     // and the branch below claims it with the printed cost available.
     const inOwnGraveyard = player.graveyard.some((c) => c.id === card.id);
-    const intrinsicScope = tryGetDefinition(
-        (card.card as { id?: string }).id ?? ""
-    )?.castableFromOwnGraveyard;
+    // CR 702.178a — read through the one reader, which drops a permission
+    // gated behind max speed while the owner lacks it.
+    const intrinsicScope = intrinsicGraveyardCastScope(player, card);
     const requiredAltCostId =
         inOwnGraveyard && intrinsicScope && intrinsicScope !== true
             ? requiredGraveyardAlternativeCostId(state, player, card, casterId)

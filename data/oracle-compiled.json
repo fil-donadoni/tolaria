@@ -10565,25 +10565,23 @@
         {"key":"00034384d1b5","text":"Max speed — At the beginning of your upkeep, exile the top card of your library. You may play that card this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Play that card this turn"}},
         {"key":"69c32a464646","text":"Max speed — If a source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 1 instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Max speed — If a source you control would deal damage to an opponent or a permanent an opponent controls"}},
         {"key":"7b89b0286bd7","text":"Max speed — If you would draw a card, draw two cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Max speed — If you would draw a card"}},
-        {"key":"14aae50f83d0","text":"Max speed — Sacrifice this enchantment: Create two 1/1 colorless Thopter artifact creature tokens with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — Sacrifice this enchantment"}},
-        {"key":"38d1f7a92c10","text":"Max speed — Sacrifice this enchantment: Creatures and Vehicles you control gain haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — Sacrifice this enchantment"}},
+        {"key":"211f5d5c95c0","text":"Max speed — Sacrifice this enchantment: Create two 1/1 colorless Thopter artifact creature tokens with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — Sacrifice this enchantment"}},
+        {"key":"11815c2de82a","text":"Max speed — Sacrifice this enchantment: Creatures and Vehicles you control gain haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Creatures and Vehicles you control gain haste until end of turn"}},
         {"key":"20a54ed9e0ac","text":"Max speed — Whenever a creature you control dies, each opponent loses 1 life and you gain 1 life.","reason":"\"each player\" is not in grammar v0","cards":1},
         {"key":"ba7930087884","text":"Max speed — Whenever a nontoken creature you control dies, create a tapped 2/2 black Zombie creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever a nontoken creature you control dies"}},
         {"key":"28c140a92d79","text":"Max speed — Whenever you cast an artifact spell, you may pay {1}. If you do, copy it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"560f9a72245f","text":"Max speed — Whenever you draw a card, each opponent mills two cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you draw a card"}},
-        {"key":"af94ecd9b8d7","text":"Max speed — You may cast this card from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Max speed — You may cast this card from your graveyard"}},
         {"key":"fba905d7c965","text":"Max speed — You may pay {0} rather than pay the unearth cost of the first unearth ability you activate each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Max speed — You may pay {0} rather than pay the unearth cost of the first unearth ability you activate each turn"}},
-        {"key":"03944adaa3f6","text":"Max speed — {1}, Sacrifice this creature: Copy target spell you control. You may choose new targets for the copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {1}"}},
-        {"key":"5b2c755a373a","text":"Max speed — {1}{B}, Sacrifice this enchantment: Search your library for a card, put it into your hand, then shuffle. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {1}{B}"}},
-        {"key":"f84542a2c061","text":"Max speed — {3}, Exile this card from your graveyard: Draw a card.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {3}"}},
-        {"key":"a164691232ad","text":"Max speed — {3}, {T}, Discard a card: Draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {3}"}},
-        {"key":"3c03529fc640","text":"Max speed — {B}, Sacrifice another creature or Vehicle: Draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {B}"}},
-        {"key":"7747a7ad753f","text":"Max speed — {T}, Sacrifice this artifact: Draw two cards, then discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
-        {"key":"cb58ff25388a","text":"Max speed — {T}: Add {C}{C}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
-        {"key":"8329e5533651","text":"Max speed — {T}: Add {R} for each Goblin you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
-        {"key":"5111696f6abb","text":"Max speed — {T}: Add {R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
-        {"key":"29a2df8a5b69","text":"Max speed — {T}: Put a +1/+1 counter on target creature or Vehicle you control. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
-        {"key":"c9873fc3eca1","text":"Max speed — {T}: Target creature gains haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"92077a491543","text":"Max speed — {1}, Sacrifice this creature: Copy target spell you control. You may choose new targets for the copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Copy target spell you control"}},
+        {"key":"aea7a74d7daa","text":"Max speed — {1}{B}, Sacrifice this enchantment: Search your library for a card, put it into your hand, then shuffle. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {1}{B}"}},
+        {"key":"5a590dca5510","text":"Max speed — {3}, {T}, Discard a card: Draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {3}"}},
+        {"key":"f75b171706f5","text":"Max speed — {B}, Sacrifice another creature or Vehicle: Draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost","object descriptor"],"span":"other creature or Vehicle"}},
+        {"key":"2c606c319acd","text":"Max speed — {T}, Sacrifice this artifact: Draw two cards, then discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"2b2518f63a6b","text":"Max speed — {T}: Add {C}{C}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"dfefcb29b6bd","text":"Max speed — {T}: Add {R} for each Goblin you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"0a88fdfc8471","text":"Max speed — {T}: Add {R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"7187844d1400","text":"Max speed — {T}: Put a +1/+1 counter on target creature or Vehicle you control. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
+        {"key":"35bb7bb54dd9","text":"Max speed — {T}: Target creature gains haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — {T}"}},
         {"key":"2dbff267b2b4","text":"Mayhem {1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Mayhem {1}{B}"}},
         {"key":"0c5c099d7036","text":"Mayhem {1}{R}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Mayhem {1}{R}"}},
         {"key":"c8c3a86f46f9","text":"Mayhem {2}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Mayhem {2}"}},
@@ -24926,8 +24924,6 @@
         {"key":"aaa3ec23114a","text":"You may cast this card from your graveyard using its blitz ability.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this card from your graveyard using its blitz ability"}},
         {"key":"c61e3f467781","text":"You may cast this card from your graveyard using its warp ability.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this card from your graveyard using its warp ability"}},
         {"key":"11e0cac12fee","text":"You may cast this card from your graveyard, but not from anywhere else.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this card from your graveyard, but not from anywhere else"}},
-        {"key":"bba55c6de20e","text":"You may cast this card from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You may cast this card from your graveyard"}},
-        {"key":"ae53d82870f5","text":"You may cast this card from your graveyard.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this card from your graveyard"}},
         {"key":"bf73c65e12a7","text":"You may cast this card from your graveyard. If you do, it enters with a finality counter on it.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this card from your graveyard. If you do, it enters with a finality counter on it"}},
         {"key":"684bed2abb1c","text":"You may cast this creature from your graveyard by paying {B}{B} and sacrificing two creatures rather than paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this creature from your graveyard by paying {B}{B} and sacrificing two creatures rather than paying its mana cost"}},
         {"key":"393505e63e40","text":"You may cast this creature from your graveyard if you pay {1} more to cast it for each other creature card in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You may cast this creature from your graveyard if you pay {1} more to cast it for each other creature card in your graveyard"}},
@@ -36322,7 +36318,7 @@
 
         {"oracleId":"17fa98cd-ed8f-483f-9525-7e989a82ebb2","name":"Balance","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"bannedIn":["premodern","legacy","vintage","commander"],"gaps":["95232c786804"]},
 
-        {"oracleId":"17fae94e-558f-449a-b30c-e3c37a068b79","name":"Lightwheel Enhancements","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["af94ecd9b8d7"]},
+        {"oracleId":"17fae94e-558f-449a-b30c-e3c37a068b79","name":"Lightwheel Enhancements","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Lightwheel Enhancements","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"W":1},"oracleText":"Enchant creature or Vehicle\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nEnchanted permanent gets +1/+1 and has vigilance.\nMax speed — You may cast this card from your graveyard.","staticAbilities":["start your engines!"],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":1,"toughness":1},{"kind":"keyword-grant","appliesTo":"host","keyword":"vigilance"}],"castableFromOwnGraveyard":true,"castableFromOwnGraveyardRequiresMaxSpeed":true,"targetRequirement":{"type":["Creature","Artifact"],"count":1,"typeOrSubtypeFilter":{"types":["Creature"],"subtypes":["Vehicle"]}}},"botReach":"played"},
 
         {"oracleId":"17fd42f6-f388-4ffc-8fec-ca9ada2506ee","name":"Kaito, Dancing Shadow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0fc3b7c3d912","647c05f08a84","8781936ce349"]},
 
@@ -39376,7 +39372,7 @@
 
         {"oracleId":"2375e6e4-bea2-4fa2-b0d5-467e3076962c","name":"Cantankerous Captain","state":"unparsed","gaps":["3b720fa4ca1c"]},
 
-        {"oracleId":"237758f3-84b2-4e5b-a2c7-b28c893e2790","name":"Goblin Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f84542a2c061"]},
+        {"oracleId":"237758f3-84b2-4e5b-a2c7-b28c893e2790","name":"Goblin Surveyor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["draw"],"definition":{"name":"Goblin Surveyor","types":["Creature"],"subtypes":["Goblin","Scout"],"manaCost":{"X":2,"R":1},"power":3,"toughness":2,"oracleText":"Trample\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nMax speed — {3}, Exile this card from your graveyard: Draw a card.","staticAbilities":["trample","start your engines!"],"activatedAbilities":[{"id":"goblin-surveyor-ability","oracleText":"Max speed — {3}, Exile this card from your graveyard: Draw a card.","cost":{"mana":{"X":3},"exileThis":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}],"activateFromGraveyard":true,"requiresMaxSpeed":true}]},"botReach":"played"},
 
         {"oracleId":"2378d6fc-b6ba-4a44-b951-5698ed507e4c","name":"Drownyard Amalgam","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9036fa75dba3"]},
 
@@ -52836,7 +52832,7 @@
 
         {"oracleId":"5480f855-80b7-45c7-94a9-071c7b5d5ccf","name":"Curse of the Bloody Tome","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["720a2f9ba693","de08f53e0413"]},
 
-        {"oracleId":"5482ddb1-7f7d-492a-aa3d-67c037062cc3","name":"Slick Imitator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["03944adaa3f6"]},
+        {"oracleId":"5482ddb1-7f7d-492a-aa3d-67c037062cc3","name":"Slick Imitator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["92077a491543"]},
 
         {"oracleId":"54831951-2cd3-41bb-8326-6cfce48feb34","name":"Boggart Arsonists","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["destroy"],"definition":{"name":"Boggart Arsonists","types":["Creature"],"subtypes":["Goblin","Rogue"],"manaCost":{"X":2,"R":1},"power":2,"toughness":1,"oracleText":"Plainswalk (This creature can't be blocked as long as defending player controls a Plains.)\n{2}{R}, Sacrifice this creature: Destroy target Scarecrow or Plains.","staticAbilities":["plainswalk"],"activatedAbilities":[{"id":"boggart-arsonists-ability","oracleText":"{2}{R}, Sacrifice this creature: Destroy target Scarecrow or Plains.","cost":{"mana":{"X":2,"R":1},"sacrifice":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Creature","Land"],"count":1,"subtypeFilter":["Scarecrow","Plains"]}}]},"botReach":"played"},
 
@@ -63882,7 +63878,7 @@
 
         {"oracleId":"7c943883-06af-45a4-b5ed-b4564835dbb0","name":"Fade from Memory","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["draw","moveZone"],"definition":{"name":"Fade from Memory","types":["Instant"],"manaCost":{"B":1},"oracleText":"Exile target card from a graveyard.\nCycling {B} ({B}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {B} ({B}, Discard this card: Draw a card.)","cost":{"mana":{"B":1},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"effects":[{"op":"moveZone","target":{"target":0},"to":"exile"}],"targetRequirement":{"type":"card","count":1,"zone":"graveyard","controller":"any"}},"botReach":"played"},
 
-        {"oracleId":"7c98626b-ba97-4d1e-9be7-291480ae8d22","name":"Gas Guzzler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c03529fc640"]},
+        {"oracleId":"7c98626b-ba97-4d1e-9be7-291480ae8d22","name":"Gas Guzzler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f75b171706f5"]},
 
         {"oracleId":"7c996399-29e5-463a-af70-36856863bce9","name":"Magic Designer","state":"unparsed","gaps":["08fe6f1ce988"]},
 
@@ -65702,7 +65698,7 @@
 
         {"oracleId":"8372115d-c963-4a41-8759-72f7f6a8935a","name":"Shelob, Child of Ungoliant","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0c48d269c533","2ddd23397254"]},
 
-        {"oracleId":"83734824-1cad-4649-87ae-a5c338771c4c","name":"Skaab Ruinator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae53d82870f5","f0ab0346adb3"]},
+        {"oracleId":"83734824-1cad-4649-87ae-a5c338771c4c","name":"Skaab Ruinator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f0ab0346adb3"]},
 
         {"oracleId":"837417d8-8260-486d-a3ed-3b5711eaf34a","name":"Resurrection","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Resurrection","types":["Sorcery"],"manaCost":{"X":2,"W":2},"oracleText":"Return target creature card from your graveyard to the battlefield.","effects":[{"op":"moveZone","target":{"target":0},"to":"battlefield"}],"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"}},"botReach":"played"},
 
@@ -68418,7 +68414,7 @@
 
         {"oracleId":"8cd3815d-92a6-4336-9da7-b18b1afd5460","name":"Fortuitous Find","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6ab12d9e8963"]},
 
-        {"oracleId":"8cd45064-2ad9-4247-902e-aefaf3bc1a43","name":"Their Number Is Legion","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bba55c6de20e","ee5b7a3ed449"]},
+        {"oracleId":"8cd45064-2ad9-4247-902e-aefaf3bc1a43","name":"Their Number Is Legion","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ee5b7a3ed449"]},
 
         {"oracleId":"8cd65dcd-e36d-47b1-b011-961c79004cb0","name":"Netter en-Dal","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["b40d7aef8ffc"]},
 
@@ -70616,7 +70612,7 @@
 
         {"oracleId":"9485db26-7e03-4a66-beeb-627a3bc6f367","name":"Propagator Drone","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2d22e3163650","6f9c73b4957b"]},
 
-        {"oracleId":"94868faf-9e88-4221-8db6-3ad10aa02da5","name":"Kickoff Celebrations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["38d1f7a92c10"]},
+        {"oracleId":"94868faf-9e88-4221-8db6-3ad10aa02da5","name":"Kickoff Celebrations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["11815c2de82a"]},
 
         {"oracleId":"948e3bb7-8265-4e95-acd1-a0c4f22441df","name":"Helm of Chatzuk","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility"],"definition":{"name":"Helm of Chatzuk","types":["Artifact"],"manaCost":{"X":1},"oracleText":"{1}, {T}: Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)","activatedAbilities":[{"id":"helm-of-chatzuk-ability","oracleText":"{1}, {T}: Target creature gains banding until end of turn.","cost":{"mana":{"X":1},"tap":true},"useStack":true,"effects":[{"op":"grantAbility","target":{"target":0},"ability":"banding","duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -71242,7 +71238,7 @@
 
         {"oracleId":"970dc070-3668-4584-9904-2897b27bb806","name":"Twin Bolt","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamageDividedAsChosen"],"definition":{"name":"Twin Bolt","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Twin Bolt deals 2 damage divided as you choose among one or two targets.","effects":[{"op":"dealDamageDividedAsChosen","total":2}],"targetRequirement":{"type":"any","count":{"min":1},"divideAsChosen":{"total":2}}},"botReach":"played"},
 
-        {"oracleId":"970f26d4-c916-444a-a2d2-4c1f5bb5556b","name":"Loxodon Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f84542a2c061"]},
+        {"oracleId":"970f26d4-c916-444a-a2d2-4c1f5bb5556b","name":"Loxodon Surveyor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["draw"],"definition":{"name":"Loxodon Surveyor","types":["Creature"],"subtypes":["Elephant","Scout"],"manaCost":{"X":2,"G":1},"power":3,"toughness":3,"oracleText":"Start your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nMax speed — {3}, Exile this card from your graveyard: Draw a card.","staticAbilities":["start your engines!"],"activatedAbilities":[{"id":"loxodon-surveyor-ability","oracleText":"Max speed — {3}, Exile this card from your graveyard: Draw a card.","cost":{"mana":{"X":3},"exileThis":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}],"activateFromGraveyard":true,"requiresMaxSpeed":true}]},"botReach":"played"},
 
         {"oracleId":"97140551-341a-40a1-93fe-0fcaa0c3be33","name":"Warrior Angel","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["gainLife"],"definition":{"name":"Warrior Angel","types":["Creature"],"subtypes":["Angel","Warrior"],"manaCost":{"X":4,"W":2},"power":3,"toughness":4,"oracleText":"Flying\nWhenever this creature deals damage, you gain that much life.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"warrior-angel-trigger","oracleText":"Whenever this creature deals damage, you gain that much life.","head":{"kind":"damage-dealt","source":"self","recipient":"any"},"effects":[{"op":"gainLife","player":"controller","amount":{"ref":"$event.amount"}}]}]},"botReach":"played"},
 
@@ -71400,7 +71396,7 @@
 
         {"oracleId":"97acd3aa-ae4a-4e9d-a5b9-36eaba158735","name":"Unburden","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","discard","draw"],"definition":{"name":"Unburden","types":["Sorcery"],"manaCost":{"X":1,"B":2},"oracleText":"Target player discards two cards.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":2,"prompt":"Discard two cards.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
-        {"oracleId":"97acd977-164d-49d5-b3a1-72e0d75c9016","name":"Hogaak, Arisen Necropolis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["modern"],"gaps":["892015578ca9","ae53d82870f5"]},
+        {"oracleId":"97acd977-164d-49d5-b3a1-72e0d75c9016","name":"Hogaak, Arisen Necropolis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["modern"],"gaps":["892015578ca9"]},
 
         {"oracleId":"97b0b719-d948-4671-97ba-1b2be8cc55e4","name":"Springjack Knight","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["460698a78b37"]},
 
@@ -71432,7 +71428,7 @@
 
         {"oracleId":"97c188c4-3f27-428e-a4f6-4213f44898fc","name":"Mirrormere Guardian","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["08397f926497"]},
 
-        {"oracleId":"97c29db0-b3e1-4704-afe8-5218250c044c","name":"Leonin Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["956720e867f2","f84542a2c061"]},
+        {"oracleId":"97c29db0-b3e1-4704-afe8-5218250c044c","name":"Leonin Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["956720e867f2"]},
 
         {"oracleId":"97c8f5e1-9fc1-4a62-a757-1c0454754cd3","name":"Impatience","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["f581a3f5e105"]},
 
@@ -79356,7 +79352,7 @@
 
         {"oracleId":"b4d6747c-3516-4e71-be30-af007c6b1dc4","name":"Apex Devastator","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["cascade"],"definition":{"name":"Apex Devastator","types":["Creature"],"subtypes":["Chimera","Hydra"],"manaCost":{"X":8,"G":2},"power":10,"toughness":10,"oracleText":"Cascade, cascade, cascade, cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order. Multiple instances of cascade each trigger separately.)","staticAbilities":["cascade","cascade","cascade","cascade"]},"botReach":"played"},
 
-        {"oracleId":"b4d970ed-f332-440c-8c2f-8a8a0191410b","name":"Endrider Catalyzer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5111696f6abb"]},
+        {"oracleId":"b4d970ed-f332-440c-8c2f-8a8a0191410b","name":"Endrider Catalyzer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0a88fdfc8471"]},
 
         {"oracleId":"b4dbbf56-d7df-4183-bb48-cfc6b4d0468f","name":"Armored Skyhunter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8161a9dc27b4"]},
 
@@ -79678,7 +79674,7 @@
 
         {"oracleId":"b5f9920d-7af5-4876-8823-6efbf2b4d9b9","name":"Karn's Touch","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["5163b0b6e67c"]},
 
-        {"oracleId":"b5fa5651-d714-44d6-867b-be0e3224b7ed","name":"Muraganda Raceway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cb58ff25388a"]},
+        {"oracleId":"b5fa5651-d714-44d6-867b-be0e3224b7ed","name":"Muraganda Raceway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2b2518f63a6b"]},
 
         {"oracleId":"b5fb9366-8541-46d8-ac4a-f80d639bbdda","name":"Zone of Flame","state":"unparsed","gaps":["2e559fbb1ffa","61c04d4f9d00"]},
 
@@ -83290,7 +83286,7 @@
 
         {"oracleId":"c3469de8-4bdb-42d4-9fc0-75fe31c3f6e5","name":"Lymph Sliver","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3d359ff1cb6b"]},
 
-        {"oracleId":"c34ba73f-9c9a-4f54-b0ad-3e3c12a27ea6","name":"Deviant Skytech","state":"unparsed","gaps":["14aae50f83d0"]},
+        {"oracleId":"c34ba73f-9c9a-4f54-b0ad-3e3c12a27ea6","name":"Deviant Skytech","state":"unparsed","gaps":["211f5d5c95c0"]},
 
         {"oracleId":"c34c17c7-3827-49a2-be25-67f44fdfe150","name":"Strike It Rich","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["200fcccaf6cc"]},
 
@@ -86064,7 +86060,7 @@
 
         {"oracleId":"cd444267-712c-450f-a349-e27faf4f4c7c","name":"Soldevi Golem","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b9a7a5e7cbcf"]},
 
-        {"oracleId":"cd45a29f-73bc-435c-9d50-09a4ecaa77be","name":"Howlsquad Heavy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8329e5533651","b78887a2cb2a"]},
+        {"oracleId":"cd45a29f-73bc-435c-9d50-09a4ecaa77be","name":"Howlsquad Heavy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b78887a2cb2a","dfefcb29b6bd"]},
 
         {"oracleId":"cd47eedd-57cb-460d-b339-4785f63a5475","name":"Leinore, Autumn Sovereign","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1ae72c830e49"]},
 
@@ -86828,7 +86824,7 @@
 
         {"oracleId":"cff5aca2-72c5-4053-a32c-c0bd3174c52d","name":"Turtles Forever","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f03e65ee44df"]},
 
-        {"oracleId":"cff7499a-44b0-4a2a-b96c-ed2cafb1a90d","name":"Perilous Snare","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["29a2df8a5b69"]},
+        {"oracleId":"cff7499a-44b0-4a2a-b96c-ed2cafb1a90d","name":"Perilous Snare","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7187844d1400"]},
 
         {"oracleId":"cff8b4e9-c60c-42c1-ad2e-74ae9d7f3afb","name":"Vraska, Swarm's Eminence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3924a5f479bb","39be0b7f4c96"]},
 
@@ -88604,7 +88600,7 @@
 
         {"oracleId":"d605d9d1-c01a-4ef6-89f9-06fae8cd57e6","name":"Calamitous Tide","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","discard","draw","moveZone"],"definition":{"name":"Calamitous Tide","types":["Sorcery"],"manaCost":{"X":4,"U":2},"oracleText":"Return up to two target creatures to their owners' hands. Draw two cards, then discard a card.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"draw","player":"controller","count":2},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":2}}},"botReach":"played"},
 
-        {"oracleId":"d608a3fa-faee-44a4-9ab6-be701d3b7a49","name":"Starting Column","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7747a7ad753f"]},
+        {"oracleId":"d608a3fa-faee-44a4-9ab6-be701d3b7a49","name":"Starting Column","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2c606c319acd"]},
 
         {"oracleId":"d60ad13c-07fe-47d5-812e-75e0d32835c3","name":"Elves","state":"unparsed","gaps":["c674ab8328b9"]},
 
@@ -92126,7 +92122,7 @@
 
         {"oracleId":"e2c141af-925e-42bd-8d83-e1a71f4c9794","name":"Rakdos, the Muscle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c7954cd51007"]},
 
-        {"oracleId":"e2c35551-1ba5-4424-baf9-821b49bbcc8c","name":"Avishkar Raceway","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["a164691232ad"]},
+        {"oracleId":"e2c35551-1ba5-4424-baf9-821b49bbcc8c","name":"Avishkar Raceway","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5a590dca5510"]},
 
         {"oracleId":"e2c49754-711e-43b3-82f1-5376a4d99701","name":"Wonder Man, Hollywood Hero","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3f1a384cecd1","767581b198ea"]},
 
@@ -94466,7 +94462,7 @@
 
         {"oracleId":"eb0e6f63-2861-4392-ac0e-64380fbbd8ae","name":"Library Larcenist","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw"],"definition":{"name":"Library Larcenist","types":["Creature"],"subtypes":["Merfolk","Rogue"],"manaCost":{"X":2,"U":1},"power":1,"toughness":2,"oracleText":"Whenever this creature attacks, draw a card.","compiledTriggeredAbilities":[{"id":"library-larcenist-trigger","oracleText":"Whenever this creature attacks, draw a card.","head":{"kind":"attacks"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"eb100b3b-bc3f-48f3-8f28-bb2d80225ea9","name":"Hour of Victory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5b2c755a373a"]},
+        {"oracleId":"eb100b3b-bc3f-48f3-8f28-bb2d80225ea9","name":"Hour of Victory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aea7a74d7daa"]},
 
         {"oracleId":"eb107601-f4ff-4504-9e3f-3de63b0d9e6b","name":"Crack the Earth","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","forEach","sacrifice"],"definition":{"name":"Crack the Earth","types":["Sorcery"],"subtypes":["Arcane"],"manaCost":{"R":1},"oracleText":"Each player sacrifices a permanent of their choice.","effects":[{"op":"forEach","select":{"set":"players"},"simultaneous":true,"effects":[{"op":"choice","kind":"sacrifice-permanents","player":{"ref":"$each"},"zone":"battlefield","filter":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"]},"count":1,"prompt":"Sacrifice a permanent.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"}}]}]},"botReach":"played"},
 
@@ -96158,7 +96154,7 @@
 
         {"oracleId":"f0f7c3df-52f8-4835-a18f-69e56ffa3432","name":"Ethereal Valkyrie","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9ad1f2af5643"]},
 
-        {"oracleId":"f0f83ab8-6185-4139-b41e-a11500036915","name":"Glitch Ghost Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f84542a2c061"]},
+        {"oracleId":"f0f83ab8-6185-4139-b41e-a11500036915","name":"Glitch Ghost Surveyor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["draw"],"definition":{"name":"Glitch Ghost Surveyor","types":["Creature"],"subtypes":["Spirit","Scout"],"manaCost":{"X":2,"U":1},"power":2,"toughness":2,"oracleText":"Flying\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nMax speed — {3}, Exile this card from your graveyard: Draw a card.","staticAbilities":["flying","start your engines!"],"activatedAbilities":[{"id":"glitch-ghost-surveyor-ability","oracleText":"Max speed — {3}, Exile this card from your graveyard: Draw a card.","cost":{"mana":{"X":3},"exileThis":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}],"activateFromGraveyard":true,"requiresMaxSpeed":true}]},"botReach":"played"},
 
         {"oracleId":"f0fac3bc-a566-448e-a9a2-10927a49f182","name":"Karplusan Giant","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Karplusan Giant","types":["Creature"],"subtypes":["Giant"],"manaCost":{"X":6,"R":1},"power":3,"toughness":3,"oracleText":"Tap an untapped snow land you control: This creature gets +1/+1 until end of turn.","activatedAbilities":[{"id":"karplusan-giant-ability","oracleText":"Tap an untapped snow land you control: This creature gets +1/+1 until end of turn.","cost":{"tapOtherFilter":{"filter":{"types":["Land"],"supertypes":["Snow"],"controllerRelation":"you"},"count":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -96802,7 +96798,7 @@
 
         {"oracleId":"f35aa497-bd0f-4642-8713-820b9f014da5","name":"Rubble Rouser","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9fb3185882dd"]},
 
-        {"oracleId":"f35aace7-57b5-44b8-91d2-4710eb7d5548","name":"Mutant Surveyor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f84542a2c061"]},
+        {"oracleId":"f35aace7-57b5-44b8-91d2-4710eb7d5548","name":"Mutant Surveyor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["draw","pump"],"definition":{"name":"Mutant Surveyor","types":["Creature"],"subtypes":["Mutant","Scout"],"manaCost":{"X":2,"B":1},"power":2,"toughness":3,"oracleText":"Start your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\n{2}: This creature gets +1/+1 until end of turn.\nMax speed — {3}, Exile this card from your graveyard: Draw a card.","staticAbilities":["start your engines!"],"activatedAbilities":[{"id":"mutant-surveyor-ability","oracleText":"{2}: This creature gets +1/+1 until end of turn.","cost":{"mana":{"X":2}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]},{"id":"mutant-surveyor-ability-2","oracleText":"Max speed — {3}, Exile this card from your graveyard: Draw a card.","cost":{"mana":{"X":3},"exileThis":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}],"activateFromGraveyard":true,"requiresMaxSpeed":true}]},"botReach":"played"},
 
         {"oracleId":"f3623759-bf3a-4846-9ef7-1b732ad4355f","name":"Rushwood Legate","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["alternative-cost"],"opsUsed":[],"definition":{"name":"Rushwood Legate","types":["Creature"],"subtypes":["Dryad"],"manaCost":{"X":2,"G":1},"power":2,"toughness":1,"oracleText":"If an opponent controls an Island and you control a Forest, you may cast this spell without paying its mana cost.","alternativeCosts":[{"id":"cast-without-paying","description":"Cast without paying its mana cost","condition":{"kind":"all","of":[{"kind":"opponent-control","filter":{"subtypes":["Island"]}},{"kind":"control","filter":{"subtypes":["Forest"]}}]}}]},"botReach":"played"},
 
@@ -99802,7 +99798,7 @@
 
         {"oracleId":"fe16f1ab-58b4-4452-abe4-cbd9addd348f","name":"Magma Spray","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","exileOnDeath"],"definition":{"name":"Magma Spray","types":["Instant"],"manaCost":{"R":1},"oracleText":"Magma Spray deals 2 damage to target creature. If that creature would die this turn, exile it instead.","effects":[{"op":"dealDamage","amount":2,"to":{"target":0}},{"op":"exileOnDeath","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"fe174586-d36b-40f6-babd-1f98e76eec22","name":"Amonkhet Raceway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c9873fc3eca1"]},
+        {"oracleId":"fe174586-d36b-40f6-babd-1f98e76eec22","name":"Amonkhet Raceway","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["35bb7bb54dd9"]},
 
         {"oracleId":"fe1a9af0-1774-4d54-b59f-f42dc8afcbe9","name":"Nix","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["148d2d879381"]},
 

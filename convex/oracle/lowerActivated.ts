@@ -212,6 +212,8 @@ export function lowerActivatedAbility(input: {
     readonly cost: ActivationCostIR;
     readonly effects: readonly EffectSentenceIR[];
     readonly restrictions: readonly RestrictionIR[];
+    /** CR 702.178a — the ability was printed behind "Max speed —". */
+    readonly maxSpeed?: true;
     /** CR 113.1a — see `SiteOptions.grantQuotedAbility`. */
     readonly grantQuotedAbility?: SiteOptions["grantQuotedAbility"];
 }): LowerAbilityResult {
@@ -290,6 +292,9 @@ export function lowerActivatedAbility(input: {
     // ability: offered and paid only while the card is there.
     if (input.cost.atoms.some(isGraveyardExile))
         ability.activateFromGraveyard = true;
+    // CR 702.178a / 702.178b — behind "Max speed —" the ability exists only
+    // while the activator (CR 109.5) has max speed.
+    if (input.maxSpeed === true) ability.requiresMaxSpeed = true;
     // An ability whose only effect animates its own source is marked so the
     // Bot never pays for it twice (`ActivatedAbility.animatesSelf`).
     // The animation may carry its own granted ability (`grantAbility` on the

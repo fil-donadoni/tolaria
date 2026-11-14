@@ -2597,6 +2597,12 @@ export interface ActivatedAbility {
      *  Equipment is attached only to a creature (CR 301.5c), so `attachedTo`
      *  answers the printed clause whole. */
     activatableOnlyWhileAttached?: boolean;
+    /** CR 702.178a — "Max speed — <ability>": the object has the ability only
+     *  as long as "your" speed is 4 (CR 702.179e). Read by the one authority,
+     *  `activationPreconditionViolation`, against the player who would
+     *  activate it — the source's controller, or its owner for an
+     *  `activateFromGraveyard` ability (CR 109.5, CR 702.178b). */
+    requiresMaxSpeed?: true;
     /** Restrict activation to the controller's own turn (CR 602.5b — "activate
      *  only during your turn"). Distinct from `activationPhaseRestriction`
      *  which is phase-keyed and turn-independent. Used by Instill Energy's
@@ -13899,8 +13905,10 @@ export interface TriggerStateView {
     players: ReadonlyArray<{
         id: string;
         life: number;
-        /** CR 702.179b — read by the compiled max speed gate. Server-side only:
-         *  no client reducer evaluates a trigger condition. */
+        /** CR 702.179b — read by the compiled max speed gates: a trigger
+         *  condition (server-side only) and an activated ability behind "Max
+         *  speed —" (`activationPreconditionViolation`), whose client hint
+         *  `buildTriggerStateView` forwards it for. */
         speed?: number;
         /** Spells this player cast this turn (CR 601.2i). Engine-read, by a
          *  cast trigger's "if you've cast another spell this turn" (CR 603.4);
@@ -24440,6 +24448,12 @@ export interface CardDefinition {
      *  countered or dead Phoenix is castable again. Read through
      *  `requiredGraveyardAlternativeCost` (`gre/castCost.ts`), never directly. */
     castableFromOwnGraveyard?: boolean | { requiredAlternativeCost: "bestow" };
+    /** CR 702.178a / 702.178b — "Max speed — You may cast this card from your
+     *  graveyard" (Lightwheel Enhancements): `castableFromOwnGraveyard` exists
+     *  only while the graveyard's owner — the would-be caster, CR 109.5 — has
+     *  max speed (CR 702.179e). Read through `intrinsicGraveyardCastScope`
+     *  (`gre/castCost.ts`), never directly. */
+    castableFromOwnGraveyardRequiresMaxSpeed?: true;
     /** CR 601.3a — "Cast this spell only if <board predicate>" (Blizzard, ICE).
      *  The card's OWN cast-legality gate, checked by the shared, frontend-safe
      *  `castProhibitionReason` (`convex/cards/castRestrictions.ts`) — so the
