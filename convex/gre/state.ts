@@ -3579,6 +3579,32 @@ export function cardsStillExiled(
     return out;
 }
 
+/** Sums two entry-counter deltas (`applyEntersWithCounters` results) into
+ *  one, for an entry site that applies two declarations to one permanent. */
+function mergeEntryCounterDeltas(
+    a: Record<string, number>,
+    b: Record<string, number>
+): Record<string, number> {
+    const out = { ...a };
+    for (const [type, n] of Object.entries(b)) out[type] = (out[type] ?? 0) + n;
+    return out;
+}
+
+/** CR 601.2i (issue #9434) — the entering permanent's controller's
+ *  spells-cast-this-turn tally, in the shape `resolveEntersWithCounters`
+ *  reads. Undefined with no board (a pure-fixture call). */
+function controllerSpellTally(
+    state: GameState | undefined,
+    card: CardInstanceState
+): EntersWithCastValues["spellsCastThisTurn"] {
+    const player = state?.players.find((p) => p.id === card.controllerId);
+    if (!player) return undefined;
+    return {
+        total: player.spellsCastThisTurn ?? 0,
+        byType: player.spellTypesCastThisTurn ?? {},
+    };
+}
+
 /** CR 121.6 + 614.1c (issue #1693) — applies a permanent's declared
  *  "enters with N counters on it" REPLACEMENT to `card`, AS it enters.
  *
@@ -3642,7 +3668,16 @@ export function applyEntersWithCounters(
         placement?: boolean;
     }
 ): Record<string, number> {
-    const delta = resolveEntersWithCounters(def, cast);
+    const delta = resolveEntersWithCounters(def, {
+        ...cast,
+        // CR 601.2i (issue #9434) — "for each spell you've cast this turn" is
+        // a BOARD read, filled here, at the one applier every entry site
+        // calls, so no site can forget it (`EntersWithCastValues
+        // .spellsCastThisTurn`). "You" is the entering permanent's
+        // controller, already set on `card` at every site.
+        spellsCastThisTurn:
+            cast.spellsCastThisTurn ?? controllerSpellTally(state, card),
+    });
     // CR 614.1c — an accepted "you may have this enter with N counters" answer
     // (`mayEnterWithCounters`) adds to whatever the definition declares, and
     // is an ability of the permanent like the rest: the CR 613.1f probe below
@@ -22657,8 +22692,24 @@ export function createTokenPermanents(
         // discovers them off the definition it now presents (CR 707.6).
         // `entersWith.counters` deliberately does NOT ride the definition —
         // those are stamped per created INSTANCE from the spec.
-        ...(spec.entersWith?.asEnters && spec.entersWith.asEnters.length > 0
-            ? { entersWith: { asEnters: spec.entersWith.asEnters } }
+        //
+        // CR 614.1c / 707.2 (issue #9434) — `copiableEntersWithCounters` is
+        // the contrast: the DEFINITION's own "enters with" ability, so it
+        // rides the definition (and the id, `tokenDefinitionId`), exactly as
+        // `maybeSynthesizeToken` decodes it.
+        ...((spec.entersWith?.asEnters &&
+            spec.entersWith.asEnters.length > 0) ||
+        spec.copiableEntersWithCounters?.length
+            ? {
+                  entersWith: {
+                      ...(spec.entersWith?.asEnters?.length
+                          ? { asEnters: spec.entersWith.asEnters }
+                          : {}),
+                      ...(spec.copiableEntersWithCounters?.length
+                          ? { counters: [...spec.copiableEntersWithCounters] }
+                          : {}),
+                  },
+              }
             : {}),
     });
     for (let i = 0; i < effectiveCount; i++) {
@@ -22786,16 +22837,35 @@ export function createTokenPermanents(
                   state,
                   { deferEvents: true, placement: opts?.placement }
               )
-            : applyEntersWithCounters(
-                  token,
-                  { entersWith: spec.entersWith },
-                  { manaSpentToCast: {} },
-                  state,
-                  {
-                      fromCreatingEffect: true,
-                      deferEvents: true,
-                      placement: opts?.placement,
-                  }
+            : mergeEntryCounterDeltas(
+                  applyEntersWithCounters(
+                      token,
+                      { entersWith: spec.entersWith },
+                      { manaSpentToCast: {} },
+                      state,
+                      {
+                          fromCreatingEffect: true,
+                          deferEvents: true,
+                          placement: opts?.placement,
+                      }
+                  ),
+                  // CR 614.1c (issue #9434) — the token definition's OWN
+                  // "enters with" ability (`copiableEntersWithCounters`), an
+                  // ability of the token, so — unlike the creating effect's
+                  // counters above — it IS gated by ability loss.
+                  spec.copiableEntersWithCounters?.length
+                      ? applyEntersWithCounters(
+                            token,
+                            {
+                                entersWith: {
+                                    counters: spec.copiableEntersWithCounters,
+                                },
+                            },
+                            { manaSpentToCast: {} },
+                            state,
+                            { deferEvents: true, placement: opts?.placement }
+                        )
+                      : {}
               );
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(

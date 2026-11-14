@@ -29,19 +29,28 @@
 //     "put it onto the battlefield", and blink/flicker returns. Applied above
 //     the `entersTappedUnlessPay` early return so a deferred land-entry choice
 //     doesn't skip it;
-//   * `createTokenPermanents` — ONE call site with two branches (issue #2558
-//     folded the token-copy path into the shared token entry path, so the copy
+//   * `createTokenPermanents` — ONE call site with two branches (the
+//     token-copy path shares the token entry path, so the copy
 //     is stamped on before the CR 614 chokepoint reads it). Plain token: the
 //     token spec's own `entersWith.counters` (Incubate N), the ONE branch NOT
 //     gated by the CR 613.1f ability-loss probe below, because those counters
 //     come from the effect CREATING the token, not from an ability of the
-//     token, so "loses all abilities" cannot remove them (issue #1882).
+//     token, so "loses all abilities" cannot remove them.
 //     `copyOf` token: a token COPY inherits the copied card's clause, a
 //     copiable value (CR 706.2 / 707.2), and IS gated;
 //   * `settleEnteredLand` (`gre/playLand.ts`) — every play-a-land path
-//     (hand / exile / graveyard / post-pay-choice). LIVE since issue #2712:
+//     (hand / exile / graveyard / post-pay-choice). Live:
 //     the Mercadian Masques depletion lands (`sets/mmq/colorless.cards.ts`) enter
 //     tapped with two depletion counters, so this site is load-bearing.
+// A NONMODAL back face entering already transformed ("exile it, then return
+// it transformed", `exileAndReturnTransformed` → `stampBackFaceForEntry` in
+// `gre/transform.ts`) is no extra site: it reaches
+// `stageReanimatedOnBattlefield` pointing at the synthesized back-face
+// definition, whose `entersWith.counters` is the face's own
+// `CardBackFace.entersWith`, carried through the content-derived id as
+// `TokenSpec.copiableEntersWithCounters`. A planeswalker face's
+// CR 306.5b starting loyalty is placed beside it, so "an additional loyalty
+// counter" lands on top of the printed loyalty.
 // Two sites deliberately do NOT run the applier: `finalizeLandEntry`'s
 // effect-entry branch (the permanent already got its counters when
 // `stageReanimatedOnBattlefield` staged it) and `returnExiledForSource`'s
@@ -87,7 +96,20 @@ export type EntersWithCount =
     // 607.2a — a linked ability "refers only to cards in the exile zone").
     // `types` keeps a card having ANY listed card type ("instant and sorcery
     // card" = an instant OR a sorcery card); absent counts every such card.
-    | { readonly cardsExiledWithIt: { readonly types?: readonly CardType[] } };
+    | { readonly cardsExiledWithIt: { readonly types?: readonly CardType[] } }
+    // CR 601.2i (issue #9434) — "for each [type] spell you've cast this turn":
+    // the entering permanent's CONTROLLER's spells cast during the current
+    // turn, read off `PlayerState.spellsCastThisTurn` /
+    // `spellTypesCastThisTurn` (Ral, Leyline Prodigy: "for each instant and
+    // sorcery spell you've cast this turn"). `types` keeps a spell having ANY
+    // listed card type; absent counts every spell. Not a cast-time value: it
+    // is read off the board AS the permanent enters, so it counts however the
+    // permanent enters (cast, put onto the battlefield, returned transformed).
+    | {
+          readonly spellsCastThisTurn: {
+              readonly types?: readonly CardType[];
+          };
+      };
 
 /** Cast-time values the count vocabulary may read off the entering object.
  *
@@ -139,6 +161,34 @@ export interface EntersWithCastValues {
      *  by the entry site from the stack item's `castExiledCardIds`; absent on
      *  every uncast path, where no cost was paid. */
     cardsExiledWithIt?: readonly { readonly types: readonly string[] }[];
+    /** CR 601.2i (issue #9434) — the entering permanent's controller's
+     *  spells cast this turn: `total` is `PlayerState.spellsCastThisTurn`,
+     *  `byType` its per-card-type split `spellTypesCastThisTurn`. A board
+     *  read, not a cast-time value — filled by the GRE's one applier
+     *  (`applyEntersWithCounters`, `gre/state.ts`) from the state it is
+     *  handed, so no entry site can forget it. Absent reads 0 (a fixture with
+     *  no board, a debug placement). */
+    spellsCastThisTurn?: {
+        readonly total: number;
+        readonly byType: Readonly<Partial<Record<CardType, number>>>;
+    };
+}
+
+/** CR 601.2i (issue #9434) — how many spells the entering permanent's
+ *  controller cast this turn having any of `types` (all of them when `types`
+ *  is absent). Sums the per-type tallies of the listed types, so a spell
+ *  carrying TWO listed types would count twice: exact for the type sets a
+ *  card can name together without overlap (instant and sorcery — no spell is
+ *  both), which is every declaration this count serves. */
+export function countSpellsCastThisTurn(
+    tally: EntersWithCastValues["spellsCastThisTurn"],
+    types: readonly CardType[] | undefined
+): number {
+    if (!tally) return 0;
+    if (!types) return Math.max(0, tally.total);
+    let n = 0;
+    for (const t of new Set(types)) n += tally.byType[t] ?? 0;
+    return Math.max(0, n);
 }
 
 /** CR 607.2q — how many of `exiled` (the cards exiled with the entering
@@ -204,35 +254,41 @@ export function resolveEntersWithCounters(
                             entry.count.cardsExiledWithIt.types
                         )
                       : typeof entry.count === "object" &&
-                          "ifImpended" in entry.count
-                        ? // CR 702.176a — the impending count, only when that
-                          // cost was paid for the entering object.
-                          cast.impended === true
-                            ? entry.count.ifImpended
-                            : 0
-                        : typeof entry.count === "object"
-                          ? // CR 702.33f — "if this creature was kicked with its
-                            // {1}{U} kicker": how many times THAT kicker was paid,
-                            // read by id. An unknown id reads 0 (fail-closed, the
-                            // `kickerPaidCount` rule in `gre/kicker.ts`, not
-                            // imported here to keep this module frontend-light).
-                            Math.max(
-                                0,
-                                cast.kickerPayments?.[
-                                    entry.count.additionalCostPaid
-                                ] ?? 0
-                            )
-                          : // CR 702.44a — Sunburst: "it enters with a charge counter
-                            // on it for each color of mana spent to cast it" (a +1/+1
-                            // counter instead if the object is entering as a creature,
-                            // ignoring type-changing effects — which is why the counter
-                            // TYPE is declared per card and this vocabulary word only
-                            // supplies the COUNT). CR 702.44b restricts it to a
-                            // resolving spell, which is exactly the one entry site that
-                            // can pass a non-empty `manaSpentToCast`.
-                            entry.count === "sunburst"
-                            ? distinctColorsSpent(cast.manaSpentToCast)
-                            : entry.count;
+                          "spellsCastThisTurn" in entry.count
+                        ? countSpellsCastThisTurn(
+                              cast.spellsCastThisTurn,
+                              entry.count.spellsCastThisTurn.types
+                          )
+                        : typeof entry.count === "object" &&
+                            "ifImpended" in entry.count
+                          ? // CR 702.176a — the impending count, only when that
+                            // cost was paid for the entering object.
+                            cast.impended === true
+                              ? entry.count.ifImpended
+                              : 0
+                          : typeof entry.count === "object"
+                            ? // CR 702.33f — "if this creature was kicked with its
+                              // {1}{U} kicker": how many times THAT kicker was paid,
+                              // read by id. An unknown id reads 0 (fail-closed, the
+                              // `kickerPaidCount` rule in `gre/kicker.ts`, not
+                              // imported here to keep this module frontend-light).
+                              Math.max(
+                                  0,
+                                  cast.kickerPayments?.[
+                                      entry.count.additionalCostPaid
+                                  ] ?? 0
+                              )
+                            : // CR 702.44a — Sunburst: "it enters with a charge counter
+                              // on it for each color of mana spent to cast it" (a +1/+1
+                              // counter instead if the object is entering as a creature,
+                              // ignoring type-changing effects — which is why the counter
+                              // TYPE is declared per card and this vocabulary word only
+                              // supplies the COUNT). CR 702.44b restricts it to a
+                              // resolving spell, which is exactly the one entry site that
+                              // can pass a non-empty `manaSpentToCast`.
+                              entry.count === "sunburst"
+                              ? distinctColorsSpent(cast.manaSpentToCast)
+                              : entry.count;
         if (n <= 0) continue;
         delta[entry.type] = (delta[entry.type] ?? 0) + n;
     }
