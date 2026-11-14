@@ -1432,7 +1432,7 @@ export const urborgSkeleton = defineCard(() => ({
 // even though the ability's OWN cost is blue — a card's color reads its mana
 // cost only, not activated-ability costs, so this lives here, not blue.ts.
 //
-// Decomposed as TWO already-shipped `gainControl` Ops (issue #848) rather than
+// Decomposed as TWO already-shipped `gainControl` Ops rather than
 // a new "exchange" Op (primitive-reuse mandate — see the `exchange` row in
 // mechanicsRegistry.ts for the full reasoning). `ctx.controller` is captured
 // ONCE per stack-item resolution (`buildSpellContext`, CR 608.2b) and stays

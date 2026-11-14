@@ -21,11 +21,11 @@ import { getDefinition } from "../../../index";
 
 const figureOfDestiny = getDefinition("0da69523-cece-425a-b08a-fb27fac29374");
 
-// Figure of Destiny (EVE, issue #1749) — the reference card for TWO engine
+// Figure of Destiny (EVE) — the reference card for TWO engine
 // capabilities: guild-hybrid pips payable with mana (CR 202.1a, issue #1738)
 // and the INDEFINITE form of setSubtype / setBasePT / grantAbility
 // (CR 611.2a, issue #1746), gated by the live-object `objectMatchesFilter`
-// predicate (issue #1747).
+// predicate.
 
 const FIGURE_ID = "0da69523-cece-425a-b08a-fb27fac29374";
 

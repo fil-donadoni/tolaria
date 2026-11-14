@@ -34,10 +34,10 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // triggered ability (CR 603.7a)
 // watching that one land for the rest of the game, built as a third
 // `delayedTrigger` Op with the INDEFINITE instance leave-watch timing
-// `leaves-battlefield-indefinite` (issue #1470): the same `watch` +
+// `leaves-battlefield-indefinite`: the same `watch` +
 // PERMANENT_LEFT machinery as `leaves-battlefield`, minus the CLEANUP purge,
 // so the watch survives end of turn. Its body is TWO `moveZone`
-// return-a-departed-object Ops (issue #1469) — one `from: "graveyard"` (dies)
+// return-a-departed-object Ops — one `from: "graveyard"` (dies)
 // and one `from: "exile"` (exiled, or a `graveyardDestinationFor` graveyard →
 // exile redirect), both `tapped: true` (CR 110.5a) and both `controller:
 // "controller"` (CR 701.66a's own "return it to the battlefield tapped
