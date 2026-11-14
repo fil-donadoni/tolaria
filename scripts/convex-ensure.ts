@@ -58,6 +58,9 @@
 //   --start-cmd <json argv> --start-timeout-ms <n> --wait-alive-ms <n>
 //   --reclaim-grace-ms <n> --unit <name|""> --systemctl <json argv>
 //   --launchd <label|""> --launchctl <json argv> --launchd-plist <path>
+//   --wedge-threshold-ms <n>   (restart an ANSWERING service
+//                               whose trivial query exceeds n ms; the
+//                               heartbeat tick passes it, 0 = off)
 // `--start-cmd` without `--unit`/`--launchd` means "spawn this": no service
 // is looked for.
 import { spawn, spawnSync } from "node:child_process";
@@ -67,6 +70,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { CONVEX_BACKEND_ENV } from "./lib/convex-backend-env.ts";
 import { LAUNCHD_CONVEX_LABEL } from "./lib/github-runner.ts";
+import { probeFunction } from "./lib/convex-wedge.ts";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
     localInstanceName,
@@ -119,6 +123,9 @@ export interface EnsureOptions {
      *  spawn (see the header). */
     service: ConvexService | null;
     probeTimeoutMs: number;
+    /** Above 0 and service-managed: an answering backend whose trivial query
+     *  takes longer than this is restarted (issue #9227). 0 = off. */
+    wedgeThresholdMs: number;
     pollMs: number;
     log: (line: string) => void;
 }
@@ -129,6 +136,7 @@ export type EnsureOutcome =
     | { kind: "started"; pid: number }
     | { kind: "reclaimed"; killed: number[]; pid: number }
     | { kind: "service"; command: string; service: string }
+    | { kind: "unwedged"; command: string; service: string; reason: string }
     | { kind: "failed"; reason: string };
 
 export interface ProcessRow {
@@ -756,8 +764,60 @@ async function ensureViaService(
     };
 }
 
+/** Issue #9227: the URL answers, but can the backend run a function? A
+ *  wedged service-managed one is restarted under the lock; anything else
+ *  (healthy, unreachable, no service to restart) is left to the caller. */
+async function unwedge(
+    o: EnsureOptions,
+    svc: ConvexService
+): Promise<EnsureOutcome> {
+    const first = await probeFunction(o.url, o.wedgeThresholdMs);
+    if (!first.wedged) return { kind: "up" };
+    fs.mkdirSync(o.telemetryDir, { recursive: true });
+    const release = await acquireLock(
+        path.join(o.telemetryDir, "convex-ensure.lock"),
+        Date.now() + SERVICE_CALL_TIMEOUT_MS + o.startTimeoutMs,
+        o.pollMs
+    );
+    if (typeof release === "string") return { kind: "failed", reason: release };
+    try {
+        // Another caller may have restarted it while this one queued.
+        const again = await probeFunction(o.url, o.wedgeThresholdMs);
+        if (!again.wedged) return { kind: "up" };
+        const command = svc.command("restart");
+        o.log(
+            `convex:ensure: ${o.url} answers but is wedged (${again.reason}) — ${command}`
+        );
+        const r = svc.restart();
+        if (!r.ok) {
+            return {
+                kind: "failed",
+                reason: `${command} failed: ${r.out || "no output"} — see ${svc.logHint}`,
+            };
+        }
+        if (await pollUntil(o, o.startTimeoutMs, () => svc.live())) {
+            return {
+                kind: "unwedged",
+                command,
+                service: svc.name,
+                reason: again.reason,
+            };
+        }
+        return {
+            kind: "failed",
+            reason: `${svc.name} never answered ${o.url} after ${command} — see ${svc.logHint}`,
+        };
+    } finally {
+        release();
+    }
+}
+
 export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
-    if (await reachable(o.url, o.probeTimeoutMs)) return { kind: "up" };
+    if (await reachable(o.url, o.probeTimeoutMs)) {
+        return o.wedgeThresholdMs > 0 && o.service
+            ? unwedge(o, o.service)
+            : { kind: "up" };
+    }
 
     fs.mkdirSync(o.telemetryDir, { recursive: true });
     const lockFile = path.join(o.telemetryDir, "convex-ensure.lock");
@@ -891,6 +951,7 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         "launchd",
         "launchctl",
         "launchd-plist",
+        "wedge-threshold-ms",
     ]);
     for (const k of flags.keys()) {
         if (!known.has(k)) return `unknown flag: --${k}`;
@@ -978,6 +1039,7 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         reclaimGraceMs: num("reclaim-grace-ms", 10_000),
         service,
         probeTimeoutMs: 3_000,
+        wedgeThresholdMs: num("wedge-threshold-ms", 0),
         pollMs: 500,
         log: (line) => process.stderr.write(`${line}\n`),
     };
@@ -1004,6 +1066,11 @@ async function main(): Promise<number> {
         case "service":
             console.log(
                 `convex:ensure: ${opts.url} answers — ${outcome.command}`
+            );
+            return 0;
+        case "unwedged":
+            console.log(
+                `convex:ensure: ${opts.url} was wedged (${outcome.reason}) — ${outcome.command}`
             );
             return 0;
         case "started":

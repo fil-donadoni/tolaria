@@ -152,6 +152,7 @@ describe("tick — reads, then dispatches only what is due", () => {
                 runs: [done(AFK_DISPATCH_STALE_MS + 1)],
             }),
             queueGateFacts: () => ({ workflows: [], prs: [] }),
+            convexTick: () => ({ probe: "ok" }),
             healthFacts: () => ({
                 active: true,
                 runs: [done(60_000)],
