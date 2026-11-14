@@ -11921,6 +11921,7 @@ describe("Effect Script Op: preventDamage (CR 615, issue #845)", () => {
                 targetType: "permanent",
                 targetId: "shielder1",
                 remaining: 1,
+                amount: 1,
                 duration: { phase: "end-of-turn" },
             },
         ]);
