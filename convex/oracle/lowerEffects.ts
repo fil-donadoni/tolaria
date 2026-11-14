@@ -5905,6 +5905,14 @@ function lowerFrameChain(
                 ops.push({ op: "extraTurn", player: player.value });
                 break;
             }
+            // CR 723.1 — the controller decides for the named player during
+            // that player's next turn.
+            case "controlNextTurn": {
+                const player = playerRef(frame.player, walk.targets, site);
+                if (!player.ok) return player;
+                ops.push({ op: "controlNextTurn", player: player.value });
+                break;
+            }
             // CR 119.7 + CR 611.2a — the named player can't gain life for
             // the rest of the game.
             case "restrictLifeGain": {

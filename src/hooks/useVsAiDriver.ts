@@ -97,11 +97,12 @@ import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
+    actedSeatFor,
     EXPECTED_INPUT_KINDS,
     type ExpectedInputKind,
 } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor, knowsOpponent } from "@convex/gre";
-import type { Move, Phase } from "@convex/gre";
+import type { GameState, Move, Phase } from "@convex/gre";
 import {
     consultBrain,
     disposeBrain,
@@ -332,6 +333,16 @@ export function useVsAiDriver(
         botId && botOwesInput ? { gameId, playerId: botId } : "skip"
     );
     const botState = botStateQuery.data;
+    // ADR 0181 — the seat the Bot ANSWERS for in this window: its own, or a
+    // player's it controls this turn (CR 723.5); the projection above already
+    // follows it (`computeViewerSeat`). `null` = nothing is the Bot's to
+    // answer, which includes its OWN seat while another player controls it —
+    // a tickless fail-open mount must never play that seat. `botId` stays the
+    // Bot's identity (the tick gate, its decklist, its DecisionTrace).
+    const seatId =
+        botId && botState
+            ? actedSeatFor(botState as unknown as GameState, botId)
+            : null;
     // The bot's OWN decklist, wired into the search adapter so its simulated
     // library carries real card identities (issue #1509): fetch/tutor subtrees
     // then search the real fetchable cards instead of worthless placeholders.
@@ -707,7 +718,7 @@ export function useVsAiDriver(
         botId && botState
             ? {
                   gameId,
-                  botId,
+                  botId: seatId ?? botId,
                   botState,
                   mutations,
                   owedPayment: owedPaymentMutations,
@@ -1134,6 +1145,7 @@ export function useVsAiDriver(
     // ── The normal decision path ────────────────────────────────────────────
     useEffect(() => {
         if (!botId || !botState || !realisationContext) return;
+        if (seatId === null) return;
         // `tick === undefined` means the cheap query is still loading — never
         // drive off a `botState` that mounted ahead of its own gate. `tick
         // === null` (no `gameTicks` row exists yet, finding 4) is different:
@@ -1180,7 +1192,7 @@ export function useVsAiDriver(
         // (`view.owedInput`, ADR 0047) — see the module header. Both steps are
         // guarded: a throw here used to unmount the board (issue #8999).
         const view = guard("view", tickExpectedKind(tick), () =>
-            buildBotView(botState, botId)
+            buildBotView(botState, seatId)
         );
         if (view === DRIVER_FAULT) {
             faultSignature.current = currentSignature;
@@ -1238,7 +1250,7 @@ export function useVsAiDriver(
         // time this window is seen: an effect re-run does not restart the clock.
         const head = botState.pendingChoices?.[0];
         let actDelayMs = THINK_DELAY_MS;
-        if (head?.kind === "random-reveal" && head.playerId === botId) {
+        if (head?.kind === "random-reveal" && head.playerId === seatId) {
             if (revealWait.current?.signature !== signature) {
                 revealWait.current = { signature, startedAt: Date.now() };
             }
@@ -1304,7 +1316,7 @@ export function useVsAiDriver(
         const think =
             action.kind === "pass"
                 ? guard("think gate", owedKind, () =>
-                      shouldThink(projectedToGameState(botState), botId)
+                      shouldThink(projectedToGameState(botState), seatId)
                   )
                 : true;
         if (think === DRIVER_FAULT) {
@@ -1319,7 +1331,7 @@ export function useVsAiDriver(
             // suppresses records nothing (review finding 4).
             dispatch(
                 signature,
-                () => mutations.passPriority({ gameId, playerId: botId }),
+                () => mutations.passPriority({ gameId, playerId: seatId }),
                 {
                     expectedKind: view.owedInput!.kind,
                     outcome: "skip-pass",
@@ -1492,7 +1504,7 @@ export function useVsAiDriver(
                                               view.owedChoice
                                           ),
                                           botState,
-                                          botId
+                                          seatId
                                       )
                                     : action.kind === "search-target" &&
                                         view.owedTarget
@@ -1501,13 +1513,13 @@ export function useVsAiDriver(
                                                 view.owedTarget
                                             ),
                                             botState,
-                                            botId
+                                            seatId
                                         )
                                       : null);
                             if (!chosen) return undefined;
                             return executeMove(chosen, {
                                 gameId,
-                                botId,
+                                botId: seatId,
                                 mutations,
                             });
                         }
@@ -1579,6 +1591,11 @@ export function useVsAiDriver(
             disarmWatchdog();
             return;
         }
+        // Nothing is the Bot's to answer (ADR 0181) — see `seatId`.
+        if (seatId === null) {
+            disarmWatchdog();
+            return;
+        }
 
         const signature = currentSignature!;
         // Already the terminal rung for this state version: the hand-off to the
@@ -1608,7 +1625,7 @@ export function useVsAiDriver(
         // is nothing to name — the fault is recorded and the window is left to
         // the server.
         const built = guard("watchdog view", tickExpectedKind(tick), () =>
-            buildBotView(botState, botId)
+            buildBotView(botState, seatId)
         );
         const view = built === DRIVER_FAULT ? null : built;
         const owedKind =
@@ -1688,7 +1705,7 @@ export function useVsAiDriver(
         const revealHead = botState.pendingChoices?.[0];
         const pacedWaitMs =
             revealHead?.kind === "random-reveal" &&
-            revealHead.playerId === botId
+            revealHead.playerId === seatId
                 ? sequenceDurationMs(revealRounds(revealHead))
                 : 0;
         arm(escalateImmediately ? 0 : BOT_WATCHDOG_MS + pacedWaitMs);

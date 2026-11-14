@@ -426,6 +426,7 @@ import {
     substituteColorFilter,
 } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
+import { createTurnControl, scheduleExtraTurn } from "./turnControl";
 import {
     applyCounterPlacedReplacements,
     applyUntapReplacements,
@@ -17674,6 +17675,22 @@ export function buildSpellContext(
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
             state.extraTurns = [...(state.extraTurns ?? []), playerId];
+        },
+        // CR 500.7: an extra turn is added directly after the SPECIFIED turn —
+        // here the next turn `afterNextTurnOf` actually takes.
+        takeExtraTurnAfterNextTurnOf(
+            playerId: string,
+            afterNextTurnOf: string
+        ): void {
+            getPlayer(state, playerId);
+            getPlayer(state, afterNextTurnOf);
+            scheduleExtraTurn(state, playerId, afterNextTurnOf);
+        },
+        // CR 723.1 / 723.1a (ADR 0181): the controller of the resolving object
+        // controls `playerId` during that player's next turn.
+        controlPlayerNextTurn(playerId: string): void {
+            getPlayer(state, playerId);
+            createTurnControl(state, item.castById, playerId);
         },
         // CR 500.8: queue one ADDITIONAL combat phase for the turn in
         // progress. Pushed at the END of the queue, popped from the end by

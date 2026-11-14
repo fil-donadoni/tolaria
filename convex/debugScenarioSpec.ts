@@ -862,6 +862,14 @@ export const scenarioSpecValidator = v.object({
     // whoever ends up active.
     activePlayer: v.optional(v.union(v.literal("me"), v.literal("opp"))),
     priority: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+    // CR 723.1 (issue #8446) — an ACTIVE Turn Control: `controller` makes
+    // every decision of `controlled` for the turn in progress.
+    turnControl: v.optional(
+        v.object({
+            controlled: v.union(v.literal("me"), v.literal("opp")),
+            controller: v.union(v.literal("me"), v.literal("opp")),
+        })
+    ),
     // CR 117.4 — consecutive passes are what END something (a resolution, a
     // step). A position captured with one pass already banked rebuilds as a
     // fresh priority round without this, which is a different decision
@@ -1334,6 +1342,13 @@ export type ScenarioSpec = {
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
     activePlayer?: "me" | "opp";
+    /** CR 723.1 (issue #8446, ADR 0181) — an ACTIVE Turn Control: for the turn
+     *  in progress, `controller` makes every choice and decision of
+     *  `controlled` (CR 723.5). Coherence is the author's, as for `phase`:
+     *  the rules make a control active only during the controlled seat's own
+     *  turn, so pair it with `activePlayer`. Omitted means none — the builder
+     *  CLEARS any control the base state carried. */
+    turnControl?: { controlled: "me" | "opp"; controller: "me" | "opp" };
     /** CR 117.1 (issue #3454) — who holds priority. Omitted gives it to the
      *  active player, the pre-#3454 behaviour. `activePlayer: "opp"` with
      *  `priority: "me"` is the shape an instant-speed decision on the
@@ -2458,6 +2473,16 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
     }
     const priority = pickString(raw.priority);
     if (priority === "me" || priority === "opp") spec.priority = priority;
+    if (isRecord(raw.turnControl)) {
+        const controlled = pickString(raw.turnControl.controlled);
+        const controller = pickString(raw.turnControl.controller);
+        if (
+            (controlled === "me" || controlled === "opp") &&
+            (controller === "me" || controller === "opp")
+        ) {
+            spec.turnControl = { controlled, controller };
+        }
+    }
     set(spec, "passCount", pickNumber(raw.passCount));
     // CR 508.1 / 509.1 (issue #3458) — a declared combat. Tolerant like every
     // branch here: a malformed blocker entry is skipped, never thrown on, and

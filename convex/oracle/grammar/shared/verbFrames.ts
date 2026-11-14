@@ -386,6 +386,17 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 723.1 — "You control target player during that player's next
+           * turn": `player` is the one whose next turn the controller
+           * decides. Only the announced-player subject with that exact span
+           * is read; "gain control of", a limited duration (CR 723.2) and a
+           * rider on the turn ("After that turn, …") are other instructions.
+           */
+          readonly frame: "controlNextTurn";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 500.8 — "After this phase, there is an additional combat
            * phase": one more combat phase (five steps, CR 506.1) behind the
            * combat phase in progress. A main-phase anchor ("After this main
@@ -851,6 +862,10 @@ export const VERB_FRAMES: readonly {
         opens: /^(?:take|(?:you take|target player takes)) an extra turn\b/i,
     },
     {
+        name: "controlNextTurn",
+        opens: /^you control target (?:player|opponent) during\b/i,
+    },
+    {
         name: "extraCombat",
         // Whole spellings only: a bare "there is an additional …" must not
         // open a member, or the comma split would cut the sentence in two.
@@ -1063,6 +1078,9 @@ const PLAYER_COUNTERS =
 /** CR 500.7 — the one extra-turn spelling per subject; nothing trails "this one". */
 const EXTRA_TURN =
     /^(?:(take)|(you take|target player takes)) an extra turn after this one$/;
+/** CR 723.1 — the one player-control spelling; nothing trails "next turn". */
+const CONTROL_NEXT_TURN =
+    /^you control (target player|target opponent) during that player's next turn$/;
 /** CR 119.7 + CR 611.2a — the game-long life-gain lock; nothing trails "game". */
 const RESTRICT_LIFE_GAIN = /^(.+?) can't gain life for the rest of the game$/;
 /** CR 500.8 — the combat-anchored spellings, each ending at the phase noun. */
@@ -2249,6 +2267,21 @@ function readMember(
         if (!player.ok) return { refused: player.reason, failure: player };
         return {
             frames: [{ frame: "extraTurn", player: player.value }],
+            referent,
+        };
+    }
+    if (opensFrame("controlNextTurn", lower)) {
+        // CR 723.1 — "during that player's next turn" ends the instruction:
+        // another duration (CR 723.2) is a different effect.
+        const controlled = lower.match(CONTROL_NEXT_TURN);
+        if (controlled === null)
+            return {
+                refused: `"${member}" — only "you control target player during that player's next turn" is read`,
+            };
+        const player = playerRefRule.run(controlled[1]!, ctx);
+        if (!player.ok) return { refused: player.reason, failure: player };
+        return {
+            frames: [{ frame: "controlNextTurn", player: player.value }],
             referent,
         };
     }

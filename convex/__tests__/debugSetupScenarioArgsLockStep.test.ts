@@ -146,6 +146,7 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
             activePlayer: "me",
             priority: "me",
             passCount: 1,
+            turnControl: { controlled: "me", controller: "opp" },
             combat: { attackers: ["Plains"], confirmed: true },
             manaPool: { me: { R: 1 } },
             restrictedMana: { me: [{ amount: 1, color: "R" }] },

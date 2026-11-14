@@ -389,5 +389,9 @@
     "winGame": {
         "code": "op-own-tests",
         "reason": "Op \"winGame\" sets state.gameOver — covered by the Op's own interpreter test"
+    },
+    "controlNextTurn": {
+        "code": "later-outcome",
+        "reason": "Op \"controlNextTurn\" records a control that starts at a later turn boundary, not a same-step outcome — covered by hand-written tests"
     }
 }

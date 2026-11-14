@@ -23,7 +23,8 @@
 
 import {
     computeExpectedInput,
-    computeOwedPlayerIds,
+    actedSeatFor,
+    computeOwedActingPlayerIds,
     refreshExpectedInput,
     type ExpectedInputKind,
 } from "./expectedInput";
@@ -100,6 +101,11 @@ function containerKey(state: GameState, input: ExpectedInput): string {
         case "priority":
             return [
                 "priority",
+                // The SEAT whose window it is (ADR 0181): a Bot that controls
+                // another player's turn (CR 723.5) owes that seat's priority
+                // and then its own, in the same phase over the same stack —
+                // two containers, not one it failed to leave.
+                input.playerId,
                 state.turn,
                 state.phase,
                 state.stack.map((s) => s.id).join(","),
@@ -124,7 +130,10 @@ export function botOwedWindow(
     botPlayerId: string
 ): OwedWindow | null {
     if (state.gameOver) return null;
-    if (!computeOwedPlayerIds(state).includes(botPlayerId)) return null;
+    // ADR 0181 — owed to ANSWER: under Turn Control (CR 723.5) the Bot owes
+    // the windows of a seat it controls, and none of its own while another
+    // player controls it.
+    if (!computeOwedActingPlayerIds(state).includes(botPlayerId)) return null;
     const input = computeExpectedInput(state);
     if (!input) return null;
     return { input, key: containerKey(state, input) };
@@ -229,9 +238,13 @@ function advance(
         }
         const kind = owed.input.kind;
 
+        // The seat the step is taken AS — the Bot's own, or the player it
+        // controls (CR 723.5). The terminal concede below stays the Bot's
+        // (CR 723.6: a controller cannot make the controlled player concede).
+        const seatId = actedSeatFor(state, botPlayerId) ?? botPlayerId;
         const legalStep = options.legalSteps?.[kind] ?? LEGAL_STEPS[kind];
         const legal = attempt(state, owed.key, botPlayerId, (s) =>
-            legalStep(s, botPlayerId)
+            legalStep(s, seatId)
         );
         if (legal.ok) {
             state = legal.state;
@@ -252,7 +265,7 @@ function advance(
         });
 
         const discard = attempt(state, owed.key, botPlayerId, (s) =>
-            forcedDiscard(kind, s, botPlayerId)
+            forcedDiscard(kind, s, seatId)
         );
         if (!discard.ok) {
             steps.push({

@@ -71,6 +71,7 @@ import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { getEffectiveColors } from "../../../cards/effectiveColors";
 import { projectPublicState } from "../../../gameProjections";
+import { informationSeatsFor } from "../../../soloViewer";
 import {
     fireDelayedTriggers,
     finalizeCleanup,
@@ -3259,6 +3260,160 @@ describe("Effect Script Op: skipNextTurn (CR 614.10, issue #1957)", () => {
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[0].skipNextTurn).toBe(1);
+    });
+});
+
+// New Op (issue #8446, ADR 0181) → full per-Op regime: player-ref resolution,
+// the CR 723.1a overwrite, CR 608.2b skip, and wire survival INCLUDING the
+// CR 723.4 hand visibility the projection owes the controller. The lifecycle
+// at the turn boundary and the Acting Player map are `turnControl.test.ts`'s.
+describe("Effect Script Op: controlNextTurn (CR 723.1, issue #8446)", () => {
+    const CONTROL = "test-op-control-next-turn";
+    const register = (id = CONTROL) =>
+        registerScript(id, [{ op: "controlNextTurn", player: { target: 0 } }], {
+            targetRequirement: { type: "player", count: 1 },
+        });
+
+    it("records a pending control of the announced player by the spell's controller", () => {
+        const id = register();
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(state.turnControls).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.turnControls).toEqual([
+            { controlledId: "p2", controllerId: "p1" },
+        ]);
+    });
+
+    it("a player may be given control of themselves (CR 723.9)", () => {
+        const id = registerScript("test-op-control-next-turn-self", [
+            { op: "controlNextTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.turnControls).toEqual([
+            { controlledId: "p1", controllerId: "p1" },
+        ]);
+    });
+
+    it("a second effect on the same player overwrites the first (CR 723.1a)", () => {
+        const id = register("test-op-control-next-turn-overwrite");
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p2", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.turnControls).toEqual([
+            { controlledId: "p2", controllerId: "p2" },
+        ]);
+    });
+
+    it("is a no-op when the announced target is not a player (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-control-next-turn-nonplayer",
+            [{ op: "controlNextTurn", player: { target: 0 } }],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearControlTurn",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearControlTurn" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.turnControls).toBeUndefined();
+    });
+
+    it("survives projection (wire format), and the controller sees the controlled hand only while control is active (CR 723.4)", () => {
+        const id = register("test-op-control-next-turn-wire");
+        const hidden = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearInHand",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [hidden] })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+
+        // Pending: public on the wire, and the hand is still hidden.
+        const pending = projectPublicState(
+            state,
+            1,
+            "p1",
+            false,
+            informationSeatsFor(state, "p1", "p1")
+        );
+        expect(pending.turnControls).toEqual([
+            { controlledId: "p2", controllerId: "p1" },
+        ]);
+        expect(pending.players[1].hand).toEqual([null]);
+
+        // Active: the controller reads the controlled player's hand…
+        state.turnControls = [
+            { controlledId: "p2", controllerId: "p1", active: true },
+        ];
+        const active = projectPublicState(
+            state,
+            1,
+            "p1",
+            false,
+            informationSeatsFor(state, "p1", "p1")
+        );
+        expect(active.players[1].hand[0]?.id).toBe("bearInHand");
+        // …and the controlled player gains nothing about the controller's.
+        const controlled = projectPublicState(
+            state,
+            1,
+            "p2",
+            false,
+            informationSeatsFor(state, "p2", "p2")
+        );
+        expect(informationSeatsFor(state, "p2", "p2")).toEqual([]);
+        expect(controlled.players[1].hand[0]?.id).toBe("bearInHand");
+    });
+});
+
+describe("Effect Script Op: extraTurn after: their-next-turn (CR 500.7, issue #8446)", () => {
+    it("schedules the turn after the announced player's next turn instead of queueing it now", () => {
+        const id = registerScript(
+            "test-op-extra-turn-after-next",
+            [
+                {
+                    op: "extraTurn",
+                    player: { target: 0 },
+                    after: "their-next-turn",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toBeUndefined();
+        expect(state.scheduledExtraTurns).toEqual([
+            { playerId: "p2", afterNextTurnOf: "p2" },
+        ]);
+    });
+
+    it("an unknown `after` is refused by the validator", () => {
+        const script = (after: string) =>
+            validateEffectScript({
+                id: "test-op-extra-turn-after",
+                name: "Test",
+                effects: [{ op: "extraTurn", player: "controller", after }],
+            } as never);
+        expect(script("their-next-turn")).toEqual([]);
+        expect(script("this-phase").length).toBeGreaterThan(0);
     });
 });
 

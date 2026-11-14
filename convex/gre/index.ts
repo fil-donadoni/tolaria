@@ -96,8 +96,10 @@ export type {
     BlockersAction,
 } from "./legalActions";
 export {
+    actedSeatFor,
     assertExpectedInput,
     computeExpectedInput,
+    computeOwedActingPlayerIds,
     computeOwedPlayerIds,
     EXPECTED_INPUT_KINDS,
 } from "./expectedInput";
@@ -155,6 +157,7 @@ export type { DeckKnowledgeBySeat, SeatDeckKnowledge } from "./deckKnowledge";
 export {
     search,
     searchWithTrace,
+    controlledSeatPick,
     applyMoveInSearch,
     decidingPlayer,
     DEFAULT_BUDGET,

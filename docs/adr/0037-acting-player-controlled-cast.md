@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted (2026-06-23)
+accepted (2026-06-23). Amended by ADR 0181: the general "one player controls
+another" subsystem rejected below is now built for a whole turn (CR 723), as a
+map read at the decision boundary; the per-cast routing here is unchanged.
 
 ## Context
 

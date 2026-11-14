@@ -1438,6 +1438,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "mulligan",
     "gameOver",
     "extraTurns",
+    "scheduledExtraTurns",
+    "turnControls",
     "extraPhases",
     "extraCombatsThisTurn",
     "preventionEffects",

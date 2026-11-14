@@ -1762,6 +1762,8 @@ describe("schema drift guard", () => {
         };
         state.gameOver = { winnerId: "p1", loserId: "p2", reason: "life" };
         state.extraTurns = ["p1"];
+        state.scheduledExtraTurns = [{ playerId: "p2", afterNextTurnOf: "p2" }];
+        state.turnControls = [{ controlledId: "p2", controllerId: "p1" }];
         state.extraPhases = [{ kind: "combat" }];
         state.extraCombatsThisTurn = 1;
         state.preventionEffects = [
@@ -2301,6 +2303,28 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.extraTurns = ["p1", "p2"];
         expect(roundTrip(state).extraTurns).toEqual(["p1", "p2"]);
+    });
+
+    // CR 723.1 / 500.7 (ADR 0181) — a save between the effect's creation and
+    // the controlled turn must not drop it, nor forget that it is active.
+    it("turnControls", () => {
+        const state = freshState();
+        state.turnControls = [
+            { controlledId: "p2", controllerId: "p1", active: true },
+            { controlledId: "p1", controllerId: "p2" },
+        ];
+        expect(roundTrip(state).turnControls).toEqual(state.turnControls);
+    });
+
+    it("scheduledExtraTurns", () => {
+        const state = freshState();
+        state.scheduledExtraTurns = [
+            { playerId: "p2", afterNextTurnOf: "p2", armed: true },
+            { playerId: "p1", afterNextTurnOf: "p1" },
+        ];
+        expect(roundTrip(state).scheduledExtraTurns).toEqual(
+            state.scheduledExtraTurns
+        );
     });
 
     // CR 500.8 (issue #2886) — the extra-PHASE queue and the marker counter it

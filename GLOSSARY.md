@@ -1590,7 +1590,12 @@ The **Player** who started the game with a card in their **Deck**. Never changes
 
 **Acting Player**:
 The **Player** who answers the prompts (card choice, **Targets**, X, mode, additional-cost picks, mana-source selection) for a **Cast** or **Resolve** whose **Controller** is someone else. Normally the **Acting Player** equals the **Controller**; they diverge only when one **Player** is deciding on another's behalf (Word of Command: WoC's **Controller** is the **Acting Player** for a card cast/played from the controlled **Player**'s **Hand**, while the controlled **Player** remains its **Controller** and supplies its resources). Carried as `actingPlayerId` on the cast state and on the resulting **Stack Item** so the override persists through that item's **Resolve**.
+Under **Turn Control** the same split covers a whole turn: the controller is the **Acting Player** for every decision of the controlled **Player**'s seat, and nothing is carried on the prompt — `actingPlayerFor` (`convex/gre/turnControl.ts`) answers it from the state (ADR 0181).
 _Avoid_: Decision-maker, proxy player, controller (that's whose object it is, not who decides)
+
+**Turn Control**:
+One **Player** makes every choice and decision of another during that **Player**'s next **Turn** (CR 723; Mindslaver, Emrakul, the Promised End). Only who decides changes: the controlled **Player** is still the active one, objects keep their **Controllers**, and costs are paid with the controlled **Player**'s own resources. Kept as `GameState.turnControls` — pending until that **Player** actually takes a turn, active for the whole of it — and never read by the rules: the surfaces that ask "who answers for this seat?" (owed players, mutation authority, the viewer, the **Projection**, **Phase Stops**, the **Bot**) map the seat to its **Acting Player** (ADR 0181). The controller sees the controlled **Hand** and face-down cards; conceding stays the controlled **Player**'s own.
+_Avoid_: Mind control (that is an object changing **Controller**), possession, seat takeover
 
 **Admin**:
 A **User** flagged with elevated rights (`isAdmin` on the users row). The only **User** allowed to create, edit, or delete **Preset Decks**. The flag is the sole authority — server mutations check it directly; hiding controls in the UI is cosmetic only. Distinct from a **Player** (a seat in a **Game**) and from **Owner** (deck/card ownership in a **Game**).

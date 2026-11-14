@@ -6451,6 +6451,20 @@ export interface SpellContext {
      *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
+    /** Schedules an extra turn for `playerId` directly after the next turn
+     *  `afterNextTurnOf` actually takes (CR 500.7 — "adding the turns directly
+     *  after the specified turn"). A skipped turn does not count. Armed and
+     *  released by advanceTurn(). */
+    takeExtraTurnAfterNextTurnOf: (
+        playerId: string,
+        afterNextTurnOf: string
+    ) => void;
+    /** The resolving object's controller gains control of `playerId` during
+     *  that player's next turn (CR 723.1, ADR 0181). Player-controlling
+     *  effects on the same player overwrite each other (CR 723.1a). Only who
+     *  DECIDES changes — objects, resources and the active player do not
+     *  (CR 723.3, 723.5a). */
+    controlPlayerNextTurn: (playerId: string) => void;
     /** Queues one ADDITIONAL combat phase for the turn in progress (CR 500.8
      *  — "Some effects can add phases to a turn"). LIFO with any other queued
      *  extra phase, consumed at the `END_OF_COMBAT` exit in `advancePhase`,
@@ -17642,8 +17656,36 @@ export type EffectOp =
      *  (phases.ts) pops at each turn boundary (CR 500.7) — one execution
      *  path (ADR 0045). `player` is an announced target slot (Time Warp
      *  targets a player), the resolving controller, or a relative player.
-     *  Skipped when the player cannot be resolved (CR 608.2b). */
-    | { op: "extraTurn"; player: EffectPlayerRef }
+     *  Skipped when the player cannot be resolved (CR 608.2b).
+     *
+     *  `after` names the SPECIFIED turn the extra one is added directly after
+     *  (CR 500.7). Absent = the current turn. `"their-next-turn"` (issue
+     *  #8446) = the next turn `player` actually takes ("After that turn, that
+     *  player takes an extra turn"), fronting
+     *  `SpellContext.takeExtraTurnAfterNextTurnOf`: the entry waits in
+     *  `state.scheduledExtraTurns` and joins the queue when that turn ends. */
+    | {
+          op: "extraTurn";
+          player: EffectPlayerRef;
+          after?: "their-next-turn";
+      }
+    /** CR 723.1 (issue #8446, ADR 0181) — the resolving object's controller
+     *  gains control of `player` during that player's next turn ("You control
+     *  target player during that player's next turn"). Fronts
+     *  `SpellContext.controlPlayerNextTurn`, which records a pending
+     *  `TurnControl` on `state.turnControls`; `advanceTurn` (phases.ts)
+     *  activates it on the next turn that player actually takes (CR 723.1b)
+     *  and ends it at the beginning of the turn after (CR 723.1). A second
+     *  effect on the same player overwrites the first (CR 723.1a). `player`
+     *  may resolve to the controller themselves (CR 723.9). Skipped when the
+     *  player cannot be resolved (CR 608.2b).
+     *
+     *  What it deliberately does NOT do: change any object's controller, the
+     *  active player or whose resources pay (CR 723.3, 723.5a) — the rules
+     *  keep reading the controlled seat and only `gre/turnControl.ts`'s map
+     *  says who answers for it; control for a limited duration (CR 723.2);
+     *  restrict or force the controlled player's actions (CR 723.7). */
+    | { op: "controlNextTurn"; player: EffectPlayerRef }
     /** CR 500.8 (issue #2886) — add one ADDITIONAL combat phase to the turn in
      *  progress ("After this phase, there is an additional combat phase").
      *  Fronts `SpellContext.grantExtraCombat`, which pushes onto the LIFO

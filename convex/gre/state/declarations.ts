@@ -4919,6 +4919,28 @@ export type LastKnownCopiable = {
     turn: number;
 };
 
+/** One player-controlling effect (CR 723.1, ADR 0181). */
+export type TurnControl = {
+    /** The affected player: whose next turn is controlled (CR 723.1). */
+    controlledId: string;
+    /** The player who makes the controlled player's choices and decisions
+     *  (CR 723.5). May equal `controlledId` (CR 723.9). */
+    controllerId: string;
+    /** Set while the controlled turn is in progress; absent while the effect
+     *  waits for the next turn that player actually takes (CR 723.1b). */
+    active?: true;
+};
+
+/** One extra turn scheduled after a player's next turn (CR 500.7). */
+export type ScheduledExtraTurn = {
+    /** Who takes the extra turn. */
+    playerId: string;
+    /** The player whose next turn it follows. */
+    afterNextTurnOf: string;
+    /** Set while that turn is in progress. */
+    armed?: true;
+};
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
@@ -5220,6 +5242,19 @@ export type GameState = {
      *  LIFO: pushed at the end, popped from the end — the last extra turn
      *  created is the next one taken. Consumed by advanceTurn(). */
     extraTurns?: string[];
+    /** Extra turns owed "after that player's next turn" (CR 500.7: an extra
+     *  turn is added directly after the SPECIFIED turn). An entry waits for
+     *  `afterNextTurnOf` to actually take a turn (a skipped one does not
+     *  count), is `armed` while that turn runs, and is pushed onto
+     *  `extraTurns` when it ends. Owned by `advanceTurn()`. */
+    scheduledExtraTurns?: ScheduledExtraTurn[];
+    /** Turn Control (CR 723, ADR 0181): who decides for a player during that
+     *  player's next turn. At most one pending and one active entry per
+     *  controlled player. Never read by the rules — objects keep their
+     *  controllers and the controlled player stays the active player
+     *  (CR 723.3); read through `gre/turnControl.ts` wherever the question is
+     *  "who answers for this seat?". Lifecycle owned by `advanceTurn()`. */
+    turnControls?: TurnControl[];
     /** Queue of ADDITIONAL phases owed by the turn in progress (CR 500.8).
      *  LIFO: pushed at the end, popped from the end — the most recently
      *  created extra phase occurs first. Ships one kind, `"combat"`, consumed

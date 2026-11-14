@@ -53,7 +53,13 @@ import {
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
 import { rightPilesWidth } from "~/lib/right-piles-width";
-import { computeSoloViewerId } from "~/lib/priority";
+import {
+    boardViewerSeat,
+    isSeatLocked,
+    lockedSeatView,
+    turnControlNotice,
+} from "~/lib/turn-control";
+import TurnControlNotice from "./turn-control-notice";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { useViewportHeight } from "~/hooks/useViewportHeight";
@@ -246,7 +252,21 @@ export default function Board({
     ) {
         setLastResident(liveState);
     }
-    const state = residence.ready ? liveState : lastResident;
+    const residentState = residence.ready ? liveState : lastResident;
+    // CR 723.5 (ADR 0181) — outside Solo Mode (one user owns both seats), a
+    // player whose turn is controlled by another watches their own board:
+    // `lockedSeatView` restates who each input is owed by, so every "is this
+    // mine?" read below comes out false for them.
+    const soloFollow = solo && !vsAi;
+    const actingLocked =
+        !soloFollow && !!residentState && isSeatLocked(residentState, playerId);
+    const state = useMemo(
+        () =>
+            residentState && actingLocked
+                ? lockedSeatView(residentState, playerId)
+                : residentState,
+        [residentState, actingLocked, playerId]
+    );
     useEffect(() => {
         if (stateIds) preloadCardImages(stateIds);
     }, [stateIds]);
@@ -277,22 +297,14 @@ export default function Board({
     // submitting it as p1 is rejected by the Expected Input gate (ADR 0047,
     // "waiting for choice input from another player"). vs-AI / 2p stays pinned
     // to the human's own seat (ADR 0000).
-    const viewerId =
-        solo && !vsAi && state
-            ? computeSoloViewerId({
-                  activePlayerId: state.activePlayerId,
-                  priorityPlayerId:
-                      state.priorityPlayerId ?? state.activePlayerId,
-                  phase: state.phase ?? "UPKEEP",
-                  combat: state.combat,
-                  blocksDeclaredByAttacker: state.blocksDeclaredByAttacker,
-                  pendingCast: state.pendingCast,
-                  pendingActivation: state.pendingActivation,
-                  pendingTarget: state.pendingTarget,
-                  pendingChoices: state.pendingChoices,
-                  playerIds: state.players.map((p) => p.id),
-              })
-            : playerId;
+    //
+    // ADR 0181 — the same follow applies outside Solo Mode to a player who
+    // controls another's turn (CR 723.5): `computeViewerSeat` puts them on the
+    // controlled seat while it owes input. MUST stay the selector
+    // `getPublicState` uses, for the reason `computeSoloViewerId` must.
+    const viewerId = state
+        ? boardViewerSeat(state, playerId, soloFollow)
+        : playerId;
 
     // Client-side buffer for the active pending choice (ADR 0007). All four
     // click sites read from this single source via PendingChoiceBufferContext.
@@ -510,6 +522,7 @@ export default function Board({
             value={{
                 gameId,
                 playerId: viewerId,
+                actingLocked,
                 activePlayerId,
                 priorityPlayerId,
                 phase,
@@ -598,6 +611,16 @@ export default function Board({
                                                         botId={botId}
                                                     />
                                                 )}
+                                                <TurnControlNotice
+                                                    notice={
+                                                        soloFollow
+                                                            ? null
+                                                            : turnControlNotice(
+                                                                  state,
+                                                                  playerId
+                                                              )
+                                                    }
+                                                />
                                                 {vsAi && (
                                                     <VerdictProposalCapture
                                                         gameId={gameId}

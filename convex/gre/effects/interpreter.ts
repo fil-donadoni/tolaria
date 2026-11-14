@@ -3837,7 +3837,21 @@ export const OP_EXECUTORS: {
     extraTurn(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
+        // CR 500.7 — "directly after the specified turn": that player's own
+        // next turn when the Op names it, else the turn in progress.
+        if (op.after === "their-next-turn") {
+            ctx.takeExtraTurnAfterNextTurnOf(playerId, playerId);
+            return;
+        }
         ctx.takeExtraTurn(playerId);
+    },
+    // CR 723.1 (issue #8446) — the controller gains control of `player`
+    // during that player's next turn. Skipped when the player cannot be
+    // resolved (CR 608.2b).
+    controlNextTurn(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.controlPlayerNextTurn(playerId);
     },
     // CR 500.8 (issue #2886) — add one additional combat phase to the turn in
     // progress (Fear of Missing Out: "After this phase, there is an additional

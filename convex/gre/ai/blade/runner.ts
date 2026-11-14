@@ -34,8 +34,13 @@ import {
 import { buildBladeBaseState, type SeatIdentity } from "./baseState";
 export { buildBladeBaseState } from "./baseState";
 export type { SeatIdentity } from "./baseState";
-import { decidingPlayer, greedyRootPick, searchWithTrace } from "../../search";
-import { computeOwedPlayerIds } from "../../expectedInput";
+import {
+    controlledSeatPick,
+    decidingPlayer,
+    greedyRootPick,
+    searchWithTrace,
+} from "../../search";
+import { actedSeatFor, computeOwedActingPlayerIds } from "../../expectedInput";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -314,7 +319,8 @@ export function assertBotOwesInput(
     declaredBot: BladeScenario["bot"],
     botPlayerId: string
 ): void {
-    const owed = computeOwedPlayerIds(state);
+    // ADR 0181 — the players owed to ANSWER: what the tick row carries.
+    const owed = computeOwedActingPlayerIds(state);
     if (owed.includes(botPlayerId)) return;
     throw new BladeLoadError(
         `Blade scenario "${label}": declares bot "${declaredBot}", but the ` +
@@ -491,8 +497,14 @@ function runBladeScenarioInner(
         // leaves nothing owed) — throw here, loudly, rather than let the
         // search return `move: null` and report a misleading "chose [no
         // move]" against the entry's `expect`.
+        //
+        // ADR 0181 — the seat the Bot ANSWERS for: its own, or a player's it
+        // controls this turn (CR 723.5), exactly as the live Brain request
+        // resolves it (`handleBrainRequest`).
+        const seatId = actedSeatFor(state, botId) ?? botId;
+        const controlling = seatId !== botId;
         const decider = decidingPlayer(state);
-        if (decider !== botId) {
+        if (decider !== seatId) {
             throw new BladeDeciderError(
                 scenario.label,
                 scenario.bot,
@@ -501,7 +513,7 @@ function runBladeScenarioInner(
             );
         }
         const searched =
-            pick === "greedy"
+            pick === "greedy" || controlling
                 ? null
                 : searchWithTrace(
                       state,
@@ -513,7 +525,9 @@ function runBladeScenarioInner(
                   );
         const move = searched
             ? searched.move
-            : greedyRootPick(state, botId, seed);
+            : controlling
+              ? controlledSeatPick(state, seatId, botId, seed)
+              : greedyRootPick(state, botId, seed);
         const reason = checkExpectation(scenario, state, move);
         seeds.push({
             seed,

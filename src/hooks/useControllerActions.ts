@@ -80,6 +80,7 @@ export function useControllerActions(): ControllerState {
     const {
         gameId,
         playerId,
+        actingLocked,
         activePlayerId,
         priorityPlayerId,
         phase,
@@ -134,6 +135,7 @@ export function useControllerActions(): ControllerState {
 
     const priorityCtx = {
         playerId,
+        actingLocked,
         activePlayerId,
         priorityPlayerId,
         phase,

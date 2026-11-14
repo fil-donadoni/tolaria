@@ -23,7 +23,7 @@ import { PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { makeInstance } from "@convex/cards/__tests__/setup.helper";
 import {
     computeExpectedInput,
-    computeOwedPlayerIds,
+    computeOwedActingPlayerIds,
 } from "@convex/gre/expectedInput";
 import { storeDifficulty } from "~/lib/session";
 import {
@@ -255,7 +255,9 @@ vi.mock("convex/react", async () => {
                 // `priorityPlayerId` echo — folds in the combat-damage
                 // assigner sub-flow so a banding fixture below actually
                 // exercises the fix instead of restating the old bug.
-                owedPlayerIds: computeOwedPlayerIds(s as never),
+                // …mapped to the players who must ANSWER (ADR 0181), exactly as
+                // `saveGameTick` writes it.
+                owedPlayerIds: computeOwedActingPlayerIds(s as never),
                 gameOver: !!s.gameOver,
             };
         }
@@ -792,6 +794,46 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
         expect(calls[0].args).toEqual({ gameId: GAME, playerId: BOT });
+    });
+
+    // CR 723.5 (ADR 0181, issue #8446) — Turn Control, both sides.
+    it("answers AS the human's seat while it controls the human's turn", async () => {
+        currentState = botState({
+            activePlayerId: HUMAN,
+            priorityPlayerId: HUMAN,
+            turnControls: [
+                { controlledId: HUMAN, controllerId: BOT, active: true },
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        // Woken by its own id on the tick, viewing as itself, acting as the
+        // seat the rules are waiting on.
+        expect(
+            queryMounts.some(
+                (m) =>
+                    m.ref === "getPublicState" &&
+                    (m.args as { playerId: string }).playerId === BOT
+            )
+        ).toBe(true);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].ref).toBe("passPriority");
+        expect(calls[0].args).toEqual({ gameId: GAME, playerId: HUMAN });
+    });
+
+    it("stays silent on its own seat while the human controls its turn — even with no tick row (fail-open mount)", async () => {
+        currentState = botState({
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            turnControls: [
+                { controlledId: BOT, controllerId: HUMAN, active: true },
+            ],
+        });
+        forceNullTick = true;
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(calls).toHaveLength(0);
     });
 
     it("does nothing when the human holds priority", async () => {
