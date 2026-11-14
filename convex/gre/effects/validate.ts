@@ -807,7 +807,8 @@ function isSourceRef(value: unknown): boolean {
 }
 
 /** Whether an `EffectCardFilter` uses LIVE battlefield state — `isAttacking`
- *  (issue #1097) or `tapped` (issue #3244) — directly or nested inside an
+ *  (issue #1097), `tapped` (issue #3244), `saddled` or `powerAtLeast` (issue
+ *  #9480) — directly or nested inside an
  *  `any` clause: the sibling of `filterUsesHasAbility` right above, same
  *  rationale and same single call site (the `choice` Op's cross-field
  *  `check`). */
@@ -820,7 +821,9 @@ function filterUsesLiveState(value: unknown): boolean {
         typeof f.isAttacking === "boolean" ||
         typeof f.tapped === "boolean" ||
         // CR 702.171b — only permanents can be saddled.
-        typeof f.saddled === "boolean"
+        typeof f.saddled === "boolean" ||
+        // CR 613.4 (issue #9480) — effective power is battlefield state.
+        typeof f.powerAtLeast === "number"
     ) {
         return true;
     }
@@ -6899,7 +6902,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesLiveState(entry.filter)
             ) {
                 errors.push(
-                    '"filter.isAttacking" / "filter.tapped" / "filter.saddled" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role, tapped status or saddled designation to match against'
+                    '"filter.isAttacking" / "filter.tapped" / "filter.saddled" / "filter.powerAtLeast" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role, tapped status, saddled designation or effective power to match against'
                 );
             }
             // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule

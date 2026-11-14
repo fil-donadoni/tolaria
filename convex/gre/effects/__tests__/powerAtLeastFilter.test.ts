@@ -168,6 +168,41 @@ describe("powerAtLeast validator gate (issue #9480)", () => {
         expect(validateEffectScript(host("graveyard", 4))).not.toEqual([]);
     });
 
+    it("refuses it on a hidden-zone choice, accepts it on a battlefield one", () => {
+        const choiceOn = (zone: string, filter: Record<string, unknown>) => ({
+            id: "t9480-choice-host",
+            name: "Choice Host",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone,
+                    filter,
+                    count: 1,
+                    prompt: "Pick.",
+                    bind: "$picked",
+                },
+            ] as never,
+        });
+        // Control: the same graveyard choice without the bound is valid.
+        expect(
+            validateEffectScript(choiceOn("graveyard", { type: "Creature" }))
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                choiceOn("graveyard", { type: "Creature", powerAtLeast: 4 })
+            )
+        ).not.toEqual([]);
+        expect(
+            validateEffectScript(
+                choiceOn("graveyard", {
+                    any: [{ type: "Creature", powerAtLeast: 4 }],
+                })
+            )
+        ).not.toEqual([]);
+    });
+
     it("refuses a zero or fractional bound", () => {
         expect(validateEffectScript(host("battlefield", 0))).not.toEqual([]);
         expect(validateEffectScript(host("battlefield", 2.5))).not.toEqual([]);
