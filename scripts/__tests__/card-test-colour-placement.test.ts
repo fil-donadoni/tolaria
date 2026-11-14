@@ -41,10 +41,14 @@ describe("card tests live in their card's colour test file (issue #2256)", () =>
             );
 
         it("flags a block naming only another colour's card", () => {
-            expect(run("Dwarven Song (CR 305.7)", "white")).toHaveLength(1);
+            expect(
+                run("Dwarven Song (creatures become red)", "white")
+            ).toHaveLength(1);
         });
         it("accepts the card in its own colour file", () => {
-            expect(run("Dwarven Song (CR 305.7)", "red")).toEqual([]);
+            expect(run("Dwarven Song (creatures become red)", "red")).toEqual(
+                []
+            );
         });
         it("accepts a mixed block when one named card is own-colour", () => {
             expect(run("Great Wall / Undertow", "white")).toEqual([]);
