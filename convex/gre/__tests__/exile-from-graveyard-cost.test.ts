@@ -127,7 +127,7 @@ function commitActivation(state: GameState, playerId: string): boolean {
             (p) => p.id === pa.exileFromGraveyardChoice!.pickedGraveyardOwnerId
         )!;
         for (const id of pa.exileFromGraveyardChoice.pickedCardIds) {
-            moveCard(owner, id, "graveyard", "exile");
+            moveCard(owner, id, "graveyard", "exile", state);
         }
     }
 

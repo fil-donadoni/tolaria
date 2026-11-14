@@ -333,7 +333,7 @@ export function applyDelveExileForSearch(
     // CDA).
     const exiled = cheapestFirst(fuelCards).slice(0, delveCount);
     for (const c of exiled) {
-        moveCard(player, c.id, fuel.zone, "exile");
+        moveCard(player, c.id, fuel.zone, "exile", state);
     }
     // CR 607.2q — the exiled ids, stamped on the stack item as the cards
     // "exiled with" the spell, exactly as `commitCast` stamps them.
@@ -459,7 +459,7 @@ export function applyAlternativeCostGraveyardLegForSearch(
     const player = getPlayer(state, playerId);
     const cards = altCostGraveyardExileCards(player, alt, spell.id);
     if (!cards) return false;
-    for (const c of cards) moveCard(player, c.id, "graveyard", "exile");
+    for (const c of cards) moveCard(player, c.id, "graveyard", "exile", state);
     return true;
 }
 
@@ -816,7 +816,7 @@ export function applyCastCostPicksForSearch(
             // side effects the real cast does, the CR 400.7 graveyard-departure
             // tally (issue #3240) included, rather than a hand-rolled splice
             // that has to remember each of them.
-            moveCard(player, id, exileZone, "exile");
+            moveCard(player, id, exileZone, "exile", state);
         }
     }
     return true;

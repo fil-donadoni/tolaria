@@ -125,7 +125,7 @@ describe("Anger (graveyard-functioning static ability, CR 113.6b)", () => {
     it("ends when Anger leaves the graveyard", () => {
         const state = angerInGraveyard();
         expect(hasHaste(state, "p1-bears")).toBe(true);
-        moveCard(state.players[0], "anger", "graveyard", "exile");
+        moveCard(state.players[0], "anger", "graveyard", "exile", state);
         checkStateBasedActions(state);
         expect(hasHaste(state, "p1-bears")).toBe(false);
     });
@@ -269,7 +269,7 @@ describe("Anger — the graveyard object's own timestamp (CR 613.7d)", () => {
         // graveyard, then Humility enters. Anger entered its zone first, so
         // its stamp must be the earlier one and Humility strips the grant.
         const state = angerInGraveyard({ mountainFor: ["p1"] });
-        moveCard(state.players[0], "anger", "graveyard", "hand");
+        moveCard(state.players[0], "anger", "graveyard", "hand", state);
         moveCard(state.players[0], "anger", "hand", "graveyard");
         const humilityPermanent = permanent(humility().id, "humility", "p2");
         state.players[1].battlefield.push(humilityPermanent);
@@ -292,7 +292,7 @@ describe("Anger — the graveyard object's own timestamp (CR 613.7d)", () => {
         checkStateBasedActions(state);
         expect(hasHaste(state, "p1-bears")).toBe(false);
 
-        moveCard(state.players[0], "anger", "graveyard", "hand");
+        moveCard(state.players[0], "anger", "graveyard", "hand", state);
         expect(find(state, "anger").zoneStaticSeq).toBeUndefined();
         moveCard(state.players[0], "anger", "hand", "graveyard");
         checkStateBasedActions(state);

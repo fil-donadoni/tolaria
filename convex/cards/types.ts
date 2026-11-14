@@ -12626,6 +12626,7 @@ export type GameEventType =
     | "CARD_DISCARDED"
     | "CARD_MILLED"
     | "CARD_PUT_INTO_GRAVEYARD"
+    | "CARD_LEFT_GRAVEYARD"
     | "LIFE_LOST"
     | "LIFE_GAINED"
     | "COUNTER_REMOVED"
@@ -13532,6 +13533,47 @@ export interface CardPutIntoGraveyardEvent {
     types?: ReadonlyArray<CardType>;
 }
 
+/** Graveyard-departure event (issue #9423) — "whenever an instant or sorcery
+ *  card leaves your graveyard" (Murktide Regent). ONE event per card, never a
+ *  batch: CR 603.2c counts each card that leaves as its own occurrence, so N
+ *  cards leaving at once (Endurance's whole-graveyard sweep, a delve cost)
+ *  trigger such an ability N times.
+ *
+ *  Emitted from the single departure chokepoint `noteGraveyardDeparture`
+ *  (`gre/state.ts`), so EVERY exit reaches it: exile (a flashback / escape /
+ *  delve cost, graveyard hate), the battlefield (reanimation), the hand, the
+ *  library and the stack (a cast from the graveyard).
+ *
+ *  CR 603.10a — a leaves-a-graveyard ability LOOKS BACK IN TIME: it reads the
+ *  card as it last existed in the graveyard, not the new object it became
+ *  (CR 400.7). `types` is that last-known snapshot, so "an instant or sorcery
+ *  card" holds for a sorcery that is now a spell on the stack, and a reanimated
+ *  creature card is judged by its graveyard characteristics. */
+export interface CardLeftGraveyardEvent {
+    type: "CARD_LEFT_GRAVEYARD";
+    /** Owner of the card — and, CR 400.3, of the graveyard it left. */
+    ownerId: string;
+    /** Instance id of the card (the engine keeps it across the move). */
+    cardInstanceId: string;
+    /** Card definition id, so a filter needs no read of the destination. */
+    cardId?: string;
+    /** Zone the card went TO (CR 400.1). Never `"graveyard"`. */
+    toZone: "library" | "hand" | "exile" | "battlefield" | "stack";
+    /** Card types as the card last existed in the graveyard (CR 603.10a). */
+    types: ReadonlyArray<CardType>;
+    /** CR 108.2b / 111.7 — a token is not a CARD; it can sit in a graveyard
+     *  only until the next state-based check, but an effect may move it out
+     *  first. "An instant or sorcery CARD" filters it away. */
+    isToken?: true;
+    /** CR 603.10a — the instance ids of EVERY card that left a graveyard for
+     *  the battlefield in this same simultaneous move (this one included), when
+     *  there was more than one (Living Death's return, a "return all creature
+     *  cards" set). None of them was on the battlefield when the others left,
+     *  so none of their abilities triggers on the others' departures. A single
+     *  reanimation omits it: the departing card itself is the whole cohort. */
+    battlefieldCohort?: ReadonlyArray<string>;
+}
+
 /** Emitted whenever a player loses life (CR 119.3 — a player's life total
  *  decreasing, whether from a "lose life" effect, a paid life cost, or damage
  *  dealt to that player). One event per life-loss, emitted AFTER the life total
@@ -13951,6 +13993,7 @@ export type GameEvent =
     | CardDiscardedEvent
     | CardMilledEvent
     | CardPutIntoGraveyardEvent
+    | CardLeftGraveyardEvent
     | LifeLostEvent
     | LifeGainedEvent
     | CounterRemovedEvent
