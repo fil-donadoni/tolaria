@@ -746,6 +746,14 @@ function isCardFilter(
             if (!allowLiveState) return false;
             return typeof v === "boolean";
         }
+        // CR 613.4 (issue #9480) — "a creature with power N or greater":
+        // EFFECTIVE power is live battlefield state (layer 7), absent from a
+        // hidden-zone/snapshot card, so it rides the SAME `allowLiveState`
+        // gate. A positive integer literal: zero would admit every creature.
+        if (k === "powerAtLeast") {
+            if (!allowLiveState) return false;
+            return typeof v === "number" && Number.isInteger(v) && v >= 1;
+        }
         // "…that they controlled since the beginning of the turn" (Keldon
         // Twilight, PLS). Same battlefield-only honesty rule as
         // `hasAbility`/`isAttacking` above: a card in a hidden zone has no
