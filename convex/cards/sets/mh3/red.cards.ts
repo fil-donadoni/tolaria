@@ -191,7 +191,7 @@ export const ralMonsoonMage = defineCard(() => ({
                 "Whenever you cast an instant or sorcery spell during your turn, flip a coin. If you lose the flip, Ral deals 1 damage to you. If you win the flip, you may exile Ral. If you do, return him to the battlefield transformed under his owner's control.",
             scope: "you",
             filter: { types: ["Instant", "Sorcery"] },
-            // "during your turn" — the caster is the active player (CR 500.1).
+            // "during your turn" — the caster is the active player.
             condition: (event, _self, state) =>
                 state?.activePlayerId === event.casterId,
             effects: [
