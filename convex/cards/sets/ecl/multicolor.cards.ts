@@ -155,7 +155,7 @@ export const vibrance = defineCard(() => ({
 //
 // The stub this replaces claimed the card needed a Level-Up-style engine
 // primitive. It did not: it needed the INDEFINITE form of three Ops that
-// already existed (issue #1746, CR 611.2b), the live-object `objectMatchesFilter`
+// already existed (issue #1746, CR 611.2a), the live-object `objectMatchesFilter`
 // predicate (#1747), guild-hybrid pips payable with mana (#1738/#1739) and
 // player-quality protection (#1748) — no card-shaped primitive at all.
 // hand-tail: {1}{G/W}{G/W}: If this creature is a Scout, it becomes a Kithkin Soldier with base power and toughness 4/5. (#8505)
@@ -265,7 +265,7 @@ export const figureOfFable = defineCard(() => ({
                         // CR 702.16j (issue #1748) — the PLAYER quality, whose
                         // opponent set is re-derived live from this permanent's
                         // own controller. Granted with no `duration` (CR
-                        // 611.2b): it lasts as long as the permanent does.
+                        // 611.2a): it lasts as long as the permanent does.
                         {
                             op: "grantAbility",
                             target: { ref: "$source" },

@@ -117,7 +117,7 @@ export const oko = defineCard(() => ({
                     types: ["Creature"],
                 },
                 // CR 205.1a layer 4 — subtype line REPLACED ("It's just a
-                // green Elk"). No `duration` = indefinite (CR 611.2b).
+                // green Elk"). No `duration` = indefinite (CR 611.2a).
                 {
                     op: "setSubtype",
                     target: { target: 0 },

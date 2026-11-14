@@ -355,7 +355,7 @@ describe("quantity sub-grammar (CR 107.1, CR 107.3)", () => {
     });
 });
 
-describe("duration sub-grammar (CR 611.2b)", () => {
+describe("duration sub-grammar (CR 611.2a)", () => {
     it("reads each printed duration phrase", () => {
         expect(accept(durationRule, "until end of turn")).toEqual({
             kind: "end-of-turn",

@@ -5538,7 +5538,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             power: isNonNegativeInt,
             toughness: isNonNegativeInt,
-            // CR 611.2b (issue #1746) — omitted is INDEFINITE.
+            // CR 611.2a (issue #1746) — omitted is INDEFINITE.
             duration: isDurationSpec,
         },
         check: (entry) =>
@@ -5924,7 +5924,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             attackRequirement: (v: unknown) => v === true,
             // CR 508.1d (issue #3247) — "attacks THAT PLAYER if able".
             defender: isPlayerRef,
-            // CR 611.2b / 611.2c — omitted is an INDEFINITE grant on ALL THREE
+            // CR 611.2a / 611.2c — omitted is an INDEFINITE grant on ALL THREE
             // legs: keyword (`grantStaticAbilityPermanent`),
             // triggered (`grantTriggeredAbilityPermanent`) and
             // activated (`grantActivatedAbilityPermanent`).
@@ -6010,7 +6010,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // permanent's subtypes. `target` is an object selector; `subtypes` is the
     // full replacement list; `duration` is OPTIONAL — present reverts at that
     // boundary (Orcish Farmer's "becomes a Swamp until …"), omitted replaces
-    // INDEFINITELY (CR 611.2b — Figure of Destiny "becomes a Kithkin Spirit").
+    // INDEFINITELY (CR 611.2a — Figure of Destiny "becomes a Kithkin Spirit").
     setSubtype: {
         required: {
             target: isObjectSelector,
@@ -6061,7 +6061,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
         optional: {
             family: (v) => v === "creature" || v === "land",
-            // CR 611.2b (issue #1746) — omitted REPLACES the subtypes
+            // CR 611.2a (issue #1746) — omitted REPLACES the subtypes
             // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,
         },
@@ -6071,7 +6071,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // base P/T (0 is legal — a characteristic, not a CR 107.1 amount);
     // `subtype`/`additionalTypes`/`grantedAbilities`/`colors` are optional;
     // `duration` is OPTIONAL — omitted means an INDEFINITE animation
-    // (CR 611.2b, Earthbend N), present a temporary one (Mishra's Factory).
+    // (CR 611.2a, Earthbend N), present a temporary one (Mishra's Factory).
     // `colors` (layer 5, CR 613.1e) takes the SAME vocabulary as `setColor`'s
     // own list; unlike `setColor` an EMPTY array is rejected below, because
     // "becomes a colourless creature" is not a template any animate clause

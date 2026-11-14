@@ -23,7 +23,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // control.'" Decomposes into the `animate` Op (issue #1317, CR 208.2/611.1 —
 // 0/0 base, no `subtype` — the rule grants the CARD TYPE Creature, "in
 // addition to its other types", not a creature subtype; `grantedAbilities:
-// ["haste"]`, no `duration` = CR 611.2b indefinite) + the pre-existing
+// ["haste"]`, no `duration` = CR 611.2a indefinite) + the pre-existing
 // `counters` Op ("+1/+1" × N) on a `targetRequirement: { type: "Land",
 // count: 1, controller: "you" }` ETB trigger (CR 603.3d, issue #1193 — the
 // target is chosen when the trigger is put on the stack). No new Op for the

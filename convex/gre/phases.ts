@@ -3396,7 +3396,7 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // CR 611.2b / 613.1b (layer 2) — "gain control until end of turn" control
+    // CR 611.2a / 613.1b (layer 2) — "gain control until end of turn" control
     // changes (Ray of Command, Magus of the Unseen, issue #730). A duration-
     // scoped `controlChanges` entry reverts at its boundary (CLEANUP, CR 514.2),
     // distinct from the `condition`-based conditional-control SBA. The revert
@@ -3632,7 +3632,7 @@ function tickAllDurations(state: GameState): void {
     for (const cards of permanentsForDurationTick(state)) {
         for (const card of cards) {
             if (!card.animation) continue;
-            // CR 611.2b — an animation with no stored `duration` is INDEFINITE
+            // CR 611.2a — an animation with no stored `duration` is INDEFINITE
             // (Earthbend N's "becomes a 0/0 creature ... that's still a land",
             // issue #1317): it never auto-reverts at a phase boundary, only
             // when the permanent itself leaves the battlefield (a fresh object,
@@ -3683,7 +3683,7 @@ function tickAllDurations(state: GameState): void {
     // rows are gone, the twin of the layer-6 recompose above and owed for the
     // same reason: the boundary's effect must be visible before the next read,
     // not at the next SBA pass. It covers all four purges that just ran — the
-    // duration-scoped control change (CR 611.2b), the animation (CR 208.2), the
+    // duration-scoped control change (CR 611.2a), the animation (CR 208.2), the
     // timed subtype replacement (CR 305.7) and the timed colour set (CR 105.3)
     // — each of which is a LEDGER row the derivation reads.
     syncLayers2to5(state);

@@ -2437,7 +2437,7 @@ function resumeDeclaredResolution(state: GameState, spec: ScenarioSpec): void {
 /** CR 611.2a — the expiry one lowered entry rebuilds with. An absent
  *  `duration` is "if no duration is stated, it lasts until the end of the
  *  game" (the `indefinite` expiry), the same reading an omitted `duration`
- *  already gets in the engine's own animate primitive (CR 611.2b).
+ *  already gets in the engine's own animate primitive (CR 611.2a).
  *
  *  `controllerId` rides on BOTH variants, and on no other: the controller of a
  *  continuous effect from a resolving spell is fixed when the effect is
@@ -5054,7 +5054,7 @@ function affectedLabel(
 }
 
 /** The instance `instanceId` names on either battlefield, when it carries an
- *  ANIMATION record (CR 611.2b) — the one card-level fact a lowered layer-6
+ *  ANIMATION record (CR 611.2a) — the one card-level fact a lowered layer-6
  *  keyword grant can silently contradict. */
 function animatedInstance(
     instanceId: string,
@@ -5209,7 +5209,7 @@ function lowerContinuousEffects(
             report(affected);
             continue;
         }
-        // CR 611.2b (issue #3459) — an ANIMATION's granted keywords are
+        // CR 611.2a (issue #3459) — an ANIMATION's granted keywords are
         // ordinary layer-6 registry entries carrying the animation's own
         // duration, and `spec.cards[].animated` already lowers the animate
         // CALL, whose re-execution writes them again. Lowering them here too

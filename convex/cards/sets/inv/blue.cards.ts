@@ -25,7 +25,7 @@
 //
 //   SHIPPED by #2761: Faerie Squadron is no longer a stub — see its active
 //   `CardDefinition` below (the old "grantAbility needs a duration" claim was
-//   wrong; the actual fix is a `wasKicked`-gated `keyword-grant`, CR 611.2b /
+//   wrong; the actual fix is a `wasKicked`-gated `keyword-grant`, CR 611.3a /
 //   614.1c).
 //
 //   SHIPPED by #2765: Shoreline Raider — the CR 702.16a SUBTYPE protection

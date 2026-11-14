@@ -6064,7 +6064,7 @@ export function applyControlChange(
     newControllerId: string,
     sourceId: string,
     condition?: ControlChangeCondition,
-    /** "Until end of turn" duration + tap-on-loss rider (CR 611.2b / 701.20a,
+    /** "Until end of turn" duration + tap-on-loss rider (CR 611.2a / 701.20a,
      *  issue #730 — Ray of Command / Magus of the Unseen). The duration is
      *  ticked out by `tickAllDurations`, which reverts the row and taps the
      *  permanent when `tapOnLoss` is set. */
@@ -10317,7 +10317,7 @@ export function animatePermanentAsCreature(
             addedCreatureType,
             addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
             addedSubtype,
-            // CR 611.2b — omitted `spec.duration` means an INDEFINITE
+            // CR 611.2a — omitted `spec.duration` means an INDEFINITE
             // animation (Earthbend N): no `Duration` is stored, so the
             // phase-boundary purge (`tickAllDurations`) never reverts it.
             duration: spec.duration
@@ -10517,7 +10517,7 @@ export function animatePermanentAsCreature(
  *  card with no `animation` record (returns immediately). Called from the
  *  duration purge (`tickAllDurations`, phases.ts) when a bounded animation
  *  expires, and from `resetBattlefieldTransientState` when the object leaves
- *  the battlefield — an INDEFINITE animation (CR 611.2b) has no duration to
+ *  the battlefield — an INDEFINITE animation (CR 611.2a) has no duration to
  *  tick, so the zone change is its only end (CR 400.7, issue #1470). */
 export function revertAnimation(card: CardInstanceState): void {
     const anim = card.animation;
@@ -10902,7 +10902,7 @@ export function resetBattlefieldTransientState(
     // requirement named the old object; it goes with it.
     dropMustBlockRequirementsNaming(state, card.id);
     card.isTapped = false;
-    // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
+    // CR 400.7 / 611.2a (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
     // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
     // dropping the bookkeeping record would leave the new object permanently
@@ -16122,7 +16122,7 @@ export function buildSpellContext(
                 condition
             );
         },
-        // CR 611.2b / 613.1b (layer 2) — "gain control of a permanent until end
+        // CR 611.2a / 613.1b (layer 2) — "gain control of a permanent until end
         // of turn" (Ray of Command, Magus of the Unseen, issue #730). Unlike the
         // `condition`-based `gainControl` (reverted by the conditional-control
         // SBA), this installs a phase-boundary `duration` that `tickAllDurations`

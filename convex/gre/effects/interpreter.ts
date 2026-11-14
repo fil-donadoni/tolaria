@@ -2713,7 +2713,8 @@ function resolveMayPayCost(
 /** Maps a `gainControl` Op's JSON-pure `duration` discriminator onto the
  *  runtime `ControlChangeCondition` the conditional-control SBA re-evaluates
  *  (CR 611.2b, issue #848). An omitted duration is the INDEFINITE reassignment
- *  (no condition — control never reverts on its own, the Ghazbán Ogre shape).
+ *  (CR 611.2a; no condition — control never reverts on its own, the Ghazbán
+ *  Ogre shape).
  *  The `controller-controls-source` kind carries the new controller's id (it
  *  holds "for as long as YOU control the source", where YOU is who just gained
  *  control). */
@@ -5146,7 +5147,7 @@ export const OP_EXECUTORS: {
         // separate `grantAbility` Ops (Touch of Vitae grants haste + the {0}
         // untap ability).
         if (op.ability) {
-            // CR 611.2b (issue #1746) — an omitted `duration` is an INDEFINITE
+            // CR 611.2a (issue #1746) — an omitted `duration` is an INDEFINITE
             // grant ("… and has flying and first strike", Figure of Destiny):
             // route to the permanent-grant primitive, which records the grant
             // with no duration so the phase-boundary purge never ticks it out.
@@ -5184,7 +5185,7 @@ export const OP_EXECUTORS: {
             // `triggeredGrantTemplates[]` (Guardian Scalelord's Backup 1
             // handing the target creature the attack trigger printed below the
             // Backup line, CR 702.165c). Mirrors the keyword leg's
-            // duration/indefinite split (CR 611.2b): both primitives exist.
+            // duration/indefinite split (CR 611.2a): both primitives exist.
             if (op.duration === undefined) {
                 ctx.grantTriggeredAbilityPermanent(
                     target,
@@ -5285,7 +5286,7 @@ export const OP_EXECUTORS: {
                   ? resolved.filter((s) => LAND_SUBTYPES.has(s))
                   : resolved;
         if (!Array.isArray(op.subtypes) && subtypes.length === 0) return;
-        // CR 611.2b (issue #1746) — an omitted `duration` REPLACES the subtypes
+        // CR 611.2a (issue #1746) — an omitted `duration` REPLACES the subtypes
         // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
         // Destiny): the pre-existing `setSubtypes` primitive (Living Lands'
         // resolve() closures) is exactly that effect, so no new primitive.
@@ -5302,7 +5303,7 @@ export const OP_EXECUTORS: {
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
     // the given base P/T, optional subtype/additionalTypes/grantedAbilities,
-    // for `duration` or INDEFINITELY when `duration` is omitted (CR 611.2b —
+    // for `duration` or INDEFINITELY when `duration` is omitted (CR 611.2a —
     // Earthbend N). A thin declarative skin over `animateAsCreature`, ONE
     // execution path (ADR 0045). Skipped when the target is gone (CR 608.2b).
     animate(ctx, op) {
@@ -5339,7 +5340,7 @@ export const OP_EXECUTORS: {
     setBasePT(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        // CR 611.2b (issue #1746) — an omitted `duration` is the primitive's
+        // CR 611.2a (issue #1746) — an omitted `duration` is the primitive's
         // pre-existing `"indefinite"` sentinel (Wall of Tombstones), now
         // reachable from the DSL.
         ctx.setBasePT(

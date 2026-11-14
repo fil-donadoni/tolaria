@@ -232,7 +232,7 @@ registerEmblemDefinition({
 });
 
 /** Tamiyo, Seasoned Scholar −7 emblem (MH3, issue #2385). A STATIC emblem
- *  (CR 114.4, 611.2b) — "You have no maximum hand size" — the SAME
+ *  (CR 114.4, 611.3) — "You have no maximum hand size" — the SAME
  *  `hand-size-override` continuous static effect Library of Leng / Reliquary
  *  Tower carry on a permanent (`StaticHandSizeOverride`, `cards/types.ts`),
  *  reused here on a command-zone source instead of a battlefield one
@@ -449,7 +449,7 @@ registerEmblemDefinition({
 });
 
 /** Nissa, Who Shakes the World −8 emblem (WAR, issue #3229). A STATIC emblem
- *  (CR 114.4, 611.2b) — "Lands you control have indestructible." The same
+ *  (CR 114.4, 611.3) — "Lands you control have indestructible." The same
  *  `keyword-grant` continuous static effect Consecrate Land carries on a
  *  battlefield permanent (`sets/lea/white.cards.ts`), reused here on a command-zone
  *  source, with Sorin's owner-scoped anthem predicate shape: CR 114.3 gives the
