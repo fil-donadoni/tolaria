@@ -264,7 +264,7 @@ describe("CR 400.7 — the stamp names one graveyard object (issue #7209)", () =
         });
         const player = state.players[0];
         discardToGraveyard(state, "p1", "c", { kind: "cost" });
-        const moved = moveCard(player, "c", "graveyard", "hand");
+        const moved = moveCard(player, "c", "graveyard", "hand", state);
         expect(moved.putIntoGraveyardThisTurn).toBeUndefined();
         moveCard(player, "c", "hand", "graveyard");
         expect(offeredIds(state)).toEqual(["c"]);

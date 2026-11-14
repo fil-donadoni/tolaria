@@ -159,7 +159,7 @@ describe("Unearth — the activation (CR 702.84a)", () => {
     it("does nothing when the card left the graveyard in response (CR 400.7)", () => {
         const state = graveyardScenario();
         activate(state);
-        moveCard(state.players[0], CARD, "graveyard", "exile");
+        moveCard(state.players[0], CARD, "graveyard", "exile", state);
         resolveTopOfStack(state);
         expect(zoneOf(state)).toBe("exile");
         expect(state.delayedTriggers ?? []).toHaveLength(0);

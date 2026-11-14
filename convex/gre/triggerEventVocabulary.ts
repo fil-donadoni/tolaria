@@ -299,6 +299,17 @@ export const EVENT_FIELD_KINDS: {
         fromZone: "scalar",
         types: "scalar",
     },
+    // CR 603.10a — a card that left its owner's graveyard (issue #9423); the
+    // instance id names the card, now in `toZone`.
+    CARD_LEFT_GRAVEYARD: {
+        ownerId: "player",
+        cardInstanceId: "object",
+        cardId: "scalar",
+        toZone: "scalar",
+        types: "scalar",
+        isToken: "scalar",
+        battlefieldCohort: "residue",
+    },
     LIFE_LOST: { playerId: "player", amount: "scalar", fromDamage: "scalar" },
     LIFE_GAINED: { playerId: "player", amount: "scalar" },
     COUNTER_REMOVED: {

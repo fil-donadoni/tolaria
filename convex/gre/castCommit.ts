@@ -383,7 +383,7 @@ export function commitCast(
         );
         if (!stillThere) return null;
         for (const id of exilePickIds) {
-            moveCard(caster, id, exileSourceZone, "exile");
+            moveCard(caster, id, exileSourceZone, "exile", state);
         }
         castExiledCardIds.push(...exilePickIds);
     }

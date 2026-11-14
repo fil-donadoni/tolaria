@@ -346,7 +346,7 @@ describe("Foretell — the designation does not outlive the spell (CR 702.143c, 
         expect(raven.foretold).toBeUndefined();
 
         moveCard(p1(cast), "omen", "battlefield", "graveyard");
-        const exiled = moveCard(p1(cast), "omen", "graveyard", "exile");
+        const exiled = moveCard(p1(cast), "omen", "graveyard", "exile", cast);
         expect(exiled.foretold).toBeUndefined();
         exiled.castableFromExileBy = "p1";
         expect(castRawManaCost(cast, exiled, "exile")).toEqual({ X: 3, U: 1 });

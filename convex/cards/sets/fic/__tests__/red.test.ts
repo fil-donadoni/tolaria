@@ -115,14 +115,14 @@ describe("Gau, Feral Youth — end-step damage (CR 603.4 / 400.7 / 120.1)", () =
 
     it("deals damage equal to its power to the opponent once a card left your graveyard", () => {
         const { state, gau } = setup({ graveyard: 1 });
-        moveCard(state.players[0], "gy-0", "graveyard", "exile");
+        moveCard(state.players[0], "gy-0", "graveyard", "exile", state);
         resolveTrigger(state, gau, "gau-feral-youth-end-step", endStep("p1"));
         expect(state.players[1].life).toBe(18); // 20 - 2 power
     });
 
     it("reads EFFECTIVE power at resolution — a Rage counter raises the damage (CR 613)", () => {
         const { state, gau } = setup({ graveyard: 1, counters: 3 });
-        moveCard(state.players[0], "gy-0", "graveyard", "exile");
+        moveCard(state.players[0], "gy-0", "graveyard", "exile", state);
         resolveTrigger(state, gau, "gau-feral-youth-end-step", endStep("p1"));
         expect(state.players[1].life).toBe(15); // 20 - (2 + 3)
     });
@@ -134,7 +134,7 @@ describe("Gau, Feral Youth — end-step damage (CR 603.4 / 400.7 / 120.1)", () =
         // the real phase machine rather than by hand-setting `activePlayerId`,
         // which would fabricate a state the engine never produces.
         const { state } = setup({ graveyard: 1 });
-        moveCard(state.players[0], "gy-0", "graveyard", "exile");
+        moveCard(state.players[0], "gy-0", "graveyard", "exile", state);
         const gauTrigger = (s: GameState, activePlayerId: string) =>
             collectTriggers(s, [
                 {
@@ -168,7 +168,7 @@ describe("Gau, Feral Youth — end-step damage (CR 603.4 / 400.7 / 120.1)", () =
                 (t) => t.triggeredAbilityId === "gau-feral-youth-end-step"
             )
         ).toHaveLength(0);
-        moveCard(state.players[0], "gy-0", "graveyard", "exile");
+        moveCard(state.players[0], "gy-0", "graveyard", "exile", state);
         expect(
             collectTriggers(state, [event as never]).filter(
                 (t) => t.triggeredAbilityId === "gau-feral-youth-end-step"
@@ -189,7 +189,7 @@ describe("Gau, Feral Youth — end-step damage (CR 603.4 / 400.7 / 120.1)", () =
             zone: "graveyard",
             isTapped: false,
         });
-        moveCard(state.players[1], "opp-gy", "graveyard", "exile");
+        moveCard(state.players[1], "opp-gy", "graveyard", "exile", state);
         resolveTrigger(state, gau, "gau-feral-youth-end-step", endStep("p1"));
         expect(state.players[1].life).toBe(20);
     });

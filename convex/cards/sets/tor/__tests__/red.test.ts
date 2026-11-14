@@ -76,7 +76,8 @@ function payExileFromOwnGraveyard(
             throw new Error("Selected card is not in the chosen graveyard");
         }
     }
-    for (const id of cardInstanceIds) moveCard(owner, id, "graveyard", "exile");
+    for (const id of cardInstanceIds)
+        moveCard(owner, id, "graveyard", "exile", state);
 }
 
 /** Pushes Grim Lavamancer's ability on the stack (source stays on the
