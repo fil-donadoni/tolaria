@@ -35,6 +35,12 @@ const PUMP = {
     toughness: 1,
     duration: { phase: "end-of-turn" },
 };
+const GRANT = {
+    op: "grantAbility",
+    target: { ref: "$each" },
+    ability: "flying",
+    duration: { phase: "end-of-turn" },
+};
 const DAMAGE_X = {
     op: "dealDamage",
     amount: { X: true },
@@ -196,6 +202,35 @@ describe("a mass effect's declared outcome holds on the seeded board (CR 608.2)"
             [sweep(PUMP, { subtype: "Vampire" }, { controller: "controller" })],
         ],
         [
+            "grant a keyword, your side only",
+            [sweep(GRANT, { type: "Creature" }, { controller: "controller" })],
+        ],
+        [
+            "grant a keyword, by colour",
+            [
+                sweep(
+                    { ...GRANT, ability: "forestwalk" },
+                    { type: "Creature", color: "G" },
+                    { controller: "controller" }
+                ),
+            ],
+        ],
+        [
+            "grant a keyword to noncreatures, indefinitely",
+            [sweep({ ...GRANT, duration: undefined }, { type: "Land" })],
+        ],
+        [
+            "grant a keyword beside a pump on a wider set",
+            [
+                sweep(PUMP, { type: "Creature" }, { controller: "controller" }),
+                sweep(
+                    GRANT,
+                    { type: "Creature", subtype: "Soldier" },
+                    { controller: "controller" }
+                ),
+            ],
+        ],
+        [
             "damage, without a keyword",
             [sweep(DAMAGE_X, { type: "Creature", excludeAbility: "flying" })],
         ],
@@ -314,6 +349,16 @@ describe("a sweep that reads wider than its selector breaks the plan (CR 608.2)"
             sweep(UNTAP, { type: "Creature" }, { controller: "controller" }),
             sweep(UNTAP, { type: "Creature" }),
         ],
+        [
+            "controller, under a grant",
+            sweep(GRANT, { type: "Creature" }, { controller: "controller" }),
+            sweep(GRANT, { type: "Creature" }),
+        ],
+        [
+            "colour, under a grant",
+            sweep(GRANT, { type: "Creature", color: "G" }),
+            sweep(GRANT, { type: "Creature" }),
+        ],
     ];
 
     it.each(CLAUSES)("the %s clause", (_label, narrow, wide) => {
@@ -343,6 +388,14 @@ describe("a sweep that reads wider than its selector breaks the plan (CR 608.2)"
         );
         const plan = runPlan([guarded]);
         resolveSpell(plan, [sweep(DESTROY, { type: "Artifact" })]);
+        expect(failures(plan)).not.toEqual([]);
+    });
+
+    it("a grant of a different keyword", () => {
+        const plan = runPlan([sweep(GRANT, { type: "Creature" })]);
+        resolveSpell(plan, [
+            sweep({ ...GRANT, ability: "trample" }, { type: "Creature" }),
+        ]);
         expect(failures(plan)).not.toEqual([]);
     });
 
@@ -657,7 +710,7 @@ describe("a modelled selector the script cannot run withholds nothing itself", (
                 {
                     op: "grantAbility",
                     target: { ref: "$each" },
-                    ability: "flying",
+                    grantedActivatedId: "smoke-granted",
                     duration: { phase: "end-of-turn" },
                 },
                 { type: "Creature" }
@@ -708,6 +761,24 @@ describe("the Oracle gate no longer holds a plain mass effect", () => {
             "{R}",
             "Sorcery",
             'Destroy target artifact you don\'t control.\nOverload {4}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+        ],
+        [
+            "Crossbow Ambush",
+            "{G}",
+            "Instant",
+            "Creatures you control gain reach until end of turn. (They can block creatures with flying.)",
+        ],
+        [
+            "Nature's Cloak",
+            "{2}{G}",
+            "Sorcery",
+            "Green creatures you control gain forestwalk until end of turn. (They can't be blocked as long as defending player controls a Forest.)",
+        ],
+        [
+            "Crash Through",
+            "{R}",
+            "Sorcery",
+            "Creatures you control gain trample until end of turn. (Each of those creatures can deal excess combat damage to the player or planeswalker it's attacking.)\nDraw a card.",
         ],
     ])("%s", (name, manaCost, typeLine, oracleText) => {
         const outcome = compileCard(
