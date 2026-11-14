@@ -37,7 +37,7 @@ export type CardLeftGraveyardScope = "yours" | "opponents" | "any";
 export interface CardLeftGraveyardTriggerArgs {
     /** Stable id within the source card's `triggeredAbilities` array. */
     id: string;
-    /** Oracle text shown on the stack and in trigger logs (CR 603.3a). */
+    /** Oracle text shown on the stack and in trigger logs. */
     oracleText: string;
     /** See `CardLeftGraveyardScope`. */
     graveyard: CardLeftGraveyardScope;
