@@ -1,4 +1,5 @@
 import { phaseStopSkips } from "./autoPass";
+import { beginTurnScopedControl, endTurnScopedControl } from "./turnControl";
 import { findPermanent } from "./lookup";
 import { checkStateBasedActions } from "./sba";
 import type { Phase } from "./types";
@@ -3716,6 +3717,10 @@ function tickAllDurations(state: GameState): void {
  *  effects said so". */
 function advanceTurn(state: GameState): void {
     state.turn += 1;
+    // CR 723.1 / 500.7 — the turn that just ended takes its Turn Control with
+    // it and releases the extra turns scheduled directly after it, BEFORE the
+    // next active player is picked below (ADR 0181).
+    endTurnScopedControl(state);
     // Arboria (CR 508.1c) — freeze the just-ended turn's qualifying-action
     // flag for the OUTGOING active player so "during their last turn" reads a
     // stable value once it's no longer their turn. Captured before the active
@@ -3748,6 +3753,9 @@ function advanceTurn(state: GameState): void {
     // taking another of their turns.
     const newActive = getPlayer(state, state.activePlayerId);
     newActive.turnsTaken = (newActive.turnsTaken ?? 0) + 1;
+    // CR 723.1 / 723.1b — past the skip check above, so this is a turn the
+    // player actually takes: a pending Turn Control on them starts here.
+    beginTurnScopedControl(state, newActive.id);
     state.autoPassPlayers = undefined;
     state.passUntilAction = undefined;
     state.singleShotAutoPass = undefined;

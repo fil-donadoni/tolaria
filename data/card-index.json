@@ -50847,6 +50847,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mindslaver",
+        "scryfallId": "98fb1eaa-2871-491a-a4f5-3e358778ba40",
+        "oracleId": "a806f4ee-f48a-46c3-8772-5aaabebe4c7e",
+        "firstSet": "mrd",
+        "firstPrintId": "98fb1eaa-2871-491a-a4f5-3e358778ba40",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mindstab Thrull",
         "scryfallId": "499a791f-ac4f-4a96-b59b-37043686a79a",
         "oracleId": "43abe1f3-7b92-411a-bf93-e158f949685c",
@@ -94649,6 +94659,16 @@
         "firstPrintId": "908781a0-1ba4-4027-bd9d-13f9faf08686",
         "firstPrintSet": "usg",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Worst Fears",
+        "scryfallId": "8f4e21ac-4f3e-4a3e-83c0-0a59a1b84020",
+        "oracleId": "face0a43-6604-4508-b511-81ab0bef7b18",
+        "firstSet": "jou",
+        "firstPrintId": "8f4e21ac-4f3e-4a3e-83c0-0a59a1b84020",
+        "firstPrintSet": "jou",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {

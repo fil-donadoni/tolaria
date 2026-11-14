@@ -102,6 +102,17 @@ world, while the positions after its move stay shared — the Bot's own later
 decisions still cannot see the opponent's hand. Code: `opponentOptionView` in
 `convex/gre/search.ts`.
 
+<a id="controlled-seat-pick"></a>**Controlled-seat pick** — the move the Bot
+makes for a player whose turn it controls (Turn Control, CR 723; ADR 0181).
+Not a tree search: the controlled seat's legal moves, each read one ply ahead
+by the rollout policy in the BOT's interest — the policy maps a mover to its
+Acting Player, so a seat the Bot controls is played against itself (its
+removal on its own creature) and the Bot's own seat under a human's control
+is played against the Bot. Inside the tree a controlled seat's node is still
+an opponent node. Code: `controlledSeatPick` in `convex/gre/search.ts`;
+`handleBrainRequest` routes to it when `actedSeatFor` names a seat that is
+not the Bot's own.
+
 <a id="deck-knowledge"></a><a id="opponent-model"></a>**Deck knowledge /
 opponent model** — what the search is allowed to know about a seat's hidden
 cards, named one seat at a time (`DeckKnowledgeBySeat`, issue #2789). The

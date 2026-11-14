@@ -594,27 +594,34 @@ function projectLibrary(
      *  carries no affordance for this viewer. Spread verbatim onto the
      *  projected top card so a new affordance field never needs a new
      *  positional parameter here. */
-    topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>
+    topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>,
+    /** CR 723.4 (ADR 0181) — every seat whose knowledge this viewer reads:
+     *  the viewer, plus the seats sharing information with them under Turn
+     *  Control. A position known to any of them crosses the wire. */
+    knowers: readonly string[] = [viewerId]
 ): PublicLibrary {
     // The placement records, the two contiguous runs and the CR 401.5 index-0
     // carve-out are derived by `knownLibraryIndices` — ONE authority, shared
     // with `determinize`, so the bot's search can never pin a position this
     // projection did not grant
     // (issue #1524).
-    const known: KnownLibraryCard[] = knownLibraryIndices(
-        library,
-        viewerId,
-        topRevealed
-    ).map((index) => {
-        const slim = slimCard(library[index]);
-        return {
-            index,
-            card:
-                index === 0 && topAffordance !== undefined
-                    ? { ...slim, ...topAffordance }
-                    : slim,
-        };
-    });
+    const indices = new Set<number>();
+    for (const knower of knowers) {
+        for (const index of knownLibraryIndices(library, knower, topRevealed))
+            indices.add(index);
+    }
+    const known: KnownLibraryCard[] = [...indices]
+        .sort((a, b) => a - b)
+        .map((index) => {
+            const slim = slimCard(library[index]);
+            return {
+                index,
+                card:
+                    index === 0 && topAffordance !== undefined
+                        ? { ...slim, ...topAffordance }
+                        : slim,
+            };
+        });
     return { count: library.length, known };
 }
 
@@ -670,7 +677,10 @@ function projectBattlefieldCard(
      *  the field PRD #2064 S6 deletes. Absent for a PHASED-OUT permanent
      *  (CR 702.26b: not on the battlefield, so no continuous effect applies and
      *  there is nothing to derive). */
-    characteristics?: WireCharacteristics
+    characteristics?: WireCharacteristics,
+    /** CR 723.4 (ADR 0181) — the seats whose face-down permanents this viewer
+     *  may look at: their own, plus a player's they control. */
+    knowers: readonly string[] = [viewerId]
 ): SlimBattlefieldCard {
     // CR 116.2b / 702.37e (issue #2705) — the turn-face-up affordance. Derived
     // server-side and carried on the wire for the same reason the companion's
@@ -717,7 +727,7 @@ function projectBattlefieldCard(
     // (turnFaceDown swaps it there, not per-viewer) — it needs no
     // special-casing here at all, only `faceDownOf` is viewer-gated.
     const slimmed = slim();
-    if (viewerId === card.controllerId && card.faceDownOf) {
+    if (knowers.includes(card.controllerId) && card.faceDownOf) {
         // The controller knows what they cast — `faceDownOf` keeps carrying
         // the real id (pre-existing wire shape, unchanged), and `knownCardId`
         // is the SAME value under the name every id-derived filter is
@@ -754,10 +764,15 @@ function projectBattlefieldCard(
  *  source's identity is NOT public and must be gated per viewer here too.
  *  `castById` is the source's controller (`buildTriggerItem`), so the
  *  controller keeps seeing their own card and the opponent does not. */
-function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
+function projectStackItem(
+    item: StackItem,
+    viewerId: string,
+    /** CR 723.4 (ADR 0181) — see `projectBattlefieldCard`. */
+    knowers: readonly string[] = [viewerId]
+): SlimStackItem {
     if (!item.faceDown) return slimCard(item);
     const slimmed = slimCard(item);
-    if (viewerId === item.castById && item.faceDownOf) {
+    if (knowers.includes(item.castById) && item.faceDownOf) {
         // The caster knows what they cast — `faceDownOf` keeps carrying the
         // real id (pre-existing wire shape, unchanged) and `knownCardId` is
         // the same value under the name id-derived filters never read.
@@ -854,6 +869,8 @@ function projectExileCard(
             choice: ExileCastRouteChoice | undefined;
             ridesGrant: boolean;
         };
+        /** CR 723.4 (ADR 0181) — see `projectBattlefieldCard`. */
+        knowers?: readonly string[];
     }
 ): SlimExileCard {
     // CR 601.3 — the viewer's own card it may cast from exile carries
@@ -908,7 +925,8 @@ function projectExileCard(
     // make a 2/2 permanent), so it is added here, on the wire. It is what lets
     // the client branch on a projected field instead of inferring face-down-ness
     // from the ABSENCE of a sentinel id.
-    if (card.knownTo?.includes(viewerId)) {
+    const knowers = opts?.knowers ?? [viewerId];
+    if (card.knownTo?.some((id) => knowers.includes(id))) {
         return decorate({ ...slimCard(card), faceDown: true });
     }
     // Everyone else sees a face-down card with the identity hidden — but still
@@ -1582,9 +1600,9 @@ function nonEmpty<T>(list: T[] | undefined): T[] | undefined {
 /** Issue #8956 — strip the chooser-only library names for any other viewer. */
 function projectChoiceAnnouncement(
     notice: ChoiceAnnouncement | undefined,
-    viewerId: string
+    knowers: readonly string[]
 ): ChoiceAnnouncement | undefined {
-    if (!notice || notice.chooserId === viewerId) return notice;
+    if (!notice || knowers.includes(notice.chooserId)) return notice;
     const stripped = { ...notice };
     delete stripped.chooserNames;
     return stripped;
@@ -1594,8 +1612,26 @@ export function projectPublicState(
     state: GameState,
     seq: number,
     viewerId: string,
-    allActions: boolean = false
+    allActions: boolean = false,
+    /** CR 723.4 (ADR 0181) — the seats whose hidden GAME information the
+     *  requester sees besides the viewer seat's: while one player controls
+     *  another, "information about an object in the game [that] would be
+     *  visible to the player being controlled" is visible to both — the hand,
+     *  face-down permanents and spells, cards known in a library or in exile.
+     *  Computed by the caller, which alone knows who is asking
+     *  (`informationSeatsFor`); empty for every ordinary view. */
+    informationSeats: readonly string[] = [],
+    /** The seat of the player actually asking. Differs from `viewerId` in one
+     *  case: a controller viewing the seat they control (`computeViewerSeat`).
+     *  CR 723.4 — "information about cards outside the game [that] would be
+     *  visible to the player being controlled … is visible only to that
+     *  player, not the controller": the outside-the-game holder and a Wish
+     *  pick's candidates are gated on THIS id, never on a borrowed
+     *  `viewerId`. */
+    requesterId: string = viewerId
 ): PublicGameState {
+    const knowers = [viewerId, ...informationSeats];
+    const borrowedView = requesterId !== viewerId;
     // CR 401.4 / 701.23: while the viewer is the chooser of an active
     // search-library / reorder-library / draw-look-keep / reveal-hand
     // choice, expose the looked-at zone face-up so the UI can render its picker
@@ -1685,6 +1721,7 @@ export function projectPublicState(
             exile: player.exile.map((c) =>
                 withPrintedCastAvailability(
                     projectExileCard(c, viewerId, {
+                        knowers,
                         castPermitted: exileCastPermitted(state, c, viewerId),
                         routeFor: () => ({
                             choice: exileCastRouteChoice(state, c, viewerId),
@@ -1715,7 +1752,8 @@ export function projectPublicState(
                     c,
                     viewerId,
                     state,
-                    characteristics.get(c.id)
+                    characteristics.get(c.id),
+                    knowers
                 )
             ),
             // ADR 0026 — sparse library: only cards the viewer knows
@@ -1728,23 +1766,27 @@ export function projectPublicState(
                 player.library,
                 viewerId,
                 libraryTopRevealedPlayers.has(player.id) ||
-                    (player.id === viewerId &&
+                    (knowers.includes(player.id) &&
                         libraryTopLookedAtPlayers.has(player.id)),
-                libraryTopAffordance(state, player, viewerId, allActions)
+                libraryTopAffordance(state, player, viewerId, allActions),
+                knowers
             ),
             librarySearch,
             libraryPeek,
             revealedHand,
+            // CR 723.4 — never through a borrowed view: a controller answers
+            // the controlled player's Wish without seeing what it could fetch.
             outsideGamePeek: projectOutsideGamePeek(
                 player,
-                outsideGamePeekOwner,
-                outsideGamePeekIds
+                borrowedView ? undefined : outsideGamePeekOwner,
+                borrowedView ? undefined : outsideGamePeekIds
             ),
             // CR 400.11a — a player knows their own sideboard: the holder
             // crosses the wire to its OWNER only (the Bot's search needs it
-            // to value a Wish at all), never to anyone else.
+            // to value a Wish at all), never to anyone else — the player
+            // asking, not the seat they view (CR 723.4).
             outsideGame:
-                player.id === viewerId && player.outsideGame?.length
+                player.id === requesterId && player.outsideGame?.length
                     ? player.outsideGame.map(slimCard)
                     : undefined,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
@@ -1896,9 +1938,13 @@ export function projectPublicState(
         return {
             ...common,
             hand: player.hand.map((card): SlimHandCard | null =>
+                // CR 723.4 — a controlled player's hand is visible to the
+                // player controlling them, and theirs stays visible to them
+                // while they view the controlled seat.
+                informationSeats.includes(player.id) ||
                 handRevealed ||
                 handPickExposed ||
-                card.knownTo?.includes(viewerId)
+                card.knownTo?.some((id) => knowers.includes(id))
                     ? { ...slimCard(card), legalActions: [] }
                     : null
             ),
@@ -1909,7 +1955,9 @@ export function projectPublicState(
         ...state,
         seq,
         players,
-        stack: state.stack.map((item) => projectStackItem(item, viewerId)),
+        stack: state.stack.map((item) =>
+            projectStackItem(item, viewerId, knowers)
+        ),
         // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch is
         // public (the triggers are going on the stack); slim it like `stack` so
         // the ordering picker can render card art without the raw `...state`
@@ -1923,7 +1971,7 @@ export function projectPublicState(
         // the face-down permanent that is its source. A bare `slimCard` sent
         // that permanent's real card id straight to the opponent.
         pendingTriggerBatch: state.pendingTriggerBatch?.map((i) =>
-            projectStackItem(i, viewerId)
+            projectStackItem(i, viewerId, knowers)
         ),
         // CR 702.50a — an epic trigger's spell is a full stack item; the raw
         // spread would ship its fat card def.
@@ -1948,19 +1996,27 @@ export function projectPublicState(
         // `projectBattlefieldCard`.
         phasedOut: state.phasedOut?.map((b) => ({
             ...b,
-            cards: b.cards.map((c) => projectBattlefieldCard(c, viewerId)),
+            cards: b.cards.map((c) =>
+                projectBattlefieldCard(
+                    c,
+                    viewerId,
+                    undefined,
+                    undefined,
+                    knowers
+                )
+            ),
         })),
         // Reveal dialog — each viewer sees only the notifications addressed to
         // them (a private look never leaks to the other seat). Dropped entirely
         // when none apply so the field stays absent on the wire.
         pendingReveals: state.pendingReveals?.filter((r) =>
-            r.audience.includes(viewerId)
+            r.audience.some((id) => knowers.includes(id))
         ),
         // Issue #8956 — the names of the cards left in the library are the
         // chooser's alone (CR 401.2); every seat keeps the counts.
         lastChoiceAnnouncement: projectChoiceAnnouncement(
             state.lastChoiceAnnouncement,
-            viewerId
+            knowers
         ),
         // CR 400.11a — a Wish pick's allow-list counts the matching cards in
         // its owner's sideboard: hidden information, so a viewer who is not

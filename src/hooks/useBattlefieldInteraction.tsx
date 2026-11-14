@@ -127,6 +127,7 @@ export function useBattlefieldInteraction(player: Player) {
     const {
         gameId,
         playerId,
+        actingLocked,
         activePlayerId,
         priorityPlayerId,
         phase,
@@ -172,7 +173,8 @@ export function useBattlefieldInteraction(player: Player) {
     // from the engine's own `computeOwedPlayerIds`, so a non-active
     // combat-damage assigner still counts and the solo seat follows the one
     // the viewer is acting for.
-    const viewerOwes = viewerOwesInput(game, playerId);
+    // A seat another player controls owes nothing itself (CR 723.5).
+    const viewerOwes = !actingLocked && viewerOwesInput(game, playerId);
     // Melee (#669) — under `blocksDeclaredByAttacker` the attacking (active) player declares
     // blocks; otherwise the defending (non-active) player does.
     const blockDeclarerId = blocksDeclaredByAttacker
@@ -576,6 +578,7 @@ export function useBattlefieldInteraction(player: Player) {
         // payment — clicks are taps toward the tax, not attacker toggles.
         !combat.pendingAttackManaTax &&
         isMe &&
+        !actingLocked &&
         playerId === activePlayerId;
 
     // CR 508.1a (issue #1220) — while the active player is declaring attackers,
@@ -587,6 +590,7 @@ export function useBattlefieldInteraction(player: Player) {
         !!combat &&
         !combat.confirmed &&
         !combat.pendingAttackManaTax &&
+        !actingLocked &&
         playerId === activePlayerId &&
         player.id !== activePlayerId &&
         // Candidates only while a creature is waiting for its target.

@@ -23,6 +23,7 @@ import type {
     PendingChoice,
     PendingTarget,
 } from "./gre/state";
+import { actingPlayerFor, type TurnControlView } from "./gre/turnControl";
 
 export type SoloViewerCtx = {
     activePlayerId: string;
@@ -83,4 +84,38 @@ export function computeSoloViewerId(ctx: SoloViewerCtx): string {
     }
 
     return ctx.priorityPlayerId;
+}
+
+/** The seat `requesterId` views and acts as outside Solo Mode (ADR 0181): the
+ *  seat that owes input when the requester answers for it under Turn Control
+ *  (CR 723.5), else their own. A controller's board therefore follows the
+ *  controlled seat exactly as a solo board follows the owed one; a controlled
+ *  player's stays on their own seat, where they watch. Shared by the server
+ *  projection and the client board for the same reason `computeSoloViewerId`
+ *  is. */
+export function computeViewerSeat(
+    ctx: SoloViewerCtx & TurnControlView,
+    requesterId: string
+): string {
+    const owed = computeSoloViewerId(ctx);
+    return owed !== requesterId && actingPlayerFor(ctx, owed) === requesterId
+        ? owed
+        : requesterId;
+}
+
+/** CR 723.4 — the seats whose hidden game information `requesterId` sees
+ *  besides `viewerId`'s: their own (a controller viewing the controlled seat
+ *  still knows their own hand) and every seat they actively control. Empty on
+ *  a board with no Turn Control. */
+export function informationSeatsFor(
+    view: TurnControlView,
+    requesterId: string,
+    viewerId: string
+): string[] {
+    const seats = [requesterId];
+    for (const c of view.turnControls ?? []) {
+        if (c.active && c.controllerId === requesterId)
+            seats.push(c.controlledId);
+    }
+    return [...new Set(seats)].filter((id) => id !== viewerId);
 }

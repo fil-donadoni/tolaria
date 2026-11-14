@@ -135,6 +135,12 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // through untouched by any edit of the row.
     stack: "preserved",
     companion: "form-owned",
+    // CR 723.1 (issue #8446) — an active Turn Control, `preserved` like
+    // `combat`: it has to COHERE with the turn holder (a control is active
+    // only during the controlled seat's own turn), which a pair of free
+    // selects beside `activePlayer` would let an edit break. Captured
+    // (`specFromState`) or hand-written in a blade entry or a preset.
+    turnControl: "preserved",
     // CR 400.11a — the cards each seat owns outside the game, a LIST of
     // per-seat card names: `preserved` like `stack`, a repeatable record no
     // scalar input kind here has the shape of. Hand-written in a preset or

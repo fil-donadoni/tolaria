@@ -360,6 +360,19 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Passes already banked in this priority round (default 0).",
         },
+        // CR 723.1 (issue #8446) — "your opponent controls your turn" is a
+        // board a description can ask for, and the only way to get it.
+        turnControl: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                controlled: { type: "string", enum: ["me", "opp"] },
+                controller: { type: "string", enum: ["me", "opp"] },
+            },
+            required: ["controlled", "controller"],
+            description:
+                "An active Turn Control: `controller` makes every decision of `controlled` for the turn in progress (Mindslaver). Set activePlayer to the controlled seat. Omit unless the description says one player controls the other's turn.",
+        },
         markLastDrawn: {
             type: "boolean",
             description:

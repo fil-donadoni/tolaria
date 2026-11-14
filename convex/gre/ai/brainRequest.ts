@@ -22,11 +22,13 @@
 import type { PublicGameState } from "../../gameProjections";
 import type { Move } from "../moves";
 import {
+    controlledSeatPick,
     searchWithTrace,
     DEFAULT_BUDGET,
     type SearchBudget,
     type DecisionTrace,
 } from "../search";
+import { actedSeatFor } from "../expectedInput";
 import { recordRepetition, type RepetitionHistory } from "./repetition";
 import { projectedToGameState } from "./stateAdapter";
 import type { DeckKnowledgeBySeat } from "../deckKnowledge";
@@ -107,6 +109,18 @@ export function handleBrainRequest(
         // `library.known[]` can be restored as `knownTo` and survive
         // determinization (issue #1524).
         const root = projectedToGameState(state, deckKnowledge, botId);
+        // CR 723.5 (ADR 0181) — the decision is for a seat the Bot CONTROLS
+        // this turn: no tree, the controlled seat's moves read one ply ahead
+        // in the Bot's interest (`controlledSeatPick`). No repetition record:
+        // the history is the Bot's own seat's.
+        const seatId = actedSeatFor(root, botId);
+        if (seatId !== null && seatId !== botId) {
+            return {
+                id,
+                move: controlledSeatPick(root, seatId, botId, seed),
+                trace: null,
+            };
+        }
         const { move, trace } = search(
             root,
             botId,

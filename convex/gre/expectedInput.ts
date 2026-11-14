@@ -19,6 +19,7 @@ import { ConvexError } from "convex/values";
 import type { ExpectedInput, GameState } from "./state";
 import { getOpponentId, isManaPaymentChoiceWindow } from "./state";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
+import { actingPlayerFor } from "./turnControl";
 
 /** Pure, total derivation of the Expected Input from a settled GameState
  *  (ADR 0047). Precedence — highest first — reflects the CR's nesting of
@@ -113,8 +114,9 @@ export function computeExpectedInput(
     return { kind: "priority", playerId: state.priorityPlayerId };
 }
 
-/** Every player id actually owed to act right now (issue #1778 review
- *  finding 1). For every {@link ExpectedInput} kind this is a singleton —
+/** Every SEAT owed to act right now (issue #1778 review finding 1) — the
+ *  ids the rules name, never mapped through Turn Control (see
+ *  {@link computeOwedActingPlayerIds} for who answers). For every {@link ExpectedInput} kind this is a singleton —
  *  `[computeExpectedInput(state).playerId]` — EXCEPT the CR 510.1c/702.22j-k
  *  combat-damage-assignment sub-flow (2+ blockers on one attacker, or banding
  *  shifting assignment to the defending player): that sub-flow folds into a
@@ -155,6 +157,37 @@ export function computeOwedPlayerIds(state: GameState): string[] {
     }
 
     return [current.playerId];
+}
+
+/** The players who must ANSWER right now (ADR 0181): each owed seat mapped to
+ *  its Acting Player, deduplicated. Equal to {@link computeOwedPlayerIds} on
+ *  every board with no active Turn Control. While one is active (CR 723.5) the
+ *  controller is named for the controlled seat's windows and the controlled
+ *  player for none — which is what a subscriber that wakes, times or charges
+ *  a PLAYER must read (`gameTicks.owedPlayerIds`: the vs-AI driver, the Bot
+ *  server deadline, the Match Clock). A surface acting AS a seat it already
+ *  chose reads `computeOwedPlayerIds` instead. */
+export function computeOwedActingPlayerIds(state: GameState): string[] {
+    const acting: string[] = [];
+    for (const seatId of computeOwedPlayerIds(state)) {
+        const id = actingPlayerFor(state, seatId);
+        if (!acting.includes(id)) acting.push(id);
+    }
+    return acting;
+}
+
+/** The owed seat `playerId` must answer for right now — their own, or one
+ *  they control (CR 723.5, 723.8) — or `null` when they owe nothing. The seat
+ *  is what an action is submitted AS: the gate and the rules read it. */
+export function actedSeatFor(
+    state: GameState,
+    playerId: string
+): string | null {
+    return (
+        computeOwedPlayerIds(state).find(
+            (seatId) => actingPlayerFor(state, seatId) === playerId
+        ) ?? null
+    );
 }
 
 /** Maintain the authoritative `expectedInput` field on `state` (ADR 0047).

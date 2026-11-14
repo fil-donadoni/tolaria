@@ -1423,6 +1423,16 @@ const SCENARIO_SKIPS = {
         code: "later-outcome",
         reason: `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`,
     },
+    // CR 723.1 (issue #8446) — a Turn Control is recorded pending and only
+    // takes effect when the turn-advance machinery (not the stack-resolution
+    // scenario harness) starts the controlled player's next turn — a later
+    // outcome, like `extraTurn`. Covered by the Op's hand-written interpreter
+    // + wire-format tests and the lifecycle tests
+    // (`gre/__tests__/turnControl.test.ts`).
+    controlNextTurn: {
+        code: "later-outcome",
+        reason: `Op "controlNextTurn" records a control that starts at a later turn boundary, not a same-step outcome — covered by hand-written tests`,
+    },
     // CR 500.8 (issue #2886) — queueing an extra combat phase mutates
     // `state.extraPhases`, drained by the PHASE-advance machinery (not
     // the stack-resolution scenario harness) at a LATER END_OF_COMBAT

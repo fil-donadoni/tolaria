@@ -95,6 +95,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
     const {
         gameId,
         playerId,
+        actingLocked,
         priorityPlayerId,
         activePlayerId,
         pendingTarget,
@@ -120,6 +121,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         !!combat &&
         !combat.confirmed &&
         !combat.pendingAttackManaTax &&
+        !actingLocked &&
         playerId === activePlayerId &&
         player.id !== activePlayerId;
 

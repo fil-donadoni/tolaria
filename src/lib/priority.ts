@@ -11,7 +11,11 @@ import type {
 // the server projection and the client board never diverge on "who is the solo
 // viewer" (see convex/soloViewer.ts). Re-exported here so existing
 // `~/lib/priority` consumers keep their import path.
-export { computeSoloViewerId, type SoloViewerCtx } from "@convex/soloViewer";
+export {
+    computeSoloViewerId,
+    computeViewerSeat,
+    type SoloViewerCtx,
+} from "@convex/soloViewer";
 
 export type HasPriorityCtx = {
     playerId: string;
@@ -36,12 +40,19 @@ export type HasPriorityCtx = {
      *  trigger on the stack. Survives the wire projection (top-level
      *  `GameState` key kept by `PublicGameState`). */
     pendingExtraCleanupStep?: boolean;
+    /** CR 723.5 (ADR 0181) — another player makes this seat's decisions this
+     *  turn. The pending-input owners already name that player
+     *  (`lockedSeatView`); this covers the turn-based declarations, which are
+     *  read off `activePlayerId` — a display fact that stays the controlled
+     *  player's (CR 723.3). */
+    actingLocked?: boolean;
 };
 
 /** The seat that declares this combat's blocks (CR 509.1): the defending
  *  (non-active) player normally, or the attacking (active) player under Melee
  *  (`blocksDeclaredByAttacker`, #669). */
 function blockDeclarerIsLocal(ctx: HasPriorityCtx): boolean {
+    if (ctx.actingLocked) return false;
     return ctx.blocksDeclaredByAttacker
         ? ctx.playerId === ctx.activePlayerId
         : ctx.playerId !== ctx.activePlayerId;
@@ -72,6 +83,7 @@ export function isSelectingAttackers(ctx: HasPriorityCtx): boolean {
         ctx.phase === "DECLARE_ATTACKERS" &&
         !!ctx.combat &&
         !ctx.combat.confirmed &&
+        !ctx.actingLocked &&
         ctx.playerId === ctx.activePlayerId
     );
 }
@@ -115,7 +127,9 @@ export function isDamageStepOpen(ctx: HasPriorityCtx): boolean {
 
 export function isAssigningDamage(ctx: HasPriorityCtx): boolean {
     return (
-        isDamageStepOpen(ctx) && ctx.playerId === outstandingDamageAssigner(ctx)
+        isDamageStepOpen(ctx) &&
+        !ctx.actingLocked &&
+        ctx.playerId === outstandingDamageAssigner(ctx)
     );
 }
 
@@ -124,7 +138,7 @@ export function isWaitingOnOpponent(ctx: HasPriorityCtx): boolean {
         ctx.phase === "DECLARE_ATTACKERS" &&
         !!ctx.combat &&
         !ctx.combat.confirmed &&
-        ctx.playerId !== ctx.activePlayerId;
+        (ctx.actingLocked || ctx.playerId !== ctx.activePlayerId);
     const opponentSelectingBlockers =
         ctx.phase === "DECLARE_BLOCKERS" &&
         !!ctx.combat &&
@@ -160,6 +174,7 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
     // ("Cannot pass priority during mulligan phase"). `computePriorityState`
     // already gates on this set; `computeHasPriority` must too.
     if (isNonPriorityPhase(ctx)) return false;
+    if (ctx.actingLocked) return false;
     return (
         ctx.playerId === ctx.priorityPlayerId &&
         !ctx.pendingCast &&
@@ -211,10 +226,14 @@ export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
         ctx.pendingActivation?.playerId ??
         ctx.pendingTarget?.playerId;
     if (pendingOwner)
-        return pendingOwner === ctx.playerId ? "mine" : "opponent";
+        return pendingOwner === ctx.playerId && !ctx.actingLocked
+            ? "mine"
+            : "opponent";
 
     // Plain priority window.
-    return ctx.priorityPlayerId === ctx.playerId ? "mine" : "opponent";
+    return ctx.priorityPlayerId === ctx.playerId && !ctx.actingLocked
+        ? "mine"
+        : "opponent";
 }
 
 /** Who must act NOW, for the board's priority frame: the owner of a pending
@@ -226,7 +245,10 @@ export function computeActingSeat(
 ): PriorityState {
     if (ctx.gameOver) return "none";
     const choice = ctx.pendingChoices?.[0];
-    if (choice) return choice.playerId === ctx.playerId ? "mine" : "opponent";
+    if (choice)
+        return choice.playerId === ctx.playerId && !ctx.actingLocked
+            ? "mine"
+            : "opponent";
     return computePriorityState(ctx);
 }
 

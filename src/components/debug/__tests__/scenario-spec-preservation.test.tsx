@@ -141,6 +141,7 @@ const STORED: Required<ScenarioSpec> = {
     activePlayer: "opp",
     priority: "me",
     passCount: 1,
+    turnControl: { controlled: "opp", controller: "me" },
     // CR 508.1 / 509.1 (issue #3458) — a curated row captured mid-combat: the
     // first field classified `preserved` since issue #3463, so it is also the
     // first real exercise of the carry-through path below.
