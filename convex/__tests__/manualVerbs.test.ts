@@ -28,6 +28,8 @@ import {
     manualReveal,
     manualRevealHand,
     backfillManualCardNames,
+    projectManualState,
+    stackOf,
 } from "../manual";
 
 function freshState() {
@@ -748,5 +750,102 @@ describe("manual verbs - table driven", () => {
         expect(revealed.card.revealedTo).toEqual(
             expect.arrayContaining(["p1", "p2"])
         );
+    });
+});
+
+// Issue #2351 — the game-wide Manual Stack (CR 405): a sixth zone that is not
+// per seat, so LIFO order survives across players.
+describe("manual stack (issue #2351)", () => {
+    it("moves a card from every zone onto the stack, top last, across seats", () => {
+        let state = freshState();
+        const bolt = state.players[0].hand[0];
+        const bob = state.players[1].hand[0];
+        const lib = state.players[0].library[0];
+        state = manualMoveCard(state, lib.id, "battlefield").state;
+        state = manualMoveCard(state, lib.id, "stack").state;
+        state = manualMoveCard(state, bob.id, "stack").state;
+        state = manualMoveCard(state, bolt.id, "stack").state;
+        expect(stackOf(state).map((c) => c.id)).toEqual([
+            lib.id,
+            bob.id,
+            bolt.id,
+        ]);
+        expect(stackOf(state).every((c) => c.zone === "stack")).toBe(true);
+        // Removed from where they were; never duplicated.
+        expect(findCardInState(state, bolt.id)).toBeNull();
+        expect(
+            state.players.flatMap((p) => p.hand).map((c) => c.id)
+        ).not.toContain(bob.id);
+    });
+
+    it("sends a stack card to any other zone, back to its OWNER's side", () => {
+        let state = freshState();
+        const bob = state.players[1].hand[0];
+        state = manualMoveCard(state, bob.id, "stack").state;
+        for (const zone of [
+            "battlefield",
+            "graveyard",
+            "exile",
+            "hand",
+            "library",
+        ] as const) {
+            state = manualMoveCard(state, bob.id, "stack").state;
+            state = manualMoveCard(state, bob.id, zone).state;
+            expect(stackOf(state)).toHaveLength(0);
+            expect(state.players[1][zone].map((c) => c.id)).toContain(bob.id);
+            expect(state.players[0][zone].map((c) => c.id)).not.toContain(
+                bob.id
+            );
+        }
+    });
+
+    it("logs a stack move like any other move", () => {
+        const state = freshState();
+        const card = state.players[0].hand[0];
+        const { log } = manualMoveCard(state, card.id, "stack");
+        expect(log.text).toBe(`Alice moves ${card.name} → stack`);
+        expect(log.playerId).toBe("p1");
+    });
+
+    it("projects the stack to both seats, in order, with face-down identity hidden", () => {
+        let state = freshState();
+        const [a, b] = state.players[0].hand;
+        state = manualMoveCard(state, a.id, "stack").state;
+        state = manualMoveCard(state, b.id, "stack").state;
+        state.stack![1].faceDown = true;
+        state.stack![1].knownTo = ["p1"];
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectManualState(state, viewer);
+            expect(projected.stack.map((c) => c.id)).toEqual([a.id, b.id]);
+            expect(projected.stack[0].card.id).toBe(a.card.id);
+        }
+        expect(projectManualState(state, "p1").stack[1].card.id).toBe(
+            b.card.id
+        );
+        expect(projectManualState(state, "p2").stack[1].card.id).toBe(
+            "__faceDown"
+        );
+        expect(projectManualState(state, "p2").stack[1]).not.toHaveProperty(
+            "knownTo"
+        );
+    });
+
+    it("projects a state persisted before the stack existed as an empty stack", () => {
+        const state = freshState();
+        expect(state.stack).toBeUndefined();
+        expect(projectManualState(state, "p1").stack).toEqual([]);
+    });
+
+    it("backfills names and finds cards on the stack for the other verbs", () => {
+        let state = freshState();
+        const card = state.players[0].hand[0];
+        state = manualMoveCard(state, card.id, "stack").state;
+        delete state.stack![0].name;
+        expect(
+            backfillManualCardNames(state, new Map([[card.card.id, "Named"]]))
+        ).toBe(true);
+        expect(state.stack![0].name).toBe("Named");
+        const tapped = manualSetTapped(state, card.id, true).state;
+        expect(stackOf(tapped)[0].isTapped).toBe(true);
     });
 });

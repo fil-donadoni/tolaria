@@ -10,6 +10,7 @@ import { PendingChoiceBufferContext } from "~/hooks/usePendingChoiceBuffer";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
+import { useManualCardInteraction } from "~/lib/manual-card-verbs";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
@@ -184,6 +185,9 @@ export default function GameStack({
     const canChooseStackSource = stack.some((item) =>
         isStackChoiceCandidate(activeChoice, playerId, item.id)
     );
+    // Manual Game (issue #2351): the stack column is also the `stack` drop zone
+    // and has no yields — those are a GRE priority-stop concept.
+    const isManual = useManualCardInteraction() !== null;
     const { offset, dragHandlers } = useDraggable();
     const highlight = useArrowHighlight();
     const setSeed = highlight?.setSeed;
@@ -389,6 +393,10 @@ export default function GameStack({
                 // from the outer div, and `Panel` below overrides back to
                 // `pointer-events-auto` for itself and its descendants.
                 className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
+                // Inert hit-test handle (issue #2351): the Manual Board's drag
+                // resolves a drop with `closest('[data-zone-drop]')`. No owner —
+                // the stack is game-wide.
+                data-zone-drop={isManual ? "stack" : undefined}
             >
                 <Panel
                     density="compact"
@@ -441,8 +449,8 @@ export default function GameStack({
                         yields" (issue #3629) rides beside it, on the same
                         count. */}
                             <div className="flex gap-2 px-2 pt-2 empty:hidden">
-                                <ClearYieldsButton />
-                                <ManageYieldsButton />
+                                {!isManual && <ClearYieldsButton />}
+                                {!isManual && <ManageYieldsButton />}
                             </div>
                             <div
                                 className={`flex ${

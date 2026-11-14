@@ -41,7 +41,10 @@ import {
     landscapeCardMetrics,
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
-import { adaptManualPlayers } from "~/lib/manual-board-adapter";
+import {
+    adaptManualPlayers,
+    adaptManualStack,
+} from "~/lib/manual-board-adapter";
 import { makeCatalogueRowLookup } from "~/lib/manual-band";
 import { makeManualBattlefieldInteraction } from "~/lib/manual-battlefield-interaction";
 import {
@@ -232,6 +235,7 @@ export default function ManualBoardView({
     );
 
     const allPlayers = useMemo(() => adaptManualPlayers(state), [state]);
+    const stackItems = useMemo(() => adaptManualStack(state), [state]);
     const me = allPlayers.find((p) => p.id === viewerId);
     const opponent = allPlayers.find((p) => p.id !== viewerId);
     // Opponent first, viewer second — the ordering `BoardPiles` /
@@ -445,7 +449,10 @@ export default function ManualBoardView({
                                                                 activePlayerId={
                                                                     state.activePlayerId
                                                                 }
-                                                                stackItems={[]}
+                                                                stackItems={
+                                                                    stackItems
+                                                                }
+                                                                stackDropZone
                                                                 extraArrows={
                                                                     manualArrows
                                                                 }

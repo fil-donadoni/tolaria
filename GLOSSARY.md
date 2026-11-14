@@ -1713,6 +1713,10 @@ _Avoid_: Auto-yield (as the domain term — the user-facing per-card menu label 
 A game played without the **GRE** — no rule is enforced and no action is automated. Players move cards, tap, adjust life and counters by hand, and agree between themselves on legality. Hidden information is still server-enforced (projected per viewer). Every printed card is playable because no **CardDefinition** is ever hydrated — the card image alone is all the client needs.
 _Avoid_: Tabletop game, free-form game, cockatrice (as a domain term — the user-facing label of a **Manual Game** IS **Cockatrice Mode**, see Surfaces)
 
+**Manual Stack**:
+The sixth zone of a **Manual Game** (`ManualZone` = library · hand · battlefield · graveyard · exile · **stack**): ONE game-wide list of cards on `ManualGameState.stack`, last entry on top (CR 405), not one per seat — two per-seat stacks would lose the LIFO order across players. Only cards go on it; an ability is announced with an arrow or out loud. Like every zone it is moved into and out of by menu (`Move to stack`) or drag, and nothing infers where a card goes when it leaves: the player picks, every time. Rendered by the shared stack column. Not the GRE's **Stack** (`GameState.stack`, engine-resolved). Issue #2351.
+_Avoid_: Resolve (there is no Resolve verb), per-player stack
+
 **Manual Deck**:
 A deck built for **Manual Mode**, carrying `format: "manual"`. It is REJECTED by the real engine (fail-closed in `createGame`/`joinGame`/`createSoloGame`) but a real-format deck IS playable in a **Manual Game** — both address cards by the same Scryfall print UUID.
 _Avoid_: Cockatrice deck, free deck

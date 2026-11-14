@@ -55,6 +55,7 @@ export function manualState(
 ): ProjectedManualGameState {
     return {
         players,
+        stack: [],
         turn: 1,
         activePlayerId: players[0]?.id ?? "me",
         ...overrides,

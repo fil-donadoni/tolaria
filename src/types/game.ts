@@ -735,6 +735,10 @@ export interface Combat {
 
 export interface StackItem extends CardInstance {
     castById: string;
+    /** Manual Game only (issue #2351): the printed name a manual card carries
+     *  (`ManualCardInstance.name`), the one name source a card with no registry
+     *  definition has. Absent on every GRE stack item. */
+    name?: string;
     targets?: TargetSelection[];
     /** If set, this stack item is a copy of a spell (CR 707.10 — Fork,
      *  storm copies). A spell copy has no distinct printed identity, so the
