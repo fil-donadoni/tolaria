@@ -19,8 +19,8 @@ import { defineCard } from "../../types";
 // to an ability defining another object's P/T. So "have base power and
 // toughness 1/1" is expressible only in 7b, and a 7c buff still applies over
 // it — a Humility'd creature with a +1/+1 counter is 2/2 (CR 613.4c).
-// Humility is an Enchantment, not a creature, so it never strips or resizes
-// itself.
+// Humility is an Enchantment, not a creature, so it strips and resizes itself
+// only while another effect makes it one (Opalescence, below).
 //
 // CR 613.8 (issue #2068) — in layer 6 this card's removal and an ability GRANTED
 // by a creature's own static ability (Lord of Atlantis's islandwalk) are
