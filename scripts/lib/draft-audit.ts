@@ -297,7 +297,11 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // share now counts a spell carrying ANY Archetype the Pool is
         // committed to. The old build reads 0.679 by that definition on
         // seeds 1..8 (0.699 over 64), the soft-weight build 0.707 (0.725).
-        meanPlanShare: 0.7,
+        // Loosened 0.70 → 0.69 by the `lands-in-graveyard` Capability
+        // (issue #9322): seeds 1..8 read 0.707 → 0.699 while the 64-seed
+        // share rises (0.725 → 0.728); the base already has one block of
+        // eight at 0.699.
+        meanPlanShare: 0.69,
         meanCapabilityPairs: 16.71,
     },
     lea: {
