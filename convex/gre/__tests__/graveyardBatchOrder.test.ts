@@ -163,7 +163,8 @@ describe("CR 404.3 — Hermit Druid's revealed cards are one batch", () => {
         activateDruidAndResolve(state);
         // Engine order would leave Lightning Bolt on top (no creature).
         submitOrder(state, ["wurm", "bolt", "bears"]);
-        expect(gy(state, "p1").at(-1)).toBe("wurm");
+        const pile = gy(state, "p1");
+        expect(pile[pile.length - 1]).toBe("wurm");
         const shifter = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "shifter"
         )!;

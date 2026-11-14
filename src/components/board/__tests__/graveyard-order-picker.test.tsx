@@ -65,6 +65,7 @@ function choice(playerId: string): Choices {
             zone: "graveyard",
             count: 2,
             candidateIds: ["c", "b"],
+            prompt: "Arrange the cards put into your graveyard (rightmost = top).",
         },
     ];
 }
