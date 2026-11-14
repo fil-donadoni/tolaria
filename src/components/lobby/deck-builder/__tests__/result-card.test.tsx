@@ -80,6 +80,7 @@ describe("ResultCard availability gating", () => {
                 allowedSets={null}
                 enforceAvailability
                 onAdd={onAdd}
+                onPrefer={() => {}}
             />
         );
         expect(getByText("Unavailable")).toBeDefined();
@@ -95,6 +96,7 @@ describe("ResultCard availability gating", () => {
                 allowedSets={null}
                 enforceAvailability={false}
                 onAdd={onAdd}
+                onPrefer={() => {}}
             />
         );
         expect(queryByText("Not yet available")).toBeNull();
@@ -116,6 +118,7 @@ describe("ResultCard availability gating", () => {
                     allowedSets={null}
                     enforceAvailability={enforce}
                     onAdd={onAdd}
+                    onPrefer={() => {}}
                 />
             );
             fireEvent.click(getByTestId("draggable"));
@@ -151,6 +154,7 @@ describe("ResultCard definitionId hand-off", () => {
                 allowedSets={null}
                 enforceAvailability
                 onAdd={onAdd}
+                onPrefer={() => {}}
             />
         );
         fireEvent.click(getByTestId("draggable"));
@@ -170,6 +174,7 @@ describe("ResultCard definitionId hand-off", () => {
                 allowedSets={null}
                 enforceAvailability={false}
                 onAdd={onAdd}
+                onPrefer={() => {}}
             />
         );
         fireEvent.click(getByTestId("draggable"));
@@ -183,28 +188,33 @@ describe("ResultCard definitionId hand-off", () => {
 });
 
 // The printing picker (issue #4122) is the cell's footer: a printing picked
-// there is the one the cell's click then adds — the wiring between the two,
-// not the picker's own grid (its own file covers that).
-describe("ResultCard printing picker", () => {
-    it("adds the printing picked in the picker", () => {
+// there is saved as the user's preference (issue #8755), and the cell shows
+// and adds the preference it is handed — the wiring, not the picker's own
+// grid (its own file covers that).
+describe("ResultCard printing picker and preferred printing", () => {
+    const indexed: CardIndexEntry = {
+        ...entry(true),
+        cardId: "sliver-queen",
+        prints: [
+            { printId: "print-1", setCode: "sth" },
+            { printId: "print-2", setCode: "plst" },
+        ],
+        oracleText: "All Sliver creatures have this ability.",
+        oracleFold: "all sliver creatures have this ability.",
+    };
+    const plst = { printId: "print-2", setCode: "plst" };
+
+    it("saves the printing picked in the picker as the preference", () => {
         const onAdd = vi.fn();
-        const indexed: CardIndexEntry = {
-            ...entry(true),
-            cardId: "sliver-queen",
-            prints: [
-                { printId: "print-1", setCode: "sth" },
-                { printId: "print-2", setCode: "plst" },
-            ],
-            oracleText: "All Sliver creatures have this ability.",
-            oracleFold: "all sliver creatures have this ability.",
-        };
-        const { getByTestId, getByLabelText, getAllByRole } = render(
+        const onPrefer = vi.fn();
+        const { getByLabelText, getAllByRole } = render(
             <ResultCard
                 entry={indexed}
                 activeSets={[]}
                 allowedSets={null}
                 enforceAvailability
                 onAdd={onAdd}
+                onPrefer={onPrefer}
             />
         );
         fireEvent.click(getByLabelText("Choose printing of Sliver Queen"));
@@ -214,11 +224,57 @@ describe("ResultCard printing picker", () => {
             (b) => b.dataset.printId === "print-2"
         );
         fireEvent.click(tile!);
+        expect(onPrefer).toHaveBeenCalledWith(expect.objectContaining(plst));
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it("shows and adds the preferred printing", () => {
+        const onAdd = vi.fn();
+        const { getByTestId } = render(
+            <ResultCard
+                entry={indexed}
+                activeSets={[]}
+                allowedSets={null}
+                enforceAvailability
+                onAdd={onAdd}
+                preferred={plst}
+                onPrefer={() => {}}
+            />
+        );
+        expect(getByTestId("card-image").dataset.printId).toBe("print-2");
         fireEvent.click(getByTestId("draggable"));
         expect(onAdd).toHaveBeenCalledWith(
             "print-2",
             "Sliver Queen",
             "sliver-queen"
         );
+    });
+
+    it("shows the default where the Format or a Set filter excludes the preference", () => {
+        for (const [allowedSets, activeSets] of [
+            [["sth"], []],
+            [null, ["sth"]],
+        ] as const) {
+            const onAdd = vi.fn();
+            const { getByTestId, unmount } = render(
+                <ResultCard
+                    entry={indexed}
+                    activeSets={[...activeSets]}
+                    allowedSets={allowedSets ? [...allowedSets] : null}
+                    enforceAvailability
+                    onAdd={onAdd}
+                    preferred={plst}
+                    onPrefer={() => {}}
+                />
+            );
+            expect(getByTestId("card-image").dataset.printId).toBe("print-1");
+            fireEvent.click(getByTestId("draggable"));
+            expect(onAdd).toHaveBeenCalledWith(
+                "print-1",
+                "Sliver Queen",
+                "sliver-queen"
+            );
+            unmount();
+        }
     });
 });

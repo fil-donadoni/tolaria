@@ -40,3 +40,25 @@ export function defaultEdition(
     }
     return prints[0].printId;
 }
+
+/** The printing a result cell shows (issue #8755): the user's preferred
+ *  printing when its Set is visible in this view, else `fallback` (the
+ *  `defaultEdition` printing). A preferred printing outside the Format's
+ *  allowed Sets (`null` = every Set) or outside an active Set filter falls
+ *  back for this view only — the preference itself is never deleted, so a
+ *  Format or filter that allows it shows it again. Display only: deck
+ *  legality stays server-side (ADR 0140). */
+export function preferredEdition(
+    fallback: CardPrinting,
+    preferred: CardPrinting | undefined,
+    allowedSets: readonly string[] | null,
+    activeSets: readonly string[]
+): CardPrinting {
+    if (!preferred) return fallback;
+    const set = preferred.setCode.toLowerCase();
+    const within = (sets: readonly string[]) =>
+        sets.some((s) => s.toLowerCase() === set);
+    if (allowedSets !== null && !within(allowedSets)) return fallback;
+    if (activeSets.length > 0 && !within(activeSets)) return fallback;
+    return preferred;
+}

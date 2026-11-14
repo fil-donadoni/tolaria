@@ -55,7 +55,11 @@ vi.mock("@tanstack/react-router", () => ({
 // `useBanlistOverride` and `DeckBanlistPanel` are the builder's only Convex
 // readers; `undefined` is their real "still loading" value, which both already
 // treat as "no override".
-vi.mock("convex/react", () => ({ useQuery: () => undefined }));
+vi.mock("convex/react", () => ({
+    useQuery: () => undefined,
+    // The results grid's preferred-printing save (issue #8755).
+    useMutation: () => () => Promise.resolve(null),
+}));
 
 import DeckBuilder from "../deck-builder";
 import type { LobbyDeck } from "~/lib/deckTypes";

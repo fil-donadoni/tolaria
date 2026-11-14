@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { CardPrinting } from "@convex/cards/catalogue";
 import CardImage from "~/components/cards/card-image";
-import { defaultEdition } from "~/lib/editions";
+import { defaultEdition, preferredEdition } from "~/lib/editions";
 import { useScryfallEditions } from "~/lib/scryfallApi";
 import type { CardIndexEntry } from "./useCardSearch";
 import DraggableCard from "./draggable-card";
@@ -30,6 +30,12 @@ interface ResultCardProps {
      *  `withDefinitionId` only fills a MISSING one. Omitted, the server
      *  resolves it (ADR 0140, issue #4117). */
     onAdd: (printId: string, cardName: string, definitionId?: string) => void;
+    /** The user's preferred printing of this card (issue #8755), `undefined`
+     *  when none is saved. Shown and added instead of the default unless its
+     *  Set is outside `allowedSets` or an active Set filter. */
+    preferred?: CardPrinting;
+    /** Saves a printing picked in the picker as the user's preference. */
+    onPrefer: (printing: CardPrinting) => void;
 }
 
 export default function ResultCard({
@@ -38,6 +44,8 @@ export default function ResultCard({
     allowedSets,
     enforceAvailability,
     onAdd,
+    preferred,
+    onPrefer,
 }: ResultCardProps) {
     const isCatalogue = entry.oracleText === "";
 
@@ -65,8 +73,15 @@ export default function ResultCard({
         [isCatalogue, scryfallEditions, entry.prints]
     );
 
-    const [override, setOverride] = useState<CardPrinting | null>(null);
-    const chosen = override ?? defaultPrinting;
+    // The user's preferred printing lives above the windowed grid (issue
+    // #8755), so it survives this cell unmounting on scroll, a new search and
+    // a reload; it yields to the default where this view's Sets exclude it.
+    const chosen = preferredEdition(
+        defaultPrinting,
+        preferred,
+        allowedSets,
+        activeSets
+    );
     const selected = chosen.printId;
     const unavailable = enforceAvailability && entry.available === false;
 
@@ -86,7 +101,7 @@ export default function ResultCard({
             basePrintings={basePrintings}
             allowedSets={allowedSets}
             selected={chosen}
-            onSelect={setOverride}
+            onSelect={onPrefer}
             onOpen={loadEditions}
         />
     );

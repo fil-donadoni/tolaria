@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CardPrinting } from "@convex/cards";
-import { defaultEdition, editionOptions } from "../editions";
+import { defaultEdition, editionOptions, preferredEdition } from "../editions";
 import { matchesSets } from "~/components/lobby/deck-builder/useCardSearch";
 
 const prints: CardPrinting[] = [
@@ -75,5 +75,38 @@ describe("matchesSets (set filter)", () => {
 
     it("'any' mode matches when at least one selected set is present", () => {
         expect(matchesSets(prints, ["lea", "unf"], "any")).toBe(true);
+    });
+});
+
+// Issue #8755: the user's preferred printing wins only where this view's Sets
+// allow it; otherwise the default shows, and the preference is kept.
+describe("preferredEdition", () => {
+    const fallback = prints[0];
+    const preferred: CardPrinting = { printId: "leb-id", setCode: "leb" };
+
+    it("shows the default when no preference is saved", () => {
+        expect(preferredEdition(fallback, undefined, null, [])).toBe(fallback);
+    });
+
+    it("shows the preferred printing when nothing restricts its Set", () => {
+        expect(preferredEdition(fallback, preferred, null, [])).toBe(preferred);
+    });
+
+    it("falls back when the Format's allowed Sets exclude it", () => {
+        expect(preferredEdition(fallback, preferred, ["lea"], [])).toBe(
+            fallback
+        );
+        expect(preferredEdition(fallback, preferred, ["LEA", "LEB"], [])).toBe(
+            preferred
+        );
+    });
+
+    it("falls back when an active Set filter excludes it", () => {
+        expect(preferredEdition(fallback, preferred, null, ["lea"])).toBe(
+            fallback
+        );
+        expect(preferredEdition(fallback, preferred, null, ["leb"])).toBe(
+            preferred
+        );
     });
 });

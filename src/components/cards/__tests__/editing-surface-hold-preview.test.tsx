@@ -203,6 +203,7 @@ describe("editing-surface hold-preview census (issue #2583)", () => {
                 allowedSets={null}
                 enforceAvailability
                 onAdd={vi.fn()}
+                onPrefer={vi.fn()}
             />
         );
         longPressEverything(container);
