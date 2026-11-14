@@ -273,14 +273,67 @@ describe('"Max speed —" heading a static ability (CR 702.178a)', () => {
         );
     });
 
+    function staticEffects(line: string) {
+        const outcome = compileCard(creature(`${REMINDER}\n${line}`));
+        return outcome.state === "ready"
+            ? outcome.definition.compiledStaticEffects
+            : outcome.state;
+    }
+
+    it("Tsagan: its own keyword and a grant to the others, each gated", () => {
+        expect(
+            staticEffects(
+                "Max speed — This creature has deathtouch and other creatures you control have first strike."
+            )
+        ).toEqual([
+            {
+                kind: "keyword-grant",
+                appliesTo: "self",
+                keyword: "deathtouch",
+                condition: MAX_SPEED,
+            },
+            {
+                kind: "keyword-grant",
+                filter: {
+                    types: ["Creature"],
+                    controllerRelation: "you",
+                    excludeSource: true,
+                },
+                keyword: "first strike",
+                condition: MAX_SPEED,
+            },
+        ]);
+    });
+
+    it("Racers' Scoreboard: a cost modifier, gated", () => {
+        expect(
+            staticEffects("Max speed — Spells you cast cost {1} less to cast.")
+        ).toEqual([
+            {
+                kind: "cost-modifier",
+                spells: { controller: "you" },
+                reduction: 1,
+                condition: MAX_SPEED,
+            },
+        ]);
+    });
+
     it.each([
         [
-            "a grant that also names other creatures",
-            "Max speed — This creature has deathtouch and other creatures you control have first strike.",
+            "a replacement effect",
+            "Max speed — If you would draw a card, draw two cards instead.",
         ],
         [
-            "a static that is not the permanent's own buff or keyword",
-            "Max speed — Spells you cast cost {1} less to cast.",
+            "a clause that lowers to no effect",
+            "Max speed — You may play an additional land on each of your turns.",
+        ],
+        [
+            "an effect with no condition slot",
+            "Max speed — Your opponents can't cast spells during your turn.",
+        ],
+        [
+            "a clause that already carries its own condition",
+            "Max speed — This creature gets +1/+1 as long as you control a blue creature.",
         ],
     ])("refuses %s", (_form, line) => {
         expect(compileCard(creature(`${REMINDER}\n${line}`)).state).toBe(

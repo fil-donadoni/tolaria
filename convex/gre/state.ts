@@ -25934,6 +25934,13 @@ export function getCostModifiers(
                               announcer
                           );
                 if (!applies) continue;
+                // CR 611.3a — a conditional modifier ("Max speed — …", CR
+                // 702.178a) changes no cost while its condition fails.
+                if (
+                    effect.condition !== undefined &&
+                    !effect.condition(source, state, STATIC_EFFECT_CTX)
+                )
+                    continue;
                 // CR 601.2f / 601.2a — "except during its controller's turn":
                 // the spell's controller is its caster, the announcer here.
                 if (

@@ -1122,8 +1122,8 @@ export function lowerStaticClause(
         case "enchanted-host":
         case "equipped-host":
             return lowerHostClause(clause, nextId);
-        case "max-speed-self":
-            return lowerMaxSpeedSelf(clause);
+        case "max-speed":
+            return lowerMaxSpeed(clause, oracleText, nextId, kickers);
         default: {
             const never: never = clause;
             return {
@@ -1331,17 +1331,25 @@ function grantCensus(
 }
 
 /**
- * CR 702.178a — "Max speed — <self> gets +N/+N[ and has <keywords>]": the
- * permanent's own buff and grants, each existing only while its controller
- * has max speed. A conditional grant, so no keyword is expanded at the
- * definition level (`grantCensus`'s default).
+ * CR 702.178a — "Max speed — <static ability>": every effect the clause
+ * names, each existing only while its controller has max speed (CR 702.179e).
+ * The permanent's own buff and keywords are lowered here; any other clause
+ * goes through `lowerStaticClause` and has the gate attached to each effect
+ * it yields. A clause that yields anything but `pt-buff` / `keyword-grant` /
+ * `cost-modifier` effects (a replacement, an entry rider, a self cost
+ * reduction), or an effect already carrying a condition, has no slot for the
+ * gate, so the line fails whole rather than shipping the ability ungated.
+ * A conditional grant, so no keyword is expanded at the definition level.
  */
-function lowerMaxSpeedSelf(
-    clause: Extract<StaticClauseIR, { kind: "max-speed-self" }>
+function lowerMaxSpeed(
+    clause: Extract<StaticClauseIR, { kind: "max-speed" }>,
+    oracleText: string,
+    nextId: (suffix: string) => string,
+    kickers: readonly KickerCost[]
 ): LowerStaticResult {
     const condition = { kind: "you-have-max-speed" as const };
     const effects: CompiledStaticEffect[] = [];
-    const keywords: { ability: string; status: string }[] = [];
+    const granted: { ability: string; implemented: boolean }[] = [];
     for (const effect of clause.effects) {
         if (effect.kind === "pt-buff") {
             effects.push({
@@ -1353,7 +1361,10 @@ function lowerMaxSpeedSelf(
             });
             continue;
         }
-        keywords.push(effect.keyword);
+        granted.push({
+            ability: effect.keyword.ability,
+            implemented: effect.keyword.status === "implemented",
+        });
         effects.push({
             kind: "keyword-grant",
             appliesTo: "self",
@@ -1361,13 +1372,65 @@ function lowerMaxSpeedSelf(
             condition,
         });
     }
+    for (const other of clause.others) {
+        const result = lowerStaticClause(other, oracleText, nextId, kickers);
+        if (!result.ok) return result;
+        const {
+            effects: inner = [],
+            grantedKeywords = [],
+            ...rest
+        } = result.lowered;
+        const extra = Object.keys(rest).filter(
+            (key) => key !== "ungrantableKeywords"
+        );
+        if (extra.length > 0)
+            return {
+                ok: false,
+                reason: `max speed cannot gate "${extra.join(", ")}" (CR 702.178a)`,
+            };
+        for (const effect of inner) {
+            const gated = gateOnMaxSpeed(effect, condition);
+            if (gated === undefined)
+                return {
+                    ok: false,
+                    reason: `max speed cannot gate a "${effect.kind}" effect (CR 702.178a)`,
+                };
+            effects.push(gated);
+        }
+        granted.push(...grantedKeywords);
+    }
+    const ungrantable = granted
+        .map((k) => k.ability)
+        .filter(isDefinitionLevelKeyword);
     return {
         ok: true,
         lowered: {
             effects,
-            ...(keywords.length > 0 ? grantCensus(keywords) : {}),
+            ...(granted.length > 0 ? { grantedKeywords: granted } : {}),
+            ...(ungrantable.length > 0
+                ? { ungrantableKeywords: ungrantable }
+                : {}),
         },
     };
+}
+
+/** The effect with the max speed gate as its condition, or `undefined` when
+ *  its kind has no condition slot or already carries a condition of its own
+ *  (the slot holds one condition; two are never composed into it). */
+function gateOnMaxSpeed(
+    effect: CompiledStaticEffect,
+    condition: { readonly kind: "you-have-max-speed" }
+): CompiledStaticEffect | undefined {
+    switch (effect.kind) {
+        case "pt-buff":
+        case "keyword-grant":
+        case "cost-modifier":
+            return effect.condition === undefined
+                ? { ...effect, condition }
+                : undefined;
+        default:
+            return undefined;
+    }
 }
 
 /**
