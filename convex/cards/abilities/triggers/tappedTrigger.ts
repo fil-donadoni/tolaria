@@ -73,12 +73,15 @@ export interface TappedTriggerArgs {
         state?: TriggerStateView
     ) => boolean;
     /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
-     *  interpreter with the source's controller and `$source` bound; the tapped
-     *  permanent's last-known-info (id, controller, subtypes, `manaProduced`)
-     *  is a separate payload, NOT reachable from the script, so an effect that
-     *  must inspect the tapped permanent — e.g. "deals damage to THAT land's
-     *  controller" (Psychic Venom) — still needs a `resolve` callback.
-     *  Mutually exclusive with `resolve`. */
+     *  interpreter with the source's controller and `$source` bound, and the
+     *  firing event as `ctx.triggerEvent` (on the stack and on the CR 605.4
+     *  immediate mana-ability path alike). The tapped permanent's controller —
+     *  "THAT land's controller" (Psychic Venom), "its controller adds"
+     *  (Wild Growth) — is `{ ref: "$event.controllerId" }`, the
+     *  `PERMANENT_TAPPED` row of `EVENT_FIELD_REGISTRY` (ADR 0049). Its
+     *  `manaProduced` map is NOT reachable from a script (issue #3742), so
+     *  "one mana of any type that land produced" (Mana Flare) still needs a
+     *  `resolve` callback. Mutually exclusive with `resolve`. */
     effects?: EffectOp[];
     /** CR 603.3c — announce-time mode list for a MODAL tap trigger ("Whenever
      *  enchanted artifact becomes tapped, choose one — • … • …", Relic Bind).

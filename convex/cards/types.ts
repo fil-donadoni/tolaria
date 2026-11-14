@@ -14645,10 +14645,10 @@ export interface TriggeredAbility {
      *  as declarative, JSON-pure data, executed by the interpreter
      *  (`convex/gre/effects/interpreter.ts`) through the SAME shared code path
      *  as spell-site scripts, with the trigger's controller and source
-     *  permanent bound (`$source`, `ctx.controller`). The firing event is not
-     *  threaded into a script (an Effect Script reads the resolution context,
-     *  not the event) — a trigger whose effect must inspect the event stays
-     *  imperative. Mutually exclusive with `resolve` / `resolveSteps` on this
+     *  permanent bound (`$source`, `ctx.controller`). The firing event is
+     *  reachable only through the fields `EVENT_FIELD_REGISTRY` censuses
+     *  (`{ ref: "$event.<field>" }`, ADR 0049) — a trigger whose effect must
+     *  inspect anything else on the event stays imperative. Mutually exclusive with `resolve` / `resolveSteps` on this
      *  ability — combining them throws at the `getAbilityEffectFn` seam and
      *  fails the catalogue-wide validation sweep. */
     effects?: EffectOp[];

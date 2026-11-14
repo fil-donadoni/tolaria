@@ -115,16 +115,9 @@ export const implode = defineCard(() => ({
 // creature's controller." (CR 303.4 aura attachment; CR 701.26a becomes-tapped
 // trigger scoped to the host via `tappedTrigger({ scope: "host" })`, the
 // Seizures precedent `ice/black.cards.ts` — this card is the SAME shape minus the
-// "unless that player pays" rider.)
-//
-// NOT DSL-migratable (ADR 0045, same gap Seizures already documents):
-// `tappedTrigger`'s `effects[]` site binds only `$source` and the ability's
-// own controller — NOT the tapped permanent's controller, which is exactly
-// what "deals damage to THAT creature's controller" needs (the enchanted
-// host's controller need not be this Aura's own controller). The `resolve`
-// callback's derived `tapped` payload carries `controllerId` directly, no
-// `getAttachedTo` round-trip needed. Blocked on: a tapped-permanent-controller
-// player selector reachable from a `tappedTrigger` script.
+// "unless that player pays" rider.) "That creature's controller" is read off
+// the firing PERMANENT_TAPPED event (`$event.controllerId`): the enchanted
+// host's controller need not be this Aura's own controller.
 export const insolence = defineCard(() => ({
     id: "d8009a37-f966-4a71-9a2a-469127758dc6", // PLS 63
     rarity: "common",
@@ -141,18 +134,12 @@ export const insolence = defineCard(() => ({
             oracleText:
                 "Whenever enchanted creature becomes tapped, this Aura deals 2 damage to that creature's controller.",
             scope: "host",
-            resolve: (ctx: SpellContext, _event, tapped) => {
-                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
-            },
-            // aiEffects (PRD #1423, issue #1431/#1519) — the real recipient is
-            // the enchanted permanent's CONTROLLER, a cross-player selector no
-            // `dealDamage` Op skin reaches from a `tappedTrigger` script (see
-            // the NOT DSL-migratable note above). Shadow with the
-            // representative "opponent" recipient — the common case, and the
-            // same one-representative-value idiom `usg/green.cards.ts`'s `{ C: 1 }`
-            // any-colour shadow uses.
-            aiEffects: [
-                { op: "dealDamage", amount: 2, to: { player: "opponent" } },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
             ],
         }),
     ],

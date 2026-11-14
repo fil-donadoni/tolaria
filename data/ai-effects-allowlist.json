@@ -614,13 +614,6 @@
     },
     {
         "class": "ability",
-        "cardId": "587d6ac8-fad8-49e0-862e-636e06628ff9",
-        "name": "Artifact Possession",
-        "abilityId": "artifact-possession-tapped",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "aeeec853-dd3f-4ac3-8b20-c07fada8888f",
         "name": "Ashnod's Battle Gear",
         "abilityId": "ashnods-battle-gear-pump",
@@ -1167,13 +1160,6 @@
     },
     {
         "class": "ability",
-        "cardId": "da248001-ed75-4b68-9532-37d3cd5afc4c",
-        "name": "Gauntlet of Might",
-        "abilityId": "gauntlet-mana-bonus",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
         "name": "Gaze of Pain",
         "abilityId": "gaze-of-pain-unblocked",
@@ -1282,13 +1268,6 @@
         "cardId": "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
         "name": "Haunting Wind",
         "abilityId": "haunting-wind-ability",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
-        "name": "Haunting Wind",
-        "abilityId": "haunting-wind-tapped",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1664,13 +1643,6 @@
     },
     {
         "class": "ability",
-        "cardId": "6121f72f-680f-4bb4-ae4d-37ee4ebed4d8",
-        "name": "Manabarbs",
-        "abilityId": "manabarbs-damage",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
         "name": "Marauding Mako",
         "abilityId": "marauding-mako-discard",
@@ -2028,13 +2000,6 @@
     },
     {
         "class": "ability",
-        "cardId": "f3f5b68a-6b0e-431e-89f0-ff60f17687a5",
-        "name": "Psychic Venom",
-        "abilityId": "psychic-venom-damage",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "d2e9decf-47b7-44e0-b380-8055b6011021",
         "name": "Pyramids",
         "abilityId": "pyramids-save-land",
@@ -2129,13 +2094,6 @@
         "cardId": "06900a71-34ca-48c6-94ac-fca744356829",
         "name": "Season of the Witch",
         "abilityId": "season-of-the-witch-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "da369c86-7e17-43d8-b626-b6842e3d2d50",
-        "name": "Seizures",
-        "abilityId": "seizures-tapped",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

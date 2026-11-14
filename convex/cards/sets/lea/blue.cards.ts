@@ -899,13 +899,6 @@ export const psychicVenom = defineCard(() => ({
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
-    // NOT DSL-migratable (ADR 0045): `tappedTrigger` now accepts `effects[]`,
-    // but this effect deals damage to "that land's controller" — the tapped
-    // permanent's controller, carried on the tapped-event payload and NOT
-    // reachable from an Effect Script (the effects[] site surfaces neither the
-    // event nor the tapped `LKI`). Blocked on: a player-ref that resolves the
-    // tapped/host permanent's controller from a triggered-ability script.
-    // Stays `resolve()` until then.
     triggeredAbilities: [
         // No `host` scope in the shared vocabulary (see ADR 0002) — the aura
         // identifies its host via `self.attachedTo`, so `scope: "any"` with a
@@ -917,9 +910,15 @@ export const psychicVenom = defineCard(() => ({
             scope: "any",
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
-            resolve: (ctx, _event, tapped) => {
-                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
-            },
+            // "That land's controller", read off the firing PERMANENT_TAPPED
+            // event — not necessarily this Aura's controller.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
+            ],
         }),
     ],
 }));

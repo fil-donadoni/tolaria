@@ -21,13 +21,9 @@ import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../emblems";
 // PREDICTIVE models — the castability gate and the auto-tap solver — know the
 // bonus exists before it is produced.
 //
-// Shipped as an Effect Script, NOT `resolve()`. Every prior card of this shape
-// (Mana Flare, Fertile Ground, Wild Growth, Badgermole Cub) carries a
-// "`tappedTrigger` has no `effects[]` site" note that is now stale — it has one —
-// and the reason those cards still need the callback does not apply here: they
-// must read the TAPPED permanent's controller or its `manaProduced` payload,
-// neither of which the script can reach (tracked-by: #2153). Nissa's recipient
-// is "you", the source's own controller, and the amount is a fixed {G}, so
+// Shipped as an Effect Script. Unlike Wild Growth's "its controller" (the
+// tapped land's, `$event.controllerId`), Nissa's recipient is "you", the
+// source's own controller, and the amount is a fixed {G}, so
 // `addMana { player: "controller" }` says exactly what the Oracle text says.
 // `scope: "yours"` is CR 109.5's "YOU tap"; `filter: { subtypes: "Forest" }`
 // reads the LIVE subtype, so a Forest made by Prismatic Omen counts.

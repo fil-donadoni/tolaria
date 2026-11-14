@@ -1300,13 +1300,6 @@ export const wildGrowth = defineCard(() => ({
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): `tappedTrigger` DOES now expose an
-        // `effects[]` site (the older "the factory hardcodes its resolve" note
-        // here was stale — corrected by the #1123 tracker audit, 2026-08-04).
-        // What still blocks migration is the PAYLOAD: the recipient is read
-        // from the trigger event (the tapped land's controller —
-        // tapped.controllerId, an event field), which no script ref reaches.
-        // Blocked on: an event-field player ref. tracked-by: #2153
         tappedTrigger({
             id: "wild-growth-extra-green",
             oracleText:
@@ -1314,21 +1307,24 @@ export const wildGrowth = defineCard(() => ({
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             // CR 605.4 — teach the predictive potential-mana models (castability
             // gate + auto-tap solver) that the enchanted land yields an extra
-            // {G} when tapped for mana; the `resolve` closure above still adds it.
+            // {G} when tapped for mana; the script below still adds it.
             manaBonusForPotential: {
                 appliesTo: "host",
                 amount: { kind: "fixed", mana: { G: 1 } },
             },
             scope: "any",
             forMana: true,
-            // AI shadow (issue #4143, never executed): the extra {G} the
-            // enchanted land's controller adds on every mana tap.
-            aiEffects: [{ op: "addMana", mana: { G: 1 } }],
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
-            resolve: (ctx, _event, tapped) => {
-                ctx.addManaTo(tapped.controllerId, { G: 1 });
-            },
+            // "Its controller" is the enchanted land's controller, read off the
+            // firing PERMANENT_TAPPED event, not this Aura's controller.
+            effects: [
+                {
+                    op: "addMana",
+                    mana: { G: 1 },
+                    player: { ref: "$event.controllerId" },
+                },
+            ],
         }),
     ],
 }));
