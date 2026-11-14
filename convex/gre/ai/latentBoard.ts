@@ -472,6 +472,7 @@ export function makeLatentBoardLens(
 
     return {
         weights: base.weights,
+        presenceWeight: weights.permanentWeight,
         fightUnits(creatureSlot, otherSlot) {
             if (slots.length === 0) return undefined;
             const key = `${creatureSlot}:${otherSlot}`;
