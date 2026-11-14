@@ -74,6 +74,8 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("convex/react", () => ({
     useQuery: (ref: unknown) => h.resolveQuery(ref),
+    // The results grid's preferred-printing save (issue #8755).
+    useMutation: () => () => Promise.resolve(null),
     // The result cells' printing picker (issue #4122) — never opened here.
     usePaginatedQuery: () => ({
         results: [],

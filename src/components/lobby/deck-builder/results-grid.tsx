@@ -3,6 +3,7 @@ import type { CardIndexEntry } from "./useCardSearch";
 import EmptyState from "~/components/ui/empty-state";
 import ResultCard from "./result-card";
 import { useGridWindow } from "./useGridWindow";
+import { usePreferredPrints } from "~/hooks/usePreferredPrints";
 
 interface ResultsGridProps {
     entries: CardIndexEntry[];
@@ -53,6 +54,9 @@ export default function ResultsGrid({
     // slice renders in normal flow; the spacer and the absolute positioning
     // only switch on once the geometry is known.
     const measured = totalHeight > 0;
+    // One subscription for the whole grid (issue #8755): each cell reads its
+    // card's preferred printing from here, never its own query.
+    const { preferredFor, prefer } = usePreferredPrints();
 
     if (idle) {
         return (
@@ -120,6 +124,10 @@ export default function ResultsGrid({
                             allowedSets={allowedSets}
                             enforceAvailability={enforceAvailability}
                             onAdd={onAdd}
+                            preferred={preferredFor(entry.name)}
+                            onPrefer={(printing) =>
+                                prefer(entry.name, printing)
+                            }
                         />
                     ))}
                 </div>
