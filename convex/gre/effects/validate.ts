@@ -2128,13 +2128,17 @@ function isScaledValue(value: unknown): boolean {
 }
 
 /** One operand of a `divide` — `isDifferenceOperand` PLUS the reserved
- *  `$source.chosenXOnCast` ref (CR 400.7d), matching `EffectDivideOperand`. A
+ *  `$source.chosenXOnCast` ref (CR 400.7d) and a cost-`sacrificed` read,
+ *  matching `EffectDivideOperand`. A
  *  SEPARATE checker so `difference` stays X-free; no other ref is admitted, and
  *  the ordered ref pass still refuses this one at a spell site, which has no
  *  `$source`. Non-recursive: the grammar stays depth-1. */
 function isDivideOperand(value: unknown): boolean {
     return (
         isDifferenceOperand(value) ||
+        // CR 608.2h — "half the sacrificed creature's power": a leaf read of
+        // the cost-sacrifice snapshot, no nested value slot.
+        isSacrificedValue(value) ||
         (isRefValue(value) &&
             (value as { ref: string }).ref === SOURCE_CHOSEN_X_ON_CAST_REF)
     );

@@ -35545,6 +35545,51 @@ describe("EffectValue `sacrificed` (CR 601.2f / 608.2h, issue #2375)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(14);
     });
+
+    // CR 107.1a / 608.2h — `divide` admits a `sacrificed` dividend: "half the
+    // sacrificed creature's power, rounded down" (Freyalise Supplicant).
+    const HALF_POWER_DOWN = registerScript("test-value-divide-sacrificed", [
+        {
+            op: "dealDamage",
+            amount: {
+                divide: {
+                    value: { sacrificed: { read: "power" } },
+                    by: 2,
+                    rounding: "down",
+                },
+            },
+            to: { target: 0 },
+        },
+    ]);
+
+    it.each([
+        { power: 3, expected: 1 },
+        { power: 5, expected: 2 },
+        { power: 4, expected: 2 },
+    ])(
+        "halves the snapshotted power inside `divide`, rounding down (power $power → $expected, CR 107.1a)",
+        ({ power, expected }) => {
+            const state = makeState({
+                players: [makePlayer("p1"), makePlayer("p2")],
+            });
+            pushWithSacrifice(state, HALF_POWER_DOWN, {
+                cardInstanceId: "victim",
+                mv: 1,
+                power,
+            });
+            resolveTopOfStack(state);
+            expect(state.players[1].life).toBe(20 - expected);
+        }
+    );
+
+    it("a `divide` over a missing snapshot skips the Op (CR 608.2b)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, HALF_POWER_DOWN, undefined);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
 });
 
 describe("Effect Script Op: lookHand (CR 400.2, issue #2383)", () => {
