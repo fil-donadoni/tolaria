@@ -54,6 +54,14 @@ import {
 } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { spiritOfResistance as spiritOfResistanceExport } from "../white.cards";
+
+// The PR head carries no catalogue row for a newly shipped card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition.
+preloadDefinitions([resolveCardExport(spiritOfResistanceExport)!]);
 
 const alabasterLeech = getDefinition("c86b45d9-aba6-4c09-8605-037754ba7fd4");
 const benalishEmissary = getDefinition("6b82d56e-80d7-4be9-ac22-de3257efc458");
@@ -81,6 +89,12 @@ const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
+const spiritOfResistance = getDefinition(
+    "5fb66439-df73-4a01-a8d4-6f2334297fdf"
+);
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
+const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");
 
 // ---------------------------------------------------------------------------
 // Alabaster Leech — cost-modifier (CR 601.2f), scoped to the controller's own
@@ -463,6 +477,161 @@ describe("Divine Presence (CR 614 damage clamp — 4+ becomes 3)", () => {
         // restriction, so the self-damage clause is also 2 < 4, unclamped).
         expect(state.players[0].life).toBe(17); // 20 - 3
         expect(state.players[1].life).toBe(18); // 20 - 2 (self damage)
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spirit of Resistance — CR 615 prevention gated on controlling a permanent
+// of each colour (CR 105.1), re-read on every damage event (CR 611.3a).
+// ---------------------------------------------------------------------------
+
+describe("Spirit of Resistance (CR 615.1a prevention while you control every CR 105.1 colour)", () => {
+    function permanent(
+        cardId: string,
+        id: string,
+        controllerId: string,
+        overrides: Partial<CardInstanceState> = {}
+    ): CardInstanceState {
+        return makeInstance(cardId, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+            ...overrides,
+        });
+    }
+
+    // Spirit itself is the white permanent; the other four colours each come
+    // from one mono-coloured creature.
+    function fiveColourBoard(): CardInstanceState[] {
+        return [
+            permanent(spiritOfResistance.id, "spirit", "p1"),
+            permanent(airElemental.id, "blue", "p1"),
+            permanent(blackKnight.id, "black", "p1"),
+            permanent(hillGiant.id, "red", "p1"),
+            permanent(questingBeast.id, "green", "p1"),
+        ];
+    }
+
+    function damageTo(
+        state: GameState,
+        target: { type: "player" | "permanent"; id: string },
+        unpreventable = false
+    ) {
+        return runDamageReplacement(
+            state,
+            "opp-source",
+            "p2",
+            target,
+            3,
+            false,
+            unpreventable
+        );
+    }
+
+    it("prevents damage to its controller while they control all five colours (CR 105.2: Spirit itself is white)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: fiveColourBoard() }),
+                makePlayer("p2", {
+                    battlefield: [permanent(hillGiant.id, "opp-source", "p2")],
+                }),
+            ],
+        });
+        expect(damageTo(state, { type: "player", id: "p1" })).toBeNull();
+    });
+
+    it("prevents a resolving spell's damage to its controller, not the damage to the opponent", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: fiveColourBoard(), life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        pushSpell(state, psionicBlast.id, "p2", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("does NOT prevent damage with only four colours controlled", () => {
+        const board = fiveColourBoard().filter((c) => c.id !== "green");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: board }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(damageTo(state, { type: "player", id: "p1" })?.amount).toBe(3);
+    });
+
+    it("counts one multicoloured permanent toward every colour it has (CR 105.2b)", () => {
+        // Dromar ({W}{U}{B}) alone supplies blue AND black.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        permanent(spiritOfResistance.id, "spirit", "p1"),
+                        permanent(dromar.id, "gold", "p1"),
+                        permanent(hillGiant.id, "red", "p1"),
+                        permanent(questingBeast.id, "green", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(damageTo(state, { type: "player", id: "p1" })).toBeNull();
+    });
+
+    it("does NOT prevent damage to a permanent its controller controls", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: fiveColourBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(damageTo(state, { type: "permanent", id: "red" })?.amount).toBe(
+            3
+        );
+    });
+
+    it("does NOT count an opponent's permanents toward the colours", () => {
+        const board = fiveColourBoard().filter((c) => c.id !== "green");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: board }),
+                makePlayer("p2", {
+                    battlefield: [
+                        permanent(questingBeast.id, "opp-green", "p2"),
+                    ],
+                }),
+            ],
+        });
+        expect(damageTo(state, { type: "player", id: "p1" })?.amount).toBe(3);
+    });
+
+    it("reads EFFECTIVE colours at the damage event (layer 5 — CR 611.3a)", () => {
+        const board = fiveColourBoard().map((c) =>
+            c.id === "green" ? { ...c, colorOverride: ["U" as const] } : c
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: board }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(damageTo(state, { type: "player", id: "p1" })?.amount).toBe(3);
+    });
+
+    it("does not prevent damage that can't be prevented (CR 615.12)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: fiveColourBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            damageTo(state, { type: "player", id: "p1" }, true)?.amount
+        ).toBe(3);
     });
 });
 
