@@ -866,7 +866,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(projected(state, "sub-1").subtypes).toEqual(["Bird", "Beast"]);
     });
 
-    it("an indefinite subtype set survives a transform and re-anchors on the new face (CR 611.2b)", () => {
+    it("an indefinite subtype set survives a transform and re-anchors on the new face (CR 611.2a)", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "sub-2" });
         const state = makeBoard(card);
         const ctx = ctxFor(state);

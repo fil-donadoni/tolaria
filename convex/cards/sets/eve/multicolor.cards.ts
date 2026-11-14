@@ -20,7 +20,7 @@ import { defineCard } from "../../types";
 //     so each pip is paid by a Mountain OR a Plains. Before that slice
 //     `ManaCost.hybrid` was declaration-only and every pip was silently FREE.
 //  2. The INDEFINITE form of `setSubtype` / `setBasePT` / `grantAbility`
-//     (issue #1746, CR 611.2b) — a continuous effect from a resolving ability
+//     (issue #1746, CR 611.2a) — a continuous effect from a resolving ability
 //     with no stated duration lasts indefinitely, which is what "becomes a
 //     Kithkin Spirit" means: it holds across turns until the permanent leaves
 //     the battlefield (CR 400.7, undone by `resetBattlefieldTransientState`).
@@ -56,7 +56,7 @@ export const figureOfDestiny = defineCard(() => ({
             cost: { mana: { hybrid: [["R", "W"]] } },
             useStack: true,
             // Unconditional first stage — no `if` gate. No `duration` on either
-            // Op: CR 611.2b, the change is indefinite.
+            // Op: CR 611.2a, the change is indefinite.
             effects: [
                 {
                     op: "setSubtype",
@@ -149,7 +149,7 @@ export const figureOfDestiny = defineCard(() => ({
                             power: 8,
                             toughness: 8,
                         },
-                        // CR 611.2b — granted with no `duration`: the keywords
+                        // CR 611.2a — granted with no `duration`: the keywords
                         // stay for as long as the permanent does.
                         {
                             op: "grantAbility",

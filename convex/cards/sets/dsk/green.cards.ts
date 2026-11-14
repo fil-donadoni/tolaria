@@ -23,7 +23,7 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // source's controller controls rather than a single `attachedTo` id. The layer
 // walk is already generic over `applies` (`gre/layer6.ts`) — the grant is
 // recomputed continuously, so a creature that enters later gets the ability
-// and loses it the moment Enduring Vitality leaves (CR 611.2b).
+// and loses it the moment Enduring Vitality leaves (CR 611.3b).
 //
 // Enduring Vitality is itself a creature you control, so it grants the mana
 // ability to ITSELF too (the Oracle says "creatures you control", not "other

@@ -1,6 +1,6 @@
 /**
  * Shared sub-grammar: DURATION — "until end of turn", "until end of combat",
- * "until your next turn" (CR 611.2b).
+ * "until your next turn" (CR 611.2a).
  *
  * A missing duration silently promotes a temporary effect to a permanent one —
  * a +3/+3 that never wears off is a different card — so this sub-grammar fails
@@ -44,7 +44,7 @@ export const durationRule: Rule<DurationIR> = subGrammar(
     })
 );
 
-/** Duration → the engine's `DurationSpec` (CR 611.2b). */
+/** Duration → the engine's `DurationSpec` (CR 611.2a). */
 export function durationSpec(duration: DurationIR): DurationSpec {
     switch (duration.kind) {
         case "end-of-turn":

@@ -276,7 +276,7 @@ export const balduvianShaman = defineCard(() => ({
             // `grantTriggeredAbilityPermanent` (only the temporary
             // `grantAbility` Op, duration-scoped)". `duration` on the
             // `grantAbility` Op is OPTIONAL and an omitted one means
-            // INDEFINITE (CR 611.2b, issue #1746); all three legs mirror that
+            // INDEFINITE (CR 611.2a, issue #1746); all three legs mirror that
             // split, so `grantTriggeredAbilityPermanent` IS reachable.
             // Blocked on: the text-change Op alone.
             // tracked-by: #2763
@@ -1262,7 +1262,7 @@ export const krovikanSorcerer = defineCard(() => ({
 }));
 // Shared "gain control until end of turn" body for Ray of Command (steals a
 // creature) and Magus of the Unseen (steals an artifact), issue #730. The three
-// clauses — untap (CR 701.26a), gain control until end of turn (CR 611.2b /
+// clauses — untap (CR 701.26b), gain control until end of turn (CR 611.2a /
 // 613.1b layer 2, reverted at cleanup CR 514.2 by `tickAllDurations`), and
 // grant haste until end of turn (CR 702.10b / 611.2a, so a stolen creature can
 // attack the turn control is gained) — are all resolve()-time primitives.
@@ -1879,7 +1879,7 @@ export const shyft = defineCard(() => ({
     // mode per colour, each a single-Op `setColor` body (the "choose one of
     // five colors, then set it" template the `setColor` Op's own registry
     // note names Shyft under) — sets the layer-5 override (CR 305.7) with no
-    // `duration`, so it rides the instance indefinitely (CR 613.9/611.2b).
+    // `duration`, so it rides the instance indefinitely (CR 611.2a).
     triggeredAbilities: [
         phaseTrigger({
             id: "shyft-upkeep-color",

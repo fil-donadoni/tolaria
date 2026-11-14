@@ -261,7 +261,7 @@ describe("Dack Fayden — loyalty abilities (CR 606.2 / 606.4, ADR 0058)", () =>
         expect(
             state.players[0].battlefield.some((c) => c.id === "thopter")
         ).toBe(true);
-        // Indefinite (CR 611.2b): the control-change entry carries neither a
+        // Indefinite (CR 611.2a): the control-change entry carries neither a
         // "for as long as" condition nor an until-end-of-turn duration, so
         // nothing reverts it on its own (the Ghazbán Ogre shape).
         const stolen = state.players[0].battlefield.find(

@@ -137,7 +137,7 @@ describe("Enduring Vitality — group activated-grant (CR 611.2a / 613.1f, issue
         );
     });
 
-    it("the grant is continuous — it disappears the moment Enduring Vitality leaves (CR 611.2b)", () => {
+    it("the grant is continuous — it disappears the moment Enduring Vitality leaves (CR 611.3b)", () => {
         const { state } = board();
         expect(getActivatedManaAbility(find(state, "mine")!, state)).not.toBe(
             null
@@ -145,7 +145,7 @@ describe("Enduring Vitality — group activated-grant (CR 611.2a / 613.1f, issue
 
         // Exiled rather than destroyed: the dies trigger would return it as an
         // enchantment and keep granting, which is a different assertion.
-        // The departure funnel re-derives layer 6 itself (CR 611.2b) — no
+        // The departure funnel re-derives layer 6 itself (CR 611.3b) — no
         // hand-driven resync, so this is the production behaviour.
         removePermanentTo(state, "vitality", "exile");
 
