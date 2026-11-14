@@ -61984,6 +61984,16 @@
         "source": "compiled"
     },
     {
+        "name": "Racers' Scoreboard",
+        "scryfallId": "50bae2ba-a6a0-4a6a-96e9-0e0372e55108",
+        "oracleId": "54c2b3b3-e247-4146-8045-d49480b795f2",
+        "firstSet": "dft",
+        "firstPrintId": "50bae2ba-a6a0-4a6a-96e9-0e0372e55108",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Radha, Heir to Keld",
         "scryfallId": "7fc23b2e-9124-4f88-b93e-8bfe90e6eb41",
         "oracleId": "61d94fe7-b559-4bd4-94a7-f4ed4c853b4b",

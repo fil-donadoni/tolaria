@@ -11062,6 +11062,16 @@ export interface StaticCostModifier {
         ability?: ActivatedAbility,
         activatorId?: string
     ) => boolean;
+    /** Optional source-level gate (CR 611.3a — "as long as …"): when present
+     *  and false, the modifier changes no cost. Read against the whole board
+     *  at every cost computation, as `StaticPTBuff.condition` is at every stat
+     *  read — "Max speed — Spells you cast cost {1} less to cast" (CR
+     *  702.178a) reads the source controller's speed. */
+    condition?: (
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
     /** Mana added to the base cost (CR 601.2f). Defaults to nothing. */
     costIncrease?: ManaCost;
     /** Mana removed from the base cost (CR 601.2f reductions). Only the generic

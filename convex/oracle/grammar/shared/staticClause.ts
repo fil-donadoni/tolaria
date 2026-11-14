@@ -581,13 +581,19 @@ export type StaticClauseIR =
           readonly effects: readonly PumpOrKeywordIR[];
       }
     /**
-     * CR 702.178a — "Max speed — This creature gets +1/+2" / "… has double
-     * strike": the permanent's own buff and keywords, which it has only as
-     * long as its controller's speed is 4.
+     * CR 702.178a — "Max speed — <static ability>": an ability the object has
+     * only as long as its controller's speed is 4. `effects` is the
+     * permanent's own buff and keywords ("This creature gets +1/+2 and has
+     * menace"); `others` is any other static clause the sentence names ("…
+     * and other creatures you control have first strike", "Spells you cast
+     * cost {1} less to cast"), read by the ordinary static grammar. Lowering
+     * gates every effect either produces, and refuses one that has no
+     * condition slot.
      */
     | {
-          readonly kind: "max-speed-self";
+          readonly kind: "max-speed";
           readonly effects: readonly PumpOrKeywordIR[];
+          readonly others: readonly StaticClauseIR[];
       };
 
 /** The two effects a "gets +N/+N[ and has <keyword list>]" predicate names. */
@@ -2748,34 +2754,73 @@ function readPumpAndKeywords(
     return ok(effects);
 }
 
-// ── Frame: max speed on the permanent itself (CR 702.178a) ────────────────
+// ── Frame: a static ability behind max speed (CR 702.178a) ────────────────
 
-const MAX_SPEED_SELF = /^Max speed \u2014 (.+?) ((?:gets|has) .+)$/;
+const MAX_SPEED_HEAD = /^Max speed \u2014 (.+)$/;
+const SELF_PREDICATE = /^(.+?) ((?:gets|has) .+)$/;
+const SELF_AND_OTHERS = /^(.+?) (has .+?) and (other .+ have .+)$/;
 
 /**
- * CR 702.178a — "Max speed — This creature gets +1/+1 and has menace."
- * (Walking Sarcophagus, Swiftwing Assailant, Burnout Bashtronaut). Max speed
- * is a keyword, not an ability word: the ability behind it exists only as
- * long as its controller's speed is 4, so the head survives as the effects'
- * condition. The subject must be the permanent itself; a sentence that also
- * names other objects ("Tsagan has deathtouch and other creatures you control
- * have first strike") fails the keyword list and the line whole.
+ * CR 702.178a — "Max speed — <static ability>". Max speed is a keyword, not
+ * an ability word: the ability behind it exists only as long as its
+ * controller's speed is 4, so the head survives as the effects' condition.
+ * Three bodies:
+ *  - the permanent's own buff and keywords — "This creature gets +1/+1 and
+ *    has menace" (Walking Sarcophagus, Swiftwing Assailant);
+ *  - its own keywords and a grant to a set — "Tsagan has deathtouch and other
+ *    creatures you control have first strike" (Tsagan, Raider Warlord);
+ *  - any other static clause the grammar reads — "Spells you cast cost {1}
+ *    less to cast" (Racers' Scoreboard).
+ * Whether the clause's effects CAN be gated is lowering's question
+ * (`lowerMaxSpeed`): a clause that reads but has no condition slot fails
+ * there, rather than shipping ungated.
  */
-const maxSpeedSelfRule: Rule<StaticClauseIR> = rule(
-    "max speed self static",
-    (span): RuleResult<StaticClauseIR> => {
-        const match = span.match(MAX_SPEED_SELF);
-        if (match === null)
-            return fail('not "Max speed — <self> gets/has …"', span);
-        if (!isSelfPhrase(uncapitalise(match[1]!)))
-            return fail(`"${match[1]}" is not the permanent itself`, span);
-        const effects = readPumpAndKeywords(
-            match[2]!,
-            "the permanent itself",
-            span
-        );
-        if (!effects.ok) return effects;
-        return ok({ kind: "max-speed-self" as const, effects: effects.value });
+const maxSpeedStaticRule: Rule<StaticClauseIR> = rule(
+    "max speed static",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const head = span.match(MAX_SPEED_HEAD);
+        if (head === null) return fail('not "Max speed — <static>"', span);
+        const body = head[1]!;
+        const mixed = body.match(SELF_AND_OTHERS);
+        if (mixed !== null && isSelfPhrase(uncapitalise(mixed[1]!))) {
+            const effects = readPumpAndKeywords(
+                mixed[2]!,
+                "the permanent itself",
+                span
+            );
+            if (!effects.ok) return effects;
+            const others = staticClauseRule.run(capitalise(mixed[3]!), ctx);
+            if (!others.ok) return fail(others.reason, span);
+            return ok({
+                kind: "max-speed" as const,
+                effects: effects.value,
+                others: [others.value],
+            });
+        }
+        const self = body.match(SELF_PREDICATE);
+        if (self !== null && isSelfPhrase(uncapitalise(self[1]!))) {
+            const effects = readPumpAndKeywords(
+                self[2]!,
+                "the permanent itself",
+                span
+            );
+            if (!effects.ok) return effects;
+            return ok({
+                kind: "max-speed" as const,
+                effects: effects.value,
+                others: [],
+            });
+        }
+        // A body the static grammar cannot read fails with no trace of its
+        // own: most "Max speed —" lines are triggers or activations, read by
+        // their own slots, and an inner static trace would win their blame.
+        const inner = staticClauseRule.run(body, ctx);
+        if (!inner.ok) return fail(inner.reason, span);
+        return ok({
+            kind: "max-speed" as const,
+            effects: [],
+            others: [inner.value],
+        });
     }
 );
 
@@ -3159,6 +3204,6 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         enchantedHostRule,
         youControlHostRule,
         equippedHostRule,
-        maxSpeedSelfRule,
+        maxSpeedStaticRule,
     ])
 );
