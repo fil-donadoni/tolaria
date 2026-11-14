@@ -527,6 +527,7 @@ import {
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
+    fixedOutputManaAbility,
     hasManaAbility,
     isCreature,
     isPlaneswalker,
@@ -661,6 +662,7 @@ export {
     tryAutoCommitPendingCast,
 } from "./gre/activation";
 import { activationPreconditionViolation } from "./gre/activationPrecondition";
+import { maxSpeedGateOpen } from "./gre/speed";
 import { activationRestrictionViolation } from "./gre/activationRestrictions";
 import { commitCast } from "./gre/castCommit";
 import {
@@ -2130,6 +2132,17 @@ export function tapSourceIntoPayment(
         ? null
         : getFixedMultiColorTapManaAbility(card);
     if (!manaColor && !multiColorAbility) {
+        throw new Error("Card does not produce mana");
+    }
+    // CR 702.178a — the stateless probes above find a "Max speed —" mana
+    // ability whether or not the source has it right now; below its
+    // controller's max speed it has not, so nothing is deposited. (`tapUntap`
+    // and `tapForPayment` refuse it earlier, through `hasManaAbility`; the
+    // activation-mana and attack-tax taps reach this function directly.)
+    const producing =
+        multiColorAbility ??
+        (getBasicLandMana(card) ? null : fixedOutputManaAbility(card));
+    if (producing && !maxSpeedGateOpen(producing, card, state.players)) {
         throw new Error("Card does not produce mana");
     }
     // CR 605.1a — the ability this activation actually pays for and runs the

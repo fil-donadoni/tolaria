@@ -1064,7 +1064,7 @@ export function getDynamicManaProduced(
  *  `getDynamicManaProduced`, so those three never name different abilities.
  *  When `getBasicLandMana` DOES name the colour, the tap is the intrinsic
  *  ability (CR 305.6) and `getFixedManaAmount` ignores this one's count. */
-function fixedOutputManaAbility(
+export function fixedOutputManaAbility(
     card: CardInstanceState
 ): ActivatedAbility | null {
     if (abilitiesSuppressed(card)) return null;
