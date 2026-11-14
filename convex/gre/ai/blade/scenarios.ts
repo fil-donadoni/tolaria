@@ -16740,6 +16740,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #9592. Before the change the two read the same floor and the bot destroyed its own Clue (listed first). Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) returning `worth` unchanged turns this entry red. Partner: `discriminating pair: Uktabi Orangutan's forced destroy takes the opponent's Clue, not its blank artifact token (issue #9592)`.",
     },
     {
+        // SELF-CONSUMING OPTION ON THE BOARD (issue #9597). The opponent's
+        // Juggernaut (5/3, attacks each combat) is attacking; the bot has no
+        // creature to block with and a Seal of Cleansing in play ("sacrifice:
+        // destroy target artifact or enchantment"). Trading the Seal for the
+        // Juggernaut now saves five life and every later attack.
+        //
+        // WHAT IT GUARDS. The Seal's option is read against this board
+        // (`dslSelfConsumingOption`, `ai/cardScriptValue.ts`): its best
+        // victim lifts the Seal in play above its `base + MV` floor. The
+        // entry pins that the lift never stops the trade it prices.
+        label: "self-consuming option: Seal of Cleansing trades itself for the opponent's attacking Juggernaut (issue #9597)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Seal of Cleansing", owner: "me", zone: "battlefield" },
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: { attackers: ["Juggernaut"], confirmed: true },
+            turn: 6,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        // A FLOOR, so a predicate: kept out of the weight fit, as the
+        // reachability entries are.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "activate-ability",
+                    card: "Seal of Cleansing",
+                    target: "Juggernaut",
+                }),
+            describe:
+                "activates Seal of Cleansing targeting the attacking Juggernaut",
+        },
+        note: "Issue #9597. A floor: green before the change (the Seal sat at its `base + MV` floor) and after it. No valuation break flips it — measured with `withSelfConsumingOption` (`cardValue.ts`) lifting the Seal to three times its ceiling, and to the `MAX_LATENT_SCRIPT_VALUE` clamp, both green — because the attack it stops outweighs any reading of the Seal. The bound that keeps the Seal below its victim is pinned where it can fail: `selfConsumingOption.bot.test.ts`.",
+    },
+    {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
         // Disenchant with two untapped Plains; the opponent has a Moat and a
         // Rocket Launcher (a 4-MV artifact whose one-turn ping script prices

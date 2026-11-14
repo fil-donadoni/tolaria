@@ -20,6 +20,7 @@
 
 import type {
     AbilityMode,
+    ActivatedAbility,
     CardDefinition,
     EffectOp,
     GameEventType,
@@ -1170,69 +1171,165 @@ export interface SelfConsumingOption {
  *  permanent for the effect. Only the BEST one counts — using any consumes
  *  the permanent, so a second can never also be used.
  *
+ *  An ability whose target can be a permanent its controller does not
+ *  control (Seal of Cleansing's "destroy target artifact", Aeolipile's "any
+ *  target") yields a fact of the board (CR 115.1c — the target is chosen
+ *  there at activation). A `board` lens that answers a requirement on a
+ *  real board (`LatentLens.requirementUnits`) reads it at its best legal
+ *  victim there, by the grounding an ETB Ability takes (`etbGrounding`): no
+ *  victim and no player to reach, and it reads nothing. Without such a lens
+ *  it is skipped — the context-free reading prices its target at the
+ *  representative victim, 157 for the Seal, whose best victim may be a
+ *  48-point artifact, and the Seal in play would outvalue the trade it exists
+ *  to make (the #5145 bug).
+ *
  *  Skipped, each fail-closed (the permanent keeps the reading it had):
  *   - a MANA ability (CR 605.1a): the `mana` term prices it (a Treasure);
  *   - one activated from a hand or a graveyard: not a permanent's option;
  *   - one whose cost this reader cannot price (`activationCostPrice`);
- *   - one whose target can be a permanent its controller does not control
- *     (Seal of Cleansing's "destroy target artifact", Aeolipile's "any
- *     target"): what it yields is a fact of the board, and a context-free
- *     reading prices it at the representative victim — 157 for the Seal,
- *     whose best victim may be a 48-point artifact. Read so, the Seal in
- *     play would outvalue the trade it exists to make (the #5145 bug).
- *     A target it controls (a Map's "target creature you control explores")
- *     or a player is no board question;
+ *   - one whose target can be a foreign permanent, read with no board lens,
+ *     or naming such a target beyond its first slot or per mode (the board
+ *     answer is one requirement's), or whose valuer never read that answer
+ *     (a flat-priced damage, a counter: the representative victim again);
  *   - one whose script's reading board-scales (`"board-scaling"`: a
  *     `forEach` over the battlefield, Pernicious Deed's "destroy each
- *     artifact, creature and enchantment with mana value X or less"), for the
- *     same reason — untargeted, it is still a fact of the board;
+ *     artifact, creature and enchantment with mana value X or less"): it is
+ *     a fact of the board too, untargeted, and no lens answers it here;
  *   - one with no readable script, or whose net is not positive.
  *  `undefined` when no ability qualifies. */
 export function dslSelfConsumingOption(
     def: CardDefinition,
-    ctx: GroundingContext = contextFreeGrounding()
+    ctx: GroundingContext = contextFreeGrounding(),
+    /** The board a foreign target is read on; every other ability reads
+     *  `ctx`. */
+    board?: LatentLens
 ): SelfConsumingOption | undefined {
     let best = 0;
-    for (const ability of def.activatedAbilities ?? []) {
-        if (
-            ability.cost.sacrifice !== true &&
-            ability.cost.exileThis !== true
-        ) {
-            continue;
-        }
-        if (
-            isManaAbilityDefinition(ability) ||
-            ability.activateFromHand === true ||
-            ability.activateFromGraveyard === true
-        ) {
-            continue;
-        }
-        const requirements = [
-            ability.targetRequirement,
-            ...(ability.additionalTargetRequirements ?? []),
-            ...(ability.modes ?? []).map((mode) => mode.targetRequirement),
-        ];
-        if (requirements.some(reachesForeignPermanent)) continue;
+    for (const ability of selfConsumingAbilities(def)) {
+        const foreign = foreignTargetReach(ability);
+        if (foreign === "unanswerable") continue;
+        const grounded =
+            foreign === "first-slot"
+                ? board && boardGrounding(ctx, ability, board)
+                : { ctx, consulted: () => true };
+        if (!grounded) continue;
+        const abilityCtx = grounded.ctx;
         const price = activationCostPrice(ability.cost, ctx.latent.weights);
         if (price === undefined) continue;
         const script = effectiveScript(ability);
         const raw = script
-            ? valueEffectScript(script, ctx)
+            ? valueEffectScript(script, abilityCtx)
             : bestModeCombinationOpValue(
                   ability.modes,
                   ability.modeSelection,
-                  ctx
+                  abilityCtx
               );
         // An untargeted reading that board-scales (a `forEach` over the
         // battlefield — Pernicious Deed, Powder Keg) is the same board
         // question as a foreign target: context-free it reads the
         // representative victim, not this board's.
         if (!raw || raw.tags.includes("board-scaling")) continue;
-        best = Math.max(best, raw.points - price);
+        // A valuer that never read the board's answer (`dealDamage` to a
+        // creature prices its damage flat) priced the representative victim
+        // after all.
+        if (!grounded.consulted()) continue;
+        // Read on the board, the trade is measured against what that board
+        // loses: the source's presence goes with it, so the permanent can
+        // never read above the victim it is traded for.
+        const presence =
+            foreign === "first-slot" ? (board?.presenceWeight ?? 0) : 0;
+        best = Math.max(best, raw.points - price - presence);
     }
     return best > 0
         ? { uplift: best * ABILITY_SCRIPT_DISCOUNT, ceiling: best }
         : undefined;
+}
+
+/** True when `def` carries a self-consuming ability whose option only a
+ *  board can price (`dslSelfConsumingOption`, a target that can be a foreign
+ *  permanent): the permanents whose board face is worth a board lens.
+ *  Memoised per definition — the board face asks it for every non-creature
+ *  permanent and every land at every leaf. */
+export function readsSelfConsumingOptionOnBoard(def: CardDefinition): boolean {
+    let known = BOARD_OPTION_MEMO.get(def);
+    if (known === undefined) {
+        known = selfConsumingAbilities(def).some(
+            (ability) => foreignTargetReach(ability) === "first-slot"
+        );
+        BOARD_OPTION_MEMO.set(def, known);
+    }
+    return known;
+}
+
+const BOARD_OPTION_MEMO = new WeakMap<CardDefinition, boolean>();
+
+/** `def`'s activated abilities that consume their own source as their cost
+ *  (`cost.sacrifice` / `cost.exileThis`, CR 602.1a), less the ones that are
+ *  no permanent's option: a mana ability (CR 605.1a, the `mana` term prices
+ *  it) and one activated from a hand or a graveyard. */
+function selfConsumingAbilities(def: CardDefinition): ActivatedAbility[] {
+    return (def.activatedAbilities ?? []).filter(
+        (ability) =>
+            (ability.cost.sacrifice === true ||
+                ability.cost.exileThis === true) &&
+            !isManaAbilityDefinition(ability) &&
+            ability.activateFromHand !== true &&
+            ability.activateFromGraveyard !== true
+    );
+}
+
+/** Where `ability`'s targets can name a permanent its activator does not
+ *  control: `"none"`, its first slot only (`"first-slot"`, the one
+ *  requirement a board lens answers), or anywhere else
+ *  (`"unanswerable"`: a further slot, or a mode's). */
+function foreignTargetReach(
+    ability: ActivatedAbility
+): "none" | "first-slot" | "unanswerable" {
+    const later = [
+        ...(ability.additionalTargetRequirements ?? []),
+        ...(ability.modes ?? []).map((mode) => mode.targetRequirement),
+    ];
+    if (later.some(reachesForeignPermanent)) return "unanswerable";
+    return reachesForeignPermanent(ability.targetRequirement)
+        ? "first-slot"
+        : "none";
+}
+
+/** `ctx` reading `board`, its answer to `ability`'s target requirement
+ *  read as an ETB Ability's is (`etbGrounding`), with `consulted()` true
+ *  once a valuer has read that answer: the victim's units, or a face-only
+ *  slot. `undefined` when `board` cannot answer the requirement. */
+function boardGrounding(
+    ctx: GroundingContext,
+    ability: ActivatedAbility,
+    board: LatentLens
+): { ctx: GroundingContext; consulted: () => boolean } | undefined {
+    const requirement = ability.targetRequirement;
+    const units = requirement && board.requirementUnits?.(requirement);
+    if (units === undefined) return undefined;
+    // Answered once: `etbGrounding` asks the lens again, and each answer is
+    // a walk of the legal targets.
+    const grounded = etbGrounding(
+        withLatentLens(ctx, { ...board, requirementUnits: () => units }),
+        ability
+    );
+    const lens = grounded.latent;
+    let consulted = false;
+    return {
+        ctx: withLatentLens(grounded, {
+            ...lens,
+            victimUnits(slot) {
+                if (slot === 0) consulted = true;
+                return lens.victimUnits(slot);
+            },
+            faceOnly(slot) {
+                const face = lens.faceOnly?.(slot) === true;
+                if (slot === 0 && face) consulted = true;
+                return face;
+            },
+        }),
+        consulted: () => consulted,
+    };
 }
 
 /** True when `requirement` can name a battlefield permanent its activator

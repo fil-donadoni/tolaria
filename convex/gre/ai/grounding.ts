@@ -154,6 +154,12 @@ export interface LatentLens {
      *  lens attached to a real board; read by `dslLatentPieces`, whose
      *  `latentValue` then drops the Latent Floor (a measured reading). */
     standingLockWorth?(): number;
+    /** Issue #9597 — the flat worth a permanent carries on this board for
+     *  being there (`permanentWeight`), beyond its body: what a
+     *  self-consuming ability's source gives up besides its own reading
+     *  when it trades itself for an effect (`dslSelfConsumingOption`).
+     *  Present only on a lens attached to a real board. */
+    readonly presenceWeight?: number;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.
