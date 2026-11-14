@@ -1314,7 +1314,7 @@ describe("Do or Die (CR 701.8 destroy / 701.19c regeneration, ADR 0053 pile divi
 // though `gainControl` itself is an already-shipped, individually-tested Op
 // (issue #848) — it's the SMOKE COVERAGE gap that earns the test, not a new
 // construct.
-describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 701.12e / 611.2a / 613.1b, issue #1068)", () => {
+describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 701.12b / 611.2a / 613.1b, issue #1068)", () => {
     it("exchanges control: the target creature comes to the activator, Infiltrator goes to the target's controller", () => {
         const infiltrator = makeInstance(phyrexianInfiltrator.id, {
             id: "inf",

@@ -241,7 +241,7 @@ export const alchorsTomb = defineCard(() => ({
             // note names Shyft under (`ice/blue.cards.ts`) — one `optionChoice` mode
             // per color, each a single-Op `setColor` body on the announced
             // target. No `duration` — the effect "lasts indefinitely" (CR
-            // 611.2a/613.9), matching the original `setColorOverride` call.
+            // 611.2a), matching the original `setColorOverride` call.
             //
             // Built by the SHARED `chooseColorEffects` the other four colour
             // pickers use (issue #4137). It was hand-rolled here with an

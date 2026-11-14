@@ -80,7 +80,7 @@ describe("Figure of Destiny — printed cost (CR 202.1a / 202.2)", () => {
     });
 });
 
-describe("Figure of Destiny — staged respec (CR 611.2a / 613.4b / 205.1b)", () => {
+describe("Figure of Destiny — staged respec (CR 611.2a / 613.4b / 205.1a)", () => {
     it("first stage sets subtypes and base P/T indefinitely", () => {
         const { state, figure } = setup();
         fire(state, figure, "figure-of-destiny-spirit");

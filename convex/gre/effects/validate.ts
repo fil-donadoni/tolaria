@@ -5924,7 +5924,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             attackRequirement: (v: unknown) => v === true,
             // CR 508.1d (issue #3247) — "attacks THAT PLAYER if able".
             defender: isPlayerRef,
-            // CR 611.2a / 611.2c — omitted is an INDEFINITE grant on ALL THREE
+            // CR 611.2a — omitted is an INDEFINITE grant on ALL THREE
             // legs: keyword (`grantStaticAbilityPermanent`),
             // triggered (`grantTriggeredAbilityPermanent`) and
             // activated (`grantActivatedAbilityPermanent`).

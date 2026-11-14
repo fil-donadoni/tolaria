@@ -2552,7 +2552,7 @@ describe("Musician (music counters + granted upkeep tax, CR 122/701.8)", () => {
 // CR 514.2) + 701.20a (tap-on-loss rider) + 702.10b (granted haste honoured).
 // ===========================================================================
 
-describe("Ray of Command — steal a creature until EOT (CR 611.2a / 613.1b / 701.20a)", () => {
+describe("Ray of Command — steal a creature until EOT (CR 611.2a / 613.1b / 701.26a)", () => {
     function setup() {
         const victim = vanilla("victim", 3, 3, {
             controllerId: "p2",
@@ -2633,7 +2633,7 @@ describe("Ray of Command — steal a creature until EOT (CR 611.2a / 613.1b / 70
     });
 });
 
-describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2a / 613.1b / 701.20a)", () => {
+describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2a / 613.1b / 701.26a)", () => {
     function artifact(id: string): CardInstanceState {
         return {
             id,

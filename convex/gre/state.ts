@@ -6064,7 +6064,7 @@ export function applyControlChange(
     newControllerId: string,
     sourceId: string,
     condition?: ControlChangeCondition,
-    /** "Until end of turn" duration + tap-on-loss rider (CR 611.2a / 701.20a,
+    /** "Until end of turn" duration + tap-on-loss rider (CR 611.2a / 701.26a,
      *  issue #730 — Ray of Command / Magus of the Unseen). The duration is
      *  ticked out by `tickAllDurations`, which reverts the row and taps the
      *  permanent when `tapOnLoss` is set. */
