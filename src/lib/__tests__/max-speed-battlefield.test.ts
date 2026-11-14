@@ -24,6 +24,7 @@ import {
     getStackAbilities,
     hasManaAbility,
     withManaLayers,
+    type ManaGatePlayer,
 } from "../card-utils";
 
 const REMINDER =
@@ -85,7 +86,7 @@ function view<T>(
     read: (
         card: CardInstance,
         stateView: ReturnType<typeof buildTriggerStateView>,
-        players: ReturnType<typeof withManaLayers>,
+        players: ReadonlyArray<ManaGatePlayer>,
         phase: ReturnType<typeof projectPublicState>["phase"]
     ) => T,
     theirs?: number
@@ -112,12 +113,13 @@ function view<T>(
             wire.players,
             wire.activePlayerId
         );
+        // The wire's battlefields are readonly; the mana helpers only read.
         const players = withManaLayers(
             wire.players,
             wire.activePlayerId,
             undefined,
             undefined
-        );
+        ) as unknown as ManaGatePlayer[];
         const card = wire.players[0]!.battlefield.find(
             (c) => c.id === "src"
         ) as CardInstance;
