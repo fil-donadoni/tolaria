@@ -82960,6 +82960,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "The Speed Demon",
+        "scryfallId": "62242a80-0444-4a0e-a868-97eabcc77648",
+        "oracleId": "c9fb22b4-dc22-4291-91f2-89c07cee7569",
+        "firstSet": "dft",
+        "firstPrintId": "62242a80-0444-4a0e-a868-97eabcc77648",
+        "firstPrintSet": "dft",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "The Stasis Coffin",
         "scryfallId": "45537ac3-fc61-4253-a782-7f3e436b2aa6",
         "oracleId": "a46bfaf5-e631-4603-850a-f0074395b2f5",

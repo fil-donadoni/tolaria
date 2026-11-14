@@ -5685,7 +5685,8 @@ const RETURN_UP_TO_X_BOUNDED =
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
  * tail defines it: "the number of <plural descriptor>", "the number of cards
  * in your/their hand minus N", its mirror "N minus the number of cards in
- * their hand", "the exiled card's mana value", or "your speed" (CR 702.179f).
+ * their hand", "the exiled card's mana value", or "your speed" — a
+ * player's speed under start your engines! (CR 702.179f).
  */
 const WHERE_X_IS =
     /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value|your speed)$/;
