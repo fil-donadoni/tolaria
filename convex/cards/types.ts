@@ -11161,6 +11161,10 @@ export interface CountDrivenCostReduction {
  *  to cast for each card type among cards in your graveyard". Shares
  *  `countGraveyardCardTypes` with delirium.
  *
+ *  `"speed"` reads the speed of the reduction SOURCE's controller (CR
+ *  702.179f: 0 for a player with no speed) — Samut, the Driving Force:
+ *  "Noncreature spells you cast cost {X} less to cast, where X is your speed".
+ *
  *  `"domain"` (issue #1958) counts the BASIC LAND TYPES among the lands that
  *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast
  *  for each basic land type among lands you control"; Stratadon: {1} less).
@@ -11195,7 +11199,8 @@ export interface CensusDrivenCostReduction {
         | "domain"
         | "opponents"
         | "opponent-lands-could-produce"
-        | "graveyard-card-types";
+        | "graveyard-card-types"
+        | "speed";
     /** `"opponent-lands-could-produce"` only: the mana type (CR 106.7, {C}
      *  included) a land must be able to produce to count. Defaults to `"C"`. */
     producible?: Color;
