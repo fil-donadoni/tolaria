@@ -5093,6 +5093,22 @@ export const OP_EXECUTORS: {
     // the target is gone (CR 608.2b — the permanent left the battlefield;
     // `resolveObjectRef` returns undefined). The primitives themselves no-op
     // when the permanent is already in the requested state (CR 701.26a/b).
+    // CR 613.1f (issue #2125) — a permanent loses ONE keyword (layer 6). A
+    // thin declarative skin over `removeStaticAbilities` scoped to exactly
+    // `op.ability`, ONE execution path (ADR 0045). An omitted `duration` is
+    // INDEFINITE (CR 611.2a): the primitive records the removal with no
+    // expiry, so only the leave-play purge (CR 400.7) clears it. Skipped when
+    // the target is gone (CR 608.2b).
+    loseAbility(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        const ability = op.ability;
+        ctx.removeStaticAbilities(
+            target,
+            (keyword) => keyword === ability,
+            op.duration
+        );
+    },
     // CR 611.2a / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). A thin declarative skin over
     // `grantStaticAbility`, ONE execution path (ADR 0045). Skipped when the
@@ -8372,6 +8388,7 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     gainControl: BATTLEFIELD_ONLY,
     grantAbility: BATTLEFIELD_ONLY,
     lockDamage: BATTLEFIELD_ONLY,
+    loseAbility: BATTLEFIELD_ONLY,
     loseAllAbilities: BATTLEFIELD_ONLY,
     markAssignsNoCombatDamage: BATTLEFIELD_ONLY,
     monstrosity: BATTLEFIELD_ONLY,

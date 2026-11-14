@@ -2807,6 +2807,17 @@ const grantAbility: Valuer<"grantAbility"> = (op, ctx) =>
                   : ["evasion"],
           };
 
+// CR 613.1f (issue #2125) — losing ONE keyword. The usual case is taking an
+// opponent's evasion away (Radjan Spirit's "loses flying until end of turn"),
+// the mirror image of `grantAbility`'s keyword leg, so it is priced on the
+// same evasion feature. Losing a DRAWBACK keyword (Elder Land Wurm shedding
+// defender) is worth the same magnitude to its controller; which way it cuts
+// is `opBeneficence`'s call, not the magnitude's.
+const loseAbility: Valuer<"loseAbility"> = (op, ctx) => ({
+    points: priced(ctx, "evasion"),
+    tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
+});
+
 // Backfilled Op (issue #1515). Unlike `grantCastFromExile`/
 // `grantCastFromGraveyard` (which only grant a LATER impulse window), this Op
 // resolves the mini-cast NOW — the realized value is the recursive value of
@@ -3641,6 +3652,7 @@ export const OP_VALUERS: {
     gainControl,
     addPlayerCounter,
     grantAbility,
+    loseAbility,
     grantCastFromExile,
     grantCastFromGraveyard,
     grantFlashback,
@@ -4334,6 +4346,17 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     moveZone: "neutral",
 };
 
+/** Keywords that are a DRAWBACK for the permanent that has them: granting one
+ *  is an attack on its recipient, losing one is a gift. CR 702.26a — phasing
+ *  takes the permanent out of the game every other turn of its controller;
+ *  CR 702.3b — "A creature with defender can't attack." Read by
+ *  `opBeneficence` (`loseAbility`) and by `auraAttachmentSign`
+ *  (`beneficence.ts`, an Aura's `keyword-grant`). */
+export const DRAWBACK_KEYWORDS: ReadonlySet<string> = new Set([
+    "phasing",
+    "defender",
+]);
+
 /** The Ops {@link opBeneficence} signs from their OWN fields rather than from
  *  {@link OP_BENEFICENCE}. Exported so the census guard
  *  (`opBeneficenceCensus.bot.test.ts`) can count them as signed WITHOUT
@@ -4349,6 +4372,7 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "scryReorder",
     "choice",
     "grantAbility",
+    "loseAbility",
     "restrictCombat",
     "preventDamage",
 ]);
@@ -4435,6 +4459,12 @@ export function opBeneficence(
             // an opponent's creature it is an attack on them (the forced
             // attack into blockers), so it signs harmful.
             return op.attackRequirement ? "harmful" : "beneficial";
+        case "loseAbility":
+            // CR 613.1f (issue #2125) — losing a keyword takes something the
+            // recipient wants away (flying, first strike) EXCEPT a drawback
+            // keyword, whose loss frees it: Elder Land Wurm losing defender
+            // (CR 702.3b) can attack again.
+            return DRAWBACK_KEYWORDS.has(op.ability) ? "beneficial" : "harmful";
         case "choice":
             // CR 601.2b (issue #3006, found in review) — most `choice` kinds
             // bind a FREE pick and carry no sign: the chooser picks what they

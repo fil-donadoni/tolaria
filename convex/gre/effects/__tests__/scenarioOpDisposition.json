@@ -203,6 +203,10 @@
         "code": "visibility-only",
         "reason": "Op \"lookRandomHand\" changes card visibility (knownTo) — not a state change the canned generator asserts"
     },
+    "loseAbility": {
+        "code": "op-own-tests",
+        "reason": "Op \"loseAbility\" removes one keyword (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests"
+    },
     "loseAllAbilities": {
         "code": "op-own-tests",
         "reason": "Op \"loseAllAbilities\" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests"

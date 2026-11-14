@@ -5995,6 +5995,40 @@ function lowerFrameChain(
                     );
                 ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
+            // CR 613.1f (issue #2125) — one keyword removed; an omitted
+            // duration is INDEFINITE (CR 611.2a), so the field is omitted, not
+            // written. A group's loss is the same Op over a sweep.
+            case "loseAbility": {
+                const keywordLoss = (
+                    target: EffectObjectSelector
+                ): EffectOp => ({
+                    op: "loseAbility",
+                    target,
+                    ability: frame.ability,
+                    ...(frame.duration === undefined
+                        ? {}
+                        : { duration: durationSpec(frame.duration) }),
+                });
+                if (frame.subject.kind === "mass") {
+                    const sweep = sweepOps(
+                        frame.subject,
+                        site,
+                        walk.targets,
+                        keywordLoss
+                    );
+                    if (!sweep.ok) return sweep;
+                    ops.push(...sweep.value);
+                    break;
+                }
+                const target = objectSelector(
+                    frame.subject,
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                ops.push(keywordLoss(target.value));
+                break;
+            }
             // CR 205.1b + CR 613.1d — one creature type added, indefinitely
             // (CR 611.2a). CR 205.3d — a creature type needs a creature.
             case "addSubtype": {

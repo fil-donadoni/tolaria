@@ -2292,9 +2292,9 @@ export const totalWar = defineCard(() => ({
     ],
 }));
 // Vertigo — "2 damage to target creature with flying. That creature loses
-// flying until end of turn." (CR 120.1 damage + CR 611.2a layer-6 keyword
+// flying until end of turn." (CR 120.1 damage + CR 613.1f layer-6 keyword
 // removal.) The flying-target restriction uses `requireAbility: "flying"`; the
-// loss is `removeStaticAbilities` scoped to flying, until end of turn.
+// loss is the `loseAbility` Op (issue #2125), until end of turn.
 export const vertigo = defineCard(() => ({
     id: "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
     name: "Vertigo",
@@ -2304,14 +2304,15 @@ export const vertigo = defineCard(() => ({
     manaCost: { R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, requireAbility: "flying" },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "permanent") return;
-        ctx.dealDamage(t, 2);
-        ctx.removeStaticAbilities(t, (kw) => kw === "flying", {
-            phase: "end-of-turn",
-        });
-    },
+    effects: [
+        { op: "dealDamage", amount: 2, to: { target: 0 } },
+        {
+            op: "loseAbility",
+            target: { target: 0 },
+            ability: "flying",
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 }));
 // Wall of Lava — 1/3 Wall with defender and firebreathing "{R}: +1/+1 until end
 // of turn" (CR 702.3 defender, CR 605 / CR 611.1 pump).

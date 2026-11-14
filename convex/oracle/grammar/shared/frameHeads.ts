@@ -51,6 +51,7 @@ export const FRAME_HEADS: readonly FrameHead[] = [
     { verb: "gain", op: "gainLife", requires: "life" },
     { verb: "gain", op: "gainControl", requires: "control" },
     { verb: "lose", op: "loseLife", requires: "life" },
+    { verb: "lose", op: "loseAbility" },
     { verb: "search", op: "choice" },
     { verb: "reveal", op: "reveal" },
     { verb: "look", op: "libraryLook" },

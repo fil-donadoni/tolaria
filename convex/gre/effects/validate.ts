@@ -5945,6 +5945,18 @@ const OP_SCHEMAS: OpSchemaTable = {
             return [];
         },
     },
+    // CR 613.1f layer 6 (issue #2125) — a permanent LOSES one keyword. The
+    // removal twin of `grantAbility`'s keyword leg: `target` is an object
+    // selector (announced slot, `$source`, or a forEach `$each`), `ability`
+    // the ONE keyword removed, `duration` optional (CR 611.2a — omitted is
+    // indefinite).
+    loseAbility: {
+        required: {
+            target: isObjectSelector,
+            ability: isNonEmptyString,
+        },
+        optional: { duration: isDurationSpec },
+    },
     // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent
     // INDEFINITELY, in addition to its other types. `target` is an object
     // selector (announced slot, `$source`, or a forEach `$each`); `subtype`
