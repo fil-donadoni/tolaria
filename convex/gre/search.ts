@@ -496,8 +496,15 @@ export type Edge = {
      *  re-resolved against any later world (`rootMoveFor`, `selectRootMove`).
      *  At a priority node it is the structural `moveKey` of `move` itself. */
     key: string;
-    /** Player who chose this move (perspective the rewards are stored in). */
+    /** The seat whose decision this move answered (who it was enumerated
+     *  for, whose resources it spends). */
     mover: string;
+    /** The player whose INTEREST the move was chosen in — the perspective
+     *  the rewards are stored in: the mover's Acting Player on the world the
+     *  move was made from (CR 723.5, ADR 0181), so a seat the bot controls
+     *  this turn stores the bot's reward. `mover` itself on every board with
+     *  no active Turn Control. */
+    interest: string;
     node: Node;
     visits: number;
     totalReward: number;
@@ -3554,7 +3561,9 @@ export function computeActionPriors(
     weights: EvalWeights,
     cache?: Map<string, number>
 ): Map<string, number> {
-    const moverIsBot = pid === botId;
+    // CR 723.5 (ADR 0181) — the prior reads the mover's Acting Player, as
+    // `selectRolloutMove` does: a seat the bot controls is steered for it.
+    const moverIsBot = actingPlayerFor(state, pid) === botId;
     const scores: number[] = [];
     for (const k of keyed) {
         let raw = cache?.get(k.key);
@@ -3657,6 +3666,9 @@ function puctDescend(
     since: GameClock,
     shared: Node = node
 ): boolean {
+    // The perspective this node's edges store and select by (`Edge.interest`),
+    // read before the chosen move changes the world.
+    const interest = actingPlayerFor(world, pid);
     let cache = node.policyValues;
     if (!cache) {
         cache = new Map();
@@ -3698,7 +3710,7 @@ function puctDescend(
         node.policyValues,
         weights,
         path.length === 0,
-        pid === botId
+        interest === botId
     );
     for (const k of keyed) {
         const edge = node.children.get(k.key);
@@ -3757,6 +3769,7 @@ function puctDescend(
         move: bestKeyed!.move,
         key: bestKeyed!.key,
         mover: pid,
+        interest,
         node: child,
         visits: 0,
         totalReward: 0,
@@ -4024,12 +4037,14 @@ function iterate(
                     : untried,
                 rng
             )!;
+            const interest = actingPlayerFor(world, pid);
             applyMoveInSearch(world, pid, pick.move);
             const { child, existed } = sharedChild(shared, view, pick);
             const edge: Edge = {
                 move: pick.move,
                 key: pick.key,
                 mover: pid,
+                interest,
                 node: child,
                 visits: 0,
                 totalReward: 0,
@@ -4140,7 +4155,7 @@ function withoutMisdirectedVariants(
  *  complement `1 − r` / `−margin`). */
 function backpropagate(path: Edge[], leaf: Leaf, botId: string): void {
     for (const edge of path) {
-        const forMover = edge.mover === botId;
+        const forMover = edge.interest === botId;
         edge.visits += 1;
         edge.totalReward += forMover ? leaf.reward : 1 - leaf.reward;
         edge.totalMargin += forMover ? leaf.margin : -leaf.margin;
