@@ -61597,6 +61597,7 @@
         {"id":"508.4","line":"describe(\"Adeline attack trigger (CR 508.1/508.4) — token per opponent, tapped and attacking\", () => {","sites":1,"status":"baseline"},
         {"id":"611","line":"// Hidden Path — global anthem grant: \"Green creatures have forestwalk.\" (CR 611","sites":1,"status":"baseline"},
         {"id":"613.4c","line":"// CR 613.4c (PRD #2064 S6): a registry entry, not an instance field.","sites":1,"status":"baseline"},
+        {"id":"614.9","line":"it(\"still prevents damage that can't be redirected — a CR 614.9 lock is not a prevention lock\", () => {","sites":1,"status":"confirmed","ruleHash":"4cab8e383b51ec69"},
         {"id":"502.2","line":"// cantrip rider (CR 119.3 lifegain; CR 502.2 / 603.7d delayed draw).","sites":1,"status":"baseline"},
         {"id":"702.176a","line":"describe(\"counter-clock creature valuation (CR 702.176a)\", () => {","sites":1,"status":"confirmed","ruleHash":"c64414dfa4c54341"},
         {"id":"704.5k","line":"* `\"World\"` supertype (CR 704.5k: the world rule buries every OTHER World","sites":1,"status":"confirmed","ruleHash":"931228c2ce3b9ec0"},
