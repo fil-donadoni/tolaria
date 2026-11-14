@@ -1209,9 +1209,15 @@ export function finalizeLandEntry(
         const forcedTapped = shouldEnterTapped(state, playSource.card);
         // CR 616.1 — an "enter untapped" replacement outranks the declined
         // pay-choice too (the prompt is normally not raised under one).
+        // Asked under the PLAYER's control: a cross-player exile card still
+        // names its owner until `moveCardAcrossPlayers` re-stamps it.
         const willEnterTapped =
             forcedTapped ||
-            (!accept && !shouldEnterUntapped(state, playSource.card));
+            (!accept &&
+                !shouldEnterUntapped(state, {
+                    ...playSource.card,
+                    controllerId: player.id,
+                }));
         const card =
             playSource.owner === player
                 ? moveCard(
