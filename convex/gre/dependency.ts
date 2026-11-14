@@ -712,8 +712,9 @@ function orderGroup(
  *  Scoped to the layer, like every other clause of CR 613.8a. A source's effects
  *  in OTHER layers are not suppressed here: that is CR 305.7 applied to a
  *  source's whole rules text, a rule about ability removal rather than about
- *  ordering, and this engine's gap in it predates the dependency system
- *  (issue #3170 carries the layer-7 half).
+ *  ordering. Layer 7 asks it of a source layer 6 stripped, through the
+ *  `abilitiesSuppressedBy` record, with CR 613.6 deciding which layer-7 parts
+ *  survive (`survivesAbilityRemoval`, `gre/layers.ts`).
  *
  *  Scoped, too, to the destroyers this walk can SEE, and layer 6 does not show
  *  it all of them: `layer6EffectsFor` filters entries to the ones applying to
