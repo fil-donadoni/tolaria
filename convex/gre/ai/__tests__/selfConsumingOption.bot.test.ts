@@ -16,7 +16,12 @@ import { buildBladeState } from "../blade/runner";
 import { seatPlayerId } from "../blade/matcher";
 import { applyMoveInSearch, decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
-import { evaluate } from "../../evaluate";
+import {
+    cardValue,
+    evaluate,
+    handLatentLens,
+    permanentRealisedValue,
+} from "../../evaluate";
 import { cardValueById, withSelfConsumingOption } from "../../cardValue";
 import { dslSelfConsumingOption } from "../cardScriptValue";
 import { tokenDefinitionId, tryGetDefinition } from "../../../cards/registry";
@@ -24,7 +29,7 @@ import { findTokenSpec } from "../../../cards/tokenCatalogue";
 import { getCardByName } from "../../../cards";
 import type { BladeScenario } from "../blade/types";
 import type { ScenarioCard } from "../../../debugScenarioSpec";
-import type { GameState } from "../../state";
+import type { CardInstanceState, GameState } from "../../state";
 
 /** A blank artifact token: no ability, no body, the floor a Clue used to
  *  read at. Placed through the token codec's own `token:` id. */
@@ -134,7 +139,7 @@ describe("a self-consuming ability is option worth on its permanent (issue #9592
     });
 
     it.each(["Seal of Cleansing", "Aeolipile", "Strip Mine", "Bear Trap"])(
-        "%s, whose target can be a permanent it does not control, reads no option (its yield is a board question)",
+        "%s, whose target can be a permanent it does not control, reads no option context-free (its yield is a board question)",
         (name) => {
             expect(dslSelfConsumingOption(getCardByName(name))).toBeUndefined();
         }
@@ -178,3 +183,138 @@ describe("a self-consuming ability is option worth on its permanent (issue #9592
 function handSize(state: GameState, playerId: string): number {
     return state.players.find((p) => p.id === playerId)!.hand.length;
 }
+
+// Issue #9597 — the same option when its target can be a permanent its
+// controller does not control: read against the board, at its best legal
+// victim there (CR 115.1c — the target is chosen on the board at activation).
+
+function on(name: string, owner: "me" | "opp", zone = "battlefield") {
+    return { name, owner, zone } as ScenarioCard;
+}
+
+/** The permanent named `name` that `owner` controls on `state`. */
+function permanent(
+    state: GameState,
+    name: string,
+    owner: "me" | "opp"
+): CardInstanceState {
+    const me = seatPlayerId(state, "me");
+    const player = state.players.find((p) =>
+        owner === "me" ? p.id === me : p.id !== me
+    )!;
+    const found = [...player.battlefield, ...player.hand].find(
+        (c) => tryGetDefinition(String(c.card.id))?.name === name
+    );
+    expect(found, `${owner} must have a ${name}`).toBeDefined();
+    return found!;
+}
+
+/** `name`'s realised worth on a board of `cards` (no lands). */
+function realised(cards: ScenarioCard[], name: string): number {
+    const state = buildBladeState(board(cards));
+    return permanentRealisedValue(state, permanent(state, name, "me"));
+}
+
+describe("a self-consuming ability's foreign target is read on the board (issue #9597)", () => {
+    const SEAL = "Seal of Cleansing";
+    const floor = () => realised([on(SEAL, "me")], SEAL);
+
+    it.each(["Ornithopter", "Umezawa's Jitte"])(
+        "the Seal in play reads above its floor beside the opponent's %s, and below the artifact it would destroy",
+        (artifact) => {
+            const state = buildBladeState(
+                board([on(SEAL, "me"), on(artifact, "opp")])
+            );
+            const seal = permanentRealisedValue(
+                state,
+                permanent(state, SEAL, "me")
+            );
+            const victim = permanentRealisedValue(
+                state,
+                permanent(state, artifact, "opp")
+            );
+            expect(seal).toBeGreaterThan(floor());
+            expect(seal).toBeLessThan(victim);
+        }
+    );
+
+    it("trading the Seal for the opponent's artifact never reads as a loss (issue #5145's invariant)", () => {
+        // Umezawa's Jitte is the tight board: the smallest victim the Seal
+        // still reads an option against, where the Seal's own presence is
+        // what would tip the trade into a loss.
+        const state = buildBladeState(
+            board([on(SEAL, "me"), on("Umezawa's Jitte", "opp")])
+        );
+        const me = seatPlayerId(state, "me");
+        const jitte = permanent(state, "Umezawa's Jitte", "opp");
+        const before = evaluate(state, me);
+        const activation = enumerateMoves(state, me).find(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.targets.some((t) => t.id === jitte.id)
+        );
+        expect(
+            activation,
+            "the Seal must be able to aim at the Jitte"
+        ).toBeDefined();
+        applyMoveInSearch(state, me, activation!);
+        for (let i = 0; i < 4 && state.stack.length > 0; i++) {
+            const owed = decidingPlayer(state);
+            if (!owed) break;
+            applyMoveInSearch(state, owed, { kind: "pass" });
+        }
+        // The trade really happened: both artifacts are gone.
+        expect(
+            state.players.flatMap((p) => p.battlefield).map((c) => c.id)
+        ).not.toContain(jitte.id);
+        expect(evaluate(state, me)).toBeGreaterThanOrEqual(before);
+    });
+
+    it("with no opposing permanent its target could name, the option reads nothing (the bot's own artifact is no victim)", () => {
+        expect(
+            realised([on(SEAL, "me"), on("Umezawa's Jitte", "me")], SEAL)
+        ).toBe(floor());
+    });
+
+    it.each([
+        ["Bear Trap", "Grizzly Bears"],
+        ["Aeolipile", "Grizzly Bears"],
+    ])(
+        "%s's damage, priced flat whatever it hits, reads no board option beside the opponent's %s (fail-closed)",
+        (source, creature) => {
+            expect(
+                realised([on(source, "me"), on(creature, "opp")], source)
+            ).toBe(realised([on(source, "me")], source));
+        }
+    );
+
+    it("a land's option reads the board too: Strip Mine beside the opponent's Library of Alexandria", () => {
+        const state = buildBladeState(
+            board([on("Strip Mine", "me"), on("Library of Alexandria", "opp")])
+        );
+        const strip = permanentRealisedValue(
+            state,
+            permanent(state, "Strip Mine", "me")
+        );
+        expect(strip).toBeGreaterThan(
+            realised([on("Strip Mine", "me")], "Strip Mine")
+        );
+        expect(strip).toBeLessThan(
+            permanentRealisedValue(
+                state,
+                permanent(state, "Library of Alexandria", "opp")
+            )
+        );
+    });
+
+    it("the Seal in hand reads the same board: above its context-free worth beside the opponent's Ornithopter", () => {
+        const state = buildBladeState(
+            board([on(SEAL, "me", "hand"), on("Ornithopter", "opp")])
+        );
+        const seal = permanent(state, SEAL, "me");
+        const lens = handLatentLens(state, seatPlayerId(state, "me"), seal);
+        expect(cardValue(state, seal, lens)).toBeGreaterThan(
+            cardValue(state, seal)
+        );
+    });
+});

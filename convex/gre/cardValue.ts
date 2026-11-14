@@ -32,6 +32,7 @@ import {
     dslLatentDelayedTemplateValue,
     dslStandingAbilityScriptValue,
     dslSelfConsumingOption,
+    readsSelfConsumingOptionOnBoard,
     type SelfConsumingOption,
     carriesEachStepEngine,
     etbSelfSacrificeWeight,
@@ -599,9 +600,11 @@ export function dslLatentPieces(
         // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
         dslScriptComplete: isCompleteScript(def),
         // Issue #9592 — read by the NON-CREATURE branch only, so only the
-        // class that carries standing ability worth reads it.
+        // class that carries standing ability worth reads it. An ability
+        // whose target can be a foreign permanent reads `board` (issue
+        // #9597): with none it reads nothing.
         selfConsumingOption: standingWorth
-            ? dslSelfConsumingOption(def, contextFreeGrounding(latent))
+            ? dslSelfConsumingOption(def, contextFreeGrounding(latent), board)
             : undefined,
         // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
         // board the lens is attached to; context-free (no lens) it stays
@@ -724,7 +727,13 @@ export function dslRealizedAbilityValueById(
  *  id. Not restricted to lands by type: the caller branches on `isLand`. */
 export function standingAbilityValueById(
     cardId: string,
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #9597 — the board the land stands on, from its controller's
+     *  seat, asked for only when a self-consuming ability's target can be a
+     *  foreign permanent (`readsSelfConsumingOptionOnBoard`, Strip Mine): its
+     *  option is read there, as the hand face reads it. Lazy, like
+     *  `dslRealizedAbilityValueById`'s. */
+    board?: () => LatentLens | undefined
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def || !carriesStandingAbilityWorth(def)) return 0;
@@ -741,9 +750,11 @@ export function standingAbilityValueById(
     const standing = dslStandingAbilityScriptValue(def, ctx);
     // Issue #9592 — the same self-consuming option the hand face reads
     // (`latentValue`), so the two faces still move together.
+    const lens =
+        board && readsSelfConsumingOptionOnBoard(def) ? board() : undefined;
     return withSelfConsumingOption(
         Math.max(0, Math.min(standing ?? 0, MAX_LATENT_SCRIPT_VALUE)),
-        dslSelfConsumingOption(def, ctx)
+        dslSelfConsumingOption(def, ctx, lens)
     );
 }
 

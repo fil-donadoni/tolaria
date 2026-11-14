@@ -155,7 +155,10 @@ import {
 // permanent that carries them.
 import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
 import { inertKeywordDiscount } from "./ai/keywordRelevance";
-import { carriesEachStepEngine } from "./ai/cardScriptValue";
+import {
+    carriesEachStepEngine,
+    readsSelfConsumingOptionOnBoard,
+} from "./ai/cardScriptValue";
 import {
     DEFAULT_EVAL_WEIGHTS,
     type EvalWeights,
@@ -887,7 +890,8 @@ function pendingReturnsWorth(
             worth.permanents +=
                 nonCreatureBodyValue(state, card, weights, pass) + etb;
         } else {
-            worth.permanents += landStandingAbilityValue(card, weights) + etb;
+            worth.permanents +=
+                landStandingAbilityValue(state, card, weights, pass) + etb;
         }
     }
     return worth;
@@ -1878,8 +1882,11 @@ function withEngineRead<T>(
  *  engine on every player's step (`carriesEachStepEngine`, Howling Mine) is
  *  read against, from its controller's seat — the same lens its hand face
  *  takes in the `hand` term, so both read one Differential (the hand credits
- *  its share of it, issue #8295). `undefined` for every other permanent: its
- *  board face stays context-free. */
+ *  its share of it). So is one whose
+ *  self-consuming ability can target a foreign permanent
+ *  (`readsSelfConsumingOptionOnBoard`, Seal of Cleansing): its option is a
+ *  fact of this board, as its hand face reads it. `undefined` for every
+ *  other permanent: its board face stays context-free. */
 function standingEngineLens(
     state: GameState,
     perm: CardInstanceState,
@@ -1887,7 +1894,12 @@ function standingEngineLens(
     pass: Layer7Pass
 ): LatentLens | undefined {
     const def = tryGetDefinition(String(perm.card.id ?? ""));
-    if (!def || !carriesEachStepEngine(def)) return undefined;
+    if (
+        !def ||
+        !(carriesEachStepEngine(def) || readsSelfConsumingOptionOnBoard(def))
+    ) {
+        return undefined;
+    }
     const controller = state.players.find((p) => p.id === perm.controllerId);
     if (!controller) return undefined;
     return latentBoardFor(state, controller, perm, weights, "own", pass);
@@ -1906,10 +1918,22 @@ function standingEngineLens(
  *  its worth (the pre-existing shape of every registry-keyed reading, not a
  *  regression of this one). */
 function landStandingAbilityValue(
+    state: GameState,
     perm: CardInstanceState,
-    weights: EvalWeights
+    weights: EvalWeights,
+    pass: Layer7Pass
 ): number {
-    return standingAbilityValueById(String(perm.card.id ?? ""), weights.latent);
+    // Issue #9597 — a self-consuming ability's foreign target (Strip Mine)
+    // reads this board, under the same re-entry guard as an artifact's.
+    return withEngineRead(perm, (open) =>
+        standingAbilityValueById(
+            String(perm.card.id ?? ""),
+            weights.latent,
+            open
+                ? () => standingEngineLens(state, perm, weights, pass)
+                : undefined
+        )
+    );
 }
 
 /** Whether `perm` is valued as a creature BODY by the BOARD term (issue
@@ -1988,7 +2012,7 @@ export function permanentRealisedValue(
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
     } else {
-        total += landStandingAbilityValue(perm, weights);
+        total += landStandingAbilityValue(state, perm, weights, pass);
     }
     // Issue #5154 — the permanent's standing worth AS a restriction source
     // (a Moat, a Pacifism, a Meekstone): what it takes from the opponent's
@@ -2284,7 +2308,12 @@ function playerTerms(
                     pass
                 );
             } else {
-                terms.permanents += landStandingAbilityValue(perm, weights);
+                terms.permanents += landStandingAbilityValue(
+                    state,
+                    perm,
+                    weights,
+                    pass
+                );
             }
         }
     }

@@ -16740,6 +16740,49 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #9592. Before the change the two read the same floor and the bot destroyed its own Clue (listed first). Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) returning `worth` unchanged turns this entry red. Partner: `discriminating pair: Uktabi Orangutan's forced destroy takes the opponent's Clue, not its blank artifact token (issue #9592)`.",
     },
     {
+        // SELF-CONSUMING OPTION ON THE BOARD (issue #9597). The opponent's
+        // Juggernaut (5/3, attacks each combat) is attacking; the bot has no
+        // creature to block with and a Seal of Cleansing in play ("sacrifice:
+        // destroy target artifact or enchantment"). Trading the Seal for the
+        // Juggernaut now saves five life and every later attack.
+        //
+        // WHAT IT GUARDS. The Seal's option is read against this board
+        // (`dslSelfConsumingOption`, `ai/cardScriptValue.ts`): its best
+        // victim lifts the Seal in play above its `base + MV` floor. The lift
+        // is bounded by the trade itself — the victim's measured loss, net of
+        // the activation's cost and the Seal's own presence — so the Seal can
+        // never read as worth more than the artifact it exists to destroy.
+        label: "self-consuming option: Seal of Cleansing trades itself for the opponent's attacking Juggernaut (issue #9597)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Seal of Cleansing", owner: "me", zone: "battlefield" },
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: { attackers: ["Juggernaut"], confirmed: true },
+            turn: 6,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Seal of Cleansing",
+                    target: "Juggernaut",
+                },
+            ],
+        },
+        note: "Issue #9597. Green before the change too (the Seal sat at its floor); it pins that the board reading never lifts the Seal past the trade. Proof of failure: `withSelfConsumingOption` (`cardValue.ts`) lifted past its ceiling turns this entry red.",
+    },
+    {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
         // Disenchant with two untapped Plains; the opponent has a Moat and a
         // Rocket Launcher (a 4-MV artifact whose one-turn ping script prices
