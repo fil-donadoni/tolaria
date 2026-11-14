@@ -9422,6 +9422,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bonds of Mortality",
+        "scryfallId": "ff50de00-115f-41ed-892b-aac9bd13b9b9",
+        "oracleId": "d93ba2f2-bf9b-444b-adbb-3835662734e7",
+        "firstSet": "ogw",
+        "firstPrintId": "ff50de00-115f-41ed-892b-aac9bd13b9b9",
+        "firstPrintSet": "ogw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bone Flute",
         "scryfallId": "63a31de0-d764-4ff6-a85f-027e1e58d86c",
         "oracleId": "8664a004-d786-4357-8856-2f8f5a9ae24d",
@@ -26597,6 +26607,16 @@
         "firstPrintId": "eb4b6ed8-782e-4473-abc9-d50bf2275c6a",
         "firstPrintSet": "fra",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Exterminatus",
+        "scryfallId": "e65de05d-a7e4-4d97-8214-54f7b039e0f9",
+        "oracleId": "8d90ffb5-63da-48d5-a5a2-7b61062556f6",
+        "firstSet": "40k",
+        "firstPrintId": "e65de05d-a7e4-4d97-8214-54f7b039e0f9",
+        "firstPrintSet": "40k",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -71120,6 +71140,16 @@
         "firstSet": "ody",
         "firstPrintId": "932ce702-565f-4d8c-b9fc-2d7c939ef7d7",
         "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Shadowspear",
+        "scryfallId": "939c6e19-4b27-4023-bb9c-ae440f91e21c",
+        "oracleId": "8b27326f-e7b8-4a4d-b589-df459246d19a",
+        "firstSet": "thb",
+        "firstPrintId": "939c6e19-4b27-4023-bb9c-ae440f91e21c",
+        "firstPrintSet": "thb",
         "rarity": "rare",
         "source": "compiled"
     },

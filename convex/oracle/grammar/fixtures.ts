@@ -6338,6 +6338,91 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 613.1f + CR 611.2c — "Permanents your opponents control lose hexproof
+    // and indestructible until end of turn": a keyword pair lost by the
+    // opponents' permanents (CR 109.5 + CR 102.2), one sweep fixed at
+    // resolution holding a `loseAbility` per keyword, exhibiting the
+    // "loseAbility acts on $each" card-dependent form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8b27326f-e7b8-4a4d-b589-df459246d19a",
+            name: "Shadowspear",
+            manaCost: "{1}",
+            typeLine: "Legendary Artifact — Equipment",
+            oracleText:
+                "Equipped creature gets +1/+1 and has trample and lifelink.\n{1}: Permanents your opponents control lose hexproof and indestructible until end of turn.\nEquip {2}",
+            layout: "normal",
+        },
+        expected: {
+            name: "Shadowspear",
+            types: ["Artifact"],
+            supertypes: ["Legendary"],
+            subtypes: ["Equipment"],
+            manaCost: { X: 1 },
+            oracleText:
+                "Equipped creature gets +1/+1 and has trample and lifelink.\n{1}: Permanents your opponents control lose hexproof and indestructible until end of turn.\nEquip {2}",
+            activatedAbilities: [
+                {
+                    id: "shadowspear-ability",
+                    oracleText:
+                        "{1}: Permanents your opponents control lose hexproof and indestructible until end of turn.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "opponent",
+                            },
+                            effects: [
+                                {
+                                    op: "loseAbility",
+                                    target: { ref: "$each" },
+                                    ability: "hexproof",
+                                    duration: { phase: "end-of-turn" },
+                                },
+                                {
+                                    op: "loseAbility",
+                                    target: { ref: "$each" },
+                                    ability: "indestructible",
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "shadowspear-equip",
+                    oracleText: "Equip {2}",
+                    cost: { mana: { generic: 2 } },
+                    sorcerySpeedOnly: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                    useStack: true,
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 1, toughness: 1 },
+                {
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: "trample",
+                },
+                {
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: "lifelink",
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 615.7 — the same two-set union under "prevent the next N
     // damage that would be dealt to <recipient> this turn": `preventDamage`'s
     // `to` mirrors `dealDamage`'s, so the same fan-out applies, this time

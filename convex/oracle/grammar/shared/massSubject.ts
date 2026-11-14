@@ -489,3 +489,55 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
         });
     })
 );
+
+/** " your opponents control" — the opponents' battlefield, plural. */
+const YOUR_OPPONENTS_CONTROL = / your opponents control$/;
+
+/**
+ * CR 109.5 + CR 102.2 — "Permanents your opponents control", "Creatures your
+ * opponents control": a plural descriptor qualified by the opponents' side of
+ * the battlefield, the sweep `controller: "opponent"` selects. "Your" is the
+ * ability's controller (CR 109.5), and in a two-player game that player's
+ * opponent is the other player (CR 102.2), so the set is one battlefield.
+ *
+ * A sibling of {@link controlledPluralRule}, NOT a qualifier it reads: only a
+ * caller with a fixture for the opponents' side routes here, so the group
+ * pump ("Creatures your opponents control get -1/-1 until end of turn") and
+ * every other reader of the plain group subject keep refusing the phrase.
+ * The noun before the qualifier must carry no controller of its own.
+ */
+export const opponentsPluralRule: Rule<MassSubjectIR> = subGrammar(
+    MASS_SUBJECT,
+    rule(MASS_SUBJECT, (span, ctx) => {
+        if (!YOUR_OPPONENTS_CONTROL.test(span))
+            return fail(
+                'an opponents\' group ends "your opponents control"',
+                span
+            );
+        const noun = span.replace(YOUR_OPPONENTS_CONTROL, "");
+        const lower =
+            noun.length === 0 ? noun : noun[0]!.toLowerCase() + noun.slice(1);
+        const descriptor = descriptorRule.run(
+            conjunctionToDisjunction(lower),
+            ctx
+        );
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail("a qualified mass subject is a plural noun", span);
+        if (descriptor.value.controller !== undefined)
+            return fail("two controller clauses", span);
+        if (descriptor.value.excludeSource === true)
+            return fail("the source is never an opponent's permanent", span);
+        const selector = sweepSelector(
+            descriptor.value,
+            false,
+            /, | and | or /.test(noun),
+            false
+        );
+        if (!selector.ok) return fail(selector.reason, selector.fragment);
+        return ok({
+            select: { ...selector.value, controller: "opponent" as const },
+            manaValueAtMostX: false,
+        });
+    })
+);
