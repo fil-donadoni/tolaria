@@ -142,3 +142,33 @@ describe("DeckDetail Edit / Play actions (issue #2591)", () => {
         expect(btn.disabled).toBe(true);
     });
 });
+
+describe("DeckDetail provenance (issue #2818)", () => {
+    const limited = (limitedOrigin?: string): LobbyDeck =>
+        ({
+            ...DECK,
+            kind: "user",
+            format: "limited",
+            limitedOrigin,
+        }) as LobbyDeck;
+
+    it("names the Limited Origin a deck was built from", () => {
+        const { container } = renderDetail({ deck: limited("sealed:lea") });
+        const text = container.querySelector(
+            "[data-deck-provenance]"
+        )?.textContent;
+        expect(text).toMatch(/Sealed/);
+    });
+
+    it("says plainly when a Limited deck has no recorded origin", () => {
+        const { container } = renderDetail({ deck: limited() });
+        expect(
+            container.querySelector("[data-deck-provenance]")?.textContent
+        ).toBe("Origin unknown");
+    });
+
+    it("shows nothing for a non-Limited deck", () => {
+        const { container } = renderDetail({});
+        expect(container.querySelector("[data-deck-provenance]")).toBeNull();
+    });
+});

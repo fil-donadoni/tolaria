@@ -14,6 +14,7 @@ const GAMES_FORMAT_KEY = "tolaria:gamesFormat";
 // Pre-rename key (issue #5337): read once when the new one is unset.
 const LEGACY_GAMES_FORMAT_KEY = "tolaria:matchFormat";
 const DECK_FORMAT_FILTER_KEY = "tolaria:deckFormatFilter";
+const DECK_ORIGIN_FILTER_KEY = "tolaria:deckOriginFilter";
 const PLAY_MODE_KEY = "tolaria:playMode";
 
 /** Best-of-N games format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
@@ -103,6 +104,17 @@ export function getStoredDeckFormatFilter(): DeckFormatFilter {
 
 export function storeDeckFormatFilter(filter: DeckFormatFilter) {
     localStorage.setItem(DECK_FORMAT_FILTER_KEY, filter);
+}
+
+/** The deck list's second-level Limited Origin filter (issue #2818): `"all"`
+ *  or a Limited Origin key. Persisted like the Format filter above; a stale
+ *  key is resolved against the live deck list by the caller. */
+export function getStoredDeckOriginFilter(): string {
+    return localStorage.getItem(DECK_ORIGIN_FILTER_KEY) ?? "all";
+}
+
+export function storeDeckOriginFilter(origin: string) {
+    localStorage.setItem(DECK_ORIGIN_FILTER_KEY, origin);
 }
 
 /** The lobby's Play-panel game-mode selector (ADR 0101 §10, issue #2591):

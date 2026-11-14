@@ -3,14 +3,18 @@
 // BEFORE a deck-or-card search (stacked on a phone), and "+ New Deck".
 import { useState } from "react";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import { deckOriginOptions, effectiveDeckOrigin } from "~/lib/deckOriginFilter";
 import { homeDecks, type HomeDeckEntry } from "~/lib/lobbyHome";
 import {
     getStoredDeckFormatFilter,
+    getStoredDeckOriginFilter,
     storeDeckFormatFilter,
+    storeDeckOriginFilter,
     type DeckFormatFilter as DeckFormatFilterValue,
 } from "~/lib/session";
 import { Button } from "~/components/ui/button";
 import DeckFormatFilter from "./deck-format-filter";
+import DeckOriginFilter from "./deck-origin-filter";
 import HomeDeckRow from "./home-deck-row";
 
 interface HomeDecksSectionProps {
@@ -29,8 +33,15 @@ export default function HomeDecksSection({
     const [format, setFormat] = useState<DeckFormatFilterValue>(() =>
         getStoredDeckFormatFilter()
     );
+    const [storedOrigin, setStoredOrigin] = useState(() =>
+        getStoredDeckOriginFilter()
+    );
     const [query, setQuery] = useState("");
-    const { mine, presets } = homeDecks(decks, format, query);
+    // Derived from the subscribed list (issue #2818): an Origin with no deck
+    // left drops out of the menu and the filter falls back to All.
+    const originOptions = deckOriginOptions(decks);
+    const origin = effectiveDeckOrigin(storedOrigin, originOptions);
+    const { mine, presets } = homeDecks(decks, format, query, origin);
     const groups: [string, HomeDeckEntry[]][] = [
         ["Your decks", mine],
         ["Presets", presets],
@@ -64,6 +75,16 @@ export default function HomeDecksSection({
                         storeDeckFormatFilter(next);
                     }}
                 />
+                {format === "limited" && originOptions.length > 0 && (
+                    <DeckOriginFilter
+                        value={origin}
+                        options={originOptions}
+                        onChange={(next) => {
+                            setStoredOrigin(next);
+                            storeDeckOriginFilter(next);
+                        }}
+                    />
+                )}
                 <input
                     type="search"
                     aria-label="Search decks or cards"
