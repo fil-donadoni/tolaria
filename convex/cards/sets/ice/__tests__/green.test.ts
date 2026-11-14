@@ -2092,7 +2092,7 @@ describe("Forgotten Lore (iterative may-pay over a shrinking set, CR 608.2 / 117
 });
 
 describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), CR 608.2h)", () => {
-    function setup(sacPower: number) {
+    function setup(sacPower: number, plusCounters = 0) {
         const supplicant = makeInstance(freyaliseSupplicant.id, {
             id: "supplicant",
             controllerId: "p1",
@@ -2108,6 +2108,7 @@ describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), 
         });
         // Tag the fuel creature red via an instance-level colour override.
         (fuel as CardInstanceState & { colors?: string[] }).colors = ["R"];
+        if (plusCounters > 0) fuel.counters = { "+1/+1": plusCounters };
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [supplicant, fuel] }),
@@ -2165,6 +2166,12 @@ describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), 
         const state = setup(3);
         activate(state);
         expect(state.players[1].life).toBe(19);
+    });
+
+    it("reads the EFFECTIVE power at sacrifice: a 3-power creature pumped to 5 deals 2 (CR 608.2h, CR 613)", () => {
+        const state = setup(3, 2);
+        activate(state);
+        expect(state.players[1].life).toBe(18);
     });
 
     it("power 1 deals 0 damage (floor(1/2)=0)", () => {

@@ -6560,6 +6560,36 @@ describe("validateEffectScript — divide (issue #2385)", () => {
         }
     });
 
+    it("accepts a cost-`sacrificed` read as the dividend (CR 608.2h)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        divide: {
+                            value: { sacrificed: { read: "power" } },
+                            by: 2,
+                            rounding: "down",
+                        },
+                    }),
+                })
+            )
+        ).toEqual([]);
+        // Still a terminal: a malformed `sacrificed` is refused.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        divide: {
+                            value: { sacrificed: { read: "colors" } },
+                            by: 2,
+                            rounding: "down",
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
     it("accepts both rounding directions", () => {
         for (const rounding of ["up", "down"]) {
             expect(

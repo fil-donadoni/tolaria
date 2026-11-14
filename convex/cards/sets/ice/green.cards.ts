@@ -634,7 +634,7 @@ export const foxfire = defineCard(() => ({
 // CR 115.4 any-target; CR 120.1 damage.) The sacrificed creature's EFFECTIVE
 // power is snapshotted onto the stack item at cost commit (CR 613 layer 7c,
 // 608.2h last-known information) because the creature is gone by resolution;
-// the resolve reads it via `getAdditionalSacrificePower`. Mana value alone
+// the Effect Script reads it via `{ sacrificed: { read: "power" } }`. Mana value alone
 // would be wrong — power can diverge from mana value (pumps, X/1 bodies).
 export const freyaliseSupplicant = defineCard(() => ({
     id: "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
@@ -662,22 +662,22 @@ export const freyaliseSupplicant = defineCard(() => ({
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            // Still a closure: the damage is HALF the sacrificed creature's
-            // snapshotted power, rounded down (CR 107.1a). Both halves exist
-            // in the DSL — `{ sacrificed: { read: "power" } }` reads the
-            // CR 608.2h snapshot, `{ divide: { by: 2, rounding: "down" } }`
-            // halves — but `divide`'s operand admits only a literal, a
-            // `count` or the cast-time X, never a `sacrificed` value, so the
-            // two cannot compose yet. tracked-by: #9238
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                // CR 608.2h — the sacrificed creature's power was snapshotted
-                // at cost payment (it has left play by now). Half, rounded
-                // down (CR 107.2).
-                const power = ctx.getAdditionalSacrificePower() ?? 0;
-                ctx.dealDamage(target, Math.floor(power / 2));
-            },
+            // CR 608.2h — the sacrificed creature has left play by resolution;
+            // `sacrificed` reads its power off the cost-payment snapshot.
+            // CR 107.1a — half, rounded down as the Oracle text states.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        divide: {
+                            value: { sacrificed: { read: "power" } },
+                            by: 2,
+                            rounding: "down",
+                        },
+                    },
+                    to: { target: 0 },
+                },
+            ],
         },
     ],
 }));
