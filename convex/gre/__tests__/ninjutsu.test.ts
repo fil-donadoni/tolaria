@@ -501,13 +501,13 @@ describe("Ninjutsu enters tapped and attacking — not tapped and attacking AFTE
         const entry = seen.find(
             (e) => e.type === "PERMANENT_ENTERED" && e.instanceId === shinobiId
         );
-        expect(entry).toBeDefined();
+        // Fallen Shinobi is a 5/4; attacking under Mightstone it is 6/4. An
+        // entry that joined combat only after the announcement snapshots 5.
+        expect(entry).toMatchObject({ power: 6, enteredTapped: true });
+        // The live state agrees: the snapshot is not a stale +1 from elsewhere.
         const shinobi = battlefieldOf(state, "p1").find(
             (c) => c.id === shinobiId
         )!;
         expect(shinobi.isAttacking).toBe(true);
-        // Fallen Shinobi is a 5/4; attacking under Mightstone it is 6/4. An
-        // entry that joined combat only after the announcement snapshots 5.
-        expect(entry).toMatchObject({ power: 6, enteredTapped: true });
     });
 });
