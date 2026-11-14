@@ -320,8 +320,8 @@ describe('"Max speed —" heading a static ability (CR 702.178a)', () => {
 
     it.each([
         [
-            "a replacement effect",
-            "Max speed — If you would draw a card, draw two cards instead.",
+            "a replacement effect no frame reads",
+            "Max speed — If you would draw a card during your draw step, draw two cards instead.",
         ],
         [
             "a clause that lowers to no effect",

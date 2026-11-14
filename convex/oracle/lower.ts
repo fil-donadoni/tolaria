@@ -33,6 +33,7 @@ import type {
 } from "../cards/types";
 import { SELF_MARKER } from "./normalize";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
+import type { CompiledReplacementEffect } from "../cards/compiledReplacements";
 import type {
     CompiledControlsCondition,
     CompiledTriggeredAbility,
@@ -138,6 +139,8 @@ interface Accumulator {
     damagePreventionCounterRemoval: boolean;
     preventsDamageToController: boolean;
     damageLifeFloor: DamageLifeFloor | undefined;
+    /** CR 614.1a — compiled replacement descriptors, in line order. */
+    compiledReplacements: CompiledReplacementEffect[];
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
@@ -700,6 +703,14 @@ function lowerLine(
                     triggeredTemplates.push(template.ability);
                 else templates.push(template.ability);
             }
+            // A card holds ONE `drawReplacement` (`cards/types.ts`), so a
+            // second draw replacement line has no slot to land in.
+            const draws = [
+                ...acc.compiledReplacements,
+                ...(out.replacements ?? []),
+            ];
+            if (draws.filter((r) => r.kind === "draw-count").length > 1)
+                return "a second draw replacement on one card (one drawReplacement slot)";
             if (templates.length > 0) acc.grantTemplates.push(...templates);
             if (triggeredTemplates.length > 0)
                 acc.triggeredGrantTemplates.push(...triggeredTemplates);
@@ -791,6 +802,7 @@ function lowerLine(
                 acc.preventsDamageToController = true;
             if (out.damageLifeFloor !== undefined)
                 acc.damageLifeFloor = out.damageLifeFloor;
+            acc.compiledReplacements.push(...(out.replacements ?? []));
             if (out.extraLandDrops !== undefined)
                 acc.extraLandDrops += out.extraLandDrops;
             if (out.revealsLibraryTop !== undefined)
@@ -1315,6 +1327,7 @@ export function lowerCard(
         damagePreventionCounterRemoval: false,
         preventsDamageToController: false,
         damageLifeFloor: undefined,
+        compiledReplacements: [],
         extraLandDrops: 0,
         revealsLibraryTop: false,
         looksAtLibraryTop: false,
@@ -1535,6 +1548,9 @@ export function lowerCard(
     // CR 614.1a — likewise a closure; `expandDefinition` rebuilds it.
     if (acc.damageLifeFloor !== undefined)
         definition.damageLifeFloor = acc.damageLifeFloor;
+    // CR 614.1a — likewise closures; `expandDefinition` rebuilds them.
+    if (acc.compiledReplacements.length > 0)
+        definition.compiledReplacements = acc.compiledReplacements;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second

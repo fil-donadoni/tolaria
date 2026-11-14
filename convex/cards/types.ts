@@ -2913,6 +2913,7 @@ export type {
 // both directions.
 
 import type { CompiledStaticEffect } from "./compiledStatics";
+import type { CompiledReplacementEffect } from "./compiledReplacements";
 import type { EntersWithCount } from "./entersWith";
 export type {
     CompiledSpellFilter,
@@ -15262,6 +15263,11 @@ export type DrawReplacementOutcome =
     | { kind: "reveal-others-may-pay-life"; life: number }
     | { kind: "prevent" }
     | { kind: "modify-count"; delta: number }
+    /** CR 614.1a / 121.2 — "If you would draw a card, draw N cards instead"
+     *  (Thought Reflection): the single draw becomes `factor` draws. Applied
+     *  in order with every other count outcome, so two of them compound
+     *  (1 → 2 → 4) rather than add (CR 614.5's own example, CR 616.1f). */
+    | { kind: "multiply-count"; factor: number }
     /** The would-be draw is replaced entirely: the drawing player draws
      *  nothing (no card, no draw-from-empty loss) and the REPLACEMENT SOURCE's
      *  controller creates `count` copies of `token` (CR 614.1 redirect —
@@ -15422,6 +15428,10 @@ export interface ReplacementStateView {
          *  Lets a draw-replacement predicate gate on an empty library (Jace,
          *  Wielder of Mysteries: "while your library has no cards in it"). */
         librarySize: number;
+        /** CR 702.179 — the player's speed, absent for a player with no
+         *  speed (CR 702.179b). Lets a "Max speed —" replacement read the
+         *  gate as the event happens (CR 702.178a). */
+        speed?: number;
         battlefield: ReadonlyArray<{
             id: string;
             controllerId: string;
@@ -24643,6 +24653,14 @@ export interface CardDefinition {
      *  `"damage"` entry scoped to the source's controller and REMOVES the
      *  field — no engine read ever sees it. */
     damageLifeFloor?: DamageLifeFloor;
+    /** CR 614 — JSON-pure replacement-effect descriptors the Oracle compiler
+     *  emits ("If you would draw a card, draw two cards instead", "… it deals
+     *  that much damage plus 1 instead"), each with an optional max speed gate
+     *  (CR 702.178a). `expandCompiledReplacements`
+     *  (`cards/compiledReplacements.ts`) rebuilds them at the
+     *  `expandDefinition` seam into `drawReplacement` / `replacementEffects[]`
+     *  and REMOVES the field — no engine read ever sees it. */
+    compiledReplacements?: readonly CompiledReplacementEffect[];
     /** CR 614.1a — "If a source you control would deal noncombat damage to a
      *  creature an opponent controls, put that many -1/-1 counters on that
      *  creature instead." JSON-pure declaration: `expandDamageAsCounters`
