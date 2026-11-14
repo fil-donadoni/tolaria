@@ -38,6 +38,7 @@ import BoardPortraitChips from "./board-portrait-chips";
 import BoardArrowLayers from "./board-arrow-layers";
 import BoardMidLine from "./board-mid-line";
 import GameStack from "./game-stack";
+import ManualStackDropZone from "./manual-stack-drop-zone";
 import PriorityIndicator from "./priority-indicator";
 import TurnChangeSweep from "./turn-change-sweep";
 
@@ -84,6 +85,9 @@ type BoardSurfaceProps = {
      *  anchors on whichever seat is NOT this one (CR 508.1a). */
     activePlayerId: string;
     stackItems: StackItem[];
+    /** Manual Mode (issue #2351): keep an empty stack's drop target mounted so
+     *  a card can be dragged onto an empty stack. Omitted ⇒ every GRE board. */
+    stackDropZone?: boolean;
     combat?: Combat;
     /** Manual Mode's player-declared arrows (issue #2171), forwarded verbatim
      *  to `BoardArrows`. Omitted ⇒ no manual arrows (every GRE board). */
@@ -155,6 +159,7 @@ export default function BoardSurface({
     viewerId,
     activePlayerId,
     stackItems,
+    stackDropZone = false,
     combat,
     extraArrows,
     isPortrait,
@@ -469,6 +474,11 @@ export default function BoardSurface({
                                     }
                                 />
                             )}
+                        {stackDropZone && stackItems.length === 0 && (
+                            <ManualStackDropZone
+                                desktop={!isPortrait && !landscapeCompact}
+                            />
+                        )}
                         {/* Our own SVG target arrows (#257):
                     endpoints derive from the shared
                     layout placements via the

@@ -99,6 +99,15 @@ because `src/lib/images.ts` and ~20 board components import `getDefinition`.
   (`id`, `card: { id }`, `zone`, `controllerId`, `ownerId`, `isTapped`,
   `faceDown`, `lane`, `counters`, `attachedTo`, `note`) so the presentational
   components take it as-is.
+- `ManualZone` is six values: `library | hand | battlefield | graveyard | exile |
+stack` (issue #2351, amending the original five). The stack is **game-wide**,
+  a `stack` array on `ManualGameState` beside `players` (per-seat stacks would
+  lose the cross-player LIFO order, CR 405), last entry on top, public to both
+  seats. Only cards go on it, and no verb infers a destination on the way out —
+  `stack` is just another `Move to …` target and drop zone, so ADR 0080's "no
+  inferred game state" holds. The board feeds it to the shared stack column
+  (`stackItems`) with `castById` taken from the card's controller. No schema
+  migration: `manualStates.state` is `v.any()`.
 - It also carries the card's printed **`name`**, copied off the decklist row at
   setup. That is deck data, not a hydrated definition — no rule reads it, it is
   a label. It exists because the print id alone is not a reliable name key:

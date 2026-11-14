@@ -132,10 +132,11 @@ export function resolveManualDrop(args: {
     // 3. Zone move. A card may always go to its owner's own zones; the
     //    battlefield is the one zone another seat's card may be dropped on
     //    (a stolen permanent, a token handed over) — the same allowance the
-    //    deleted `resolveDrop` made.
+    //    deleted `resolveDrop` made. The stack is game-wide and has no owner
+    //    (issue #2351), so it too accepts any seat's card.
     if (probe.zone && probe.zone !== card.zone) {
         const ownZone = probe.zoneOwnerId === card.ownerId;
-        if (ownZone || probe.zone === "battlefield") {
+        if (ownZone || probe.zone === "battlefield" || probe.zone === "stack") {
             return { kind: "move", instanceId: card.id, toZone: probe.zone };
         }
     }

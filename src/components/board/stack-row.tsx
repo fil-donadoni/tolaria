@@ -21,11 +21,13 @@ import {
     resolveCardImageId,
 } from "~/lib/images";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { useManualCardInteraction } from "~/lib/manual-card-verbs";
 import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
 import ArrivalGlow from "./arrival-glow";
 import ControllerChip from "./controller-chip";
 import StackRowTargets from "./stack-row-targets";
 import StackYieldToggle from "./stack-yield-toggle";
+import ManualCardMenu from "./manual-card-menu";
 import StackCardImage from "../cards/stack-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
 
@@ -123,7 +125,16 @@ export default function StackRow({
     // the stack tile shows the emblem card instead of a raw id / missing image.
     const emblem = tryGetEmblemDefinition(identityId);
     const def = tryGetDefinition(identityId);
-    const name = designation?.name ?? def?.name ?? emblem?.name ?? identityId;
+    // A Manual Game card has no registry definition (issue #2351): the printed
+    // name it carries (`ManualCardInstance.name`) is the only name it has, so
+    // the row degrades to it rather than to the raw print id.
+    const isManual = useManualCardInteraction() !== null;
+    const name =
+        designation?.name ??
+        def?.name ??
+        emblem?.name ??
+        item.name ??
+        identityId;
     const oracle = kind
         ? getStackAbilityOracleText(item)
         : (def?.oracleText ?? null);
@@ -159,7 +170,7 @@ export default function StackRow({
     // has a registered `imagePrintFace` (issue #1595).
     const imageFace = resolveCardImageFace(identityId);
 
-    return (
+    const row = (
         // The shared-layout flight identity lives on the CARD TILE below, not on
         // this row. A row is a wide text block; matching a 5:7 hand card to it
         // made the FLIP interpolate between two different aspect ratios and the
@@ -167,13 +178,15 @@ export default function StackRow({
         // own proportions, so the flight is a pure translate + uniform scale.
         <div
             data-flight-id={item.id}
+            // Inert drag-source handle for the Manual Board (issue #2351).
+            data-board-card={isManual ? item.id : undefined}
             className="relative shrink-0 transition-opacity duration-150"
             style={{ opacity: dimmed ? 0.3 : 1 }}
         >
             <button
                 type="button"
                 data-arrow-anchor-stack={item.id}
-                disabled={!isTargetable}
+                disabled={!isTargetable && !isManual}
                 onPointerEnter={() => onHoverSeed(true)}
                 onPointerLeave={() => onHoverSeed(false)}
                 onClick={onSelect}
@@ -307,8 +320,11 @@ export default function StackRow({
                 a control is invalid HTML / an axe `nested-interactive` red.
                 The wrapper is already `relative`, so the toggle anchors to the
                 row's own box. */}
-            <StackYieldToggle item={item} />
+            {!isManual && <StackYieldToggle item={item} />}
             <ArrivalGlow show={arrived} />
         </div>
     );
+    // Passthrough on every GRE board; on a Manual Board it wraps the row in the
+    // card's verb menu, so a stack card can be sent to any other zone.
+    return <ManualCardMenu card={item}>{row}</ManualCardMenu>;
 }

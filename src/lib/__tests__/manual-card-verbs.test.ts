@@ -130,6 +130,7 @@ describe("manual hand card verbs (issue #2347)", () => {
             "move:graveyard",
             "move:exile",
             "move:library",
+            "move:stack",
             "face",
             "note",
         ]);
@@ -137,7 +138,8 @@ describe("manual hand card verbs (issue #2347)", () => {
         expect(verbs[1].oracleText).toBe("Move to graveyard");
         expect(verbs[2].oracleText).toBe("Move to exile");
         expect(verbs[3].oracleText).toBe("Move to library (top)");
-        expect(verbs[5].oracleText).toBe("Set note…");
+        expect(verbs[4].oracleText).toBe("Move to stack");
+        expect(verbs[6].oracleText).toBe("Set note…");
     });
 
     it("never offers move:hand, tap, any counter verb, clear-damage or clear-arrows — all battlefield-only state", () => {
@@ -192,6 +194,7 @@ describe("manual hand card verbs (issue #2347)", () => {
             "move:graveyard",
             "move:exile",
             "move:library",
+            "move:stack",
             "face",
             "reveal",
             "note",
@@ -250,6 +253,7 @@ describe("manual pile card verbs", () => {
             "move:hand",
             "move:exile",
             "move:library",
+            "move:stack",
             "face",
             "note",
         ]);
@@ -304,6 +308,47 @@ describe("manual pile card verbs", () => {
         expect(dispatch.moveCard).toHaveBeenCalledWith({
             instanceId: "gy1",
             toZone: "hand",
+        });
+    });
+});
+
+describe("Move to stack (issue #2351)", () => {
+    it("every zone's menu offers it, except a card already on the stack", () => {
+        for (const zone of [
+            "battlefield",
+            "hand",
+            "graveyard",
+            "exile",
+        ] as const) {
+            const ids = manualVerbsForZone(manualCard("c", { zone })).map(
+                (v) => v.id
+            );
+            expect(ids).toContain("move:stack");
+        }
+        const onStack = manualVerbsForZone(manualCard("c", { zone: "stack" }));
+        expect(onStack.map((v) => v.id)).not.toContain("move:stack");
+        expect(onStack.map((v) => v.id)).toEqual(
+            expect.arrayContaining([
+                "move:battlefield",
+                "move:hand",
+                "move:graveyard",
+                "move:exile",
+                "move:library",
+            ])
+        );
+    });
+
+    it("the verb dispatches moveCard to the stack", () => {
+        const { dispatch, requestVerbInput } = build();
+        dispatchManualCardVerb(
+            manualCard("c", { zone: "hand" }),
+            "move:stack",
+            dispatch,
+            requestVerbInput
+        );
+        expect(dispatch.moveCard).toHaveBeenCalledWith({
+            instanceId: "c",
+            toZone: "stack",
         });
     });
 });

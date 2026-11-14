@@ -84,7 +84,8 @@ export type ManualZone =
     | "hand"
     | "battlefield"
     | "graveyard"
-    | "exile";
+    | "exile"
+    | "stack";
 
 export type ManualPlayerState = {
     id: string;
@@ -100,6 +101,12 @@ export type ManualPlayerState = {
 
 export type ManualGameState = {
     players: ManualPlayerState[];
+    /** CR 405.1 — the stack is game-wide, NOT per seat: two per-seat stacks
+     *  would lose the LIFO order across players, the one reason a stack
+     *  exists. Cards only (no ability placeholders); the LAST entry is the top.
+     *  Optional because a state persisted before the stack existed has none —
+     *  read it through {@link stackOf}. */
+    stack?: ManualCardInstance[];
     turn: number;
     activePlayerId: string;
     phase?: string;
@@ -122,8 +129,13 @@ export type ProjectedManualPlayer = Omit<
     library: ProjectedManualLibrary;
 };
 
-export type ProjectedManualGameState = Omit<ManualGameState, "players"> & {
+export type ProjectedManualGameState = Omit<
+    ManualGameState,
+    "players" | "stack"
+> & {
     players: ProjectedManualPlayer[];
+    /** Public to both seats, bottom first / top last. */
+    stack: ProjectedManualCard[];
 };
 
 /** Sentinel card id for a face-down card whose identity the viewer may not see. */
@@ -184,7 +196,16 @@ export function projectManualState(
         };
     });
 
-    return { ...state, players };
+    return {
+        ...state,
+        players,
+        stack: stackOf(state).map((c) => projectManualCard(c, viewerId)),
+    };
+}
+
+/** The game-wide stack, `[]` for a state persisted before it existed. */
+export function stackOf(state: ManualGameState): ManualCardInstance[] {
+    return state.stack ?? [];
 }
 
 /** Optional ManualGameState keys that survive the DB round-trip. Mirrors
@@ -193,6 +214,7 @@ export function projectManualState(
 export const MANUAL_STATE_OPTIONAL_KEYS: readonly string[] = [
     "phase",
     "concededBy",
+    "stack",
 ];
 
 type ManualDeckCard = { cardId: string; cardName: string };
@@ -291,21 +313,23 @@ export function backfillManualCardNames(
     nameByPrintId: ReadonlyMap<string, string>
 ): boolean {
     let changed = false;
-    for (const player of state.players) {
-        for (const zone of [
+    const zones = [
+        stackOf(state),
+        ...state.players.flatMap((player) => [
             player.hand,
             player.library,
             player.battlefield,
             player.graveyard,
             player.exile,
-        ]) {
-            for (const card of zone) {
-                if (card.name !== undefined) continue;
-                const name = nameByPrintId.get(card.card.id);
-                if (name === undefined) continue;
-                card.name = name;
-                changed = true;
-            }
+        ]),
+    ];
+    for (const zone of zones) {
+        for (const card of zone) {
+            if (card.name !== undefined) continue;
+            const name = nameByPrintId.get(card.card.id);
+            if (name === undefined) continue;
+            card.name = name;
+            changed = true;
         }
     }
     return changed;
@@ -450,6 +474,13 @@ function findCard(
     state: ManualGameState,
     instanceId: string
 ): { card: ManualCardInstance; player: ManualPlayerState } | null {
+    const onStack = stackOf(state).find((c) => c.id === instanceId);
+    if (onStack) {
+        const owner =
+            state.players.find((p) => p.id === onStack.ownerId) ??
+            state.players[0];
+        return { card: onStack, player: owner };
+    }
     for (const player of state.players) {
         for (const arr of [
             player.hand,
@@ -469,6 +500,8 @@ function removeCardFromZones(
     state: ManualGameState,
     instanceId: string
 ): ManualCardInstance | null {
+    const stackIdx = stackOf(state).findIndex((c) => c.id === instanceId);
+    if (stackIdx !== -1) return state.stack!.splice(stackIdx, 1)[0];
     for (const player of state.players) {
         for (const [, arr] of [
             ["hand", player.hand],
@@ -488,10 +521,13 @@ function removeCardFromZones(
 }
 
 function zoneArray(
+    state: ManualGameState,
     player: ManualPlayerState,
     zone: ManualZone
 ): ManualCardInstance[] {
     switch (zone) {
+        case "stack":
+            return (state.stack ??= []);
         case "hand":
             return player.hand;
         case "library":
@@ -532,6 +568,7 @@ export function manualMoveCard(
         card.isTapped = false;
     }
     const targetZone = zoneArray(
+        s,
         s.players.find((p) => p.id === card.ownerId) ?? s.players[0],
         toZone
     );
@@ -864,20 +901,21 @@ export function manualClearArrows(
 ): VerbResult {
     const s = cloneState(state);
     let cleared = 0;
-    for (const player of s.players) {
-        const arrs = [
+    const zones = [
+        stackOf(s),
+        ...s.players.flatMap((player) => [
             player.battlefield,
             player.hand,
             player.library,
             player.graveyard,
             player.exile,
-        ];
-        for (const zone of arrs) {
-            for (const card of zone) {
-                if (card.arrows && card.arrows.length > 0) {
-                    delete card.arrows;
-                    cleared++;
-                }
+        ]),
+    ];
+    for (const zone of zones) {
+        for (const card of zone) {
+            if (card.arrows && card.arrows.length > 0) {
+                delete card.arrows;
+                cleared++;
             }
         }
     }

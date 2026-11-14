@@ -8,7 +8,11 @@ import type {
 } from "@convex/manual";
 import { MANUAL_FACE_DOWN_CARD_ID } from "@convex/manual";
 import { emptyManaPool } from "~/types/game";
-import { adaptManualPlayer, adaptManualPlayers } from "../manual-board-adapter";
+import {
+    adaptManualPlayer,
+    adaptManualPlayers,
+    adaptManualStack,
+} from "../manual-board-adapter";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 const PLAINS_LEA = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
@@ -134,5 +138,39 @@ describe("adaptManualPlayers", () => {
         const adapted = adaptManualPlayers(state);
         expect(adapted.map((p) => p.id)).toEqual(["p1", "p2"]);
         expect(adapted.every((p) => p.manaPool)).toBe(true);
+    });
+});
+
+describe("adaptManualStack (issue #2351)", () => {
+    const stackCard = (id: string, controllerId: string) => ({
+        id,
+        card: { id: `print-${id}` },
+        name: "Counterspell",
+        zone: "stack" as const,
+        controllerId,
+        ownerId: controllerId,
+        isTapped: false,
+    });
+    const state = (stack: ReturnType<typeof stackCard>[]) =>
+        ({
+            players: [],
+            stack,
+            turn: 1,
+            activePlayerId: "p1",
+        }) as ProjectedManualGameState;
+
+    it("supplies castById from the controller and keeps order and the card's own fields", () => {
+        const items = adaptManualStack(
+            state([stackCard("a", "p1"), stackCard("b", "p2")])
+        );
+        expect(items.map((i) => [i.id, i.castById])).toEqual([
+            ["a", "p1"],
+            ["b", "p2"],
+        ]);
+        expect(items[0].name).toBe("Counterspell");
+        expect(items[0].card.id).toBe("print-a");
+    });
+    it("an empty stack adapts to no items", () => {
+        expect(adaptManualStack(state([]))).toEqual([]);
     });
 });

@@ -87,6 +87,7 @@ const MOVE_TARGETS = [
     { zone: "graveyard", label: "Move to graveyard" },
     { zone: "exile", label: "Move to exile" },
     { zone: "library", label: "Move to library (top)" },
+    { zone: "stack", label: "Move to stack" },
 ] as const;
 
 /** The verb list for one battlefield permanent, in menu order. */
@@ -145,6 +146,7 @@ const HAND_MOVE_TARGETS = [
     { zone: "graveyard", label: "Move to graveyard" },
     { zone: "exile", label: "Move to exile" },
     { zone: "library", label: "Move to library (top)" },
+    { zone: "stack", label: "Move to stack" },
 ] as const;
 
 /** The verb list for one hand card, in menu order (issue #2347): the four
@@ -192,6 +194,7 @@ const ALL_MOVE_TARGETS = [
     { zone: "graveyard", label: "Move to graveyard" },
     { zone: "exile", label: "Move to exile" },
     { zone: "library", label: "Move to library (top)" },
+    { zone: "stack", label: "Move to stack" },
 ] as const;
 
 /**
@@ -341,7 +344,8 @@ export function dispatchManualCardVerb(
             zone === "graveyard" ||
             zone === "exile" ||
             zone === "library" ||
-            zone === "battlefield"
+            zone === "battlefield" ||
+            zone === "stack"
         ) {
             dispatch.moveCard({ instanceId: card.id, toZone: zone });
         }
