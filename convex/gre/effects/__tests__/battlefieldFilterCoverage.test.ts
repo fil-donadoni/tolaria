@@ -44,6 +44,7 @@ const COVERAGE: Record<keyof EffectCardFilter, Coverage> = {
     color: "battlefield",
     excludeColor: "battlefield",
     colorCountAtLeast: "battlefield",
+    powerAtLeast: "battlefield",
     manaValueAtMost: "battlefield",
     manaValueEquals: "battlefield",
     castFaceType: "hidden-zone-only",

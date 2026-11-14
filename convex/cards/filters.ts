@@ -418,6 +418,18 @@ function asArray<T>(value: T | ReadonlyArray<T> | undefined): readonly T[] {
     return Array.isArray(value) ? value : [value as T];
 }
 
+/** Whether `filter` bounds POWER (`powerAtLeast` / `powerAtMost`), directly or
+ *  inside an `any` clause (issue #9480). A battlefield scan supplies the
+ *  layer-7 effective power (CR 613.4) only when this holds, so the common
+ *  power-free scan pays no layer pass. */
+export function permanentFilterReadsPower(filter: PermanentFilter): boolean {
+    return (
+        filter.powerAtLeast !== undefined ||
+        filter.powerAtMost !== undefined ||
+        (filter.any?.some(permanentFilterReadsPower) ?? false)
+    );
+}
+
 /** Returns true if every constraint in `filter` is satisfied by `card`.
  *  Omitted fields don't constrain (AND semantics across fields, OR semantics
  *  within multi-value fields like `types` / `subtypes` / `colors`). Pure:
