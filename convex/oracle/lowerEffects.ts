@@ -714,7 +714,7 @@ function sweepOps(
     mass: Extract<SubjectIR, { kind: "mass" }>,
     site: SiteOptions,
     slots: TargetSlots,
-    verb: (target: EffectObjectSelector) => EffectOp
+    verb: (target: EffectObjectSelector) => EffectOp | readonly EffectOp[]
 ): Lowered<EffectOp[]> {
     // CR 115.1 — "creatures TARGET PLAYER controls": the swept battlefield is
     // an announced player's, so the slot is allocated here, in sentence order,
@@ -738,6 +738,7 @@ function sweepOps(
         };
     }
     const each: EffectObjectSelector = { ref: "$each" };
+    const body = [verb(each)].flat();
     // CR 202.3 + CR 122.1 — "with mana value equal to the number of <kind>
     // counters on this <source>": an `if` over the iterated permanent's mana
     // value against the source's live counter tally (the `counters` value
@@ -760,14 +761,14 @@ function sweepOps(
                                 },
                             },
                         },
-                        then: [verb(each)],
+                        then: body,
                     },
                 ],
             },
         ]);
     if (!subject.manaValueAtMostX)
         return lowered([
-            { op: "forEach", select: subject.select, effects: [verb(each)] },
+            { op: "forEach", select: subject.select, effects: body },
         ]);
     if (!site.allowX)
         return unlowerable(
@@ -785,7 +786,7 @@ function sweepOps(
                         op: "le",
                         right: { X: true },
                     },
-                    then: [verb(each)],
+                    then: body,
                 },
             ],
         },
@@ -5995,20 +5996,23 @@ function lowerFrameChain(
                     );
                 ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
-            // CR 613.1f (issue #2125) — one keyword removed; an omitted
+            // CR 613.1f (issue #2125) — one Op per keyword removed; an omitted
             // duration is INDEFINITE (CR 611.2a), so the field is omitted, not
-            // written. A group's loss is the same Op over a sweep.
+            // written. A group's loss is the same Ops over ONE sweep (CR
+            // 611.2c — one set, fixed at resolution, and a "target opponent"
+            // announced once).
             case "loseAbility": {
                 const keywordLoss = (
                     target: EffectObjectSelector
-                ): EffectOp => ({
-                    op: "loseAbility",
-                    target,
-                    ability: frame.ability,
-                    ...(frame.duration === undefined
-                        ? {}
-                        : { duration: durationSpec(frame.duration) }),
-                });
+                ): EffectOp[] =>
+                    frame.abilities.map((ability) => ({
+                        op: "loseAbility",
+                        target,
+                        ability,
+                        ...(frame.duration === undefined
+                            ? {}
+                            : { duration: durationSpec(frame.duration) }),
+                    }));
                 if (frame.subject.kind === "mass") {
                     const sweep = sweepOps(
                         frame.subject,
@@ -6026,7 +6030,7 @@ function lowerFrameChain(
                     site
                 );
                 if (!target.ok) return target;
-                ops.push(keywordLoss(target.value));
+                ops.push(...keywordLoss(target.value));
                 break;
             }
             // CR 205.1b + CR 613.1d — one creature type added, indefinitely

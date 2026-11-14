@@ -177,7 +177,11 @@ import { CREATURE_SUBTYPES } from "./subtypes";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
-import { massSubjectRule, type PermanentSweepSelector } from "./massSubject";
+import {
+    massSubjectRule,
+    opponentsPluralRule,
+    type PermanentSweepSelector,
+} from "./massSubject";
 
 export const VERB_FRAME = "verb frame";
 
@@ -703,16 +707,17 @@ export type FrameIR =
     | {
           /**
            * CR 613.1f (issue #2125) — "<object> loses <keyword>[ until
-           * <duration>]" and the group's "<objects> lose <keyword> until …":
-           * ONE keyword removed, the removal twin of the keyword grant. No
+           * <duration>]" and the group's "<objects> lose <keyword>[ and
+           * <keyword>] until …": the removal twin of the keyword grant. No
            * printed duration is INDEFINITE (CR 611.2a — "If no duration is
-           * stated, it lasts until the end of the game"). Lowers to the
-           * `loseAbility` Op.
+           * stated, it lasts until the end of the game"). Lowers to one
+           * `loseAbility` Op per keyword.
            */
           readonly frame: "loseAbility";
           readonly subject: SubjectIR;
-          /** The engine's keyword string (the vocabulary row's `ability`). */
-          readonly ability: string;
+          /** The engine's keyword strings (each vocabulary row's `ability`),
+           *  in printed order: one, or the group's pair. */
+          readonly abilities: readonly string[];
           readonly duration?: DurationIR;
       }
     | {
@@ -978,12 +983,12 @@ export const VERB_FRAMES: readonly {
     },
     {
         name: "loseAbility",
-        // The verb, then a Mechanics Registry keyword and the end of the
-        // member or its duration: "loses 2 life", "loses all abilities" and
-        // "lose hexproof and indestructible" never open it, so their gap keys
-        // stay the table's.
+        // The verb, then a Mechanics Registry keyword (or two joined by
+        // "and") and the end of the member or its duration: "loses 2 life"
+        // and "loses all abilities" never open it, so their gap keys stay
+        // the table's.
         opens: new RegExp(
-            `^.+? loses? (?:${KEYWORD_ALTERNATION})(?: until .+)?$`,
+            `^.+? loses? (?:${KEYWORD_ALTERNATION})(?: and (?:${KEYWORD_ALTERNATION}))?(?: until .+)?$`,
             "i"
         ),
     },
@@ -2101,12 +2106,29 @@ function readAddSubtypeFrame(
 const LOSE_ABILITY = /^(.+?) (loses|lose) (.+?)(?: (until .+))?$/i;
 
 /**
+ * CR 109.5 + CR 102.2 — the group a keyword loss names: "<plural> your
+ * opponents control" is the opponents' side (`opponentsPluralRule`, read here
+ * and nowhere else the group subject is), anything else the plain group
+ * subject.
+ */
+function opponentsGroup(named: string, ctx: unknown): RuleResult<SubjectIR> {
+    if (!/ your opponents control$/.test(named))
+        return groupSubject(named, ctx);
+    const mass = opponentsPluralRule.run(named, ctx);
+    return mass.ok
+        ? ok({ kind: "mass" as const, ...mass.value } as SubjectIR)
+        : mass;
+}
+
+/**
  * CR 613.1f + CR 611.2a (issue #2125) — the `loseAbility` frame. The singular
  * verb reads ONE object exactly as the keyword grant does (an announced
  * target, the source, an anaphor, the Aura's host); the plural verb reads a
  * GROUP, and only with a printed duration — a timeless group loss is a static
  * ability ("Creatures your opponents control lose flying"), the static
- * slot's to read.
+ * slot's to read. Only the group's verb reads a keyword PAIR ("lose hexproof
+ * and indestructible until end of turn"): the singular object's pair is a
+ * form no card prints, refused.
  */
 function readLoseAbilityFrame(
     lower: string,
@@ -2115,16 +2137,32 @@ function readLoseAbilityFrame(
     | Extract<FrameIR, { frame: "loseAbility" }>
     | { readonly refused: string; readonly failure?: RuleResult<never> } {
     const [, named, verb, word, until] = lower.match(LOSE_ABILITY)!;
-    const keyword = keywordVocabulary().get(word!.toLowerCase());
-    if (keyword === undefined)
-        return { refused: `"${word}" is not a Mechanics Registry keyword` };
+    // A keyword whose own name holds "and" ("daybound and nightbound") is
+    // read whole before the span is split into a pair.
+    const whole = word!.toLowerCase();
+    const words = keywordVocabulary().has(whole)
+        ? [whole]
+        : whole.split(" and ");
+    const abilities: string[] = [];
+    for (const each of words) {
+        const keyword = keywordVocabulary().get(each);
+        if (keyword === undefined)
+            return { refused: `"${each}" is not a Mechanics Registry keyword` };
+        if (abilities.includes(keyword.ability))
+            return { refused: `"${word}" names one keyword twice` };
+        abilities.push(keyword.ability);
+    }
     const plural = verb!.toLowerCase() === "lose";
     if (plural && until === undefined)
         return {
             refused: `"${named} lose ${word}" with no duration is a static ability`,
         };
+    if (!plural && abilities.length > 1)
+        return {
+            refused: `"${named} loses ${word}" — only a group's loss reads a keyword pair`,
+        };
     const subject = plural
-        ? groupSubject(named!, ctx)
+        ? opponentsGroup(named!, ctx)
         : (hostSubject(named!, ctx) ?? subjectRule.run(named!, ctx));
     if (!subject.ok) return { refused: subject.reason, failure: subject };
     if (plural !== (subject.value.kind === "mass"))
@@ -2135,14 +2173,14 @@ function readLoseAbilityFrame(
         return {
             frame: "loseAbility",
             subject: subject.value,
-            ability: keyword.ability,
+            abilities,
         };
     const duration = durationRule.run(until, ctx);
     if (!duration.ok) return { refused: duration.reason, failure: duration };
     return {
         frame: "loseAbility",
         subject: subject.value,
-        ability: keyword.ability,
+        abilities,
         duration: duration.value,
     };
 }
