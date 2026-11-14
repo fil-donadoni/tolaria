@@ -188,7 +188,7 @@ export const gateToPhyrexia = defineCard(() => ({
 //     (CR 602.1), the complement event emitted by the engine only when the
 //     ability has no {T} component (so {T}-cost abilities aren't double-counted).
 // Each card therefore declares two triggered abilities — one per event — that
-// share an identical resolve body. `tappedTrigger`'s `forMana` is left
+// deal the same damage. `tappedTrigger`'s `forMana` is left
 // undefined so both mana taps and non-mana taps (Twiddle, combat) count, per
 // the oracle wording "becomes tapped".
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,29 +213,16 @@ export const hauntingWind = defineCard(() => ({
                 "Whenever an artifact becomes tapped, this enchantment deals 1 damage to that artifact's controller.",
             scope: "any",
             filter: { types: "Artifact" },
-            // NOT DSL-migratable (ADR 0045/0049): the damage target is the
-            // TAPPED ARTIFACT's controller — `tapped.controllerId`, data carried
-            // on the firing PERMANENT_TAPPED event, not an announced target slot,
-            // `$source`, or a `forEach` member (the trigger is untargeted +
-            // `scope: "any"`, CR 109.5). `TriggeredAbility.effects`' own doc
-            // comment (cards/types.ts) is explicit: "the firing event is not
-            // threaded into a script... a trigger whose effect must inspect the
-            // event stays imperative" UNLESS the event field is censused in the
-            // EVENT_FIELD_REGISTRY (ADR 0049, mechanicsRegistry.ts) for a
-            // `{ ref: "$event.<field>" }` read (the PHASE_BEGIN.activePlayerId /
-            // PERMANENT_ENTERED.controllerId pattern). PERMANENT_TAPPED has NO
-            // registry row today (only ATTACKERS_DECLARED, BLOCKERS_CONFIRMED,
-            // DAMAGE_DEALT, PHASE_BEGIN, PERMANENT_ENTERED are censused).
-            // The `tappedTrigger` factory is no longer a second blocker here —
-            // it gained its `effects?: EffectOp[]` param in 85d5c1075 — so the
-            // event-field read above is the ONLY thing left. Blocked on: a
-            // `PERMANENT_TAPPED: { controllerId: { family: "player", resolve } }`
-            // EVENT_FIELD_REGISTRY row (mirrors the PERMANENT_ENTERED row
-            // exactly). Planned-migratable — worth an issue if more Cluster
-            // B-style cards need it.
-            resolve: (ctx, _event, tapped) => {
-                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
-            },
+            // The damage goes to the TAPPED ARTIFACT's controller, read off the
+            // firing PERMANENT_TAPPED event (`$event.controllerId`, ADR 0049) —
+            // the trigger is untargeted and `scope: "any"` (CR 109.5).
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
+            ],
         }),
         abilityActivatedTrigger({
             id: "haunting-wind-ability",
@@ -243,9 +230,8 @@ export const hauntingWind = defineCard(() => ({
                 "Whenever a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
             scope: "any",
             filter: { types: "Artifact" },
-            // NOT DSL-migratable (ADR 0045/0049): same blocker as the tapped
-            // trigger above — `activated.controllerId` is ABILITY_ACTIVATED
-            // event payload with no EVENT_FIELD_REGISTRY row, and
+            // NOT DSL-migratable (ADR 0045/0049): `activated.controllerId` is
+            // ABILITY_ACTIVATED event payload with no EVENT_FIELD_REGISTRY row, and
             // `abilityActivatedTrigger`'s args expose no `effects` passthrough.
             // Blocked on: an `ABILITY_ACTIVATED: { controllerId: {...} } }`
             // registry row + factory wiring. Planned-migratable.
@@ -283,19 +269,16 @@ export const artifactPossession = defineCard(() => ({
             scope: "any",
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
-            // NOT DSL-migratable (ADR 0045/0049): same blocker as Haunting
-            // Wind above — `tapped.controllerId` is PERMANENT_TAPPED event
-            // payload, uncensused in EVENT_FIELD_REGISTRY. (`tappedTrigger`
-            // itself no longer blocks: it gained `effects?` in 85d5c1075.) The
-            // Aura's own attach target (`{ target: 0 }`) names the ENCHANTED
-            // ARTIFACT, not its controller, so an object selector doesn't
-            // substitute here either — the ability needs the artifact's
-            // CURRENT controller, read off the tap event exactly like Haunting
-            // Wind. Blocked on: the same `PERMANENT_TAPPED.controllerId`
-            // registry row. Planned-migratable.
-            resolve: (ctx, _event, tapped) => {
-                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
-            },
+            // The enchanted artifact's controller, read off the tap event
+            // exactly like Haunting Wind — not necessarily this Aura's
+            // controller.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
+            ],
         }),
         abilityActivatedTrigger({
             id: "artifact-possession-ability",
@@ -304,8 +287,8 @@ export const artifactPossession = defineCard(() => ({
             scope: "any",
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
-            // NOT DSL-migratable (ADR 0045/0049): same blocker as Haunting
-            // Wind's ability-activated trigger — `activated.controllerId` is
+            // NOT DSL-migratable (ADR 0045/0049): as Haunting Wind's
+            // ability-activated trigger — `activated.controllerId` is
             // ABILITY_ACTIVATED event payload, uncensused in
             // EVENT_FIELD_REGISTRY, and `abilityActivatedTrigger`'s args expose
             // no `effects` passthrough. Blocked on: an

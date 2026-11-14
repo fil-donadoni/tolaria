@@ -2727,31 +2727,31 @@ export const seizures = defineCard(() => ({
                 "Whenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
             // CR 303.4b — keyed on the enchanted creature (the Aura's host).
             scope: "host",
-            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
-            // `tappedTrigger`'s `effects[]` site binds only `$source` and the
-            // ability's own controller — NOT the tapped permanent's
-            // controller, which is exactly what this effect needs ("that
-            // creature's controller" pays or takes the damage, and the
-            // enchanted host's controller need not be Seizures' own
-            // controller). Confirmed still blocked per the factory's own doc
-            // comment.
-            // Blocked on: a tapped-permanent-controller player selector
-            // reachable from a `tappedTrigger` script.
-            resolve: (ctx, _event, tapped) => {
+            // "That creature's controller" pays or takes the damage — read off
+            // the firing PERMANENT_TAPPED event (`$event.controllerId`); the
+            // enchanted host's controller need not be Seizures' own controller.
+            effects: [
                 // CR 117.3a — the controller of the enchanted creature may pay
                 // {3} to avoid the damage.
-                const controller = tapped.controllerId;
-                const accept = ctx.requestMayPay({
-                    playerId: controller,
-                    choiceId: controller,
+                {
+                    op: "mayPay",
+                    player: { ref: "$event.controllerId" },
                     cost: { X: 3 },
                     prompt: "Pay {3} or take 3 damage from Seizures?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) {
-                    ctx.dealDamage({ type: "player", id: controller }, 3);
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: { ref: "$event.controllerId" } },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 }));

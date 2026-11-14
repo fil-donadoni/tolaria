@@ -2,11 +2,8 @@
 //
 // Nissa, Who Shakes the World (issue #3229). Two of her three lines are new
 // ground and get assertions; the −8 fetch rides the shipped tutor shape.
-//   * the mana clause is the FIRST `tappedTrigger` whose body is an Effect
-//     Script rather than a `resolve` callback (every prior one — Mana Flare,
-//     Fertile Ground, Wild Growth, Badgermole Cub — must read the tapped
-//     permanent's controller or its `manaProduced`, tracked-by: #2153; Nissa's
-//     recipient is her own controller and the amount is fixed). It is asserted
+//   * the mana clause is a `tappedTrigger` whose body is an Effect Script
+//     adding a fixed {G} to her own controller. It is asserted
 //     through `emitPermanentTapped` + the real trigger pass, so the CR 605.4
 //     off-stack resolution is what produces the mana, not a hand-driven body.
 //   * the +1's ORDER — counters, then untap, then an INDEFINITE animation. The

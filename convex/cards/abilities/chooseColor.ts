@@ -30,11 +30,9 @@ const COLOR_LABELS: ReadonlyArray<[Color, string]> = [
 ];
 
 /** Shared "choose a color" option list (CR 105.1, the five colors — no
- *  colorless) for an imperative `ctx.requestOptionChoice` caller whose
- *  effect is NOT a plain "target/self becomes this color" `optionChoice` Op —
- *  Fertile Ground's mana-ability colour pick (`usg/green.cards.ts`) resolves
- *  outside the stack (CR 605.1b/605.4) and so cannot route through
- *  `colorChoiceModes`' `optionChoice`-Op modes at all. Sets `color` on every
+ *  colorless) for an imperative `ctx.requestOptionChoice` caller or a
+ *  `CardDefinition.modes` list whose effect is NOT an `optionChoice` Op —
+ *  an Effect Script picks through `colorChoiceModes` below instead. Sets `color` on every
  *  entry, same as `colorChoiceModes` (both feed `PendingChoiceOptions`, which
  *  draws a `ManaSymbol` when `color` is present). Historical note: earlier
  *  revisions of Kavu Chameleon and Shyft also hand-rolled their own options

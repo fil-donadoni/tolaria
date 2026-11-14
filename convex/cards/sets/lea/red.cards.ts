@@ -662,14 +662,11 @@ export const manaFlare = defineCard(() => ({
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): `tappedTrigger` now HAS an `effects[]`
-        // site, but it binds only `ctx.controller` (the source's controller)
-        // and `$source` — the tapped land's controller (the recipient) and its
-        // `manaProduced` map (which colour to add) are a separate payload,
-        // never reachable from the script (see `tappedTrigger`'s own `effects`
-        // doc comment). Blocked on: tapped-permanent payload exposure
-        // (recipient player ref + produced-colour value) in the DSL.
-        // tracked-by: #2153
+        // NOT DSL-migratable (ADR 0045): the recipient is reachable
+        // (`$event.controllerId`), but "one mana of any type that land
+        // produced" reads the event's `manaProduced` map, which no Effect
+        // Script value reaches. Blocked on: a produced-mana value in the DSL.
+        // tracked-by: #3742
         tappedTrigger({
             id: "mana-flare-extra",
             oracleText:
@@ -724,15 +721,16 @@ export const manabarbs = defineCard(() => ({
             scope: "any",
             filter: { types: "Land" },
             forMana: true,
-            // NOT DSL-migratable (ADR 0045): the damaged player is
-            // read from the PERMANENT_TAPPED event (the tapping player), not the
-            // ability's controller/opponent, so no EffectPlayerRef targets it.
-            // Blocked on: event-player ref for tapped-land triggers.
-            // tracked-by: #2153 (was #831, closed — that was the LEA migration
-            // pass this was assessed in, never a ticket for the gap itself)
-            resolve: (ctx, _event, tapped) => {
-                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
-            },
+            // "That player" is the tapped land's controller, read off the
+            // firing PERMANENT_TAPPED event (`$event.controllerId`), not this
+            // enchantment's controller.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$event.controllerId" } },
+                },
+            ],
         }),
     ],
 }));

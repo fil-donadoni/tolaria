@@ -2,9 +2,8 @@
 
 import { defineCard } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
-import type { Color } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
-import { COLOR_OPTIONS, colorChoiceModes } from "../../abilities/chooseColor";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Argothian Enchantress — "Shroud. Whenever you cast an enchantment spell,
 // draw a card." (CR 702.18 shroud; CR 603.2 + 601.2i spell-cast trigger; CR
@@ -63,21 +62,12 @@ export const exploration = defineCard(() => ({
 // mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED
 // trigger, CR 605 mana ability.)
 //
-// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.cards.ts`, same
-// tranche convention; re-verified against the current engine, 2026-07):
-// `tappedTrigger` now DOES have an `effects[]` site, but its script only
-// binds the SOURCE's controller (`ctx.controller`) and `$source` — the
-// tapped permanent's last-known-info (id, controller, subtypes) is a
-// separate payload never threaded into the script (`TappedTriggerArgs.effects`
-// doc, `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED
-// LAND's controller, who can differ from the Aura's own controller (no
-// controller-filter on the target), so this still needs the imperative
-// `resolve` callback's `tapped.controllerId`.
-// Blocked on: an event-field player ref reachable from a `tappedTrigger`
-// script (same gap Wild Growth's own comment documents). tracked-by: #2153
-// The runtime colour choice reuses the shared `COLOR_OPTIONS` list
-// (`abilities/chooseColor.ts`).
-
+// Twin of Wild Growth (`lea/green.cards.ts`): "its controller" is the
+// ENCHANTED LAND's controller, read off the firing PERMANENT_TAPPED event
+// (`$event.controllerId`) — who can differ from the Aura's own controller (no
+// controller filter on the target). That player also makes the colour pick, as
+// the trigger resolves (CR 605.4a): one `optionChoice` mode per colour
+// (`colorChoiceModes`), each an `addMana` of that colour.
 //
 // Home set = earliest paper printing (ADR 0041) = Urza's Saga; it was first
 // implemented against the INV reprint, which filed it under the
@@ -111,31 +101,20 @@ export const fertileGround = defineCard(() => ({
             },
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
-            resolve: (ctx, _event, tapped) => {
-                const chosen = ctx.requestOptionChoice({
-                    playerId: tapped.controllerId,
-                    choiceId: `fertile-ground-${ctx.sourceInstanceId}`,
-                    options: COLOR_OPTIONS,
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: { ref: "$event.controllerId" },
                     prompt: "Fertile Ground: add one mana of which color?",
-                });
-                if (chosen === undefined) return; // suspended
-                ctx.addManaTo(tapped.controllerId, {
-                    [chosen as Color]: 1,
-                });
-            },
-            // aiEffects (PRD #1423, issue #1519) — this ability is a bare
-            // `resolve()` closure (the runtime colour choice + the
-            // cross-player `tapped.controllerId` recipient have no Op skin
-            // reachable from a `tappedTrigger` script, see the NOT
-            // DSL-migratable note above), so the bot's `cardValueById`/
-            // `latentValue` value model has nothing to walk without a
-            // shadow. `addMana` (issue #850) only takes a fixed per-colour
-            // map — "any colour" isn't a static amount — so the shadow picks
-            // one representative pip (`{ C: 1 }`); `OP_VALUERS.addMana` sums
-            // total pips regardless of colour, so this scores identically to
-            // the real "any one colour" grant (same shape as Wild Growth's
-            // fixed-`{G:1}` twin, `lea/green.cards.ts`).
-            aiEffects: [{ op: "addMana", mana: { C: 1 } }],
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "addMana",
+                            mana: { [color]: 1 },
+                            player: { ref: "$event.controllerId" },
+                        },
+                    ]),
+                },
+            ],
         }),
     ],
 }));
