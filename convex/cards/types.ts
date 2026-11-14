@@ -16775,11 +16775,10 @@ export type EffectDivideOperand =
  *  author to say which the Oracle text specifies rather than silently picking
  *  one.
  *
- *  CR 107.1b: unlike `difference`, the dividend here is a `count`, a
- *  non-negative literal, a chosen X or a sacrificed permanent's
- *  characteristic (cardinalities, positive-int literals and CR 107.3's X are
- *  non-negative by construction; a negative snapshotted power floors or
- *  ceils toward its sign like any CR 107.1a rounding), so no sign clamp. */
+ *  CR 107.1b: no sign clamp here. A `count`, a literal or a chosen X is
+ *  non-negative by construction; a sacrificed creature's power can be below
+ *  zero, and like `difference` the signed quotient is clamped where the
+ *  consuming Op returns on `amount <= 0` (a result below zero uses zero). */
 export interface EffectDivideValue {
     divide: {
         /** The terminal value being divided. */
