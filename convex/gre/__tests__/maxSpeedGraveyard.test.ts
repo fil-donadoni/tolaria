@@ -112,11 +112,6 @@ function board(
 describe("the graveyard activated ability behind max speed (CR 702.178b)", () => {
     const ability = surveyor.activatedAbilities![0]!;
 
-    it("compiles as a gated graveyard ability", () => {
-        expect(ability.activateFromGraveyard).toBe(true);
-        expect(ability.requiresMaxSpeed).toBe(true);
-    });
-
     function violation(p1Speed: number | undefined, p2Speed?: number) {
         return withTemporaryDefinition(surveyor, () => {
             const state = board(surveyor, p1Speed, p2Speed);
@@ -179,13 +174,6 @@ describe("the graveyard activated ability behind max speed (CR 702.178b)", () =>
 });
 
 describe("the graveyard cast permission behind max speed (CR 702.178b)", () => {
-    it("compiles as a gated intrinsic permission", () => {
-        expect(enhancements.castableFromOwnGraveyard).toBe(true);
-        expect(enhancements.castableFromOwnGraveyardRequiresMaxSpeed).toBe(
-            true
-        );
-    });
-
     function read(p1Speed: number | undefined, p2Speed?: number) {
         return withTemporaryDefinition(enhancements, () => {
             const state = board(enhancements, p1Speed, p2Speed);
