@@ -101,6 +101,42 @@ describe("CR 712.12 — a LAND-backed modal double-faced card is ADMITTED", () =
     });
 });
 
+describe("CR 614.1c — a tapped-land modal back face is ADMITTED (issue #9467)", () => {
+    const card = modalCard([
+        {
+            name: "Quiet Scholar",
+            manaCost: "{1}{W}",
+            typeLine: "Creature — Human Wizard",
+            oracleText: "Flying",
+            power: "2",
+            toughness: "1",
+        },
+        {
+            name: "Slow Meadow",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText: "This land enters tapped.\n{T}: Add {W}.",
+        },
+    ]);
+
+    it("carries the back face's entersTapped and round-trips it", () => {
+        const outcome = compileCard(card);
+        if (outcome.state === "unparsed") {
+            throw new Error(outcome.gaps.map((g) => g.reason).join(" | "));
+        }
+        expect(outcome.definition.backFace?.entersTapped).toBe(true);
+        const again = compileCard(
+            goldOracleCard({
+                id: "00000000-0000-0000-0000-000000000002",
+                rarity: "rare",
+                ...outcome.definition,
+            } as CardDefinition)
+        );
+        if (again.state === "unparsed") throw new Error("expected a card");
+        expect(again.definition.backFace).toEqual(outcome.definition.backFace);
+    });
+});
+
 describe("CR 712.11b — a NONLAND-backed modal double-faced card is ADMITTED (issue #7200)", () => {
     const QUIET_SCHOLAR: OracleFace = {
         name: "Quiet Scholar",

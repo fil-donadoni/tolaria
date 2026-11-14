@@ -426,7 +426,8 @@ describe("regression — Questing Phelddagrif is NOT legendary (PR #2047 fix)", 
         const offenders = getAllCards()
             .filter(
                 (c) =>
-                    c.backFace?.entersTappedUnlessPay !== undefined &&
+                    (c.backFace?.entersTappedUnlessPay !== undefined ||
+                        c.backFace?.entersTapped !== undefined) &&
                     (c.backFace.kind ?? "nonmodal") !== "modal"
             )
             .map((c) => `${c.name} (${c.id})`);
