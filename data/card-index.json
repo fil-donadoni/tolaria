@@ -1504,6 +1504,16 @@
         "source": "compiled"
     },
     {
+        "name": "Akoum Warrior // Akoum Teeth",
+        "scryfallId": "d8ed0335-daa6-4dbe-a94d-4d56c8cfd093",
+        "oracleId": "afedce7b-0e18-40ad-a26a-1933fddb560d",
+        "firstSet": "znr",
+        "firstPrintId": "d8ed0335-daa6-4dbe-a94d-4d56c8cfd093",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Akrasan Squire",
         "scryfallId": "59fdc045-b938-4321-aec3-51685cbbaa52",
         "oracleId": "2b8ef83b-1a1d-4299-ab69-e9e296bb224d",
@@ -5507,6 +5517,16 @@
         "firstPrintId": "ff5254a6-4961-4604-b65b-2eb0ce9b1c82",
         "firstPrintSet": "trk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bala Ged Recovery // Bala Ged Sanctuary",
+        "scryfallId": "c5cb3052-358d-44a7-8cfd-cd31b236494a",
+        "oracleId": "d2075f58-b0e9-4e85-b7e6-0523a27a1d5b",
+        "firstSet": "znr",
+        "firstPrintId": "c5cb3052-358d-44a7-8cfd-cd31b236494a",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -32966,6 +32986,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Glasswing Grace // Age-Graced Chapel",
+        "scryfallId": "90630b20-fc83-475f-bcd5-8bcfee0cf241",
+        "oracleId": "3a3e8c9b-e458-4661-980d-0a84a4c2452b",
+        "firstSet": "mh3",
+        "firstPrintId": "90630b20-fc83-475f-bcd5-8bcfee0cf241",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gleeful Sabotage",
         "scryfallId": "d1b7d043-5f52-4df6-8dcf-5174a5b0c9cc",
         "oracleId": "25fe48be-95c4-4011-8c60-4628fb5ecfcb",
@@ -42806,6 +42836,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jwari Disruption // Jwari Ruins",
+        "scryfallId": "301750a7-d1fd-435e-bfa8-9d2fb22ad627",
+        "oracleId": "941a4b14-ea2a-4bd0-8cc2-d609f80df32c",
+        "firstSet": "znr",
+        "firstPrintId": "301750a7-d1fd-435e-bfa8-9d2fb22ad627",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Jwari Scuttler",
         "scryfallId": "04129038-3b02-418a-862a-229e9dde339b",
         "oracleId": "7d1f5f6f-af3d-4b9b-acaf-debf885f660a",
@@ -43544,6 +43584,16 @@
         "firstSet": "arn",
         "firstPrintId": "18607bf6-ce11-41cb-b001-0c9538406ba0",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Khalni Ambush // Khalni Territory",
+        "scryfallId": "99535539-aa73-41ed-86ab-21c97b92620d",
+        "oracleId": "37a55560-6e32-4f54-b9a8-fd157aea6eb5",
+        "firstSet": "znr",
+        "firstPrintId": "99535539-aa73-41ed-86ab-21c97b92620d",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Khalni Garden",
@@ -48320,6 +48370,16 @@
         "firstPrintId": "0f839a5e-3cbb-4179-9267-02f40645bdbc",
         "firstPrintSet": "roe",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Makindi Stampede // Makindi Mesas",
+        "scryfallId": "ada9a974-8f1f-4148-bd61-200fc14714b2",
+        "oracleId": "342e08f9-d4d0-4408-8621-66e087058616",
+        "firstSet": "znr",
+        "firstPrintId": "ada9a974-8f1f-4148-bd61-200fc14714b2",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -56154,6 +56214,16 @@
         "firstPrintId": "daf8b1e5-418f-4e64-a2ac-0e03b387ed33",
         "firstPrintSet": "roe",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ondu Inversion // Ondu Skyruins",
+        "scryfallId": "b6e6be8c-41c3-4348-a8dd-b40ceb24e9b4",
+        "oracleId": "15fc4e74-300e-4c2d-8ed7-004553b2f7c2",
+        "firstSet": "znr",
+        "firstPrintId": "b6e6be8c-41c3-4348-a8dd-b40ceb24e9b4",
+        "firstPrintSet": "znr",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -70080,6 +70150,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sejiri Shelter // Sejiri Glacier",
+        "scryfallId": "f25d56f9-aa54-4657-9ac9-e93fbba3e715",
+        "oracleId": "d54e4e37-042b-44a5-918d-757308545d4d",
+        "firstSet": "znr",
+        "firstPrintId": "f25d56f9-aa54-4657-9ac9-e93fbba3e715",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Sejiri Steppe",
         "scryfallId": "668f5732-da88-4d42-9186-70cfef81f689",
         "oracleId": "3dfbf95e-a91b-429c-96e2-95ac777e7027",
@@ -72638,6 +72718,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silundi Vision // Silundi Isle",
+        "scryfallId": "11568cdf-6148-494c-8b98-f5ca5797d775",
+        "oracleId": "b0182ca0-f353-4012-9121-6f4ac9f7a046",
+        "firstSet": "znr",
+        "firstPrintId": "11568cdf-6148-494c-8b98-f5ca5797d775",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Silver Drake",
         "scryfallId": "ac35ee86-96b2-47aa-a1ba-2988737f11ee",
         "oracleId": "ec7eb7d8-92b2-4442-856e-a9790301c3b3",
@@ -73666,6 +73756,16 @@
         "firstSet": "znr",
         "firstPrintId": "b83cfbaa-7890-4f6f-878b-4edb45677371",
         "firstPrintSet": "znr"
+    },
+    {
+        "name": "Skyclave Cleric // Skyclave Basilica",
+        "scryfallId": "014027c4-7f9d-4096-b308-ea4be574c0d4",
+        "oracleId": "da9e3910-9a1c-43a9-9138-ca971b2bccae",
+        "firstSet": "znr",
+        "firstPrintId": "014027c4-7f9d-4096-b308-ea4be574c0d4",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Skycloud Egg",
@@ -81490,6 +81590,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tangled Florahedron // Tangled Vale",
+        "scryfallId": "235d1ffc-72aa-40a2-95dc-3f6a8d495061",
+        "oracleId": "53542c79-a62a-4d6a-97db-5296e9c68302",
+        "firstSet": "znr",
+        "firstPrintId": "235d1ffc-72aa-40a2-95dc-3f6a8d495061",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Tangled Islet",
         "scryfallId": "4a325fb4-fe71-47f1-9a2f-05b8cfe88fe6",
         "oracleId": "4b1f68a2-b606-4c64-bd44-a9714808316d",
@@ -88797,6 +88907,16 @@
         "firstPrintId": "476b6a4d-cc05-4e98-8a45-a5c6582ec514",
         "firstPrintSet": "sos",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Vastwood Fortification // Vastwood Thicket",
+        "scryfallId": "3a7fd24e-84d8-405d-86e4-0571a9e23cc2",
+        "oracleId": "ce148a0c-6c63-49d5-a156-99efae4e367a",
+        "firstSet": "znr",
+        "firstPrintId": "3a7fd24e-84d8-405d-86e4-0571a9e23cc2",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

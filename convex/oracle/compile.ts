@@ -161,6 +161,8 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
     "staticAbilities",
     "activatedAbilities",
     "entersTappedUnlessPay",
+    // CR 614.1d (issue #9467) — a plain tapped-land back face.
+    "entersTapped",
     "oracleText",
 ]);
 
@@ -623,6 +625,7 @@ function compileModalDfcLayout(card: OracleCard): CompileOutcome {
             ...(backDef.entersTappedUnlessPay
                 ? { entersTappedUnlessPay: backDef.entersTappedUnlessPay }
                 : {}),
+            ...(backDef.entersTapped ? { entersTapped: true } : {}),
             ...(backDef.manaCost ? { manaCost: backDef.manaCost } : {}),
             ...(backDef.effects ? { effects: backDef.effects } : {}),
             ...(backDef.targetRequirement
