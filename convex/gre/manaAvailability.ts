@@ -52,6 +52,7 @@ import type {
 import {
     normalizeManaCost,
     restrictionAllowsSpell,
+    restrictionChosenCreatureType,
     unrestrictedFloatingMana,
 } from "./state";
 import type { Color, ManaCost } from "../cards/types";
@@ -237,7 +238,8 @@ function producibleManaUnitsWithDebt(
                       restriction,
                       spell.types,
                       spell.supertypes,
-                      spell.subject
+                      spell.subject,
+                      restrictionChosenCreatureType(restriction, card)
                   )
               );
           })

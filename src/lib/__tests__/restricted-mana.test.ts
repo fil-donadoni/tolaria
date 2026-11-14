@@ -47,6 +47,22 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
         expect(restrictedManaLabel(unit)).toBe("Creature spells only");
     });
 
+    it("labels chosen-type creature mana with the type its source chose (issue #9388)", () => {
+        const unit: RestrictedMana = {
+            color: "G",
+            amount: 1,
+            restriction: "chosen-type-creature-spell",
+            chosenCreatureType: "Merfolk",
+            cantBeCounteredRider: true,
+        };
+        expect(restrictedManaLabel(unit)).toBe(
+            "Merfolk creature spells only — can't be countered"
+        );
+        expect(
+            restrictedManaLabel({ ...unit, chosenCreatureType: undefined })
+        ).toBe("Creature spells of the chosen type only — can't be countered");
+    });
+
     it("labels the artifact-spell restriction", () => {
         const unit: RestrictedMana = {
             color: "C",

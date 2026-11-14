@@ -26,6 +26,7 @@ import {
     hasAnyManaRider,
     manaRidersForAbility,
     reverseRestrictedManaFromPool,
+    restrictionChosenCreatureType,
     type CardInstanceState,
     type GameState,
     type PlayerState,
@@ -181,7 +182,11 @@ export function refundChosenManaOutput(
                     color,
                     amount,
                     restriction,
-                    riders
+                    riders,
+                    undefined,
+                    // CR 106.6 (issue #9388) — the same chosen-type key the
+                    // deposit snapshotted off this source.
+                    restrictionChosenCreatureType(restriction, card)
                 );
             } else {
                 player.manaPool[color] = Math.max(
@@ -218,7 +223,9 @@ export function refundFixedManaOutput(
             manaColor,
             amount,
             restriction ?? undefined,
-            riders
+            riders,
+            undefined,
+            restrictionChosenCreatureType(restriction, card)
         );
     } else {
         player.manaPool[manaColor] = Math.max(

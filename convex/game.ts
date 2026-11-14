@@ -58,6 +58,7 @@ import {
     sourceRestrictionSubject,
     spellRestrictionSubject,
     addRestrictedManaToPool,
+    restrictionChosenCreatureType,
     hasAnyManaRider,
     manaRidersForAbility,
     reverseRestrictedManaFromPool,
@@ -1842,7 +1843,8 @@ function activateFixedSacrificeManaAbility(
         player,
         produced,
         ability.manaRestriction,
-        manaRidersForAbility(ability)
+        manaRidersForAbility(ability),
+        card
     );
     emitPermanentTapped(state, card, true, produced);
     removePermanentTo(state, card.id, "graveyard", "sacrifice");
@@ -2050,7 +2052,8 @@ export function tapSourceIntoPayment(
             player,
             chosen,
             effAbility?.manaRestriction,
-            manaRidersForAbility(effAbility)
+            manaRidersForAbility(effAbility),
+            card
         );
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
         // Vale) when this source is tapped for mana during a payment.
@@ -2210,7 +2213,10 @@ export function tapSourceIntoPayment(
         (multiColorAbility
             ? multiColorAbility.manaRestriction
             : getActivatedManaRestriction(card)) ?? undefined,
-        manaRidersForAbility(multiColorAbility ?? getActivatedManaAbility(card))
+        manaRidersForAbility(
+            multiColorAbility ?? getActivatedManaAbility(card)
+        ),
+        card
     );
     // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
     // the battlefield, so leaves-the-battlefield triggers see the mana added and
@@ -13989,7 +13995,8 @@ export const tapUntap = mutation({
                     player,
                     chosen,
                     effAbility?.manaRestriction,
-                    manaRidersForAbility(effAbility)
+                    manaRidersForAbility(effAbility),
+                    card
                 );
                 // CR 605.1a / 120 — painland coloured-tap self-damage rider
                 // (Adarkar Wastes et al.): a coloured choice (not {C}) pings the
@@ -14153,7 +14160,11 @@ export const tapUntap = mutation({
                             addedAmount,
                             restriction ?? undefined,
                             undefined,
-                            fixedRiders
+                            fixedRiders,
+                            undefined,
+                            // CR 106.6 (issue #9388) — snapshot the source's
+                            // chosen creature type onto the unit.
+                            restrictionChosenCreatureType(restriction, card)
                         );
                         producedThisActivation = {
                             [addedColor]: addedAmount,
@@ -14173,7 +14184,9 @@ export const tapUntap = mutation({
                             manaColor,
                             amount,
                             restriction ?? undefined,
-                            fixedRiders
+                            fixedRiders,
+                            undefined,
+                            restrictionChosenCreatureType(restriction, card)
                         );
                     }
                 } else if (!wasTapped) {
@@ -14276,7 +14289,8 @@ export const tapUntap = mutation({
                         player,
                         added,
                         multiColorAbility.manaRestriction,
-                        manaRidersForAbility(multiColorAbility)
+                        manaRidersForAbility(multiColorAbility),
+                        card
                     );
                     producedThisActivation = added;
                     emitPermanentTapped(
@@ -14840,7 +14854,8 @@ export const activateManaAbility = mutation({
                     ability.manaProduced
                 ),
                 ability.manaRestriction,
-                manaRidersForAbility(ability)
+                manaRidersForAbility(ability),
+                card
             );
             applyManaAbilityEffects(state, ability, card, player.id);
             processPendingActionTriggers(state);

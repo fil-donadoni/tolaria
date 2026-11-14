@@ -50,6 +50,7 @@ import {
     restrictedUnitAllowsSpell,
     restrictionAllowsAbility,
     restrictionAllowsSpell,
+    restrictionChosenCreatureType,
     sourceRestrictionSubject,
     spellRestrictionSubject,
     targetsMatchingSpellExist,
@@ -1585,7 +1586,11 @@ function planManaPaymentPass(
                               optionRestriction,
                               cast.cardDef.types,
                               cast.cardDef.supertypes ?? [],
-                              spellRestrictionSubject(cast.cardDef)
+                              spellRestrictionSubject(cast.cardDef),
+                              restrictionChosenCreatureType(
+                                  optionRestriction,
+                                  perm
+                              )
                           )
                         : // CR 106.6 — an activation plan's mana may pay an
                           // "artifact-ability" restriction (Soldevi Machinist)
