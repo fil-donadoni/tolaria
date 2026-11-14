@@ -140,6 +140,13 @@ describe("a self-consuming ability is option worth on its permanent (issue #9592
         }
     );
 
+    it.each(["Pernicious Deed", "Powder Keg", "Ratchet Bomb"])(
+        "%s, whose untargeted sweep board-scales, reads no option (the same board question, review)",
+        (name) => {
+            expect(dslSelfConsumingOption(getCardByName(name))).toBeUndefined();
+        }
+    );
+
     it("prices the activation cost: the option nets the effect against the mana it costs", () => {
         const clue = dslSelfConsumingOption(tokenDef("Clue"))!;
         const food = dslSelfConsumingOption(tokenDef("Food"))!;
