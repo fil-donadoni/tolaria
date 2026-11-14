@@ -1182,6 +1182,10 @@ export interface SelfConsumingOption {
  *     play would outvalue the trade it exists to make (the #5145 bug).
  *     A target it controls (a Map's "target creature you control explores")
  *     or a player is no board question;
+ *   - one whose script's reading board-scales (`"board-scaling"`: a
+ *     `forEach` over the battlefield, Pernicious Deed's "destroy each
+ *     artifact, creature and enchantment with mana value X or less"), for the
+ *     same reason — untargeted, it is still a fact of the board;
  *   - one with no readable script, or whose net is not positive.
  *  `undefined` when no ability qualifies. */
 export function dslSelfConsumingOption(
@@ -1219,7 +1223,11 @@ export function dslSelfConsumingOption(
                   ability.modeSelection,
                   ctx
               );
-        if (!raw) continue;
+        // An untargeted reading that board-scales (a `forEach` over the
+        // battlefield — Pernicious Deed, Powder Keg) is the same board
+        // question as a foreign target: context-free it reads the
+        // representative victim, not this board's.
+        if (!raw || raw.tags.includes("board-scaling")) continue;
         best = Math.max(best, raw.points - price);
     }
     return best > 0
