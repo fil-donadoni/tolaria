@@ -187,7 +187,7 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
-import { resolveSpeedIncrease, speedTriggerController } from "./speed";
+import { resolveSpeedIncrease, speedOf, speedTriggerController } from "./speed";
 import { SPEED_DESIGNATION } from "../cards/designations";
 import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
@@ -15368,6 +15368,11 @@ export function buildSpellContext(
         getOpponentsAttackedThisCombat(playerId: string): number {
             return opponentsAttackedThisCombat(state, playerId);
         },
+        // CR 702.179f — the player's speed, 0 for a player with none.
+        getSpeed(playerId: string): number {
+            const player = state.players.find((p) => p.id === playerId);
+            return player === undefined ? 0 : speedOf(player);
+        },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
         },
@@ -25669,9 +25674,18 @@ function isManaCostReduction(
 function censusOf(
     reduction: CensusDrivenCostReduction,
     player: PlayerState,
-    state: GameState
+    state: GameState,
+    sourceControllerId: string
 ): number {
     switch (reduction.countMode) {
+        case "speed": {
+            // CR 702.179f — "your speed" is the speed of the controller of
+            // the reduction's source, 0 for a player with no speed.
+            const controller = state.players.find(
+                (p) => p.id === sourceControllerId
+            );
+            return controller === undefined ? 0 : speedOf(controller);
+        }
         case "domain":
             return countDomain(state as never, player.id);
         case "opponents":
@@ -25734,12 +25748,15 @@ function censusOf(
 function resolveCostReductionGeneric(
     reduction: CostReductionAmount,
     player: PlayerState,
-    state: GameState
+    state: GameState,
+    /** The controller of the permanent the reduction comes from, when it is
+     *  not `player` (a battlefield source read off its holder's array). */
+    sourceControllerId: string = player.id
 ): number {
     if (isCensusDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
         if (per <= 0) return 0;
-        return per * censusOf(reduction, player, state);
+        return per * censusOf(reduction, player, state, sourceControllerId);
     }
     if (isCountDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
@@ -25980,7 +25997,8 @@ export function getCostModifiers(
                     reductionGeneric += resolveCostReductionGeneric(
                         effect.costReduction,
                         player,
-                        state
+                        state,
+                        source.controllerId
                     );
                     if (
                         effect.minTotalMana !== undefined &&

@@ -2574,7 +2574,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.179",
         status: "implemented",
         binding: "convex/gre/speed.ts",
-        note: "Issue #7502. `PlayerState.speed` (absent = no speed, CR 702.179b; read as 0, CR 702.179f), the CR 704.5aa state-based action, the source-less CR 702.179d trigger heard at `recordLifeLost` and resolved off its `speed` designation, and CR 702.179e `hasMaxSpeed`. CR 702.179c has no reader until a card prints an increase: no card in the corpus does.",
+        note: 'Issue #7502. `PlayerState.speed` (absent = no speed, CR 702.179b; read as 0, CR 702.179f), the CR 704.5aa state-based action, the source-less CR 702.179d trigger heard at `recordLifeLost` and resolved off its `speed` designation, and CR 702.179e `hasMaxSpeed`. Speed as a value (CR 702.179f) is the `{ speed: { of } }` EffectValue (`SpellContext.getSpeed`) and the `"speed"` cost-reduction census (`CensusDrivenCostReduction`). CR 702.179c has no reader until a card prints an increase: no card in the corpus does.',
     },
     // 702.180 Harmonize
     {
@@ -4394,6 +4394,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  opponents a PLAYER attacked with a creature this combat, a thin skin over
  *  SpellContext.getOpponentsAttackedThisCombat. Reason to exist: melee's amount,
  *  which no `count` can read, since it survives the attacker leaving combat.
+ *  `speed` (`{ speed: { of } }`) IS a new value-grammar member, with the same
+ *  non-Op, non-ADR-0045-reopening status: CR 702.179f, a PLAYER's speed (0 for
+ *  a player with none), a thin skin over SpellContext.getSpeed. Reason to
+ *  exist: "equal to your speed" / "where X is your speed", a number no `count`
+ *  can read because it is the player's, not a set of objects'.
  *  `setSize` (`{ setSize: { of } }`) IS a new value-grammar member
  *  — the cardinality sibling of `sum` (#3243) — with the same non-Op,
  *  non-ADR-0045-reopening status: HOW MANY ids a picks binding holds, the X of

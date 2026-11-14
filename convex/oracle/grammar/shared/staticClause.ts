@@ -95,7 +95,7 @@
  * half of a sentence it understood.
  */
 
-import { readNumberWord } from "./quantity";
+import { readNumberWord, YOUR_SPEED } from "./quantity";
 import { readSpellClasses, readSpellFilter } from "./spellClass";
 import { isSelfPhrase } from "./cost";
 import {
@@ -231,6 +231,9 @@ export type StaticClauseIR =
           readonly onlyOutsideAnnouncersTurn?: true;
           /** CR 601.2a — "from anywhere other than your hand". */
           readonly onlyOutsideAnnouncersHand?: true;
+          /** CR 702.179f — "{X} less, where X is your speed": `amount` is
+           *  the reduction PER point of the controller's speed. */
+          readonly perYourSpeed?: true;
       } & (
           | {
                 readonly spells: CompiledSpellFilter;
@@ -1054,6 +1057,28 @@ export const costModifierRule: Rule<StaticClauseIR> = pattern(
             spells: spells.value,
             direction: match[3] as "more" | "less",
             amount: Number(match[2]),
+        });
+    }
+);
+
+/**
+ * CR 601.2f + CR 702.179f — "<spells> cost {X} less to cast, where X is your
+ * speed" (Samut, the Driving Force): one generic mana off per point of the
+ * controller's speed, read as the cost is determined. Only "less": no card
+ * prints a speed-sized tax.
+ */
+export const speedCostReductionRule: Rule<StaticClauseIR> = pattern(
+    "speed cost reduction",
+    new RegExp(`^(.+) cost \\{X\\} less to cast, where X is ${YOUR_SPEED}$`),
+    (match): RuleResult<StaticClauseIR> => {
+        const spells = readSpellFilter(match[1]!);
+        if (!spells.ok) return spells;
+        return ok({
+            kind: "cost-modifier" as const,
+            spells: spells.value,
+            direction: "less" as const,
+            amount: 1,
+            perYourSpeed: true as const,
         });
     }
 );
@@ -3161,6 +3186,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         graveyardKeywordGrantRule,
         fullTextEffectRule,
         costModifierRule,
+        speedCostReductionRule,
         nonHandCastCostReductionRule,
         domainSelfCostReductionRule,
         flashSurchargeRule,

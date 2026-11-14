@@ -573,6 +573,14 @@ export function lowerStaticClause(
                             ...(clause.direction === "more"
                                 ? { increase: clause.amount }
                                 : { reduction: clause.amount }),
+                            // CR 702.179f — the reduction is per point of speed.
+                            ...(clause.perYourSpeed === true
+                                ? {
+                                      count: {
+                                          kind: "controller-speed" as const,
+                                      },
+                                  }
+                                : {}),
                         },
                     ],
                 },

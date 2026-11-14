@@ -3172,7 +3172,6 @@
         {"key":"bbe2e406394e","text":"At the beginning of your end step, untap up to four target creatures.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"up to four target creatures"}},
         {"key":"c75eeab535be","text":"At the beginning of your end step, untap {self}. Until your next turn, he becomes a land and gains \"{T}: Add {U}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"At the beginning of your end step, untap {self}. Until your next turn, he becomes a land and gains \"{T}: Add {U}.\""}},
         {"key":"8560afeefa96","text":"At the beginning of your end step, you discard a card, lose 2 life, and sacrifice a creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You discard a card, lose 2 life, and sacrifice a creature"}},
-        {"key":"cb85a1358870","text":"At the beginning of your end step, you draw X cards and lose X life, where X is your speed.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You draw X cards and lose X life, where X is your speed"}},
         {"key":"56e88d39eb4a","text":"At the beginning of your end step, you gain 1 life for each creature you control with vigilance.","reason":"a \"requireAbility\" clause has no resolution-time count here","cards":1},
         {"key":"71259548874f","text":"At the beginning of your end step, you gain 3 life if this creature is untapped. Otherwise, each opponent loses 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You gain 3 life if this creature is untapped"}},
         {"key":"bce31a7f2ad4","text":"At the beginning of your end step, you lose 3 life and draw a card. Then if your life total is 0 or less, create ten 1/1 red Officer creature tokens.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You lose 3 life and draw a card"}},
@@ -10868,7 +10867,6 @@
         {"key":"9672115a8311","text":"Noncreature spells with mana value equal to the chosen number can't be cast.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells with mana value equal to the chosen number can't be cast"}},
         {"key":"ee1a78c6f607","text":"Noncreature spells with {X} in their mana costs can't be cast.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells with {X} in their mana costs can't be cast"}},
         {"key":"b8d72cacff49","text":"Noncreature spells you cast cost {1} less to cast as long as there are three or more Lesson cards in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells you cast cost {1} less to cast as long as there are three or more Lesson cards in your graveyard"}},
-        {"key":"d642b23c3d65","text":"Noncreature spells you cast cost {X} less to cast, where X is your speed.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells you cast cost {X} less to cast, where X is your speed"}},
         {"key":"a112276502c0","text":"Noncreature spells you cast from exile have convoke.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells you cast from exile have convoke"}},
         {"key":"22fa687957f2","text":"Noncreature spells you cast have convoke.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells you cast have convoke"}},
         {"key":"8c65e4f90200","text":"Noncreature spells you cast have improvise.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Noncreature spells you cast have improvise"}},
@@ -26025,7 +26023,6 @@
         {"key":"4429a0358694","text":"{2}, Sacrifice this creature: Choose one —\n• Destroy target artifact.\n• Destroy target enchantment.\n• Draw a card. Then you may put a land card from your hand onto the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Choose one —\n• Destroy target artifact.\n• Destroy target enchantment.\n• Draw a card"}},
         {"key":"e4e8bc46e026","text":"{2}, Sacrifice this creature: Learn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Learn"}},
         {"key":"43d941ebdcb3","text":"{2}, Sacrifice this enchantment: It deals 2 damage to each player who doesn't have max speed.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"each player who doesn't have max speed"}},
-        {"key":"5fd34cb1022f","text":"{2}, Sacrifice this enchantment: You gain life equal to your speed.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You gain life equal to your speed"}},
         {"key":"366cd6da2ec0","text":"{2}, Sacrifice two artifacts: Choose one —\n• {self} deals 3 damage to target player or planeswalker.\n• Target creature gets -4/-4 until end of turn.\n• You gain 5 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Choose one —\n• {self} deals 3 damage to target player or planeswalker.\n• Target creature gets -4/-4 until end of turn.\n• You gain 5 life"}},
         {"key":"ff9fc3eae856","text":"{2}, Sacrifice {self}: Draw X cards and gain X life, where X is the number of charge counters on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Draw X cards and gain X life"}},
         {"key":"6516e70daba8","text":"{2}, Sacrifice {self}: Gain 3 life, draw three cards, and {self} deals 3 damage to each opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Gain 3 life, draw three cards, and {self} deals 3 damage to each opponent"}},
@@ -31994,7 +31991,7 @@
 
         {"oracleId":"087c8c0e-a91c-4e3c-8387-9312db01f343","name":"Hall of Storm Giants","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6dddca925905","b576120f1593"]},
 
-        {"oracleId":"087d2e42-c69f-4cd2-b2e3-e0b64ac2893b","name":"Momentum Breaker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5fd34cb1022f","c3e0c6acc06c"]},
+        {"oracleId":"087d2e42-c69f-4cd2-b2e3-e0b64ac2893b","name":"Momentum Breaker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c3e0c6acc06c"]},
 
         {"oracleId":"087d6330-c9de-42b7-a804-1202bc6aa682","name":"Primal Adversary","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10744fd45db6"]},
 
@@ -85148,7 +85145,7 @@
 
         {"oracleId":"c9f8651a-4118-4d80-902e-60473e81d3a9","name":"Midnight Mangler","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1170e27dba26"]},
 
-        {"oracleId":"c9fb22b4-dc22-4291-91f2-89c07cee7569","name":"The Speed Demon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cb85a1358870"]},
+        {"oracleId":"c9fb22b4-dc22-4291-91f2-89c07cee7569","name":"The Speed Demon","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw","loseLife"],"definition":{"name":"The Speed Demon","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Demon"],"manaCost":{"X":3,"B":2},"power":5,"toughness":5,"oracleText":"Flying, trample\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nAt the beginning of your end step, you draw X cards and lose X life, where X is your speed.","staticAbilities":["flying","trample","start your engines!"],"compiledTriggeredAbilities":[{"id":"the-speed-demon-trigger","oracleText":"At the beginning of your end step, you draw X cards and lose X life, where X is your speed.","head":{"kind":"phase","phase":"END_STEP","scope":"your"},"effects":[{"op":"draw","player":"controller","count":{"speed":{"of":"controller"}}},{"op":"loseLife","player":"controller","amount":{"speed":{"of":"controller"}}}]}]},"botReach":"played"},
 
         {"oracleId":"c9fc13d6-bd10-47bc-b2b6-7f67a1f3371e","name":"Shineshadow Snarl","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["85908693d2e6"]},
 
@@ -95474,7 +95471,7 @@
 
         {"oracleId":"ee86cce6-c7c1-40a6-896b-cde9b86bb532","name":"Nasty Little Rabbit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1d90404c6c47"]},
 
-        {"oracleId":"ee89c719-5ae8-4316-bfd0-cfe3684b5859","name":"Samut, the Driving Force","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["550833365c5a","d642b23c3d65"]},
+        {"oracleId":"ee89c719-5ae8-4316-bfd0-cfe3684b5859","name":"Samut, the Driving Force","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["550833365c5a"]},
 
         {"oracleId":"ee8ab29b-0749-463a-abbd-eb0b9013aec8","name":"Hell-Bent Raider","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["8732b233868c"]},
 

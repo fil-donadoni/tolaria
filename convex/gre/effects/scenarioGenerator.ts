@@ -362,6 +362,12 @@ const SMOKE_CHOSEN_X = 4;
  *  amount off the wrong source would mispredict; below the filler's toughness
  *  and `LIBRARY_DEPTH`, so no outcome is clamped. */
 const SMOKE_SOURCE_COUNTERS = 6;
+/** The speed the canned scenario gives the caster when a script's amount reads
+ *  it (CR 702.179f). A speed a player can have (CR 702.179e: max speed is 4)
+ *  and distinct from `COUNT_SET_SIZE`, `SMOKE_CHOSEN_X` and
+ *  `SMOKE_SOURCE_COUNTERS`, so an assertion that read the amount off the wrong
+ *  source would mispredict. */
+const SMOKE_CONTROLLER_SPEED = 2;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -393,6 +399,9 @@ export interface Scenario {
     /** The counters seeded on the source permanent, by type, when an amount
      *  reads a `$source` counter count (issue #5265); absent otherwise. */
     sourceCounters?: Readonly<Record<string, number>>;
+    /** The speed seeded on the caster when an amount reads the controller's
+     *  speed (CR 702.179f); absent otherwise. */
+    controllerSpeed?: number;
     /** The seeded boards of the script's `forEach` sweeps, one row per Op;
      *  absent when it has none. Read by the `forEach` assertor. */
     sweeps?: readonly SeededSweep[];
@@ -661,6 +670,8 @@ interface Requirements {
     sourceTapAction?: "tap" | "untap";
     /** An amount reads the chosen-cost X: announce `SMOKE_CHOSEN_X`. */
     readsChosenX?: boolean;
+    /** An amount reads the controller's speed: seed `SMOKE_CONTROLLER_SPEED`. */
+    readsControllerSpeed?: boolean;
     /** Counter types an amount reads off `$source`: seeded on the source. */
     sourceCounterReads: Set<string>;
     /** Counter types an Op of the same script puts on `$source` — a read of
@@ -1014,6 +1025,22 @@ function analyseValue(value: EffectValue, req: Requirements): void {
             req,
             "runtime-amount",
             `amount reads the opponents attacked this combat — the canned generator declares no attackers`
+        );
+        return;
+    }
+    // speed (CR 702.179f): the amount reads a player's speed. The caster's is
+    // seeded (`SMOKE_CONTROLLER_SPEED`) and predicted; any other player's
+    // would need a seat this read cannot name before an announcement —
+    // skip-with-reason, the value member's own test is the guarantor.
+    if ("speed" in value) {
+        if (value.speed.of === "controller") {
+            req.readsControllerSpeed = true;
+            return;
+        }
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the speed of a player other than the controller — the canned generator seeds the caster's only`
         );
         return;
     }
@@ -3170,6 +3197,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                 battlefield: p1Bf,
                 graveyard: p1Gy,
                 ...floatingMana(req, CASTER_ID),
+                ...(req.readsControllerSpeed
+                    ? { speed: SMOKE_CONTROLLER_SPEED }
+                    : {}),
             }),
             makePlayer(OPPONENT_ID, {
                 library: p2Library,
@@ -3189,6 +3219,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             : { sourcePermanentId, sourceSpec: source }),
         ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
         ...(sourceCounters === undefined ? {} : { sourceCounters }),
+        ...(req.readsControllerSpeed
+            ? { controllerSpeed: SMOKE_CONTROLLER_SPEED }
+            : {}),
         ...(sweeps.length === 0 ? {} : { sweeps }),
         targetKind: sawPlayerSlot
             ? "player"
@@ -4008,6 +4041,8 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if ("cardsDrawnThisTurn" in value) return null; // skipped earlier
     if ("nontokenCreaturesToGraveyardThisTurn" in value) return null; // skipped earlier
     if ("opponentsAttackedThisCombat" in value) return null; // skipped earlier
+    // Seeded on the caster; any other player skipped earlier.
+    if ("speed" in value) return scenario.controllerSpeed ?? null;
     if ("playerCounters" in value) return null; // skipped earlier — defensive
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive

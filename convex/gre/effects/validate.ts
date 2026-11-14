@@ -1940,6 +1940,21 @@ function isOpponentsAttackedThisCombatValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ speed: { of } }` — SHAPE of a player's speed (CR 702.179f). `of` is a
+ *  PLAYER selector, family-checked as a PLAYER position by the ordered ref pass
+ *  (the `keyHint === "speed"` case in `collectRefUses`, for the `of`-key
+ *  collision reason `domain` documents). No other keys are permitted. */
+function isSpeedValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "speed") return false;
+    const spec = (value as { speed: unknown }).speed;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isPlayerRef(s.of);
+}
+
 /** `{ playerCounters: { of, type } }` — SHAPE of the player-counter read
  *  (CR 122.1, issue #1969, fourteenth EffectValue member). `of` is a PLAYER
  *  selector (`EffectPlayerRef`) — like `domain`'s / `lifeGainedThisTurn`'s and
@@ -2207,6 +2222,7 @@ function isEffectValue(value: unknown): boolean {
         isCardsDrawnThisTurnValue(value) ||
         isNontokenCreaturesToGraveyardThisTurnValue(value) ||
         isOpponentsAttackedThisCombatValue(value) ||
+        isSpeedValue(value) ||
         isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
@@ -7983,6 +7999,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keys.length === 1 &&
         keys[0] === "of"
     ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // speed — { speed: { of } } (CR 702.179f): `of` is a PLAYER position,
+    // routed before the generic recursion like `cardsDrawnThisTurn`.
+    if (keyHint === "speed" && keys.length === 1 && keys[0] === "of") {
         collectRefUses(obj.of, "player", out);
         return;
     }
