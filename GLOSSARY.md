@@ -882,9 +882,11 @@ and the effect it buys are one asset), so it is read as an option instead: the
 effect's value net of the rest of the cost, lifting the permanent by half that
 net and never past the net itself, so trading the permanent for its effect
 never reads as a loss (issue #9592). Only the best such ability counts; a mana
-ability (Treasure) is the `mana` term's, and an ability whose target can be a
-permanent its controller does not control keeps the **Latent Floor** — what it
-yields is a fact of the board.
+ability (Treasure) is the `mana` term's. An ability whose target can be a
+permanent its controller does not control (Seal of Cleansing) yields a fact of
+the board, so it is read against one, at its best legal victim there, net of the
+permanent's own presence too (issue #9597); with no board, or a valuer that
+prices its effect flat whatever it hits, it keeps the **Latent Floor**.
 _Avoid_: sacrifice value, token value, standing sacrifice worth
 
 **Complete Script**:
