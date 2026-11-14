@@ -146,6 +146,10 @@ export interface LoweredStatic {
     readonly looksAtLibraryTop?: "controller";
     /** CR 305.1-analog — the controller may play lands from their graveyard. */
     readonly graveyardLandPlay?: true;
+    /** CR 601.3 — "You may cast this card from your graveyard". */
+    readonly castableFromOwnGraveyard?: true;
+    /** CR 702.178a / 702.178b — that permission behind "Max speed —". */
+    readonly castableFromOwnGraveyardRequiresMaxSpeed?: true;
 
     /** CR 614.1a — the "instead" cost an entering permanent pays (discard a
      *  card, sacrifice a permanent), as the `entersWith.asEnters` member. */
@@ -1021,6 +1025,10 @@ export function lowerStaticClause(
         // record (ADR 0093), read live off the battlefield.
         case "graveyard-land-play":
             return { ok: true, lowered: { graveyardLandPlay: true } };
+        // CR 601.3 / 113.6b — the card's own graveyard cast permission, a flat
+        // definition field read by the intrinsic graveyard-cast mechanism.
+        case "cast-self-from-graveyard":
+            return { ok: true, lowered: { castableFromOwnGraveyard: true } };
         case "extra-land-drop":
             return { ok: true, lowered: { extraLandDrops: clause.count } };
         case "as-enters-discard":
@@ -1350,6 +1358,7 @@ function lowerMaxSpeed(
     const condition = { kind: "you-have-max-speed" as const };
     const effects: CompiledStaticEffect[] = [];
     const granted: { ability: string; implemented: boolean }[] = [];
+    let castFromGraveyard = false;
     for (const effect of clause.effects) {
         if (effect.kind === "pt-buff") {
             effects.push({
@@ -1378,8 +1387,13 @@ function lowerMaxSpeed(
         const {
             effects: inner = [],
             grantedKeywords = [],
+            castableFromOwnGraveyard,
             ...rest
         } = result.lowered;
+        // CR 702.178b — "Max speed — You may cast this card from your
+        // graveyard": the granted permission functions from the graveyard, so
+        // the gate does too, read against the owner (`intrinsicGraveyardCastScope`).
+        if (castableFromOwnGraveyard === true) castFromGraveyard = true;
         const extra = Object.keys(rest).filter(
             (key) => key !== "ungrantableKeywords"
         );
@@ -1409,6 +1423,12 @@ function lowerMaxSpeed(
             ...(granted.length > 0 ? { grantedKeywords: granted } : {}),
             ...(ungrantable.length > 0
                 ? { ungrantableKeywords: ungrantable }
+                : {}),
+            ...(castFromGraveyard
+                ? {
+                      castableFromOwnGraveyard: true as const,
+                      castableFromOwnGraveyardRequiresMaxSpeed: true as const,
+                  }
                 : {}),
         },
     };

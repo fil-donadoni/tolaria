@@ -149,6 +149,41 @@ function namesSource(atom: CostAtomIR): boolean {
 const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
 
 /**
+ * CR 702.178a — "Max speed" looks like an ability word and is not one: it is
+ * a keyword, "As long as your speed is 4, this object has '[Ability]'", so
+ * the head survives as the ability's gate rather than being dropped.
+ */
+const MAX_SPEED_HEAD = /^Max speed \u2014 (.+)$/;
+
+/**
+ * CR 702.178b — "Max speed — {3}, Exile this card from your graveyard: Draw a
+ * card." (the Surveyor cycle). The granted ability functions from the
+ * graveyard (CR 113.6m, its cost moves the card out of it), so the max speed
+ * ability granting it functions there too, and "your" is the card's owner
+ * (CR 109.5). Only the graveyard form is read here: a battlefield ability
+ * behind the head stays a gap of its own (issue #9586).
+ */
+const maxSpeedActivated: Rule<SlotIR> = rule(
+    "max speed activated",
+    (span, ctx) => {
+        const body = terminated(".", activatedBody).run(span, ctx);
+        if (!body.ok) return body;
+        if (body.value.kind !== "activated")
+            return fail("max speed behind a non-activated body", span);
+        if (
+            !body.value.cost.atoms.some(
+                (atom) => atom.kind === "exile-self-from-graveyard"
+            )
+        )
+            return fail(
+                "max speed behind a battlefield activated ability is not in grammar v0 (CR 702.178a)",
+                span
+            );
+        return ok({ ...body.value, maxSpeed: true as const });
+    }
+);
+
+/**
  * CR 113.3b — the sentence ends in a full stop, which belongs to the ability.
  *
  * Restricted to permanents for the same reason the mana slot is: grammar v0
@@ -169,6 +204,12 @@ export const activatedSlot: Rule<SlotIR> = rule(ACTIVATED_SLOT, (span, ctx) => {
     // HOST's type line (`hostTypeOnly`, no subtypes), so it never names an
     // Aura and never raises the flag.
     const auraHost = context.typeLine.subtypes.includes("Aura");
+    const maxSpeed = span.match(MAX_SPEED_HEAD);
+    if (maxSpeed !== null)
+        return maxSpeedActivated.run(
+            maxSpeed[1]!,
+            auraHost ? { ...context, auraHost: true as const } : ctx
+        );
     // CR 207.2c (issue #3685) — an ability word heading the ability
     // ("Threshold — {R}, {T}, …") has no rules meaning; the condition it names
     // is spelled out in the ability's own text, so it is dropped before the

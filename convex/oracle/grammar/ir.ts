@@ -252,6 +252,9 @@ export type SlotIR =
           readonly cost: ActivationCostIR;
           readonly effects: readonly EffectSentenceIR[];
           readonly restrictions: readonly RestrictionIR[];
+          /** CR 702.178a — printed behind "Max speed —": the object has the
+           *  ability only as long as "your" speed is 4. */
+          readonly maxSpeed?: true;
       }
     /**
      * CR 113.3c — a triggered ability: a trigger EVENT, an optional CR 603.4
