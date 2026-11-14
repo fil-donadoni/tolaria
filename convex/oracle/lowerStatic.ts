@@ -1016,6 +1016,21 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 614.1d / 616.1 — the engine's `enters-untapped-replacement`.
+        case "enters-untapped-replacement":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "enters-untapped-replacement",
+                            id: nextId("enters-untapped"),
+                            oracleText,
+                            filter: catalogueSpelling(clause.filter),
+                        },
+                    ],
+                },
+            };
         case "skip-draw-step":
             return { ok: true, lowered: { drawStepReplacement: true } };
         case "optional-draw-skip":
