@@ -58,6 +58,8 @@ import {
 } from "./set.helper";
 import { checkStateBasedActions } from "../../../../gre/sba";
 
+const hymnOfRebirth = getDefinition("61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9");
+
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const fireCovenant = getDefinition("6a0139c2-ad86-4c71-ab6d-4840c37d5d20");
 const fieryJustice = getDefinition("8965ce61-0522-4f77-a82d-89441d1ba867");
@@ -1828,5 +1830,66 @@ describe("Elemental Augury ({3}: look at target player's top 3, reorder in place
         expect(lib[2].knownTo).toEqual(["p1"]);
         // The untouched 4th card stays unknown to everyone.
         expect(lib[3].knownTo).toBeUndefined();
+    });
+});
+
+describe("Hymn of Rebirth — cross-graveyard reanimation under your control (CR 400.7 / 800.4a)", () => {
+    it("returns a creature from an opponent's graveyard under the caster's control", () => {
+        const buried = makeInstance(balduvianBears.id, {
+            id: "buried",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [buried] }),
+            ],
+        });
+        pushSpell(state, hymnOfRebirth.id, "p1", [
+            { type: "graveyard-card", id: "buried", playerId: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // Reanimated under p1's control, but p2 stays the owner (CR 800.4a).
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "buried"
+        );
+        expect(onBoard).toBeDefined();
+        expect(onBoard?.controllerId).toBe("p1");
+        expect(onBoard?.ownerId).toBe("p2");
+        expect(state.players[1].graveyard.some((c) => c.id === "buried")).toBe(
+            false
+        );
+    });
+
+    it("getLegalTargets sees creature cards in ANY graveyard (controller: 'any')", () => {
+        const mine = makeInstance(balduvianBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const theirs = makeInstance(balduvianBears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [mine] }),
+                makePlayer("p2", { graveyard: [theirs] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            hymnOfRebirth.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("mine");
+        expect(ids).toContain("theirs");
     });
 });

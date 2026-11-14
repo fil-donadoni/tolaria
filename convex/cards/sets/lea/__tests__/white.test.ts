@@ -129,6 +129,15 @@ import {
     removedKeywordRows,
 } from "../../../__tests__/setup.helper";
 
+const blueElementalBlast = getDefinition(
+    "20d666ef-39bf-4fbf-8201-5f1056539da2"
+);
+const healingSalve = getDefinition("e28de37e-84d5-4dc7-b36c-e14da5924729");
+const merfolkOfThePearlTrident = getDefinition(
+    "2b871039-6a66-4ac3-95e7-24759c1f2f92"
+);
+const redElementalBlast = getDefinition("776ad9be-3309-4f1d-9f27-6219d9477662");
+
 describe("Castle (static pt-buff: +0/+2 to your untapped creatures)", () => {
     function setup() {
         const creature = makeInstance(savannahLions.id, { id: "lion" });
@@ -3481,5 +3490,85 @@ describe("Banding damage authority — attacker assigns blocker damage to band m
         expect(p1.battlefield.find((c) => c.id === "bear")).toBeDefined();
         // blocker (3/3) took 3 and dies.
         expect(state.players[1].battlefield).toHaveLength(0);
+    });
+});
+
+describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast", () => {
+    it("Healing Salve gain-life mode: target player gains 3 life", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 13 }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, healingSalve.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        item.chosenModeIds = ["gain-life"];
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(16);
+    });
+
+    it("Healing Salve prevent mode: shield absorbs 3 incoming damage on target", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const salve = pushSpell(state, healingSalve.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        salve.chosenModeIds = ["prevent"];
+        resolveTopOfStack(state);
+        // Bolt would deal 3 — fully prevented.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(after.damageMarked ?? 0).toBe(0);
+    });
+
+    it("Blue Elemental Blast counter mode: counters target red spell on the stack", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        const blast = pushSpell(state, blueElementalBlast.id, "p2", [
+            { type: "spell", id: bolt.id },
+        ]);
+        blast.chosenModeIds = ["counter"];
+        resolveTopOfStack(state); // resolve the counter mode → removes bolt
+        // Now resolve what's left — should NOT be the bolt anymore.
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
+
+    it("Red Elemental Blast destroy mode: destroys target blue permanent", () => {
+        const merfolk = makeInstance(merfolkOfThePearlTrident.id, {
+            id: "merfolk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [merfolk] }),
+            ],
+        });
+        const blast = pushSpell(state, redElementalBlast.id, "p1", [
+            { type: "permanent", id: "merfolk" },
+        ]);
+        blast.chosenModeIds = ["destroy"];
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "merfolk")
+        ).toBeUndefined();
     });
 });

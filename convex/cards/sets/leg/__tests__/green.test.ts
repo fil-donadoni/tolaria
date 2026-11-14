@@ -43,6 +43,13 @@ import {
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import {
+    emitPermanentEntered,
+    emitSpellCastEvent,
+} from "../../../../gre/state";
+
+const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
+const winterBlast = getDefinition("fb846366-2105-4999-8af1-a11687f42e17");
 
 const amrouKithkin = getDefinition("cbce1c55-123c-4a05-bde4-18a1601fcc5a");
 const arboria = getDefinition("095078b0-0f26-442f-9d3b-45e30cdb33c4");
@@ -1175,5 +1182,73 @@ describe("Wolverine Pack (CR 702.23 rampage 2)", () => {
         )!;
         expect(getEffectivePower(state, atk)).toBe(4);
         expect(getEffectiveToughness(state, atk)).toBe(6);
+    });
+});
+
+describe("Winter Blast (tap X creatures, 2 dmg to those with flying, CR 120.1)", () => {
+    it("taps every target and damages only the flyers", () => {
+        // azureDrake (2/4 flyer) survives the 2 damage so it can be inspected.
+        const flyer = makeInstance(azureDrake.id, {
+            id: "fly",
+            controllerId: "p2",
+        });
+        const ground = makeInstance(barbaryApes.id, {
+            id: "grnd",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, ground] }),
+            ],
+        });
+        const item = pushSpell(state, winterBlast.id, "p1", [
+            { type: "permanent", id: "fly" },
+            { type: "permanent", id: "grnd" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        const liveFly = state.players[1].battlefield.find(
+            (c) => c.id === "fly"
+        )!;
+        const liveGround = state.players[1].battlefield.find(
+            (c) => c.id === "grnd"
+        )!;
+        expect(liveFly.isTapped).toBe(true);
+        expect(liveGround.isTapped).toBe(true);
+        // the flyer takes 2 damage; the ground creature takes none.
+        expect(liveFly.damageMarked ?? 0).toBe(2);
+        expect(liveGround.damageMarked ?? 0).toBe(0);
+    });
+});
+
+describe("Arboria qualifying-action tracking (CR 508.1c plumbing)", () => {
+    it("casting a spell sets the caster's qualifyingActionThisTurn flag", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const spell = pushSpell(state, amrouKithkin.id, "p1");
+        emitSpellCastEvent(state, spell);
+        expect(state.players[0].qualifyingActionThisTurn).toBe(true);
+        expect(state.players[1].qualifyingActionThisTurn).toBeUndefined();
+    });
+
+    it("a nontoken permanent ETB sets the controller's flag; a token does not", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const nontoken = makeInstance(amrouKithkin.id, { controllerId: "p2" });
+        emitPermanentEntered(state, nontoken);
+        expect(state.players[1].qualifyingActionThisTurn).toBe(true);
+
+        const fresh = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const token = makeInstance(amrouKithkin.id, {
+            controllerId: "p2",
+            isToken: true,
+        });
+        emitPermanentEntered(fresh, token);
+        expect(fresh.players[1].qualifyingActionThisTurn).toBeUndefined();
     });
 });
