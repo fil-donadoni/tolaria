@@ -29,17 +29,17 @@
 //     "put it onto the battlefield", and blink/flicker returns. Applied above
 //     the `entersTappedUnlessPay` early return so a deferred land-entry choice
 //     doesn't skip it;
-//   * `createTokenPermanents` — ONE call site with two branches (issue #2558
-//     folded the token-copy path into the shared token entry path, so the copy
+//   * `createTokenPermanents` — ONE call site with two branches (the
+//     token-copy path shares the token entry path, so the copy
 //     is stamped on before the CR 614 chokepoint reads it). Plain token: the
 //     token spec's own `entersWith.counters` (Incubate N), the ONE branch NOT
 //     gated by the CR 613.1f ability-loss probe below, because those counters
 //     come from the effect CREATING the token, not from an ability of the
-//     token, so "loses all abilities" cannot remove them (issue #1882).
+//     token, so "loses all abilities" cannot remove them.
 //     `copyOf` token: a token COPY inherits the copied card's clause, a
 //     copiable value (CR 706.2 / 707.2), and IS gated;
 //   * `settleEnteredLand` (`gre/playLand.ts`) — every play-a-land path
-//     (hand / exile / graveyard / post-pay-choice). LIVE since issue #2712:
+//     (hand / exile / graveyard / post-pay-choice). Live:
 //     the Mercadian Masques depletion lands (`sets/mmq/colorless.cards.ts`) enter
 //     tapped with two depletion counters, so this site is load-bearing.
 // A NONMODAL back face entering already transformed ("exile it, then return
@@ -48,7 +48,7 @@
 // `stageReanimatedOnBattlefield` pointing at the synthesized back-face
 // definition, whose `entersWith.counters` is the face's own
 // `CardBackFace.entersWith`, carried through the content-derived id as
-// `TokenSpec.copiableEntersWithCounters` (issue #9434). A planeswalker face's
+// `TokenSpec.copiableEntersWithCounters`. A planeswalker face's
 // CR 306.5b starting loyalty is placed beside it, so "an additional loyalty
 // counter" lands on top of the printed loyalty.
 // Two sites deliberately do NOT run the applier: `finalizeLandEntry`'s
