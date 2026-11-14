@@ -9,12 +9,12 @@ import { defineCard } from "../../types";
 // #8642, modern-metagame). "Put any number of cards from your hand on the
 // bottom of your library, then draw that many cards plus one." Back face: "This
 // land enters tapped. {T}: Add {R}."
-//   - CR 712.12 / 712.3 — a modal DFC: the front is the instant, the back a
+//   - CR 712.12 — a modal DFC: the front is the instant, the back a
 //     land that is only ever played (`kind: "modal"`, no manaCost).
 //   - CR 614.1d — "enters tapped" is `CardBackFace.entersTapped`.
 //   - "Any number" is a `choose-hand-card` with `{ min: 0, max }` clamped to
 //     the hand; zero is a legal pick and still draws the one card.
-//   - CR 401.3 / 400.7 — `moveZone` hand → library appends, i.e. the BOTTOM;
+//   - CR 400.7 — `moveZone` hand → library appends, i.e. the BOTTOM, in pick order;
 //     "that many cards plus one" is the picks' `setSize` draw followed by a
 //     one-card draw (CR 121.2: cards are drawn one at a time, so the two draws
 //     are the same total).
