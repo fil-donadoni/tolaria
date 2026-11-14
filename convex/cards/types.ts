@@ -11129,6 +11129,12 @@ export interface CountDrivenCostReduction {
  *  `"opponent-lands-could-produce"` counts the lands that player's opponents
  *  control that could produce the mana type `producible` (CR 106.7).
  *
+ *  `"graveyard-card-types"` (issue #8616) counts the distinct card TYPES among
+ *  the cards in that player's graveyard (CR 205.2a; a multi-type card counts
+ *  each of its types) — Emrakul, the Promised End: "This spell costs {1} less
+ *  to cast for each card type among cards in your graveyard". Shares
+ *  `countGraveyardCardTypes` with delirium.
+ *
  *  `"domain"` (issue #1958) counts the BASIC LAND TYPES among the lands that
  *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast
  *  for each basic land type among lands you control"; Stratadon: {1} less).
@@ -11159,7 +11165,11 @@ export interface CensusDrivenCostReduction {
      *     permanents;
      *   - `"opponents"`: their opponents still in the game (undaunted,
      *     CR 702.125a/b). */
-    countMode: "domain" | "opponents" | "opponent-lands-could-produce";
+    countMode:
+        | "domain"
+        | "opponents"
+        | "opponent-lands-could-produce"
+        | "graveyard-card-types";
     /** `"opponent-lands-could-produce"` only: the mana type (CR 106.7, {C}
      *  included) a land must be able to produce to count. Defaults to `"C"`. */
     producible?: Color;

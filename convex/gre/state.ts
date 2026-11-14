@@ -61,6 +61,7 @@ import {
     type TriggerFizzledEvent,
     type TriggeredAbility,
     countDomain,
+    countGraveyardCardTypes,
 } from "../cards/types";
 import {
     registerTokenDefinition,
@@ -25651,6 +25652,10 @@ function censusOf(
             return countDomain(state as never, player.id);
         case "opponents":
             return state.players.filter((p) => p.id !== player.id).length;
+        case "graveyard-card-types":
+            // CR 205.2a — distinct card types among the cards in the
+            // announcer's own graveyard; the one delirium counter.
+            return countGraveyardCardTypes(player.graveyard);
         case "opponent-lands-could-produce": {
             // CR 106.7 — the TYPES of mana a land could produce, {C}
             // included, read on the live board. Lands are matched by
