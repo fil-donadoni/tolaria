@@ -167,7 +167,7 @@ export const detectivesPhoenix = defineCard(() => ({
 // hand-tail: +1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast. (#8630)
 export const ralMonsoonMage = defineCard(() => ({
     id: "16d40f56-691b-42a7-a5ab-157568921e03",
-    rarity: "rare",
+    rarity: "mythic",
     name: "Ral, Monsoon Mage",
     oracleText:
         "Instant and sorcery spells you cast cost {1} less to cast.\nWhenever you cast an instant or sorcery spell during your turn, flip a coin. If you lose the flip, Ral deals 1 damage to you. If you win the flip, you may exile Ral. If you do, return him to the battlefield transformed under his owner's control.",
@@ -242,6 +242,7 @@ export const ralMonsoonMage = defineCard(() => ({
         supertypes: ["Legendary"],
         colors: ["U", "R"],
         loyalty: 2,
+        imagePrintId: "16d40f56-691b-42a7-a5ab-157568921e03",
         entersWith: {
             counters: [
                 {
@@ -316,8 +317,7 @@ export const ralMonsoonMage = defineCard(() => ({
                     },
                     // "from among them": the choice is scoped to the cards just
                     // exiled (`candidates`), and the type filter keeps the
-                    // grant to instants and sorceries. Choosing none is the
-                    // "may" (CR 601.3).
+                    // grant to instants and sorceries.
                     {
                         op: "choice",
                         kind: "choose-exile-card",
@@ -325,7 +325,7 @@ export const ralMonsoonMage = defineCard(() => ({
                         zone: "exile",
                         candidates: [{ ref: "$exiled" }],
                         filter: { type: ["Instant", "Sorcery"] },
-                        count: { min: 0, max: 8 },
+                        count: 8,
                         prompt: "Choose instant and sorcery cards to cast without paying their mana costs this turn.",
                         bind: "$castable",
                     },
