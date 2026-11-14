@@ -40,6 +40,7 @@ import {
     DENSE_LIBRARY,
     PAYOFF_BODY,
     STIFLE_BACKUP,
+    GRAVEYARD_TOP_READER,
     TITANIA_PAYOFF,
     EXTRA_PLAINS,
     SEVEN_POISON,
@@ -27921,5 +27922,146 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "casts the controlled player's Lightning Bolt at a permanent — their own Grizzly Bears, the only creature on the board",
         },
         note: "Issue #8446, CR 723.5 / 723.5a (ADR 0181). Twin of `turn control: spends the controlled player's turn instead of developing their board`: a controlled turn is not only a wasted one. The opponent's burn spell, paid with the opponent's own Mountain, is aimed where it costs the opponent most — and never at the bot. Wrong whatever else is on the board (`absolute`). Discriminating: read in the seat's own interest the pick is `pass` — the Bolt held — on 5/5 seeds.",
+    },
+    // Issue #9555 — the self-mill × graveyard-position reader class (CR 404.3):
+    // a reveal that puts the whole library into the graveyard is a line only
+    // when a permanent reads the top creature card of that graveyard and the
+    // owner can put the right card there. The Bot's own library order is
+    // hidden from the search (`determinize` shuffles it), so the engine order
+    // puts the payoff on top in one world in five; the arrangement is what
+    // makes the activation worth taking on every seed.
+    {
+        label: "discriminating pair: does NOT reveal its whole library with no graveyard-top reader",
+        classification: {
+            kind: "conditional",
+            discriminant: GRAVEYARD_TOP_READER,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Hermit Druid",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Phyrexian Dreadnought", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Mountain", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 2,
+            libraryCount: 0,
+            life: { me: 20, opp: 10 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Hermit Druid" }],
+        },
+        note: "Issue #9555, CR 404.3. A library of five nonbasic cards and no basic land: the reveal puts all five into the graveyard and the Bot is one draw from losing (CR 704.5b). Nothing on the board reads the graveyard's top, so the activation is self-harm whatever the arrangement. Conditional on the reader: the other half, `discriminating pair: reveals its whole library and reads the payoff off the graveyard's top`, adds Volrath's Shapeshifter and the same activation becomes a lethal 12/12 trample.",
+    },
+    {
+        label: "discriminating pair: reveals its whole library and reads the payoff off the graveyard's top",
+        pairOf: {
+            anchor: "discriminating pair: does NOT reveal its whole library with no graveyard-top reader",
+            discriminant: GRAVEYARD_TOP_READER,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Hermit Druid",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Volrath's Shapeshifter",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Phyrexian Dreadnought", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Mountain", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 2,
+            libraryCount: 0,
+            life: { me: 20, opp: 10 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Hermit Druid" }],
+        },
+        note: "Issue #9555, CR 404.3 / 612.6. The same board plus Volrath's Shapeshifter: the reveal puts Phyrexian Dreadnought into the graveyard with four Grizzly Bears, the arrangement puts the Dreadnought on top (`graveyardOrderCandidates`), the Shapeshifter presents a 12/12 trample and attacks a blockerless opponent at ten. The library's order is hidden from the search, so without the arrangement the engine order pays off in one world in five and the activation reads as decking. Paired with `discriminating pair: does NOT reveal its whole library with no graveyard-top reader`.",
+    },
+    {
+        label: "graveyard order: puts the creature its graveyard-top reader wants on top of the batch",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hermit Druid",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Volrath's Shapeshifter",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Phyrexian Dreadnought", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Mountain", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            // A floating {G}: the setup step pays the activation from the
+            // pool, where a land would stop it at the payment decision.
+            landCount: 0,
+            manaPool: { me: { G: 1 } },
+            libraryCount: 0,
+            life: { me: 20, opp: 10 },
+        },
+        setup: [
+            { kind: "activate", card: "Hermit Druid" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "resolution-choice")
+                    return false;
+                const dreadnought = instanceIdsForName(
+                    state,
+                    "Phyrexian Dreadnought"
+                );
+                return dreadnought.has(move.cardInstanceIds[0] ?? "");
+            },
+            describe:
+                "arranges the batch with Phyrexian Dreadnought on top (the first id of the topmost-first submission)",
+        },
+        note: "Issue #9555, CR 404.3. The choice alone: the reveal has resolved and the five cards sit in the graveyard in engine order (a Grizzly Bears on top). With Volrath's Shapeshifter reading the top creature card, the Bot's arrangement is the Dreadnought on top, whatever the rest. Absolute: no reader-less board owes this answer, and under a reader there is no position where the 2/2 beats the 12/12 trample.",
     },
 ];

@@ -578,6 +578,48 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ),
             }
         ),
+    // CR 404.3 (issue #9555) — a graveyard batch's arrangement under a
+    // graveyard-position reader: two of the bot's creature cards put into its
+    // graveyard at once (engine order bottom-first, `candidateIds` topmost
+    // first) while it controls Volrath's Shapeshifter, which reads the top
+    // creature card (CR 612.6). Without the reader the kind is forced to the
+    // engine order and NOT searchable (`graveyard-order-choice-node.bot.test.ts`).
+    "graveyard-order": () =>
+        stateWithBotChoice(
+            {
+                kind: "graveyard-order",
+                stackItemId: "",
+                zone: "graveyard",
+                zoneOwnerId: BOT,
+                candidateIds: ["gy-wurm", "gy-bears"],
+                count: 2,
+                prompt: "Arrange the cards put into your graveyard (rightmost = top).",
+            },
+            {
+                battlefield: [
+                    makeInstance(getCardByName("Volrath's Shapeshifter").id, {
+                        id: "gy-reader",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "battlefield",
+                    }),
+                ],
+                graveyard: [
+                    makeInstance(getCardByName("Grizzly Bears").id, {
+                        id: "gy-bears",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "graveyard",
+                    }),
+                    makeInstance(getCardByName("Craw Wurm").id, {
+                        id: "gy-wurm",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "graveyard",
+                    }),
+                ],
+            }
+        ),
     // CR 107.1b / 107.3f (issue #1701) — a PAYING numeric nomination with a
     // real range: three mana floating, so the answer space is 0..3 and the
     // decision is a genuine one rather than a forced zero. Without a fixture
