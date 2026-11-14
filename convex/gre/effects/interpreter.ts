@@ -1217,6 +1217,14 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getOpponentsAttackedThisCombat(playerId);
     }
+    // speed (CR 702.179f) — a thin skin over the player's speed, 0 when the
+    // player has none. `of` resolves through the SAME resolvePlayerRef path;
+    // undefined when it cannot be resolved (CR 608.2b).
+    if ("speed" in value) {
+        const playerId = resolvePlayerRef(ctx, value.speed.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getSpeed(playerId);
+    }
     // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
     // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
     // sibling of `counters` above: `of` is a PLAYER selector resolved through

@@ -187,7 +187,7 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
-import { resolveSpeedIncrease, speedTriggerController } from "./speed";
+import { resolveSpeedIncrease, speedOf, speedTriggerController } from "./speed";
 import { SPEED_DESIGNATION } from "../cards/designations";
 import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
@@ -15367,6 +15367,11 @@ export function buildSpellContext(
         // combat, off the declaration's record.
         getOpponentsAttackedThisCombat(playerId: string): number {
             return opponentsAttackedThisCombat(state, playerId);
+        },
+        // CR 702.179f — the player's speed, 0 for a player with none.
+        getSpeed(playerId: string): number {
+            const player = state.players.find((p) => p.id === playerId);
+            return player === undefined ? 0 : speedOf(player);
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;

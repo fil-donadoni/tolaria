@@ -6328,6 +6328,9 @@ export interface SpellContext {
     /** CR 702.121a — how many opponents `playerId` attacked with a creature this
      *  combat. Used by the `{ opponentsAttackedThisCombat: { of } }` EffectValue member. */
     getOpponentsAttackedThisCombat: (playerId: string) => number;
+    /** CR 702.179f — `playerId`'s speed, 0 for a player with no speed. Used by
+     *  the `{ speed: { of } }` EffectValue member. */
+    getSpeed: (playerId: string) => number;
     /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
      *  `attackerId` is attacking RIGHT NOW: the planeswalker its
      *  `combat.attackTargets` entry names, else the defending player. A
@@ -16826,6 +16829,7 @@ export type EffectValue =
     | EffectCardsDrawnThisTurnValue
     | EffectNontokenCreaturesToGraveyardThisTurnValue
     | EffectOpponentsAttackedThisCombatValue
+    | EffectSpeedValue
     | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
@@ -16984,6 +16988,18 @@ export type EffectNontokenCreaturesToGraveyardThisTurnValue = {
  *  the battlefield attacking never does (CR 508.4). */
 export type EffectOpponentsAttackedThisCombatValue = {
     opponentsAttackedThisCombat: { of: EffectPlayerRef };
+};
+
+/** speed — a PLAYER's speed (CR 702.179f: a player with no speed has speed 0
+ *  for an effect that reads it), a thin JSON-pure skin over
+ *  `SpellContext.getSpeed`. Like `cardsDrawnThisTurn` it is NOT an Op and NOT
+ *  a structural construct.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`); it resolves through
+ *  `resolvePlayerRef`, an unresolvable player yields undefined (CR 608.2b).
+ *  Read as the effect resolves, so a speed raised in response counts. */
+export type EffectSpeedValue = {
+    speed: { of: EffectPlayerRef };
 };
 
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a

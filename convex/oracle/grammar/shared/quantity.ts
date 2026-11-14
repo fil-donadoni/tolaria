@@ -103,6 +103,13 @@ export const quantityRule: Rule<QuantityIR> = subGrammar(
 );
 
 /**
+ * CR 702.179f — "your speed": the speed of the player the effect names "you",
+ * 0 for a player with no speed. A player's number rather than a count of
+ * objects, so it is no `CountedSetIR`; the effect site reads it as an amount.
+ */
+export const YOUR_SPEED = "your speed";
+
+/**
  * The SET an effect site counts (CR 107.1) — the noun phrase behind
  * "N life for each …". Two shapes, and only the two the corpus prints at a
  * life-change site: the controller's permanents a descriptor names ("for each

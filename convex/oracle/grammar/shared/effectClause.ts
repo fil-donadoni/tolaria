@@ -65,6 +65,7 @@ import {
     countedSetRule,
     numberOfSetRule,
     readNumberWord,
+    YOUR_SPEED,
     type CountedSetIR,
 } from "./quantity";
 import { isSelfPhrase } from "./cost";
@@ -249,7 +250,12 @@ export type AmountIR =
     | {
           readonly kind: "cost-exiled-card-characteristic";
           readonly characteristic: "manaValue";
-      };
+      }
+    /**
+     * CR 702.179f — "your speed": the controller's speed as the effect
+     * resolves, 0 for a player with no speed.
+     */
+    | { readonly kind: "speed" };
 
 /**
  * CR 202.3 — the head noun of "<phrase> mana value": the pronoun, a card, or a
@@ -5679,10 +5685,10 @@ const RETURN_UP_TO_X_BOUNDED =
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
  * tail defines it: "the number of <plural descriptor>", "the number of cards
  * in your/their hand minus N", its mirror "N minus the number of cards in
- * their hand", or "the exiled card's mana value".
+ * their hand", "the exiled card's mana value", or "your speed" (CR 702.179f).
  */
 const WHERE_X_IS =
-    /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value)$/;
+    /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value|your speed)$/;
 const EXILED_CARD_MANA_VALUE = /^the exiled card(?:'|’)s mana value$/;
 const CARDS_IN_HAND_MINUS =
     /^the number of cards in (your|their) hand minus (\S+)$/;
@@ -5802,6 +5808,11 @@ const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
  *  by `numberOfSetRule`, the same read as damage "equal to the number of". */
 const LIFE_EQUAL_COUNT =
     /^(.+) (gain|gains|lose|loses) life equal to (the number of .+)$/;
+/** CR 119.3 + CR 702.179f — "You gain life equal to your speed" (Momentum
+ *  Breaker). */
+const LIFE_EQUAL_SPEED = new RegExp(
+    `^(.+) (gain|gains|lose|loses) life equal to ${YOUR_SPEED}$`
+);
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
  *  life equal to its power" (Chastise). The characteristic is a capture group
@@ -8092,10 +8103,13 @@ function libraryHalf(span: string, ctx: unknown) {
  * CR 107.3 — the count a "where X is …" tail defines, as an amount.
  *
  * Only the forms a fixture pins: a plural descriptor ("the number of Zombies
- * you control"), a hand less a printed constant or its mirror, and the exiled
- * card's mana value. A clause the count cannot express is the LOWERING's.
+ * you control"), a hand less a printed constant or its mirror, the exiled
+ * card's mana value, and the controller's speed. A clause the count cannot
+ * express is the LOWERING's.
  */
 export function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
+    // CR 702.179f — the controller's speed, read as the effect resolves.
+    if (tail === YOUR_SPEED) return ok({ kind: "speed" as const });
     // CR 202.3 — the card the activation cost exiled; the site binds it.
     if (EXILED_CARD_MANA_VALUE.test(tail))
         return ok({
@@ -9665,6 +9679,20 @@ function effectSentence(
             action: lifeCount[2]!.startsWith("gain") ? "gain" : "lose",
             player,
             amount: { kind: "counted" as const, times: 1, set: set.value },
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── life equal to the controller's speed (CR 119.3, CR 702.179f) ───────
+    const lifeSpeed = span.match(LIFE_EQUAL_SPEED);
+    if (lifeSpeed !== null) {
+        const player = playerSubject(lifeSpeed[1]!, ctx);
+        if (player === null)
+            return fail(`"${lifeSpeed[1]}" is not a player`, span);
+        return ok({
+            kind: "life" as const,
+            action: lifeSpeed[2]!.startsWith("gain") ? "gain" : "lose",
+            player,
+            amount: { kind: "speed" as const },
         } satisfies EffectSentenceIR);
     }
 
