@@ -11656,6 +11656,16 @@
         "source": "compiled"
     },
     {
+        "name": "Canopy Claws",
+        "scryfallId": "c4530da2-fd04-40d9-ad69-5c2847921509",
+        "oracleId": "195c6453-e5cc-4b3b-8518-eaccf29bc4a6",
+        "firstSet": "jud",
+        "firstPrintId": "c4530da2-fd04-40d9-ad69-5c2847921509",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Canopy Gorger",
         "scryfallId": "cbc8957d-769c-4630-9544-56cea8c847c2",
         "oracleId": "1d614b37-d578-4f35-8fd8-3c7800d5f742",
@@ -16515,6 +16525,16 @@
         "firstPrintId": "339a41a1-b36f-4b81-b74c-220d279c0e26",
         "firstPrintSet": "dft",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Crash Landing",
+        "scryfallId": "f8683546-85b7-4658-91be-91ef65fb3fc3",
+        "oracleId": "5d36e5ee-1e23-48fe-ad13-081cc153342b",
+        "firstSet": "gpt",
+        "firstPrintId": "f8683546-85b7-4658-91be-91ef65fb3fc3",
+        "firstPrintSet": "gpt",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -23954,6 +23974,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Elder Land Wurm",
+        "scryfallId": "ef3651d4-969c-464d-a444-40a640d0c6ba",
+        "oracleId": "5948381a-419d-4b8b-8ea2-ea623cb0d606",
+        "firstSet": "leg",
+        "firstPrintId": "ef3651d4-969c-464d-a444-40a640d0c6ba",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "Elder Spawn",
         "scryfallId": "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
         "oracleId": "363b2213-4c70-4cb0-b895-81393c1082a7",
@@ -24757,6 +24785,16 @@
         "firstPrintId": "5aea4066-4f67-4a3d-b65d-04f74e1aaa76",
         "firstPrintSet": "otc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Emerald Charm",
+        "scryfallId": "e9c9199b-61b3-4794-878b-f065058f50f3",
+        "oracleId": "904b3db5-70bc-4d49-9887-f504aff8666f",
+        "firstSet": "vis",
+        "firstPrintId": "e9c9199b-61b3-4794-878b-f065058f50f3",
+        "firstPrintSet": "vis",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -34184,6 +34222,16 @@
         "firstSet": "ons",
         "firstPrintId": "738cbf9b-e3d3-4568-93ce-7915b248e5b3",
         "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Skycutter",
+        "scryfallId": "c45406cd-a036-45d5-a0fb-3c195d40d746",
+        "oracleId": "34ee9883-ed7f-4c63-987f-96a5474c195d",
+        "firstSet": "tsp",
+        "firstPrintId": "c45406cd-a036-45d5-a0fb-3c195d40d746",
+        "firstPrintSet": "tsp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -47511,6 +47559,16 @@
         "firstSet": "tle",
         "firstPrintId": "1126b572-1cac-44aa-8fec-e2c72a9fea47",
         "firstPrintSet": "tle",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Loyal Gyrfalcon",
+        "scryfallId": "547f9f53-0a54-4097-9bb5-8a39732c7016",
+        "oracleId": "f693cf76-0919-4b89-92de-e619be006abb",
+        "firstSet": "eve",
+        "firstPrintId": "547f9f53-0a54-4097-9bb5-8a39732c7016",
+        "firstPrintSet": "eve",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -62130,6 +62188,16 @@
         "source": "compiled"
     },
     {
+        "name": "Radjan Spirit",
+        "scryfallId": "adf3ab1a-5714-4b69-bc51-3752312b2d1f",
+        "oracleId": "c9ffce6c-a113-4c9d-9148-5ace68f68793",
+        "firstSet": "leg",
+        "firstPrintId": "adf3ab1a-5714-4b69-bc51-3752312b2d1f",
+        "firstPrintSet": "leg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Raffine's Tower",
         "scryfallId": "a2c56479-4bee-4edb-80d7-4af010b7c793",
         "oracleId": "6e9ef5ef-6aed-4d3e-a59b-9e3dc8740b1b",
@@ -63488,6 +63556,16 @@
         "firstSet": "snc",
         "firstPrintId": "16998689-345d-41e3-a368-e97b696ed689",
         "firstPrintSet": "snc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Reality Anchor",
+        "scryfallId": "21204f62-c253-4d88-a4cd-7c0f6f0513e0",
+        "oracleId": "a7b4a519-d85f-40ae-bb5f-08bc1d301418",
+        "firstSet": "tmp",
+        "firstPrintId": "21204f62-c253-4d88-a4cd-7c0f6f0513e0",
+        "firstPrintSet": "tmp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -74600,6 +74678,16 @@
         "source": "compiled"
     },
     {
+        "name": "Smite the Deathless",
+        "scryfallId": "8b716fcc-c4cc-4987-be82-2897a9888d23",
+        "oracleId": "37994591-3494-4314-a7da-49c112b0866f",
+        "firstSet": "ltr",
+        "firstPrintId": "8b716fcc-c4cc-4987-be82-2897a9888d23",
+        "firstPrintSet": "ltr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Smite the Monstrous",
         "scryfallId": "0103f3b1-88c2-4cbf-a67c-49420f92970f",
         "oracleId": "649512ed-4908-450a-9652-b2c80df5e24d",
@@ -84376,6 +84464,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tidewater Minion",
+        "scryfallId": "67ffa68f-cc21-41c8-ad3d-d6b60a4ccd36",
+        "oracleId": "80b4a9f7-008d-4979-a3df-7637fae68167",
+        "firstSet": "rav",
+        "firstPrintId": "67ffa68f-cc21-41c8-ad3d-d6b60a4ccd36",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tidings",
         "scryfallId": "7fcb93dc-503e-45fa-99da-1597a8a0ab4e",
         "oracleId": "72897780-094d-4a21-8b1c-419a9defd2fb",
@@ -85190,6 +85288,16 @@
         "firstSet": "mh2",
         "firstPrintId": "05900f1d-f065-4656-a8a2-2f719d3fdea8",
         "firstPrintSet": "mh2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Torpid Moloch",
+        "scryfallId": "7900ff91-0e47-4903-a680-9031f4a23cb4",
+        "oracleId": "48f78611-13a7-4b5b-a52a-317ecf658ea3",
+        "firstSet": "rav",
+        "firstPrintId": "7900ff91-0e47-4903-a680-9031f4a23cb4",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
