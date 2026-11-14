@@ -189,8 +189,8 @@ export const thoughtMonitor = defineCard(() => ({
 // instant and sorcery card exiled with it. Whenever an instant or sorcery card
 // leaves your graveyard, put a +1/+1 counter on this creature."
 // The entry clause reads the cards the delve cost exiled (`entersWith`,
-// `cardsExiledWithIt`, issue #9422); the trigger is the generic
-// leaves-a-graveyard watcher (`CARD_LEFT_GRAVEYARD`, issue #9423), one trigger
+// `cardsExiledWithIt`); the trigger is the generic
+// leaves-a-graveyard watcher (`CARD_LEFT_GRAVEYARD`), one trigger
 // per qualifying card (CR 603.2c).
 // hand-tail: This creature enters with a +1/+1 counter on it for each instant and sorcery card exiled with it. (#8626)
 export const murktideRegent = defineCard(() => ({
