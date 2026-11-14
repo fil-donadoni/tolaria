@@ -5531,6 +5531,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"loseAbility\" acts on $source — covered by the card's own per-card test",
+            "issue": 9637
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"mill\" reads a runtime \"count\" amount — the canned generator does not size it",
             "issue": 5944
         },
