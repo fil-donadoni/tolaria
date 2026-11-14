@@ -76,7 +76,7 @@ export const hanweirBattlements = defineCard(() => ({
 // The cost clause is a CR 601.2f self-host reduction (the spell is not yet a
 // permanent at announcement) counted by the `graveyard-card-types` census:
 // distinct card types among the cards in the caster's graveyard (CR 205.2a),
-// the same count delirium reads. The cast trigger is CR 603.6e (`scope: "self"`
+// the same count delirium reads. The cast trigger is CR 601.2i (`scope: "self"`
 // goes on the stack above Emrakul, so control and the extra turn are granted
 // even if the spell is later countered); its target is chosen as it goes on the
 // stack (CR 603.3d). Control is CR 723.1 (`controlNextTurn`), and the extra turn
