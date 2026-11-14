@@ -6622,7 +6622,9 @@ export const announceCast = mutation({
                 state,
                 args.playerId,
                 cardInHand,
-                castFromZone
+                castFromZone,
+                // CR 709.3a — asked of the announced half, not the card.
+                args.alternativeCostId
             ) &&
             !(
                 args.alternativeCostId &&
