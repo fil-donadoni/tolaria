@@ -39,7 +39,17 @@ export async function loadScenarioIntoGame(
     assertLoadableIntoLiveGame(spec);
 
     const gameState = await getLatestGameState(ctx, gameId);
-    if (!gameState) throw new Error("Game not found");
+    if (!gameState) {
+        // No saved state is two different faults: no such Game, or a Game
+        // whose Match still sits on the coin-toss gate (CR 103.1), where
+        // the state is written only once `chooseFirstPlayer` resolves it.
+        const pending = await ctx.db.get(gameId);
+        throw new Error(
+            pending
+                ? "Game has no state yet — resolve the coin toss (chooseFirstPlayer) first"
+                : "Game not found"
+        );
+    }
 
     // WHICH SEAT renders as `"me"` (issue #3786). The immutable `games`
     // row, never the live snapshot's `players[]`: a `bot: "me"` Blade load
