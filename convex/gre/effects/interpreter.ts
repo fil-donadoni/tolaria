@@ -3496,6 +3496,25 @@ function attackerIdOf(
     return snapshotIdOf(ctx, selector);
 }
 
+/** CR 400.7a — the resolving ability's OWN SPELL as a `grantAbility`
+ *  recipient: a cast trigger ("When you cast this spell, … it gains '…'")
+ *  resolves while the spell it came from is still on the stack, where
+ *  `resolveObjectRef`'s battlefield-scoped `$source` finds nothing. Only the
+ *  INDEFINITE triggered-ability leg reaches it — the one grant shape an
+ *  entry grant rider carries onto the battlefield; the primitive
+ *  (`grantTriggeredAbilityPermanent`'s `"spell"` branch) re-checks that the
+ *  id names a permanent spell still on the stack, so an activated ability
+ *  whose source left the battlefield, or a spell countered in response, grants
+ *  nothing (CR 608.2b / 400.7). */
+function sourceSpellGrantTarget(
+    ctx: SpellContext,
+    op: Extract<EffectOp, { op: "grantAbility" }>
+): TargetSelection | undefined {
+    if (!op.grantedTriggeredId || op.duration !== undefined) return undefined;
+    if (!isSourceSelfRef(op.target)) return undefined;
+    return { type: "spell", id: ctx.sourceInstanceId };
+}
+
 /** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
  *  the resolving ability's own object, and therefore the one whose failure to
  *  resolve is answered by the default stack-item damage path (CR 113.7a). */
@@ -5138,7 +5157,8 @@ export const OP_EXECUTORS: {
     // to the target's `staticAbilities` so combat / rules checks see it at read
     // time; the phase-boundary purge splices it back out on expiry.
     grantAbility(ctx, op) {
-        const target = resolveObjectRef(ctx, op.target);
+        const target =
+            resolveObjectRef(ctx, op.target) ?? sourceSpellGrantTarget(ctx, op);
         if (!target) return;
         // Keyword static grant (Berserk's trample) OR a duration-scoped
         // activated-ability grant whose template lives on the resolving

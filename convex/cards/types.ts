@@ -3071,18 +3071,30 @@ export interface GraveyardPlayPermission {
      *  permission's effect, applied as the land is played or the spell is
      *  cast — never a triggered ability, never on the stack. CONTINUOUS
      *  (battlefield) form only: the resolver resolves it against the
-     *  source's definition id ({@link GraveyardPermissionRider}). */
+     *  source's definition id ({@link EntryGrantRider}). */
     grantsOnUse?: string;
 }
 
-/** Issue #1239 — the RESOLVED rider a graveyard play permission's
- *  `grantsOnUse` names: the granting card's definition id plus the template
- *  id, the same pair a `grantedTriggeredAbilities` entry keys on. Carried by
- *  the played card itself (`CardInstanceState.graveyardPermissionRider`)
- *  rather than as a pointer back to the permission, which is derived live
- *  from the battlefield and is gone once its source leaves — while the grant
- *  it generated must still apply. */
-export interface GraveyardPermissionRider {
+/** An ENTRY GRANT RIDER: an indefinite triggered-ability grant carried by a
+ *  card or permanent SPELL across the move onto the battlefield, and converted
+ *  into a `grantedTriggeredAbilities` entry as the permanent enters
+ *  (`applyEntryGrantRiders`, `gre/state.ts`). The granting card's definition
+ *  id plus the id of a template on its `triggeredGrantTemplates[]` — the same
+ *  pair a `grantedTriggeredAbilities` entry keys on. Two writers stamp it:
+ *
+ *  - a graveyard play permission's `grantsOnUse` (Serra Paragon), on the card
+ *    actually played or cast with it (`stampGraveyardPermissionRider`);
+ *  - a `grantAbility { grantedTriggeredId }` aimed at a permanent spell on the
+ *    stack — a cast trigger granting its own spell an ability ("When you cast
+ *    this spell, … it gains '…'"). CR 400.7a: an effect from a triggered
+ *    ability that changes the characteristics of a permanent spell on the
+ *    stack continues to apply to the permanent that spell becomes.
+ *
+ *  Carried by the object itself rather than as a pointer back to the grant's
+ *  source, which may be gone by the time the permanent enters while the grant
+ *  must still apply. A spell that leaves the stack any other way (countered)
+ *  drops it with the stack clean (CR 400.7). */
+export interface EntryGrantRider {
     sourceCardId: string;
     abilityId: string;
 }
@@ -3093,7 +3105,7 @@ export interface GraveyardPermissionRider {
  *  resolved against the source's definition. */
 export interface LiveGraveyardPlayPermission extends GraveyardPlayPermission {
     sourceId: string;
-    rider?: GraveyardPermissionRider;
+    rider?: EntryGrantRider;
 }
 
 export interface CostLegs {

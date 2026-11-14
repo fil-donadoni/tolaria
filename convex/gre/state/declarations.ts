@@ -34,7 +34,7 @@ import type {
     EntryTypeLine,
     FlashbackCost,
     GameEvent,
-    GraveyardPermissionRider,
+    EntryGrantRider,
     LiveGraveyardPlayPermission,
     ManaCost as CardManaCost,
     ManaPersistence,
@@ -1698,19 +1698,18 @@ export type CardInstanceState = {
      *  the-stack path, not two. Cleared wherever `castableFromGraveyardBy` is
      *  cleared. Persisted so the grant survives a DB round-trip. */
     castFromGraveyardExilesOnResolve?: boolean;
-    /** Issue #1239 — the "if you do, it gains '…'" rider of the
-     *  graveyard play permission this card was played or cast with (Serra
-     *  Paragon). Stamped at the commit that spends the permission — on the
-     *  graveyard land as the play is taken, on the stack item at cast commit —
-     *  and consumed by the permanent's entry (`settleEnteredLand`, the
-     *  permanent branch of `finalizeSpellResolution`), which converts it into
-     *  an indefinite `grantedTriggeredAbilities` entry. It rides the CARD, not
-     *  the permission: the permission is derived live from its source and may
-     *  be gone by resolution, the grant may not (the card's ruling: the permanent keeps it). A spell that
-     *  leaves the stack any other way (countered) drops it with the stack
-     *  clean. Persisted so a parked entry or a spell awaiting resolution
-     *  survives a DB round-trip. */
-    graveyardPermissionRider?: GraveyardPermissionRider;
+    /** The entry grant riders this card carries ({@link EntryGrantRider}):
+     *  indefinite triggered-ability grants waiting for the permanent this card
+     *  or spell becomes. Stamped where the grant is made — on the graveyard
+     *  land as a graveyard play permission is spent, on the stack item at cast
+     *  commit, or on the stack item by a `grantAbility` aimed at the permanent
+     *  spell itself (a cast trigger's "it gains '…'") — and consumed by the
+     *  permanent's entry (`settleEnteredLand`, the permanent branch of
+     *  `finalizeSpellResolution`), which converts each into an indefinite
+     *  `grantedTriggeredAbilities` entry. A spell that leaves the stack any
+     *  other way (countered) drops them with the stack clean. Persisted so a
+     *  parked entry or a spell awaiting resolution survives a DB round-trip. */
+    entryGrantRiders?: EntryGrantRider[];
     /** Issue #4931 — true on an INSTANT or SORCERY card that reached its owner's
      *  graveyard FROM THE STACK (resolved, countered or fizzled): a spell that
      *  was cast, as opposed to a card discarded, milled or put there by an

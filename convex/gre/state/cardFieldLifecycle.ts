@@ -301,8 +301,8 @@ export const CARD_FIELD_LIFECYCLE = {
     castableFromGraveyardUntilTurn: { codec: "defined", reset: ["custom:turn"] },
     castFromGraveyardExilesOnResolve: { codec: "flag", reset: NONE },
     // Consumed by the permanent's entry; a spell leaving the stack any other
-    // way drops it (issue #1239).
-    graveyardPermissionRider:   { codec: "record",  reset: ZONE_STACK },
+    // way drops them (issue #1239).
+    entryGrantRiders:           { codec: "list",    reset: ZONE_STACK },
     castFromGraveyardWithoutPayingManaCost: { codec: "flag", reset: ["custom:turn"] },
     // Issue #4931: stamped as the spell lands in the graveyard, ended on recast.
     castSpellInGraveyard:       { codec: "flag",    reset: STACK },
