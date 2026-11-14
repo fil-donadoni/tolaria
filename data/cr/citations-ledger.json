@@ -43425,6 +43425,7 @@
         {"id":"608.2c","line":"describe(\"the `, then` chain — any head, printed order (CR 608.2c)\", () => {","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"707.2","line":"* declares (CR 707.2 makes them a copiable value, so a copy owes the copied","sites":1,"status":"baseline"},
         {"id":"903.1","line":"CR 903.1 calls Commander a _variant_: \"the Commander variant uses all the","sites":1,"status":"confirmed","ruleHash":"401c6d70b6698fab"},
+        {"id":"603.2c","line":"// per qualifying card (CR 603.2c).","sites":1,"status":"confirmed","ruleHash":"23ca27c7b69f6d11"},
         {"id":"107.3","line":"// \"Up to X target cards … where X is the number of …\" (CR 601.2c + CR 107.3).","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"707.2","line":"/** Golem token (CR 111 / 707.2, issue #2367). \"3/3 colorless Golem artifact","sites":1,"status":"baseline"},
         {"id":"611.2","line":"// \"for as long as this remains tapped\" buff live (CR 611.2). Then the","sites":1,"status":"baseline"},
