@@ -689,6 +689,23 @@ function pricedCost(
     return { normalized, hybrid: normalizedHybridPips(normalized) };
 }
 
+/** CR 601.2f — the TOTAL mana `cast` costs its caster on `cast.state`: the
+ *  post-modifier cost this reader prices (`pricedCost`), every pip counted
+ *  once. Issue #5363 reads a cost modifier's standing worth as the difference
+ *  of this number with and without its source, so the Bot's mana-economy
+ *  reading and its castability reading price one cost, never two copies of
+ *  the arithmetic. Zero for a card with no mana cost. */
+export function castCostTotal(
+    cost: ManaCost | undefined,
+    cast: CastProbe
+): number {
+    if (!cost) return 0;
+    const { normalized } = pricedCost(cost, cast.caster.life, cast);
+    let total = 0;
+    for (const amount of Object.values(normalized)) total += amount;
+    return total;
+}
+
 /** Whether `units` can pay `cost` outright — every coloured and hybrid pip
  *  matched to its OWN source, and enough sources left over for the generic
  *  portion. The colour-aware replacement for

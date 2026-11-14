@@ -145,6 +145,11 @@ import {
     declaresDamageShield,
     replacementStandingWorth,
 } from "./ai/replacementPricing";
+// Issue #5363 — a standing spell cost modifier priced as mana economy.
+import {
+    costModifierStandingWorth,
+    declaresSpellCostModifier,
+} from "./ai/costModifierPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
@@ -425,15 +430,18 @@ function isStandingLockInstance(card: CardInstanceState): boolean {
     // Issue #5362 — a damage shield is measured the same way: its worth on
     // this board rides the same lens, so hand and board faces agree.
     if (declaresDamageShield(def)) return true;
+    // Issue #5363 — and so is a spell cost modifier.
+    if (declaresSpellCostModifier(def)) return true;
     if (!declaresCombatRestrictionStaticEffect(id)) return false;
     return declaresStandingLock(def);
 }
 
 /** Issue #5362 — a permanent's whole standing margin on this board: its
  *  restrictions (`standingLockMargin`) plus its replacement effects
- *  (`replacementStandingWorth`, counted once — the source's own credit is all
- *  a removal takes away). One function behind the board term's lens, the hand
- *  face and `permanentRealisedValue`. */
+ *  (`replacementStandingWorth`) plus its spell cost modifiers
+ *  (`costModifierStandingWorth`, issue #5363) — the last two counted once,
+ *  the source's own credit being all a removal takes away. One function
+ *  behind the board term's lens, the hand face and `permanentRealisedValue`. */
 function standingMargin(
     state: GameState,
     perm: CardInstanceState,
@@ -442,7 +450,8 @@ function standingMargin(
 ): number {
     return (
         standingLockMargin(state, perm, weights, pass) +
-        replacementStandingWorth(state, perm, weights, pass)
+        replacementStandingWorth(state, perm, weights, pass) +
+        costModifierStandingWorth(state, perm, weights)
     );
 }
 
@@ -2229,6 +2238,9 @@ function playerTerms(
             weights,
             pass
         );
+        // Issue #5363 — a standing spell cost modifier's mana economy
+        // (`costModifierStandingWorth`), read once here and by the lens.
+        terms.permanents += costModifierStandingWorth(state, perm, weights);
         if (fightsAsCreatureBody(state, perm)) {
             terms.creatures += evaluateCreature(
                 state,

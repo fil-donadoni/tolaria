@@ -16814,6 +16814,120 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5362. The discriminating twin of the entry above: board-relative, the same Solitary Confinement reads zero when nothing of the bot's could be prevented.",
     },
     {
+        // COST-MODIFIER PRICING (CR 601.2f, issue #5363). The bot holds
+        // Disenchant with three untapped Plains (Trinisphere raises the
+        // Disenchant itself to three); the opponent has a Trinisphere ("each
+        // spell that would cost less than three mana costs three") and a
+        // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its
+        // floor). The bot's hand holds three
+        // one-drops: the tax takes two mana from each.
+        label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot's hand holds three one-drops, each taxed from one mana to three.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Savannah Lions",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                { name: "Trinisphere", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Trinisphere",
+                },
+            ],
+        },
+        note: "Issue #5363. Guards `costModifierStandingWorth` (`ai/costModifierPricing.ts`): Trinisphere's worth is the mana it adds to the known spells of each hand, at `costTaxWeight` a mana, read through the castability reader's own effective cost. Pair: the same board with a hand of five-drops reads the tax at zero and takes the Weaponry.",
+    },
+    {
+        // COST-MODIFIER PRICING (CR 601.2f, issue #5363). The bot holds
+        // Disenchant with three untapped Plains (Trinisphere raises the
+        // Disenchant itself to three); the opponent has a Trinisphere ("each
+        // spell that would cost less than three mana costs three") and a
+        // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its
+        // floor). The bot's hand holds three
+        // five-drops: the tax touches none of them.
+        label: "cost-modifier pricing: with a hand of five-drops Trinisphere does not tax, Disenchant takes the 2-MV artifact (issue #5363)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot's hand holds three five-drops, above Trinisphere's threshold.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Serra Angel",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                { name: "Trinisphere", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Tawnos's Weaponry",
+                },
+            ],
+        },
+        note: "Issue #5363. The discriminating twin of the entry above: hand-relative, the same Trinisphere reads zero when every known spell already costs three or more.",
+    },
+    {
         // Issue #5163 (ADR 0151) — a SYMMETRIC lock read by Differential
         // Reading. The bot holds Disenchant with five Plains against two
         // Mountains, a Winter Orb and a Tawnos's Weaponry (a 2-MV artifact
