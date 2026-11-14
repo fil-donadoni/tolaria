@@ -12708,6 +12708,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Cavern of Souls",
+        "scryfallId": "1381c8f1-a292-4bdf-b20c-a5c2a169ee84",
+        "oracleId": "89ca686a-7c72-4d8f-9290-e89635624a83",
+        "firstSet": "avr",
+        "firstPrintId": "1381c8f1-a292-4bdf-b20c-a5c2a169ee84",
+        "firstPrintSet": "avr"
+    },
+    {
         "name": "Cavern Thoctar",
         "scryfallId": "34748acb-7045-42b6-a93f-a3f11a1bc839",
         "oracleId": "4a1b8db2-8814-45b3-ab8a-a1c8522d7fa1",
