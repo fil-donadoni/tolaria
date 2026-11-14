@@ -4,6 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { AURA_AFFECTS_HOST, defineCard, type SpellContext } from "../../types";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Galvanic Discharge — "{R} Instant. Choose target creature or planeswalker.
 // You get {E}{E}{E} (three energy counters), then you may pay any amount of
@@ -139,4 +140,204 @@ export const detectivesPhoenix = defineCard(() => ({
         },
         { kind: "keyword-grant", applies: AURA_AFFECTS_HOST, keyword: "haste" },
     ],
+}));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ral, Monsoon Mage // Ral, Leyline Prodigy (MH3 #, issue #8630)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Front face — {1}{R} Legendary Creature, 1/3:
+//   • "Instant and sorcery spells you cast cost {1} less to cast": the
+//     `cost-modifier` static (CR 601.2f), the Urza, Lord Protector shape.
+//   • "Whenever you cast an instant or sorcery spell during your turn, flip a
+//     coin" (CR 705.2): `spellCastTrigger` gated on the active player being
+//     Ral's controller; lose → Ral deals 1 damage to you, win → "you may
+//     exile Ral. If you do, return him to the battlefield transformed" (CR
+//     712.14a), an `optionChoice` whose accept mode is `exileAndReturnTransformed`.
+//
+// Back face — Ral, Leyline Prodigy, loyalty 2 (CR 306.5b):
+//   • "enters with an additional loyalty counter on him for each instant and
+//     sorcery spell you've cast this turn" (CR 614.1c / 601.2i): the back
+//     face's `entersWith` with a `spellsCastThisTurn` count.
+//   • +1: `reduceSpellCostThisTurn` with `until-your-next-turn` (CR 611.2a).
+//   • −2: `dealDamageDividedAsChosen` over one or two targets (CR 601.2d),
+//     then a draw gated on another blue permanent.
+//   • −8: exile the top eight, then a free cast permission for each exiled
+//     instant or sorcery (CR 118.9 / 601.3), this turn only.
+// hand-tail: +1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast. (#8630)
+export const ralMonsoonMage = defineCard(() => ({
+    id: "16d40f56-691b-42a7-a5ab-157568921e03",
+    rarity: "rare",
+    name: "Ral, Monsoon Mage",
+    oracleText:
+        "Instant and sorcery spells you cast cost {1} less to cast.\nWhenever you cast an instant or sorcery spell during your turn, flip a coin. If you lose the flip, Ral deals 1 damage to you. If you win the flip, you may exile Ral. If you do, return him to the battlefield transformed under his owner's control.",
+    manaCost: { X: 1, R: 1 },
+    supertypes: ["Legendary"],
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 3,
+    compiledStaticEffects: [
+        {
+            kind: "cost-modifier",
+            spells: { types: ["Instant", "Sorcery"], controller: "you" },
+            reduction: 1,
+        },
+    ],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "ral-monsoon-mage-flip",
+            oracleText:
+                "Whenever you cast an instant or sorcery spell during your turn, flip a coin. If you lose the flip, Ral deals 1 damage to you. If you win the flip, you may exile Ral. If you do, return him to the battlefield transformed under his owner's control.",
+            scope: "you",
+            filter: { types: ["Instant", "Sorcery"] },
+            // "during your turn" — the caster is the active player (CR 500.1).
+            condition: (event, _self, state) =>
+                state?.activePlayerId === event.casterId,
+            effects: [
+                {
+                    op: "coinFlip",
+                    win: {
+                        consequence:
+                            "You may exile Ral and return him transformed.",
+                        effects: [
+                            {
+                                op: "optionChoice",
+                                player: "controller",
+                                prompt: "Exile Ral and return him transformed?",
+                                modes: [
+                                    {
+                                        label: "Exile and return transformed",
+                                        effects: [
+                                            {
+                                                op: "exileAndReturnTransformed",
+                                                target: { ref: "$source" },
+                                            },
+                                        ],
+                                    },
+                                    { label: "Do nothing", effects: [] },
+                                ],
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Ral deals 1 damage to you.",
+                        effects: [
+                            {
+                                op: "dealDamage",
+                                amount: 1,
+                                to: { player: "controller" },
+                                source: { ref: "$source" },
+                            },
+                        ],
+                    },
+                },
+            ],
+        }),
+    ],
+    backFace: {
+        name: "Ral, Leyline Prodigy",
+        types: ["Planeswalker"],
+        subtypes: ["Ral"],
+        supertypes: ["Legendary"],
+        colors: ["U", "R"],
+        loyalty: 2,
+        entersWith: {
+            counters: [
+                {
+                    type: "loyalty",
+                    count: {
+                        spellsCastThisTurn: { types: ["Instant", "Sorcery"] },
+                    },
+                },
+            ],
+        },
+        oracleText:
+            "Ral enters with an additional loyalty counter on him for each instant and sorcery spell you've cast this turn.\n+1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast.\n−2: Ral deals 2 damage divided as you choose among one or two targets. Draw a card if you control a blue permanent other than Ral.\n−8: Exile the top eight cards of your library. You may cast instant and sorcery spells from among them this turn without paying their mana costs.",
+        activatedAbilities: [
+            {
+                id: "ral-leyline-prodigy-plus1",
+                cost: { loyalty: 1 },
+                useStack: true,
+                oracleText:
+                    "+1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast.",
+                effects: [
+                    {
+                        op: "reduceSpellCostThisTurn",
+                        player: "controller",
+                        amount: { X: 1 },
+                        filter: { types: ["Instant", "Sorcery"] },
+                        duration: "until-your-next-turn",
+                    },
+                ],
+            },
+            {
+                id: "ral-leyline-prodigy-minus2",
+                cost: { loyalty: -2 },
+                useStack: true,
+                oracleText:
+                    "−2: Ral deals 2 damage divided as you choose among one or two targets. Draw a card if you control a blue permanent other than Ral.",
+                targetRequirement: {
+                    type: "any",
+                    count: { min: 1, max: 2 },
+                    divideAsChosen: { total: 2 },
+                },
+                effects: [
+                    { op: "dealDamageDividedAsChosen", total: 2 },
+                    {
+                        op: "if",
+                        predicate: {
+                            left: {
+                                count: {
+                                    zone: "battlefield",
+                                    controller: "controller",
+                                    filter: { color: "U", excludeSource: true },
+                                },
+                            },
+                            op: "ge",
+                            right: 1,
+                        },
+                        then: [{ op: "draw", player: "controller", count: 1 }],
+                    },
+                ],
+            },
+            {
+                id: "ral-leyline-prodigy-minus8",
+                cost: { loyalty: -8 },
+                useStack: true,
+                oracleText:
+                    "−8: Exile the top eight cards of your library. You may cast instant and sorcery spells from among them this turn without paying their mana costs.",
+                effects: [
+                    {
+                        op: "exileTopOfLibrary",
+                        player: "controller",
+                        count: 8,
+                        bindAll: "$exiled",
+                    },
+                    // "from among them": the choice is scoped to the cards just
+                    // exiled (`candidates`), and the type filter keeps the
+                    // grant to instants and sorceries. Choosing none is the
+                    // "may" (CR 601.3).
+                    {
+                        op: "choice",
+                        kind: "choose-exile-card",
+                        player: "controller",
+                        zone: "exile",
+                        candidates: [{ ref: "$exiled" }],
+                        filter: { type: ["Instant", "Sorcery"] },
+                        count: { min: 0, max: 8 },
+                        prompt: "Choose instant and sorcery cards to cast without paying their mana costs this turn.",
+                        bind: "$castable",
+                    },
+                    {
+                        op: "grantCastFromExile",
+                        card: { ref: "$castable" },
+                        player: "controller",
+                        window: "this-turn",
+                        withoutPayingManaCost: true,
+                    },
+                ],
+            },
+        ],
+    },
 }));
