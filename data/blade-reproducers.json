@@ -960,6 +960,118 @@
         "landCount": 2,
         "libraryCount": 20
     },
+    "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Trinisphere",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Tawnos's Weaponry",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "cost-modifier pricing: with a hand of five-drops Trinisphere does not tax, Disenchant takes the 2-MV artifact (issue #5363)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Trinisphere",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Tawnos's Weaponry",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "counter count: draws with an Etched Oracle that keeps a counter after paying": {
         "cards": [
             {

@@ -41,6 +41,7 @@ import {
 import { parsePtCounter } from "./ai/opValuers";
 import type { LatentLens } from "./ai/grounding";
 import { declaresDamageShield } from "./ai/replacementPricing";
+import { declaresSpellCostModifier } from "./ai/costModifierPricing";
 import {
     contextFreeGrounding,
     contextFreeLatentLens,
@@ -565,7 +566,9 @@ export function dslLatentPieces(
         // board the lens is attached to; context-free (no lens) it stays
         // unmeasured and keeps the floor.
         standingLockValue:
-            declaresStandingLock(def) || declaresDamageShield(def)
+            declaresStandingLock(def) ||
+            declaresDamageShield(def) ||
+            declaresSpellCostModifier(def)
                 ? board?.standingLockWorth?.()
                 : undefined,
     };

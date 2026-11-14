@@ -44,6 +44,7 @@ header stating the class it prices.
 | a keyword that does nothing on this board   | `keywordRelevance.ts` (landwalk, protection ONLY)                                                      |
 | a defensive grant with nothing to fear      | `defensiveGrants.ts`                                                                                   |
 | can't attack / block / untap statics        | `restrictionPricing.ts`                                                                                |
+| spell cost tax / reduction statics          | `costModifierPricing.ts`                                                                               |
 | loyalty as a resource                       | `loyaltyValue.ts`                                                                                      |
 | a library card lost now                     | `decking.ts`                                                                                           |
 | a card in the graveyard                     | `graveyardReach.ts`                                                                                    |
