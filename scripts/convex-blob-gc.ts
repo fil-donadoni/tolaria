@@ -29,6 +29,7 @@ import {
     writeSweepStamp,
     type SweepDeps,
 } from "./lib/convex-blob-gc";
+import { recordOrphans } from "./lib/convex-wedge";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 const root = primaryCheckout();
@@ -93,7 +94,17 @@ const deps: SweepDeps = {
 if (process.argv.includes("--auto")) {
     await runAutoSweep({
         due: () => sweepDue(stampPath, Date.now()),
-        sweep: () => sweepBlobs(deps, true),
+        sweep: async () => {
+            const report = await sweepBlobs(deps, true);
+            // Orphans left AFTER the sweep: what `runner status` shows (issue #9227).
+            if (report.kind === "swept")
+                recordOrphans(
+                    root,
+                    report.orphaned - report.removed,
+                    Date.now()
+                );
+            return report;
+        },
         stamp: () => writeSweepStamp(stampPath, Date.now()),
         log: (line) => console.error(line),
     }).catch(() => {});
@@ -106,6 +117,7 @@ if (r.kind === "skipped") {
     console.log(`convex:blob-gc: skipped — ${r.reason}`);
     process.exit(0);
 }
+recordOrphans(root, r.orphaned - r.removed, Date.now());
 const mb = (n: number) => (n / 1e6).toFixed(1);
 console.log(
     `convex:blob-gc: ${r.onDisk} on disk, ${r.referenced} referenced, ${r.orphaned} orphaned, ${mb(r.reclaimableBytes)} MB reclaimable`
