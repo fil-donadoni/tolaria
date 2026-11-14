@@ -562,11 +562,6 @@ export const gauntletOfMight = defineCard(() => ({
         },
     ],
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): a `tappedTrigger` FACTORY hardcodes its
-        // `resolve` and exposes no `effects[]` site, and the recipient is read
-        // from the trigger event (the tapped Mountain's controller —
-        // tapped.controllerId, an event field). Blocked on: factory-trigger
-        // effects[] site + an event-field player ref.
         tappedTrigger({
             id: "gauntlet-mana-bonus",
             oracleText:
@@ -581,9 +576,15 @@ export const gauntletOfMight = defineCard(() => ({
                 appliesTo: { filter: { subtypes: "Mountain" } },
                 amount: { kind: "fixed", mana: { R: 1 } },
             },
-            resolve: (ctx, _event, tapped) => {
-                ctx.addManaTo(tapped.controllerId, { R: 1 });
-            },
+            // "Its controller" is the tapped Mountain's controller, read off
+            // the firing PERMANENT_TAPPED event, not this artifact's controller.
+            effects: [
+                {
+                    op: "addMana",
+                    mana: { R: 1 },
+                    player: { ref: "$event.controllerId" },
+                },
+            ],
         }),
     ],
 }));
