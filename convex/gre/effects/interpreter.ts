@@ -1495,6 +1495,10 @@ function toPermanentFilter(
         // it here would be fail-OPEN, the bug class `name`'s note above
         // records: a `PermanentFilter` with no bound imposes none.
         colorCountAtLeast: filter.colorCountAtLeast,
+        // CR 613.4 (issue #9480) — "a creature with power N or greater",
+        // propagated 1:1; `getBattlefieldIds` supplies the EFFECTIVE power.
+        // Dropping it here would be fail-OPEN: every creature would match.
+        powerAtLeast: filter.powerAtLeast,
         isToken: filter.isToken,
         // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
         // creature with flying"), propagated 1:1 onto
@@ -1938,6 +1942,10 @@ function matchesCardFilter(
     ) {
         return false;
     }
+    // CR 613.4 (issue #9480) — effective power is battlefield live state; a
+    // hidden-zone / snapshot card shape carries none, so the bound fails
+    // CLOSED here (the validator already refuses it off the battlefield).
+    if (filter.powerAtLeast !== undefined) return false;
     if (filter.manaValueAtMost !== undefined) {
         const ceiling = resolveValue(ctx, filter.manaValueAtMost);
         // An unresolvable dynamic ceiling (issue #898) fails closed — no

@@ -255,7 +255,11 @@ import {
 } from "./effects/interpreter";
 import { spliceMergedEffects } from "./splice";
 import { copyExceptName } from "../cards/cardNames";
-import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
+import {
+    matchesPermanentFilter,
+    matchesSpellFilter,
+    permanentFilterReadsPower,
+} from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import type {
     DamageSourceFilter,
@@ -14119,6 +14123,11 @@ export function buildSpellContext(
                         copyExceptName(lki) ??
                         (cardId ? tryGetDefinition(cardId)?.name : undefined),
                     manaValue: permanentManaValue(lki),
+                    // CR 608.2h / 613.4 (issue #9480) — the raw record holds
+                    // the PRINTED power, not the last-known effective one:
+                    // a power bound reads absent and fails closed rather than
+                    // answering from the wrong number.
+                    power: undefined,
                 },
                 filter,
                 { supertypesOf: liveSupertypesOf }
@@ -20214,6 +20223,7 @@ export function buildSpellContext(
         ): string[] {
             const bf = getPlayer(state, playerId).battlefield;
             if (!filter) return bf.map((c) => c.id);
+            const readsPower = permanentFilterReadsPower(filter);
             // CR 202.2 — populate effective colors so color-scoped filters
             // (Magnetic Mountain's "blue creatures") match on the battlefield.
             // CR 205.4a — `supertypesOf` resolves live snow status for
@@ -20235,6 +20245,18 @@ export function buildSpellContext(
                             // `manaValueAtLeast` / `manaValueAtMost` /
                             // `manaValueEquals` read a number, not nothing.
                             manaValue: permanentManaValue(c),
+                            // CR 613.4 (issue #9480) — EFFECTIVE power after
+                            // layer 7, so `powerAtLeast` sees a pump or a
+                            // counter; CR 208.3 — a noncreature permanent has
+                            // no power, so it is absent and the bound fails
+                            // closed.
+                            ...(readsPower
+                                ? {
+                                      power: isCreature(c)
+                                          ? getEffectivePower(state, c)
+                                          : undefined,
+                                  }
+                                : {}),
                             // CR 400.7 (issue #1458) — "entered the
                             // battlefield this turn": the REAL entry stamp
                             // (`enteredOnTurn`, written by

@@ -16141,6 +16141,18 @@ export interface EffectCardFilter {
      *  `toPermanentFilter`, so a `zone: "battlefield"` choice reads the LIVE
      *  colours off the layer pipeline rather than the printed ones. */
     colorCountAtLeast?: number;
+    /** Inclusive lower bound on EFFECTIVE power (CR 613.4 layer 7, issue
+     *  #9480) — "a creature with power 4 or greater" (Ferocious, Stubborn
+     *  Denial). The battlefield-side mirror of `PermanentFilter.powerAtLeast`,
+     *  propagated 1:1 by `toPermanentFilter`; `getBattlefieldIds` reads the
+     *  power through the layer pipeline, so a pump or a counter counts.
+     *  FAIL-CLOSED on a missing power (CR 208.3 — a noncreature permanent has
+     *  none), exactly like `colorCountAtLeast` on a missing colour list.
+     *  Battlefield-only live state: the validator rejects it on a hidden-zone
+     *  selector (it rides `allowLiveState`, like `tapped`), and the
+     *  hidden-zone matcher fails it closed. A positive integer literal; the
+     *  upper bound and a dynamic form wait for a card that needs them. */
+    powerAtLeast?: number;
     manaValueAtMost?: number | EffectXValue;
     /** Exact mana-value match (CR 202.3, issue #1083) — a card matches only if
      *  its mana value equals `manaValueEquals` precisely, not merely "at

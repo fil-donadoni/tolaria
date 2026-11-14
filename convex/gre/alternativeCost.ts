@@ -240,6 +240,9 @@ export function definitionMatchesFilter(
     // which this definition-level matcher does not enumerate: refused rather
     // than skipped (skipping is this matcher's fail-OPEN shape).
     if (filter.castFaceType !== undefined) return false;
+    // CR 613.4 (issue #9480) — effective power is battlefield state a hand
+    // card has none of: refused, never skipped (fail-OPEN).
+    if (filter.powerAtLeast !== undefined) return false;
     const literalSubtypes: string | string[] | undefined = filter.subtype;
     const subtypes = asArray(literalSubtypes);
     if (
