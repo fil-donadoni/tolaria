@@ -44,6 +44,7 @@ export type LayerPlayersInput = ReadonlyArray<{
     graveyard?: ReadonlyArray<CardInstance>;
     exile?: ReadonlyArray<CardInstance>;
     hand: ReadonlyArray<unknown>;
+    speed?: number;
 }>;
 
 export function toLayerState(
@@ -86,6 +87,10 @@ export function toLayerState(
             // array LENGTH survives unchanged, so this reads identically to
             // the server-side `.hand.length`.
             hand: { length: p.hand.length },
+            // CR 702.178a — a max speed static reads its controller's speed
+            // (CR 702.179b); dropped here, the client would draw the
+            // creature without the buff the server applies.
+            ...(p.speed !== undefined ? { speed: p.speed } : {}),
         })),
         // CR 114 (issue #1221) — command-zone emblems contribute source-less,
         // owner-scoped continuous statics (Sorin, Lord of Innistrad's +1/+0

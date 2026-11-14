@@ -1,6 +1,7 @@
 // Speed — Start your engines! (CR 702.179), its state-based action (CR 704.5aa)
 // and the source-less trigger that raises it (CR 702.179d). The max speed gate
-// on a compiled trigger is `convex/oracle/__tests__/maxSpeed.test.ts`.
+// on a compiled trigger is `convex/oracle/__tests__/maxSpeed.test.ts`; the
+// gate on a compiled static is read here, through the layers and the wire.
 import { describe, expect, it } from "vitest";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
@@ -13,6 +14,7 @@ import {
 import { projectPublicState } from "../../gameProjections";
 import { checkStateBasedActions } from "../sba";
 import {
+    beginApplyingStaticEffects,
     emitLifeLost,
     payLifeCost,
     processPendingActionTriggers,
@@ -23,6 +25,7 @@ import { compactState, expandState } from "../serialize";
 import { hasMaxSpeed, speedOf } from "../speed";
 import { collectTriggers } from "../triggers";
 import { applyAllCombatDamage } from "../phases";
+import { getEffectiveToughness } from "../layers";
 
 function permanent(
     id: string,
@@ -347,6 +350,66 @@ describe("a compiled card behind max speed (CR 702.178a)", () => {
                 )
             ).toHaveLength(1);
         });
+    });
+});
+
+describe("a compiled static behind max speed (CR 702.178a)", () => {
+    const outcome = compileCard({
+        oracleId: "46b36d25-25bd-48c5-9a53-75230bb27dee",
+        name: "Swiftwing Assailant",
+        manaCost: "{3}{W}",
+        typeLine: "Creature — Bird Warrior",
+        oracleText:
+            "Flying\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nMax speed — This creature gets +0/+1 and has vigilance.",
+        power: "3",
+        toughness: "3",
+        layout: "normal",
+    });
+    if (outcome.state !== "ready")
+        throw new Error("Swiftwing Assailant compiles");
+    const definition = {
+        ...outcome.definition,
+        id: "test-8231-swiftwing",
+    } as CardDefinition;
+
+    function read(
+        p1Speed: number | undefined,
+        p2Speed?: number
+    ): { toughness: number; keywords: readonly string[] } {
+        return withTemporaryDefinition(definition, () => {
+            const state = board(p1Speed, p2Speed);
+            state.players[0]!.battlefield = [
+                makeInstance(definition.id, {
+                    id: "assailant",
+                    controllerId: "p1",
+                }),
+            ];
+            const card = state.players[0]!.battlefield[0]!;
+            beginApplyingStaticEffects(state, card);
+            const wire = projectPublicState(state, 1, "p1");
+            return {
+                toughness: getEffectiveToughness(state, card),
+                keywords: wire.players[0]!.battlefield[0]!.staticAbilities,
+            };
+        });
+    }
+
+    it("has neither the buff nor the keyword below max speed", () => {
+        expect(read(3)).toEqual({
+            toughness: 3,
+            keywords: ["flying", "start your engines!"],
+        });
+    });
+
+    it("has both at its controller's max speed, on the wire too", () => {
+        const at4 = read(4);
+        expect(at4.toughness).toBe(4);
+        expect(at4.keywords).toContain("vigilance");
+    });
+
+    it("reads its controller's speed, not an opponent's", () => {
+        expect(read(1, 4).toughness).toBe(3);
+        expect(read(1, 4).keywords).not.toContain("vigilance");
     });
 });
 

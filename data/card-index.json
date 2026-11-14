@@ -11050,6 +11050,16 @@
         "source": "compiled"
     },
     {
+        "name": "Burnout Bashtronaut",
+        "scryfallId": "4db66e7b-cb7a-4d86-a563-d570946aeb0d",
+        "oracleId": "1b122fbb-c2e1-42d1-bfc5-fcacacdfa0bc",
+        "firstSet": "dft",
+        "firstPrintId": "4db66e7b-cb7a-4d86-a563-d570946aeb0d",
+        "firstPrintSet": "dft",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Burnt Offering",
         "scryfallId": "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
         "oracleId": "86eb30a0-0beb-42db-9ddf-cf8be6c99dd3",
@@ -54103,6 +54113,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nesting Bot",
+        "scryfallId": "7829c0ae-f72f-4195-ad43-775d7218565c",
+        "oracleId": "7ffb8c2e-1737-4df3-b310-384a5000bfa5",
+        "firstSet": "dft",
+        "firstPrintId": "7829c0ae-f72f-4195-ad43-775d7218565c",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Nesting Wurm",
         "scryfallId": "5da697da-7026-4dea-b494-8314d789160f",
         "oracleId": "3160dada-d59f-4f23-8420-ba14f9df7514",
@@ -78932,6 +78952,16 @@
         "source": "compiled"
     },
     {
+        "name": "Streaking Oilgorger",
+        "scryfallId": "6ff120a2-e2bb-42a2-bcb7-a48eb7a6d9b2",
+        "oracleId": "c163a95e-9414-4b8c-b5a2-1e7674530404",
+        "firstSet": "dft",
+        "firstPrintId": "6ff120a2-e2bb-42a2-bcb7-a48eb7a6d9b2",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Stream Hopper",
         "scryfallId": "55371d0e-29da-4517-ab16-075782a1326f",
         "oracleId": "153cd93c-7bba-4482-893c-55a602c4439b",
@@ -80618,6 +80648,16 @@
         "firstSet": "ktk",
         "firstPrintId": "e782d005-a563-4738-978a-73a3465de78f",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Swiftwing Assailant",
+        "scryfallId": "72db9bb9-d930-40e5-b144-01ebfd377996",
+        "oracleId": "46b36d25-25bd-48c5-9a53-75230bb27dee",
+        "firstSet": "dft",
+        "firstPrintId": "72db9bb9-d930-40e5-b144-01ebfd377996",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },
@@ -91144,6 +91184,16 @@
         "firstSet": "leg",
         "firstPrintId": "d7533a72-77d1-40cd-b3a1-7597d566c428",
         "firstPrintSet": "leg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Walking Sarcophagus",
+        "scryfallId": "89ccbd73-9414-48a3-bdcf-e838fcffc08f",
+        "oracleId": "791b8ac8-8db8-44b4-8c85-fcc9017c17ef",
+        "firstSet": "dft",
+        "firstPrintId": "89ccbd73-9414-48a3-bdcf-e838fcffc08f",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },
