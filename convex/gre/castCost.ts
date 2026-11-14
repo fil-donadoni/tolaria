@@ -1600,7 +1600,7 @@ export function castExileCostOccupiesPayWithSlot(
     );
 }
 
-/** CR 702.51 / 601.3 — the card's OWN "You may cast this card from your
+/** CR 601.3 — the card's OWN "You may cast this card from your
  *  graveyard" permission (`castableFromOwnGraveyard`) as it stands for
  *  `owner`, the graveyard's owner and would-be caster (CR 109.5): the
  *  declared scope, or `undefined` when the card has none or it is gated off.
