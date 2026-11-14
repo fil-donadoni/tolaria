@@ -268,6 +268,11 @@ describe("Barrowgoyf (CR 604.3 all-graveyards CDA P/T, CR 603.4/701.17 combat-da
             "top2",
         ]);
         expect(p1After.hand).toHaveLength(0);
-        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // No retrieval choice — only the CR 404.3 arrangement of the two
+        // milled cards (issue #9554), which their owner makes.
+        expect(state.pendingChoices?.map((c) => c.kind)).toEqual([
+            "graveyard-order",
+        ]);
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
     });
 });

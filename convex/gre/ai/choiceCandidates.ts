@@ -1498,6 +1498,20 @@ export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
 ): Move | null {
+    // CR 404.3 (issue #9554) — a graveyard batch's arrangement is no in-tree
+    // node: the order only matters to a "top card of a graveyard" reader no
+    // evaluator term prices, and N! permutations would bury the search. The
+    // forced answer keeps the engine order, so a simultaneous death never
+    // stops the settle before the death triggers it raised.
+    if (choice.kind === "graveyard-order") {
+        return {
+            kind: "resolution-choice",
+            stackItemId: choice.stackItemId,
+            step: choice.step,
+            choiceId: choice.choiceId,
+            cardInstanceIds: [...(choice.candidateIds ?? [])],
+        };
+    }
     // Only the as-enters name (CR 614.1c): a mid-resolution `nameCard` (Cabal
     // Therapy) still stops, scored by its script valuation — a public-zone
     // name rarely hits the hidden hand, so resolving it read as a dud.

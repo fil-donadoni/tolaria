@@ -256,6 +256,11 @@ export default function PendingChoicePrompt({
     )
         return null;
 
+    // graveyard-order (CR 404.3) — the chooser owns the same drag picker
+    // (`GraveyardOrderPicker`, mounted by the board) with its own Done and
+    // "Order randomly". The opponent falls through to "Waiting for X".
+    if (choice.kind === "graveyard-order" && isChooser) return null;
+
     // trigger-order (CR 603.3b, ADR 0058) — the chooser owns the same full-screen
     // drag strip (order-only mode) to order their simultaneous triggers on the
     // stack. The non-chooser falls through to the generic "Waiting for X" banner.

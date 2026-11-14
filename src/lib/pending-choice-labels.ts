@@ -47,6 +47,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "legend-keep": "Legend rule",
     // CR 712.21a/b — arrange a split melded permanent's two cards
     "meld-arrange": "Arrange cards",
+    "graveyard-order": "Order graveyard",
     // non-cast Aura host choice (CR 303.4f — Replenish, Living Death)
     "choose-aura-host": "Choose host",
     // yes-no family (CR 117.3a / 118.4 — including the ADR 0079 permanent

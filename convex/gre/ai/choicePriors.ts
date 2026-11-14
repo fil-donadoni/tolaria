@@ -390,6 +390,7 @@ export function heuristicChoicePrior(
         case "choose-categorized":
         case "legend-keep":
         case "meld-arrange":
+        case "graveyard-order":
         case "choose-aura-host":
         case "mulligan-bottom":
         case "opening-hand-action":

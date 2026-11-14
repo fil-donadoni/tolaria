@@ -97,6 +97,7 @@ import OutsideGameCardPick from "./outside-game-card-pick";
 import RevealHandView from "./reveal-hand-view";
 import RevealNotificationOverlay from "./reveal-notification-overlay";
 import PutBackPicker from "./put-back-picker";
+import GraveyardOrderPicker from "./graveyard-order-picker";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
@@ -969,6 +970,7 @@ export default function Board({
                                                     }
                                                 />
                                                 <PutBackPicker />
+                                                <GraveyardOrderPicker />
 
                                                 {mulligan &&
                                                     !mulligan.bottoming && (

@@ -477,6 +477,7 @@ import {
     purgeContinuousEffectsForInstance,
     removeContinuousEffect,
 } from "./continuousEffects";
+import { withGraveyardArrivalBatch } from "./graveyardOrder";
 export type {
     CastFromZone,
     Duration,
@@ -485,6 +486,7 @@ export type {
     CardInstanceState,
     MeldedCard,
     PendingMeldArrangement,
+    PendingGraveyardArrangement,
     PreventionEffect,
     TargetPreventionShield,
     PlayerDamagePreventionShield,
@@ -9304,7 +9306,11 @@ export function emitCardsPutIntoLibrary(
 /** Runs `run` as ONE resolving instruction for the library-entry event (issue
  *  #3242, CR 603.2c): every `emitCardsPutIntoLibrary` inside it is folded into a
  *  single event emitted when `run` returns. Nested calls join the outermost
- *  batch — a `forEach` body is part of the one instruction that loops it. */
+ *  batch — a `forEach` body is part of the one instruction that loops it.
+ *
+ *  The same bracket is the instruction's CR 404.3 graveyard batch (issue
+ *  #9554): the cards it puts into one graveyard together are queued for their
+ *  owner to arrange (`withGraveyardArrivalBatch`). */
 export function withCardsPutIntoLibraryBatch<T>(
     state: GameState,
     run: () => T
@@ -9313,7 +9319,7 @@ export function withCardsPutIntoLibraryBatch<T>(
     const batch: LibraryEntry[] = [];
     openLibraryEntryBatches.set(state, batch);
     try {
-        return run();
+        return withGraveyardArrivalBatch(state, run);
     } finally {
         openLibraryEntryBatches.delete(state);
         emitCardsPutIntoLibrary(state, batch);

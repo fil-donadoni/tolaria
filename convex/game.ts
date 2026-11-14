@@ -12750,6 +12750,9 @@ export const submitResolutionChoice = mutation({
         // `order-top` (scry/surveil) only — the un-kept looked-at cards sent to
         // the choice's destination. Omitted for every other choice kind.
         secondZoneIds: v.optional(v.array(v.string())),
+        // `graveyard-order` (CR 404.3) only — "Order randomly": the server
+        // draws the arrangement from the seeded PRNG.
+        orderRandomly: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -12780,6 +12783,7 @@ export const submitResolutionChoice = mutation({
             choiceId: args.choiceId,
             cardInstanceIds: args.cardInstanceIds,
             secondZoneIds: args.secondZoneIds,
+            orderRandomly: args.orderRandomly,
         });
 
         sweepUnlessResolutionSuspended(state);

@@ -455,6 +455,21 @@ describe("full-text effect — simultaneous departures look back (CR 603.10a)", 
         return state.stack.map((t) => t.triggeredAbilityId ?? "");
     }
 
+    /** CR 404.3 (issue #9554) — two creatures of one owner dying in one pass
+     *  are a graveyard batch: the owner arranges it (here: keeps the engine
+     *  order) before the pass's triggers go on the stack. */
+    function keepGraveyardOrder(state: GameState): void {
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("graveyard-order");
+        applyPendingChoiceSubmit(state, {
+            playerId: head!.playerId,
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: [...(head!.candidateIds ?? [])],
+        });
+    }
+
     it("dying beside another creature, it leaves as the card it showed before the event", () => {
         withShapeshifter(() => {
             // The Bears die FIRST in the sweep and land on top of the graveyard.
@@ -465,6 +480,7 @@ describe("full-text effect — simultaneous departures look back (CR 603.10a)", 
             );
             find(state, "shifter").damageMarked = 3; // Rukh Egg is 0/3
             checkStateBasedActions(state);
+            keepGraveyardOrder(state);
             expect(p1.battlefield.map((c) => c.id)).toEqual([]);
             expect(state.lastKnownCopiable?.shifter?.fullTextDefId).toBe(
                 RUKH_EGG
@@ -482,6 +498,7 @@ describe("full-text effect — simultaneous departures look back (CR 603.10a)", 
             );
             find(state, "shifter").damageMarked = 1; // a 0/1 as itself
             checkStateBasedActions(state);
+            keepGraveyardOrder(state);
             expect(p1.battlefield.map((c) => c.id)).toEqual([]);
             expect(
                 state.lastKnownCopiable?.shifter?.fullTextDefId
