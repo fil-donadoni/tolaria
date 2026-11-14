@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import ResultsGrid from "../results-grid";
+
+// The grid's preferred-printing subscription (issue #8755) needs a
+// client-free stub; no state here reaches a cell.
+vi.mock("convex/react", () => ({
+    useQuery: () => undefined,
+    useMutation: () => () => Promise.resolve(null),
+}));
 
 // Issue #4861 — the search index is a fetched asset now, so an empty result
 // can mean "not yet" as well as "no match". The grid must never tell a user

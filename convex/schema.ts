@@ -1750,6 +1750,23 @@ export default defineSchema({
         ),
     }).index("by_user", ["userId"]),
 
+    // Preferred printing per card (issue #8755): the Print ID a user last
+    // picked for a card in the deck builder's results, restored across
+    // sessions and devices. One row per user + card, NOT a field on
+    // `userSettings` — the set of cards is unbounded and a single row would
+    // grow with it. `cardKey` is the folded card name (`foldCardName`), the
+    // one key both search populations share: a Full Catalogue entry's
+    // `cardId` is a Print ID, not a Card ID, and a card that later becomes
+    // implemented keeps its preference. `setCode` rides along so the client
+    // decides Format / Set-filter fallback without another query. A
+    // preference never bypasses deck validation (ADR 0140).
+    userCardPrints: defineTable({
+        userId: v.id("users"),
+        cardKey: v.string(),
+        printId: v.string(),
+        setCode: v.string(),
+    }).index("by_user_and_card", ["userId", "cardKey"]),
+
     // Card Prints (ADR 0140, issue #4116): one row per Scryfall printing of a
     // Card Definition, filled by `bun run prints:sync`. Replaces the 1,409
     // hand-written `CardPrint` literals in `convex/cards/sets/**` — every

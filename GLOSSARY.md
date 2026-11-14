@@ -939,7 +939,7 @@ The printed token card paired with one specific **Card Print**: the token of tha
 _Avoid_: Token art, token image
 
 **Print ID**:
-The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). Chosen by the player for each card of a **Deck** — a deck entry names both — and carried into the **Game**, where it decides only which image is shown, in the deck builder and on the board; the rules engine never reads it. The one place a printing matters beyond its image is legality in an edition-scoped **Format** (Old School, Alpha 40), which judges the chosen printing's **Set** and **Rarity** (ADR 0140).
+The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). Chosen by the player for each card of a **Deck** — a deck entry names both — and carried into the **Game**, where it decides only which image is shown, in the deck builder and on the board; the rules engine never reads it. The one place a printing matters beyond its image is legality in an edition-scoped **Format** (Old School, Alpha 40), which judges the chosen printing's **Set** and **Rarity** (ADR 0140). A Print ID picked for a card in the deck builder's search results is saved as the user's preferred printing of that card, keyed by its name, and shown and added by default from then on, on every device — unless the **Format**'s allowed **Sets** or an active Set filter exclude it, where the default printing shows for that view; the preference never bypasses deck validation.
 _Avoid_: Edition ID, art ID
 
 **Rarity**:
