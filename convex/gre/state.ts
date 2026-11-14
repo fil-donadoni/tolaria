@@ -11382,8 +11382,6 @@ function stageReanimatedOnBattlefield(
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     tapOnEntry(state, card, entryOpts?.authoredEntry);
     getPlayer(state, controllerId).battlefield.push(card);
-    // Ahead of the ETB announcement (`finishReanimatedEntry`), as a token's is.
-    joinCombatOnEntry(state, card, entryOpts?.authoredEntry);
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): reanimation
     // / put-onto-battlefield happens MID-resolution, so the SBA sweep is too
     // late for a later clause of the same effect to read the designation.
@@ -11402,6 +11400,7 @@ function attackTargetOwedOnEntry(
     authored: AuthoredEntryState | undefined
 ): AsEntersChoice[] {
     return authored?.entersAttacking &&
+        authored.attackTargetSpecified !== true &&
         state.combat &&
         card.types.includes("Creature") &&
         controllerId === state.activePlayerId
@@ -11460,7 +11459,9 @@ function joinCombatOnEntry(
 function finishReanimatedEntry(
     state: GameState,
     card: CardInstanceState,
-    enteredFromGraveyard?: boolean
+    enteredFromGraveyard?: boolean,
+    /** CR 508.4 — the putting effect's "attacking", joined below. */
+    authoredEntry?: AuthoredEntryState
 ): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
@@ -11470,6 +11471,12 @@ function finishReanimatedEntry(
     // push out to matching battlefield permanents (e.g. a reanimated
     // Goblin King re-grants mountainwalk to allied Goblins).
     beginApplyingStaticEffects(state, card);
+    // CR 508.4 / 506.3a — join combat once the permanent's OWN statics apply:
+    // whether it is a creature is read on the battlefield, its own static
+    // abilities included (as CR 614.12 reads an entering permanent), so a
+    // planeswalker that is a creature on its controller's turn attacks. Still
+    // ahead of the ETB announcement, so PERMANENT_ENTERED reports it attacking.
+    joinCombatOnEntry(state, card, authoredEntry);
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
@@ -11514,7 +11521,7 @@ function putReanimatedOnBattlefield(
             ...(authoredEntry ? { authoredEntry } : {}),
         })
     ) {
-        finishReanimatedEntry(state, card, enteredFromGraveyard);
+        finishReanimatedEntry(state, card, enteredFromGraveyard, authoredEntry);
         return true;
     }
     return false;
@@ -13058,7 +13065,8 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     finishReanimatedEntry(
                         state,
                         entry.card,
-                        entry.enteredFromGraveyard
+                        entry.enteredFromGraveyard,
+                        entry.authoredEntry
                     );
             }
             return;
@@ -18973,17 +18981,6 @@ export function buildSpellContext(
 
         setAllCreaturesMustAttack(playerId: string): void {
             state.allCreaturesMustAttack = playerId;
-        },
-
-        // CR 506.3c / 508.4 — join the CURRENT combat as an attacker without
-        // ever having been declared as one, against the defender stamped by
-        // the ninjutsu cost payment (CR 702.49c). `joinCombatAttacking` is the
-        // one entry every put-onto-the-battlefield-attacking path shares.
-        enterCombatAttacking(cardInstanceId: string): void {
-            if (!state.combat) return;
-            const found = findOnBattlefield(state, cardInstanceId);
-            if (!found) return;
-            joinCombatAttacking(state, found.card);
         },
 
         removeFromCombat(target: TargetSelection): void {

@@ -4481,10 +4481,9 @@ export const OP_EXECUTORS: {
     //    picks binding directly instead of `resolveObjectRef`. `to:
     //    "battlefield"` routes through `putFromLibraryOntoBattlefield` /
     //    `putFromHandOntoBattlefield` (a fetchland / Stoneforge Mystic's
-    //    second ability) — `tapped` forces the entering permanent tapped
-    //    (Fabled Passage) via a direct `ctx.tap` immediately after entry, a
-    //    simplification that skips any "as this enters tapped" replacement
-    //    interaction (none of the cube cards using it need one); `bind`
+    //    second ability) — `tapped` makes the permanent enter tapped
+    //    (Fabled Passage) through the entry funnel (CR 110.5b), so
+    //    PERMANENT_ENTERED already reports it; `bind`
     //    (`to: "battlefield"` only)
     //    snapshots the entered permanent so a follow-up Op can act on it — a
     //    haste grant + `delayedTrigger` capture for the SPECIFIC creature
@@ -4866,10 +4865,28 @@ export const OP_EXECUTORS: {
             // land drop and fires ETB triggers normally (CR 603.6).
             const owner = target.playerId;
             if (owner === undefined || op.to !== "battlefield") return;
+            // CR 508.4 / 110.5b — "tapped and attacking" is HOW it enters, so
+            // both riders go into the entry funnel and the permanent is tapped
+            // and attacking before PERMANENT_ENTERED is announced. The effect
+            // specifies the defender (CR 702.49c): the permanent's own
+            // `enterAttackingTarget` stamp, never an as-enters choice.
+            const attacking = "attacking" in op && op.attacking === true;
+            const authoredEntry =
+                op.tapped || attacking
+                    ? {
+                          ...(op.tapped ? { entersTapped: true } : {}),
+                          ...(attacking
+                              ? {
+                                    entersAttacking: true,
+                                    attackTargetSpecified: true,
+                                }
+                              : {}),
+                      }
+                    : undefined;
             const entered = ctx.putFromHandOntoBattlefield(
                 owner,
                 target.id,
-                op.tapped ? { entersTapped: true } : undefined
+                authoredEntry
             );
             if (!entered) return; // CR 608.2b — a staging redirect or a
             // card no longer in hand
@@ -4878,11 +4895,6 @@ export const OP_EXECUTORS: {
                     type: "permanent",
                     id: target.id,
                 });
-            }
-            // CR 506.3c / 702.49c — join the current combat as an attacker,
-            // against the defender stamped by the ninjutsu cost payment.
-            if ("attacking" in op && op.attacking) {
-                ctx.enterCombatAttacking(target.id);
             }
             return;
         }
