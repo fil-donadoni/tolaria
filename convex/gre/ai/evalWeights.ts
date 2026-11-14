@@ -412,6 +412,13 @@ export type EvalWeights = {
      *  board it may not block. Below 1 at the prior: toughness still shields
      *  an attacker from burn. */
     cannotBlockShare: number;
+    /** Issue #5363 — the margin points one mana of a known spell's cost is
+     *  worth when a standing cost modifier moves it (CR 601.2f): a tax on
+     *  the opponent's spells earns it per mana, one on its controller's own
+     *  costs it, a reduction the other way round. Read by
+     *  `ai/costModifierPricing.ts`; the source's board term, its removal
+     *  lens and its hand face all carry the same number. */
+    costTaxWeight: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -546,6 +553,13 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // flat −30 `defender` prices for the printed keyword.
     cannotAttackShare: 0.75,
     cannotBlockShare: 0.75,
+    // Issue #5363 — half a renewable mana source's price (`manaWeight` ≈ 12
+    // at the prior's scale): a source pays one mana every turn it stays, a
+    // tax takes one mana from one spell once. On an opponent's hand of three
+    // spells a Sphere of Resistance reads 18 — the order of the `base + MV`
+    // floor it replaces, so the slice moves decisions where the hand says so
+    // without pinning the reward band.
+    costTaxWeight: 6,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,

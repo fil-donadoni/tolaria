@@ -197,6 +197,8 @@ const FITTABLE_TERM_WEIGHTS = [
     // Issue #5154 — the restriction-share units.
     "cannotAttackShare",
     "cannotBlockShare",
+    // Issue #5363 — the cost-modifier mana-economy unit.
+    "costTaxWeight",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

@@ -219,6 +219,16 @@
     ],
     "Disenchant": [
         {
+            "label": "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "cost-modifier pricing: with a hand of five-drops Trinisphere does not tax, Disenchant takes the 2-MV artifact (issue #5363)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",
             "tier": "must",
             "needsSetup": false
