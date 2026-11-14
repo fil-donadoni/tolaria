@@ -63,7 +63,10 @@ import {
 import { beginLayer7Pass, getEffectivePower, getEffectivePT } from "../layers";
 import { instanceManaValue } from "../paymentPicks";
 import { tryGetDefinition } from "../../cards";
-import { graveyardTopReadTypes } from "./graveyardPositionReaders";
+import {
+    graveyardTopReadTypes,
+    type ReaderBoard,
+} from "./graveyardPositionReaders";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
 // VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
 // #2983). The cycle is deliberate and safe: both bindings are hoisted function
@@ -3158,7 +3161,7 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
  *  state (`isSearchableChoiceNode`). */
 function graveyardOrderIsSearchable(
     choice: PendingChoice,
-    state: GameState | undefined
+    state: ReaderBoard | undefined
 ): boolean {
     if (!state) return false;
     return (
@@ -3345,7 +3348,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
 const CHOICE_GENERATOR_APPLIES: Partial<
     Record<
         PendingChoiceKind,
-        (choice: PendingChoice, state: GameState | undefined) => boolean
+        (choice: PendingChoice, state: ReaderBoard | undefined) => boolean
     >
 > = {
     "choose-hand-card": handPickIsSearchable,
@@ -3381,7 +3384,7 @@ export function hasChoiceCandidateGenerator(kind: PendingChoiceKind): boolean {
  *  fallback (PR #1914 review finding 2). */
 export function isSearchableChoiceNode(
     choice: PendingChoice,
-    state?: GameState
+    state?: ReaderBoard
 ): boolean {
     if (CHOICE_CANDIDATE_GENERATORS[choice.kind] === undefined) return false;
     const applies = CHOICE_GENERATOR_APPLIES[choice.kind];
