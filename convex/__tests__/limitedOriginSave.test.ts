@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
-import { create, get, migrateLimitedOrigins } from "../userDecks";
+import { create, get, migrateLimitedOrigins, update } from "../userDecks";
 import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -71,6 +71,20 @@ describe("Limited Origin on a deck saved from an event (issue #5393)", () => {
             ...limitedDeck("event-1"),
             limitedOrigin: "sealed:lea",
         });
+        expect(tables.userDecks[0].limitedOrigin).toBe("draft:cube:vintage");
+    });
+
+    it("survives a rename: the name is free, the classification is not", async () => {
+        const { ctx, tables } = makeInMemoryDb(
+            {
+                users: [{ _id: ALICE, nickname: "Alice" }],
+                limitedEvents: [cubeDraftEvent("event-1")],
+            },
+            { identitySubject: `${ALICE}|session` }
+        );
+        const deckId = await run(create, ctx, limitedDeck("event-1"));
+        await run(update, ctx, { id: deckId, patch: { name: "Reanimator" } });
+        expect(tables.userDecks[0].name).toBe("Reanimator");
         expect(tables.userDecks[0].limitedOrigin).toBe("draft:cube:vintage");
     });
 
