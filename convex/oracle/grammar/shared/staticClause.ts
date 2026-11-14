@@ -578,11 +578,23 @@ export type StaticClauseIR =
      */
     | {
           readonly kind: "equipped-host";
-          readonly effects: readonly Extract<
-              HostEffectIR,
-              { kind: "pt-buff" } | { kind: "keyword-grant" }
-          >[];
+          readonly effects: readonly PumpOrKeywordIR[];
+      }
+    /**
+     * CR 702.178a — "Max speed — This creature gets +1/+2" / "… has double
+     * strike": the permanent's own buff and keywords, which it has only as
+     * long as its controller's speed is 4.
+     */
+    | {
+          readonly kind: "max-speed-self";
+          readonly effects: readonly PumpOrKeywordIR[];
       };
+
+/** The two effects a "gets +N/+N[ and has <keyword list>]" predicate names. */
+export type PumpOrKeywordIR = Extract<
+    HostEffectIR,
+    { kind: "pt-buff" } | { kind: "keyword-grant" }
+>;
 
 /** What a kicked entry rider's "and with …" tail grants the permanent itself
  *  — the three host-effect shapes that name an ABILITY (CR 614.1c). */
@@ -2690,32 +2702,80 @@ const equippedHostRule: Rule<StaticClauseIR> = rule(
                 '"equipped creature" on a card that is not an Equipment (CR 301.5)',
                 span
             );
-        let rest = match[1]!;
-        const effects: Extract<
-            HostEffectIR,
-            { kind: "pt-buff" } | { kind: "keyword-grant" }
-        >[] = [];
-        const pt = rest.match(HOST_PT);
-        if (pt !== null) {
-            effects.push({
-                kind: "pt-buff",
-                power: signedModifier(pt[1]!),
-                toughness: signedModifier(pt[2]!),
-            });
-            rest = pt[3] ?? "";
-        }
-        if (rest.length > 0) {
-            if (!rest.startsWith("has ") || QUOTED_GRANT.test(rest))
-                return fail(
-                    `"${rest}" is not an effect this frame reads on an equipped creature`,
-                    span
-                );
-            const keywords = readGrantedKeywords(rest.slice("has ".length));
-            if (!keywords.ok) return keywords;
-            for (const keyword of keywords.value)
-                effects.push({ kind: "keyword-grant", keyword });
-        }
-        return ok({ kind: "equipped-host" as const, effects });
+        const effects = readPumpAndKeywords(
+            match[1]!,
+            "an equipped creature",
+            span
+        );
+        if (!effects.ok) return effects;
+        return ok({ kind: "equipped-host" as const, effects: effects.value });
+    }
+);
+
+/**
+ * "gets +N/+N[ and has <keyword list>]" or "has <keyword list>" — a P/T
+ * clause, one keyword list, or both. Any other tail (a quoted ability,
+ * "loses", "can't block", "for each …", "as long as …") fails whole.
+ */
+function readPumpAndKeywords(
+    predicate: string,
+    subject: string,
+    /** The whole sentence, the span a refusal names. */
+    span: string
+): RuleResult<readonly PumpOrKeywordIR[]> {
+    let rest = predicate;
+    const effects: PumpOrKeywordIR[] = [];
+    const pt = rest.match(HOST_PT);
+    if (pt !== null) {
+        effects.push({
+            kind: "pt-buff",
+            power: signedModifier(pt[1]!),
+            toughness: signedModifier(pt[2]!),
+        });
+        rest = pt[3] ?? "";
+    }
+    if (rest.length > 0) {
+        if (!rest.startsWith("has ") || QUOTED_GRANT.test(rest))
+            return fail(
+                `"${rest}" is not an effect this frame reads on ${subject}`,
+                span
+            );
+        const keywords = readGrantedKeywords(rest.slice("has ".length));
+        if (!keywords.ok) return keywords;
+        for (const keyword of keywords.value)
+            effects.push({ kind: "keyword-grant", keyword });
+    }
+    return ok(effects);
+}
+
+// ── Frame: max speed on the permanent itself (CR 702.178a) ────────────────
+
+const MAX_SPEED_SELF = /^Max speed \u2014 (.+?) ((?:gets|has) .+)$/;
+
+/**
+ * CR 702.178a — "Max speed — This creature gets +1/+1 and has menace."
+ * (Walking Sarcophagus, Swiftwing Assailant, Burnout Bashtronaut). Max speed
+ * is a keyword, not an ability word: the ability behind it exists only as
+ * long as its controller's speed is 4, so the head survives as the effects'
+ * condition. The subject must be the permanent itself; a sentence that also
+ * names other objects ("Tsagan has deathtouch and other creatures you control
+ * have first strike") fails the keyword list and the line whole.
+ */
+const maxSpeedSelfRule: Rule<StaticClauseIR> = rule(
+    "max speed self static",
+    (span): RuleResult<StaticClauseIR> => {
+        const match = span.match(MAX_SPEED_SELF);
+        if (match === null)
+            return fail('not "Max speed — <self> gets/has …"', span);
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(`"${match[1]}" is not the permanent itself`, span);
+        const effects = readPumpAndKeywords(
+            match[2]!,
+            "the permanent itself",
+            span
+        );
+        if (!effects.ok) return effects;
+        return ok({ kind: "max-speed-self" as const, effects: effects.value });
     }
 );
 
@@ -3099,5 +3159,6 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         enchantedHostRule,
         youControlHostRule,
         equippedHostRule,
+        maxSpeedSelfRule,
     ])
 );

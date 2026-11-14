@@ -1122,6 +1122,8 @@ export function lowerStaticClause(
         case "enchanted-host":
         case "equipped-host":
             return lowerHostClause(clause, nextId);
+        case "max-speed-self":
+            return lowerMaxSpeedSelf(clause);
         default: {
             const never: never = clause;
             return {
@@ -1325,6 +1327,46 @@ function grantCensus(
             implemented: k.status === "implemented",
         })),
         ...(ungrantable.length > 0 ? { ungrantableKeywords: ungrantable } : {}),
+    };
+}
+
+/**
+ * CR 702.178a — "Max speed — <self> gets +N/+N[ and has <keywords>]": the
+ * permanent's own buff and grants, each existing only while its controller
+ * has max speed. A conditional grant, so no keyword is expanded at the
+ * definition level (`grantCensus`'s default).
+ */
+function lowerMaxSpeedSelf(
+    clause: Extract<StaticClauseIR, { kind: "max-speed-self" }>
+): LowerStaticResult {
+    const condition = { kind: "you-have-max-speed" as const };
+    const effects: CompiledStaticEffect[] = [];
+    const keywords: { ability: string; status: string }[] = [];
+    for (const effect of clause.effects) {
+        if (effect.kind === "pt-buff") {
+            effects.push({
+                kind: "pt-buff",
+                appliesTo: "self",
+                power: effect.power,
+                toughness: effect.toughness,
+                condition,
+            });
+            continue;
+        }
+        keywords.push(effect.keyword);
+        effects.push({
+            kind: "keyword-grant",
+            appliesTo: "self",
+            keyword: effect.keyword.ability,
+            condition,
+        });
+    }
+    return {
+        ok: true,
+        lowered: {
+            effects,
+            ...(keywords.length > 0 ? grantCensus(keywords) : {}),
+        },
     };
 }
 

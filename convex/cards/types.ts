@@ -9555,6 +9555,12 @@ export interface StaticEffectStateView {
          *  stripping only `.card`), so the count is identical server-side and
          *  after `projectPublicState`. */
         graveyard: ReadonlyArray<GraveyardCardView>;
+        /** CR 702.179b — this player's speed, read by a compiled max speed
+         *  static (CR 702.178a). Absent reads as no speed, so the gate fails
+         *  closed: the server view is the `GameState` itself, the client's
+         *  `toLayerState` copies the projected `PlayerState.speed`, and only
+         *  `manaLayerView`'s hand-built fallback has none to report. */
+        readonly speed?: number;
         /** This player's hand, exposed ONLY as a count (mirrors
          *  `TriggerStateView.hand`, issue #1379) for a "you have N or fewer
          *  cards in hand" board-state gate — e.g. a `pt-buff`/`keyword-grant`
