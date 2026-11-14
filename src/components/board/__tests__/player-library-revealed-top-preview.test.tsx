@@ -158,7 +158,13 @@ describe("revealed library top card preview (issue #2401)", () => {
 
     it("an unrevealed top is a card back with no preview affordance", () => {
         const { container } = renderLibrary(makePlayer("me", false), "me");
-        expect(container.querySelector('[data-flight-id="top"]')).toBeNull();
+        // Every visible pile slot is a card back — no card art, no preview.
+        const slots = container.querySelectorAll("[data-flight-id]");
+        expect(slots.length).toBeGreaterThan(0);
+        for (const s of slots) {
+            const alts = [...s.querySelectorAll("img")].map((i) => i.alt);
+            expect(alts).toEqual(["Card back"]);
+        }
         const slot = container.querySelector("[data-flight-id]") as HTMLElement;
         act(() => {
             fireEvent.touchStart(slot, {
