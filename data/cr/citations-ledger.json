@@ -59879,7 +59879,6 @@
         {"id":"701.21","line":"it(\"declining the {U}{U} payment sacrifices the enchantment (CR 701.21)\", () => {","sites":1,"status":"baseline"},
         {"id":"400.7","line":"* 400.7 zone change that PUTS the card, never casts it. Orthogonal","sites":1,"status":"baseline"},
         {"id":"613.4","line":"it(\"a +1/+1 counter (7c) stacks on the copied 7b base P/T (CR 613.4)\", () => {","sites":1,"status":"baseline"},
-        {"id":"613.1f","line":"// CR 613.1f — \"<group> gain <keyword> until end of turn\": `grantAbility`","sites":2,"status":"confirmed","ruleHash":"5989d9ab6130f2aa"},
         {"id":"608.2h","line":"// CR 608.2h / 111.12 (ADR 0086, issue #3453) — the last-known COPIABLE","sites":1,"status":"baseline"},
         {"id":"701.19","line":"// counters / 701.19 search / 400.7 / 701.24 shuffle / 613.1b control change.)","sites":1,"status":"baseline"},
         {"id":"603.7a","line":"// CR 603.7a (issue #3383) — the non-creature branch's own reading of","sites":1,"status":"confirmed","ruleHash":"403031757c3b747b"},
