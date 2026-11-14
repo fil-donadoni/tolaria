@@ -507,6 +507,13 @@
             "needsSetup": false
         }
     ],
+    "Hermit Druid": [
+        {
+            "label": "discriminating pair: reveals its whole library and reads the payoff off the graveyard's top",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Hibernation": [
         {
             "label": "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana",

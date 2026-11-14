@@ -1340,6 +1340,61 @@
             "opp": 20
         }
     },
+    "discriminating pair: reveals its whole library and reads the payoff off the graveyard's top": {
+        "cards": [
+            {
+                "name": "Hermit Druid",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Volrath's Shapeshifter",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Phyrexian Dreadnought",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 2,
+        "libraryCount": 0,
+        "life": {
+            "me": 20,
+            "opp": 10
+        }
+    },
     "dominance NEGATIVE CONTROL: activates the Salvager once a token exists": null,
     "dominance NEGATIVE CONTROL: still casts Damnation into a real board": {
         "cards": [

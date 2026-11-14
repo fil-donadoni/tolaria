@@ -15,7 +15,23 @@
 import type { CardType, FullTextEffect } from "../../cards/types";
 import { declaresFullTextEffect, tryGetDefinition } from "../../cards";
 import { copiableDefId } from "../fullText";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState } from "../state";
+
+/** What a reader is read off: the layer-1 anchor, the presented id, face-down
+ *  status and control. Structural, so the client's projected state (a slim
+ *  `card: { id }`) reads the same board the search reads. */
+type ReaderCard = Pick<
+    CardInstanceState,
+    "fullTextAnchor" | "faceDown" | "controllerId"
+> & { card: { id?: string } | Record<string, unknown> };
+
+/** The board a reader scan needs — a `GameState` or the projected public one. */
+export type ReaderBoard = {
+    players: ReadonlyArray<{
+        id: string;
+        battlefield: ReadonlyArray<ReaderCard>;
+    }>;
+};
 
 /** The card types `effect` wants on top of its controller's graveyard. */
 function readTypesOf(effect: FullTextEffect): CardType[] {
@@ -26,9 +42,12 @@ function readTypesOf(effect: FullTextEffect): CardType[] {
 
 /** The `fullText` effect `card` carries on its layer-1 text, if any (a
  *  face-down reader reads nothing, CR 708.2). */
-function readerEffectOf(card: CardInstanceState): FullTextEffect | undefined {
+function readerEffectOf(card: ReaderCard): FullTextEffect | undefined {
     if (card.faceDown) return undefined;
-    const layer1Id = copiableDefId(card);
+    const layer1Id = copiableDefId({
+        card: card.card as Record<string, unknown>,
+        fullTextAnchor: card.fullTextAnchor,
+    });
     return declaresFullTextEffect(layer1Id)
         ? tryGetDefinition(layer1Id)?.fullText
         : undefined;
@@ -39,7 +58,7 @@ function readerEffectOf(card: CardInstanceState): FullTextEffect | undefined {
  *  the gate every consumer tests first: with no reader the arrangement is
  *  not a decision (`graveyardOrderCandidates`, `choiceCandidates.ts`). */
 export function graveyardTopReadTypes(
-    state: GameState,
+    state: ReaderBoard,
     playerId: string
 ): Set<CardType> {
     const out = new Set<CardType>();
