@@ -18,6 +18,7 @@ import { copyExceptName, objectHasChosenName } from "../cards/cardNames";
 import {
     declaresGraveyardStaticEffect,
     declaresLayer7StaticEffect,
+    LAYER_2_5_STATIC_KINDS,
 } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
@@ -32,7 +33,7 @@ import type {
 // Type-only (issue #5154): the plan's shape belongs to the Brain module that
 // fills it; a runtime import here would be an engine → AI dependency.
 import type { RestrictionPlan } from "./ai/restrictionPricing";
-import { staticEffectFunctionsFrom } from "../cards/types";
+import { staticEffectAbility, staticEffectFunctionsFrom } from "../cards/types";
 import type {
     CardType,
     Color,
@@ -407,7 +408,77 @@ type Layer7SourceCandidate = {
      *  (`ce-src-<sourceId>-<index>`) and the `effectIndex` a template payload
      *  is resolved back through (`resolveLayer7Payload`). */
     index: number;
+    /** CR 613.6 — what can keep this entry applying once layer 6 has stripped
+     *  its source. A fact about the source's DEFINITION, so it is read once
+     *  per plan; whether the source IS stripped is read per target. */
+    afterAbilityRemoval: AbilityRemovalSurvival;
 };
+
+/** CR 613.6 — how a layer-7 entry can outlive layer 6 removing its source's
+ *  abilities (CR 613.1f). Only through a part of the SAME ability
+ *  (`StaticAbilityIdentity`, CR 113.2c) that started to apply before the
+ *  removal did:
+ *
+ *  - `"earlier-layer"` — the ability has a part in layers 2-5. Those are
+ *    applied before layer 6 (CR 613.1), and `layers2to5.ts` never gates a
+ *    source on suppression, so that part has already applied (Opalescence's
+ *    `type-add`): the layer-7 part continues.
+ *  - `"own-removal"` — the ability's layer-6 part is an `ability-loss`, and
+ *    the layer-7 part continues exactly when that loss applied to the source
+ *    ITSELF (Humility made a creature). An effect that removes its own
+ *    source's abilities has applied by then: the existence limb marks a
+ *    source destroyed only AFTER applying the entry that destroyed it
+ *    (`applyExistence`, `gre/dependency.ts`).
+ *  - `"none"` — a pure layer-7 ability (a lord's anthem), or one whose only
+ *    earlier part is a layer-6 GRANT. A grant from a stripped source never
+ *    starts to apply: the strip changes the grant's existence, so CR 613.8a
+ *    makes the grant depend on it and CR 613.8b applies it last, which is to
+ *    say never (Lord of Atlantis's islandwalk under Humility). The grant would
+ *    apply first only if the strip in turn depended on the grant (a loop, CR
+ *    613.8b), and no stripper in the catalogue reads anything a grant can
+ *    change: Humility reads card types, Titania's Song printed types. */
+type AbilityRemovalSurvival = "earlier-layer" | "own-removal" | "none";
+
+/** The {@link AbilityRemovalSurvival} of `effects[index]`, read off the other
+ *  entries of its ability. */
+function abilityRemovalSurvival(
+    effects: readonly StaticEffect[],
+    index: number
+): AbilityRemovalSurvival {
+    const ability = staticEffectAbility(effects[index]);
+    let survival: AbilityRemovalSurvival = "none";
+    for (let i = 0; i < effects.length; i++) {
+        const part = effects[i];
+        if (i === index || staticEffectAbility(part) !== ability) continue;
+        if (LAYER_2_5_STATIC_KINDS.has(part.kind)) return "earlier-layer";
+        if (part.kind === "ability-loss") survival = "own-removal";
+    }
+    return survival;
+}
+
+/** CR 613.1f / 613.6 — whether a layer-7 entry of `source` still applies once
+ *  layer 6 is done with the source. Reads the layer-6 OUTCOME, the
+ *  `abilitiesSuppressedBy` record `syncLayer6` keeps on every permanent (and
+ *  the projection ships), rather than re-deriving layer 6 per P/T read: CR
+ *  613.8 has already decided, inside that derivation, which removal applied to
+ *  the source and whether its own came first. A source nothing has stripped —
+ *  every emblem, almost every permanent — answers on the first line. */
+function survivesAbilityRemoval(
+    source: PermanentView,
+    survival: AbilityRemovalSurvival
+): boolean {
+    const suppressedBy = (
+        source as {
+            abilitiesSuppressedBy?: ReadonlyArray<{ sourceId: string }>;
+        }
+    ).abilitiesSuppressedBy;
+    if (!suppressedBy || suppressedBy.length === 0) return true;
+    if (survival === "earlier-layer") return true;
+    if (survival === "own-removal") {
+        return suppressedBy.some((record) => record.sourceId === source.id);
+    }
+    return false;
+}
 
 /** The source half of one board's layer-7 derivation: WHICH objects declare a
  *  P/T effect, in walk order, and the board population it was read from
@@ -490,7 +561,12 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
             if (!isLayer7StaticEffect(effect)) continue;
             // CR 113.6b — an effect is read from the walk of its own zone only.
             if (!staticEffectFunctionsFrom(effect, zone)) continue;
-            candidates.push({ source, effect, index });
+            candidates.push({
+                source,
+                effect,
+                index,
+                afterAbilityRemoval: abilityRemovalSurvival(effects, index),
+            });
         }
     };
     for (const player of state.players) {
@@ -610,7 +686,8 @@ function layer7EffectsFor(
     // Everything below is the per-TARGET half, unchanged: the `applies`
     // predicate, the "as long as" gate and the entry itself are decided here,
     // against the live source, on every read.
-    for (const { source, effect, index } of sources.candidates) {
+    for (const candidate of sources.candidates) {
+        const { source, effect, index } = candidate;
         // CR 613.7a — a continuous effect generated by a static ability has
         // the timestamp of the object the ability is on. PRD #2064
         // S6b-part-2 reads that stamp here, as layers 2-5 and 6 already do;
@@ -632,6 +709,12 @@ function layer7EffectsFor(
         // without saying where in 613.4 it lands.
         const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
         if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
+        // CR 613.1f — layer 6 is applied before layer 7, so an ability it
+        // removed generates no layer-7 effect, unless CR 613.6 carries the
+        // part over from an earlier layer (`survivesAbilityRemoval`).
+        if (!survivesAbilityRemoval(source, candidate.afterAbilityRemoval)) {
+            continue;
+        }
         // CR 707.9d — a copy effect that provides a specific set of values for
         // P/T does not copy the CDA defining it ("except it's 7/7" over a
         // Tarmogoyf is 7/7): the stamp names the base 7a would otherwise add to.
