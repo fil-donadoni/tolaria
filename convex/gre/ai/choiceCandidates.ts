@@ -63,6 +63,7 @@ import {
 import { beginLayer7Pass, getEffectivePower, getEffectivePT } from "../layers";
 import { instanceManaValue } from "../paymentPicks";
 import { tryGetDefinition } from "../../cards";
+import { graveyardTopReadTypes } from "./graveyardPositionReaders";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
 // VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
 // #2983). The cycle is deliberate and safe: both bindings are hoisted function
@@ -1498,11 +1499,13 @@ export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
 ): Move | null {
-    // CR 404.3 (issue #9554) — a graveyard batch's arrangement is no in-tree
-    // node: the order only matters to a "top card of a graveyard" reader no
-    // evaluator term prices, and N! permutations would bury the search. The
-    // forced answer keeps the engine order, so a simultaneous death never
-    // stops the settle before the death triggers it raised.
+    // CR 404.3 (issue #9554) — a graveyard batch's arrangement whose owner
+    // controls no graveyard-position reader is no in-tree node: the order
+    // changes nothing the evaluation reads, and N! permutations would bury the
+    // search. The forced answer keeps the engine order, so a simultaneous
+    // death never stops the settle before the death triggers it raised. With
+    // a reader on the board `graveyardOrderCandidates` (issue #9555) opens the
+    // node first and this branch is never reached.
     if (choice.kind === "graveyard-order") {
         return {
             kind: "resolution-choice",
@@ -3146,6 +3149,101 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** The applicability gate `graveyardOrderCandidates` declines on — ONE
+ *  predicate for gate and generator. CR 404.3 (issue #9555): the arrangement
+ *  of a graveyard batch is a decision only while its owner controls a
+ *  graveyard-position reader (`graveyardTopReadTypes`); otherwise no
+ *  evaluation term reads the order and the forced engine order stands.
+ *  Reads the board, so the client-side `searchable` gate must pass the
+ *  state (`isSearchableChoiceNode`). */
+function graveyardOrderIsSearchable(
+    choice: PendingChoice,
+    state: GameState | undefined
+): boolean {
+    if (!state) return false;
+    return (
+        graveyardTopReadTypes(state, choice.zoneOwnerId ?? choice.playerId)
+            .size > 0
+    );
+}
+
+/** `graveyard-order` (CR 404.3) — "the owner of those cards may arrange them
+ *  in any order", decided by what the owner's graveyard-position readers want
+ *  on TOP (issue #9555, the self-mill × top-of-graveyard reader class: a
+ *  whole library put into the graveyard by a reveal, then read by a permanent
+ *  that takes the top creature card's text).
+ *
+ *  One candidate per DISTINCT card the readers can read, placed on top with
+ *  the rest left in engine order — never the N! permutations — plus the
+ *  engine order itself as the baseline, so the search may still decline to
+ *  arrange. Best-worth-first, `materialGained` = the top card's worth, which
+ *  is the prior's signal; the reward decides, on the presented text the SBA
+ *  re-sweep installs right after the answer (`syncFullTextEffects`). */
+const graveyardOrderCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    if (!graveyardOrderIsSearchable(choice, state)) return [];
+    const ownerId = choice.zoneOwnerId ?? choice.playerId;
+    const readTypes = graveyardTopReadTypes(state, ownerId);
+    const owner = state.players.find((p) => p.id === ownerId);
+    const engineOrder = [...(choice.candidateIds ?? [])];
+    const batch = engineOrder.flatMap((id) => {
+        const card = owner?.graveyard.find((c) => c.id === id);
+        return card ? [card] : [];
+    });
+    // CR 108.2b — a token in the batch is no card for a reader.
+    const readable = batch
+        .filter(
+            (card) =>
+                card.isToken !== true &&
+                card.types.some((type) => readTypes.has(type))
+        )
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (a, b) =>
+                b.worth - a.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seenIdentity = new Set<string>();
+    const seenOrder = new Set<string>();
+    const emit = (
+        ids: string[],
+        key: string,
+        hint?: ChoiceCandidateHint
+    ): void => {
+        const orderKey = ids.join(",");
+        if (seenOrder.has(orderKey)) return;
+        seenOrder.add(orderKey);
+        out.push({
+            key,
+            move: {
+                kind: "resolution-choice",
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: ids,
+            },
+            ...(hint ? { hint } : {}),
+        });
+    };
+    for (const { card, identity, worth } of readable) {
+        if (out.length >= CHOICE_TOP_K - 1) break;
+        if (seenIdentity.has(identity)) continue;
+        seenIdentity.add(identity);
+        emit(
+            [card.id, ...engineOrder.filter((id) => id !== card.id)],
+            `graveyard-order:top=${identity}`,
+            { materialGained: worth }
+        );
+    }
+    emit(engineOrder, "graveyard-order:engine");
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -3213,6 +3311,9 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "choose-permanents": choosePermanentsCandidates,
     // CR 614.12a — the as-enters graveyard exile; see `graveyardExileCandidates`.
     "choose-graveyard-card": graveyardExileCandidates,
+    // CR 404.3 (issue #9555) — the arrangement of a graveyard batch, a node
+    // only under a graveyard-position reader (`graveyardOrderIsSearchable`).
+    "graveyard-order": graveyardOrderCandidates,
     // CR 609.7a (issue #5601) — see `pickSourceCandidates`: without a
     // generator the settle stopped at the source pick and never scored the
     // shield the Circle of Protection buys.
@@ -3242,7 +3343,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
  *  A kind with no entry applies unconditionally, which is the historical
  *  behavior of every pre-#1888 tranche. */
 const CHOICE_GENERATOR_APPLIES: Partial<
-    Record<PendingChoiceKind, (choice: PendingChoice) => boolean>
+    Record<
+        PendingChoiceKind,
+        (choice: PendingChoice, state: GameState | undefined) => boolean
+    >
 > = {
     "choose-hand-card": handPickIsSearchable,
     // Issue #2996 — a reorder-only `order-top` (`destination: "none"`, Ponder /
@@ -3256,6 +3360,9 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     "choose-permanents": choosePermanentsIsSearchable,
     "choose-graveyard-card": graveyardExileIsSearchable,
     "name-card": librarySoughtNameIsSearchable,
+    // Issue #9555 — reads the BOARD (is a graveyard-position reader out?), so
+    // it is the one gate that needs the state beside the choice.
+    "graveyard-order": graveyardOrderIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).
@@ -3272,10 +3379,13 @@ export function hasChoiceCandidateGenerator(kind: PendingChoiceKind): boolean {
  *  every mandatory hand pick (a Brainstorm putback, a discard cost) on a Worker
  *  round-trip that enumerates nothing and lands on the driver's emergency
  *  fallback (PR #1914 review finding 2). */
-export function isSearchableChoiceNode(choice: PendingChoice): boolean {
+export function isSearchableChoiceNode(
+    choice: PendingChoice,
+    state?: GameState
+): boolean {
     if (CHOICE_CANDIDATE_GENERATORS[choice.kind] === undefined) return false;
     const applies = CHOICE_GENERATOR_APPLIES[choice.kind];
-    return applies ? applies(choice) : true;
+    return applies ? applies(choice, state) : true;
 }
 
 /** Stable-sort by prior, highest first, then take the top K. Ties keep
