@@ -41,7 +41,7 @@ export async function loadScenarioIntoGame(
     const gameState = await getLatestGameState(ctx, gameId);
     if (!gameState) {
         // No saved state is two different faults: no such Game, or a Game
-        // whose Match still sits on the coin-toss gate (CR 103.2-103.4), where
+        // whose Match still sits on the coin-toss gate (CR 103.1), where
         // the state is written only once `chooseFirstPlayer` resolves it.
         const pending = await ctx.db.get(gameId);
         throw new Error(

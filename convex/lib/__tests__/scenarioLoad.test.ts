@@ -1,5 +1,5 @@
 // loadScenarioIntoGame — the refusal for a Game with no saved state: a missing
-// Game and a pregame Game (coin-toss gate, CR 103.2-103.4) read differently.
+// Game and a pregame Game (coin-toss gate, CR 103.1) read differently.
 import { describe, it, expect, vi } from "vitest";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
