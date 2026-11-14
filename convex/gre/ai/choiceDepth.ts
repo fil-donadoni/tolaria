@@ -172,6 +172,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     lockDamage: false,
     lookHand: false,
     lookRandomHand: false,
+    loseAbility: false,
     loseAllAbilities: false,
     loseAllAbilitiesWhileSourceRemains: false,
     loseLife: false,

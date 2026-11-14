@@ -3674,6 +3674,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Grant a keyword static ability to a permanent for a limited duration (layer 6, CR 611.2a / 613.1f, issue #843). A thin declarative skin over one SpellContext primitive, one execution path (ADR 0045): `ability` is the free-form keyword granted ("flying", "trample", "haste", "banding", …; read at combat / rules-check time), `target` is an announced slot, the resolving source (`$source` — a permanent granting itself), or a forEach `$each` (a mass grant), and `duration` is the phase boundary at which the grant expires (CR 611.2 — the phase-boundary purge splices the keyword back out). The primitive appends to `staticAbilities` and is skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the grantStaticAbility closures the migration classifier folds here (~52 blocked closures at ship time). Ability REMOVAL / loss (`removeStaticAbilities`) takes a predicate closure — not JSON-expressible — and stays resolve() by design; the permanent-grant variant (`grantStaticAbilityPermanent`, no duration, Cocoon-style Aura hatch) is not folded here. Two further payloads ride the SAME Op, exactly one set per Op (validator-enforced): `grantedActivatedId` (issue #738, Touch of Vitae) names an activated-ability template on the resolving source\'s `grantTemplates[]`, and `grantedTriggeredId` (issue #1665, Guardian Scalelord\'s Backup 1) names a TRIGGERED-ability template on its `triggeredGrantTemplates[]` — `effectiveTriggeredAbilities` (gre/copy.ts) unions it into the recipient\'s triggers so the collector scans/resolves it as if printed there. All three legs mirror the keyword leg\'s duration split — omitted `duration` = INDEFINITE (CR 611.2a/c): `grantTriggeredAbility` / `grantTriggeredAbilityPermanent` for the triggered leg, and (issue #1880) `grantActivatedAbility` / `grantActivatedAbilityPermanent` for the activated one, whose indefinite primitive Urza\'s Saga chapters I / II need. A FOURTH payload (issue #1972, CR 508.1d / 613.1f): `attackRequirement: true` grants "This creature attacks each combat if able" through `SpellContext.grantAttackRequirement`, recorded per-instance on `CardInstanceState.grantedAttackRequirements` (omitted `duration` = indefinite, cleared on every CR 400.7 battlefield boundary; a `duration` is spliced by the phase-boundary purge) and read by the single predicate `hasAttackRequirement` (gre/combat.ts) alongside a printed `attack-requirement` — so declaration legality, the Bot\'s enumeration and the projected `mustAttack` client flag all see it. Its bot sign is parametrized (`opBeneficence`): harmful for the attack requirement, beneficial for every other leg.',
     },
     {
+        op: "loseAbility",
+        status: "implemented",
+        cr: "613.1f",
+        binding: "SpellContext.removeStaticAbilities",
+        note: 'A permanent LOSES ONE keyword ability (layer 6, CR 613.1f, issue #2125) — the removal twin of `grantAbility`\'s keyword leg. A thin declarative skin over `SpellContext.removeStaticAbilities` scoped to exactly `ability`, one execution path (ADR 0045). `target` is an announced slot, `$source` or a forEach `$each`; `duration` is the phase boundary at which the removal ends, OMITTED = INDEFINITE (CR 611.2a — "If no duration is stated, it lasts until the end of the game"; Elder Land Wurm\'s "When this creature blocks, it loses defender"). The removal is a layer-6 Continuous Effects Registry `keyword-remove` entry with its own timestamp (CR 613.7b), so a keyword granted AFTER it survives (CR 613.7), and it is purged when the permanent leaves play (CR 400.7). Radjan Spirit / Vertigo ("loses flying until end of turn"), Whiteout over a sweep. SCOPE: ONE named keyword — "loses all abilities" is `loseAllAbilities` (indefinite, every ability, no duration leg: its sentinel-keyed hold has no revert path), and a PREDICATE removal ("all landwalk abilities", "banding and all \'bands with other\'") stays a `resolve()` closure.',
+    },
+    {
         op: "addSubtype",
         status: "implemented",
         cr: "613.1d",
@@ -4431,8 +4438,9 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // EFFECT_OP_REGISTRY; row moved there with status "implemented".
     // grantAbility SHIPPED — grantStaticAbility is now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    // Ability removal / loss (`removeStaticAbilities`, a predicate closure)
-    // stays residual — not JSON-expressible as an Op.
+    // Single-keyword removal SHIPPED as `loseAbility` (issue #2125); a
+    // PREDICATE removal (`removeStaticAbilities` with a closure — "all
+    // landwalk abilities") stays residual.
     // libraryLook SHIPPED — shuffleLibrary is now COVERED live
     // via EFFECT_OP_REGISTRY; row moved there with status "implemented". Only
     // the shuffle primitive was folded (the one pure declarative library

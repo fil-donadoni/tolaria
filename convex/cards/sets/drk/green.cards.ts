@@ -409,9 +409,8 @@ export const savaenElves = defineCard(() => ({
 // Scarwood Hag — two activated abilities granting / stripping forestwalk until
 // end of turn (CR 605 activated abilities; CR 611 layer-6 keyword grant /
 // removal; CR 702.14c forestwalk). The grant reuses `grantStaticAbility` with an
-// end-of-turn DurationSpec (like Part Water, leg.ts); the strip reuses
-// `removeStaticAbilities` (the duration-scoped counterpart, used by Shelkin
-// Brownie / Tolaria).
+// end-of-turn DurationSpec (like Part Water, leg.ts); the strip is the
+// `loseAbility` Op (CR 613.1f, issue #2125), the removal twin of the grant.
 export const scarwoodHag = defineCard(() => ({
     id: "ac2655e4-3a4d-4f73-820a-02fab675d42e",
     rarity: "uncommon",
@@ -432,9 +431,7 @@ export const scarwoodHag = defineCard(() => ({
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant forestwalk to
-            // the announced target creature until end of turn (CR 611.2a). The
-            // sibling strip ability (removeStaticAbilities, a predicate closure)
-            // stays resolve() — not JSON-expressible as an Op.
+            // the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -451,15 +448,14 @@ export const scarwoodHag = defineCard(() => ({
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent")
-                    ctx.removeStaticAbilities(
-                        target,
-                        (kw) => kw === "forestwalk",
-                        { phase: "end-of-turn" }
-                    );
-            },
+            effects: [
+                {
+                    op: "loseAbility",
+                    ability: "forestwalk",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 }));

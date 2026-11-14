@@ -463,12 +463,6 @@
     },
     {
         "class": "card",
-        "cardId": "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
-        "name": "Vertigo",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "21d00299-e183-4b3d-b015-18808e7135b9",
         "name": "Visions",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
@@ -2100,13 +2094,6 @@
         "cardId": "93850e74-744c-4261-a84e-01eaced6e49a",
         "name": "Scarecrow",
         "abilityId": "scarecrow-prevent-flying",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "ac2655e4-3a4d-4f73-820a-02fab675d42e",
-        "name": "Scarwood Hag",
-        "abilityId": "scarwood-hag-strip-forestwalk",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

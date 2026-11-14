@@ -18298,21 +18298,37 @@ export function buildSpellContext(
             if (!found) return;
             found.card.exileOnLeave = true;
         },
-        // CR 611.2a layer 6: removes every keyword matching `predicate` from
-        // `staticAbilities` for the duration, recording each on
-        // `temporaryRemovedKeywords` so the phase-boundary purge restores it on
-        // expiry. The duration-scoped inverse of `grantStaticAbility`. Used by
-        // Shelkin Brownie / Tolaria to strip banding and "bands with other"
-        // abilities until end of turn.
+        // CR 613.1f layer 6: removes every keyword matching `predicate` from
+        // the permanent's effective abilities, one `keyword-remove` registry
+        // entry per keyword. With a `duration` the phase-boundary tick splices
+        // the entries out on expiry (CR 611.2a); with none the removal is
+        // INDEFINITE (CR 611.2a — "If no duration is stated, it lasts until
+        // the end of the game"), cleared only by the leave-play purge (CR
+        // 400.7). The inverse of `grantStaticAbility` /
+        // `grantStaticAbilityPermanent`. Used by Shelkin Brownie / Tolaria and
+        // the `loseAbility` Op (issue #2125).
         removeStaticAbilities(
             target: TargetSelection,
             predicate: (keyword: string) => boolean,
-            duration: DurationSpec
+            duration?: DurationSpec
         ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            const resolved = resolveDuration(duration, item.castById, state);
+            // CR 611.2a — the controller of an effect from a resolving ability
+            // is the ability's controller, fixed when the effect is created.
+            const expiry: ContinuousEffect["expiry"] =
+                duration === undefined
+                    ? { kind: "indefinite", controllerId: item.castById }
+                    : {
+                          kind: "duration",
+                          duration: resolveDuration(
+                              duration,
+                              item.castById,
+                              state
+                          ),
+                          controllerId: item.castById,
+                      };
             // CR 611.2c — the set of objects a resolving ability's continuous
             // effect affects is fixed when it begins, and so is the set of
             // KEYWORDS it names: the predicate runs once, here, against the
@@ -18340,11 +18356,7 @@ export function buildSpellContext(
                             kind: "instances",
                             instanceIds: [target.id],
                         },
-                        expiry: {
-                            kind: "duration",
-                            duration: resolved,
-                            controllerId: item.castById,
-                        },
+                        expiry,
                         payload: { kind: "keyword-remove", keyword },
                         characteristicDefining: false,
                     },

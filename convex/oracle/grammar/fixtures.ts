@@ -6289,6 +6289,55 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 613.1f (issue #2125) — "This creature loses defender until end of
+    // turn": a single-keyword loss on the ability's own source, exhibiting the
+    // "loseAbility acts on $source" card-dependent form. Defender is a
+    // drawback keyword (CR 702.3b), so the loss is the controller's gain.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "48f78611-13a7-4b5b-a52a-317ecf658ea3",
+            name: "Torpid Moloch",
+            manaCost: "{R}",
+            typeLine: "Creature — Lizard",
+            oracleText:
+                "Defender (This creature can't attack.)\nSacrifice three lands: This creature loses defender until end of turn.",
+            power: "3",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Torpid Moloch",
+            types: ["Creature"],
+            subtypes: ["Lizard"],
+            manaCost: { R: 1 },
+            power: 3,
+            toughness: 2,
+            oracleText:
+                "Defender (This creature can't attack.)\nSacrifice three lands: This creature loses defender until end of turn.",
+            staticAbilities: ["defender"],
+            activatedAbilities: [
+                {
+                    id: "torpid-moloch-ability",
+                    oracleText:
+                        "Sacrifice three lands: This creature loses defender until end of turn.",
+                    cost: {
+                        sacrificeFilter: { types: ["Land"] },
+                        sacrificeFilterCount: 3,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "loseAbility",
+                            target: { ref: "$source" },
+                            ability: "defender",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 615.7 — the same two-set union under "prevent the next N
     // damage that would be dealt to <recipient> this turn": `preventDamage`'s
     // `to` mirrors `dealDamage`'s, so the same fan-out applies, this time
