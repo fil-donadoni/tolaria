@@ -351,6 +351,9 @@ function lowerAmount(
     site: SiteOptions
 ): Lowered<EffectValue> {
     if (amount.kind === "fixed") return lowered(amount.value);
+    // CR 702.179f — "your speed" is the speed of the effect's controller.
+    if (amount.kind === "speed")
+        return lowered({ speed: { of: "controller" } });
     if (amount.kind === "event-amount")
         return site.antecedents?.amount !== undefined
             ? lowered(site.antecedents.amount)

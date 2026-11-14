@@ -260,6 +260,12 @@ export type CompiledPtBuffCount =
         readonly types: readonly CardType[];
     };
 
+/** CR 702.179f — "where X is your speed": the speed of the source's CURRENT
+ *  controller (CR 109.5), 0 for a player with no speed. */
+export type CompiledControllerSpeedCount = {
+    readonly kind: "controller-speed";
+};
+
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
  *  Every member's `kind` is the kind of the `StaticEffect` it rebuilds into —
@@ -493,6 +499,9 @@ export type CompiledStaticEffect =
            *  ("Max speed — Spells you cast cost {1} less to cast", CR
            *  702.178a). */
           readonly condition?: CompiledStaticCondition;
+          /** CR 702.179f — "{X} less, where X is your speed": `reduction` is
+           *  the amount PER point of the source controller's speed. */
+          readonly count?: CompiledControllerSpeedCount;
       } & (
           | {
                 readonly spells: CompiledSpellFilter;
@@ -1105,7 +1114,15 @@ export function resolveCompiledStatic(
                     ? { costIncrease: generic(descriptor.increase) }
                     : {}),
                 ...(descriptor.reduction !== undefined
-                    ? { costReduction: generic(descriptor.reduction) }
+                    ? {
+                          costReduction:
+                              descriptor.count === undefined
+                                  ? generic(descriptor.reduction)
+                                  : {
+                                        perCount: generic(descriptor.reduction),
+                                        countMode: "speed" as const,
+                                    },
+                      }
                     : {}),
                 ...(condition !== undefined
                     ? {

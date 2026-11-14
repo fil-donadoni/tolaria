@@ -1175,3 +1175,73 @@ describe("if-branch scenario-ization (issue #1707, CR 702.33)", () => {
             );
     });
 });
+
+describe("a speed amount (CR 702.179f)", () => {
+    const effects: EffectOp[] = [
+        {
+            op: "draw",
+            player: "controller",
+            count: { speed: { of: "controller" } },
+        },
+        {
+            op: "loseLife",
+            player: "controller",
+            amount: { speed: { of: "controller" } },
+        },
+    ];
+
+    function resolveAsSpell(plan: Extract<Plan, { kind: "run" }>): void {
+        const id = "test-9600-speed-spell";
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects,
+        });
+        plan.scenario.state.stack.push({
+            ...makeInstance(id, {
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "hand",
+            }),
+            castById: CASTER_ID,
+            targets: [],
+        });
+        resolveTopOfStack(plan.scenario.state);
+    }
+
+    it("seeds the caster's speed and predicts the amount from it", () => {
+        const plan = planSmokeTest(effects);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        const caster = plan.scenario.state.players.find(
+            (p) => p.id === CASTER_ID
+        )!;
+        expect(caster.speed).toBe(2);
+        resolveAsSpell(plan);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("fails its assertions when the speed read is not the one seeded", () => {
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        plan.scenario.state.players.find((p) => p.id === CASTER_ID)!.speed = 3;
+        resolveAsSpell(plan);
+        expect(failedAssertions(plan)).toHaveLength(2);
+    });
+
+    it("skips another player's speed with a reason", () => {
+        const plan = planSmokeTest([
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { speed: { of: "opponent" } },
+            },
+        ]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.reason).toMatch(/speed of a player other than/);
+    });
+});

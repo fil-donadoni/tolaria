@@ -491,3 +491,169 @@ describe("a compiled cost modifier behind max speed (CR 702.178a, CR 601.2f)", (
         expect(reduction(1, 4)).toBe(0);
     });
 });
+
+/** Lightning Bolt — a noncreature spell. */
+const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+
+describe("speed read as a value at resolution (CR 702.179f)", () => {
+    const outcome = compileCard({
+        oracleId: "c9fb22b4-dc22-4291-91f2-89c07cee7569",
+        name: "The Speed Demon",
+        manaCost: "{3}{B}{B}",
+        typeLine: "Legendary Creature — Demon",
+        oracleText:
+            "Flying, trample\nStart your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nAt the beginning of your end step, you draw X cards and lose X life, where X is your speed.",
+        power: "5",
+        toughness: "5",
+        layout: "normal",
+    });
+    if (outcome.state !== "ready") throw new Error("The Speed Demon compiles");
+    const definition = {
+        ...outcome.definition,
+        id: "test-9600-speed-demon",
+    } as CardDefinition;
+    const endStep = {
+        type: "PHASE_BEGIN",
+        phase: "END_STEP",
+        activePlayerId: "p1",
+    } as never;
+
+    /** Collects the end-step trigger at `speedAtTrigger`, sets the speed to
+     *  `speedAtResolution`, resolves it; answers cards drawn and life lost. */
+    function resolveAt(
+        speedAtTrigger: number | undefined,
+        speedAtResolution: number | undefined
+    ): { drawn: number; lost: number } {
+        return withTemporaryDefinition(definition, () => {
+            const state = board(speedAtTrigger);
+            const p1 = state.players[0]!;
+            p1.battlefield = [
+                makeInstance(definition.id, {
+                    id: "demon",
+                    controllerId: "p1",
+                }),
+            ];
+            p1.library = Array.from({ length: 6 }, (_, i) =>
+                makeInstance(GRIZZLY_BEARS, {
+                    id: `lib-${i}`,
+                    controllerId: "p1",
+                    zone: "library",
+                })
+            );
+            const life = p1.life;
+            const triggers = collectTriggers(state, [endStep]);
+            expect(triggers).toHaveLength(1);
+            state.stack.push(...triggers);
+            p1.speed = speedAtResolution;
+            resolveTopOfStack(state);
+            return { drawn: p1.hand.length, lost: life - p1.life };
+        });
+    }
+
+    it("draws and loses as much as the controller's speed", () => {
+        expect(resolveAt(3, 3)).toEqual({ drawn: 3, lost: 3 });
+    });
+
+    it("reads the speed as the ability resolves, not as it triggered", () => {
+        expect(resolveAt(2, 4)).toEqual({ drawn: 4, lost: 4 });
+    });
+
+    it("reads a player with no speed as speed 0", () => {
+        expect(resolveAt(2, undefined)).toEqual({ drawn: 0, lost: 0 });
+    });
+
+    it("reads its controller's speed, not an opponent's", () => {
+        withTemporaryDefinition(definition, () => {
+            const state = board(1, 4);
+            state.players[0]!.battlefield = [
+                makeInstance(definition.id, {
+                    id: "demon",
+                    controllerId: "p1",
+                }),
+            ];
+            state.players[0]!.library = Array.from({ length: 6 }, (_, i) =>
+                makeInstance(GRIZZLY_BEARS, {
+                    id: `lib-${i}`,
+                    controllerId: "p1",
+                    zone: "library",
+                })
+            );
+            state.stack.push(...collectTriggers(state, [endStep]));
+            resolveTopOfStack(state);
+            expect(state.players[0]!.hand).toHaveLength(1);
+        });
+    });
+});
+
+describe("a speed-sized cost reduction (CR 702.179f, CR 601.2f)", () => {
+    // Samut, the Driving Force's cost line, alone: its anthem line is another
+    // grammar's (`convex/oracle/__tests__/speedValue.test.ts`).
+    const outcome = compileCard({
+        oracleId: "ee89c719-5ae8-4316-bfd0-cfe3684b5859",
+        name: "Samut, the Driving Force",
+        manaCost: "{3}{R}{G}{W}",
+        typeLine: "Legendary Creature — Human Warrior Cleric",
+        oracleText:
+            "Start your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nNoncreature spells you cast cost {X} less to cast, where X is your speed.",
+        power: "4",
+        toughness: "5",
+        layout: "normal",
+    });
+    if (outcome.state !== "ready")
+        throw new Error("Samut's cost line compiles");
+    const definition = {
+        ...outcome.definition,
+        id: "test-9600-samut",
+    } as CardDefinition;
+
+    function reduction(opts: {
+        p1Speed?: number;
+        p2Speed?: number;
+        spell?: string;
+        /** Who controls the source; it sits in p1's battlefield array. */
+        controller?: "p1" | "p2";
+    }): number {
+        const controller = opts.controller ?? "p1";
+        return withTemporaryDefinition(definition, () => {
+            const state = board(opts.p1Speed, opts.p2Speed);
+            state.players[0]!.battlefield = [
+                makeInstance(definition.id, {
+                    id: "samut",
+                    controllerId: controller,
+                }),
+            ];
+            const spell = makeInstance(opts.spell ?? LIGHTNING_BOLT, {
+                id: "spell",
+                controllerId: controller,
+            });
+            return getCostModifiers(
+                state,
+                spell,
+                "spell",
+                undefined,
+                controller
+            ).reductionGeneric;
+        });
+    }
+
+    it("takes {1} off per point of its controller's speed", () => {
+        expect(reduction({ p1Speed: 3 })).toBe(3);
+        expect(reduction({ p1Speed: 1 })).toBe(1);
+    });
+
+    it("takes nothing off for a player with no speed", () => {
+        expect(reduction({})).toBe(0);
+    });
+
+    it("leaves creature spells alone", () => {
+        expect(reduction({ p1Speed: 3, spell: GRIZZLY_BEARS })).toBe(0);
+    });
+
+    it("reads its controller's speed, not an opponent's", () => {
+        expect(reduction({ p1Speed: 1, p2Speed: 4 })).toBe(1);
+    });
+
+    it("reads the controller's speed, not whose battlefield holds it", () => {
+        expect(reduction({ p1Speed: 1, p2Speed: 3, controller: "p2" })).toBe(3);
+    });
+});
