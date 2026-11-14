@@ -128,6 +128,7 @@ describe("adaptManualPlayer", () => {
 describe("adaptManualPlayers", () => {
     it("adapts every seat in roster order", () => {
         const state: ProjectedManualGameState = {
+            stack: [],
             players: [
                 projectedPlayer({ id: "p1" }),
                 projectedPlayer({ id: "p2" }),
