@@ -169,6 +169,14 @@ export function applyDeclareAttackers(
         if (step.haltForDefenderResponse && state.pendingTarget) {
             return;
         }
+        // CR 603.3c — so is a modal attack trigger's mode choice, announced
+        // as the ability is put on the stack.
+        if (
+            step.haltForDefenderResponse &&
+            state.pendingChoices?.[0]?.kind === "trigger-mode"
+        ) {
+            return;
+        }
         applyMoveInSearch(state, owed, { kind: "pass" });
     }
 

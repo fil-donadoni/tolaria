@@ -145,3 +145,36 @@ describe("blade setup: declare-attackers (CR 508.1)", () => {
         ).toThrow(BladeSetupError);
     });
 });
+
+describe("blade setup: declare-attackers halts at a modal attack trigger (CR 603.3c)", () => {
+    const MODAL_ATTACK: ScenarioSpec = {
+        cards: [
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            {
+                name: "Territorial Kavu",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            { name: "Forest", owner: "me", zone: "hand" },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        turn: 5,
+        landCount: 0,
+        libraryCount: 20,
+    };
+
+    it("stops on the mode choice, owed by the attacker, still inside DECLARE_ATTACKERS", () => {
+        const state = run(MODAL_ATTACK, [
+            {
+                kind: "declare-attackers",
+                cards: ["Territorial Kavu"],
+                haltForDefenderResponse: true,
+            },
+        ]);
+        expect(state.phase).toBe("DECLARE_ATTACKERS");
+        expect(state.pendingChoices?.[0]?.kind).toBe("trigger-mode");
+        expect(decidingPlayer(state)).toBe(state.players[0].id);
+    });
+});
