@@ -52985,6 +52985,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Mr. Spock, Science Officer",
+        "scryfallId": "d19fc127-669e-4264-935a-e5991e6c0964",
+        "oracleId": "869bde03-8813-43a9-9df5-a21c62511b4b",
+        "firstSet": "trk",
+        "firstPrintId": "d19fc127-669e-4264-935a-e5991e6c0964",
+        "firstPrintSet": "trk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Mtenda Herder",
         "scryfallId": "51f30a3d-1421-4706-b17f-39a9ec7a0d8b",
         "oracleId": "0edf5bac-36a9-4f35-afd1-73f7e1aab51b",
@@ -83796,6 +83806,16 @@
         "firstSet": "mh2",
         "firstPrintId": "996c1952-8d10-4296-8960-ff8993833649",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Thought Reflection",
+        "scryfallId": "c3090b11-3df3-40bc-bd3c-27218c2e19e2",
+        "oracleId": "692a6833-3014-42f6-b1ad-333bb3292c65",
+        "firstSet": "shm",
+        "firstPrintId": "c3090b11-3df3-40bc-bd3c-27218c2e19e2",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Thought Scour",

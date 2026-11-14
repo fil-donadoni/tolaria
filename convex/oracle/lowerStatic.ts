@@ -58,6 +58,7 @@ import {
     MATERIALISED_FILTER_FIELDS,
     type CompiledStaticEffect,
 } from "../cards/compiledStatics";
+import type { CompiledReplacementEffect } from "../cards/compiledReplacements";
 import type {
     CompiledControlsCondition,
     CompiledTriggeredAbility,
@@ -174,6 +175,9 @@ export interface LoweredStatic {
     /** CR 614.1a — "damage that would reduce your life total to less than N
      *  reduces it to N instead", while the controller controls a creature. */
     readonly damageLifeFloor?: DamageLifeFloor;
+    /** CR 614.1a — replacement effects, as JSON descriptors
+     *  `expandDefinition` rebuilds (`cards/compiledReplacements.ts`). */
+    readonly replacements?: readonly CompiledReplacementEffect[];
     readonly entersWithCounters?: {
         readonly type: string;
         /** `"X"`: CR 107.3m, the cast X (`lower.ts` checks the {X} pip). */
@@ -1135,6 +1139,34 @@ export function lowerStaticClause(
                 ok: true,
                 lowered: { preventsDamageToController: true },
             };
+        case "draw-count-replacement":
+            return {
+                ok: true,
+                lowered: {
+                    replacements: [
+                        {
+                            kind: "draw-count",
+                            id: nextId("draw-replacement"),
+                            oracleText,
+                            count: clause.count,
+                        },
+                    ],
+                },
+            };
+        case "damage-bonus-replacement":
+            return {
+                ok: true,
+                lowered: {
+                    replacements: [
+                        {
+                            kind: "damage-bonus",
+                            id: nextId("damage-bonus"),
+                            oracleText,
+                            amount: clause.amount,
+                        },
+                    ],
+                },
+            };
         case "enchanted-host":
         case "equipped-host":
             return lowerHostClause(clause, nextId);
@@ -1352,9 +1384,9 @@ function grantCensus(
  * The permanent's own buff and keywords are lowered here; any other clause
  * goes through `lowerStaticClause` and has the gate attached to each effect
  * it yields. A clause that yields anything but `pt-buff` / `keyword-grant` /
- * `cost-modifier` effects (a replacement, an entry rider, a self cost
- * reduction), or an effect already carrying a condition, has no slot for the
- * gate, so the line fails whole rather than shipping the ability ungated.
+ * `cost-modifier` effects or compiled replacements (an entry rider, a self
+ * cost reduction), or an effect already carrying a condition, has no slot for
+ * the gate, so the line fails whole rather than shipping the ability ungated.
  * A conditional grant, so no keyword is expanded at the definition level.
  */
 function lowerMaxSpeed(
@@ -1365,6 +1397,7 @@ function lowerMaxSpeed(
 ): LowerStaticResult {
     const condition = { kind: "you-have-max-speed" as const };
     const effects: CompiledStaticEffect[] = [];
+    const replacements: CompiledReplacementEffect[] = [];
     const granted: { ability: string; implemented: boolean }[] = [];
     let castFromGraveyard = false;
     for (const effect of clause.effects) {
@@ -1396,6 +1429,7 @@ function lowerMaxSpeed(
             effects: inner = [],
             grantedKeywords = [],
             castableFromOwnGraveyard,
+            replacements: innerReplacements = [],
             ...rest
         } = result.lowered;
         // CR 702.178b — "Max speed — You may cast this card from your
@@ -1419,6 +1453,16 @@ function lowerMaxSpeed(
                 };
             effects.push(gated);
         }
+        // CR 702.178a — a replacement exists only while the gate holds, read
+        // each time the event would be replaced.
+        for (const replacement of innerReplacements) {
+            if (replacement.condition !== undefined)
+                return {
+                    ok: false,
+                    reason: `max speed cannot gate an already conditional "${replacement.kind}" replacement (CR 702.178a)`,
+                };
+            replacements.push({ ...replacement, condition });
+        }
         granted.push(...grantedKeywords);
     }
     const ungrantable = granted
@@ -1428,6 +1472,7 @@ function lowerMaxSpeed(
         ok: true,
         lowered: {
             effects,
+            ...(replacements.length > 0 ? { replacements } : {}),
             ...(granted.length > 0 ? { grantedKeywords: granted } : {}),
             ...(ungrantable.length > 0
                 ? { ungrantableKeywords: ungrantable }

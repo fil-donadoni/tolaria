@@ -527,6 +527,13 @@ export type StaticClauseIR =
      *  reduce your life total to less than N reduces it to N instead".
      *  Lowered to `damageLifeFloor`. */
     | { readonly kind: "damage-life-floor"; readonly floor: number }
+    /** CR 614.1a / 121.2 — "If you would draw a card, draw N cards instead".
+     *  Lowered to a `draw-count` compiled replacement. */
+    | { readonly kind: "draw-count-replacement"; readonly count: number }
+    /** CR 614.1a — "If a source you control would deal damage to an opponent
+     *  or a permanent an opponent controls, it deals that much damage plus N
+     *  instead". Lowered to a `damage-bonus` compiled replacement. */
+    | { readonly kind: "damage-bonus-replacement"; readonly amount: number }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -2391,6 +2398,58 @@ const damageLifeFloorRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: the draw-count replacement (CR 614.1a) ──────────────────────────
+
+/**
+ * "If you would draw a card, draw two cards instead." (Thought Reflection,
+ * Mr. Spock; behind max speed, Vnwxt.) CR 614.1a: "instead" makes it a
+ * replacement effect of each single-card draw the controller would make
+ * (CR 121.2: a multi-card instruction is that many individual draws). The
+ * anchored text refuses every neighbour: a duration ("Until end of turn, if
+ * you would draw …" — a resolving effect, not a static), an exception ("…
+ * except the first one you draw in each of your draw steps"), a step scope
+ * ("… during your draw step"), another player ("If an opponent would draw"),
+ * and a count of one (a no-op, a phrase we misread).
+ */
+const DRAW_COUNT_REPLACEMENT =
+    /^If you would draw a card, draw (\S+) cards instead$/;
+
+const drawCountReplacementRule: Rule<StaticClauseIR> = pattern(
+    "draw count replacement",
+    DRAW_COUNT_REPLACEMENT,
+    (match): RuleResult<StaticClauseIR> => {
+        const count = readNumberWord(match[1]!);
+        if (count === null || count < 2)
+            return fail(`"${match[1]}" is not a count above one`, match[1]!);
+        return ok({ kind: "draw-count-replacement" as const, count });
+    }
+);
+
+// ── Frame: the damage-bonus replacement (CR 614.1a) ────────────────────────
+
+/**
+ * "If a source you control would deal damage to an opponent or a permanent an
+ * opponent controls, it deals that much damage plus N instead." (Behind max
+ * speed, Far Fortune.) CR 614.1a: "instead" makes it a replacement effect;
+ * no "prevent", so it is neither prevention nor redirection (CR 615.1a). The
+ * anchored text refuses every neighbour: a source filter ("a red source",
+ * Torbran; "another source", Thor; "a spell", Rem Karolus), "noncombat
+ * damage" (Artist's Talent), and a counter-scaled amount (Fated Firepower).
+ */
+const DAMAGE_BONUS_REPLACEMENT =
+    /^If a source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus (\d+) instead$/;
+
+const damageBonusReplacementRule: Rule<StaticClauseIR> = pattern(
+    "damage bonus replacement",
+    DAMAGE_BONUS_REPLACEMENT,
+    (match): RuleResult<StaticClauseIR> => {
+        const amount = Number(match[1]);
+        if (amount < 1)
+            return fail(`"plus ${match[1]}" adds nothing`, match[1]!);
+        return ok({ kind: "damage-bonus-replacement" as const, amount });
+    }
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -3244,6 +3303,8 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         damagePreventionCounterRemovalRule,
         controllerDamagePreventionRule,
         damageLifeFloorRule,
+        drawCountReplacementRule,
+        damageBonusReplacementRule,
         selfConditionalPumpRule,
         selfPumpPerGraveyardCardRule,
         abilityLossPtSetRule,

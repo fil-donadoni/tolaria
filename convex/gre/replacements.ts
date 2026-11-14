@@ -36,6 +36,7 @@ import type {
     DiscardReplacementEvent,
     DrawReplacementEffect,
     DrawReplacementEvent,
+    DrawReplacementOutcome,
     EntersBattlefieldReplacementEvent,
     GraveyardBoundReplacementEvent,
     LifeChangeReplacementEvent,
@@ -215,6 +216,8 @@ export function buildStateView(state: GameState): ReplacementStateView {
             life: p.life,
             handSize: p.hand.length,
             librarySize: p.library.length,
+            // CR 702.179 — a "Max speed —" replacement reads its gate here.
+            ...(p.speed !== undefined ? { speed: p.speed } : {}),
             battlefield: p.battlefield.map((c) => ({
                 id: c.id,
                 controllerId: c.controllerId,
@@ -263,15 +266,16 @@ export function buildPermanentView(card: CardInstanceState): PermanentView {
  *  definition's `drawReplacement` field (NOT the sync `replacementEffects[]`,
  *  because a draw replacement is applied at the resumable draw seam), so this
  *  is a separate scan from `collectReplacements`. The seam (`planDrawStep`)
- *  walks this list: every `modify-count` outcome applies and their deltas SUM
+ *  walks this list: every count outcome applies — `modify-count` deltas add,
+ *  `multiply-count` factors compound, folded in this order
  *  (CR 616.1f repeats the process until nothing is left to apply; CR 614.5
  *  gives each effect one opportunity, and its own example compounds two
  *  doubling replacements to 8), while a TERMINAL outcome — bin / prevent /
  *  may-pay-bin / redirect — replaces the draw outright, so the first one in
- *  this order wins alone. Summing counts needs no pick-order prompt (addition
- *  commutes), but a pair of co-applicable TERMINAL outcomes genuinely would:
- *  that prompt is deferred, and the deterministic affected-player ordering is
- *  the stand-in. No shipped pair reaches it — `prevent`, `bin`, `may-pay-bin`
+ *  this order wins alone. Adding counts needs no pick-order prompt (addition
+ *  commutes); a delta beside a factor, or a pair of co-applicable TERMINAL
+ *  outcomes, genuinely would: that prompt is deferred, and the deterministic
+ *  affected-player ordering is the stand-in. No shipped pair reaches it — `prevent`, `bin`, `may-pay-bin`
  *  and `redirect-to-token` each live on a single card whose own `applies`
  *  scopes it to one side of the table. */
 export function getApplicableDrawReplacements(
@@ -332,12 +336,18 @@ export function drawFromEmptyLibraryWins(
         requestedCount: 1,
     };
     const terminal = getApplicableDrawReplacements(state, event, view).find(
-        (m) => m.effect.outcome.kind !== "modify-count"
+        (m) => !isDrawCountOutcome(m.effect.outcome)
     );
     return (
         terminal?.effect.outcome.kind === "win" &&
         terminal.source.controllerId === playerId
     );
+}
+
+/** CR 616.1f — a count outcome resizes the draw rather than replacing it, so
+ *  every applicable one applies; any other outcome is terminal. */
+export function isDrawCountOutcome(outcome: DrawReplacementOutcome): boolean {
+    return outcome.kind === "modify-count" || outcome.kind === "multiply-count";
 }
 
 /** The FIRST draw replacement applicable to `event` (CR 616.1 — the affected
