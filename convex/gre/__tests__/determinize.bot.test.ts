@@ -353,6 +353,33 @@ describe("determinize — informed opponent sampling (issue #2789)", () => {
         for (const id of cardIds(hidden)) expect(OPP_DECK).toContain(id);
     });
 
+    it("draws only as many cards as it places — work scales with the slots, not the decklist (issue #2878)", () => {
+        // Two hidden hand slots, no library, a 60-card decklist: the sampler
+        // owes two draws. The observer's own library is empty, so every rng
+        // call below is the opponent's sample.
+        const deck60 = Array.from(
+            { length: 60 },
+            (_, i) => [BEARS, GIANT, BOLT, MOUNTAIN][i % 4]
+        );
+        const state = wireShapedState(2, 0);
+        const inner = makeRng(29);
+        let calls = 0;
+        const counted = () => {
+            calls++;
+            return inner();
+        };
+        const out = determinize(state, "p1", counted, knowledge(deck60));
+
+        expect(out.players[1].hand).toHaveLength(2);
+        expect(cardIds(out.players[1].hand)).not.toContain(PLACEHOLDER_CARD_ID);
+        expect(calls).toBe(2);
+        // Same seed, same knowledge: the identical world.
+        const again = determinize(state, "p1", makeRng(29), knowledge(deck60));
+        expect(cardIds(again.players[1].hand)).toEqual(
+            cardIds(out.players[1].hand)
+        );
+    });
+
     it("is a no-op for a seat with NO entry — the blind path is untouched", () => {
         const state = wireShapedState(2, 4);
         const blind = determinize(state, "p1", makeRng(11));
