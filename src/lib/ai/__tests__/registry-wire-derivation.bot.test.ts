@@ -229,7 +229,7 @@ describe("a pre-S3 legacy state stays reproducible on the client", () => {
             client as unknown as LayerStateView,
             permanent(client)
         ).staticAbilities;
-        // CR 611.2b — the strip still applies, so the printed trample is gone.
+        // CR 611.2a — the strip still applies, so the printed trample is gone.
         expect(answer).toEqual([]);
     });
 });

@@ -1427,12 +1427,12 @@ export const urborgSkeleton = defineCard(() => ({
 
 // Phyrexian Infiltrator — {2}{B} Creature — Phyrexian Minion, 2/2. "{2}{U}{U}:
 // Exchange control of Phyrexian Infiltrator and target creature. (This effect
-// lasts indefinitely.)" (CR 701.12e Exchange, CR 611.2b/613.1b layer-2 control
+// lasts indefinitely.)" (CR 701.12b Exchange, CR 611.2a/613.1b layer-2 control
 // change, issue #1068.) Colour identity is mono-black by mana cost (CR 202.2)
 // even though the ability's OWN cost is blue — a card's color reads its mana
 // cost only, not activated-ability costs, so this lives here, not blue.ts.
 //
-// Decomposed as TWO already-shipped `gainControl` Ops (issue #848) rather than
+// Decomposed as TWO already-shipped `gainControl` Ops rather than
 // a new "exchange" Op (primitive-reuse mandate — see the `exchange` row in
 // mechanicsRegistry.ts for the full reasoning). `ctx.controller` is captured
 // ONCE per stack-item resolution (`buildSpellContext`, CR 608.2b) and stays

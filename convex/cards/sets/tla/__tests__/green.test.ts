@@ -102,7 +102,7 @@ describe("Badgermole Cub — earthbend ETB (CR 701.66a target + animate + counte
         // 7a base (0/0) + 7c counter (+1/+1) = 1/1 net toughness N (CR 613.4).
         expect(getEffectivePower(state, animated)).toBe(1);
         expect(getEffectiveToughness(state, animated)).toBe(1);
-        // CR 611.2b — no duration clause in the reminder text: indefinite.
+        // CR 611.2a — no duration clause in the reminder text: indefinite.
         expect(animated.animation?.duration).toBeUndefined();
 
         // Wire format — the animation's types/subtypes/abilities/counters are

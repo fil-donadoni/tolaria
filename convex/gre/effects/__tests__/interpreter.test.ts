@@ -11280,7 +11280,7 @@ describe("EffectCardFilter.isAttacking (CR 508.1, issue #1097)", () => {
 describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
     // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
     // canonical Earthbend N shape (Badgermole Cub, tla/green.cards.ts): base 0/0,
-    // subtype "Elemental", haste granted, no `duration` (CR 611.2b —
+    // subtype "Elemental", haste granted, no `duration` (CR 611.2a —
     // indefinite). Effective P/T is asserted AFTER a follow-up `counters` Op
     // (issue #841, already-exercised) puts a +1/+1 counter on it, mirroring
     // the real card's two-Op composition and proving the layer 7c counter
@@ -11349,10 +11349,10 @@ describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
         expect(getEffectiveToughness(projected, slim)).toBe(1);
     });
 
-    // CR 611.2b — no `duration` means the animation is INDEFINITE: it must
+    // CR 611.2a — no `duration` means the animation is INDEFINITE: it must
     // NOT revert at a CLEANUP phase boundary, unlike a Mishra's-Factory-style
     // temporary animation.
-    it("does not revert at a phase boundary when duration is omitted (indefinite, CR 611.2b)", () => {
+    it("does not revert at a phase boundary when duration is omitted (indefinite, CR 611.2a)", () => {
         const id = registerScript("test-op-animate-indefinite", [
             { op: "animate", target: { target: 0 }, power: 0, toughness: 0 },
         ]);

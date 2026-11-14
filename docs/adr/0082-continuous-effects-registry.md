@@ -61,7 +61,7 @@ is derivable from the live board:
 `removedKeywords` has the same split (`state.ts:491` — a source-keyed continuous
 removal _and_ a duration-scoped one). So "walk the battlefield and recompute"
 is not expressible: the duration-scoped effects are residue of a resolved spell
-(CR 611.2b) with no permanent to walk.
+(CR 611.2) with no permanent to walk.
 
 The CR does not have this problem, because the CR does not make this
 distinction. CR 611 knows only _continuous effects_, each with a timestamp;

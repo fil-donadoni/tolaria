@@ -480,7 +480,7 @@ L'engine non mantiene un enum di scope o filtri: ogni carta porta la propria
 regola di eleggibilità. Anthem (Crusade) e stripping di abilità (Humility) sono
 entrambi esprimibili così.
 
-**Durata indefinita (CR 611.2b).** Su `setBasePT`, `setSubtype` e `grantAbility`
+**Durata indefinita (CR 611.2a).** Su `setBasePT`, `setSubtype` e `grantAbility`
 il campo `duration` è **opzionale**: omesso, l'effetto continuo generato da
 un'abilità che risolve dura indefinitamente — finché il permanente resta sul
 battlefield. È la forma che serve al respec a stadi ("becomes a Kithkin Spirit",

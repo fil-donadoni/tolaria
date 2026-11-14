@@ -362,7 +362,7 @@ describe("ADR 0082 — no CR 613 layer is derived outside the registry (PRD #206
     });
 });
 
-describe("CR 611.2b — the phase boundary re-derives layers 2-5 (PRD #2064 S4)", () => {
+describe("CR 611.2a — the phase boundary re-derives layers 2-5 (PRD #2064 S4)", () => {
     it("a timed subtype replacement expiring at CLEANUP restores the derived line, and does NOT clobber a live SET that outlives it", () => {
         // The gap this pins: `tickAllDurations` drops the expired LEDGER rows,
         // and until PRD #2064 S4 nothing re-derived layers 2-5 afterwards — so

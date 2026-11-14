@@ -2877,7 +2877,7 @@ export interface AnimateSpec {
     grantedStatic?: { sourceCardId: string; templateId: string };
     /** Phase boundary at which the animation reverts (CR 611.2, Mishra's
      *  Factory's "until end of turn"). OMITTED means the animation is
-     *  INDEFINITE (CR 611.2b) — it never auto-reverts at a phase boundary and
+     *  INDEFINITE (CR 611.2a) — it never auto-reverts at a phase boundary and
      *  lasts for as long as the permanent stays this same object on the
      *  battlefield (Earthbend N: "becomes a 0/0 creature ... that's still a
      *  land", no duration clause in the reminder text). */
@@ -5673,7 +5673,7 @@ export interface SpellContext {
         newControllerId: string,
         condition?: ControlChangeCondition
     ) => void;
-    /** Gains control of a target permanent until end of turn (CR 611.2b /
+    /** Gains control of a target permanent until end of turn (CR 611.2a /
      *  613.1b, layer 2 — Ray of Command, Magus of the Unseen, issue #730).
      *  Unlike `gainControl` (whose optional `condition` is reverted by the
      *  conditional-control SBA), this installs an "until end of turn" duration
@@ -19523,7 +19523,7 @@ export type EffectOp =
           op: "grantAbility";
           target: EffectObjectSelector;
           /** CR 611.2 — the phase boundary at which the grant expires. OMITTED
-           *  is INDEFINITE (CR 611.2b, issue #1746): the ability persists for
+           *  is INDEFINITE (CR 611.2a, issue #1746): the ability persists for
            *  as long as the permanent stays on the battlefield — "it becomes a
            *  … Avatar with … flying and first strike" (Figure of Destiny), the
            *  Cocoon-style permanent gain; for `grantedTriggeredId` it routes to
@@ -19702,7 +19702,7 @@ export type EffectOp =
            *  the timed ledger row carries no family for it. */
           family?: "creature" | "land";
           /** CR 611.2 — when the replacement reverts. OMITTED is INDEFINITE
-           *  (CR 611.2b, issue #1746): the permanent simply IS the new subtype
+           *  (CR 611.2a, issue #1746): the permanent simply IS the new subtype
            *  line until it leaves the battlefield — "this creature becomes a
            *  Kithkin Spirit" (Figure of Destiny), where each stage REPLACES the
            *  previous creature types (CR 205.1b) rather than accumulating them
@@ -19716,7 +19716,7 @@ export type EffectOp =
      *  duration, CR 611.2a — see `AnimateSpec.grantedAbilities`), for
      *  `duration` (a temporary
      *  Mishra's-Factory-style animation) or INDEFINITELY when `duration` is
-     *  omitted (CR 611.2b — Earthbend N's "Target land you control becomes a
+     *  omitted (CR 611.2a — Earthbend N's "Target land you control becomes a
      *  0/0 creature with haste that's still a land"). A thin declarative skin
      *  over the SpellContext primitive `animateAsCreature`, one execution path
      *  (ADR 0045). `target` is an announced target slot, the resolving source
@@ -19782,7 +19782,7 @@ export type EffectOp =
           power?: number;
           toughness?: number;
           /** CR 611.2 — when the set reverts. OMITTED is INDEFINITE (CR
-           *  611.2b, issue #1746): the base P/T holds until the permanent
+           *  611.2a, issue #1746): the base P/T holds until the permanent
            *  leaves the battlefield or a later set overrides it — "becomes a
            *  Kithkin Spirit with base power and toughness 2/2" (Figure of
            *  Destiny), Wall of Tombstones' "indefinitely". The primitive

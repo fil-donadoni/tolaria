@@ -596,7 +596,7 @@ export type CardInstanceState = {
          *  indefinite control change that only reverts when its source leaves
          *  or is explicitly undone. */
         condition?: ControlChangeCondition;
-        /** Optional "until end of turn" duration (CR 611.2b, issue #730 —
+        /** Optional "until end of turn" duration (CR 611.2a, issue #730 —
          *  Ray of Command / Magus of the Unseen). When present, the phase-
          *  boundary purge (`tickAllDurations`) reverts this entry at its
          *  boundary — a distinct mechanism from the `condition`-based
@@ -647,7 +647,7 @@ export type CardInstanceState = {
          *  or already present). Exactly one occurrence is spliced out on
          *  expiry. */
         addedSubtype?: string;
-        /** Omitted for an INDEFINITE animation (CR 611.2b, `AnimateSpec.duration`
+        /** Omitted for an INDEFINITE animation (CR 611.2a, `AnimateSpec.duration`
          *  unset — Earthbend N): the phase-boundary purge (`tickAllDurations`,
          *  phases.ts) skips any entry with no `duration`, so it never reverts on
          *  its own; only the permanent leaving the battlefield (a fresh object,
