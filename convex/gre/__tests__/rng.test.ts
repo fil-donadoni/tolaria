@@ -3,6 +3,7 @@ import {
     makeRng,
     nextRandom,
     randomInt,
+    sampleWithRng,
     seededShuffle,
     shuffleWithRng,
 } from "../rng";
@@ -114,6 +115,71 @@ describe("shuffleWithRng (gre/rng.ts)", () => {
         const resultA = shuffleWithRng(items, makeRng(1));
         const resultB = shuffleWithRng(items, makeRng(2));
         expect(resultA).not.toEqual(resultB);
+    });
+});
+
+/** A `makeRng` stream that counts its own calls — the work a sampler does. */
+function countingRng(seed: number): { rng: () => number; calls: () => number } {
+    const inner = makeRng(seed);
+    let n = 0;
+    return {
+        rng: () => {
+            n++;
+            return inner();
+        },
+        calls: () => n,
+    };
+}
+
+// The partial Fisher–Yates the ISMCTS sampler draws hidden cards with
+// (issue #2878): k draws cost k steps, not one per item in the pool.
+describe("sampleWithRng (gre/rng.ts)", () => {
+    const ten = () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    it("draws k distinct items from the pool, calling rng exactly k times", () => {
+        const { rng, calls } = countingRng(13);
+        const drawn = sampleWithRng(ten(), 3, rng);
+        expect(drawn).toHaveLength(3);
+        expect(new Set(drawn).size).toBe(3);
+        for (const x of drawn) expect(ten()).toContain(x);
+        expect(calls()).toBe(3);
+    });
+
+    it("for k >= n is shuffleWithRng exactly — same order, same rng calls", () => {
+        for (const k of [10, 25]) {
+            const a = countingRng(77);
+            const b = countingRng(77);
+            expect(sampleWithRng(ten(), k, a.rng)).toEqual(
+                shuffleWithRng(ten(), b.rng)
+            );
+            expect(a.calls()).toBe(b.calls());
+        }
+    });
+
+    it("is reproducible: the same seed draws the same ordered sample", () => {
+        expect(sampleWithRng(ten(), 4, makeRng(5))).toEqual(
+            sampleWithRng(ten(), 4, makeRng(5))
+        );
+    });
+
+    it("draws nothing and consumes nothing for k = 0", () => {
+        const { rng, calls } = countingRng(3);
+        expect(sampleWithRng(ten(), 0, rng)).toEqual([]);
+        expect(calls()).toBe(0);
+    });
+
+    it("is uniform over ordered pairs (k = 2 of 4: each of 12 within 10%)", () => {
+        const rng = makeRng(2878);
+        const counts = new Map<string, number>();
+        const trials = 24000;
+        for (let t = 0; t < trials; t++) {
+            const key = sampleWithRng([0, 1, 2, 3], 2, rng).join(",");
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        expect(counts.size).toBe(12);
+        for (const c of counts.values()) {
+            expect(Math.abs(c - trials / 12)).toBeLessThan(trials / 12 / 10);
+        }
     });
 });
 

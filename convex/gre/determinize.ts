@@ -100,7 +100,7 @@ import {
     computeLibraryTopRevealedPlayers,
 } from "./libraryReveal";
 import { knownLibraryIndices, openPeekTopCount } from "./libraryKnownRuns";
-import { shuffleWithRng } from "./rng";
+import { sampleWithRng, shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
  *  card is dealt into a different hidden zone. */
@@ -473,7 +473,7 @@ function determinizeBlindedOpponent(
 }
 
 /** Fill a non-observer seat's unknown hidden slots from `remainder` (a card-id
- *  multiset, consumed in shuffled order), keeping every slot the observer is
+ *  multiset, drawn in random order), keeping every slot the observer is
  *  entitled to see. Shared by the informed and blinded paths above — they
  *  differ ONLY in what they put in the pool, so the accounting below is
  *  written once. `remainder` is mutated. */
@@ -498,7 +498,11 @@ function fillHiddenZonesFrom(
         if (at >= 0) remainder.splice(at, 1);
     }
 
-    const pool = shuffleWithRng(remainder, rng);
+    // Draw only as many cards as there are slots to fill: a partial
+    // Fisher-Yates over the remainder, never a shuffle of all of it. Where the
+    // slots cover the whole remainder (the usual case — hand plus library is
+    // most of the decklist) it is the same shuffle, call for call.
+    const pool = sampleWithRng(remainder, handSlots + librarySlots, rng);
     let taken = 0;
     const draw = (zone: "hand" | "library", index: number) =>
         taken < pool.length
