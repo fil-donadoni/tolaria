@@ -481,6 +481,19 @@ export type CompiledStaticEffect =
           readonly oracleText: string;
           readonly filter: PermanentFilter;
       }
+    /**
+     * CR 614.1d / 616.1 — "Lands you control enter untapped": a replacement
+     * effect on every matching permanent entering the battlefield. Rebuilds
+     * into the engine's `enters-untapped-replacement`, whose `forcesUntapped`
+     * is the filter evaluated against the entering permanent (the filter's
+     * `controllerRelation` reads "you" against the source's controller).
+     */
+    | {
+          readonly kind: "enters-untapped-replacement";
+          readonly id: string;
+          readonly oracleText: string;
+          readonly filter: PermanentFilter;
+      }
     /** CR 601.2f — "<spells> cost {N} more/less to cast", or (CR 602.2b)
      *  "Activated abilities of <permanents> cost {N} more to activate". */
     | ({
@@ -1062,6 +1075,16 @@ export function resolveCompiledStatic(
                 id: descriptor.id,
                 oracleText: descriptor.oracleText,
                 forcesTapped: (entering, source, _state, ctx) =>
+                    filterMatches(filter, entering, source, ctx),
+            };
+        }
+        case "enters-untapped-replacement": {
+            const filter = descriptor.filter;
+            return {
+                kind: "enters-untapped-replacement",
+                id: descriptor.id,
+                oracleText: descriptor.oracleText,
+                forcesUntapped: (entering, source, _state, ctx) =>
                     filterMatches(filter, entering, source, ctx),
             };
         }

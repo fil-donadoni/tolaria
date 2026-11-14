@@ -137,6 +137,7 @@ export const STATIC_EFFECT_READS: Record<
     "block-requirement": [],
     "landwalk-negation": [],
     "enters-tapped-restriction": [],
+    "enters-untapped-replacement": [],
     "untap-restriction": [],
     "hand-size-override": [],
     "loyalty-activation-allowance": [],

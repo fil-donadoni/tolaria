@@ -10496,6 +10496,36 @@ export interface StaticEntersTappedRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned "<permanents> enter untapped" replacement (CR 614.1d)
+ *  — Spelunking's "Lands you control enter untapped". The mirror of
+ *  `StaticEntersTappedRestriction`: scanned across EVERY permanent on the
+ *  battlefield at every ETB site, its predicate names the permanents that
+ *  enter untapped because of `source`.
+ *
+ *  CR 616.1 — when it and an "enters tapped" replacement (the entering card's
+ *  own `entersTapped` / `entersTappedUnless(Controls)`, a Kismet-style
+ *  `enters-tapped-restriction`, a land's "pay or enter tapped" prompt) both
+ *  apply, the entering permanent's controller orders them, and applying this
+ *  one last leaves the permanent untapped. The engine auto-resolves that
+ *  order to untapped (`resolveEntersTapped`, `entersTapped.ts`): it is the
+ *  dominated choice's opposite, and Gatherer's ruling on Spelunking extends it
+ *  to a permanent an effect "puts onto the battlefield tapped" with no
+ *  replacement applied at all. */
+export interface StaticEntersUntappedReplacement {
+    kind: "enters-untapped-replacement";
+    id: string;
+    /** Returns `true` when `entering` (a permanent about to enter under
+     *  `entering.controllerId`) enters untapped because of `source`. */
+    forcesUntapped: (
+        entering: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text, surfaced for debugging / UI tooltips. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned, global attack restriction (CR 508.1c). Unlike
  *  `StaticAttackRestriction`, whose predicate reads only the ATTACKING
  *  creature's own static effects (so a creature can restrict only itself),
@@ -12189,6 +12219,7 @@ export type StaticEffect =
         | StaticMayExertAsAttacks
         | StaticLandwalkNegation
         | StaticEntersTappedRestriction
+        | StaticEntersUntappedReplacement
         | StaticAttackRequirement
         | StaticBlockRequirement
         | StaticTargetChoiceRequirement

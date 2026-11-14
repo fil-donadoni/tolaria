@@ -80,6 +80,7 @@ const KIND_MATERIALIZATION: Record<
     "may-exert-as-attacks": "recomputed",
     "landwalk-negation": "recomputed",
     "enters-tapped-restriction": "recomputed",
+    "enters-untapped-replacement": "recomputed",
     "attack-requirement": "recomputed",
     "block-requirement": "recomputed",
     "target-choice-requirement": "recomputed",
