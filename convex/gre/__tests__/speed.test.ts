@@ -16,6 +16,7 @@ import { checkStateBasedActions } from "../sba";
 import {
     beginApplyingStaticEffects,
     emitLifeLost,
+    getCostModifiers,
     payLifeCost,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -435,5 +436,58 @@ describe("combat damage raises speed (CR 702.179d, CR 120.3a)", () => {
         checkStateBasedActions(state);
         expect(state.players[1]!.life).toBe(18);
         expect(state.stack.map((i) => i.designationId)).toEqual(["speed"]);
+    });
+});
+
+/** Grizzly Bears — any spell its caster announces. */
+const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+describe("a compiled cost modifier behind max speed (CR 702.178a, CR 601.2f)", () => {
+    const outcome = compileCard({
+        oracleId: "54c2b3b3-e247-4146-8045-d49480b795f2",
+        name: "Racers' Scoreboard",
+        manaCost: "{4}",
+        typeLine: "Artifact",
+        oracleText:
+            "Start your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nMax speed — Spells you cast cost {1} less to cast.",
+        power: null,
+        toughness: null,
+        layout: "normal",
+    } as never);
+    if (outcome.state !== "ready")
+        throw new Error("Racers' Scoreboard's max speed line compiles");
+    const definition = {
+        ...outcome.definition,
+        id: "test-9588-scoreboard",
+    } as CardDefinition;
+
+    function reduction(p1Speed: number | undefined, p2Speed?: number): number {
+        return withTemporaryDefinition(definition, () => {
+            const state = board(p1Speed, p2Speed);
+            state.players[0]!.battlefield = [
+                makeInstance(definition.id, {
+                    id: "scoreboard",
+                    controllerId: "p1",
+                }),
+            ];
+            const spell = makeInstance(GRIZZLY_BEARS, {
+                id: "bears",
+                controllerId: "p1",
+            });
+            return getCostModifiers(state, spell, "spell", undefined, "p1")
+                .reductionGeneric;
+        });
+    }
+
+    it("reduces nothing below max speed", () => {
+        expect(reduction(3)).toBe(0);
+    });
+
+    it("reduces its controller's spells by {1} at max speed", () => {
+        expect(reduction(4)).toBe(1);
+    });
+
+    it("reads its controller's speed, not an opponent's", () => {
+        expect(reduction(1, 4)).toBe(0);
     });
 });

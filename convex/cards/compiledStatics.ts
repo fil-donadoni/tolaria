@@ -489,6 +489,10 @@ export type CompiledStaticEffect =
           /** CR 601.2a — "from anywhere other than your hand" (the engine
            *  field of the same name). */
           readonly onlyOutsideAnnouncersHand?: true;
+          /** CR 611.3a — the modifier exists only while the condition holds
+           *  ("Max speed — Spells you cast cost {1} less to cast", CR
+           *  702.178a). */
+          readonly condition?: CompiledStaticCondition;
       } & (
           | {
                 readonly spells: CompiledSpellFilter;
@@ -1053,7 +1057,7 @@ export function resolveCompiledStatic(
             };
         }
         case "cost-modifier": {
-            const { spells, abilities } = descriptor;
+            const { spells, abilities, condition } = descriptor;
             return {
                 kind: "cost-modifier",
                 ...(spells !== undefined
@@ -1102,6 +1106,21 @@ export function resolveCompiledStatic(
                     : {}),
                 ...(descriptor.reduction !== undefined
                     ? { costReduction: generic(descriptor.reduction) }
+                    : {}),
+                ...(condition !== undefined
+                    ? {
+                          condition: (
+                              source: PermanentView,
+                              state: StaticEffectStateView,
+                              ctx: StaticEffectContext
+                          ) =>
+                              staticConditionHolds(
+                                  condition,
+                                  source,
+                                  state,
+                                  ctx
+                              ),
+                      }
                     : {}),
             };
         }

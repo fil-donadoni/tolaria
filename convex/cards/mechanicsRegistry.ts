@@ -2564,7 +2564,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.178",
         status: "planned",
-        note: 'The triggered and static forms ship: "Max speed — <trigger>" compiles to the `you-have-max-speed` gate (`convex/cards/compiledTriggers.ts`, CR 702.178a), and "Max speed — This creature gets +N/+N[ and has <keywords>]" to `pt-buff` / `keyword-grant` statics carrying the same condition (`convex/cards/compiledStatics.ts`, issue #8231). The activated forms (issue #9586), the graveyard forms (CR 702.178b, issue #9587) and the other static shapes (issue #9588) have no grammar yet, so those cards stay unparsed rather than losing the gate.',
+        note: 'The triggered and static forms ship: "Max speed — <trigger>" compiles to the `you-have-max-speed` gate (`convex/cards/compiledTriggers.ts`, CR 702.178a), and "Max speed — <static ability>" to `pt-buff` / `keyword-grant` / `cost-modifier` statics carrying the same condition (`convex/cards/compiledStatics.ts`): the permanent\'s own buff and keywords, a grant to other creatures beside its own, or any static clause the grammar reads whose effects have a condition slot. The activated forms (issue #9586) and the graveyard forms (CR 702.178b, issue #9587) have no grammar yet, and a static clause whose effect has no condition slot (a replacement effect, an alternative cost) fails whole, so those cards stay unparsed rather than losing the gate.',
     },
     // 702.179 Start Your Engines!
     {
