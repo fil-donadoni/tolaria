@@ -41,6 +41,7 @@ import {
     untapRestriction,
 } from "./abilities/static/untapRestriction";
 import { getCardsExiledWith } from "../gre/exileLinks";
+import { hasMaxSpeed } from "../gre/speed";
 import { opponentsCantCastDuringYourTurn } from "./tokenStaticEffects";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
@@ -223,7 +224,10 @@ export type CompiledStaticCondition =
           readonly kind: "opponent-controls";
           readonly filter: PermanentFilter;
           readonly atLeast: number;
-      };
+      }
+    /** CR 702.178a — "Max speed — <static ability>": the object has the
+     *  ability only as long as its controller's speed is 4 (CR 702.179e). */
+    | { readonly kind: "you-have-max-speed" };
 
 /**
  * CR 604.3 — what a compiled characteristic-defining P/T counts. Each member
@@ -590,6 +594,12 @@ function staticConditionHolds(
             (p) => p.id === source.controllerId
         );
         return (controller?.graveyard.length ?? 0) >= condition.atLeast;
+    }
+    if (condition.kind === "you-have-max-speed") {
+        const controller = state.players.find(
+            (p) => p.id === source.controllerId
+        );
+        return controller !== undefined && hasMaxSpeed(controller);
     }
     if (condition.kind === "opponent-controls") {
         let matched = 0;
