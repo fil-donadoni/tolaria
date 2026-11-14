@@ -5038,9 +5038,16 @@ export const SURFACES: readonly Surface[] = [
         label: "Draft Room, final pick (/limited/<id>/draft, last card of the last pack)",
         /**
          * The pick screen's promises over a pack of ONE: the bar, the single
-         * pack tile and the pool the whole draft built. The tile count is
-         * checked by the walk (a pack of more than one is the mid-draft
-         * fixture, not this state).
+         * pack tile and the way to the pool the whole draft built. The tile
+         * count is checked by the walk (a pack of more than one is the
+         * mid-draft fixture, not this state).
+         *
+         * The pool is promised by its TOGGLE, not by its pane, as on
+         * `draft-pick`: a sideways phone mounts `[data-slot=draft-pool]` at
+         * the pool stop only (`draft-landscape-panes.tsx` shows the sneak-peek
+         * column at the pack stop), so a `visible` pane is false by design at
+         * `844x390x3` and red there on every PR whose scope reaches this row.
+         * The pane itself is `draft-pool-stop`'s subject.
          */
         asserts: [
             {
@@ -5054,9 +5061,9 @@ export const SURFACES: readonly Surface[] = [
                 check: "visible",
             },
             {
-                label: "pool pane",
-                locator: { selector: "[data-slot=draft-pool]" },
-                check: "visible",
+                label: "Pool toggle",
+                locator: { selector: "[data-draft-pool-toggle]" },
+                check: "reachable",
             },
             {
                 label: "Table Ring entry",
