@@ -277,30 +277,13 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // 64 seeds p5 does not move (0.806 → 0.807), but seeds 1..8 become
         // the lowest of eight blocks (0.793 → 0.776; median 0.809).
         p5DeckCastability: 0.77,
-        // The plan-first build raised it past the baseline's 0.47.
-        // Loosened 0.52 → 0.50 by the scope-relative plan (issue #9298):
-        // control is the plan of 18 seats (was 38) and six plans are built.
-        // Plan share counts spells carrying the plan's tag, so a narrower
-        // plan reads a plan-neutral card (cheap removal) as off-plan and
-        // lowers it by construction (0.526 → 0.505).
-        // Loosened 0.50 → 0.48 once both changes were on one tree (issue
-        // #9369): over 64 seeds, fetch lands leave the share where it was
-        // (0.512 → 0.513), but seeds 1..8 are now the lowest of eight
-        // blocks (0.482; median 0.515).
-        // Loosened 0.48 → 0.47 by the `big-artifact` Capability (issue
-        // #9321): seeds 1..8 stay the lowest block (0.482 → 0.479) while the
-        // 64-seed share does not move (0.509 → 0.509).
-        // Tightened 0.47 → 0.49 by the castable-value colour choice (issue
-        // #9336): a plan card is worth `PLAN_CARD_RATING` more in the colour
-        // set's score (0.478 → 0.492 on seeds 1..8).
-        // Re-set 0.49 → 0.70 by the soft plan weights (issue #9356): plan
-        // share now counts a spell carrying ANY Archetype the Pool is
-        // committed to. The old build reads 0.679 by that definition on
-        // seeds 1..8 (0.699 over 64), the soft-weight build 0.707 (0.725).
-        // Loosened 0.70 → 0.69 by the `lands-in-graveyard` Capability
-        // (issue #9322): seeds 1..8 read 0.707 → 0.699 while the 64-seed
-        // share rises (0.725 → 0.728); the base already has one block of
-        // eight at 0.699.
+        // Plan share counts a spell carrying ANY Archetype the Pool is
+        // committed to (the soft plan weights, issue #9356). Seeds 1..8 are
+        // often the lowest block of eight, so the Floor is that run rounded
+        // down and each move is measured over 64 seeds in
+        // docs/research/draft-table-audit-floor-noise.md: 0.69 after the
+        // `lands-in-graveyard` Capability (0.699 on seeds 1..8, 0.728 over
+        // 64; issue #9322).
         meanPlanShare: 0.69,
         meanCapabilityPairs: 16.71,
     },
