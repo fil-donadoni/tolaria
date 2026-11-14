@@ -46,7 +46,7 @@ const source: CardDefinition = expandCompiledStatics({
     ],
 } as CardDefinition);
 
-/** A land printing "This land enters tapped." (CR 614.1c). */
+/** A land printing "This land enters tapped." (CR 614.1d). */
 const tapland: CardDefinition = {
     id: TAPLAND_ID,
     name: "Tapped Entry Land",
