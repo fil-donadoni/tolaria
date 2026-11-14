@@ -166,7 +166,7 @@ export const detectivesPhoenix = defineCard(() => ({
 //     instant or sorcery (CR 118.9 / 601.3), this turn only.
 // hand-tail: +1: Until your next turn, instant and sorcery spells you cast cost {1} less to cast. (#8630)
 export const ralMonsoonMage = defineCard(() => ({
-    id: "16d40f56-691b-42a7-a5ab-157568921e03",
+    id: "438d8a26-ddc9-4829-8aff-22d6af6575cf",
     rarity: "mythic",
     name: "Ral, Monsoon Mage",
     oracleText:
@@ -242,7 +242,7 @@ export const ralMonsoonMage = defineCard(() => ({
         supertypes: ["Legendary"],
         colors: ["U", "R"],
         loyalty: 2,
-        imagePrintId: "16d40f56-691b-42a7-a5ab-157568921e03",
+        imagePrintId: "438d8a26-ddc9-4829-8aff-22d6af6575cf",
         entersWith: {
             counters: [
                 {

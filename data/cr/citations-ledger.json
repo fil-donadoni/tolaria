@@ -24897,7 +24897,6 @@
         {"id":"702.103b","line":"// The marker is the effect's ENTIRE input (CR 702.103b — \"these effects","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"* none does — an unpaid Kicker's bound never applies (CR 601.2b announces X","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"707.5","line":"// The as-enters COPY leg on EVERY entry path (CR 707.5 / 614.12a, ADR 0100","sites":1,"status":"baseline"},
-        {"id":"601.3","line":"// \"may\" (CR 601.3).","sites":1,"status":"confirmed","ruleHash":"1b10cf28c9acc52a"},
         {"id":"614.12","line":"// --- As-enters choices (CR 614.1c / 614.12, ADR 0100) ---","sites":1,"status":"baseline"},
         {"id":"202.3","line":"* announced X (CR 202.3 + CR 107.3) is an `if` INSIDE the iteration reading","sites":1,"status":"confirmed","ruleHash":"722ec655a5ab8aee"},
         {"id":"116.2","line":"Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.","sites":1,"status":"baseline"},
