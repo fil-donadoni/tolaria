@@ -515,7 +515,8 @@ describe("Spirit of Resistance (CR 615.1a prevention while you control every CR 
     function damageTo(
         state: GameState,
         target: { type: "player" | "permanent"; id: string },
-        unpreventable = false
+        unpreventable = false,
+        unredirectable = false
     ) {
         return runDamageReplacement(
             state,
@@ -524,7 +525,8 @@ describe("Spirit of Resistance (CR 615.1a prevention while you control every CR 
             target,
             3,
             false,
-            unpreventable
+            unpreventable,
+            unredirectable
         );
     }
 
@@ -632,6 +634,18 @@ describe("Spirit of Resistance (CR 615.1a prevention while you control every CR 
         expect(
             damageTo(state, { type: "player", id: "p1" }, true)?.amount
         ).toBe(3);
+    });
+
+    it("still prevents damage that can't be redirected — a CR 614.9 lock is not a prevention lock", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: fiveColourBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            damageTo(state, { type: "player", id: "p1" }, false, true)
+        ).toBeNull();
     });
 });
 
