@@ -4320,8 +4320,9 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  division operator, `scaled`'s inverse (`difference` subtracts, `scaled`
  *  multiplies, `divide` divides). Same non-Op, non-ADR-0045-reopening
  *  status as every member since `X`. Its operand type is
- *  `EffectDivideOperand` (a literal, a `count` or the reserved
- *  `$source.chosenXOnCast` ref, CR 400.7d) — narrower than
+ *  `EffectDivideOperand` (a literal, a `count`, the reserved
+ *  `$source.chosenXOnCast` ref, CR 400.7d, or a cost-`sacrificed` read,
+ *  CR 608.2h) — narrower than
  *  `EffectScaledOperand`, deliberately: no shipped divide card needs a spell's
  *  `{ X: true }` as the dividend, and a sibling type keeps `difference`
  *  X-free. Reason to exist: Tamiyo, Seasoned

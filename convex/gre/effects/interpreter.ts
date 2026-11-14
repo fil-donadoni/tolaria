@@ -1260,11 +1260,14 @@ function resolveValue(
     // divisor, rounded per the mandatory `rounding` field (CR 107.1a). A
     // literal or `count` operand reads through `resolveDifferenceOperand`, whose
     // extra tally terminal the TYPE keeps unreachable from here; the one ref
-    // the validator admits reads through the `ref` branch above.
+    // the validator admits and a cost-`sacrificed` read (CR 608.2h) go
+    // through their own `resolveValue` branches above — undefined (no
+    // snapshot) skips the consuming Op (CR 608.2b).
     if ("divide" in value) {
         const operand = value.divide.value;
         const dividend =
-            typeof operand === "object" && "ref" in operand
+            typeof operand === "object" &&
+            ("ref" in operand || "sacrificed" in operand)
                 ? resolveValue(ctx, operand)
                 : resolveDifferenceOperand(ctx, operand);
         if (dividend === undefined) return undefined;

@@ -16743,10 +16743,15 @@ export interface EffectScaledValue {
 
 /** One operand of a `divide` value — `EffectDifferenceOperand` PLUS the reserved
  *  `{ ref: "$source.chosenXOnCast" }`: "draw half X cards, rounded down" on a
- *  permanent's own trigger, where X is the cast-time X (CR 400.7d). A SIBLING
- *  type, not a widening of `EffectDifferenceOperand`, so `difference` stays
- *  X-free. The validator admits no other ref here. */
-export type EffectDivideOperand = EffectDifferenceOperand | EffectRef;
+ *  permanent's own trigger, where X is the cast-time X (CR 400.7d), PLUS a
+ *  cost-`sacrificed` read: "half the sacrificed creature's power, rounded
+ *  down" (CR 608.2h last-known information). A SIBLING type, not a widening
+ *  of `EffectDifferenceOperand`, so `difference` stays X-free. The validator
+ *  admits no other ref here. Every member is a terminal: depth-1. */
+export type EffectDivideOperand =
+    | EffectDifferenceOperand
+    | EffectRef
+    | EffectSacrificedValue;
 
 /** divide — a terminal DIVIDED by a fixed positive-integer divisor, rounded
  *  toward the stated direction (issue #2385, Tamiyo, Seasoned Scholar's
@@ -16770,10 +16775,10 @@ export type EffectDivideOperand = EffectDifferenceOperand | EffectRef;
  *  author to say which the Oracle text specifies rather than silently picking
  *  one.
  *
- *  CR 107.1b: unlike `difference`, the dividend here is a `count`, a
- *  non-negative literal or a chosen X (never negative by construction —
- *  cardinalities, positive-int literals and CR 107.3's X only), so the
- *  quotient is always non-negative and needs no sign clamp. */
+ *  CR 107.1b: no sign clamp here. A `count`, a literal or a chosen X is
+ *  non-negative by construction; a sacrificed creature's power can be below
+ *  zero, and like `difference` the signed quotient is clamped where the
+ *  consuming Op returns on `amount <= 0` (a result below zero uses zero). */
 export interface EffectDivideValue {
     divide: {
         /** The terminal value being divided. */
