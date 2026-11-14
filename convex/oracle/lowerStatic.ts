@@ -132,11 +132,12 @@ export interface LoweredStatic {
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
     /**
-     * CR 614.1a — "instead you may skip that draw. If you do, <body>": still
-     * IR, because the body is lowered by `lower.ts` into the card's own DRAW
-     * trigger (it needs the card's name and the trigger lowering).
+     * CR 614.1a / 614.10 — "you may skip that draw|step. If you do, <body>":
+     * still IR, because the body is lowered by `lower.ts` into the card's own
+     * DRAW trigger (it needs the card's name and the trigger lowering).
      */
     readonly optionalDrawSkip?: {
+        readonly skips: "draw" | "step";
         readonly effects: readonly EffectSentenceIR[];
     };
     /** CR 305.2 — additional land plays each turn. */
@@ -1038,7 +1039,10 @@ export function lowerStaticClause(
                 ok: true,
                 lowered: {
                     drawStepReplacement: true,
-                    optionalDrawSkip: { effects: clause.effects },
+                    optionalDrawSkip: {
+                        skips: clause.skips,
+                        effects: clause.effects,
+                    },
                 },
             };
         // CR 401.5 / 604.2 — a flat scope `computeLibraryTopRevealedPlayers`

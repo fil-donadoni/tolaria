@@ -739,9 +739,11 @@ function lowerLine(
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
             if (out.optionalDrawSkip !== undefined) {
-                // CR 614.1a — declining the skip draws the replaced card, so
-                // the DRAW-step trigger offers both answers (the flag above
-                // suppressed the turn-based draw).
+                // CR 614.1a / 614.10 — declining the skip draws the replaced
+                // card, so the DRAW-step trigger offers both answers (the flag
+                // above suppressed the turn-based draw).
+                const skipped =
+                    OPTIONAL_DRAW_SKIP_WORDING[out.optionalDrawSkip.skips];
                 const body = lowerTriggeredAbility({
                     id: `${slug}-draw-choice`,
                     oracleText: parsed.line,
@@ -763,11 +765,11 @@ function lowerLine(
                     effects: [
                         {
                             op: "optionChoice",
-                            prompt: `Skip your draw? (${card.name})`,
+                            prompt: `Skip your ${skipped}? (${card.name})`,
                             modes: [
                                 {
                                     id: "yes",
-                                    label: "Skip the draw",
+                                    label: `Skip the ${skipped}`,
                                     effects: [...body.ability.effects],
                                 },
                                 {
@@ -1286,6 +1288,13 @@ function announcesX(
 }
 
 /** CR 702.155a — the keyword, as the keyword slot reports it. */
+/** What the draw-skip choice names: the replaced draw (CR 614.1a) or the
+ *  replaced step (CR 614.10). */
+const OPTIONAL_DRAW_SKIP_WORDING = {
+    draw: "draw",
+    step: "draw step",
+} as const satisfies Record<"draw" | "step", string>;
+
 const READ_AHEAD = "read ahead";
 
 /**

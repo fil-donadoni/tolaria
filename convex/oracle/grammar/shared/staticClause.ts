@@ -31,6 +31,10 @@
  *                                                   → kicker-counted riders
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
  *   "Skip your draw step"                          → CR 614.10 `drawStepReplacement`
+ *   "If you would draw a card during your draw step, instead you may skip
+ *    that draw. If you do, <body>", "If you would begin your draw step, you
+ *    may skip that step instead. If you do, <body>"
+ *                                                   → CR 614.1a / 614.10 `optional-draw-skip`
  *   "If <self> would be put into a graveyard from anywhere, reveal <self>
  *    and shuffle it into its owner's library instead"
  *                                                   → CR 614.1a `shuffleFromAnywhere`
@@ -454,12 +458,15 @@ export type StaticClauseIR =
     | { readonly kind: "skip-draw-step" }
     /**
      * CR 614.1a + CR 614.11 — "If you would draw a card during your draw step,
-     * instead you may skip that draw. If you do, <body>": the draw-step
+     * instead you may skip that draw. If you do, <body>" (`skips: "draw"`), or
+     * CR 614.10 — "If you would begin your draw step, you may skip that step
+     * instead. If you do, <body>" (`skips: "step"`): the draw-step
      * replacement flag plus the choice made AT the step. `effects` is the
      * shared effect grammar's reading of the "If you do" body.
      */
     | {
           readonly kind: "optional-draw-skip";
+          readonly skips: "draw" | "step";
           readonly effects: readonly EffectSentenceIR[];
       }
     /** CR 305.2 — "You may play an additional land on each of your turns":
@@ -2275,41 +2282,72 @@ const skipDrawStepRule: Rule<StaticClauseIR> = pattern(
     (): RuleResult<StaticClauseIR> => ok({ kind: "skip-draw-step" as const })
 );
 
-// ── Frame: the optional draw skip (CR 614.1a) ──────────────────────────────
+// ── Frame: the optional draw skip (CR 614.1a / 614.10) ─────────────────────
 
 /**
- * "If you would draw a card during your draw step, instead you may skip that
- * draw. If you do, <body>." (Island Sanctuary.) CR 614.1a: "instead" makes the
- * skip a replacement effect of the turn-based draw (CR 504.1), and "you may"
- * leaves it optional — declining draws the card. The engine's encoding is the
- * hand-written one: `drawStepReplacement` suppresses the turn-based draw and
- * the card's own DRAW-step trigger offers the choice (see `lower.ts`).
+ * Two printed openings, one engine encoding:
  *
- * The anchored opening is the ONLY one read. Fasting's "If you would begin
- * your draw step, you may skip that step instead" replaces the step, not a
- * draw (CR 614.10), and stays refused. The body is the shared effect grammar:
- * what "If you do" does is not this frame's business.
+ *   "If you would draw a card during your draw step, instead you may skip that
+ *    draw. If you do, <body>." (Island Sanctuary.) CR 614.1a: "instead" makes
+ *    the skip a replacement effect of the turn-based draw (CR 504.1), and "you
+ *    may" leaves it optional — declining draws the card.
+ *   "If you would begin your draw step, you may skip that step instead. If you
+ *    do, <body>." (Fasting.) CR 614.10: skipping a step is a replacement
+ *    effect, and CR 614.10a says nothing scheduled for the skipped step
+ *    happens.
+ *
+ * Both lower to the hand-written encoding: `drawStepReplacement` suppresses
+ * the turn-based draw and the card's own DRAW-step trigger offers the choice
+ * (see `lower.ts`), declining drawing the card. For the step opening that is
+ * the engine's reading, not CR 614.10a's: the step still begins, so another
+ * beginning-of-draw-step trigger fires and priority is given even when the
+ * step is skipped — the divergence the shared flag already carries
+ * (`docs/findings/4304-draw-step-flag-skips-draw-not-step.md`). The two
+ * openings agree on everything a player can see without such a trigger: no
+ * draw, and the "If you do" body.
+ *
+ * Each opening is anchored whole; its neighbours ("you may skip that draw
+ * instead", "instead skip that step", "skip your next draw step") stay
+ * refused. The body is the shared effect grammar: what "If you do" does is not
+ * this frame's business.
  */
-const OPTIONAL_DRAW_SKIP =
-    /^If you would draw a card during your draw step, instead you may skip that draw\. If you do, (.+)$/;
+const OPTIONAL_DRAW_SKIP_OPENINGS: readonly {
+    readonly skips: "draw" | "step";
+    readonly opening: RegExp;
+}[] = [
+    {
+        skips: "draw",
+        opening:
+            /^If you would draw a card during your draw step, instead you may skip that draw\. If you do, (.+)$/,
+    },
+    {
+        skips: "step",
+        opening:
+            /^If you would begin your draw step, you may skip that step instead\. If you do, (.+)$/,
+    },
+];
 
 const optionalDrawSkipRule: Rule<StaticClauseIR> = rule(
     "optional draw skip",
     (span, ctx): RuleResult<StaticClauseIR> => {
-        const match = span.match(OPTIONAL_DRAW_SKIP);
-        if (match === null) return fail("not the optional draw skip", span);
-        const body = sentenceRule.run(capitalise(match[1]!), ctx);
-        if (!body.ok) return body;
-        const assembled = assembleSentences([body.value], {
-            site: "optional draw skip",
-            rejectRestrictions:
-                'an activation restriction (CR 602.5) has no meaning after "If you do"',
-        });
-        if (!assembled.ok) return fail(assembled.reason, span);
-        return ok({
-            kind: "optional-draw-skip" as const,
-            effects: assembled.effects,
-        });
+        for (const { skips, opening } of OPTIONAL_DRAW_SKIP_OPENINGS) {
+            const match = span.match(opening);
+            if (match === null) continue;
+            const body = sentenceRule.run(capitalise(match[1]!), ctx);
+            if (!body.ok) return body;
+            const assembled = assembleSentences([body.value], {
+                site: "optional draw skip",
+                rejectRestrictions:
+                    'an activation restriction (CR 602.5) has no meaning after "If you do"',
+            });
+            if (!assembled.ok) return fail(assembled.reason, span);
+            return ok({
+                kind: "optional-draw-skip" as const,
+                skips,
+                effects: assembled.effects,
+            });
+        }
+        return fail("not the optional draw skip", span);
     }
 );
 
