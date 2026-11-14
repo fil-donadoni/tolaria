@@ -425,7 +425,17 @@ export type RandomRevealSource = {
  *    spells or activate abilities of colorless Eldrazi" (Eldrazi Temple). The
  *    first restriction keyed on BOTH paths at once and on colour plus subtype:
  *    eligible at a spell-cast site when the spell is colorless and an Eldrazi,
- *    and at an activation when the source is. Both read a `RestrictionSubject`. */
+ *    and at an activation when the source is. Both read a `RestrictionSubject`.
+ *  - `chosen-type-creature-spell`: "Spend this mana only to cast a creature
+ *    spell of the chosen type" (issue #9388, Cavern of Souls). The first
+ *    restriction keyed on a value the SOURCE chose rather than on a fixed
+ *    characteristic: the creature type is the producing permanent's as-enters
+ *    choice (`CardInstanceState.chosenSubtypes`, CR 614.12a), snapshotted onto
+ *    the unit at deposit (`RestrictedMana.chosenCreatureType`) so the mana
+ *    keeps its restriction after the source leaves. Eligible at a spell-cast
+ *    site when the spell is a creature whose subtypes (a changeling's are
+ *    every creature type, CR 702.73a) include that type; never at an
+ *    activation. No chosen type → fails CLOSED. */
 export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
@@ -433,7 +443,8 @@ export type ManaRestriction =
     | "artifact-ability"
     | "legendary-spell"
     | "not-nonartifact-spell"
-    | "colorless-eldrazi";
+    | "colorless-eldrazi"
+    | "chosen-type-creature-spell";
 /** The characteristics a mana restriction keyed on COLOUR or SUBTYPE reads off
  *  the spell being cast or the source whose ability is being activated
  *  (CR 106.6). Colour and subtype are not on the type line the older

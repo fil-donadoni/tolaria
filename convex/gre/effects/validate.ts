@@ -1081,6 +1081,7 @@ const MANA_RESTRICTIONS: Record<ManaRestriction, true> = {
     "legendary-spell": true,
     "not-nonartifact-spell": true,
     "colorless-eldrazi": true,
+    "chosen-type-creature-spell": true,
 };
 
 function isTokenActivatedAbility(value: unknown): boolean {

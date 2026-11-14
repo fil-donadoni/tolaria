@@ -3663,8 +3663,18 @@ export type RestrictedMana = {
      *  is that exact instance, regardless of card type. Mutually exclusive with
      *  `restriction`. */
     castableCardId?: string;
+    /** CR 106.6 (issue #9388, Cavern of Souls) — the creature type a
+     *  `chosen-type-creature-spell` unit may pay for: the producing source's
+     *  as-enters choice (`CardInstanceState.chosenSubtypes[0]`), SNAPSHOTTED
+     *  when the mana is added, so the restriction outlives the source (the
+     *  mana, not the permanent, carries it). Part of the CR 106.4 bucket key
+     *  beside `restriction`: Elf-only and Goblin-only mana are not the same
+     *  kind. Absent on every other unit; absent on a chosen-type unit means no
+     *  type was chosen, and the unit pays for nothing (fail closed). */
+    chosenCreatureType?: string;
     /** CR 106.6 rider (Delighted Halfling, issue #1559 — Cavern of Souls
-     *  carries the same rider on its own, still-unbuilt restriction) — a
+     *  carries the same rider beside its `chosen-type-creature-spell`
+     *  restriction) — a
      *  spell paid for with this mana can't be countered. Orthogonal to
      *  `restriction`: it never changes which spells the mana is ELIGIBLE to
      *  pay for (that's `restriction`'s job), only what happens to the spell

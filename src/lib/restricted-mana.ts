@@ -59,6 +59,11 @@ export function restrictedManaLabel(
                 return "Not for nonartifact spells";
             case "colorless-eldrazi":
                 return "Colorless Eldrazi only";
+            case "chosen-type-creature-spell":
+                // CR 106.6 (issue #9388) — the type the source chose.
+                return unit.chosenCreatureType
+                    ? `${unit.chosenCreatureType} creature spells only`
+                    : "Creature spells of the chosen type only";
             default:
                 return "Restricted";
         }

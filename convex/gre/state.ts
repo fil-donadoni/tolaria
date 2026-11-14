@@ -24756,12 +24756,16 @@ export function manaSpentDelta(
  *    it).
  *  - `not-nonartifact-spell` — may not cast a nonartifact spell, so of spells
  *    it pays for the same set `artifact-spell` does (The Mightstone and
- *    Weakstone, issue #3341). */
+ *    Weakstone, issue #3341).
+ *  - `chosen-type-creature-spell` — a creature spell whose subtypes include
+ *    `chosenCreatureType`, the type the producing source chose (Cavern of
+ *    Souls, issue #9388). Absent type or subject → fails closed. */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
     spellTypes: readonly string[],
     spellSupertypes: readonly string[] = [],
-    spellSubject?: RestrictionSubject
+    spellSubject?: RestrictionSubject,
+    chosenCreatureType?: string
 ): boolean {
     switch (restriction) {
         case "creature-spell":
@@ -24789,7 +24793,33 @@ export function restrictionAllowsSpell(
             return (
                 spellSubject !== undefined && isColorlessEldrazi(spellSubject)
             );
+        case "chosen-type-creature-spell":
+            // CR 106.6 / 205.3m (issue #9388) — "a creature spell of the
+            // chosen type". A changeling spell's subject already lists every
+            // creature type (CR 702.73a, `expandChangeling`), so it passes for
+            // any choice. No chosen type or no subject → fail closed.
+            return (
+                spellTypes.includes("Creature") &&
+                chosenCreatureType !== undefined &&
+                spellSubject !== undefined &&
+                spellSubject.subtypes.includes(chosenCreatureType)
+            );
     }
+}
+
+/** CR 106.6 / 614.12a (issue #9388) — the creature type a unit of mana
+ *  produced by `source` under `restriction` is keyed on: the source's
+ *  as-enters choice (`chosenSubtypes[0]`) when the restriction is
+ *  `chosen-type-creature-spell`, `undefined` for every other restriction.
+ *  The ONE reader of that choice for mana: every deposit snapshots through it,
+ *  every reversal re-derives its bucket key through it, and every planner
+ *  asking "may this source's mana pay for that spell" reads it here. */
+export function restrictionChosenCreatureType(
+    restriction: ManaRestriction | null | undefined,
+    source: Pick<CardInstanceState, "chosenSubtypes"> | undefined
+): string | undefined {
+    if (restriction !== "chosen-type-creature-spell") return undefined;
+    return source?.chosenSubtypes?.[0];
 }
 
 /** The subject of a spell being cast, read off its definition (a card in hand
@@ -24835,6 +24865,7 @@ export function restrictionAllowsAbility(
         case "artifact-spell":
         case "cumulative-upkeep":
         case "legendary-spell":
+        case "chosen-type-creature-spell":
             // CR 106.6 (issue #1559) — a SPELL-cast restriction, like
             // creature-spell/artifact-spell, never permits an ACTIVATION.
             return false;
@@ -25048,7 +25079,8 @@ export function restrictedUnitAllowsSpell(
             unit.restriction,
             spellTypes,
             spellSupertypes,
-            spellSubject
+            spellSubject,
+            unit.chosenCreatureType
         );
     }
     return true;
@@ -25072,7 +25104,12 @@ export function addRestrictedManaToPool(
      *  `"end-of-combat"` is firebending's longer-lived mana. Part of the
      *  CR 106.4 merge key below, so a persistent unit never absorbs — or is
      *  absorbed by — an ephemeral one of the same colour. */
-    persistsUntil?: ManaPersistence
+    persistsUntil?: ManaPersistence,
+    /** CR 106.6 (issue #9388) — the chosen creature type a
+     *  `chosen-type-creature-spell` unit is keyed on, snapshotted by the
+     *  caller through `restrictionChosenCreatureType`. Part of the CR 106.4
+     *  merge key: Elf mana never merges into Goblin mana. */
+    chosenCreatureType?: string
 ): void {
     if (amount <= 0) return;
     const list = player.restrictedMana ?? [];
@@ -25080,6 +25117,7 @@ export function addRestrictedManaToPool(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
+            r.chosenCreatureType === chosenCreatureType &&
             r.castableCardId === castableCardId &&
             r.persistsUntil === persistsUntil &&
             manaRidersEqual(r, riders)
@@ -25088,6 +25126,9 @@ export function addRestrictedManaToPool(
     else {
         const unit: RestrictedMana = { color, amount };
         if (restriction !== undefined) unit.restriction = restriction;
+        if (chosenCreatureType !== undefined) {
+            unit.chosenCreatureType = chosenCreatureType;
+        }
         if (castableCardId !== undefined) unit.castableCardId = castableCardId;
         if (persistsUntil !== undefined) unit.persistsUntil = persistsUntil;
         // CR 106.6 riders (issue #1559 / #3354) — Delighted Halfling's mana
@@ -25118,13 +25159,17 @@ export function reverseRestrictedManaFromPool(
     amount: number,
     restriction: ManaRestriction | undefined,
     riders?: ManaRiders,
-    castableCardId?: string
+    castableCardId?: string,
+    /** CR 106.6 (issue #9388) — the deposit's chosen creature type, the same
+     *  merge-key field `addRestrictedManaToPool` keyed it under. */
+    chosenCreatureType?: string
 ): void {
     const list = player.restrictedMana ?? [];
     const entry = list.find(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
+            r.chosenCreatureType === chosenCreatureType &&
             // CR 601.3 — instance-keyed like the forward deposit: an Ice
             // Cauldron unit is its own bucket, addressed only by its card id.
             r.castableCardId === castableCardId &&
@@ -25164,7 +25209,10 @@ export function manaBalanceForRestriction(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     color: string,
     restriction: ManaRestriction | undefined,
-    riders?: ManaRiders
+    riders?: ManaRiders,
+    /** CR 106.6 (issue #9388) — the bucket's chosen creature type, keyed as
+     *  `addRestrictedManaToPool` deposits it. */
+    chosenCreatureType?: string
 ): number {
     // CR 106.6 (issue #3354) — an UNRESTRICTED deposit lands in the fungible
     // pool only when it is also untagged; a rider forces it into a tagged
@@ -25178,6 +25226,7 @@ export function manaBalanceForRestriction(
             (r) =>
                 r.color === color &&
                 r.restriction === restriction &&
+                r.chosenCreatureType === chosenCreatureType &&
                 // CR 601.3 — an instance-keyed unit (Ice Cauldron) is a
                 // bucket of its own and is never what a restriction-keyed
                 // (or bare-rider) lookup is asking about.

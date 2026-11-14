@@ -114,6 +114,7 @@ import { liveSupertypesOf } from "./snow";
 import {
     NO_SPELL_MANA_RIDERS,
     addRestrictedManaToPool,
+    restrictionChosenCreatureType,
     applyCostModifiers,
     canPayDiscardLastDrawn,
     canPayExileTopOfLibrary,
@@ -224,8 +225,18 @@ export function depositTappedMana(
     player: PlayerState,
     chosen: ManaCost,
     restriction: ManaRestriction | undefined,
-    riders: ManaRiders | undefined
+    riders: ManaRiders | undefined,
+    /** CR 106.6 / 614.12a (issue #9388) — the permanent whose ability made
+     *  the mana. Required, not optional, so no deposit site can forget it: a
+     *  `chosen-type-creature-spell` unit snapshots the source's chosen
+     *  creature type (`restrictionChosenCreatureType`) and would otherwise
+     *  land keyed on no type and pay for nothing. */
+    source: Pick<CardInstanceState, "chosenSubtypes"> | undefined
 ): void {
+    const chosenCreatureType = restrictionChosenCreatureType(
+        restriction,
+        source
+    );
     // CR 106.6 (issue #3354) — a RIDER forces the deposit into the parallel
     // pool even with no restriction at all (Arena of Glory's {R}{R} may pay
     // for anything, but carries "if spent on a creature spell…"): the fungible
@@ -240,7 +251,9 @@ export function depositTappedMana(
                     amount,
                     restriction,
                     undefined,
-                    riders
+                    riders,
+                    undefined,
+                    chosenCreatureType
                 );
             } else {
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
@@ -1500,7 +1513,8 @@ export function commitNonStackActivation(
             player,
             produced,
             ability?.manaRestriction,
-            manaRidersForAbility(ability)
+            manaRidersForAbility(ability),
+            card
         );
         // Emitted from the card object we still hold, so its types/subtypes
         // snapshot is the source's own even when a `cost.sacrifice` leg has
