@@ -72,6 +72,10 @@ export type SubmitChoiceArgs = {
      *  with `cardInstanceIds` these MUST partition the looked-at `candidateIds`.
      *  Omitted (or empty) for `destination: "none"` and every other kind. */
     secondZoneIds?: string[];
+    /** For `kind: "graveyard-order"` only (CR 404.3, issue #9554) — "Order
+     *  randomly": the server draws the arrangement from the game's seeded PRNG
+     *  and ignores `cardInstanceIds`. */
+    orderRandomly?: boolean;
 };
 
 export type SubmitMayPayArgs = {

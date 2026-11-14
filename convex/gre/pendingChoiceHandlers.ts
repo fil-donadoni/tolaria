@@ -18,6 +18,7 @@ import {
     submitDiscardHand,
     submitDrawLookKeep,
     submitLegendKeep,
+    submitGraveyardOrder,
     submitMeldArrange,
     submitMidResolutionPick,
     submitMulliganBottom,
@@ -34,6 +35,7 @@ import {
 } from "./pendingChoiceSubmitHandlers";
 import {
     damageTargetActions,
+    graveyardOrderActions,
     landEntryActions,
     madnessCastActions,
     mayPayActions,
@@ -102,6 +104,12 @@ export const PENDING_CHOICE_HANDLERS: Record<
     "meld-arrange": {
         submit: zoned(submitMeldArrange),
         legalActions: zonePickActions,
+    },
+    // CR 404.3 — `zoned` runs inside: "Order randomly" substitutes the
+    // seeded arrangement before the shared checks.
+    "graveyard-order": {
+        submit: submitGraveyardOrder,
+        legalActions: graveyardOrderActions,
     },
     "untap-pick": {
         submit: zoned(submitUntapPick),

@@ -127,6 +127,13 @@ const META_GRAVEYARD: ZoneMeta = {
     hint: "discarded / milled",
     icon: "graveyard",
 };
+/** `graveyardOrder` chrome (CR 404.3, issue #9554) — the one zone of the
+ *  order-only strip when the cards being arranged sit on top of a graveyard. */
+const META_GRAVEYARD_TOP: ZoneMeta = {
+    title: "Top of graveyard",
+    hint: "rightmost = topmost",
+    icon: "graveyard",
+};
 const META_EXILE: ZoneMeta = {
     title: "Exile",
     hint: "removed from the game",
@@ -195,6 +202,7 @@ export default function LibraryOrderPicker({
     submitting,
     distribute,
     putBack,
+    graveyardOrder,
     onConfirm,
 }: {
     lookedAt: LookedAtCard[];
@@ -237,6 +245,12 @@ export default function LibraryOrderPicker({
      *  `min` 0 so the player may put none back, or the CR 119.4 floor when they
      *  cannot pay for every kept card. Mutually exclusive with `distribute`. */
     putBack?: { keep: number; min?: number };
+    /** `graveyardOrder` mode (CR 404.3, issue #9554): order-only, like Ponder's
+     *  `none`, over cards on top of a GRAVEYARD — the zone reads "Top of
+     *  graveyard", no library mock is drawn, and an "Order randomly" button
+     *  under the strip asks the server for a seeded random order. Pass
+     *  `destination: "none"` with it. */
+    graveyardOrder?: { onOrderRandomly: () => void };
     /** `topTopmostFirst` = kept cards, topmost first (or the HAND cards in
      *  `distribute` mode / the cards put on top in `putBack` mode); `secondIds`
      *  = the rest, ordered, sent to the destination (empty for `none` and
@@ -285,7 +299,9 @@ export default function LibraryOrderPicker({
                 // from the library with the wider gap (GAP_DETACHED).
                 detached: true,
             }
-          : chromeFor(destination);
+          : graveyardOrder
+            ? { ...chromeFor("none"), rightMeta: META_GRAVEYARD_TOP }
+            : chromeFor(destination);
     const { leftMeta, rightMeta, hasSecond, detached } = chrome;
     // The distribute KEEP zone is DETACHED from the library mock (QA Narset)
     // whenever it leaves the library — HAND or BATTLEFIELD (issue #3249): a
@@ -757,18 +773,20 @@ export default function LibraryOrderPicker({
                             />
                         )}
 
-                        <div
-                            className="absolute"
-                            style={{
-                                left: view.layout.libStart,
-                                top: LIFT,
-                                width: deckWidthFor(cardW),
-                                height: cardH,
-                                zIndex: 100,
-                            }}
-                        >
-                            <DeckMock cardW={cardW} cardH={cardH} />
-                        </div>
+                        {!graveyardOrder && (
+                            <div
+                                className="absolute"
+                                style={{
+                                    left: view.layout.libStart,
+                                    top: LIFT,
+                                    width: deckWidthFor(cardW),
+                                    height: cardH,
+                                    zIndex: 100,
+                                }}
+                            >
+                                <DeckMock cardW={cardW} cardH={cardH} />
+                            </div>
+                        )}
 
                         {lookedAt.map((c) => {
                             const p = view.place.get(c.instanceId);
@@ -813,7 +831,7 @@ export default function LibraryOrderPicker({
                     </div>
                 </div>
 
-                <div className="flex justify-center">
+                <div className="flex flex-col items-center gap-2">
                     <button
                         type="button"
                         disabled={confirmDisabled}
@@ -822,6 +840,16 @@ export default function LibraryOrderPicker({
                     >
                         Done
                     </button>
+                    {graveyardOrder && (
+                        <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={graveyardOrder.onOrderRandomly}
+                            className="rounded-full border border-border-subtle bg-surface-elevated/40 px-6 py-1.5 text-sm text-text-muted hover:bg-surface-elevated/70 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Order randomly
+                        </button>
+                    )}
                 </div>
             </div>
         </div>,

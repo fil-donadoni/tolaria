@@ -119,6 +119,15 @@ export type ZonePickKind =
     // `GameState.pendingMeldArrangements`, committed by
     // `finalizeMeldArrangement`.
     | "meld-arrange"
+    // CR 404.3 (issue #9554): one simultaneous event (a resolving instruction,
+    // an SBA pass) put two or more cards into one player's graveyard. The
+    // owner arranges them: `candidateIds` are the batch, topmost first, and
+    // the submission is the whole batch in its new top-down order. A
+    // phase-level choice (stackItemId === "") raised by the SBA sweep from
+    // `GameState.pendingGraveyardArrangements`, committed by
+    // `finalizeGraveyardArrangement`. `orderRandomly` asks the server for a
+    // seeded random order instead.
+    | "graveyard-order"
     // Ordered top-of-library placement (CR 701.22 Scry / 701.25 Surveil /
     // "look at the top N, put them back in any order" — Ponder). The drag
     // picker's kind: `candidateIds` are the looked-at top N (from
