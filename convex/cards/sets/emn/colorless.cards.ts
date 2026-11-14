@@ -4,6 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { hanweirWrithingTownshipFace } from "./hanweirWrithingTownshipFace.cards";
 
 // Hanweir Battlements — Land (EMN 204). "{T}: Add
@@ -63,5 +64,62 @@ export const hanweirBattlements = defineCard(() => ({
                 },
             ],
         },
+    ],
+}));
+
+// Emrakul, the Promised End — {13} Legendary Creature — Eldrazi 13/13 (EMN 6).
+// "This spell costs {1} less to cast for each card type among cards in your
+// graveyard.\nWhen you cast this spell, you gain control of target opponent
+// during that player's next turn. After that turn, that player takes an extra
+// turn.\nFlying, trample, protection from instants"
+//
+// The cost clause is a CR 601.2f self-host reduction (the spell is not yet a
+// permanent at announcement) counted by the `graveyard-card-types` census:
+// distinct card types among the cards in the caster's graveyard (CR 205.2a),
+// the same count delirium reads. The cast trigger is CR 601.2i (`scope: "self"`
+// goes on the stack above Emrakul, so control and the extra turn are granted
+// even if the spell is later countered); its target is chosen as it goes on the
+// stack (CR 603.3d). Control is CR 723.1 (`controlNextTurn`), and the extra turn
+// is queued behind that turn (`extraTurn` `after: "their-next-turn"`).
+// hand-tail: This spell costs {1} less to cast for each card type among cards in your graveyard. (#8616)
+export const emrakulThePromisedEnd = defineCard(() => ({
+    id: "8d74a469-c71d-4773-99d3-5456b31df424", // EMN 6
+    name: "Emrakul, the Promised End",
+    rarity: "mythic",
+    oracleText:
+        "This spell costs {1} less to cast for each card type among cards in your graveyard.\nWhen you cast this spell, you gain control of target opponent during that player's next turn. After that turn, that player takes an extra turn.\nFlying, trample, protection from instants",
+    manaCost: { X: 13 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Eldrazi"],
+    power: 13,
+    toughness: 13,
+    staticAbilities: ["flying", "trample", "protection from instants"],
+    selfCostReduction: {
+        costReduction: {
+            perCount: { X: 1 },
+            countMode: "graveyard-card-types",
+        },
+    },
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "emrakul-promised-end-cast-control",
+            oracleText:
+                "When you cast this spell, you gain control of target opponent during that player's next turn. After that turn, that player takes an extra turn.",
+            scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                { op: "controlNextTurn", player: { target: 0 } },
+                {
+                    op: "extraTurn",
+                    player: { target: 0 },
+                    after: "their-next-turn",
+                },
+            ],
+        }),
     ],
 }));
