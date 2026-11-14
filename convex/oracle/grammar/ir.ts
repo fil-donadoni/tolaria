@@ -239,6 +239,9 @@ export type SlotIR =
           readonly kind: "mana-ability";
           readonly cost: ActivationCostIR;
           readonly produces: ManaProductionIR;
+          /** CR 702.178a — printed behind "Max speed —": the object has the
+           *  ability only as long as "your" speed is 4. */
+          readonly maxSpeed?: true;
       }
     /**
      * CR 113.3b — an activated ability that uses the stack. Its cost is the

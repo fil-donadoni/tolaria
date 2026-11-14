@@ -24,6 +24,36 @@ export function hasMaxSpeed(player: { readonly speed?: number }): boolean {
     return speedOf(player) === MAX_SPEED;
 }
 
+/** CR 702.178a — whether an activated ability printed behind "Max speed —"
+ *  exists right now: always, unless it carries `requiresMaxSpeed`, and then
+ *  only while "your" speed is 4. CR 109.5 — "you" is the would-be activator:
+ *  the source's controller, or its owner for an ability that functions from
+ *  the graveyard (CR 702.178b). Fail-closed: a reader absent from `players`
+ *  has no speed. `players` is any player list carrying `speed` — a
+ *  `TriggerStateView`'s, or the mana boards' (`ManaBattlefield`, keyed by
+ *  `playerId`). */
+export function maxSpeedGateOpen(
+    ability: {
+        readonly requiresMaxSpeed?: true;
+        readonly activateFromGraveyard?: boolean;
+    },
+    source: { readonly controllerId?: string; readonly ownerId?: string },
+    players: ReadonlyArray<
+        ({ readonly id: string } | { readonly playerId: string }) & {
+            readonly speed?: number;
+        }
+    >
+): boolean {
+    if (ability.requiresMaxSpeed !== true) return true;
+    const reader = ability.activateFromGraveyard
+        ? source.ownerId
+        : source.controllerId;
+    const player = players.find(
+        (p) => ("id" in p ? p.id : p.playerId) === reader
+    );
+    return player !== undefined && hasMaxSpeed(player);
+}
+
 function hasStartYourEngines(card: CardInstanceState): boolean {
     return card.staticAbilities.includes(START_YOUR_ENGINES_KEYWORD);
 }

@@ -427,6 +427,7 @@ function lowerQuotedAbility(
             oracleText: quoted.text,
             cost: ir.cost,
             produces: ir.produces,
+            ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
         });
         return lowered.ok
             ? { ok: true, kind: "activated", ability: lowered.ability }
@@ -511,6 +512,7 @@ function lowerLine(
                 cost: ir.cost,
                 produces: ir.produces,
                 ownLine: true,
+                ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
             });
             if (!lowered.ok) return lowered.reason;
             const ability = lowered.ability;

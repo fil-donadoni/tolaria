@@ -2,7 +2,8 @@
 // keyword, where every other word in that position is an ability word with no
 // rules meaning.
 //
-//  1. GRAMMAR — the head survives as the ability's gate.
+//  1. GRAMMAR — the head survives as the ability's gate, on a trigger, a
+//     static, a graveyard ability and a battlefield activated or mana ability.
 //  2. REFUSALS — the shapes the one gate slot cannot hold.
 //  3. ENGINE — the gate reads the controller's speed when the ability would
 //     trigger, and an ability already on the stack is not re-read. The static
@@ -381,12 +382,6 @@ describe('"Max speed —" from the graveyard (CR 702.178b)', () => {
         ).toBeUndefined();
     });
 
-    it("refuses a battlefield ability behind the head (issue #9586)", () => {
-        expect(definition("Max speed — {3}, {T}: Draw a card.")).toBe(
-            "unparsed"
-        );
-    });
-
     it("gates the card's own graveyard cast permission", () => {
         const compiled = definition(
             "Max speed — You may cast this card from your graveyard."
@@ -422,5 +417,92 @@ describe('"Max speed —" from the graveyard (CR 702.178b)', () => {
                 "Max speed — You may cast this card from your graveyard as long as you control a Zombie."
             )
         ).toBe("unparsed");
+    });
+});
+
+describe('"Max speed —" heading an activated or mana ability on the battlefield (CR 702.178a)', () => {
+    function permanent(
+        name: string,
+        typeLine: string,
+        lines: readonly string[]
+    ): OracleCard {
+        const creature = typeLine.includes("Creature");
+        return {
+            oracleId: "9586b000-0000-4000-8000-000000000000",
+            name,
+            manaCost: "{2}",
+            typeLine,
+            oracleText: [REMINDER, ...lines].join("\n"),
+            ...(creature ? { power: "2", toughness: "2" } : {}),
+            layout: "normal",
+        };
+    }
+
+    function abilities(card: OracleCard) {
+        const outcome = compileCard(card);
+        if (outcome.state !== "ready")
+            throw new Error(`${card.name} is ${outcome.state}`);
+        return (outcome.definition.activatedAbilities ?? []).map((a) => ({
+            useStack: a.useStack,
+            requiresMaxSpeed: a.requiresMaxSpeed,
+        }));
+    }
+
+    it("a fixed mana ability keeps the gate", () => {
+        expect(
+            abilities(
+                permanent("Endrider Catalyzer", "Creature — Human Warrior", [
+                    "Max speed — {T}: Add {R}{R}.",
+                ])
+            )
+        ).toEqual([{ useStack: false, requiresMaxSpeed: true }]);
+    });
+
+    it("a counted mana ability keeps the gate", () => {
+        expect(
+            abilities(
+                permanent("Howlsquad Heavy", "Creature — Goblin Mercenary", [
+                    "Max speed — {T}: Add {R} for each Goblin you control.",
+                ])
+            )
+        ).toEqual([{ useStack: false, requiresMaxSpeed: true }]);
+    });
+
+    it("gates only the line behind the head, not its ungated sibling", () => {
+        expect(
+            abilities(
+                permanent("Muraganda Raceway", "Land", [
+                    "{T}: Add {C}.",
+                    "Max speed — {T}: Add {C}{C}.",
+                ])
+            )
+        ).toEqual([
+            { useStack: false, requiresMaxSpeed: undefined },
+            { useStack: false, requiresMaxSpeed: true },
+        ]);
+    });
+
+    it("a stack ability on the battlefield keeps the gate", () => {
+        expect(
+            abilities(
+                permanent("Amonkhet Raceway", "Land", [
+                    "{T}: Add {C}.",
+                    "Max speed — {T}: Target creature gains haste until end of turn.",
+                ])
+            )
+        ).toEqual([
+            { useStack: false, requiresMaxSpeed: undefined },
+            { useStack: true, requiresMaxSpeed: true },
+        ]);
+    });
+
+    it("an activation restriction behind the head rides the gated ability", () => {
+        expect(
+            abilities(
+                permanent("Hour of Victory", "Enchantment", [
+                    "Max speed — {1}{B}, Sacrifice this enchantment: Search your library for a card, put it into your hand, then shuffle. Activate only as a sorcery.",
+                ])
+            )
+        ).toEqual([{ useStack: true, requiresMaxSpeed: true }]);
     });
 });
