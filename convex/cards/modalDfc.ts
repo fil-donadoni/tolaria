@@ -244,7 +244,7 @@ export function backFaceTwinDefinition(
         ...(back.entersTappedUnlessPay
             ? { entersTappedUnlessPay: back.entersTappedUnlessPay }
             : {}),
-        // CR 614.1c (issue #9467) — "This land enters tapped." on the face.
+        // CR 614.1d (issue #9467) — "This land enters tapped." on the face.
         ...(back.entersTapped ? { entersTapped: true } : {}),
         // CR 712.11b — what a cast back face does and aims at (issue #7200).
         ...(back.effects ? { effects: back.effects } : {}),

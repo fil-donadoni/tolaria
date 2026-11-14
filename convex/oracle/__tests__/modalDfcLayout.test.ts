@@ -101,7 +101,7 @@ describe("CR 712.12 — a LAND-backed modal double-faced card is ADMITTED", () =
     });
 });
 
-describe("CR 614.1c — a tapped-land modal back face is ADMITTED (issue #9467)", () => {
+describe("CR 614.1d — a tapped-land modal back face is ADMITTED (issue #9467)", () => {
     const card = modalCard([
         {
             name: "Quiet Scholar",

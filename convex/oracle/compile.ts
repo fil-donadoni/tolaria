@@ -161,7 +161,7 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
     "staticAbilities",
     "activatedAbilities",
     "entersTappedUnlessPay",
-    // CR 614.1c (issue #9467) — a plain tapped-land back face.
+    // CR 614.1d (issue #9467) — a plain tapped-land back face.
     "entersTapped",
     "oracleText",
 ]);

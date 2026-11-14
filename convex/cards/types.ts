@@ -3516,7 +3516,7 @@ export interface CardBackFace {
      *  machinery (`gre/playLand.ts`) reads it exactly as it does for a
      *  printed shock land. */
     entersTappedUnlessPay?: MayPayCost;
-    /** CR 614.1c / 712.12 (issue #9467) — the back face's plain "This land
+    /** CR 614.1d / 712.12 (issue #9467) — the back face's plain "This land
      *  enters tapped." (Valakut Awakening // Valakut Stoneforge). MODAL faces
      *  only, for the reason {@link entersTappedUnlessPay} is: the twin carries
      *  it onto a real `CardDefinition.entersTapped`, which `shouldEnterTapped`

@@ -1,4 +1,4 @@
-// CR 614.1c / 712.12 (issue #9467) — a MODAL double-faced card whose back
+// CR 614.1d / 712.12 (issue #9467) — a MODAL double-faced card whose back
 // face is a plain "This land enters tapped." land (Valakut Awakening //
 // Valakut Stoneforge's shape).
 //
@@ -44,7 +44,7 @@ function withVariant<T>(fn: () => T): T {
     );
 }
 
-describe("modal back face — plain entersTapped (CR 614.1c / 712.12, issue #9467)", () => {
+describe("modal back face — plain entersTapped (CR 614.1d / 712.12, issue #9467)", () => {
     it("the registered twin carries the face's entersTapped", () => {
         const twin = modalBackTwinDefinition(tappedBackVariant());
         expect(twin?.entersTapped).toBe(true);
@@ -74,7 +74,7 @@ describe("modal back face — plain entersTapped (CR 614.1c / 712.12, issue #946
             expect((slim?.card as { id: string }).id).toBe(
                 modalBackFaceDefinitionId(SINK_INTO_STUPOR)
             );
-            // CR 614.1c — "This land enters tapped."
+            // CR 614.1d — "This land enters tapped."
             expect(slim?.isTapped).toBe(true);
             expect(player.landsPlayedThisTurn).toBe(1);
         });
