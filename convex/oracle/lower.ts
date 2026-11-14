@@ -1287,7 +1287,6 @@ function announcesX(
     );
 }
 
-/** CR 702.155a — the keyword, as the keyword slot reports it. */
 /** What the draw-skip choice names: the replaced draw (CR 614.1a) or the
  *  replaced step (CR 614.10). */
 const OPTIONAL_DRAW_SKIP_WORDING = {
@@ -1295,6 +1294,7 @@ const OPTIONAL_DRAW_SKIP_WORDING = {
     step: "draw step",
 } as const satisfies Record<"draw" | "step", string>;
 
+/** CR 702.155a — the keyword, as the keyword slot reports it. */
 const READ_AHEAD = "read ahead";
 
 /**
