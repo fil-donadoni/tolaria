@@ -22,6 +22,10 @@ import type {
 type GameContext = {
     gameId: Id<"games">;
     playerId: string;
+    /** CR 723.5 (ADR 0181) — another player makes this board's seat's
+     *  decisions this turn: the board is watched, not played. Absent on
+     *  providers with no Turn Control (tests, Manual). */
+    actingLocked?: boolean;
     activePlayerId: string;
     priorityPlayerId: string;
     phase: Phase;

@@ -155,6 +155,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     airbend: false,
     extraCombat: false,
     extraTurn: false,
+    controlNextTurn: false,
     forEach: false,
     gainControl: false,
     gainLife: false,

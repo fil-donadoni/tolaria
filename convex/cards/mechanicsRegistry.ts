@@ -3203,6 +3203,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Schedule an extra turn for `player` after the current one (CR 500.7, issue #686 — Time Warp). A thin declarative skin over the single SpellContext primitive `takeExtraTurn` (ADR 0045), one execution path: the SAME primitive already backs Time Walk\'s pre-DSL `resolve()` closure (`lea/blue.ts`) and the LIFO `state.extraTurns` queue `advanceTurn` (phases.ts) pops at each turn boundary — this Op adds no new engine capability, only a declarative front end over an already-shipped, already-exercised primitive (primitive-reuse mandate). `player` is an announced target slot (Time Warp: "target player"), the resolving controller, or a relative player. Skipped when the player cannot be resolved (CR 608.2b). SCOPE: only scheduling a plain extra turn is folded; an activated-ability source (Time Vault) or a turn with restrictions ("skip your next turn" riders) is out of reach of this Op and stays resolve() if it ever needs a variant shape.',
     },
     {
+        op: "controlNextTurn",
+        status: "implemented",
+        cr: "723.1",
+        binding: "SpellContext.controlPlayerNextTurn",
+        note: "The resolving object's controller gains control of `player` during that player's next turn (CR 723.1, issue #8446, ADR 0181 — Mindslaver: \"You control target player during that player's next turn\"). Fronts the SpellContext primitive `controlPlayerNextTurn`, which records a pending `TurnControl` on `state.turnControls`; `advanceTurn` (phases.ts) activates it on the next turn that player ACTUALLY takes (a skipped turn consumes nothing, CR 723.1b) and ends it at the beginning of the following turn (CR 723.1). Player-controlling effects on the same player overwrite each other, the last created working (CR 723.1a). Not decomposable (nothing else changes who answers for a seat), not a parameter of `gainControl` (that Op changes an OBJECT's controller; CR 723.3 says this one must not), orthogonal (a turn-structure operation over a player, no card-shaped clause) and flagless. The rules never read the state: objects keep their controllers, the controlled player stays the active player and pays with their own resources (CR 723.3, 723.5a); only the decision boundary — owed players, mutation authority, viewer, projection, Phase Stops, the Bot — maps the seat to its Acting Player through `gre/turnControl.ts`. SCOPE: next-turn control only. Control for a limited duration (CR 723.2, Opposition Agent), and an effect that restricts or forces the controlled player's actions (CR 723.7), are out.",
+    },
+    {
         op: "extraCombat",
         status: "implemented",
         cr: "500.8",

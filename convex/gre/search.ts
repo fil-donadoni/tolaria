@@ -170,6 +170,7 @@ import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { deckColorsForSearch, type DeckKnowledgeBySeat } from "./deckKnowledge";
 import { makeRng } from "./rng";
+import { actingPlayerFor } from "./turnControl";
 import { hasCastableInstantHint } from "./heldInteraction";
 import { newManaCensusMemo, type ManaCensusMemo } from "./manaCensusMemo";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -2431,7 +2432,11 @@ export function selectRolloutMove(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     memo: ManaCensusMemo = newManaCensusMemo()
 ): Move {
-    const moverIsBot = pid === botId;
+    // CR 723.5 (ADR 0181) — a mover's interest is the player who DECIDES for
+    // it: a seat the bot controls this turn is played for the bot, and the
+    // bot's own seat under another player's control is played against it. The
+    // identity on every board with no active Turn Control.
+    const moverIsBot = actingPlayerFor(state, pid) === botId;
     // Asked once for the ply, not once per candidate (issue #4461).
     const held = heldInstantProbe(state, pid, memo);
     let bestScore = -Infinity;
@@ -8243,6 +8248,39 @@ export function greedyRootPick(
     } finally {
         endDominanceDecision();
     }
+}
+
+/** The move `controllerId` makes for `seatId`, a player they control this turn
+ *  (CR 723.5, ADR 0181): the seat's legal moves, each read one ply ahead by
+ *  the rollout policy (`selectRolloutMove`) in the CONTROLLER's interest —
+ *  the policy maps the mover to its Acting Player, so nothing here flips a
+ *  sign. Returns null when `seatId` owes no decision the move model
+ *  enumerates.
+ *
+ *  Not an ISMCTS search, and not the dominance-pruned candidate set: the
+ *  tree compares the mover with the bot at sites that mean two different
+ *  things (whose interest, whose resources), and a move dominated FOR THE
+ *  SEAT — the wasted removal, the attack into a wall — is exactly what a
+ *  controller is looking for. `seed` only breaks exact ties. */
+export function controlledSeatPick(
+    state: GameState,
+    seatId: string,
+    controllerId: string,
+    seed: number,
+    weights: EvalWeights = resolveEvalWeights(getSearchVariant())
+): Move | null {
+    if (decidingPlayer(state) !== seatId) return null;
+    const moves = enumerateMoves(state, seatId);
+    if (moves.length === 0) return null;
+    if (moves.length === 1) return moves[0];
+    return selectRolloutMove(
+        state,
+        seatId,
+        controllerId,
+        moves,
+        makeRng(seed),
+        weights
+    );
 }
 
 /** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an

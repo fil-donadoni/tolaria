@@ -4512,7 +4512,11 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
     },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
-    extraTurn: { required: { player: isPlayerRef } },
+    extraTurn: {
+        required: { player: isPlayerRef },
+        optional: { after: (v) => v === "their-next-turn" },
+    },
+    controlNextTurn: { required: { player: isPlayerRef } },
     // CR 500.8 (issue #2886) — add one additional combat phase to the turn in
     // progress (Fear of Missing Out). NO fields: the phase belongs to the turn
     // (no player to name) and the queue entry is unanchored (no `after` —

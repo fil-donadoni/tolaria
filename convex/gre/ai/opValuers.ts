@@ -207,6 +207,7 @@ const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
 // consistent by construction instead of by coincidence.
 const EXTRA_COMBAT_VALUE = 150;
 const SKIP_TURN_VALUE = 300; // CR 614.10 — forfeiting an entire turn, the mirror of EXTRA_TURN_VALUE
+const CONTROL_TURN_VALUE = 300; // CR 723.5 — a whole turn of the player's decisions made by someone else: priced as the turn they lose (SKIP_TURN_VALUE), the floor of what a controller does with it
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 const RANGED_TOPDECK_PER_CARD = 3; // Sylvan Library-style selection upside per pool card, smaller than putBack since it's an optional life-gated pick, not a free reorder
 const SKIP_DRAW_STEP_SELF_VALUE = -40; // CR 504.1/500.8 — forfeiting your OWN draw step is a real cost, a hair under one `latent.cardAdvantage` unit (the shipped card, Elfhame Sanctuary, pairs it with a land-to-hand upside elsewhere in the script)
@@ -2740,6 +2741,17 @@ const skipNextTurn: Valuer<"skipNextTurn"> = (op, ctx) => {
     return { points: (self ? -1 : 1) * SKIP_TURN_VALUE, tags };
 };
 
+// CR 723.1 (issue #8446) — controlling a player's next turn takes that turn's
+// decisions away from them: at least the turn they would have played
+// (`CONTROL_TURN_VALUE`), credited to the caster when the controlled player is
+// the opponent. Harmful-by-default like `skipNextTurn`: an announced target
+// slot is assumed to name the OPPONENT. Controlling yourself (CR 723.9) changes
+// who decides nothing, so it is worth nothing rather than a cost.
+const controlNextTurn: Valuer<"controlNextTurn"> = (op, ctx) => ({
+    points: ctx.isSelf(op.player, "opponent") ? 0 : CONTROL_TURN_VALUE,
+    tags: ["tempo"],
+});
+
 const gainControl: Valuer<"gainControl"> = (op, ctx) => ({
     points: pricedFraction(
         ctx,
@@ -3623,6 +3635,7 @@ export const OP_VALUERS: {
     divideIntoPiles,
     emblem,
     extraTurn,
+    controlNextTurn,
     extraCombat,
     skipNextTurn,
     gainControl,
@@ -4062,6 +4075,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     skipNextUntap: "harmful",
     returnToHandAtNextUntap: "harmful",
     skipNextTurn: "harmful",
+    controlNextTurn: "harmful",
     skipDrawStepThisTurn: "harmful",
     unattach: "harmful",
     armGraveyardRedirect: "harmful",

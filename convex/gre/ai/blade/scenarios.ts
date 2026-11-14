@@ -27704,4 +27704,77 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9536, second group of a two-group free cast. Destroying the opponent's only land over one of the Bot's own is right on any board (`absolute`). DISCRIMINATING: before the fix the free cast announced one target and no land pick was ever raised — the setup's `choose` left no choice at the head.",
     },
+    {
+        label: "turn control: spends the controlled player's turn instead of developing their board",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Serra Angel", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            activePlayer: "opp",
+            priority: "opp",
+            turnControl: { controlled: "opp", controller: "me" },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind !== "cast-spell" &&
+                move.kind !== "play-land",
+            describe:
+                "neither casts the controlled player's creature nor plays their land",
+        },
+        note: "Issue #8446, CR 723.5 (ADR 0181). The bot controls the opponent's turn: the decision is for the OPPONENT's seat (its hand, its lands) and is made in the BOT's interest, so a 4/4 flier and a land drop — the two best plays for the seat — are the two the controller must not make. No tree runs (`controlledSeatPick`), so the budget is nominal. Wrong whatever else is on the board (`absolute`). Discriminating: with the rollout policy reading the mover's interest off the seat rather than its Acting Player, the pick is the Serra Angel cast on 5/5 seeds.",
+    },
+    {
+        label: "turn control: turns the controlled player's removal on their own creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                { name: "Mountain", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            activePlayer: "opp",
+            priority: "opp",
+            turnControl: { controlled: "opp", controller: "me" },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.targets?.[0]?.type === "permanent",
+            describe:
+                "casts the controlled player's Lightning Bolt at a permanent — their own Grizzly Bears, the only creature on the board",
+        },
+        note: "Issue #8446, CR 723.5 / 723.5a (ADR 0181). Twin of `turn control: spends the controlled player's turn instead of developing their board`: a controlled turn is not only a wasted one. The opponent's burn spell, paid with the opponent's own Mountain, is aimed where it costs the opponent most — and never at the bot. Wrong whatever else is on the board (`absolute`). Discriminating: read in the seat's own interest the pick is `pass` — the Bolt held — on 5/5 seeds.",
+    },
 ];

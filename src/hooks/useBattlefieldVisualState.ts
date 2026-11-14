@@ -102,6 +102,7 @@ export function useBattlefieldVisualState(
 ) {
     const {
         playerId,
+        actingLocked,
         activePlayerId,
         priorityPlayerId,
         phase,
@@ -334,6 +335,7 @@ export function useBattlefieldVisualState(
         // payment — mana sources tap toward the tax, they aren't attacker picks.
         !combat.pendingAttackManaTax &&
         isMe &&
+        !actingLocked &&
         playerId === activePlayerId;
 
     // CR 508.1a (issue #1220) — while the active player is declaring attackers,
@@ -346,6 +348,7 @@ export function useBattlefieldVisualState(
         !!combat &&
         !combat.confirmed &&
         !combat.pendingAttackManaTax &&
+        !actingLocked &&
         playerId === activePlayerId &&
         player.id !== activePlayerId &&
         // CR 508.1b — candidates only while a creature awaits its target.

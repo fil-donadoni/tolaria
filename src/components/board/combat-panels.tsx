@@ -33,6 +33,7 @@ export default function CombatPanels({ player }: { player: Player }) {
     const {
         gameId,
         playerId,
+        actingLocked,
         activePlayerId,
         phase,
         combat,
@@ -66,6 +67,7 @@ export default function CombatPanels({ player }: { player: Player }) {
         !combat.pendingAttackManaTax &&
         !combat.pendingAttackSacrifice &&
         isMe &&
+        !actingLocked &&
         playerId === activePlayerId;
 
     // CR 508.1a: the planeswalker-retarget hint (and its attack arrows) only

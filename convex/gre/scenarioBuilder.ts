@@ -1380,6 +1380,19 @@ export function buildStateFromScenario(
             : p2.id
         : state.activePlayerId;
     state.passCount = spec.passCount ?? 0;
+    // CR 723.1 (issue #8446) — an active Turn Control, or none: a control the
+    // base state carried belongs to the game the scenario is loaded over.
+    const seatOf = (seat: "me" | "opp") => (seat === "me" ? p1.id : p2.id);
+    state.turnControls = spec.turnControl
+        ? [
+              {
+                  controlledId: seatOf(spec.turnControl.controlled),
+                  controllerId: seatOf(spec.turnControl.controller),
+                  active: true,
+              },
+          ]
+        : undefined;
+    state.scheduledExtraTurns = undefined;
     state.stack = [];
 
     // CR 117.1 / 601.2 / 608.2 (issue #3515) — every MID-FLIGHT decision the
@@ -4566,6 +4579,11 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "activePlayerId",
     "priorityPlayerId",
     "passCount",
+    // CR 723.1 (issue #8446) — the ACTIVE control is lowered into
+    // `turnControl`; a pending one, and an extra turn scheduled after a
+    // player's next turn, are turn-scheduling residue reported in `dropped`.
+    "turnControls",
+    "scheduledExtraTurns",
     // CR 702.40a (issue #3449) — lowered into `stormCount`, the Storm tally of
     // spells cast by any player this turn.
     "spellsCastThisTurn",
@@ -5481,6 +5499,10 @@ export function specFromState(
         );
     }
 
+    // CR 723.1 (issue #8446) — the control governing the turn in progress.
+    const activeControl = state.turnControls?.find((c) => c.active);
+    const seatName = (id: string): "me" | "opp" =>
+        id === opts.mySeatId ? "me" : "opp";
     const spec: ScenarioSpec = {
         cards,
         turn: state.turn,
@@ -5498,6 +5520,14 @@ export function specFromState(
         activePlayer: state.activePlayerId === opts.mySeatId ? "me" : "opp",
         priority: state.priorityPlayerId === opts.mySeatId ? "me" : "opp",
         passCount: state.passCount,
+        ...(activeControl
+            ? {
+                  turnControl: {
+                      controlled: seatName(activeControl.controlledId),
+                      controller: seatName(activeControl.controllerId),
+                  },
+              }
+            : {}),
         // Issue #3449 — what has already been cast, always explicit, for the
         // same reason as `life` and the three above and NOT the truthy-guarded
         // convention poison/experience follow. The builder leaves an omitted
@@ -5746,6 +5776,8 @@ export function specFromState(
     }
     if (
         (state.extraTurns && state.extraTurns.length > 0) ||
+        (state.scheduledExtraTurns && state.scheduledExtraTurns.length > 0) ||
+        (state.turnControls?.some((c) => !c.active) ?? false) ||
         (state.autoPassPlayers && state.autoPassPlayers.length > 0) ||
         state.singleShotAutoPass ||
         (state.queuedEndTurn && state.queuedEndTurn.length > 0) ||

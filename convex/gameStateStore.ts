@@ -3,7 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import { recomputeContinuousEffects, type GameState } from "./gre/state";
 import {
-    computeOwedPlayerIds,
+    computeOwedActingPlayerIds,
     refreshExpectedInput,
 } from "./gre/expectedInput";
 import {
@@ -14,6 +14,7 @@ import {
     splitCompactState,
     type CompactLibraries,
 } from "./gre/serialize";
+import { actingPlayerFor, activeTurnControls } from "./gre/turnControl";
 import { projectPublicState } from "./gameProjections";
 import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
@@ -302,7 +303,10 @@ async function saveGameTick(
         .query("gameTicks")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .first();
-    const owedPlayerIds = computeOwedPlayerIds(state);
+    // ADR 0181 — the players who must ANSWER, not the seats the rules name:
+    // under Turn Control (CR 723.5) the driver, the Bot deadline and the
+    // clock below wake, time and charge the controller.
+    const owedPlayerIds = computeOwedActingPlayerIds(state);
     const previousClock =
         existing?.clock ??
         (existing ? undefined : await seedGameClock(ctx, insertedGame));
@@ -329,6 +333,9 @@ async function saveGameTick(
         owedPlayerIds,
         gameOver: state.gameOver !== undefined,
         ...(clock ? { clock } : {}),
+        // Explicitly `undefined` when none is active, so the patch below
+        // REMOVES a mirror the previous save wrote.
+        turnControls: activeTurnControls(state),
         updatedAt: Date.now(),
     };
     const botDeadlineAt = await armBotDeadline(ctx, gameId, state, vsAi, {
@@ -380,7 +387,9 @@ function awaitedPlayerId(
     owedPlayerIds: readonly string[]
 ): string | null {
     if (owedPlayerIds.length === 1) return owedPlayerIds[0];
-    return state.expectedInput?.playerId ?? null;
+    const seatId = state.expectedInput?.playerId;
+    // CR 723.5 (ADR 0181) — the clock charges whoever is deciding.
+    return seatId ? actingPlayerFor(state, seatId) : null;
 }
 
 /** A clocked Match's new Game: its clock starts from the Match's carried

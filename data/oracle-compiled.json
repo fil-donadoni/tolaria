@@ -608,7 +608,6 @@
         {"key":"9b2f39e4a906","text":"-7: Until end of turn, creatures you control gain \"You may have this creature assign its combat damage as though it weren't blocked.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"-7: Until end of turn, creatures you control gain \"You may have this creature assign its combat damage as though it weren't blocked.\""}},
         {"key":"2cbb58b8eb48","text":"-7: Until end of turn, creatures you control get +1/+1 for each Forest you control and gain trample.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","mass subject","object descriptor"],"span":"Until end of turn, creatures you control"}},
         {"key":"1aa9c4d40add","text":"-7: Until end of turn, each creature you control has base power and toughness 10/10 and gains trample.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Until end of turn, each creature you control has base power and toughness 10/10 and"}},
-        {"key":"e38b57ed13e0","text":"-7: You control target player during that player's next turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You control target player during that player's next turn"}},
         {"key":"246f14cdf2c6","text":"-7: You gain X life and draw X cards, where X is the number of lands you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You gain X life and draw X cards"}},
         {"key":"61cd31052779","text":"-7: You get an emblem with \"At the beginning of combat on your turn, put target creature card from a graveyard onto the battlefield under your control. It gains haste.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"-7: You get an emblem with \"At the beginning of combat on your turn, put target creature card from a graveyard onto the battlefield under your control. It gains haste.\""}},
         {"key":"3b7daa1bf0a8","text":"-7: You get an emblem with \"At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"-7: You get an emblem with \"At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature.\""}},
@@ -24767,8 +24766,7 @@
         {"key":"653f8e494e19","text":"You choose which creatures block this turn and how those creatures block.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You choose which creatures block this turn and how those creatures block"}},
         {"key":"f65b87d57edb","text":"You control enchanted Equipment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You control enchanted Equipment"}},
         {"key":"0b39d1d81f4c","text":"You control enchanted artifact creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You control enchanted artifact creature"}},
-        {"key":"a60242f58096","text":"You control target opponent during their next combat phase. If this spell's additional cost was paid, you control that player during their next turn instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You control target opponent during their next combat phase"}},
-        {"key":"f681b2219c9d","text":"You control target player during that player's next turn. Exile {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You control target player during that player's next turn"}},
+        {"key":"7051e5aeb440","text":"You control target opponent during their next combat phase. If this spell's additional cost was paid, you control that player during their next turn instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"You control target opponent during their next combat phase"}},
         {"key":"ce57b7c1c743","text":"You control your opponents while they're searching their libraries.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You control your opponents while they're searching their libraries"}},
         {"key":"0b086da29b63","text":"You destroy four lands you control, then target opponent destroys four lands they control. Then {self} deals 4 damage to each creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"You destroy four lands you control"}},
         {"key":"d819059df270","text":"You don't lose the game for having 0 or less life.","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"static","path":["static clause"],"span":"You don't lose the game for having 0 or less life"}},
@@ -26995,7 +26993,6 @@
         {"key":"1a0499bebd31","text":"{4}, {T}, Sacrifice this land: Mill five cards. Then you may put an artifact card from your graveyard on top of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Then you may put an artifact card from your graveyard on top of your library"}},
         {"key":"dd2c21e021cd","text":"{4}, {T}, Sacrifice this land: Return each creature card exiled with this land to the battlefield under its owner's control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","zone reference"],"span":"the battlefield under its owner's control"}},
         {"key":"55c96cec973a","text":"{4}, {T}, Sacrifice {self}: Each opponent who lost life this turn sacrifices a creature with the greatest power among creatures they control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Each opponent who lost life this turn sacrifices a creature with the greatest power among creatures they control"}},
-        {"key":"8f2b9239c632","text":"{4}, {T}, Sacrifice {self}: You control target player during that player's next turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You control target player during that player's next turn"}},
         {"key":"8b3cabb7151e","text":"{4}, {T}, Tap an untapped legendary creature you control: Venture into the dungeon. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Venture into the dungeon"}},
         {"key":"88e61dce4615","text":"{4}, {T}: Add four mana in any combination of colors.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"four mana in any combination of colors"}},
         {"key":"a69f3b1dd1dc","text":"{4}, {T}: Add {W}{U}{B}{R}{G}. When you next cast a spell this turn, exile cards from the top of your library until you exile an instant or sorcery card with lesser mana value. Until end of turn, you may cast that card without paying its mana cost. Put each other card exiled this way on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"When you next cast a spell this turn, exile cards from the top of your library until you exile an instant or sorcery card with lesser mana value. Until end of turn, you may cast that card without paying its mana cost. Put each other card exiled this way on the bottom of your library in a random order"}},
@@ -29630,6 +29627,7 @@
         {"key":"never-chosen › Sorcery target:card › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › choice+moveZone+reveal","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery target:player › controlNextTurn+exileSelf","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw+gainLife","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+dealDamage+forEach+sacrifice","outcome":"ignored","cards":1},
@@ -61599,7 +61597,7 @@
 
         {"oracleId":"743f4488-fef1-4f4d-b745-d2de92423e00","name":"Grixis Panorama","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c84b0eafee09"]},
 
-        {"oracleId":"743fa824-18cb-4225-ba7b-5b0bbc3c8d41","name":"Secret of Bloodbending","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a60242f58096","a8836d922f20"]},
+        {"oracleId":"743fa824-18cb-4225-ba7b-5b0bbc3c8d41","name":"Secret of Bloodbending","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7051e5aeb440","a8836d922f20"]},
 
         {"oracleId":"7445122d-a943-493c-b7b6-3699cc07db0e","name":"Kithkin Zealot","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["074b0eed607f"]},
 
@@ -75835,7 +75833,7 @@
 
         {"oracleId":"a8052556-8962-4130-86a8-6fb7b6a324f7","name":"Thriving Grove","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["7fbc26defa03","c3c16ff0025c"]},
 
-        {"oracleId":"a806f4ee-f48a-46c3-8772-5aaabebe4c7e","name":"Mindslaver","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8f2b9239c632"]},
+        {"oracleId":"a806f4ee-f48a-46c3-8772-5aaabebe4c7e","name":"Mindslaver","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["controlNextTurn"],"definition":{"name":"Mindslaver","types":["Artifact"],"supertypes":["Legendary"],"manaCost":{"X":6},"oracleText":"{4}, {T}, Sacrifice Mindslaver: You control target player during that player's next turn. (You see all cards that player could see and make all decisions for them.)","activatedAbilities":[{"id":"mindslaver-ability","oracleText":"{4}, {T}, Sacrifice {self}: You control target player during that player's next turn.","cost":{"mana":{"X":4},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"controlNextTurn","player":{"target":0}}],"targetRequirement":{"type":"player","count":1}}]},"botReach":"played"},
 
         {"oracleId":"a80a1f84-ea49-4c8d-912d-c7036b814a6c","name":"Augusta, Order Returned","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["435e64ba997b"]},
 
@@ -82751,7 +82749,7 @@
 
         {"oracleId":"c14f973e-b2b0-4d22-87f6-c37f7eb92864","name":"Lowland Oaf","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["32c8b84278bd"]},
 
-        {"oracleId":"c151e8b7-4b28-4f03-8a81-9bf623f893d7","name":"Sorin Markov","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["98cdfdf1571a","e38b57ed13e0"]},
+        {"oracleId":"c151e8b7-4b28-4f03-8a81-9bf623f893d7","name":"Sorin Markov","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["98cdfdf1571a"]},
 
         {"oracleId":"c152b677-5e75-43da-be1d-876b7b83e2f4","name":"Corrupt Official","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["62a46b7d3ccb"]},
 
@@ -98851,7 +98849,7 @@
 
         {"oracleId":"facc2d6f-3f28-4b87-b643-44fdf939a2b5","name":"Mindleech Mass","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["558f236b7b3e"]},
 
-        {"oracleId":"face0a43-6604-4508-b511-81ab0bef7b18","name":"Worst Fears","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f681b2219c9d"]},
+        {"oracleId":"face0a43-6604-4508-b511-81ab0bef7b18","name":"Worst Fears","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["controlNextTurn","exileSelf"],"definition":{"name":"Worst Fears","types":["Sorcery"],"manaCost":{"X":7,"B":1},"oracleText":"You control target player during that player's next turn. Exile Worst Fears. (You see all cards that player could see and make all decisions for them.)","effects":[{"op":"controlNextTurn","player":{"target":0}},{"op":"exileSelf"}],"targetRequirement":{"type":"player","count":1}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:player › controlNextTurn+exileSelf"},
 
         {"oracleId":"face2dc0-37ba-4efe-b900-b5521567c943","name":"Starwinder","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2ab494ea271"]},
 

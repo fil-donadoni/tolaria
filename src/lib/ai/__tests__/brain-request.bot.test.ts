@@ -49,6 +49,46 @@ const STATE = {
 
 const REQ = { id: 7, state: STATE, botId: "u1-p2", seed: 1 };
 
+describe("handleBrainRequest under Turn Control (CR 723.5, ADR 0181)", () => {
+    // The human's turn, controlled by the Bot: the window is the HUMAN seat's.
+    const CONTROLLED = {
+        ...STATE,
+        activePlayerId: "u1-p1",
+        priorityPlayerId: "u1-p1",
+        turnControls: [
+            { controlledId: "u1-p1", controllerId: "u1-p2", active: true },
+        ],
+    } as unknown as PublicGameState;
+
+    it("answers for the controlled seat without running the tree search", () => {
+        const search = vi.fn();
+        const res = handleBrainRequest(
+            { ...REQ, state: CONTROLLED },
+            search as never
+        );
+        expect(search).not.toHaveBeenCalled();
+        // Empty hands: the controlled seat's only legal move is to pass.
+        expect(res).toEqual({ id: 7, move: { kind: "pass" }, trace: null });
+    });
+
+    it("a pending control changes nothing: the Bot's own window is searched", () => {
+        const search = vi.fn().mockReturnValue({ move: null, trace: null });
+        handleBrainRequest(
+            {
+                ...REQ,
+                state: {
+                    ...STATE,
+                    turnControls: [
+                        { controlledId: "u1-p1", controllerId: "u1-p2" },
+                    ],
+                } as unknown as PublicGameState,
+            },
+            search as never
+        );
+        expect(search).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe("handleBrainRequest (issue #2470)", () => {
     it("answers with the search's move and trace", () => {
         const search = vi.fn().mockReturnValue({

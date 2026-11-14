@@ -2,7 +2,9 @@
 // (CR 500.7), "After this phase, there is an additional combat phase"
 // (CR 500.8), "You skip your next turn" (CR 614.10) and "you skip your draw
 // step this turn" (CR 504.1) — four Verb Frames, one Op each (`extraTurn`,
-// `extraCombat`, `skipNextTurn`, `skipDrawStepThisTurn`).
+// `extraCombat`, `skipNextTurn`, `skipDrawStepThisTurn`) — and "You control
+// target player during that player's next turn" (CR 723.1, issue #8446), a
+// fifth (`controlNextTurn`).
 //
 //  1. GOLDENS — a real corpus card per accepted form, compiled whole and
 //     compared against the entire Compiled Definition. No `GOLDEN_FIXTURES`
@@ -324,6 +326,79 @@ describe("turn-structure frames — golden fixtures (CR 500.7, CR 500.8, CR 614.
     });
 });
 
+describe("player-control frame — golden fixtures (CR 723.1)", () => {
+    it("announced player's next turn — activated slot (Mindslaver)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Mindslaver",
+                manaCost: "{6}",
+                typeLine: "Legendary Artifact",
+                oracleText:
+                    "{4}, {T}, Sacrifice Mindslaver: You control target player during that player's next turn. (You see all cards that player could see and make all decisions for them.)",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        if (outcome.state === "unparsed")
+            throw new Error(JSON.stringify(outcome.gaps));
+        expect(outcome.state).toBe("ready");
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Mindslaver",
+                types: ["Artifact"],
+                supertypes: ["Legendary"],
+                manaCost: { X: 6 },
+                oracleText:
+                    "{4}, {T}, Sacrifice Mindslaver: You control target player during that player's next turn. (You see all cards that player could see and make all decisions for them.)",
+                activatedAbilities: [
+                    {
+                        id: "mindslaver-ability",
+                        oracleText:
+                            "{4}, {T}, Sacrifice {self}: You control target player during that player's next turn.",
+                        cost: { mana: { X: 4 }, tap: true, sacrifice: true },
+                        useStack: true,
+                        effects: [
+                            { op: "controlNextTurn", player: { target: 0 } },
+                        ],
+                        targetRequirement: { type: "player", count: 1 },
+                    },
+                ],
+            })
+        );
+    });
+
+    it("announced player's next turn, then the spell exiles itself — spell slot (Worst Fears)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Worst Fears",
+                manaCost: "{7}{B}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "You control target player during that player's next turn. Exile Worst Fears. (You see all cards that player could see and make all decisions for them.)",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        if (outcome.state === "unparsed")
+            throw new Error(JSON.stringify(outcome.gaps));
+        expect(outcome.state).toBe("ready");
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Worst Fears",
+                types: ["Sorcery"],
+                manaCost: { X: 7, B: 1 },
+                oracleText:
+                    "You control target player during that player's next turn. Exile Worst Fears. (You see all cards that player could see and make all decisions for them.)",
+                effects: [
+                    { op: "controlNextTurn", player: { target: 0 } },
+                    { op: "exileSelf" },
+                ],
+                targetRequirement: { type: "player", count: 1 },
+            })
+        );
+    });
+});
+
 describe("turn-structure frames — refused neighbours (fail-closed)", () => {
     const state = (name: string, typeLine: string, oracleText: string) =>
         compileCard(
@@ -373,6 +448,36 @@ describe("turn-structure frames — refused neighbours (fail-closed)", () => {
     it("the bare imperative skip (Magosi, the Waterveil)", () => {
         expect(
             state("Magosi, the Waterveil", "Sorcery", "Skip your next turn.")
+        ).toBe("unparsed");
+    });
+
+    it('"gain control of" a player (Emrakul, the Promised End\'s trigger body)', () => {
+        expect(
+            state(
+                "Test Spell",
+                "Sorcery",
+                "You gain control of target opponent during that player's next turn."
+            )
+        ).toBe("unparsed");
+    });
+
+    it("a rider on the controlled turn (Emrakul, the Promised End's second sentence)", () => {
+        expect(
+            state(
+                "Test Spell",
+                "Sorcery",
+                "You control target player during that player's next turn. After that turn, that player takes an extra turn."
+            )
+        ).toBe("unparsed");
+    });
+
+    it("player control for another duration (CR 723.2)", () => {
+        expect(
+            state(
+                "Test Spell",
+                "Sorcery",
+                "You control target player during that player's next combat phase."
+            )
         ).toBe("unparsed");
     });
 

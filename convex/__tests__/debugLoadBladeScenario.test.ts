@@ -47,7 +47,10 @@ import {
     buildBladeState,
     resolveBladeLoadState,
 } from "../gre/ai/blade/runner";
-import { computeOwedPlayerIds } from "../gre/expectedInput";
+import {
+    computeOwedActingPlayerIds,
+    computeOwedPlayerIds,
+} from "../gre/expectedInput";
 import { applyBladeSetup } from "../gre/ai/blade/setup";
 
 /** The live game's BOT seat, in `arbitraryCurrentGameBaseState()` below.
@@ -471,7 +474,9 @@ describe("debugLoadBladeScenario — the seat under test lands on the live Bot (
                 scenario,
                 BOT_SEAT
             );
-            expect(computeOwedPlayerIds(loaded)).toContain(BOT_SEAT);
+            // The players owed to ANSWER (ADR 0181) — what the tick row the
+            // driver wakes on carries: the Bot's own seat, or one it controls.
+            expect(computeOwedActingPlayerIds(loaded)).toContain(BOT_SEAT);
         });
     }
 });

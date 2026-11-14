@@ -185,6 +185,10 @@ export default defineSchema({
         // MUST gate on membership in this array, never on equality with a
         // single player id, or a non-active damage assigner is never named
         // and the game deadlocks waiting for input that never arrives.
+        //
+        // The players who must ANSWER (ADR 0181, `computeOwedActingPlayerIds`):
+        // under Turn Control (CR 723.5) the controller is named for the
+        // controlled seat's windows, the controlled player for none.
         owedPlayerIds: v.optional(v.array(v.string())),
         gameOver: v.optional(v.boolean()),
         // The Game's live Match Clock (issue #2308, `convex/matchClock.ts`):
@@ -199,6 +203,20 @@ export default defineSchema({
         // `botLiveness.checkDeadline` is scheduled for this vs-AI game. A save
         // never schedules while it stands; only the check clears or moves it.
         botDeadlineAt: v.optional(v.number()),
+        // The ACTIVE Turn Controls of the position (CR 723, ADR 0181;
+        // `activeTurnControls`, `convex/gre/turnControl.ts`): present only
+        // while a player's turn is being controlled. Mirrored HERE because
+        // the seat-authority check (`convex/seatAuthority.ts`) runs before
+        // the state load on every gameplay action.
+        turnControls: v.optional(
+            v.array(
+                v.object({
+                    controlledId: v.string(),
+                    controllerId: v.string(),
+                    active: v.optional(v.literal(true)),
+                })
+            )
+        ),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
     // Failed Bot Brain consults of a vs-AI game (issue #9502,
