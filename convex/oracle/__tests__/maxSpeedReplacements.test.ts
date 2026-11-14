@@ -276,14 +276,17 @@ describe("the rebuilt replacements read the gate as the event happens (CR 702.17
         );
     }
 
-    function lifeAfter(speed: number | undefined, dealer: "p1" | "p2") {
+    function lifeAfter(
+        speed: number | undefined,
+        dealer: "p1" | "p2",
+        victim: "p1" | "p2" = dealer === "p1" ? "p2" : "p1"
+    ) {
         return withDamageBoard(speed, (state) => {
             const source = state.players
                 .flatMap((p) => p.battlefield)
                 .find((c) =>
                     dealer === "p1" ? c.id === "my-bear" : c.id === "their-bear"
                 )!;
-            const victim = dealer === "p1" ? "p2" : "p1";
             dealDamageFromPermanentToPlayer(state, source, dealer, victim, 2);
             return state.players.find((p) => p.id === victim)!.life;
         });
@@ -296,6 +299,10 @@ describe("the rebuilt replacements read the gate as the event happens (CR 702.17
 
     it("an opponent's source dealing damage to you is untouched", () => {
         expect(lifeAfter(4, "p2")).toBe(18);
+    });
+
+    it("your own source dealing damage to you is untouched", () => {
+        expect(lifeAfter(4, "p1", "p1")).toBe(18);
     });
 
     function damageTo(target: string, speed: number): number | undefined {
