@@ -153,15 +153,16 @@ const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
  * a keyword, "As long as your speed is 4, this object has '[Ability]'", so
  * the head survives as the ability's gate rather than being dropped.
  */
-const MAX_SPEED_HEAD = /^Max speed \u2014 (.+)$/;
+export const MAX_SPEED_HEAD = /^Max speed \u2014 (.+)$/;
 
 /**
- * CR 702.178b — "Max speed — {3}, Exile this card from your graveyard: Draw a
- * card." (the Surveyor cycle). The granted ability functions from the
- * graveyard (CR 113.6m, its cost moves the card out of it), so the max speed
- * ability granting it functions there too, and "your" is the card's owner
- * (CR 109.5). Only the graveyard form is read here: a battlefield ability
- * behind the head stays a gap of its own (issue #9586).
+ * CR 702.178a — "Max speed — {T}: Target creature gains haste until end of
+ * turn.": the ability, gated on "your" speed being 4. CR 702.178b — "Max speed
+ * — {3}, Exile this card from your graveyard: Draw a card." (the Surveyor
+ * cycle): the granted ability functions from the graveyard (CR 113.6m, its
+ * cost moves the card out of it), so the max speed ability granting it
+ * functions there too, and "your" is the card's owner (CR 109.5). Both lower
+ * to the one `requiresMaxSpeed` gate, which reads whichever player that is.
  */
 const maxSpeedActivated: Rule<SlotIR> = rule(
     "max speed activated",
@@ -170,15 +171,6 @@ const maxSpeedActivated: Rule<SlotIR> = rule(
         if (!body.ok) return body;
         if (body.value.kind !== "activated")
             return fail("max speed behind a non-activated body", span);
-        if (
-            !body.value.cost.atoms.some(
-                (atom) => atom.kind === "exile-self-from-graveyard"
-            )
-        )
-            return fail(
-                "max speed behind a battlefield activated ability is not in grammar v0 (CR 702.178a)",
-                span
-            );
         return ok({ ...body.value, maxSpeed: true as const });
     }
 );

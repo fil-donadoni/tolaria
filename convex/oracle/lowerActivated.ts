@@ -521,6 +521,26 @@ export function lowerManaAbility(input: {
     readonly produces: ManaProductionIR;
     /** The ability is printed on the card itself, not granted in quotes. */
     readonly ownLine?: true;
+    /** CR 702.178a — printed behind "Max speed —". */
+    readonly maxSpeed?: true;
+}): LowerAbilityResult {
+    const lowered = lowerUngatedManaAbility(input);
+    // CR 702.178a — the gate rides whichever ability the line lowered to: a
+    // stackless mana ability, or the stack ability a draw rider makes of it.
+    if (lowered.ok && input.maxSpeed === true)
+        return {
+            ...lowered,
+            ability: { ...lowered.ability, requiresMaxSpeed: true },
+        };
+    return lowered;
+}
+
+function lowerUngatedManaAbility(input: {
+    readonly id: string;
+    readonly oracleText: string;
+    readonly cost: ActivationCostIR;
+    readonly produces: ManaProductionIR;
+    readonly ownLine?: true;
 }): LowerAbilityResult {
     // The cost lowering is shared with the stack-using activated slot
     // (CR 602.1a draws no distinction); only the EFFECT half differs.

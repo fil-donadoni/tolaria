@@ -80,6 +80,7 @@ import {
 import type { ParseContext } from "../../types";
 import { COLORED_MANA_COLORS, MANA_COLORS } from "../../../gre/manaColors";
 import { activationCostRule } from "../shared/cost";
+import { MAX_SPEED_HEAD } from "./activated";
 import { forEachRule, readNumberWord } from "../shared/quantity";
 import {
     boardManaFilterFromDescriptor,
@@ -485,6 +486,23 @@ const manaAbilityBody: Rule<SlotIR> = pair(
 const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
 
 /**
+ * CR 702.178a — "Max speed — {T}: Add {R}{R}.": the object has the mana
+ * ability only as long as "your" speed is 4. The head is a keyword, not an
+ * ability word, so it survives as the ability's gate (`maxSpeed`, lowered to
+ * `requiresMaxSpeed`) rather than being dropped.
+ */
+const maxSpeedManaAbility: Rule<SlotIR> = rule(
+    "max speed mana ability",
+    (span, ctx) => {
+        const body = terminated(".", manaAbilityBody).run(span, ctx);
+        if (!body.ok) return body;
+        if (body.value.kind !== "mana-ability")
+            return fail("max speed behind a non-mana body", span);
+        return ok({ ...body.value, maxSpeed: true as const });
+    }
+);
+
+/**
  * CR 113.3b — the sentence ends in a full stop, which belongs to the ability.
  *
  * The slot additionally refuses any card that is not a permanent: an activated
@@ -501,6 +519,9 @@ export const manaAbilitySlot: Rule<SlotIR> = rule(
         if (!context.typeLine.types.some((t) => PERMANENT_TYPE_SET.has(t))) {
             return fail("a mana ability needs a permanent (CR 605.1a)", span);
         }
+        const maxSpeed = span.match(MAX_SPEED_HEAD);
+        if (maxSpeed !== null)
+            return maxSpeedManaAbility.run(maxSpeed[1]!, ctx);
         return terminated(".", manaAbilityBody).run(span, ctx);
     }
 );

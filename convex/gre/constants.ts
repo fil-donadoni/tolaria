@@ -40,6 +40,7 @@ import { tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { maxSpeedGateOpen } from "./speed";
 import {
     activationRestrictionViolation,
     boardDeclaresActivationRestriction,
@@ -933,6 +934,10 @@ export type ManaBattlefield = {
     graveyard?: readonly CardInstanceState[];
     drawnThisTurn?: ReadonlyArray<string>;
     leftGraveyardThisTurn?: number;
+    /** CR 702.179b — the player's speed, read by a mana ability behind "Max
+     *  speed —" (CR 702.178a, `maxSpeedGateOpen`). Absent reads as no speed:
+     *  the gated ability is no tap option. */
+    speed?: number;
     /** The board's real layer input: the `GameState` itself on the server, the
      *  client's `toLayerState` on the wire. A layer read through it is literally
      *  `getEffectivePT`'s, emblems and until-boundary entries included. */
@@ -1763,6 +1768,7 @@ export function manaGateBattlefields(
         graveyard: p.graveyard,
         drawnThisTurn: p.drawnThisTurn,
         leftGraveyardThisTurn: p.leftGraveyardThisTurn,
+        ...(p.speed !== undefined ? { speed: p.speed } : {}),
         layers: state,
     }));
 }
@@ -1816,6 +1822,8 @@ export function minimalManaGateView(
             ...(b.leftGraveyardThisTurn !== undefined
                 ? { leftGraveyardThisTurn: b.leftGraveyardThisTurn }
                 : {}),
+            // CR 702.179b — read by a "Max speed —" mana ability's gate.
+            ...(b.speed !== undefined ? { speed: b.speed } : {}),
             graveyard: (b.graveyard ?? []).map(triggerViewGraveyardCard),
             battlefield: b.battlefield.map((c) =>
                 triggerViewPermanent(
@@ -2612,6 +2620,19 @@ export function getManaTapOptionsDetailed(
                           )
                         : (card as unknown as PermanentView),
                     minimalManaGateView(battlefields, continuousEffects)
+                )
+            ) {
+                continue;
+            }
+            // CR 702.178a — "Max speed — {T}: Add …" is an ability the
+            // permanent has only while its controller's speed is 4. Dropped
+            // as a whole ability like the `canActivate` drop above; with no
+            // boards to read a speed from, it is dropped too (fail-closed).
+            if (
+                !maxSpeedGateOpen(
+                    ability,
+                    { controllerId: card.controllerId ?? controllerId },
+                    battlefields ?? []
                 )
             ) {
                 continue;
@@ -3575,10 +3596,17 @@ export function getActivatedManaAbility(
     state?: TriggerStateView
 ) {
     if (abilitiesSuppressed(card)) return null;
+    // CR 702.178a — a "Max speed —" mana ability the permanent does not have
+    // right now (its controller's speed is below 4) is skipped, so a land
+    // printing an ungated "{T}: Add {C}." beside it still finds that one.
+    // Read only with a `state`, the `canActivate` convention below.
     const ability =
         getEffectiveActivatedAbilities(card).find(
             ({ ability: a }) =>
-                isManaAbilityDefinition(a) && functionsOnBattlefield(a)
+                isManaAbilityDefinition(a) &&
+                functionsOnBattlefield(a) &&
+                (state === undefined ||
+                    maxSpeedGateOpen(a, card, state.players))
         )?.ability ?? null;
     if (!ability) return null;
     // CR 602.5 / 605.1a — a mana ability an `activation-restriction` static

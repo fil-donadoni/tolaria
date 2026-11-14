@@ -2605,10 +2605,14 @@ export interface ActivatedAbility {
      *  answers the printed clause whole. */
     activatableOnlyWhileAttached?: boolean;
     /** CR 702.178a — "Max speed — <ability>": the object has the ability only
-     *  as long as "your" speed is 4 (CR 702.179e). Read by the one authority,
-     *  `activationPreconditionViolation`, against the player who would
-     *  activate it — the source's controller, or its owner for an
-     *  `activateFromGraveyard` ability (CR 109.5, CR 702.178b). */
+     *  as long as "your" speed is 4 (CR 702.179e), read through
+     *  `maxSpeedGateOpen` against the player who would activate it — the
+     *  source's controller, or its owner for an `activateFromGraveyard`
+     *  ability (CR 109.5, CR 702.178b). A stack ability is gated by
+     *  `activationPreconditionViolation`; a mana ability (`useStack: false`)
+     *  also by the mana-tap sites, `getManaTapOptionsDetailed` and
+     *  `getActivatedManaAbility`, which never read
+     *  `activationPreconditionViolation`. */
     requiresMaxSpeed?: true;
     /** Restrict activation to the controller's own turn (CR 602.5b — "activate
      *  only during your turn"). Distinct from `activationPhaseRestriction`

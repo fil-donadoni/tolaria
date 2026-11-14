@@ -57,6 +57,7 @@ import { findTriggeredAbility } from "@convex/gre/copy";
 import type { UnblockedAttackerScope } from "@convex/gre/combat";
 import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
+import { maxSpeedGateOpen } from "@convex/gre/speed";
 import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
 // CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
 // STATE-ONLY clauses from it; the timing clause stays a documented narrowing
@@ -179,6 +180,8 @@ export type ManaGatePlayer = {
     graveyard?: CardInstance[];
     drawnThisTurn?: ReadonlyArray<string>;
     leftGraveyardThisTurn?: number;
+    /** CR 702.179b — read by a "Max speed —" mana ability (CR 702.178a). */
+    speed?: number;
     layers?: LayerStateView;
 };
 
@@ -482,8 +485,26 @@ export function getEffectiveClientAbilities(
  *  only the printed list left the board with no tap-for-mana affordance for
  *  one the server's auto-tap solver would happily use. Client hint only —
  *  server validation stays authoritative (#436). */
-function findClientManaAbility(card: CardInstance) {
-    return clientManaAbilities(card)[0] ?? null;
+function findClientManaAbility(
+    card: CardInstance,
+    stateView?: TriggerStateView
+) {
+    return (
+        clientManaAbilities(card).find(maxSpeedOpenIn(card, stateView)) ?? null
+    );
+}
+
+/** CR 702.178a — a "Max speed —" mana ability is one the permanent HAS only
+ *  while its controller's speed is 4 (`maxSpeedGateOpen`, the server's read in
+ *  `getActivatedManaAbility` / `getManaTapOptionsDetailed`). Unlike a
+ *  `canActivate` closure the gate needs only the controller's `speed`, so it is
+ *  read against whatever view the caller holds; no view reads as no speed. */
+function maxSpeedOpenIn(
+    card: CardInstance,
+    stateView: TriggerStateView | undefined
+): (ability: ActivatedAbility) => boolean {
+    const players = stateView?.players ?? [];
+    return (ability) => maxSpeedGateOpen(ability, card, players);
 }
 
 /** CR 605.1a — EVERY post-layer mana ability the card exposes, in printed
@@ -525,6 +546,13 @@ function clientManaAbilities(
                     stateView === undefined ||
                     !a.canActivate ||
                     a.canActivate(card as unknown as PermanentView, stateView)
+            )
+            // CR 702.178a — a "Max speed —" mana ability exists only at max
+            // speed; with no view, `findClientManaAbility`'s callers gate it.
+            .filter(
+                (a) =>
+                    stateView === undefined ||
+                    maxSpeedGateOpen(a, card, stateView.players)
             )
             // CR 118.3 / 602.1a (issue #2712) — an UNPAYABLE fixed counter-removal
             // leg means no usable mana ability, the same answer the server's
@@ -598,7 +626,7 @@ export function hasManaAbility(
     // Intrinsic land mana (CR 305.6) is a mana ability too.
     if (isManaActivationRestricted(card, stateView)) return false;
     if (hasIntrinsicLandMana(card)) return true;
-    const ability = findClientManaAbility(card);
+    const ability = findClientManaAbility(card, stateView);
     if (!ability) return false;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -651,7 +679,7 @@ export function clickTapsSubstituteForMana(
     if (!hasManaAbility(card, stateView, players)) return false;
     if (isTapLockedBySummoningSickness(card)) return false;
     // No printed ability here is a land's intrinsic {T}: Add (CR 305.6).
-    const ability = findClientManaAbility(card);
+    const ability = findClientManaAbility(card, stateView);
     return !ability || Object.keys(ability.cost).every((leg) => leg === "tap");
 }
 
@@ -669,7 +697,9 @@ export function getActivatedManaMenuEntry(
     if (isManaActivationRestricted(card, stateView)) return null;
     // CR 605.1a — a card can list a cost-bearing mana ability BEFORE a free one;
     // the plain tap toggle is the free one, so prefer it over the first listed.
-    const abilities = clientManaAbilities(card);
+    const abilities = clientManaAbilities(card).filter(
+        maxSpeedOpenIn(card, stateView)
+    );
     const ability =
         abilities.find((a) => !needsExplicitManaMenuEntry(a)) ??
         abilities[0] ??
