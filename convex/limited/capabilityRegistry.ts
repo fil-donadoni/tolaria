@@ -341,6 +341,19 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         description:
             "PROVIDES: makes MORE land entries than the one land drop a turn gives — a fetch land (two land entries from one land drop: the fetch itself, then the land it searches for), an extra land play (Escape to the Wilds, a 'you may play an additional land' static), or a land put onto the battlefield from library, hand or graveyard by an effect (Knight of the Reliquary, Uro's enters/attacks trigger, a play-lands-from-graveyard permission). REQUIRES: a landfall payoff — a trigger on 'whenever a land you control enters' (Tireless Tracker's Clue, Omnath's escalating landfall) — requires this from its deck-mates: every extra land entry is one more trigger. Distinct from `self-mills` (a fetch land provides both): this row's requirer wants a land ENTERING, never land cards sitting in the graveyard.",
     },
+    {
+        id: "lands-in-graveyard",
+        cluster: "Lands",
+        gloss: {
+            provides:
+                "Puts land cards into your graveyard: fetch lands, lands that sacrifice themselves, sacrifice-a-land costs.",
+            requires:
+                "Counts land cards in your graveyard, or returns or plays them from there.",
+        },
+        example: { provider: "Wasteland", requirer: "Knight of the Reliquary" },
+        description:
+            "PROVIDES: puts LAND cards into its controller's graveyard by choice, as a cost or as the point of the card — a land that sacrifices itself (a fetch land, Strip Mine, Wasteland), a sacrifice-a-land cost on a spell or ability (Crop Rotation, Zuran Orb, Orcish Lumberjack, Elvish Reclaimer, Knight of the Reliquary), or an alternative cost that sacrifices lands (Fireblast's two Mountains, Mine Collapse, Lava Dart's flashback). REQUIRES: a card that counts land cards in its controller's graveyard (Knight of the Reliquary's +1/+1 per land card, Elvish Reclaimer's three-land threshold), returns or plays them from there (Wrenn and Six, Marwyn, the Preserver, Serra Paragon, Titania's enters trigger, a play-lands-from-graveyard permission such as Icetill Explorer's), spends them as a resource (Deathrite Shaman exiles a land card for mana), or triggers on a land going to the graveyard from the battlefield (Titania's 5/3 Elemental) requires this from its deck-mates. Distinct from `self-mills`, which carries no card type: it fills the graveyard with whatever sits on top, so a mill of spells does nothing for Knight of the Reliquary; and from `land-enters`, which is the entry, never the graveyard — a fetch land provides both, Tireless Tracker requires one and Knight of the Reliquary the other. Accepted imprecision: Deathrite Shaman reads any graveyard, so an opponent's lands would serve it too; a provider stocking its controller's graveyard still satisfies it.",
+    },
 ];
 
 /** Fast id -> row lookup, built once at module load — mirrors

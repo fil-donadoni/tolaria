@@ -33,9 +33,10 @@
             "rationale": "oracle: an eight-drop flier whose enters and attack trigger edicts, discards, drains 3 and draws; reanimatable on its size, so also a cheat-target"
         },
         "16c8d2fa-54a7-46e8-980c-905258497c90": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "4a1f905f-1d55-4d02-9d24-e58070793d3f": {
             "provides": ["reanimatable", "value-on-etb", "cheat-target"],
@@ -64,9 +65,10 @@
             "reviewed": false
         },
         "68c72226-6f52-4322-8b14-18737293dfa0": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "f0192cf7-3391-4720-b9c8-72dec5dde01e": {
             "provides": ["value-on-etb", "discard-outlet"],
@@ -183,10 +185,10 @@
             "reviewed": false
         },
         "b841bfa8-7c17-4df2-8466-780ab9a4a53a": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "a1b0da17-d595-441d-811c-a2d28d2bb232": {
             "provides": ["discard-outlet", "cheap-spell"],
@@ -200,9 +202,10 @@
             "reviewed": false
         },
         "b1eb5b2c-1f02-48a6-a287-88eb189d6780": {
-            "provides": ["value-on-cast"],
+            "provides": ["value-on-cast", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its alternative cost sacrifices two Mountains (lands-in-graveyard)"
         },
         "d5e45005-dd81-4d80-b043-02f719aca929": {
             "provides": ["cheap-spell"],
@@ -223,10 +226,10 @@
             "rationale": "oracle: its own enters trigger exiles a permanent and returns it at the next end step, re-buying that permanent's enters trigger"
         },
         "b4e3d844-d3b4-41d8-921d-c1cb3af343f8": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "e9be371c-c688-44ad-ab71-bd4c9f242d58": {
             "provides": ["value-on-cast"],
@@ -324,9 +327,9 @@
         },
         "d9482aab-6ddf-48e1-84fa-b13d5ff81e69": {
             "provides": ["self-mills", "land-enters"],
-            "requires": ["land-enters"],
+            "requires": ["land-enters", "lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: an extra land play and lands from the graveyard, plus a landfall mill trigger"
+            "rationale": "oracle: an extra land play and lands from the graveyard, plus a landfall mill trigger; the lands it plays from the graveyard must get there first (lands-in-graveyard)"
         },
         "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd": {
             "provides": ["value-on-attack", "discard-outlet"],
@@ -402,9 +405,10 @@
             "reviewed": false
         },
         "45026d57-0324-4312-8b86-2e7d4f581ee9": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "652236c2-84ef-45e4-b5fc-ed6170bc3d6c": {
             "provides": ["self-mills"],
@@ -417,9 +421,10 @@
             "reviewed": false
         },
         "56e2e8b5-660d-4469-a4fe-2367dfadb709": {
-            "provides": ["value-on-cast"],
+            "provides": ["value-on-cast", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: its alternative cost sacrifices a Mountain (lands-in-graveyard)"
         },
         "928036c9-11b8-493e-b9f2-8fbd3487cd19": {
             "provides": [],
@@ -433,10 +438,10 @@
             "reviewed": false
         },
         "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "2573e694-eaa0-42ca-b470-2ab507cbcec1": {
             "provides": [],
@@ -513,10 +518,10 @@
             "reviewed": false
         },
         "0f7585c8-9e21-4eef-afc1-2852de23db2f": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "ba6b6fc5-5077-4812-b8e9-906783dbaf67": {
             "provides": ["value-on-cast", "cheap-spell"],
@@ -531,10 +536,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
         },
         "e37da81e-be12-45a2-9128-376f1ad7b3e8": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "68924203-c3d9-41ce-8ca8-c6dd491eb3ca": {
             "provides": ["discard-outlet"],
@@ -563,10 +568,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 1, the cheap-spell PROVIDES clause"
         },
         "327cf118-cc92-4073-85d0-94d2a0a6989a": {
-            "provides": ["self-mills", "land-enters"],
+            "provides": ["self-mills", "land-enters", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "oracle: a fetch land — two land entries from one land drop"
+            "rationale": "oracle: a fetch land — two land entries from one land drop; the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "69c1b656-1d67-499c-bf0f-417682a86c7d": {
             "provides": ["self-mills"],
@@ -690,9 +695,9 @@
         },
         "224d904a-5972-4152-878a-9a922e7a55b6": {
             "provides": ["value-on-etb", "go-wide"],
-            "requires": [],
+            "requires": ["lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: creates a 5/3 Elemental each time a land you control goes to the graveyard"
+            "rationale": "oracle: creates a 5/3 Elemental each time a land you control goes to the graveyard; its enters trigger returns a land card from the graveyard, and each land put into the graveyard from the battlefield makes a 5/3 (lands-in-graveyard)"
         },
         "ad7ac9a5-340f-4509-826c-7b9416d47887": {
             "provides": [],
@@ -754,9 +759,10 @@
             "reviewed": false
         },
         "7abd2723-2851-4f1a-b2d0-dfcb526472c3": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "ecc1027a-8c07-44a0-bdde-fa2844cff694": {
             "provides": [],
@@ -775,14 +781,16 @@
             "reviewed": false
         },
         "7a7c5941-9c8a-4a40-9efb-a84f05c58e53": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53": {
-            "provides": ["self-mills"],
+            "provides": ["self-mills", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: the fetch land sacrifices itself, a land card into the graveyard (lands-in-graveyard)"
         },
         "543d55cb-3a6b-4620-af25-10ae74ed32c4": {
             "provides": ["value-on-death", "cheat-target", "go-wide"],
@@ -796,9 +804,10 @@
             "reviewed": false
         },
         "3a9d1082-a862-45d4-9e5e-392e879fead6": {
-            "provides": ["cheap-artifact"],
+            "provides": ["cheap-artifact", "lands-in-graveyard"],
             "requires": [],
-            "reviewed": false
+            "reviewed": false,
+            "rationale": "oracle: sacrifices a land for 2 life, repeatable at no mana (lands-in-graveyard)"
         },
         "0d16e8e0-31b2-4389-afd6-783c501f6fa0": {
             "provides": ["value-on-etb"],
@@ -859,8 +868,9 @@
         },
         "ce295f1e-fb31-4275-a5d3-8c6f29afff40": {
             "provides": [],
-            "requires": ["self-mills", "discard-outlet"],
-            "reviewed": false
+            "requires": ["self-mills", "discard-outlet", "lands-in-graveyard"],
+            "reviewed": false,
+            "rationale": "oracle: plays a land from the graveyard once each turn (lands-in-graveyard)"
         },
         "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41": {
             "provides": ["value-on-etb"],
@@ -1291,9 +1301,9 @@
         },
         "1b406cc5-75c9-430a-83a2-de0f2a8aeae6": {
             "provides": ["self-mills", "land-enters"],
-            "requires": ["land-enters"],
+            "requires": ["land-enters", "lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: plays lands from the graveyard, plus a landfall token trigger"
+            "rationale": "oracle: plays lands from the graveyard, plus a landfall token trigger; the lands it plays from the graveyard must get there first (lands-in-graveyard)"
         },
         "eeeffc0b-dc92-458e-ad58-86ff6077a508": {
             "provides": ["value-on-etb", "value-on-attack"],
@@ -1527,8 +1537,9 @@
         },
         "4a706ecf-3277-40e3-871c-4ba4ead16e20": {
             "provides": [],
-            "requires": ["self-mills"],
-            "reviewed": false
+            "requires": ["self-mills", "lands-in-graveyard"],
+            "reviewed": false,
+            "rationale": "oracle: its +1 returns a land card from the graveyard to hand (lands-in-graveyard)"
         },
         "fbca967e-578f-4b05-b697-2e2ee1a40dfb": {
             "provides": ["value-on-cast"],
@@ -1541,10 +1552,10 @@
             "reviewed": false
         },
         "ad8b8518-c09e-4cb7-95b2-08e4e370d89c": {
-            "provides": ["land-enters"],
-            "requires": ["self-mills"],
+            "provides": ["land-enters", "lands-in-graveyard"],
+            "requires": ["self-mills", "lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: its tap ability puts a land from library onto the battlefield, repeatable"
+            "rationale": "oracle: its tap ability puts a land from library onto the battlefield, repeatable; +1/+1 for each land card in the graveyard, and its ability sacrifices a Forest or Plains (lands-in-graveyard)"
         },
         "18ee486e-dc25-4de7-a71f-f11fdf100176": {
             "provides": ["value-on-etb"],
@@ -1559,8 +1570,9 @@
         },
         "70496f16-c4c0-4c03-beef-454eb4824cd1": {
             "provides": [],
-            "requires": ["self-mills"],
-            "reviewed": false
+            "requires": ["self-mills", "lands-in-graveyard"],
+            "reviewed": false,
+            "rationale": "oracle: exiles a land card from a graveyard for mana (lands-in-graveyard)"
         },
         "a15570c0-4210-4959-8584-987ec85f8283": {
             "provides": [],
@@ -2120,10 +2132,10 @@
             "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
         },
         "865bb1d3-5b7d-40e9-87cc-96be9524a105": {
-            "provides": ["cheap-spell"],
+            "provides": ["cheap-spell", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause; its flashback cost sacrifices a Mountain (lands-in-graveyard)"
         },
         "d573ef03-4730-45aa-93dd-e45ac1dbaf4a": {
             "provides": ["cheap-spell"],
@@ -2174,10 +2186,10 @@
             "rationale": "rubric+oracle: sorcery at mana value 2, the cheap-spell PROVIDES clause"
         },
         "6563f790-862c-465a-b963-7a61f2385516": {
-            "provides": ["cheap-spell"],
+            "provides": ["cheap-spell", "lands-in-graveyard"],
             "requires": [],
             "reviewed": false,
-            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause"
+            "rationale": "rubric+oracle: instant at mana value 1, the cheap-spell PROVIDES clause; its additional cost sacrifices a land (lands-in-graveyard)"
         },
         "fd4b7ee2-de65-4288-872d-486065a4f226": {
             "provides": ["cheap-spell"],
@@ -2282,10 +2294,10 @@
             "rationale": "oracle: an additional land play this turn, plus lands among the exiled cards"
         },
         "39c431d7-d94b-46c4-bb89-f3db56214ab4": {
-            "provides": ["land-enters"],
-            "requires": [],
+            "provides": ["land-enters", "lands-in-graveyard"],
+            "requires": ["lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: sacrifices a land to put a land from library onto the battlefield"
+            "rationale": "oracle: sacrifices a land to put a land from library onto the battlefield; its ability sacrifices a land, and it gets +2/+2 with three or more land cards in the graveyard (lands-in-graveyard)"
         },
         "ee8e9928-d9b2-4570-adb8-44b34115decd": {
             "provides": [],
@@ -2340,6 +2352,48 @@
             "requires": [],
             "reviewed": false,
             "rationale": "oracle: an artifact with mana value 1 or less, so an artifact tutor capped at mana value 1 (Urza's Saga) can fetch it"
+        },
+        "21ef13e3-658c-43a3-a290-4c5dde8e8b55": {
+            "provides": ["lands-in-graveyard"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices a Forest for three mana, a land card into the graveyard (lands-in-graveyard)"
+        },
+        "f1b8413f-c9fc-4cea-b416-a1fcf651b009": {
+            "provides": ["lands-in-graveyard"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices a land for each shroud activation (lands-in-graveyard)"
+        },
+        "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b": {
+            "provides": ["lands-in-graveyard"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: a repeatable sacrifice-a-land ability for 2 life (lands-in-graveyard)"
+        },
+        "e7880157-7f27-4f1b-9cdc-ab36a6252376": {
+            "provides": ["lands-in-graveyard"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices itself to destroy a land, a land card into the graveyard (lands-in-graveyard)"
+        },
+        "99ff731b-8399-40c8-b539-ba6ba5783771": {
+            "provides": ["lands-in-graveyard"],
+            "requires": [],
+            "reviewed": false,
+            "rationale": "oracle: sacrifices itself to destroy a land, a land card into the graveyard (lands-in-graveyard)"
+        },
+        "79dd5c54-5ea5-47b5-8f9b-50ed57a5ea45": {
+            "provides": [],
+            "requires": ["lands-in-graveyard"],
+            "reviewed": false,
+            "rationale": "oracle: its combat damage trigger returns a land card from the graveyard to hand (lands-in-graveyard)"
+        },
+        "90f33f99-7bc5-42e1-815e-bfb4c2b74107": {
+            "provides": [],
+            "requires": ["lands-in-graveyard"],
+            "reviewed": false,
+            "rationale": "oracle: its {2} ability returns a land card from the graveyard to hand (lands-in-graveyard)"
         }
     }
 }

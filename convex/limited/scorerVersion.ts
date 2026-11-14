@@ -25,4 +25,7 @@
 // half a source in Castability, Fixing Value and the third-colour gate.
 // v6: the `big-artifact` Capability — Tinker and Goblin Welder now
 // pair with the expensive artifacts they cheat onto the battlefield.
-export const SCORER_VERSION = 6;
+// v7: the `lands-in-graveyard` Capability — fetch lands and
+// sacrifice-a-land costs now pair with Knight of the Reliquary,
+// Wrenn and Six and the other land-graveyard payoffs.
+export const SCORER_VERSION = 7;
