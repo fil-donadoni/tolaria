@@ -441,6 +441,13 @@ export type StaticClauseIR =
     /** CR 614.1d — "<plural descriptor> enter tapped": a replacement on every
      *  matching permanent entering, whoever controls it. */
     | { readonly kind: "enters-tapped-lock"; readonly filter: PermanentFilter }
+    /** CR 614.1d / 616.1 — "Lands you control enter untapped": a replacement
+     *  on every matching permanent the source's controller controls,
+     *  outranking a tapped-entry replacement on the same event. */
+    | {
+          readonly kind: "enters-untapped-replacement";
+          readonly filter: PermanentFilter;
+      }
     /** CR 614.10 / 504.1 — "Skip your draw step": an unconditional
      *  replacement of the controller's own turn-based draw. Lowered to
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
@@ -2185,6 +2192,27 @@ const setEntersTappedRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+const LANDS_ENTER_UNTAPPED = /^Lands you control enter untapped$/;
+
+/**
+ * "Lands you control enter untapped" (Spelunking, Horizon Explorer), read
+ * WHOLE. CR 614.1d: a replacement effect on the matching permanents as they
+ * enter; CR 616.1 lets their controller apply it after any tapped-entry
+ * replacement, so the engine's `enters-untapped-replacement` answers untapped.
+ * Every card printing the frame names lands, so the subject is not a wildcard:
+ * "Creatures you control enter untapped" would be a shape nobody has printed
+ * (the axis of variation shows up with card #2 — ADR 0137).
+ */
+const landsEnterUntappedRule: Rule<StaticClauseIR> = pattern(
+    "lands enter untapped",
+    LANDS_ENTER_UNTAPPED,
+    (): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "enters-untapped-replacement" as const,
+            filter: { types: ["Land"], controllerRelation: "you" as const },
+        })
+);
+
 // ── Frame: a forced target choice (CR 601.2c) ──────────────────────────────
 
 /**
@@ -3282,6 +3310,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         nonManaAbilityLandLockRule,
         skipUntapStepsRule,
         setEntersTappedRule,
+        landsEnterUntappedRule,
         targetChoiceRequirementRule,
         skipDrawStepRule,
         optionalDrawSkipRule,

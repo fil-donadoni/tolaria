@@ -4681,6 +4681,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Spelunking",
+            "issue": 9645
+        },
+        {
+            "kind": "hand-tail",
             "key": "Sphinx of False Conclusions",
             "issue": 7250
         },
