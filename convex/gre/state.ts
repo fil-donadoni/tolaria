@@ -11471,10 +11471,11 @@ function finishReanimatedEntry(
     // push out to matching battlefield permanents (e.g. a reanimated
     // Goblin King re-grants mountainwalk to allied Goblins).
     beginApplyingStaticEffects(state, card);
-    // CR 508.4 / 506.3a — join combat once the permanent's OWN statics apply
-    // (a planeswalker that is a creature on its controller's turn is one on
-    // the battlefield, CR 614.12), and still ahead of the ETB announcement,
-    // so PERMANENT_ENTERED reports it attacking.
+    // CR 508.4 / 506.3a — join combat once the permanent's OWN statics apply:
+    // whether it is a creature is read on the battlefield, its own static
+    // abilities included (as CR 614.12 reads an entering permanent), so a
+    // planeswalker that is a creature on its controller's turn attacks. Still
+    // ahead of the ETB announcement, so PERMANENT_ENTERED reports it attacking.
     joinCombatOnEntry(state, card, authoredEntry);
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
