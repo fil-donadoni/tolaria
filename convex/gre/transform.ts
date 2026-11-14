@@ -131,6 +131,18 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         // SAME value `tokenDefinitionId(spec)` folded into `id`, so the
         // server-side registration and a client-side decode of `id` agree.
         ...(spec.loyalty !== undefined ? { loyalty: spec.loyalty } : {}),
+        // CR 614.1c / 122.6 (issue #9434) — the face's own entry counters
+        // (`CardBackFace.entersWith`), read back off `spec` like `loyalty`
+        // above so this registration and a decode of `id` agree. The
+        // permanent entering transformed reads them at
+        // `stageReanimatedOnBattlefield`'s `applyEntersWithCounters`.
+        ...(spec.copiableEntersWithCounters
+            ? {
+                  entersWith: {
+                      counters: [...spec.copiableEntersWithCounters],
+                  },
+              }
+            : {}),
         ...(spec.staticAbilities
             ? { staticAbilities: [...spec.staticAbilities] }
             : {}),
