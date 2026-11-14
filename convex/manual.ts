@@ -101,7 +101,7 @@ export type ManualPlayerState = {
 
 export type ManualGameState = {
     players: ManualPlayerState[];
-    /** CR 405.1 — the stack is game-wide, NOT per seat: two per-seat stacks
+    /** CR 405.2 — the stack is game-wide, NOT per seat: two per-seat stacks
      *  would lose the LIFO order across players, the one reason a stack
      *  exists. Cards only (no ability placeholders); the LAST entry is the top.
      *  Optional because a state persisted before the stack existed has none —
