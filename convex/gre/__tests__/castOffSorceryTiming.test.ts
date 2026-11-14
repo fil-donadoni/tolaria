@@ -789,7 +789,13 @@ describe("cast off sorcery timing — clear site: resetStackTransientState (coun
 
         // 3. Return it to hand directly (the production zone-mover a
         //    Regrowth-shaped resolve() would call).
-        moveCard(getPlayer(state, "p1"), probeStack.id, "graveyard", "hand");
+        moveCard(
+            getPlayer(state, "p1"),
+            probeStack.id,
+            "graveyard",
+            "hand",
+            state
+        );
 
         // 4. Hard recast, at SORCERY timing (makeState's default), through
         //    the real production cast-commit path.

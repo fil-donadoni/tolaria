@@ -1149,7 +1149,8 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
             p1.graveyard[0].id,
             "graveyard",
             "p1",
-            "face-down-exile"
+            "face-down-exile",
+            state
         );
 
         const forP2 = projectPublicState(state, 1, "p2");

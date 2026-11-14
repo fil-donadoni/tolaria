@@ -45,6 +45,7 @@ import {
     type SpellCastEvent,
     type SpellCopiedEvent,
     type BecameTargetEvent,
+    type CardLeftGraveyardEvent,
     type BecameTargetSourceKind,
     type RecipientDamagePreventionShield,
     type SourceDamagePreventionShield,
@@ -4307,7 +4308,12 @@ function finalizeSpellResolution(
                     const [reanimated] = ownerPlayer.graveyard.splice(idx, 1);
                     // CR 400.7 — a graveyard-specific splice that predates the
                     // general zone-movers; tallied at the shared chokepoint.
-                    noteGraveyardDeparture(ownerPlayer, reanimated);
+                    noteGraveyardDeparture(
+                        state,
+                        ownerPlayer,
+                        reanimated,
+                        "battlefield"
+                    );
                     putReanimatedOnBattlefield(
                         state,
                         reanimated,
@@ -12779,7 +12785,7 @@ function applyAsEntersAnswer(
             const exiled: Parameters<typeof emitCardsExiled>[1][number][] = [];
             for (const id of selected) {
                 if (!legal.has(id)) continue;
-                if (!exileCardFromGraveyard(player, id)) continue;
+                if (!exileCardFromGraveyard(state, player, id)) continue;
                 const moved = player.exile.find((c) => c.id === id);
                 if (!moved) continue;
                 moved.exiledBySourceId = card.id;
@@ -15652,7 +15658,9 @@ export function buildSpellContext(
             const [card] = pile.splice(idx, 1);
             // CR 400.7 — reanimation is a graveyard DEPARTURE (the exile leg of
             // this same primitive is not); tallied at the shared chokepoint.
-            if (fromZone === "graveyard") noteGraveyardDeparture(player, card);
+            if (fromZone === "graveyard") {
+                noteGraveyardDeparture(state, player, card, "battlefield");
+            }
             // CR 205.1a / 613.1d (issue #2993) — "return it to the battlefield.
             // It's an enchantment." Stamped on the instance NOW, between the
             // departure from the pile and the entry, mirroring
@@ -15731,6 +15739,8 @@ export function buildSpellContext(
         ): string[] {
             const staged: { card: CardInstanceState; controllerId: string }[] =
                 [];
+            const departed: { player: PlayerState; card: CardInstanceState }[] =
+                [];
             for (const { playerId, cardInstanceId } of entries) {
                 const player = getPlayer(state, playerId);
                 const pile =
@@ -15745,10 +15755,22 @@ export function buildSpellContext(
                 // CR 400.7 — the batch twin of `returnToBattlefield`; each
                 // entry is its own departure from its own owner's graveyard
                 // (the exile leg is not a graveyard departure).
-                if (fromZone === "graveyard") {
-                    noteGraveyardDeparture(player, card);
-                }
+                if (fromZone === "graveyard") departed.push({ player, card });
                 staged.push({ card, controllerId: controllerId ?? playerId });
+            }
+            // CR 603.10a (issue #9423) — the whole set leaves together, so
+            // each departure names the cohort entering with it: none of them
+            // was on the battlefield when the others left, and a
+            // leaves-a-graveyard ability looks back to that moment.
+            const cohort = departed.map((d) => d.card.id);
+            for (const { player, card } of departed) {
+                noteGraveyardDeparture(
+                    state,
+                    player,
+                    card,
+                    "battlefield",
+                    cohort
+                );
             }
             return putReanimatedSetOnBattlefield(
                 state,
@@ -16444,7 +16466,8 @@ export function buildSpellContext(
                                   cardInstanceId,
                                   from,
                                   faceDownKnowerId,
-                                  "face-down-exile"
+                                  "face-down-exile",
+                                  state
                               )
                             : moveCardWithGraveyardReplacement(
                                   state,
@@ -16576,7 +16599,7 @@ export function buildSpellContext(
             // CR 400.7 — the one BULK departure (Endurance sweeps the whole
             // graveyard into the library): N cards left, so the tally rises by
             // N, which is why the chokepoint takes a count.
-            noteGraveyardDeparture(player, moved);
+            noteGraveyardDeparture(state, player, moved, "library");
             seededShuffle(state, moved);
             clearKnowledge(moved, null);
             player.library.push(...moved);
@@ -21055,7 +21078,8 @@ export function buildSpellContext(
                 cardInstanceId,
                 from,
                 knowerId,
-                producer
+                producer,
+                state
             );
             // issue #1558 — feeds "whenever one or more cards are put into
             // exile from your library and/or your graveyard" triggers
@@ -23414,10 +23438,19 @@ export function putHandCardOnTopOfLibrary(
  *  than a count is what lets this chokepoint also end each one's graveyard
  *  timestamp. */
 export function noteGraveyardDeparture(
+    state: GameState,
     player: PlayerState,
-    departed: CardInstanceState | readonly CardInstanceState[]
+    departed: CardInstanceState | readonly CardInstanceState[],
+    /** CR 400.1 — where the cards went; rides on `CARD_LEFT_GRAVEYARD`. */
+    toZone: CardLeftGraveyardEvent["toZone"],
+    /** CR 603.10a — see `CardLeftGraveyardEvent.battlefieldCohort`. */
+    battlefieldCohort?: readonly string[]
 ): void {
     const cards = Array.isArray(departed) ? departed : [departed];
+    // Issue #9423 / CR 603.10a — one CARD_LEFT_GRAVEYARD per card (CR 603.2c),
+    // its types snapshotted BEFORE anything below or after this call can
+    // rewrite the new object: a leaves-a-graveyard ability looks back in time.
+    emitCardsLeftGraveyard(state, player, cards, toZone, battlefieldCohort);
     // CR 400.7 / 613.7d — the graveyard object's timestamp goes with it; a
     // card that comes back is a new object and is stamped afresh
     // (`stampGraveyardStaticSources`).
@@ -23429,6 +23462,57 @@ export function noteGraveyardDeparture(
     if (cards.length === 0) return;
     player.leftGraveyardThisTurn =
         (player.leftGraveyardThisTurn ?? 0) + cards.length;
+}
+
+/** The `state` a graveyard-capable zone primitive was handed. Its overloads
+ *  already make an omitted `state` a compile error for a `from` that admits
+ *  the graveyard; this is the runtime half, for a caller that cast its way
+ *  past them — a departure must never drop its event silently (issue #9423). */
+function requireDepartureState(
+    state: GameState | undefined,
+    primitive: string
+): GameState {
+    if (state === undefined) {
+        throw new Error(
+            `${primitive}: a graveyard departure needs the GameState (CARD_LEFT_GRAVEYARD, issue #9423)`
+        );
+    }
+    return state;
+}
+
+/** Issue #9423 — the `CARD_LEFT_GRAVEYARD` emission, called ONLY from
+ *  `noteGraveyardDeparture` so the event and the per-turn tally share one
+ *  census and can never disagree. One event per card (CR 603.2c). */
+function emitCardsLeftGraveyard(
+    state: GameState,
+    player: PlayerState,
+    cards: readonly CardInstanceState[],
+    toZone: CardLeftGraveyardEvent["toZone"],
+    battlefieldCohort: readonly string[] | undefined
+): void {
+    if (cards.length === 0) return;
+    const cohort =
+        toZone === "battlefield" && battlefieldCohort !== undefined
+            ? [...battlefieldCohort]
+            : undefined;
+    const events: CardLeftGraveyardEvent[] = cards.map((card) => {
+        const cardId = (card.card as { id?: string }).id;
+        return {
+            type: "CARD_LEFT_GRAVEYARD",
+            // CR 400.3 — a card in a graveyard sits in its owner's; the pile's
+            // player is that owner.
+            ownerId: player.id,
+            cardInstanceId: card.id,
+            ...(cardId ? { cardId } : {}),
+            toZone,
+            types: [...card.types],
+            ...(card.isToken ? { isToken: true as const } : {}),
+            ...(cohort !== undefined && cohort.length > 1
+                ? { battlefieldCohort: cohort }
+                : {}),
+        };
+    });
+    state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
 }
 
 /** CR 400.7 (issue #7209) — the arrival twin of `noteGraveyardDeparture`: every
@@ -23452,11 +23536,12 @@ export function noteGraveyardArrival(card: CardInstanceState): void {
  *  quietly rather than throw — the same vanished-source policy every other
  *  deferred cost leg follows. */
 export function exileCardFromGraveyard(
+    state: GameState,
     player: PlayerState,
     cardInstanceId: string
 ): boolean {
     if (!player.graveyard.some((c) => c.id === cardInstanceId)) return false;
-    moveCard(player, cardInstanceId, "graveyard", "exile");
+    moveCard(player, cardInstanceId, "graveyard", "exile", state);
     return true;
 }
 
@@ -23473,7 +23558,8 @@ export function payGraveyardCostCards(
     destination: "library-bottom" | undefined
 ): void {
     if (destination === undefined) {
-        for (const id of cardInstanceIds) exileCardFromGraveyard(owner, id);
+        for (const id of cardInstanceIds)
+            exileCardFromGraveyard(state, owner, id);
         // CR 611.3a — the graveyard's top card may have changed.
         refreshFullText(state);
         return;
@@ -23481,7 +23567,7 @@ export function payGraveyardCostCards(
     const moved: LibraryEntry[] = [];
     for (const id of cardInstanceIds) {
         if (!owner.graveyard.some((c) => c.id === id)) continue;
-        const card = moveCard(owner, id, "graveyard", "library");
+        const card = moveCard(owner, id, "graveyard", "library", state);
         moved.push(libraryEntry(card, "graveyard"));
     }
     emitCardsPutIntoLibrary(state, moved);
@@ -23515,7 +23601,7 @@ export function payExileThisCost(
     from: ExileThisSourceZone
 ): boolean {
     if (from === "graveyard") {
-        const paid = exileCardFromGraveyard(player, cardInstanceId);
+        const paid = exileCardFromGraveyard(state, player, cardInstanceId);
         // CR 611.3a — the graveyard's top card may have changed.
         refreshFullText(state);
         return paid;
@@ -23569,11 +23655,31 @@ export function payReturnThisToHandCost(
     return removePermanentTo(state, cardInstanceId, "hand") !== null;
 }
 
+/** The general zone-mover. A move whose `from` CAN be the graveyard must pass
+ *  `state` (issue #9423): a graveyard departure emits `CARD_LEFT_GRAVEYARD`
+ *  through `noteGraveyardDeparture`, which needs the event queue. The
+ *  overloads make that a COMPILE error rather than a silent missing event —
+ *  a caller whose `from` type admits `"graveyard"` and omits `state` matches
+ *  neither signature. */
+export function moveCard(
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack" | "graveyard">,
+    to: Exclude<Zone, "stack">
+): CardInstanceState;
 export function moveCard(
     player: PlayerState,
     cardInstanceId: string,
     from: Exclude<Zone, "stack">,
-    to: Exclude<Zone, "stack">
+    to: Exclude<Zone, "stack">,
+    state: GameState
+): CardInstanceState;
+export function moveCard(
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack">,
+    to: Exclude<Zone, "stack">,
+    state?: GameState
 ): CardInstanceState {
     const fromField = ZONE_TO_FIELD[from];
     const toField = ZONE_TO_FIELD[to];
@@ -23594,7 +23700,14 @@ export function moveCard(
     // chokepoints: every `SpellContext.moveZone`, `exileCardFromGraveyard`
     // (eternalize / embalm / a cast's exile cost) and graveyard land play
     // reaches the tally here, once, with no caller having to remember it.
-    if (from === "graveyard") noteGraveyardDeparture(player, card);
+    if (from === "graveyard" && to !== "graveyard") {
+        noteGraveyardDeparture(
+            requireDepartureState(state, "moveCard"),
+            player,
+            card,
+            to
+        );
+    }
 
     // ADR 0026 — entering a public zone makes identity universally known, so
     // persistent per-viewer knowledge is meaningless there; empty it so a
@@ -23819,7 +23932,7 @@ function moveCardWithGraveyardReplacementUnsynced(
             player.exile.some(
                 (c) => c.id === cardInstanceId && isFaceDownExile(c)
             );
-        const moved = moveCard(player, cardInstanceId, from, to);
+        const moved = moveCard(player, cardInstanceId, from, to, state);
         // ADR 0026 — like `putHandCardOnTopOfLibrary`, a hand card's way into a
         // library is seen by its owner and a reveal's audience, not by whoever
         // merely knows what the card is.
@@ -23854,7 +23967,7 @@ function moveCardWithGraveyardReplacementUnsynced(
     // CR 603.10 — snapshot the types BEFORE the move; a "permanent card was put
     // into a graveyard" filter reads last-known information.
     const movedTypes = sourceCard ? [...sourceCard.types] : undefined;
-    const moved = moveCard(player, cardInstanceId, from, destination);
+    const moved = moveCard(player, cardInstanceId, from, destination, state);
     if (destination === "library") {
         // (issue #2106) — a self-referential graveyard-bound replacement
         // (Blightsteel Colossus) redirected this move to the owner's
@@ -23917,6 +24030,24 @@ function moveCardWithGraveyardReplacementUnsynced(
 export function exileFaceDownCard(
     player: PlayerState,
     cardInstanceId: string,
+    from: Exclude<Zone, "stack" | "battlefield" | "graveyard">,
+    knowerId: string | null,
+    producer: Extract<FaceDownProducer, "face-down-exile">
+): CardInstanceState | null;
+/** Issue #9423 — a face-down exile whose `from` can be the graveyard passes
+ *  `state`, for `CARD_LEFT_GRAVEYARD` (`moveCard`'s overload pair, same
+ *  reason). */
+export function exileFaceDownCard(
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack" | "battlefield">,
+    knowerId: string | null,
+    producer: Extract<FaceDownProducer, "face-down-exile">,
+    state: GameState
+): CardInstanceState | null;
+export function exileFaceDownCard(
+    player: PlayerState,
+    cardInstanceId: string,
     from: Exclude<Zone, "stack" | "battlefield">,
     /** CR 406.3 — the player the instruction lets look at it, or `null` when
      *  it lets NO player examine it (Suppress, issue #3812): then no
@@ -23927,7 +24058,8 @@ export function exileFaceDownCard(
      *  new call site cannot silently inherit opponent-hiding by omission. The
      *  only face-down producer that names a CARD IN EXILE rather than a
      *  permanent; morph / cast-face-down go through `turnFaceDown`. */
-    producer: Extract<FaceDownProducer, "face-down-exile">
+    producer: Extract<FaceDownProducer, "face-down-exile">,
+    state?: GameState
 ): CardInstanceState | null {
     const fromField = ZONE_TO_FIELD[from];
     const sourceZone = player[fromField] as CardInstanceState[];
@@ -23942,7 +24074,14 @@ export function exileFaceDownCard(
     // exile from the library — so this is latent, which is exactly why it is
     // closed here rather than left for the first "exile a card from your
     // graveyard face down" card to discover it silently.
-    if (from === "graveyard") noteGraveyardDeparture(player, card);
+    if (from === "graveyard") {
+        noteGraveyardDeparture(
+            requireDepartureState(state, "exileFaceDownCard"),
+            player,
+            card,
+            "exile"
+        );
+    }
     // The whole point of a face-down exile: knowledge is granted, not stripped.
     if (knowerId === null) delete card.knownTo;
     else card.knownTo = [knowerId];
@@ -23996,7 +24135,7 @@ export function removeFromZone(
     // every cast from the graveyard (flashback CR 702.34a, escape CR 702.138a,
     // Ashen Ghoul's activation seam). A cast is a departure like any other.
     if (from === "graveyard") {
-        noteGraveyardDeparture(player, card);
+        noteGraveyardDeparture(state, player, card, "stack");
         // CR 611.3a — the graveyard has a new top card.
         refreshFullText(state);
     }

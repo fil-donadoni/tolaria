@@ -57,7 +57,7 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
     it("moveCard off the graveyard tallies, whatever the destination", () => {
         for (const to of ["exile", "hand", "library", "battlefield"] as const) {
             const state = state2p(["gy-a"]);
-            moveCard(state.players[0], "gy-a", "graveyard", to);
+            moveCard(state.players[0], "gy-a", "graveyard", to, state);
             expect(state.players[0].leftGraveyardThisTurn).toBe(1);
         }
     });
@@ -99,10 +99,14 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("the exile-from-graveyard cost primitive rides the same chokepoint", () => {
         const state = state2p(["gy-a", "gy-b"]);
-        expect(exileCardFromGraveyard(state.players[0], "gy-a")).toBe(true);
+        expect(exileCardFromGraveyard(state, state.players[0], "gy-a")).toBe(
+            true
+        );
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
         // A card that is NOT in the graveyard never left it (CR 608.2b).
-        expect(exileCardFromGraveyard(state.players[0], "nope")).toBe(false);
+        expect(exileCardFromGraveyard(state, state.players[0], "nope")).toBe(
+            false
+        );
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
     });
 
@@ -123,7 +127,8 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
                 "gy-a",
                 "graveyard",
                 "p1",
-                "face-down-exile"
+                "face-down-exile",
+                state
             )
         ).not.toBeNull();
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
@@ -140,9 +145,9 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("accumulates per player and never crosses over", () => {
         const state = state2p(["a1", "a2"], ["b1"]);
-        moveCard(state.players[0], "a1", "graveyard", "exile");
-        moveCard(state.players[0], "a2", "graveyard", "exile");
-        moveCard(state.players[1], "b1", "graveyard", "exile");
+        moveCard(state.players[0], "a1", "graveyard", "exile", state);
+        moveCard(state.players[0], "a2", "graveyard", "exile", state);
+        moveCard(state.players[1], "b1", "graveyard", "exile", state);
         expect(state.players[0].leftGraveyardThisTurn).toBe(2);
         expect(state.players[1].leftGraveyardThisTurn).toBe(1);
     });
@@ -183,7 +188,7 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("stands through THIS turn's end step and clears only at the boundary (CR 603.4 / 513.1)", () => {
         const state = state2p(["gy-a"]);
-        moveCard(state.players[0], "gy-a", "graveyard", "exile");
+        moveCard(state.players[0], "gy-a", "graveyard", "exile", state);
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
         // This turn's own end step, where CR 603.4 reads the condition twice.
         state.phase = "END_STEP";
@@ -196,13 +201,13 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("the chokepoint ignores a non-positive count", () => {
         const state = state2p();
-        noteGraveyardDeparture(state.players[0], []);
+        noteGraveyardDeparture(state, state.players[0], [], "exile");
         expect(state.players[0].leftGraveyardThisTurn).toBeUndefined();
     });
 
     it("survives a save/load round trip taken mid-turn", () => {
         const state = state2p(["gy-a"]);
-        moveCard(state.players[0], "gy-a", "graveyard", "exile");
+        moveCard(state.players[0], "gy-a", "graveyard", "exile", state);
         const round = expandState(compactState(state));
         expect(round.players[0].leftGraveyardThisTurn).toBe(1);
         expect(round.players[1].leftGraveyardThisTurn).toBeUndefined();

@@ -557,7 +557,13 @@ export function applyPlayLandFromGraveyard(
     // like the hand and exile play paths.
     const willEnterTapped = shouldEnterTapped(state, graveyardCard);
 
-    const card = moveCard(player, cardInstanceId, "graveyard", "battlefield");
+    const card = moveCard(
+        player,
+        cardInstanceId,
+        "graveyard",
+        "battlefield",
+        state
+    );
     return settleEnteredLand(
         state,
         player,
@@ -1224,7 +1230,8 @@ export function finalizeLandEntry(
                       player,
                       landInstanceId,
                       playSource.zone,
-                      "battlefield"
+                      "battlefield",
+                      state
                   )
                 : moveCardAcrossPlayers(
                       playSource.owner,
