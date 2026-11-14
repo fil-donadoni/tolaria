@@ -4231,16 +4231,19 @@ const OP_ASSERTORS: AssertorTable = {
             { op: "reduceSpellCostThisTurn" }
         >;
         const pid = assertionPlayerId(op.player);
-        const before =
-            pre.spellCostReductionsThisTurn?.filter((e) => e.playerId === pid)
-                .length ?? 0;
+        // Issue #9435 — the "until your next turn" duration lands in the twin
+        // list `advanceTurn` prunes, never in the CLEANUP-scoped one.
+        const lasting = op.duration === "until-your-next-turn";
+        const entriesOf = (s: GameState) =>
+            (lasting
+                ? s.spellCostReductionsUntilNextTurn
+                : s.spellCostReductionsThisTurn
+            )?.filter((e) => e.playerId === pid).length ?? 0;
+        const before = entriesOf(pre);
         return {
-            label: `reduceSpellCostThisTurn installs a floating cost reduction for player ${pid} this turn`,
+            label: `reduceSpellCostThisTurn installs a floating cost reduction for player ${pid} ${lasting ? "until their controller's next turn" : "this turn"}`,
             check: (post) => {
-                const after =
-                    post.spellCostReductionsThisTurn?.filter(
-                        (e) => e.playerId === pid
-                    ).length ?? 0;
+                const after = entriesOf(post);
                 return {
                     ok: after === before + 1,
                     detail: `entries=${after} (was ${before})`,

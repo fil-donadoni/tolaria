@@ -4618,7 +4618,13 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
             amount: isFixedGenericReduction,
         },
-        optional: { filter: isSpellFilter },
+        optional: {
+            filter: isSpellFilter,
+            // CR 611.2a (issue #9435) — a closed literal set, so a typo can
+            // never validate into the "this turn" default.
+            duration: (v: unknown) =>
+                v === "this-turn" || v === "until-your-next-turn",
+        },
     },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // graveyard play/cast permission (Yawgmoth's Will). `player` names the

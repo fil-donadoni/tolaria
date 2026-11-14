@@ -7090,11 +7090,18 @@ export interface SpellContext {
      *  {@link CostReductionAmount} every other 601.2f site carries, resolved by
      *  the shared `resolveCostReductionGeneric`. Additive, NOT idempotent —
      *  two resolutions give two reductions (CR 601.2f "minus all cost
-     *  reductions"). Spell-only: an activated ability's cost never sees it. */
+     *  reductions"). Spell-only: an activated ability's cost never sees it.
+     *
+     *  `untilNextTurnOf` (issue #9435, Ral, Leyline Prodigy's +1) switches the
+     *  duration to "until your next turn" (CR 611.2a): the entry lands in
+     *  `state.spellCostReductionsUntilNextTurn` instead, survives CLEANUP, and
+     *  is dropped as THAT player's next turn begins (`advanceTurn`). Omitted =
+     *  the "this turn" duration above. */
     reduceSpellCostThisTurn: (
         playerId: string,
         costReduction: CostReductionAmount,
-        filter?: SpellFilter
+        filter?: SpellFilter,
+        untilNextTurnOf?: string
     ) => void;
     /** CR 609.4b / 118.14 (issue #2890) — grants `playerId` a ONE-SHOT "for one
      *  spell this turn, you may spend mana as though it were mana of any
@@ -11184,6 +11191,11 @@ export type CostReductionAmount =
     | ManaCost
     | CountDrivenCostReduction
     | CensusDrivenCostReduction;
+
+/** CR 611.2a — the stated duration of a floating `reduceSpellCostThisTurn`
+ *  reduction (issue #9435): `"this-turn"` ends at CLEANUP (CR 514.2),
+ *  `"until-your-next-turn"` as the effect controller's next turn begins. */
+export type SpellCostReductionDuration = "this-turn" | "until-your-next-turn";
 
 /** The fixed-literal {@link CostReductionAmount} narrowed to what a CR 601.2f
  *  reduction can actually apply (issue #3340): GENERIC mana only, and no
@@ -17878,12 +17890,20 @@ export type EffectOp =
      *  SCOPED TO SPELLS, per the Oracle's "spells you cast": an activated
      *  ability's cost never sees it (`getCostModifiers`' `kind === "ability"`
      *  arm skips the fold). Additive — two resolutions give two reductions.
-     *  Skipped when the player cannot be resolved (CR 608.2b). */
+     *  Skipped when the player cannot be resolved (CR 608.2b).
+     *
+     *  `duration` (issue #9435) picks the CR 611.2a duration: omitted or
+     *  `"this-turn"` ends at CLEANUP as above (Urza); `"until-your-next-turn"`
+     *  (Ral, Leyline Prodigy's +1: "Until your next turn, instant and sorcery
+     *  spells you cast cost {1} less to cast") survives CLEANUP and the
+     *  opponent's turn, and ends as the resolving ability's CONTROLLER's next
+     *  turn begins — "your" is the controller, not necessarily `player`. */
     | {
           op: "reduceSpellCostThisTurn";
           player: EffectPlayerRef;
           amount: FixedGenericReduction;
           filter?: SpellFilter;
+          duration?: SpellCostReductionDuration;
       }
     /** CR 609.4b / 118.14 (issue #2890 — North Star: "For one spell this turn,
      *  you may spend mana as though it were mana of any type to pay that

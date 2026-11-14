@@ -44,7 +44,7 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { finalizeCleanup } from "../phases";
+import { advancePhase, finalizeCleanup } from "../phases";
 import { validateEffectScript } from "../effects/validate";
 import { compactState, expandState } from "../serialize";
 import {
@@ -547,5 +547,157 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
             getCostModifiers(state, onBoard, "spell", undefined, "p1")
                 .reductionGeneric
         ).toBe(2);
+    });
+});
+
+// ── Issue #9435 — the "until your next turn" duration (CR 611.2a) ──────────
+//
+// Ral, Leyline Prodigy's +1: "Until your next turn, instant and sorcery spells
+// you cast cost {1} less to cast." Same Op, same single collector, a
+// different boundary: the reduction must survive CLEANUP and the WHOLE
+// opponent turn, and end as the CONTROLLER's next turn begins.
+
+/** Ral's +1 clause as an Effect Script. */
+const RAL_PLUS_ONE: EffectOp[] = [
+    {
+        op: "reduceSpellCostThisTurn",
+        player: "controller",
+        amount: { X: 1 },
+        filter: { types: ["Instant", "Sorcery"] },
+        duration: "until-your-next-turn",
+    },
+];
+
+/** Runs the engine forward until the active player changes. */
+function advanceToNextTurn(state: GameState): void {
+    const from = state.activePlayerId;
+    for (let i = 0; i < 40 && state.activePlayerId === from; i++) {
+        advancePhase(state);
+    }
+    expect(state.activePlayerId).not.toBe(from);
+}
+
+describe('reduceSpellCostThisTurn duration "until-your-next-turn" (CR 601.2f / 611.2a, issue #9435)', () => {
+    it("survives CLEANUP and the opponent's turn, and ends as the controller's next turn begins", () => {
+        const id = registerScript(
+            "test-op-reduce-until-next-turn",
+            RAL_PLUS_ONE
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const instant = addToHand(state, "p1", INSTANT_ID, "ins1");
+        resolveUrzaPlusTwo(state, id, "p1");
+        expect(chargedCost(state, instant, INSTANT_ID)).toEqual({ U: 1 });
+
+        // CR 514.2 ends "this turn" effects — not this one.
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(chargedCost(state, instant, INSTANT_ID)).toEqual({ U: 1 });
+
+        // The opponent's turn: p1 casting at instant speed is still discounted.
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p2");
+        expect(chargedCost(state, instant, INSTANT_ID)).toEqual({ U: 1 });
+
+        // p1's next turn begins: the reduction is gone.
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p1");
+        expect(state.spellCostReductionsUntilNextTurn).toBeUndefined();
+        expect(chargedCost(state, instant, INSTANT_ID)).toEqual({
+            X: 1,
+            U: 1,
+        });
+    });
+
+    it('keys the expiry to the CONTROLLER ("your"), not to the reduced player', () => {
+        // p1 resolves a reduction for p2's casts, until p1's next turn: it must
+        // survive p2's own turn start and end only when p1's turn begins.
+        const id = registerScript("test-op-reduce-until-next-turn-opp", [
+            {
+                op: "reduceSpellCostThisTurn",
+                player: "opponent",
+                amount: { X: 1 },
+                duration: "until-your-next-turn",
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "CLEANUP",
+        });
+        const theirs = addToHand(state, "p2", INSTANT_ID, "ins-p2");
+        resolveUrzaPlusTwo(state, id, "p1");
+        expect(state.spellCostReductionsUntilNextTurn).toEqual([
+            { playerId: "p2", costReduction: { X: 1 }, expiresAtTurnOf: "p1" },
+        ]);
+
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p2");
+        expect(chargedCost(state, theirs, INSTANT_ID)).toEqual({ U: 1 });
+
+        advanceToNextTurn(state);
+        expect(state.activePlayerId).toBe("p1");
+        expect(chargedCost(state, theirs, INSTANT_ID)).toEqual({
+            X: 1,
+            U: 1,
+        });
+    });
+
+    it('"this-turn" spelled out is the CLEANUP-scoped default (Urza unchanged)', () => {
+        const id = registerScript("test-op-reduce-this-turn-explicit", [
+            { ...URZA_PLUS_TWO[0], duration: "this-turn" } as EffectOp,
+        ]);
+        const state = makeState();
+        const artifact = addToHand(state, "p1", ARTIFACT_ID, "art1");
+        resolveUrzaPlusTwo(state, id, "p1");
+        expect(state.spellCostReductionsUntilNextTurn).toBeUndefined();
+        expect(chargedCost(state, artifact, ARTIFACT_ID)).toEqual({ X: 1 });
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(chargedCost(state, artifact, ARTIFACT_ID)).toEqual({ X: 3 });
+    });
+
+    it("survives a DB round-trip across the opponent's turn", () => {
+        const id = registerScript(
+            "test-op-reduce-until-next-turn-rt",
+            RAL_PLUS_ONE
+        );
+        const state = makeState();
+        addToHand(state, "p1", INSTANT_ID, "ins1");
+        resolveUrzaPlusTwo(state, id, "p1");
+
+        const restored = expandState(compactState(state));
+        expect(restored.spellCostReductionsUntilNextTurn).toEqual([
+            {
+                playerId: "p1",
+                costReduction: { X: 1 },
+                filter: { types: ["Instant", "Sorcery"] },
+                expiresAtTurnOf: "p1",
+            },
+        ]);
+        const card = restored.players[0].hand.find((c) => c.id === "ins1")!;
+        expect(chargedCost(restored, card, INSTANT_ID)).toEqual({ U: 1 });
+    });
+
+    it("rejects an unknown duration literal", () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-bad-duration",
+            name: "Test Host",
+            effects: [
+                {
+                    op: "reduceSpellCostThisTurn",
+                    player: "controller",
+                    amount: { X: 1 },
+                    duration: "until-next-turn",
+                } as unknown as EffectOp,
+            ],
+        });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/duration/);
     });
 });

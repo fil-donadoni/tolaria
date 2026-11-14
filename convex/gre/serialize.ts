@@ -1523,6 +1523,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // round-trip because the reduction has to still apply to a cast announced
     // at any later stable point in the SAME turn.
     "spellCostReductionsThisTurn",
+    // CR 601.2f / 611.2a (issue #9435) — the "until your next turn" twin: the
+    // same plain data plus the expiring player's id; it must survive every
+    // save across the opponent's whole turn.
+    "spellCostReductionsUntilNextTurn",
     "spellManaSubstitutionGrants",
     // CR 609.4b / 614.1a (issue #3811) — False Dawn's until-end-of-turn
     // permission and production replacement: plain per-player records that
