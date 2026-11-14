@@ -34817,6 +34817,7 @@
         {"id":"702.74a","line":"describe(\"Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 702.74a — Vibrance)\", () => {","sites":1,"status":"baseline"},
         {"id":"603.2","line":"// CR 121.1 / 603.2 — the turn-based draw emits CARD_DRAWN; scan it","sites":1,"status":"baseline"},
         {"id":"701.20a","line":"/** CR 701.20a — the head player's optional reveal-until window. */","sites":1,"status":"confirmed","ruleHash":"54005920ff25d271"},
+        {"id":"702.178a","line":"// CR 702.178a — a gate on whether the ability exists (\"Max speed —\").","sites":1,"status":"confirmed","ruleHash":"1b779133405f67b4"},
         {"id":"116.2","line":"// CR 116.2 / 702.139a (ADR 0064) — the in-progress {3} companion-summon","sites":1,"status":"baseline"},
         {"id":"401.4","line":"// 701.23 search / 701.20 reveal + shuffle / 401.4 top-of-library, issue","sites":1,"status":"confirmed","ruleHash":"a09bccfa909a2d48"},
         {"id":"508.1c","line":"// (CR 508.1c attack restriction; CR 509.1h combat-pairing trigger gated on the","sites":1,"status":"baseline"},
