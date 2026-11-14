@@ -59,6 +59,7 @@ import { expandShuffleFromAnywhere } from "./abilities/shuffleFromAnywhereReplac
 import { expandControllerDamagePrevention } from "./abilities/controllerDamagePrevention";
 import { expandDamageAsCounters } from "./abilities/damageAsCounters";
 import { expandDamageLifeFloor } from "./abilities/damageLifeFloor";
+import { expandCompiledReplacements } from "./compiledReplacements";
 import { expandDamagePreventionCounterRemoval } from "./abilities/damagePreventionCounterRemoval";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
@@ -692,7 +693,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
                                                                                 expandControllerDamagePrevention(
                                                                                     expandDamageLifeFloor(
                                                                                         expandDamageAsCounters(
-                                                                                            base
+                                                                                            expandCompiledReplacements(
+                                                                                                base
+                                                                                            )
                                                                                         )
                                                                                     )
                                                                                 )

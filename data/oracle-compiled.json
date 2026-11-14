@@ -9900,7 +9900,6 @@
         {"key":"087bc61057a1","text":"If you would draw a card while your library has no cards in it, instead return a creature card from your graveyard to the battlefield. If you can't, you lose the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card while your library has no cards in it, instead return a creature card from your graveyard to the battlefield. If you can't, you lose the game"}},
         {"key":"5421cf98046b","text":"If you would draw a card while your library has no cards in it, skip that draw instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card while your library has no cards in it, skip that draw instead"}},
         {"key":"9a385f57d8c2","text":"If you would draw a card while your library has no cards in it, you win the game instead.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card while your library has no cards in it, you win the game instead"}},
-        {"key":"aa69d4eaad75","text":"If you would draw a card, draw two cards instead.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card, draw two cards instead"}},
         {"key":"d165a08afecc","text":"If you would draw a card, exile the top two cards of your library instead. You may play those cards this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card, exile the top two cards of your library instead. You may play those cards this turn"}},
         {"key":"c2b0710d1b2b","text":"If you would draw a card, instead look at the top three cards of your library, then put one into your hand and the rest into your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card, instead look at the top three cards of your library, then put one into your hand and the rest into your graveyard"}},
         {"key":"920dd21e0a66","text":"If you would draw a card, instead reveal the top three cards of your library. Put all creature cards revealed this way into your hand and the rest on the bottom of your library in any order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"If you would draw a card, instead reveal the top three cards of your library. Put all creature cards revealed this way into your hand and the rest on the bottom of your library in any order"}},
@@ -10560,8 +10559,6 @@
         {"key":"dda1ba895091","text":"Max speed — At the beginning of combat on your turn, this land becomes a 2/2 Construct creature in addition to its other types until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"This land becomes a 2/2 Construct creature in addition to its other types until end of turn"}},
         {"key":"ed12a4df8566","text":"Max speed — At the beginning of your end step, put a +1/+1 counter on each artifact creature and/or Vehicle you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each artifact creature and/or Vehicle you control"}},
         {"key":"00034384d1b5","text":"Max speed — At the beginning of your upkeep, exile the top card of your library. You may play that card this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Play that card this turn"}},
-        {"key":"69c32a464646","text":"Max speed — If a source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 1 instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Max speed — If a source you control would deal damage to an opponent or a permanent an opponent controls"}},
-        {"key":"7b89b0286bd7","text":"Max speed — If you would draw a card, draw two cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Max speed — If you would draw a card"}},
         {"key":"211f5d5c95c0","text":"Max speed — Sacrifice this enchantment: Create two 1/1 colorless Thopter artifact creature tokens with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["activation cost"],"span":"Max speed — Sacrifice this enchantment"}},
         {"key":"11815c2de82a","text":"Max speed — Sacrifice this enchantment: Creatures and Vehicles you control gain haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Creatures and Vehicles you control gain haste until end of turn"}},
         {"key":"20a54ed9e0ac","text":"Max speed — Whenever a creature you control dies, each opponent loses 1 life and you gain 1 life.","reason":"\"each player\" is not in grammar v0","cards":1},
@@ -57054,7 +57051,7 @@
 
         {"oracleId":"6452b6a6-6235-46a3-a712-a26592450438","name":"Thoughtlace","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["31661aae87d4"]},
 
-        {"oracleId":"6454c457-a278-431a-9e8d-bfd1a966bdde","name":"Vnwxt, Verbose Host","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7b89b0286bd7","bd5f88f6d375"]},
+        {"oracleId":"6454c457-a278-431a-9e8d-bfd1a966bdde","name":"Vnwxt, Verbose Host","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bd5f88f6d375"]},
 
         {"oracleId":"64553181-9852-459f-a6e0-54ce188dd937","name":"Horned Sliver","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Horned Sliver","types":["Creature"],"subtypes":["Sliver"],"manaCost":{"X":2,"G":1},"power":2,"toughness":2,"oracleText":"All Sliver creatures have trample.","compiledStaticEffects":[{"kind":"keyword-grant","filter":{"types":["Creature"],"subtypes":["Sliver"]},"keyword":"trample"}]},"botReach":"played"},
 
@@ -58482,7 +58479,7 @@
 
         {"oracleId":"69288566-3015-45de-b391-6fe079865f0c","name":"Extraordinary Journey","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1a33bd52ddc3","48af2715e6c9"]},
 
-        {"oracleId":"692a6833-3014-42f6-b1ad-333bb3292c65","name":"Thought Reflection","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aa69d4eaad75"]},
+        {"oracleId":"692a6833-3014-42f6-b1ad-333bb3292c65","name":"Thought Reflection","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Thought Reflection","types":["Enchantment"],"manaCost":{"X":4,"U":3},"oracleText":"If you would draw a card, draw two cards instead.","compiledReplacements":[{"kind":"draw-count","id":"thought-reflection-draw-replacement","oracleText":"If you would draw a card, draw two cards instead.","count":2}]},"botReach":"played"},
 
         {"oracleId":"692babfa-9b74-415e-a560-abae4ccb006b","name":"Yahenni's Expertise","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80076a6cb7b7"]},
 
@@ -66628,7 +66625,7 @@
 
         {"oracleId":"8696eae4-3dc9-4572-aab9-aa4f7e8f53af","name":"Syphon Fuel","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife","pump"],"definition":{"name":"Syphon Fuel","types":["Instant"],"manaCost":{"X":4,"B":1},"oracleText":"Target creature gets -6/-6 until end of turn. You gain 2 life.","effects":[{"op":"pump","target":{"target":0},"power":-6,"toughness":-6,"duration":{"phase":"end-of-turn"}},{"op":"gainLife","player":"controller","amount":2}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"869bde03-8813-43a9-9df5-a21c62511b4b","name":"Mr. Spock, Science Officer","state":"unparsed","gaps":["aa69d4eaad75"]},
+        {"oracleId":"869bde03-8813-43a9-9df5-a21c62511b4b","name":"Mr. Spock, Science Officer","state":"ready","slots":["static"],"opsUsed":[],"definition":{"name":"Mr. Spock, Science Officer","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Vulcan","Human","Scientist"],"manaCost":{"X":2,"U":2},"power":2,"toughness":4,"oracleText":"If you would draw a card, draw two cards instead.","compiledReplacements":[{"kind":"draw-count","id":"mr-spock-science-officer-draw-replacement","oracleText":"If you would draw a card, draw two cards instead.","count":2}]},"botReach":"played"},
 
         {"oracleId":"869c9bc4-2b21-40c3-8b1c-c83269c856d0","name":"Sevinne, the Chronoclasm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7072bd20bdd8","9cf954dd426d"]},
 
@@ -68064,7 +68061,7 @@
 
         {"oracleId":"8b972819-507a-40a9-ab1f-1a674ea56083","name":"Abzan Falconer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["316a876bd2bf","f9cd1cbc8285"]},
 
-        {"oracleId":"8b9734c1-7185-40f6-8582-9f87109e3a09","name":"Far Fortune, End Boss","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["69c32a464646","9a67d01adb5b"]},
+        {"oracleId":"8b9734c1-7185-40f6-8582-9f87109e3a09","name":"Far Fortune, End Boss","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a67d01adb5b"]},
 
         {"oracleId":"8b983a46-580f-4a94-8ef3-5253e503148e","name":"Femeref Enchantress","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["1ffee42015e2"]},
 

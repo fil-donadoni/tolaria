@@ -23212,6 +23212,9 @@ export function drawPlanForOutcome(
             // replace that event". `delta` is the SUM across every applicable
             // count modification, accumulated by `planDrawStep` (CR 616.1f).
             return { kind: "normal", count: Math.max(0, 1 + outcome.delta) };
+        case "multiply-count":
+            // CR 614.1a / 121.2 — draw 1 → draw `factor`, drawn raw (CR 614.5).
+            return { kind: "normal", count: Math.max(0, outcome.factor) };
         case "reveal-type-to-graveyard":
             if (ctx.libraryEmpty) return { kind: "normal", count: 1 };
             return ctx.topCardHasType(outcome.cardType)
@@ -23274,11 +23277,23 @@ export function planDrawStep(
     // it has nothing left to resize; a co-applicable terminal PAIR is the case
     // that genuinely needs the prompt, and it stays deferred exactly as
     // `getApplicableDrawReplacements` documents.
-    let countDelta = 0;
+    //
+    // A `multiply-count` ("draw two cards instead", CR 121.2: each resulting
+    // draw is its own event the remaining replacements see) compounds rather
+    // than adds — two of them turn one card into four, CR 614.5's example —
+    // so the count is folded in the affected player's order: a `+1` before a
+    // doubling reads 4, after it 3. That order is the deterministic stand-in
+    // for the CR 616.1 choice, as for the terminal outcomes.
+    let count = 1;
     let terminal: (typeof matches)[number] | undefined;
     for (const candidate of matches) {
-        if (candidate.effect.outcome.kind === "modify-count") {
-            countDelta += candidate.effect.outcome.delta;
+        const candidateOutcome = candidate.effect.outcome;
+        if (candidateOutcome.kind === "modify-count") {
+            count += candidateOutcome.delta;
+            continue;
+        }
+        if (candidateOutcome.kind === "multiply-count") {
+            count *= candidateOutcome.factor;
             continue;
         }
         terminal = candidate;
@@ -23287,7 +23302,7 @@ export function planDrawStep(
     const match = terminal ?? matches[0];
     const outcome: DrawReplacementOutcome = terminal
         ? terminal.effect.outcome
-        : { kind: "modify-count", delta: countDelta };
+        : { kind: "modify-count", delta: count - 1 };
     const player = getPlayer(state, playerId);
     const revealedCardId = player.library[0]?.id;
     const chooserId = getOpponentId(state, playerId);
