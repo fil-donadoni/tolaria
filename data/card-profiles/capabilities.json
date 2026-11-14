@@ -697,7 +697,7 @@
             "provides": ["value-on-etb", "go-wide"],
             "requires": ["lands-in-graveyard"],
             "reviewed": false,
-            "rationale": "oracle: creates a 5/3 Elemental each time a land you control goes to the graveyard; its enters trigger returns a land card from the graveyard, and each land put into the graveyard from the battlefield makes a 5/3 (lands-in-graveyard)"
+            "rationale": "oracle: creates a 5/3 Elemental each time a land you control goes to the graveyard; its enters trigger returns a land card from the graveyard, and its token trigger pays off every land a sacrifice puts there (lands-in-graveyard)"
         },
         "ad7ac9a5-340f-4509-826c-7b9416d47887": {
             "provides": [],

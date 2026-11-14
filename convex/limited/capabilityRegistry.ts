@@ -346,7 +346,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         cluster: "Lands",
         gloss: {
             provides:
-                "Puts land cards into your graveyard: fetch lands, lands that sacrifice themselves, sacrifice-a-land costs.",
+                "Puts land cards into your graveyard: lands that sacrifice themselves (fetch lands, Wasteland), sacrifice-a-land costs.",
             requires:
                 "Counts land cards in your graveyard, or returns or plays them from there.",
         },
