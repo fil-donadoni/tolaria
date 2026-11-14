@@ -185,6 +185,11 @@ describe("powerAtLeast validator gate (issue #9480)", () => {
                 },
             ] as never,
         });
+        expect(
+            validateEffectScript(
+                choiceOn("battlefield", { type: "Creature", powerAtLeast: 4 })
+            )
+        ).toEqual([]);
         // Control: the same graveyard choice without the bound is valid.
         expect(
             validateEffectScript(choiceOn("graveyard", { type: "Creature" }))
