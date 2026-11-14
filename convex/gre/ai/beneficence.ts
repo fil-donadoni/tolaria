@@ -62,7 +62,11 @@ import type {
 import type { GameState } from "../state";
 import type { Move } from "../moves";
 import { tryGetDefinition } from "../../cards";
-import { type Beneficence, opBeneficence } from "./opValuers";
+import {
+    type Beneficence,
+    DRAWBACK_KEYWORDS,
+    opBeneficence,
+} from "./opValuers";
 import { soleChosenModeId } from "../modeSelection";
 import { childOpArrays, isTriggerBodyHost } from "./effectOpChildren";
 import { findTriggeredAbility } from "../copy";
@@ -187,11 +191,6 @@ function collectScriptSigns(
         }
     }
 }
-
-/** Keywords whose grant is an attack on the permanent that receives them.
- *  CR 702.26a — phasing takes the host out of the game every other turn of its
- *  controller. */
-const DRAWBACK_KEYWORDS: ReadonlySet<string> = new Set(["phasing"]);
 
 /** The sign an AURA carries for the controller of the permanent it enchants
  *  (CR 303.4). An aura's payoff is continuous / triggered, never a resolution

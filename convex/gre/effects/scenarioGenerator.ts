@@ -1944,6 +1944,16 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`,
     },
+    // `loseAbility` (issue #2125) removes ONE keyword (CR 613.1f layer 6).
+    // The canned generator seeds a VANILLA filler creature at a permanent
+    // slot, so the only outcome it could assert is that a keyword the filler
+    // never had is still absent — vacuous. Explicit skip: the Op is new
+    // (per-Op regime) and earns its own interpreter + wire-format tests, run
+    // against a permanent that HAS the keyword.
+    loseAbility: {
+        code: "op-own-tests",
+        reason: `Op "loseAbility" removes one keyword (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`,
+    },
     // `loseAllAbilities` (issue #2361) strips a permanent's abilities
     // indefinitely (CR 613.1f layer 6). The canned generator seeds a
     // VANILLA filler creature at a permanent slot, so the only outcome

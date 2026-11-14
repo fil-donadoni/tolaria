@@ -149,6 +149,8 @@ import { isSelfPhrase } from "./cost";
 import { durationRule, type DurationIR } from "./duration";
 import {
     type CoinFlipBranchIR,
+    groupSubject,
+    hostSubject,
     isLandOnlyTarget,
     readAmount,
     subjectRule,
@@ -172,6 +174,7 @@ import {
     zoneChoiceFilterFromDescriptor,
 } from "./targetFilter";
 import { CREATURE_SUBTYPES } from "./subtypes";
+import { keywordVocabulary } from "./keywordVocabulary";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { massSubjectRule, type PermanentSweepSelector } from "./massSubject";
@@ -698,6 +701,21 @@ export type FrameIR =
           readonly phrase: string;
       }
     | {
+          /**
+           * CR 613.1f (issue #2125) — "<object> loses <keyword>[ until
+           * <duration>]" and the group's "<objects> lose <keyword> until …":
+           * ONE keyword removed, the removal twin of the keyword grant. No
+           * printed duration is INDEFINITE (CR 611.2a — "If no duration is
+           * stated, it lasts until the end of the game"). Lowers to the
+           * `loseAbility` Op.
+           */
+          readonly frame: "loseAbility";
+          readonly subject: SubjectIR;
+          /** The engine's keyword string (the vocabulary row's `ability`). */
+          readonly ability: string;
+          readonly duration?: DurationIR;
+      }
+    | {
           /** CR 112.2 — the announced spell whose control changes. */
           readonly frame: "gainControlOfSpell";
           readonly requirement: TargetRequirement;
@@ -814,6 +832,13 @@ export interface FrameChainIR {
 }
 
 export type FrameName = FrameIR["frame"];
+
+/** Every keyword spelling the vocabulary reads, longest first so "first
+ *  strike" wins over a shorter prefix, as one regex alternation. */
+const KEYWORD_ALTERNATION = [...keywordVocabulary().keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
 
 /**
  * The frames, each with the words that OPEN it — the one table the chain
@@ -950,6 +975,17 @@ export const VERB_FRAMES: readonly {
         // The comma is the specified player's, not a member join: the piece
         // behind it opens no member, so `splitMembers` rejoins the two.
         opens: /^starting with you, each player votes for /i,
+    },
+    {
+        name: "loseAbility",
+        // The verb, then a Mechanics Registry keyword and the end of the
+        // member or its duration: "loses 2 life", "loses all abilities" and
+        // "lose hexproof and indestructible" never open it, so their gap keys
+        // stay the table's.
+        opens: new RegExp(
+            `^.+? loses? (?:${KEYWORD_ALTERNATION})(?: until .+)?$`,
+            "i"
+        ),
     },
     {
         name: "gainControlOfSpell",
@@ -2062,6 +2098,55 @@ function readAddSubtypeFrame(
     };
 }
 
+const LOSE_ABILITY = /^(.+?) (loses|lose) (.+?)(?: (until .+))?$/i;
+
+/**
+ * CR 613.1f + CR 611.2a (issue #2125) — the `loseAbility` frame. The singular
+ * verb reads ONE object exactly as the keyword grant does (an announced
+ * target, the source, an anaphor, the Aura's host); the plural verb reads a
+ * GROUP, and only with a printed duration — a timeless group loss is a static
+ * ability ("Creatures your opponents control lose flying"), the static
+ * slot's to read.
+ */
+function readLoseAbilityFrame(
+    lower: string,
+    ctx: unknown
+):
+    | Extract<FrameIR, { frame: "loseAbility" }>
+    | { readonly refused: string; readonly failure?: RuleResult<never> } {
+    const [, named, verb, word, until] = lower.match(LOSE_ABILITY)!;
+    const keyword = keywordVocabulary().get(word!.toLowerCase());
+    if (keyword === undefined)
+        return { refused: `"${word}" is not a Mechanics Registry keyword` };
+    const plural = verb!.toLowerCase() === "lose";
+    if (plural && until === undefined)
+        return {
+            refused: `"${named} lose ${word}" with no duration is a static ability`,
+        };
+    const subject = plural
+        ? groupSubject(named!, ctx)
+        : (hostSubject(named!, ctx) ?? subjectRule.run(named!, ctx));
+    if (!subject.ok) return { refused: subject.reason, failure: subject };
+    if (plural !== (subject.value.kind === "mass"))
+        return {
+            refused: `"${named} ${verb}" — the verb's number disagrees with its subject`,
+        };
+    if (until === undefined)
+        return {
+            frame: "loseAbility",
+            subject: subject.value,
+            ability: keyword.ability,
+        };
+    const duration = durationRule.run(until, ctx);
+    if (!duration.ok) return { refused: duration.reason, failure: duration };
+    return {
+        frame: "loseAbility",
+        subject: subject.value,
+        ability: keyword.ability,
+        duration: duration.value,
+    };
+}
+
 /**
  * CR 712.14a — one `exileReturnTransformed` member, or why it is refused. A
  * control wording the shape does not name, or a possessive disagreeing with
@@ -2610,6 +2695,10 @@ function readMember(
             frames: [{ frame: "bringFromOutsideGame", filter, phrase }],
             referent,
         };
+    }
+    if (opensFrame("loseAbility", lower)) {
+        const read = readLoseAbilityFrame(lower, ctx);
+        return "refused" in read ? read : { frames: [read], referent };
     }
     if (opensFrame("gainControlOfSpell", lower)) {
         const phrase = lower.slice("gain control of ".length);

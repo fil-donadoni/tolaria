@@ -118,6 +118,45 @@ export const wallOfLight = defineCard(() => ({
     staticAbilities: ["defender", "protection from black"],
 }));
 
+// Elder Land Wurm — {4}{W}{W}{W} 5/5 Dragon Wurm, defender and trample. "When
+// this creature blocks, it loses defender." (CR 509.3a — a "blocks" trigger
+// fires once per combat for the creature, on its declaration as a blocker:
+// `BLOCKER_DECLARED` is emitted once per blocking creature. CR 613.1f + CR
+// 611.2a — the loss states no duration, so it lasts until the end of the game:
+// the `loseAbility` Op's indefinite leg, issue #2125. CR 702.3b — from then on
+// it can attack.)
+// compiler-gap: "When this creature blocks, it loses defender." (#9621)
+export const elderLandWurm = defineCard(() => ({
+    id: "ef3651d4-969c-464d-a444-40a640d0c6ba",
+    rarity: "rare",
+    name: "Elder Land Wurm",
+    oracleText:
+        "Defender, trample\nWhen this creature blocks, it loses defender.",
+    manaCost: { X: 4, W: 3 },
+    types: ["Creature"],
+    subtypes: ["Dragon", "Wurm"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["defender", "trample"],
+    triggeredAbilities: [
+        {
+            id: "elder-land-wurm-loses-defender",
+            oracleText: "When this creature blocks, it loses defender.",
+            event: "BLOCKER_DECLARED",
+            matches: (event, self) =>
+                event.type === "BLOCKER_DECLARED" &&
+                event.blockerId === self.id,
+            effects: [
+                {
+                    op: "loseAbility",
+                    target: { ref: "$source" },
+                    ability: "defender",
+                },
+            ],
+        },
+    ],
+}));
+
 // Righteous Avengers — plainswalk (CR 702.14 landwalk variant).
 export const righteousAvengers = defineCard(() => ({
     id: "d96b463e-9579-4e7b-87c2-342527b91e7c",

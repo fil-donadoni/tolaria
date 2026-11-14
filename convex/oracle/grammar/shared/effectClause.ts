@@ -4914,7 +4914,10 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
  * (`ParseContext.auraHost`); anything else returns `null` and falls through to
  * `subjectRule`'s refusal, under the gap key it already had.
  */
-function hostSubject(span: string, ctx: unknown): RuleResult<SubjectIR> | null {
+export function hostSubject(
+    span: string,
+    ctx: unknown
+): RuleResult<SubjectIR> | null {
     if (uncapitalise(span) !== "enchanted creature") return null;
     if ((ctx as ParseContext).auraHost !== true) return null;
     return ok({ kind: "host" as const });
@@ -5046,7 +5049,10 @@ function sweepableSubject(span: string, ctx: unknown) {
  * it names ("Creatures you control", "Creatures target player controls").
  * A single object is not a group, and the verb's number says so.
  */
-function groupSubject(span: string, ctx: unknown): RuleResult<SubjectIR> {
+export function groupSubject(
+    span: string,
+    ctx: unknown
+): RuleResult<SubjectIR> {
     const probe = uncapitalise(span);
     // "Each creature get …" is not English: "each" takes a singular verb, and
     // the singular verbs read one object, never a sweep.

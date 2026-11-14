@@ -6914,17 +6914,19 @@ export interface SpellContext {
      *  leave the battlefield, exile it instead of putting it anywhere else"). */
     setExileOnLeave: (target: TargetSelection) => void;
     /** Removes every keyword static ability matching `predicate` from a
-     *  permanent for a limited duration (CR 611.2a layer 6). Each removed
-     *  keyword is spliced out of `staticAbilities` so combat / rules checks stop
-     *  seeing it at read time; the phase-boundary purge restores it when
-     *  `duration` expires. The duration-scoped counterpart of
-     *  `grantStaticAbility`. No-op if the target has left the battlefield. Used
-     *  by Shelkin Brownie ("loses all 'bands with other' abilities until end of
-     *  turn") and Tolaria (also strips plain banding). */
+     *  permanent (CR 613.1f layer 6). Each removed keyword becomes a layer-6
+     *  `keyword-remove` registry entry, so combat / rules checks stop seeing it
+     *  at read time. With a `duration` the phase-boundary purge restores it on
+     *  expiry; with NO `duration` the removal is INDEFINITE (CR 611.2a — "if no
+     *  duration is stated, it lasts until the end of the game"), cleared only
+     *  when the permanent leaves play (CR 400.7). No-op if the target has left
+     *  the battlefield. Used by Shelkin Brownie ("loses all 'bands with other'
+     *  abilities until end of turn"), Tolaria (also strips plain banding) and
+     *  the `loseAbility` Op (issue #2125). */
     removeStaticAbilities: (
         target: TargetSelection,
         predicate: (keyword: string) => boolean,
-        duration: DurationSpec
+        duration?: DurationSpec
     ) => void;
     /** Turns the target permanent into a creature with the specified base
      *  P/T and optional subtype until `spec.duration` expires (CR 208.2,
@@ -19463,8 +19465,10 @@ export type EffectOp =
      *  expires (CR 611.2 — the phase-boundary purge splices it back out).
      *  Skipped when the referenced permanent is gone (CR 608.2b — the spell does
      *  as much as it can); the primitive is a no-op if the permanent has left
-     *  the battlefield. Ability REMOVAL / loss (`removeStaticAbilities`) takes a
-     *  predicate closure and stays `resolve()` by design — not a JSON Op. */
+     *  the battlefield. Removing ONE keyword is the sibling Op `loseAbility`
+     *  (issue #2125); a predicate-shaped removal ("all landwalk abilities",
+     *  "banding and all 'bands with other'") is still a `resolve()` closure
+     *  over `removeStaticAbilities`. */
     | {
           op: "grantAbility";
           target: EffectObjectSelector;
@@ -19499,6 +19503,39 @@ export type EffectOp =
            *  that player controls then does not obey it. Valid only beside
            *  `attackRequirement`. */
           defender?: EffectPlayerRef;
+      }
+    /** CR 613.1f (layer 6, issue #2125) — a permanent LOSES ONE keyword
+     *  ability: "Target creature loses flying until end of turn" (Radjan
+     *  Spirit, Vertigo), "When this creature blocks, it loses defender" (Elder
+     *  Land Wurm). The removal twin of `grantAbility`'s keyword leg, and a thin
+     *  declarative skin over `SpellContext.removeStaticAbilities` scoped to
+     *  exactly `ability`, one execution path (ADR 0045).
+     *
+     *  The removal is a layer-6 Continuous Effects Registry entry with its own
+     *  timestamp (CR 613.7b), so a keyword GRANTED after the removal resolves
+     *  survives it (CR 613.7, layer 6 in timestamp order), and the entry is
+     *  purged when the permanent leaves the battlefield (CR 400.7 — a returning
+     *  permanent is a new object with no removal residue).
+     *
+     *  `target` is an announced target slot, the resolving source (`$source`)
+     *  or the current member of a `forEach` set (`{ ref: "$each" }`), exactly
+     *  as `grantAbility`. Skipped when the referenced permanent is gone (CR
+     *  608.2b).
+     *
+     *  Deliberately NOT here: a list of keywords, "loses all abilities" (that
+     *  is `loseAllAbilities`, a different shape: every ability, not a keyword
+     *  set) and a predicate ("all landwalk abilities") — a single named keyword
+     *  only. */
+    | {
+          op: "loseAbility";
+          target: EffectObjectSelector;
+          /** The ONE keyword the permanent loses ("flying", "defender"). */
+          ability: string;
+          /** CR 611.2a — the phase boundary at which the removal ends. OMITTED
+           *  is INDEFINITE: "If no duration is stated, it lasts until the end
+           *  of the game" (Elder Land Wurm's "it loses defender"), the same
+           *  polarity `grantAbility` uses. */
+          duration?: DurationSpec;
       }
     /** CR 613.1d (layer 4, issue #1194) — adds `subtype` to a target permanent
      *  INDEFINITELY, in addition to its other types (Guide of Souls: "It
