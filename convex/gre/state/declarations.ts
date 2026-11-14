@@ -5871,6 +5871,27 @@ export type GameState = {
         costReduction: CostReductionAmount;
         filter?: SpellFilter;
     }[];
+    /** CR 601.2f / 611.2a (issue #9435, Ral, Leyline Prodigy's +1: "Until your
+     *  next turn, instant and sorcery spells you cast cost {1} less to cast")
+     *  — the "UNTIL YOUR NEXT TURN" twin of `spellCostReductionsThisTurn`
+     *  above: same entry shape, same single reader (`getCostModifiers` folds
+     *  both lists in one accumulation), different boundary. A SEPARATE list
+     *  rather than a flag on the turn-scoped one because that list is a
+     *  `TURN_SCOPED_GLOBAL_FLAGS` row cleared WHOLE at CLEANUP; this one must
+     *  survive CLEANUP and the whole opponent turn after it.
+     *
+     *  `expiresAtTurnOf` is the CONTROLLER of the effect that installed it —
+     *  "your" in "until your next turn" (CR 611.2a: the effect lasts as long
+     *  as its own text states) — which is not necessarily `playerId`, the
+     *  player whose casts are reduced. Each entry is dropped at the START of
+     *  that player's next turn (via `advanceTurn`), the boundary
+     *  `castTimingFlashGrants` uses — NOT CLEANUP. */
+    spellCostReductionsUntilNextTurn?: {
+        playerId: string;
+        costReduction: CostReductionAmount;
+        filter?: SpellFilter;
+        expiresAtTurnOf: string;
+    }[];
     /** CR 609.4b / 118.14 (issue #2890) — per-player ONE-SHOT "for one spell
      *  this turn, you may spend mana as though it were mana of any type/color"
      *  grants (North Star). Keyed by player id; a LIST because each activation

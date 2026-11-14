@@ -3882,6 +3882,19 @@ function advanceTurn(state: GameState): void {
             state.castTimingFlashGrants = undefined;
         }
     }
+    // CR 601.2f / 611.2a (issue #9435, Ral, Leyline Prodigy's +1) — an "until
+    // your next turn" floating spell-cost reduction ends as the turn of the
+    // effect's CONTROLLER (`expiresAtTurnOf`) begins; it survived CLEANUP and
+    // the intervening opponent turn (same boundary as castTimingFlashGrants).
+    if (state.spellCostReductionsUntilNextTurn) {
+        state.spellCostReductionsUntilNextTurn =
+            state.spellCostReductionsUntilNextTurn.filter(
+                (r) => r.expiresAtTurnOf !== state.activePlayerId
+            );
+        if (state.spellCostReductionsUntilNextTurn.length === 0) {
+            state.spellCostReductionsUntilNextTurn = undefined;
+        }
+    }
     // CR 606 / 603.7a (issue #2385) — a `until-next-turn-creature-attacks-
     // you` delayed trigger (Tamiyo, Seasoned Scholar's +2) lasts "until your
     // next turn": drop the instance the moment ITS OWN controller's next
