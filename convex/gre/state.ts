@@ -11402,6 +11402,7 @@ function attackTargetOwedOnEntry(
     authored: AuthoredEntryState | undefined
 ): AsEntersChoice[] {
     return authored?.entersAttacking &&
+        authored.attackTargetSpecified !== true &&
         state.combat &&
         card.types.includes("Creature") &&
         controllerId === state.activePlayerId
@@ -18973,17 +18974,6 @@ export function buildSpellContext(
 
         setAllCreaturesMustAttack(playerId: string): void {
             state.allCreaturesMustAttack = playerId;
-        },
-
-        // CR 506.3c / 508.4 — join the CURRENT combat as an attacker without
-        // ever having been declared as one, against the defender stamped by
-        // the ninjutsu cost payment (CR 702.49c). `joinCombatAttacking` is the
-        // one entry every put-onto-the-battlefield-attacking path shares.
-        enterCombatAttacking(cardInstanceId: string): void {
-            if (!state.combat) return;
-            const found = findOnBattlefield(state, cardInstanceId);
-            if (!found) return;
-            joinCombatAttacking(state, found.card);
         },
 
         removeFromCombat(target: TargetSelection): void {
