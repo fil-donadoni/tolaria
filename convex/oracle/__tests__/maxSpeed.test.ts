@@ -341,3 +341,86 @@ describe('"Max speed —" heading a static ability (CR 702.178a)', () => {
         );
     });
 });
+
+describe('"Max speed —" from the graveyard (CR 702.178b)', () => {
+    function definition(line: string) {
+        const outcome = compileCard(creature(`${REMINDER}\n${line}`));
+        return outcome.state === "ready" ? outcome.definition : outcome.state;
+    }
+
+    it("keeps the head on a graveyard activated ability as its gate", () => {
+        const compiled = definition(
+            "Max speed — {3}, Exile this card from your graveyard: Draw a card."
+        );
+        expect(
+            typeof compiled === "string"
+                ? compiled
+                : compiled.activatedAbilities
+        ).toEqual([
+            {
+                id: "risen-necroregent-ability",
+                oracleText:
+                    "Max speed — {3}, Exile this card from your graveyard: Draw a card.",
+                cost: { mana: { X: 3 }, exileThis: true },
+                useStack: true,
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+                activateFromGraveyard: true,
+                requiresMaxSpeed: true,
+            },
+        ]);
+    });
+
+    it("leaves an ability word heading the same ability ungated", () => {
+        const compiled = definition(
+            "Threshold — {3}, Exile this card from your graveyard: Draw a card."
+        );
+        expect(
+            typeof compiled === "string"
+                ? compiled
+                : compiled.activatedAbilities?.[0]?.requiresMaxSpeed
+        ).toBeUndefined();
+    });
+
+    it("refuses a battlefield ability behind the head (issue #9586)", () => {
+        expect(definition("Max speed — {3}, {T}: Draw a card.")).toBe(
+            "unparsed"
+        );
+    });
+
+    it("gates the card's own graveyard cast permission", () => {
+        const compiled = definition(
+            "Max speed — You may cast this card from your graveyard."
+        );
+        expect(
+            typeof compiled === "string"
+                ? compiled
+                : {
+                      castable: compiled.castableFromOwnGraveyard,
+                      gated: compiled.castableFromOwnGraveyardRequiresMaxSpeed,
+                  }
+        ).toEqual({ castable: true, gated: true });
+    });
+
+    it("reads the bare permission ungated (CR 601.3)", () => {
+        const outcome = compileCard(
+            creature("You may cast this card from your graveyard.")
+        );
+        expect(
+            outcome.state === "ready"
+                ? {
+                      castable: outcome.definition.castableFromOwnGraveyard,
+                      gated: outcome.definition
+                          .castableFromOwnGraveyardRequiresMaxSpeed,
+                  }
+                : outcome.state
+        ).toEqual({ castable: true, gated: undefined });
+    });
+
+    it("refuses the permission with a rider", () => {
+        expect(
+            definition(
+                "Max speed — You may cast this card from your graveyard as long as you control a Zombie."
+            )
+        ).toBe("unparsed");
+    });
+});

@@ -375,6 +375,9 @@ export type StaticClauseIR =
     /** CR 305.1-analog — "You may play lands from your graveyard": the
      *  land-play special action with its hand zone lifted to the graveyard. */
     | { readonly kind: "graveyard-land-play" }
+    /** CR 601.3 — "You may cast this card from your graveyard": the card's
+     *  own permission, functioning from its owner's graveyard (CR 113.6b). */
+    | { readonly kind: "cast-self-from-graveyard" }
     /** CR 601.3 + CR 102.1 — "Your opponents can't cast spells during your
      *  turn": a cast prohibition on every opponent of the source's controller
      *  while that controller is the active player. */
@@ -2906,6 +2909,27 @@ const graveyardLandPlayRule: Rule<StaticClauseIR> = rule(
             : fail("not the graveyard land-play template", span)
 );
 
+// ── Frame: cast this card from your graveyard (CR 601.3) ───────────────────
+
+/**
+ * "You may cast this card from your graveyard." (Hogaak, Arisen Necropolis;
+ * behind "Max speed —", Lightwheel Enhancements.) CR 601.3 — a rule or effect
+ * must allow the cast; this one is the card's own, a static ability that
+ * functions from its owner's graveyard (CR 113.6b) and licenses the cast for
+ * the card's normal cost. Every rider ("as long as you control a Zombie",
+ * "by paying … rather than", "If you do, it enters with …") differs from the
+ * exact match and stays refused.
+ */
+const CAST_SELF_FROM_GRAVEYARD = "You may cast this card from your graveyard";
+
+const castSelfFromGraveyardRule: Rule<StaticClauseIR> = rule(
+    "cast self from graveyard",
+    (span): RuleResult<StaticClauseIR> =>
+        span === CAST_SELF_FROM_GRAVEYARD
+            ? ok({ kind: "cast-self-from-graveyard" as const })
+            : fail("not the cast-from-your-graveyard template", span)
+);
+
 // ── Frame: the turn-scoped opponent cast lock (CR 601.3) ───────────────────
 
 /**
@@ -3180,6 +3204,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         revealLibraryTopRule,
         lookAtLibraryTopRule,
         graveyardLandPlayRule,
+        castSelfFromGraveyardRule,
         opponentsCantCastDuringYourTurnRule,
         eachPlayerOneSpellPerTurnRule,
         opponentsSorceryTimingLockRule,

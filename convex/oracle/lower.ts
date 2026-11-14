@@ -146,6 +146,10 @@ interface Accumulator {
     looksAtLibraryTop: boolean;
     /** CR 305.1-analog — "You may play lands from your graveyard". */
     graveyardLandPlay: boolean;
+    /** CR 601.3 — "You may cast this card from your graveyard", and whether
+     *  every such line read was behind "Max speed —" (CR 702.178a). */
+    castableFromOwnGraveyard: boolean;
+    castableFromOwnGraveyardUngated: boolean;
 
     /** CR 614.1a — the "instead" cost lines read (discard / sacrifice). */
     asEntersCosts: AsEntersCost[];
@@ -450,6 +454,7 @@ function lowerQuotedAbility(
         cost: ir.cost,
         effects: ir.effects,
         restrictions: ir.restrictions,
+        ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
     });
     return lowered.ok
         ? { ok: true, kind: "activated", ability: lowered.ability }
@@ -552,6 +557,7 @@ function lowerLine(
                 cost: ir.cost,
                 effects: ir.effects,
                 restrictions: ir.restrictions,
+                ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
                 grantQuotedAbility: (quoted) => {
                     const template = lowerQuotedAbility(
                         {
@@ -792,6 +798,11 @@ function lowerLine(
             if (out.looksAtLibraryTop !== undefined)
                 acc.looksAtLibraryTop = true;
             if (out.graveyardLandPlay === true) acc.graveyardLandPlay = true;
+            if (out.castableFromOwnGraveyard === true) {
+                acc.castableFromOwnGraveyard = true;
+                if (out.castableFromOwnGraveyardRequiresMaxSpeed !== true)
+                    acc.castableFromOwnGraveyardUngated = true;
+            }
 
             if (out.asEntersCost !== undefined)
                 acc.asEntersCosts.push(out.asEntersCost);
@@ -1308,6 +1319,8 @@ export function lowerCard(
         revealsLibraryTop: false,
         looksAtLibraryTop: false,
         graveyardLandPlay: false,
+        castableFromOwnGraveyard: false,
+        castableFromOwnGraveyardUngated: false,
 
         asEntersCosts: [],
         asEntersCreatureTypeLines: [],
@@ -1715,6 +1728,13 @@ export function lowerCard(
     // permission record (ADR 0093); no gate, no cast half.
     if (acc.graveyardLandPlay)
         definition.graveyardPlayPermission = { actions: ["play-land"] };
+    // CR 601.3 — the card's own graveyard cast permission; CR 702.178a — gated
+    // on the owner's max speed unless an ungated line also grants it.
+    if (acc.castableFromOwnGraveyard) {
+        definition.castableFromOwnGraveyard = true;
+        if (!acc.castableFromOwnGraveyardUngated)
+            definition.castableFromOwnGraveyardRequiresMaxSpeed = true;
+    }
     if (
         acc.entersWithCounters.length > 0 ||
         acc.asEntersCreatureTypeLines.length > 0 ||
