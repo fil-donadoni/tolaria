@@ -88516,6 +88516,14 @@
         "source": "compiled"
     },
     {
+        "name": "Valakut Awakening",
+        "scryfallId": "a156b510-8879-4a7b-b15b-71374cb1e6f7",
+        "oracleId": "ff0ab867-b710-4b1a-baed-95fc3cf68f79",
+        "firstSet": "znr",
+        "firstPrintId": "a156b510-8879-4a7b-b15b-71374cb1e6f7",
+        "firstPrintSet": "znr"
+    },
+    {
         "name": "Valakut Invoker",
         "scryfallId": "178c66b8-c577-49c6-9efc-7bab740e66b6",
         "oracleId": "17ed18cf-33e5-4861-8a36-8f7bb91971f9",
