@@ -427,7 +427,7 @@ export type RandomRevealSource = {
  *    eligible at a spell-cast site when the spell is colorless and an Eldrazi,
  *    and at an activation when the source is. Both read a `RestrictionSubject`.
  *  - `chosen-type-creature-spell`: "Spend this mana only to cast a creature
- *    spell of the chosen type" (issue #9388, Cavern of Souls). The first
+ *    spell of the chosen type" (Cavern of Souls). The first
  *    restriction keyed on a value the SOURCE chose rather than on a fixed
  *    characteristic: the creature type is the producing permanent's as-enters
  *    choice (`CardInstanceState.chosenSubtypes`, CR 614.12a), snapshotted onto

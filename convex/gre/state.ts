@@ -24759,7 +24759,7 @@ export function manaSpentDelta(
  *    Weakstone, issue #3341).
  *  - `chosen-type-creature-spell` — a creature spell whose subtypes include
  *    `chosenCreatureType`, the type the producing source chose (Cavern of
- *    Souls, issue #9388). Absent type or subject → fails closed. */
+ *    Souls). Absent type or subject → fails closed. */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
     spellTypes: readonly string[],
