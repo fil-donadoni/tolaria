@@ -21,6 +21,9 @@ import { splitHalfDefinitionId } from "@convex/cards/splitCard";
 import { backFaceDefinitionIdOf } from "@convex/gre/transform";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance, TokenSpec } from "@convex/cards/types";
+import type { GameState } from "@convex/gre/state";
+import type { TargetPreventionShield } from "@convex/gre/state/declarations";
+import { projectPublicState } from "@convex/gameProjections";
 
 const CLONE = getCardByName("Clone");
 const SERRA = getCardByName("Serra Angel");
@@ -1124,5 +1127,123 @@ describe("buildPreviewBody — chosen / granted subtypes (issue #3324)", () => {
         );
         expect(body.typeLine).toContain("[+] Shaman");
         expect(body.typeLine).not.toContain("[+] Angel");
+    });
+});
+
+// CR 615.1 — a "prevent the next N damage" shield on a permanent is public
+// information; the preview lists it, and how much it already prevented.
+describe("buildPreviewBody — prevention shield lines (CR 615.1)", () => {
+    const GRIZZLY_BEARS = getCardByName("Grizzly Bears");
+    const bear = {
+        id: "bear-1",
+        card: { id: GRIZZLY_BEARS.id },
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+        types: ["Creature"],
+        subtypes: ["Bear"],
+    } as unknown as CardInstance;
+    const shield = (
+        over: Partial<TargetPreventionShield> = {}
+    ): TargetPreventionShield => ({
+        targetType: "permanent",
+        targetId: "bear-1",
+        remaining: 4,
+        amount: 4,
+        duration: { phase: "end-of-turn" },
+        ...over,
+    });
+    const linesFor = (shields: TargetPreventionShield[]) =>
+        buildPreviewBody(GRIZZLY_BEARS.id, bear, {
+            allPlayers: [],
+            playerId: "p1",
+            targetPreventionShields: shields,
+        }).preventionShields;
+
+    it("fresh shield: original N, no suffix", () => {
+        expect(linesFor([shield()])).toEqual([
+            "Prevent the next 4 damage that would be dealt to this permanent this turn.",
+        ]);
+    });
+
+    it("partly used shield: original N plus the prevented count", () => {
+        expect(linesFor([shield({ remaining: 1 })])).toEqual([
+            "Prevent the next 4 damage that would be dealt to this permanent this turn. (3 already prevented)",
+        ]);
+    });
+
+    it("two shields on one permanent: two lines in shield order", () => {
+        expect(
+            linesFor([shield(), shield({ remaining: 2, amount: 2 })])
+        ).toEqual([
+            "Prevent the next 4 damage that would be dealt to this permanent this turn.",
+            "Prevent the next 2 damage that would be dealt to this permanent this turn.",
+        ]);
+    });
+
+    it("ignores shields on other permanents and on players", () => {
+        expect(
+            linesFor([
+                shield({ targetId: "other" }),
+                shield({ targetType: "player", targetId: "bear-1" }),
+            ])
+        ).toEqual([]);
+    });
+
+    it("a shield persisted without `amount` falls back to remaining", () => {
+        expect(linesFor([shield({ amount: undefined, remaining: 3 })])).toEqual(
+            [
+                "Prevent the next 3 damage that would be dealt to this permanent this turn.",
+            ]
+        );
+    });
+
+    it("reads the shield off the projectPublicState wire view", () => {
+        const state = {
+            players: [
+                {
+                    id: "p1",
+                    name: "p1",
+                    bgColor: "#000",
+                    life: 20,
+                    hand: [],
+                    library: [],
+                    graveyard: [],
+                    exile: [],
+                    battlefield: [
+                        {
+                            ...bear,
+                            staticAbilities: [],
+                            card: {
+                                id: GRIZZLY_BEARS.id,
+                                name: "Grizzly Bears",
+                            },
+                        },
+                    ],
+                    manaPool: {},
+                },
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+            targetPreventionShields: [shield({ remaining: 1 })],
+        } as unknown as GameState;
+        const wire = projectPublicState(state, 1, "p1");
+        const wireBear = wire.players[0]
+            .battlefield[0] as unknown as CardInstance;
+        const body = buildPreviewBody(GRIZZLY_BEARS.id, wireBear, {
+            allPlayers: [],
+            playerId: "p1",
+            targetPreventionShields: wire.targetPreventionShields,
+        });
+        expect(body.preventionShields).toEqual([
+            "Prevent the next 4 damage that would be dealt to this permanent this turn. (3 already prevented)",
+        ]);
     });
 });
