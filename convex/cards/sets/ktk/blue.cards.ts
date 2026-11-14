@@ -61,7 +61,7 @@ export const stubbornDenial = defineCard(() => ({
                     count: {
                         zone: "battlefield",
                         controller: "controller",
-                        filter: { types: "Creature", powerAtLeast: 4 },
+                        filter: { type: "Creature", powerAtLeast: 4 },
                     },
                 },
                 op: "ge",
