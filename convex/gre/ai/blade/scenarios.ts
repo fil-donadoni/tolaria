@@ -16868,7 +16868,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5363. Guards `costModifierStandingWorth` (`ai/costModifierPricing.ts`): Trinisphere's worth is the mana it adds to the known spells of each hand, at `costTaxWeight` a mana, read through the castability reader's own effective cost. Pair: the same board with a hand of five-drops reads the tax at zero and takes the Weaponry.",
+        note: "Issue #5363. Guards `costModifierStandingWorth` (`ai/costModifierPricing.ts`): Trinisphere's worth is the mana it adds to the known spells of each hand, at `costTaxWeight` a mana, read through the castability reader's own effective cost. Pair: the same board with a hand of five-drops reads the tax at zero and takes the Weaponry. Measured at 400 iterations over 20 seeds: the Trinisphere 20/20 and the twin's Weaponry 20/20; with `costModifierStandingWorth` returning 0 this entry turns red (the Weaponry 20/20) and the twin stays green.",
     },
     {
         // COST-MODIFIER PRICING (CR 601.2f, issue #5363). The bot holds
