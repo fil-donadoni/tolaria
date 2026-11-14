@@ -538,4 +538,40 @@ describe("LibraryOrderPicker", () => {
         expect(btn.className).toContain("h-11");
         expect(btn.className).toContain("w-11");
     });
+
+    // CR 404.3 (issue #9554) — the graveyard arrangement mode: one "Top of
+    // graveyard" zone, no library mock, and an "Order randomly" button.
+    it("graveyardOrder mode labels the graveyard, keeps the order on Done and offers Order randomly", () => {
+        const onConfirm = vi.fn();
+        const onOrderRandomly = vi.fn();
+        const { getByText, queryByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Arrange"
+                submitting={false}
+                graveyardOrder={{ onOrderRandomly }}
+                onConfirm={onConfirm}
+            />
+        );
+        expect(getByText("Top of graveyard")).toBeTruthy();
+        expect(queryByText("Top of library")).toBeNull();
+        fireEvent.click(getByText("Done"));
+        expect(onConfirm).toHaveBeenCalledWith(["a", "b", "c"], []);
+        fireEvent.click(getByText("Order randomly"));
+        expect(onOrderRandomly).toHaveBeenCalledTimes(1);
+    });
+
+    it("no Order randomly button outside graveyardOrder mode", () => {
+        const { queryByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="none"
+                prompt="Ponder"
+                submitting={false}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(queryByText("Order randomly")).toBeNull();
+    });
 });

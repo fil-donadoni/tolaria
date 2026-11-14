@@ -160,6 +160,14 @@ export type PendingMeldArrangement = {
     cardIds: [string, string];
 };
 
+/** CR 404.3 (issue #9554) — cards one simultaneous event put into
+ *  `ownerId`'s graveyard, in the engine's arrival order (bottom first), waiting
+ *  for the owner's `graveyard-order` choice (`gre/graveyardOrder.ts`). */
+export type PendingGraveyardArrangement = {
+    ownerId: string;
+    cardIds: string[];
+};
+
 export type CardInstanceState = {
     id: string;
     /** Reference to the card definition. Production constructions write only
@@ -5026,6 +5034,12 @@ export type GameState = {
      *  `removePermanentTo`, drained one prompt at a time by the SBA sweep;
      *  undefined at every fully-resolved point. */
     pendingMeldArrangements?: PendingMeldArrangement[];
+    /** CR 404.3 (issue #9554) — graveyard batches waiting for their owner's
+     *  `graveyard-order` choice, APNAP-ordered. Queued by
+     *  `withGraveyardArrivalBatch` (one resolving instruction, one SBA pass),
+     *  drained one prompt at a time by the SBA sweep; undefined at every
+     *  fully-resolved point. */
+    pendingGraveyardArrangements?: PendingGraveyardArrangement[];
     /** CR 116.3 — the player who receives priority once a SUSPENDED trigger
      *  announcement lands (CR 603.3b ordering, 603.3c mode, 603.3d targets),
      *  when the triggers were raised by a special action the NON-active player

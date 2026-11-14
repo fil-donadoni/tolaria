@@ -1223,6 +1223,15 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "meld-arrange":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // CR 404.3 (issue #9554) — a graveyard batch's arrangement: every
+        // permutation is legal, and the minimal-legal default (ADR 0016) is
+        // the order the engine put the cards there. `candidates` arrive in
+        // ZONE order — a graveyard's bottom first — and the submission is
+        // topmost first, so the engine order is their reverse. Exploiting the
+        // order (a Volrath's Shapeshifter plan) is separate planning work.
+        case "graveyard-order":
+            return [...candidates].reverse().map((c) => c.id);
+
         // Intuition (CR 701.20a, issue #3205) — the bot is the OPPONENT being
         // asked which of the revealed library cards its opponent gets to keep.
         // `readChoiceZone` sourced the candidates from `libraryPeek` (the

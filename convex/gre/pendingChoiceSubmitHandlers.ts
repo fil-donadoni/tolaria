@@ -37,8 +37,10 @@ import {
 import {
     checkStateBasedActions,
     finalizeLegendKeep,
+    finalizeGraveyardArrangement,
     finalizeMeldArrangement,
 } from "./sba";
+import { randomGraveyardArrangement } from "./graveyardOrder";
 import { findCardInAnyZone } from "./lookup";
 import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
@@ -731,6 +733,38 @@ export function submitMeldArrange(
     }
     finalizeMeldArrangement(state, args.cardInstanceIds);
 }
+
+/** `graveyard-order` (CR 404.3, issue #9554) is always SBA-level. "Order
+ *  randomly" swaps in a seeded random arrangement BEFORE validation, so it
+ *  passes the same checks a hand-ordered answer does: the submission must be
+ *  every card of the batch exactly once (the count is the batch size and the
+ *  graveyard branch checks membership and `candidateIds`). */
+export const submitGraveyardOrder: ChoiceSubmitHandler = (
+    state,
+    head,
+    queue,
+    args
+) => {
+    const answer: SubmitChoiceArgs = args.orderRandomly
+        ? {
+              ...args,
+              cardInstanceIds: randomGraveyardArrangement(
+                  state,
+                  head.candidateIds ?? []
+              ),
+          }
+        : args;
+    zoned((s, h, _q, a) => {
+        const placed = new Set(a.cardInstanceIds);
+        if (
+            placed.size !== (h.candidateIds?.length ?? 0) ||
+            !(h.candidateIds ?? []).every((id) => placed.has(id))
+        ) {
+            throw new Error("graveyard-order must place every card once");
+        }
+        finalizeGraveyardArrangement(s, a.cardInstanceIds);
+    })(state, head, queue, answer);
+};
 
 /** `discard-hand` is the phase-level cleanup discard when stackless during
  *  cleanup, else an ordinary mid-resolution pick. */

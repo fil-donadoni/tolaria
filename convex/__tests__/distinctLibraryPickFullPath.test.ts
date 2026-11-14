@@ -151,7 +151,15 @@ describe("Gifts Ungiven — the distinct search, end to end (CR 701.23a)", () =>
         const choose = submitHead(afterSearch, ["island-1", "bears"]);
         await choose.run();
         const after = choose.stub.state();
-        expect(after.pendingChoices ?? []).toHaveLength(0);
+        // CR 404.3 (issue #9554) — the two cards put into the graveyard
+        // together are its owner's to arrange; nothing else is pending.
+        expect(after.pendingChoices?.map((c) => c.kind)).toEqual([
+            "graveyard-order",
+        ]);
+        expect(after.pendingChoices?.[0]?.playerId).toBe("p1");
+        expect(
+            [...(after.pendingChoices?.[0]?.candidateIds ?? [])].sort()
+        ).toEqual(["bears", "island-1"]);
         // The chosen cards go to the graveyard, the rest of the pile to hand.
         // (The resolved spell itself lands there too, CR 608.2n.)
         const graveyardIds = after.players[0].graveyard.map((c) => c.id);

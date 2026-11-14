@@ -1417,6 +1417,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // CR 712.21a/b (ADR 0161) — split melded permanents awaiting their
     // `meld-arrange` prompt; plain ids, round-trips through the generic loop.
     "pendingMeldArrangements",
+    // CR 404.3 (issue #9554) — graveyard batches awaiting their
+    // `graveyard-order` prompt; plain ids, round-trips through the generic loop.
+    "pendingGraveyardArrangements",
     // CR 116.3 — a plain player id, set only while a special action's trigger
     // announcement is suspended (a stable save point).
     "priorityAfterTriggerAnnouncement",

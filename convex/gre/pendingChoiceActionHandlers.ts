@@ -206,6 +206,19 @@ export function damageTargetActions(
     ].map((id) => ctx.submit([id]));
 }
 
+/** `graveyard-order` (CR 404.3, issue #9554): every permutation of the batch
+ *  is legal, so the offer is the one that changes nothing — the batch in the
+ *  order the engine put it there (`candidateIds`, topmost first). A full
+ *  permutation enumeration would be N! actions for an answer no evaluator
+ *  reads. */
+export function graveyardOrderActions(
+    _state: GameState,
+    head: PendingChoice,
+    ctx: ChoiceActionContext
+): LegalAction[] {
+    return [ctx.submit([...(head.candidateIds ?? [])])];
+}
+
 /** A kind whose answer no `ChoiceAction` variant carries: nothing to offer. */
 export function noChoiceActions(): LegalAction[] {
     return [];
