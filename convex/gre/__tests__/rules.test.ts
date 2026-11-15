@@ -11,10 +11,12 @@ import type {
     StackItem,
 } from "../state";
 import { makeInstance } from "../../cards/__tests__/setup.helper";
+
+// Birds of Paradise lives on the registry seam (oracle-compiled), no export.
+const BIRDS_OF_PARADISE_ID = "55fe6449-1f23-43dc-adee-d144cd505b5c";
 import {
     ancestralRecall,
     armageddon,
-    birdsOfParadise,
     crusade,
     fireball,
     giantGrowth,
@@ -576,7 +578,7 @@ describe("getLegalActions", () => {
             // satisfy a {G} cost on a Giant Growth in hand. The bird itself
             // is a legal target for the Growth (creature on the battlefield),
             // so the cast is gated purely on mana availability.
-            const birds = card(birdsOfParadise().id, {
+            const birds = card(BIRDS_OF_PARADISE_ID, {
                 zone: "battlefield",
                 isSummoningSick: true,
             });
@@ -594,7 +596,7 @@ describe("getLegalActions", () => {
         });
 
         it("counts a creature mana source once summoning sickness has worn off", () => {
-            const birds = card(birdsOfParadise().id, {
+            const birds = card(BIRDS_OF_PARADISE_ID, {
                 zone: "battlefield",
                 isSummoningSick: false,
             });

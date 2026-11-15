@@ -25,7 +25,6 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 
-import { fireSprites } from "../cards/sets/leg/green.cards";
 import { mountain } from "../cards/sets/lea/index.cards";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -36,6 +35,8 @@ import {
     type Handler,
 } from "./gameMutationHarness.fixture";
 import { getDefinition } from "../cards";
+// Fire Sprites lives on the registry seam (oracle-compiled), no export.
+const FIRE_SPRITES_ID = "d26fa79a-ede8-4c80-98d5-f49696f8104d";
 const manaCylix = getDefinition("c6f95767-afda-4d74-bbd4-1b702eeae54b");
 
 const GAME_ID = "game-1" as Id<"games">;
@@ -185,7 +186,7 @@ describe("tapUntap — a mana ability's own mana cost (CR 605.1a / 601.2f)", () 
 
     describe("fixed-output branch — Fire Sprites ({G}, {T}: Add {R})", () => {
         function spritesState(g: number): GameState {
-            const sprites = makeInstance(fireSprites().id, {
+            const sprites = makeInstance(FIRE_SPRITES_ID, {
                 id: "sprites",
                 controllerId: "p1",
                 ownerId: "p1",

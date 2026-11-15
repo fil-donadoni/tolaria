@@ -12,9 +12,8 @@
 //     #4134 names) and the production carrying the painland rider (Grand
 //     Coliseum), which composes for free because the rule lowers to the same
 //     CHOICE IR node "Add {B} or {R}" produces.
-//  2. GOLD over the hand-written catalogue — Birds of Paradise and Celestial
-//     Prism compile from their own printed text back into their own shipped
-//     definitions (Guard C).
+//  2. GOLD over the hand-written catalogue — Celestial Prism compiles from its own printed text back into its own shipped
+//     definition (Guard C).
 //  3. REFUSALS — every neighbour that restricts or counts the offered set
 //     stays `unparsed`, fail-closed (ADR 0105 § 2): a board-derived filter, a
 //     commander's colour identity, a count, and a non-painland rider sentence.
@@ -22,9 +21,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import { birdsOfParadise } from "../../cards/sets/lea/green.cards";
 
 import { oracleCard } from "./oracle.fixture";
 
@@ -143,13 +140,6 @@ describe("golden — the painland rider composes with the any-colour production"
                 dealsDamageToControllerOnColoredTap: 1,
             },
         ]);
-    });
-});
-
-describe("gold — the hand-written any-colour twins round-trip through their own text", () => {
-    it.each([birdsOfParadise()])("$name", (card) => {
-        const verdict = roundTripCard(card).verdict;
-        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 
