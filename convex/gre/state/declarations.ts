@@ -5022,6 +5022,14 @@ export type GameState = {
      *  future manual-tap UI on the same rail. Mutually exclusive with
      *  `pendingCast`/`pendingActivation`. */
     pendingCompanionPay?: PendingCompanionPay;
+    /** CR 401.5 — the top card id of every non-empty library as it stood when
+     *  the open announcement window (a spell being cast, an ability being
+     *  activated, a special action being taken) opened. A reveal or look
+     *  effect exposes a library top during the window only if it is still
+     *  one of these. Written only by `syncAnnouncementWindow`
+     *  (`gre/libraryReveal.ts`) at the persistence seam; absent whenever no
+     *  window is open. */
+    announcementLibraryTops?: string[];
     /** Active target selection in progress (CR 601.2c). */
     pendingTarget?: PendingTarget;
     /** Spell copies whose retarget offer (CR 707.10c) waits for the selection
