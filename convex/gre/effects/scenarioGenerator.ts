@@ -371,6 +371,12 @@ const SMOKE_SOURCE_COUNTERS = 6;
  *  `SMOKE_SOURCE_COUNTERS`, so an assertion that read the amount off the wrong
  *  source would mispredict. */
 const SMOKE_CONTROLLER_SPEED = 2;
+/** How many filler cards the canned scenario seeds in the hand of a player an
+ *  Op discards from at random (CR 701.9b). Above `SMOKE_CHOSEN_X` and the small
+ *  literals scripts print, so the discard is never clamped by an emptied hand,
+ *  and distinct from the other seeded sizes, so an assertion that read the
+ *  count off the wrong source would mispredict. */
+const SMOKE_HAND_SIZE = 7;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -658,6 +664,9 @@ interface Requirements {
     /** Players whose mana pool is seeded with floating mana, so an Op that
      *  empties it has an outcome to observe (`drainManaPool`). */
     floatingManaPlayers: Set<string>;
+    /** Players an Op discards from at random: their hand is seeded with
+     *  `SMOKE_HAND_SIZE` filler cards (`discardAtRandom`). */
+    discardingPlayers: Set<string>;
     /** Count sets to populate so a `count` value is non-zero. */
     countSets: EffectCountSpec[];
     /** Every reason the script cannot be scenario-ized; empty when it can. */
@@ -1750,16 +1759,6 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`,
     },
-    // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
-    // TARGET player's hand. The canned generator seeds only a minimal
-    // filler hand and does not provision a target player's hand with a
-    // known count, so rather than mis-assert a hand-size delta it
-    // reports an explicit skip; execution coverage is the Op's own
-    // interpreter tests plus the migrated cards' per-card tests.
-    discardAtRandom: {
-        code: "randomness",
-        reason: `Op "discardAtRandom" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests`,
-    },
     // `randomExileToHand` (CR 400.7, issue #1947) picks a RANDOM
     // card from a source-linked exile pile. The canned generator
     // does not provision a linked exile pile with known contents,
@@ -2548,6 +2547,27 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.floatingManaPlayers.add(assertionPlayerId(op.player));
             return;
         }
+        case "discardAtRandom":
+            // CR 701.9b — a random discard. WHICH cards go is the seeded PRNG's
+            // pick, but HOW MANY is the script's count, and every card of the
+            // seeded hand is the same filler: the hand-to-graveyard delta is
+            // deterministic, so the count (an announced X included) is sized.
+            analysePlayer(op.player, req, false);
+            analyseValue(op.count, req);
+            if (resolveScenarioPlayer(op.player) === "ref") return;
+            // One seeded hand serves one hand-size assertion, read off the
+            // pre-resolution state: a second discard from the same hand would
+            // see the first one's remainder.
+            if (req.discardingPlayers.has(assertionPlayerId(op.player))) {
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "discardAtRandom" discards twice from one hand — the predicted hand size would be a guess`
+                );
+                return;
+            }
+            req.discardingPlayers.add(assertionPlayerId(op.player));
+            return;
         case "destroy":
         case "airbend":
         case "exile":
@@ -3095,6 +3115,29 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         };
     }
 
+    // A hand another Op of the same script also changes (a draw, a sweep's
+    // bounce) holds more than the seeded cards at the discard: the random pick
+    // and the predicted hand size would both be a guess.
+    for (const pid of req.discardingPlayers) {
+        if (
+            !req.drawingPlayers.has(pid) &&
+            !req.sweeps.some((sweep) => sweep.outcome.kind === "bounce")
+        )
+            continue;
+        return {
+            skip: [
+                {
+                    code: "runtime-amount",
+                    reason: `Op "discardAtRandom" discards from a hand another Op of the same script changes — the predicted hand size would be a guess`,
+                },
+            ],
+        };
+    }
+    const seededHand = (pid: string): CardInstanceState[] =>
+        req.discardingPlayers.has(pid)
+            ? spawnFiller(pid, "hand", SMOKE_HAND_SIZE, "gen-hand")
+            : [];
+
     // Libraries for drawing players.
     const p1Library = req.drawingPlayers.has(CASTER_ID)
         ? spawnFiller(CASTER_ID, "library", LIBRARY_DEPTH, "gen-lib")
@@ -3218,6 +3261,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     const state = makeState({
         players: [
             makePlayer(CASTER_ID, {
+                hand: seededHand(CASTER_ID),
                 library: p1Library,
                 battlefield: p1Bf,
                 graveyard: p1Gy,
@@ -3227,6 +3271,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                     : {}),
             }),
             makePlayer(OPPONENT_ID, {
+                hand: seededHand(OPPONENT_ID),
                 library: p2Library,
                 battlefield: p2Bf,
                 graveyard: p2Gy,
@@ -4201,6 +4246,32 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: size === expected,
                     detail: `hand ${size}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    // CR 701.9a — a discarded card moves from its owner's hand to that
+    // player's graveyard. The hand shrinks by the count (clamped by what it
+    // holds) and exactly that many of the seeded hand cards are in the
+    // graveyard; which ones is the seeded PRNG's pick (CR 701.9b).
+    discardAtRandom(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "discardAtRandom" }>;
+        const count = predictAmount(op.count, scenario);
+        if (count === null) return null;
+        const pid = assertionPlayerId(op.player);
+        const seeded = new Set(findPlayer(pre, pid).hand.map((c) => c.id));
+        const discarded = Math.min(count, seeded.size);
+        const expected = seeded.size - discarded;
+        return {
+            label: `discardAtRandom ${count} from player ${pid} (hand ${seeded.size}→${expected})`,
+            check: (post) => {
+                const postP = findPlayer(post, pid);
+                const moved = postP.graveyard.filter((c) =>
+                    seeded.has(c.id)
+                ).length;
+                return {
+                    ok: postP.hand.length === expected && moved === discarded,
+                    detail: `hand ${postP.hand.length}, expected ${expected}; ${moved} seeded card(s) in the graveyard, expected ${discarded}`,
                 };
             },
         };
@@ -5520,6 +5591,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         targetSlots: new Map(),
         drawingPlayers: new Set(),
         floatingManaPlayers: new Set(),
+        discardingPlayers: new Set(),
         countSets: [],
         skips: [],
         host,
