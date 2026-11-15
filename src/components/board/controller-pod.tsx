@@ -5,6 +5,7 @@ import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerPodHeight } from "~/hooks/useControllerPodHeight";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
+import { CONTROLLER_POD_WIDTH } from "~/lib/board-layout";
 import {
     selectCommandSlots,
     selectPodCommandSlots,
@@ -66,11 +67,10 @@ export default function ControllerPod({
             // frame itself is quiet, which is the whole register. The pod is a
             // panel, not a control, so it genuinely takes the decorative
             // `--hairline` pair; the BUTTONS inside it do not (round-2 review).
-            // `w-80`: the widest real call to action, "Confirm Attackers
-            // (12)" — 137px of Geist 14px, measured in Chrome — plus its Space
-            // keycap fits the primary pill (196px) beside both icon passes,
-            // untruncated (issue #9835). It was `w-52`.
-            className={`fixed bottom-32 right-4 z-hud flex w-80 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
+            // Width from the ONE constant the board's right gutter reserves
+            // (issue #9835), so no permanent hides under the pod (#334).
+            style={{ width: CONTROLLER_POD_WIDTH }}
+            className={`fixed bottom-32 right-4 z-hud flex flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
         >
             {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
              *  was too faint to read at a glance, so whose turn it is now reads

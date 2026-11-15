@@ -14,6 +14,7 @@ import {
     type GameContextValue,
 } from "~/lib/testing/board-context";
 import type { PendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { CONTROLLER_POD_WIDTH, RIGHT_GUTTER } from "~/lib/board-layout";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -501,5 +502,19 @@ describe("ControllerPod queued passes (issue #9835)", () => {
         expect(pill?.dataset.controllerPrimary).toBe("status");
         expect(pill?.textContent).toBe("Opponent to act");
         expect(pill?.disabled).toBe(true);
+    });
+});
+
+// Issue #9835 widened the pod; the board's right gutter (#334) must reserve
+// its whole footprint or the viewer's back row slides under it.
+describe("ControllerPod footprint vs the board's right gutter", () => {
+    it("the pod's width is the constant the gutter reserves, plus its right-4 offset", () => {
+        const { container } = renderPod();
+        const pod = container.querySelector<HTMLElement>(
+            "[data-controller-pod]"
+        );
+        expect(pod?.style.width).toBe(`${CONTROLLER_POD_WIDTH}px`);
+        expect(pod?.className.split(/\s+/)).toContain("right-4");
+        expect(RIGHT_GUTTER).toBe(CONTROLLER_POD_WIDTH + 16);
     });
 });
