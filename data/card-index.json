@@ -29716,6 +29716,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flight-Deck Coordinator",
+        "scryfallId": "88cc6328-a035-4f74-b786-390e5c7c324c",
+        "oracleId": "57927909-11a9-44ef-989d-1dcca1f6e23f",
+        "firstSet": "eoe",
+        "firstPrintId": "88cc6328-a035-4f74-b786-390e5c7c324c",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Flinthoof Boar",
         "scryfallId": "7e380b99-0173-4083-a4a2-222ad98b904a",
         "oracleId": "acb58839-2b26-4724-9e9b-b49b8217b13f",
@@ -31046,6 +31056,16 @@
         "firstSet": "con",
         "firstPrintId": "46acbabc-9d0a-4fba-9604-7d131c22cdeb",
         "firstPrintSet": "con",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Frontline War-Rager",
+        "scryfallId": "fa232943-818b-4944-be60-2d80c806bf62",
+        "oracleId": "610d006a-3ceb-4136-b92b-a500c74d06b0",
+        "firstSet": "eoe",
+        "firstPrintId": "fa232943-818b-4944-be60-2d80c806bf62",
+        "firstPrintSet": "eoe",
         "rarity": "common",
         "source": "compiled"
     },
@@ -43730,6 +43750,16 @@
         "source": "compiled"
     },
     {
+        "name": "Keldon Berserker",
+        "scryfallId": "daa3f9c0-66ff-4b94-b0c3-e1c65d2040b9",
+        "oracleId": "7e0b9e67-3103-4299-934b-46d8fe96f553",
+        "firstSet": "pcy",
+        "firstPrintId": "daa3f9c0-66ff-4b94-b0c3-e1c65d2040b9",
+        "firstPrintSet": "pcy",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Keldon Mantle",
         "scryfallId": "35bb73df-f488-468c-a9ad-72f52c8da3dc",
         "oracleId": "170cc0c4-0fba-4751-8613-e934b0438364",
@@ -49653,6 +49683,16 @@
         "firstSet": "drk",
         "firstPrintId": "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Martyr's Soul",
+        "scryfallId": "7c17428c-e31d-42f3-8811-6734abd96b0b",
+        "oracleId": "886382dc-5284-4b84-ad8c-8d8463d42fa0",
+        "firstSet": "mh1",
+        "firstPrintId": "7c17428c-e31d-42f3-8811-6734abd96b0b",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Martyrs of Korlis",
@@ -93675,6 +93715,26 @@
         "firstPrintId": "357931d0-8ba6-4857-9db9-7f42d81514a5",
         "firstPrintSet": "zen",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Well of Discovery",
+        "scryfallId": "82331a8a-c0f1-4d89-87f8-1b1d0fccabb8",
+        "oracleId": "d63185ac-c7cd-4501-9248-54d6caf7d091",
+        "firstSet": "pcy",
+        "firstPrintId": "82331a8a-c0f1-4d89-87f8-1b1d0fccabb8",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Well of Life",
+        "scryfallId": "bf3f4fc3-3819-470d-92d9-98cb390f89b9",
+        "oracleId": "4e05d1a2-ad53-4f2e-aaea-7ec464b07c04",
+        "firstSet": "pcy",
+        "firstPrintId": "bf3f4fc3-3819-470d-92d9-98cb390f89b9",
+        "firstPrintSet": "pcy",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

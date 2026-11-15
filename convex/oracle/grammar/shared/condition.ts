@@ -377,7 +377,7 @@ function readControlsNone(
     if (!descriptor.ok) return descriptor;
     if (descriptor.value.plural !== true)
         return fail('"no" introduces a plural descriptor', span);
-    const filter = controlledFilter(descriptor.value, span);
+    const filter = controlledFilter(descriptor.value, span, { tapped: true });
     if (!filter.ok) return filter;
     return ok({
         kind: "controls" as const,
@@ -507,7 +507,9 @@ function countedControlsRuleFrom(least: number): Rule<CountedControlsIR> {
         if (!descriptor.ok) return descriptor;
         if (descriptor.value.plural !== true)
             return fail('"or more" introduces a plural descriptor', span);
-        const filter = controlledFilter(descriptor.value, span);
+        const filter = controlledFilter(descriptor.value, span, {
+            tapped: true,
+        });
         if (!filter.ok) return filter;
         return ok({
             kind: "controls-at-least" as const,
@@ -620,10 +622,15 @@ export function singularControlledFilter(
 function controlledFilter(
     descriptor: DescriptorIR,
     span: string,
-    allow: { readonly supertypes?: true } = {}
+    /** `tapped: true` — the zero count and the counted form: the trigger
+     *  gate counts through `countControlledMatching`, which reads the live
+     *  tap status (CR 110.5); the activation and effect-count lowerings
+     *  refuse a `tapped` key rather than drop it. */
+    allow: { readonly supertypes?: true; readonly tapped?: true } = {}
 ): RuleResult<PermanentFilter> {
     const filter = permanentFilterFromDescriptor(descriptor, {
         colors: true,
+        ...(allow.tapped === true ? { tapped: true as const } : {}),
     });
     if (!filter.ok) return filter;
     // The list holds only supertype clauses, so a site that reads live
