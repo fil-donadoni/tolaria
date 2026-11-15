@@ -213,7 +213,10 @@ export default function PlayerGraveyard({
             // reachable Done button.
             forceOpen={isGraveyardChoice && !isMinimized}
             onMinimize={isGraveyardChoice ? minimize : undefined}
-            layout="grid"
+            // Graveyard order is rules-relevant (issue #9874): the dialog is the
+            // ordered fan, top on the right, filter keeps hidden slots.
+            layout="fan"
+            ordered
             selectedIds={
                 isGraveyardChoice
                     ? bufferCtx.buffer

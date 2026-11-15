@@ -35,6 +35,12 @@ import { pickerRingClass } from "~/lib/picker-ring";
 import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 import { actionableRingClass } from "~/lib/card-actionable";
 import { PileActionableContext } from "~/lib/pile-actionable-context";
+import {
+    buildOrderedPileSlots,
+    orderedFanMarginFactor,
+    orderedFanWidthFactor,
+} from "~/lib/ordered-pile";
+import OrderedPilePlaceholder from "./ordered-pile-placeholder";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -177,6 +183,13 @@ type CardsPileProps = {
      *  read the same way as the scry drag picker. Only the library passes this;
      *  every other zone keeps its default order. */
     topOnRight?: boolean;
+    /** Ordered pile (issue #9874): the pile's ORDER is rules-relevant (the
+     *  graveyard — `~/lib/ordered-pile` carries the rule). The dialog renders
+     *  ONE fan — bottom on the left, top on the right, the top card chipped
+     *  "Top" — whatever `layout` says, and the plain-browse type filter keeps
+     *  a filtered-out card's slot as a placeholder instead of dropping it, so
+     *  the cards still showing read at their true depth. */
+    ordered?: boolean;
     /** Categorized reveal grouping (issue #1364, Atraxa / Niv-Mizzet). When set
      *  (grid layout only), the pile is split into one labelled section per
      *  category. Purely visual — legality is still the server-side matching. */
@@ -261,6 +274,15 @@ function pileFilterType(card: CardInstance): string {
     return "Other";
 }
 
+/** Whether a card shows under the active filter value (`PILE_FILTER_ALL`
+ *  or omitted = every card). Shared by the grid (drops the rest) and the
+ *  ordered fan (keeps the rest as placeholders, issue #9874). */
+function matchesPileFilter(card: CardInstance, active?: string): boolean {
+    return (
+        !active || active === PILE_FILTER_ALL || pileFilterType(card) === active
+    );
+}
+
 /** The filter buttons to render: `"All"` plus one per type actually present
  *  among `cards`, in `PILE_FILTER_TYPE_ORDER` (then `"Other"` last) —
  *  mirrors `CategoryHeader`'s "empty sections show no header" rule so a
@@ -299,6 +321,8 @@ function FanLayout({
     eligibleIds,
     captionFor,
     topOnRight = false,
+    ordered = false,
+    isShown,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -317,12 +341,24 @@ function FanLayout({
      *  scry drag picker). The input is top→bottom; rendering it reversed makes
      *  the last-painted (top) card the rightmost and visually on top. */
     topOnRight?: boolean;
+    /** Ordered pile fan (issue #9874, `CardsPile.ordered`): tighter overlap,
+     *  "Top" chip, Bottom/Top caption, placeholders for filtered-out cards. */
+    ordered?: boolean;
+    /** Ordered pile only: whether a card passes the active display filter.
+     *  A card failing it keeps its slot as an `OrderedPilePlaceholder`.
+     *  Omitted = every card shows. */
+    isShown?: (card: CardInstance) => boolean;
 }) {
     // A full library fans to many overlapping cards that overflow the dialog
     // width. Inertial drag-to-pan (Arena-like) makes browsing the reveal feel
     // physical; native wheel + keyboard scroll stay intact (#255).
     const scrollRef = useInertialScroll<HTMLDivElement>("x");
-    const ordered = topOnRight ? [...cards].reverse() : cards;
+    const fanCards = topOnRight ? [...cards].reverse() : cards;
+    // Ordered pile: one slot per card in pile order (bottom → top, the same
+    // left → right order as the plain fan), hidden or shown.
+    const slots = ordered
+        ? buildOrderedPileSlots(cards, isShown ?? (() => true))
+        : null;
 
     const actionableIds = useContext(PileActionableContext);
     // When the fan overflows, open scrolled to the far RIGHT — the end of the
@@ -344,128 +380,166 @@ function FanLayout({
         return () => cancelAnimationFrame(raf);
     }, [scrollRef, cards.length]);
     return (
-        <div
-            ref={scrollRef}
-            tabIndex={0}
-            className="overflow-x-auto px-2 py-6 outline-none focus-visible:ring-1 focus-visible:ring-border-accent/60"
-            style={
-                {
-                    "--pile-card-w": "clamp(5.5rem, 14vw, 13rem)",
-                    scrollBehavior: "smooth",
-                } as React.CSSProperties
-            }
-        >
+        <>
+            {ordered && (
+                <div className="flex justify-between px-2 pt-3 text-[10px] tracking-wide uppercase text-text-muted">
+                    <span>← Bottom</span>
+                    <span>Top →</span>
+                </div>
+            )}
             <div
-                className="flex mx-auto"
-                style={{
-                    // First card is full width; each subsequent card adds only
-                    // its visible step (1 - FAN_OVERLAP), matching the negative
-                    // marginLeft below so the container has no empty trailing gap.
-                    width: `calc(var(--pile-card-w) * ${1 + (1 - FAN_OVERLAP) * (cards.length - 1)})`,
-                    minWidth: "min-content",
-                }}
+                ref={scrollRef}
+                tabIndex={0}
+                // Ordered pile: a fixed, smaller card (6rem → 9rem at `sm:`) — the
+                // prototype's size — so a dozen-card graveyard spans the dialog
+                // instead of a 13rem-card fan that scrolls from the third card.
+                className={`overflow-x-auto px-2 py-6 outline-none focus-visible:ring-1 focus-visible:ring-border-accent/60 ${ordered ? "[--pile-card-w:6rem] sm:[--pile-card-w:9rem]" : ""}`}
+                style={
+                    {
+                        ...(ordered
+                            ? {}
+                            : {
+                                  "--pile-card-w": "clamp(5.5rem, 14vw, 13rem)",
+                              }),
+                        scrollBehavior: "smooth",
+                    } as React.CSSProperties
+                }
             >
-                {ordered.map((cardInstance, cardIndex) => {
-                    const faceDown = isCardFaceDown(
-                        cardInstance,
-                        isFaceDown,
-                        faceUpIds
-                    );
-                    const isEligible = isEligibleCard(
-                        cardInstance.id,
-                        eligibleIds
-                    );
-                    const clickable = !faceDown && !!onCardClick && isEligible;
-                    const isIneligible =
-                        !faceDown && !!onCardClick && !isEligible;
-                    const isSelected =
-                        selectedIds?.includes(cardInstance.id) ?? false;
-                    const actionable = actionableIds.has(cardInstance.id);
-                    // Same hover language as a hand / battlefield card (QA): the
-                    // 3D tilt + glare wraps every pile card too, so graveyard,
-                    // exile and every dialog pile react identically to the
-                    // pointer instead of sitting inert.
-                    //
-                    // The picker ring rides INSIDE the tilt, on the same box as
-                    // the art — the battlefield arrangement (issue #3426). On
-                    // the clickable WRAPPER, an ancestor of the tilt that is
-                    // never transformed, the ring stayed flat while the face
-                    // scaled/lifted/rotated past it, so the art overhung its own
-                    // outline. ADR 0103 §8 has the ring clipped to the card's
-                    // printed corner, which it cannot be unless it travels with
-                    // the surface it outlines.
-                    const inner = (
-                        <CardTilt3D>
+                <div
+                    className="flex mx-auto"
+                    style={{
+                        // First card is full width; each subsequent card adds only
+                        // its visible step (1 - FAN_OVERLAP), matching the negative
+                        // marginLeft below so the container has no empty trailing gap.
+                        // An ordered pile sums its slots' own steps instead.
+                        width: `calc(var(--pile-card-w) * ${slots ? orderedFanWidthFactor(slots) : 1 + (1 - FAN_OVERLAP) * (cards.length - 1)})`,
+                        minWidth: "min-content",
+                    }}
+                >
+                    {fanCards.map((cardInstance, cardIndex) => {
+                        const marginLeft = slots
+                            ? `calc(var(--pile-card-w) * ${orderedFanMarginFactor(slots, cardIndex)})`
+                            : cardIndex === 0
+                              ? "0"
+                              : `calc(var(--pile-card-w) * -${FAN_OVERLAP})`;
+                        const slot = slots?.[cardIndex];
+                        if (slot?.kind === "hidden") {
+                            return (
+                                <OrderedPilePlaceholder
+                                    key={cardInstance.id}
+                                    position={slot.position}
+                                    marginLeft={marginLeft}
+                                />
+                            );
+                        }
+                        const faceDown = isCardFaceDown(
+                            cardInstance,
+                            isFaceDown,
+                            faceUpIds
+                        );
+                        const isEligible = isEligibleCard(
+                            cardInstance.id,
+                            eligibleIds
+                        );
+                        const clickable =
+                            !faceDown && !!onCardClick && isEligible;
+                        const isIneligible =
+                            !faceDown && !!onCardClick && !isEligible;
+                        const isSelected =
+                            selectedIds?.includes(cardInstance.id) ?? false;
+                        const actionable = actionableIds.has(cardInstance.id);
+                        // Same hover language as a hand / battlefield card (QA): the
+                        // 3D tilt + glare wraps every pile card too, so graveyard,
+                        // exile and every dialog pile react identically to the
+                        // pointer instead of sitting inert.
+                        //
+                        // The picker ring rides INSIDE the tilt, on the same box as
+                        // the art — the battlefield arrangement (issue #3426). On
+                        // the clickable WRAPPER, an ancestor of the tilt that is
+                        // never transformed, the ring stayed flat while the face
+                        // scaled/lifted/rotated past it, so the art overhung its own
+                        // outline. ADR 0103 §8 has the ring clipped to the card's
+                        // printed corner, which it cannot be unless it travels with
+                        // the surface it outlines.
+                        const inner = (
+                            <CardTilt3D>
+                                <div
+                                    className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : actionableRingClass(actionable) || "card-corner"}`}
+                                >
+                                    {faceDown ? (
+                                        <CardBack />
+                                    ) : (
+                                        // Fan dialog cards render up to 13rem (208px)
+                                        // wide (--pile-card-w) — a mid/large slot, no
+                                        // `thumb`.
+                                        <CardImage
+                                            card={cardInstance}
+                                            sizes="208px"
+                                            includeThumb={false}
+                                        />
+                                    )}
+                                </div>
+                            </CardTilt3D>
+                        );
+                        const action = renderCardAction?.(
+                            cardInstance,
+                            onClose
+                        );
+                        return (
                             <div
-                                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : actionableRingClass(actionable) || "card-corner"}`}
+                                key={cardInstance.id}
+                                // `CARD_RING_TILE_CLASS`: fan tiles overlap by a
+                                // negative margin, so the ringed tile must contain
+                                // its own ring's `z-index` (issue #3426).
+                                className={`relative w-(--pile-card-w) aspect-5/7 shrink-0 ${CARD_RING_TILE_CLASS}`}
+                                style={{ marginLeft }}
                             >
-                                {faceDown ? (
-                                    <CardBack />
+                                {clickable ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onCardClick(cardInstance);
+                                            onClose();
+                                        }}
+                                        className={CARD_TILE_BUTTON_CLASS}
+                                    >
+                                        {inner}
+                                    </button>
+                                ) : isIneligible ? (
+                                    <div className="w-full h-full card-corner opacity-40">
+                                        {inner}
+                                    </div>
                                 ) : (
-                                    // Fan dialog cards render up to 13rem (208px)
-                                    // wide (--pile-card-w) — a mid/large slot, no
-                                    // `thumb`.
-                                    <CardImage
-                                        card={cardInstance}
-                                        sizes="208px"
-                                        includeThumb={false}
-                                    />
+                                    // Manual-mode QA round 3 — a pile card is
+                                    // interactive here, carrying its own move
+                                    // verbs. Passthrough on every GRE board and in
+                                    // every picker (`clickable` above wins, so a
+                                    // choice dialog's click is never hijacked).
+                                    <ManualCardMenu card={cardInstance}>
+                                        {inner}
+                                    </ManualCardMenu>
+                                )}
+                                <PileCounterChips card={cardInstance} />
+                                {action}
+                                {slot?.position === 1 && (
+                                    <span
+                                        data-ordered-pile-top
+                                        className={`pointer-events-none absolute -top-2 right-1 z-10 ${V4_COUNT_BADGE}`}
+                                    >
+                                        Top
+                                    </span>
+                                )}
+                                {!faceDown && captionFor?.(cardInstance) && (
+                                    <span className="absolute -bottom-5 inset-x-0 text-center text-[10px] leading-tight text-text-muted">
+                                        {captionFor(cardInstance)}
+                                    </span>
                                 )}
                             </div>
-                        </CardTilt3D>
-                    );
-                    const action = renderCardAction?.(cardInstance, onClose);
-                    return (
-                        <div
-                            key={cardInstance.id}
-                            // `CARD_RING_TILE_CLASS`: fan tiles overlap by a
-                            // negative margin, so the ringed tile must contain
-                            // its own ring's `z-index` (issue #3426).
-                            className={`relative w-(--pile-card-w) aspect-5/7 shrink-0 ${CARD_RING_TILE_CLASS}`}
-                            style={{
-                                marginLeft:
-                                    cardIndex === 0
-                                        ? "0"
-                                        : `calc(var(--pile-card-w) * -${FAN_OVERLAP})`,
-                            }}
-                        >
-                            {clickable ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        onCardClick(cardInstance);
-                                        onClose();
-                                    }}
-                                    className={CARD_TILE_BUTTON_CLASS}
-                                >
-                                    {inner}
-                                </button>
-                            ) : isIneligible ? (
-                                <div className="w-full h-full card-corner opacity-40">
-                                    {inner}
-                                </div>
-                            ) : (
-                                // Manual-mode QA round 3 — a pile card is
-                                // interactive here, carrying its own move
-                                // verbs. Passthrough on every GRE board and in
-                                // every picker (`clickable` above wins, so a
-                                // choice dialog's click is never hijacked).
-                                <ManualCardMenu card={cardInstance}>
-                                    {inner}
-                                </ManualCardMenu>
-                            )}
-                            <PileCounterChips card={cardInstance} />
-                            {action}
-                            {!faceDown && captionFor?.(cardInstance) && (
-                                <span className="absolute -bottom-5 inset-x-0 text-center text-[10px] leading-tight text-text-muted">
-                                    {captionFor(cardInstance)}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
-        </div>
+        </>
     );
 }
 
@@ -685,10 +759,9 @@ function GridLayout({
     };
 
     if (!categories) {
-        const visibleCards =
-            activeFilterType && activeFilterType !== PILE_FILTER_ALL
-                ? cards.filter((c) => pileFilterType(c) === activeFilterType)
-                : cards;
+        const visibleCards = cards.filter((c) =>
+            matchesPileFilter(c, activeFilterType)
+        );
         return (
             <div
                 className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
@@ -770,6 +843,7 @@ export default function CardsPile({
     categories,
     captionFor,
     hasContextMenu = false,
+    ordered = false,
 }: CardsPileProps) {
     // Controlled-open chip mode (#336): the owner drives `open` and supplies the
     // trigger, so this component renders only the dialog.
@@ -803,8 +877,9 @@ export default function CardsPile({
     // behind a filter button would read as the target vanishing rather than
     // as a view option. A categorized reveal (Atraxa/Niv-Mizzet) already
     // groups by type via `categories`, so the two features never compose.
-    // Fan layout keeps no filter (the prototype's segmented-filter stage is
-    // the wide GRID browse only). Owned HERE, not by `GridLayout` — its
+    // The plain fan keeps no filter (the prototype's segmented-filter stage
+    // is the wide GRID browse only); an ORDERED fan (issue #9874) gets it,
+    // rendering a filtered-out card as a placeholder in its slot. Owned HERE, not by `GridLayout` — its
     // sticky footer must sit syntactically inside `<GameDialog>` below for
     // `shell-height-claims.guard.test.tsx`'s sticky-site registry to resolve
     // it as portaled rather than pinned against `<main>`. `> 2` (not `> 1`)
@@ -827,10 +902,13 @@ export default function CardsPile({
     // footer never gets a filter, full stop.
     const filterOptions = useMemo(
         () =>
-            layout === "grid" && !onCardClick && !categories && !footer
+            (layout === "grid" || ordered) &&
+            !onCardClick &&
+            !categories &&
+            !footer
                 ? pileFilterOptions(cards)
                 : [],
-        [cards, layout, onCardClick, categories, footer]
+        [cards, layout, ordered, onCardClick, categories, footer]
     );
     const showFilter = filterOptions.length > 2;
     const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);
@@ -1042,7 +1120,7 @@ export default function CardsPile({
                 // "default" elsewhere).
                 density="comfortable"
             >
-                {layout === "fan" ? (
+                {layout === "fan" || ordered ? (
                     <FanLayout
                         cards={cards}
                         isFaceDown={isFaceDown}
@@ -1054,6 +1132,8 @@ export default function CardsPile({
                         eligibleIds={eligibleIds}
                         captionFor={captionFor}
                         topOnRight={topOnRight}
+                        ordered={ordered}
+                        isShown={(c) => matchesPileFilter(c, activeFilterType)}
                     />
                 ) : (
                     <GridLayout
