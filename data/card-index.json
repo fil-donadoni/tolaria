@@ -95912,6 +95912,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wish",
+        "scryfallId": "3ed021d2-e2bc-44b3-8934-4bd02e0a42ec",
+        "oracleId": "2ccbf0ee-c856-4f67-8579-811fe8571a2e",
+        "firstSet": "afr",
+        "firstPrintId": "3ed021d2-e2bc-44b3-8934-4bd02e0a42ec",
+        "firstPrintSet": "afr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Wishclaw Talisman",
         "scryfallId": "07c17b01-ee5d-491a-8403-b3f819b778c4",
         "oracleId": "81c70ae7-3c18-4c9b-8505-e4db9e0e6518",
