@@ -8557,8 +8557,8 @@ export function exileWithAttachments(
     }
     // Exile attachments first, then the host (CR 701.13). Both fire
     // PERMANENT_LEFT — exile is a real zone change, unlike phasing.
-    // The whole bundle (attachments + host) is ONE exile occurrence (CR
-    // 603.3b / 608.2i): one batched CARDS_EXILED, not one per removed card.
+    // The whole bundle (attachments + host) is ONE exile event (CR 603.2c):
+    // one batched CARDS_EXILED, not one per removed card.
     const movedHost = withCardsExiledBatch(state, () => {
         for (const a of attached) removePermanentTo(state, a.id, "exile");
         return removePermanentTo(state, targetId, "exile");
