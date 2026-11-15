@@ -2,7 +2,8 @@
 // "You may [action] rather than pay this spell's mana cost." and
 // "[condition], you may cast this spell without paying its mana cost."
 //
-// Three layers:
+// Two layers (the gold-over-hand-written layer retired with its cards, ADR 0114:
+// `check:oracle` holds each retirement's equivalence proof):
 //
 //  1. GOLDEN fixtures — one real corpus card per accepted form, compiled whole
 //     and compared with the full Compiled Definition: sacrifice N lands
@@ -10,17 +11,13 @@
 //     one land with "its owner's hand" (Daze), and the Legate cycle's
 //     two-sided free cast, on an instant (Mogg Salvage) and on a permanent
 //     (Saprazzan Legate).
-//  2. GOLD over the hand-written catalogue — every hand-written card whose
-//     alternative-cost line the rule reads compiles to the
-//     `alternativeCosts` its author wrote.
-//  3. REFUSALS — the neighbours of the family the rule must not read: other
+//  2. REFUSALS — the neighbours of the family the rule must not read: other
 //     legs (a land card discarded), other conditions (your turn, a
 //     commander), and count/noun/pronoun disagreements.
 
 import { describe, expect, it } from "vitest";
-import { getAllRawCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
-import { canonicaliseShorthands, sortKeys } from "../gates";
+import { sortKeys } from "../gates";
 import { oracleCard } from "./oracle.fixture";
 
 function instant(name: string, manaCost: string, oracleText: string) {
@@ -212,47 +209,6 @@ describe("Alternative cost line — golden fixtures (CR 118.9)", () => {
                 ],
             }
         );
-    });
-});
-
-describe("Alternative cost gold over the hand-written catalogue", () => {
-    const LINE =
-        /^(?:You may (?:sacrifice|return) .* rather than pay this spell's mana cost|If an opponent controls .* you may cast this spell without paying its mana cost)\.$/m;
-
-    it("every hand-written line the rule reads compiles to its author's alternativeCosts", () => {
-        const accepted: string[] = [];
-        for (const def of getAllRawCards()) {
-            if (def.oracleText?.match(LINE) == null) continue;
-            if (
-                !def.types.includes("Instant") &&
-                !def.types.includes("Sorcery")
-            )
-                continue;
-            const outcome = compileCard(
-                oracleCard({
-                    name: def.name,
-                    manaCost: "{0}",
-                    oracleText: def.oracleText!,
-                    typeLine: def.types.join(" "),
-                    power: undefined,
-                    toughness: undefined,
-                })
-            );
-            if (outcome.state === "unparsed") continue;
-            accepted.push(def.name);
-            expect(
-                sortKeys(
-                    canonicaliseShorthands(outcome.definition.alternativeCosts)
-                ),
-                def.name
-            ).toEqual(sortKeys(canonicaliseShorthands(def.alternativeCosts)));
-        }
-        expect(accepted.sort()).toEqual([
-            "Daze",
-            "Fireblast",
-            "Gush",
-            "Thwart",
-        ]);
     });
 });
 
