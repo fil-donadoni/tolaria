@@ -18712,6 +18712,86 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5161, the ordering twin of the entry above: the hand order reversed, so the answer is the valuation's and not the enumeration order's.",
     },
+    // -----------------------------------------------------------------------
+    // Issue #9744 — a counter budget is several activations. Parallax Wave's
+    // "remove a fade counter: exile target creature" (CR 702.32a, Fading 5)
+    // costs nothing but the counters it enters with (CR 602.1a, 118.3), so
+    // the five exiles can all be spent in one priority window. The standing
+    // reading counted ONE (`recurrenceWeight` → 1 for any activated ability),
+    // so the Wave sat at 66 in hand against a vanilla 2/2's 116 and a weight
+    // refit (`boardRemoval` 156 → 121) pushed it under its own `base + MV`
+    // floor. Same searched discard-as-cost shape as the Chalice pair above;
+    // neither hand card is castable off one Mountain, so the pick is the
+    // latent valuation's. The twin reverses the hand order.
+    // -----------------------------------------------------------------------
+    {
+        label: "Counter budget: keeps Parallax Wave over Grizzly Bears to a discard cost",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Armorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Parallax Wave", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                activationDiscardsCard(state, "me", move, "Grizzly Bears"),
+            describe:
+                "activates Dwarven Armorer naming Grizzly Bears for its discard cost",
+        },
+        note: "Issue #9744. Proof-of-failure: `counterBudget` returning 1 puts Parallax Wave back at one exile (66 in hand), below Grizzly Bears' 116, and the entry reds.",
+    },
+    {
+        label: "Counter budget: keeps Parallax Wave over Grizzly Bears to a discard cost (hand order reversed)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Armorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Parallax Wave", owner: "me", zone: "hand" },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                activationDiscardsCard(state, "me", move, "Grizzly Bears"),
+            describe:
+                "activates Dwarven Armorer naming Grizzly Bears for its discard cost",
+        },
+        note: "Issue #9744, the ordering twin of the entry above: the hand order reversed, so the answer is the valuation's and not the enumeration order's.",
+    },
     {
         // CR 609.7a (issue #5601) — "a source of your choice" may be a SPELL
         // on the stack. The opponent's Lightning Bolt reaches the stack through
