@@ -126,38 +126,6 @@ export const cityOfBrass = defineCard(() => ({
     ],
 }));
 
-export const elephantGraveyard = defineCard(() => ({
-    id: "18348df2-9037-4db4-bddb-76dc933229bf",
-    rarity: "rare",
-    name: "Elephant Graveyard",
-    oracleText: "{T}: Add {C}.\n{T}: Regenerate target Elephant.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "elephant-graveyard-mana",
-            oracleText: "{T}: Add {C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ C: 1 }),
-            manaProduced: { C: 1 },
-        },
-        {
-            id: "elephant-graveyard-regen",
-            oracleText: "{T}: Regenerate target Elephant.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Elephant",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
-        },
-    ],
-}));
-
 // hand-tail: {T}: Draw a card. Activate only if you have exactly seven cards in hand. (#8505)
 export const libraryOfAlexandria = defineCard(() => ({
     id: "ee266113-34ce-4189-84e7-ee2c86a2722c",

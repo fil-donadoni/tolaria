@@ -127,7 +127,6 @@ import {
     pendelhaven,
     livonyaSilone,
     clergyOfTheHolyNimbus,
-    karakas,
 } from "@convex/cards/sets/leg/index.cards";
 import { miracleWorker } from "@convex/cards/sets/drk/index.cards";
 import { cutDown } from "@convex/cards/sets/dmu/index.cards";
@@ -148,6 +147,7 @@ import {
 import type { PendingTarget } from "~/types/game";
 import type { CardInstanceState } from "@convex/gre/state";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
+const karakas = () => getDefinition("31d2422a-bb7d-4cdd-9aac-e5a936a4be3b");
 const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
 const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 const metallicRebuke = () =>

@@ -69,10 +69,10 @@ import { illusionaryTerrain } from "../../cards/sets/ice/blue.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
 
-import { mindStone } from "../../cards/sets/wth/colorless.cards";
 import { kavuChameleon } from "../../cards/sets/inv/green.cards";
 import { motherOfRunes } from "../../cards/sets/ulg/white.cards";
 import { getDefinition } from "../../cards";
+const mindStone = () => getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 // Index — a one-shot `scryReorder` sorcery (compiled catalogue, state `ready`),

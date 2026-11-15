@@ -125,40 +125,6 @@ export const colossusOfSardia = defineCard(() => ({
 // Simple non-creature permanents (CR 305 lands, CR 301 artifacts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Strip Mine — Land with "{T}: Add {C}." and "{T}, Sacrifice this land:
-// Destroy target land." (CR 605.1a/605.3a mana ability useStack:false; CR
-// 701.8 destroy via a sacrifice-cost activated ability that uses the stack so
-// it can be responded to). The sac cost is paid at activation; the destroy
-// resolves later from the stack.
-export const stripMine = defineCard(() => ({
-    id: "e7880157-7f27-4f1b-9cdc-ab36a6252376",
-    rarity: "uncommon",
-    name: "Strip Mine",
-    oracleText: "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target land.",
-    manaCost: {},
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "strip-mine-mana",
-            oracleText: "{T}: Add {C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ C: 1 });
-            },
-            manaProduced: { C: 1 },
-        },
-        {
-            id: "strip-mine-destroy",
-            oracleText: "{T}, Sacrifice this land: Destroy target land.",
-            cost: { tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: { type: "Land", count: 1 },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-}));
-
 // Obelisk of Undoing — Artifact with "{6}, {T}: Return target permanent you
 // both own and control to your hand." (CR 400.7 return to hand; CR 605
 // activated ability with mana + tap cost; the `controller: "you"` filter

@@ -241,7 +241,7 @@ describe("Elephant Graveyard ({T}: regenerate target Elephant)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, grave, "elephant-graveyard-regen", [
+        resolveActivated(state, grave, "elephant-graveyard-ability-2", [
             { type: "permanent", id: "ele" },
         ]);
         expect(

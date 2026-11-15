@@ -14,7 +14,7 @@ import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 const VIEWER = "p1";
 const OPP = "p2";
 const RING = getCardByName("Barbarian Ring");
-const RING_SAC = "barbarian-ring-sac";
+const RING_SAC = "barbarian-ring-ability-2";
 
 const BEARS = getCardByName("Grizzly Bears");
 
