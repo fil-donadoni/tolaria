@@ -498,7 +498,7 @@ describe("the committed lockfile", () => {
         // more ranked "migration" tickets of this same kind are queued and
         // will keep eroding it.
         //
-        // Floor lowered from 1278 to 1250 (issue #5233): retiring six
+        // Floor lowered from 1278 to 1250: retiring six
         // Premodern-legal lands (mana-ability + triggered) took the pool to
         // 1272. Headroom left so the next queued retirements do not each
         // red this floor.
