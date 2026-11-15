@@ -429,7 +429,7 @@ import {
     isOpponentSearchProhibited,
     playerHasShroud,
 } from "./permanentGuard";
-import { hasKeywordAbility } from "./hexproofQuality";
+import { hasKeywordAbility, keywordDenotes } from "./hexproofQuality";
 import { getEffectiveBlockGraph } from "./banding";
 import {
     validateAttackerEligibility,
@@ -14294,7 +14294,10 @@ export function buildSpellContext(
             return deriveLayer6(
                 state as unknown as LayerStateView,
                 found.card as unknown as PermanentView
-            ).removedKeywords.some((r) => r.keyword === keyword);
+            ).removedKeywords.some((r) =>
+                // CR 702.11e — a removed hexproof-from is a removed hexproof.
+                keywordDenotes(r.keyword, keyword)
+            );
         },
 
         becomeCopyOf(

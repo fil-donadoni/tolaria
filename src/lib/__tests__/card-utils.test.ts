@@ -7260,3 +7260,28 @@ describe("Fear of Missing Out — attack-trigger target announcement reaches the
         expect(clickable).toEqual(["fomo", "victim"]);
     });
 });
+
+// CR 702.11e — "any effect that looks for a card with hexproof will find a card
+// with a 'hexproof from [quality]' ability" (issue #2604): the client mirror
+// agrees with the server's `matchesPermanentFilter`.
+describe("matchesPermanentFilter (client mirror — hexproof from [quality])", () => {
+    const ROKIRIC_ID = "600dca0f-5964-45e7-86df-f16a5b4a0106";
+    const rokiric = () =>
+        makeCardInstance({
+            card: { id: ROKIRIC_ID },
+            types: ["Creature"],
+            staticAbilities: ["hexproof from monocolored"],
+        });
+
+    it("requireAbility hexproof finds hexproof from monocolored", () => {
+        expect(
+            matchesPermanentFilter(rokiric(), { requireAbility: "hexproof" })
+        ).toBe(true);
+    });
+
+    it("excludeAbility hexproof excludes it", () => {
+        expect(
+            matchesPermanentFilter(rokiric(), { excludeAbility: "hexproof" })
+        ).toBe(false);
+    });
+});

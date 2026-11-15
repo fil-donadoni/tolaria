@@ -62,22 +62,18 @@ function board(sourceName: string, kind: Kind, chooser: string): GameState {
         controllerId: "p1",
         ownerId: "p1",
     });
-    const sourceZone =
-        kind === "cast" ? { hand: [source] } : { battlefield: [source] };
-    const p1Extra = chooser === "p1" ? sourceZone : {};
-    const p2Extra = chooser === "p2" ? sourceZone : {};
+    const zones = (who: string) => {
+        const mine = chooser === who;
+        return {
+            hand: mine && kind === "cast" ? [source] : [],
+            battlefield: [
+                ...(who === "p1" ? [rokiric, bears] : []),
+                ...(mine && kind === "ability" ? [source] : []),
+            ],
+        };
+    };
     return makeState({
-        players: [
-            makePlayer("p1", {
-                ...p1Extra,
-                battlefield: [
-                    rokiric,
-                    bears,
-                    ...("battlefield" in p1Extra ? p1Extra.battlefield : []),
-                ],
-            }),
-            makePlayer("p2", p2Extra),
-        ],
+        players: [makePlayer("p1", zones("p1")), makePlayer("p2", zones("p2"))],
         pendingTarget: {
             playerId: chooser,
             cardInstanceId: "source",
