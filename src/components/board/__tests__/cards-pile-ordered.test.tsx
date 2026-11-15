@@ -125,9 +125,10 @@ describe("CardsPile — ordered pile fan (issue #9874)", () => {
             "bolt-b",
             "hidden:1",
         ]);
-        expect(
-            getByRole("img", { name: "Hidden card, position 1 from the top" })
-        ).toBeTruthy();
+        // Placeholders are aria-hidden; one live count stands for them.
+        expect(getByRole("status").textContent).toBe(
+            "3 cards hidden by the filter"
+        );
     });
 
     it("a hidden top card gets no Top chip — the trailing outline stands for it", () => {
@@ -153,5 +154,21 @@ describe("CardsPile — ordered pile fan (issue #9874)", () => {
         expect(margin("bolt-b")).toBe(
             `calc(var(--pile-card-w) * -${1 - ORDERED_FAN_HIDDEN_STEP})`
         );
+    });
+
+    it("ignores topOnRight: positions and the Top chip follow the pile's own order", () => {
+        const { baseElement } = render(
+            <CardsPile
+                cards={PILE}
+                layout="fan"
+                ordered
+                topOnRight
+                forceOpen
+                title="Graveyard"
+            />
+        );
+        expect(slotSequence(baseElement)[4]).toBe("bear-c");
+        const chip = baseElement.querySelector("[data-ordered-pile-top]");
+        expect(slotElement(baseElement, "bear-c").contains(chip)).toBe(true);
     });
 });

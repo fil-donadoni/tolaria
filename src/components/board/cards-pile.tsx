@@ -353,12 +353,16 @@ function FanLayout({
     // width. Inertial drag-to-pan (Arena-like) makes browsing the reveal feel
     // physical; native wheel + keyboard scroll stay intact (#255).
     const scrollRef = useInertialScroll<HTMLDivElement>("x");
-    const fanCards = topOnRight ? [...cards].reverse() : cards;
+    // `ordered` wins over `topOnRight`: the ordered fan is defined on the
+    // pile's own bottom → top order, and its slots/positions index `cards`
+    // as-is — reversing here would chip and hide the wrong cards.
+    const fanCards = topOnRight && !ordered ? [...cards].reverse() : cards;
     // Ordered pile: one slot per card in pile order (bottom → top, the same
     // left → right order as the plain fan), hidden or shown.
     const slots = ordered
         ? buildOrderedPileSlots(cards, isShown ?? (() => true))
         : null;
+    const hiddenCount = slots?.filter((s) => s.kind === "hidden").length ?? 0;
 
     const actionableIds = useContext(PileActionableContext);
     // When the fan overflows, open scrolled to the far RIGHT — the end of the
@@ -381,11 +385,19 @@ function FanLayout({
     }, [scrollRef, cards.length]);
     return (
         <>
-            {ordered && (
+            {ordered && cards.length > 1 && (
                 <div className="flex justify-between px-2 pt-3 text-[10px] tracking-wide uppercase text-text-muted">
                     <span>← Bottom</span>
                     <span>Top →</span>
                 </div>
+            )}
+            {slots && hiddenCount > 0 && (
+                // The placeholders are `aria-hidden`; one count stands for them.
+                <span className="sr-only" role="status">
+                    {hiddenCount === 1
+                        ? "1 card hidden by the filter"
+                        : `${hiddenCount} cards hidden by the filter`}
+                </span>
             )}
             <div
                 ref={scrollRef}
@@ -474,7 +486,9 @@ function FanLayout({
                                         // `thumb`.
                                         <CardImage
                                             card={cardInstance}
-                                            sizes="208px"
+                                            // An ordered fan's card tops
+                                            // out at 9rem (144px).
+                                            sizes={ordered ? "144px" : "208px"}
                                             includeThumb={false}
                                         />
                                     )}

@@ -12,9 +12,10 @@ export default function OrderedPilePlaceholder({
     marginLeft: string;
 }) {
     return (
+        // `aria-hidden`: a type-filtered graveyard can hold dozens of these;
+        // the fan announces them once, as a count (`FanLayout`).
         <div
-            role="img"
-            aria-label={`Hidden card, position ${position} from the top`}
+            aria-hidden
             data-ordered-pile-placeholder={position}
             className="relative aspect-5/7 w-(--pile-card-w) shrink-0 self-start card-corner border border-placeholder-edge bg-surface"
             style={{ marginLeft }}
