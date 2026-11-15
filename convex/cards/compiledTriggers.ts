@@ -57,6 +57,7 @@ import { transformsTrigger } from "./abilities/triggers/transformsTrigger";
 import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
+import { blocksTrigger } from "./abilities/triggers/blocksTrigger";
 import { entersOrAttacksTrigger } from "./abilities/triggers/entersOrAttacksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
@@ -387,6 +388,8 @@ export type CompiledTriggerHead =
      * creature and naming it `$event.combatant`.
      */
     | { readonly kind: "attacks-or-blocks"; readonly scope: PermanentScope }
+    /** CR 509.3a — "when this creature blocks". Self only. */
+    | { readonly kind: "blocks" }
     /**
      * CR 603.2 / 603.6a / 508.3a — "whenever this permanent enters or
      * attacks": ONE Oracle line over the source's own entry and attack.
@@ -860,6 +863,8 @@ function resolveCompiledTriggerHead(
             });
         case "attacks-or-blocks":
             return attacksOrBlocksTrigger({ ...common, scope: head.scope });
+        case "blocks":
+            return blocksTrigger(common);
         case "enters-or-attacks":
             return entersOrAttacksTrigger(common);
         case "combat-damage-to-player":

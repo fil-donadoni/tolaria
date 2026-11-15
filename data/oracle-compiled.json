@@ -16181,13 +16181,11 @@
         {"key":"7ede315e75e3","text":"When this creature becomes the target of a spell, sacrifice it.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature becomes the target of a spell"}},
         {"key":"3328f581e92a","text":"When this creature blocks a creature, destroy both creatures.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks a creature"}},
         {"key":"9ef6c70ef7ab","text":"When this creature blocks a creature, destroy that creature and this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks a creature"}},
-        {"key":"e7a5895ec4c5","text":"When this creature blocks, at end of combat, destroy it and all creatures it blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"b3fc0aac71d1","text":"When this creature blocks, destroy it at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"bc09f79a792e","text":"When this creature blocks, it becomes a Bird Giant, and it loses defender.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"42943597040b","text":"When this creature blocks, it loses defender.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"3141c65f70f4","text":"When this creature blocks, return it to its owner's hand at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"280c67eafe79","text":"When this creature blocks, return it to its owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
-        {"key":"0c739dae85b2","text":"When this creature blocks, sacrifice it at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature blocks"}},
+        {"key":"7de3caa1c7d7","text":"When this creature blocks, at end of combat, destroy it and all creatures it blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"At end of combat, destroy it and all creatures it blocked this turn"}},
+        {"key":"10fe4b7e12cf","text":"When this creature blocks, destroy it at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"it at end of combat"}},
+        {"key":"59615743f083","text":"When this creature blocks, it becomes a Bird Giant, and it loses defender.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} becomes a Bird Giant, and it loses defender"}},
+        {"key":"bd92d6cf8860","text":"When this creature blocks, return it to its owner's hand at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"its owner's hand at end of combat"}},
+        {"key":"eb38469c8fb5","text":"When this creature blocks, sacrifice it at end of combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"Sacrifice it at end of combat"}},
         {"key":"1583c5540b6a","text":"When this creature deals combat damage to a player who controls more lands than you, return it to its owner's hand. If you do, you may search your library for a Plains card, put it onto the battlefield tapped, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature deals combat damage to a player who controls more lands than you"}},
         {"key":"79d92a48aa40","text":"When this creature deals combat damage to a player, create two 1/1 red Goblin creature tokens and sacrifice this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature deals combat damage to a player"}},
         {"key":"d69bb1ce6a0f","text":"When this creature deals combat damage to a player, exile it and the top card of your library in a face-down pile, shuffle that pile, then manifest those cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"When this creature deals combat damage to a player"}},
@@ -35648,7 +35646,7 @@
 
         {"oracleId":"1610875f-48da-490c-a371-c439dc36f533","name":"Barrow Ghoul","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["09e5202771e8"]},
 
-        {"oracleId":"16128b90-9b81-476e-8999-3ef498728c39","name":"Cinder Wall","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["b3fc0aac71d1"]},
+        {"oracleId":"16128b90-9b81-476e-8999-3ef498728c39","name":"Cinder Wall","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["10fe4b7e12cf"]},
 
         {"oracleId":"1612a08f-fc1f-45cf-ae03-5f021a46869d","name":"In the Trenches","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["79664e51ff23"]},
 
@@ -39012,7 +39010,7 @@
 
         {"oracleId":"22abc3e8-49bb-475a-8248-0ce85274913c","name":"Glass Asp","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["11286af07a53"]},
 
-        {"oracleId":"22b0de2d-47a8-4269-ba21-4bc2b4b10b40","name":"Wall of Junk","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["3141c65f70f4"]},
+        {"oracleId":"22b0de2d-47a8-4269-ba21-4bc2b4b10b40","name":"Wall of Junk","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["bd92d6cf8860"]},
 
         {"oracleId":"22b5721d-c187-4e0f-b752-52c2a26f3505","name":"Davriel, Soul Broker","state":"unparsed","gaps":["2b951a8e2edf","8e1fe1c093ce","b61168ae2003"]},
 
@@ -53986,7 +53984,7 @@
 
         {"oracleId":"59483597-4d8c-4cdc-8bb5-226b1eef10f5","name":"Grayscaled Gharial","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Grayscaled Gharial","types":["Creature"],"subtypes":["Crocodile"],"manaCost":{"U":1},"power":1,"toughness":1,"oracleText":"Islandwalk (This creature can't be blocked as long as defending player controls an Island.)","staticAbilities":["islandwalk"]},"botReach":"played"},
 
-        {"oracleId":"5948381a-419d-4b8b-8ea2-ea623cb0d606","name":"Elder Land Wurm","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["42943597040b"]},
+        {"oracleId":"5948381a-419d-4b8b-8ea2-ea623cb0d606","name":"Elder Land Wurm","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["loseAbility"],"definition":{"name":"Elder Land Wurm","types":["Creature"],"subtypes":["Dragon","Wurm"],"manaCost":{"X":4,"W":3},"power":5,"toughness":5,"oracleText":"Defender, trample\nWhen this creature blocks, it loses defender.","staticAbilities":["defender","trample"],"compiledTriggeredAbilities":[{"id":"elder-land-wurm-trigger","oracleText":"When this creature blocks, it loses defender.","head":{"kind":"blocks"},"effects":[{"op":"loseAbility","target":{"ref":"$source"},"ability":"defender"}]}]},"botReach":"played","retired":{"at":"2026-11-15","issue":9621}},
 
         {"oracleId":"59489b46-9d02-4f3c-bcd0-884e7605e9a5","name":"Opalescence","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Opalescence","types":["Enchantment"],"manaCost":{"X":2,"W":2},"oracleText":"Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.","compiledStaticEffects":[{"kind":"type-add","filter":{"types":["Enchantment"],"excludeSubtypes":["Aura"],"excludeSource":true},"types":["Creature"]},{"kind":"pt-set","filter":{"types":["Enchantment"],"excludeSubtypes":["Aura"],"excludeSource":true},"count":{"kind":"mana-value"}}]},"botReach":"played"},
 
@@ -58014,7 +58012,7 @@
 
         {"oracleId":"6807167a-e290-4259-940e-3cbbfa75d0a1","name":"Stolen Strategy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b29f0fcfb780"]},
 
-        {"oracleId":"680766e2-637b-40bc-a15f-0b4dc55bd619","name":"Defiant Vanguard","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["e7a5895ec4c5"]},
+        {"oracleId":"680766e2-637b-40bc-a15f-0b4dc55bd619","name":"Defiant Vanguard","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["7de3caa1c7d7"]},
 
         {"oracleId":"68097fd5-b2c4-4542-a07e-4e51bcfccdc6","name":"Artful Looter","state":"unparsed","gaps":["c07f8e92915c"]},
 
@@ -69176,7 +69174,7 @@
 
         {"oracleId":"901f0a8f-7462-4970-8d21-265c8c0188e6","name":"Gift of Fangs","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1304fa5585a8"]},
 
-        {"oracleId":"9023c530-f329-4301-8b24-4cf676194265","name":"Ageless Sentinels","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["bc09f79a792e"]},
+        {"oracleId":"9023c530-f329-4301-8b24-4cf676194265","name":"Ageless Sentinels","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["59615743f083"]},
 
         {"oracleId":"90249526-1875-450a-882d-bf6f6bfd37a6","name":"Ajani Steadfast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["37a7257ccdd5","8303b6bb4c5a","d993561f0c9a"]},
 
@@ -95470,7 +95468,7 @@
 
         {"oracleId":"eee801ea-e2dc-4b03-a9f9-e87566cb2ae8","name":"Thallid Soothsayer","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["draw"],"definition":{"name":"Thallid Soothsayer","types":["Creature"],"subtypes":["Fungus"],"manaCost":{"X":3,"B":1},"power":2,"toughness":3,"oracleText":"{2}, Sacrifice a creature: Draw a card.","activatedAbilities":[{"id":"thallid-soothsayer-ability","oracleText":"{2}, Sacrifice a creature: Draw a card.","cost":{"mana":{"X":2},"sacrificeFilter":{"types":["Creature"]}},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"eee83439-2dee-47d7-97f8-d75bef70c40e","name":"Stoic Ephemera","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0c739dae85b2"]},
+        {"oracleId":"eee83439-2dee-47d7-97f8-d75bef70c40e","name":"Stoic Ephemera","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["eb38469c8fb5"]},
 
         {"oracleId":"eee99fdc-b116-4f06-9f9f-7b7dda5743c1","name":"Ironwill Forger","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["eb5405a159b8"]},
 
@@ -100046,7 +100044,7 @@
 
         {"oracleId":"ff5f333a-9294-4c1f-b3f4-4dfed78c639c","name":"Avoided Stairwurm","state":"unparsed","gaps":["b06bc4b27b37"]},
 
-        {"oracleId":"ff640343-6980-4668-a41f-0f01b0bbc0f2","name":"Zephyr Spirit","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["280c67eafe79"]},
+        {"oracleId":"ff640343-6980-4668-a41f-0f01b0bbc0f2","name":"Zephyr Spirit","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["moveZone"],"definition":{"name":"Zephyr Spirit","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":5,"U":1},"power":0,"toughness":6,"oracleText":"When this creature blocks, return it to its owner's hand.","compiledTriggeredAbilities":[{"id":"zephyr-spirit-trigger","oracleText":"When this creature blocks, return it to its owner's hand.","head":{"kind":"blocks"},"effects":[{"op":"moveZone","target":{"ref":"$source"},"to":"hand"}]}]},"botReach":"played"},
 
         {"oracleId":"ff6427f6-d2b1-4e33-984d-c06bd15d7c2c","name":"Aetherborn Marauder","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["137c208e8b40"]},
 
