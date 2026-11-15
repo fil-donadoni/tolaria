@@ -2,12 +2,7 @@
 // oracle text is authoritative (ADR 0004). Colourless artifacts (no coloured
 // cost) live here per the colour-split convention.
 
-import type {
-    ActivatedAbilityContext,
-    GameEvent,
-    SpellContext,
-    StaticEffectContext,
-} from "../../types";
+import type { GameEvent, SpellContext, StaticEffectContext } from "../../types";
 import { controlsSubtype, defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { firstBlockerOf } from "../../abilities/triggers/rampageTrigger";
@@ -180,32 +175,6 @@ export const juntuStakes = defineCard(() => ({
             maxUntap: 0,
             dynamicMatch: (candidate) => (candidate.power ?? 0) <= 1,
         }),
-    ],
-}));
-
-// Lotus Guardian — {7} Artifact Creature — Dragon 4/4. "Flying\n{T}: Add one
-// mana of any color." (CR 702.9b flying; CR 605.1a "any color" mana ability —
-// the City of Brass / Celestial Prism `manaChoices` shape.)
-export const lotusGuardian = defineCard(() => ({
-    id: "ddfc6396-5377-4ab3-9c10-8abcdeae2aa1",
-    rarity: "rare",
-    name: "Lotus Guardian",
-    oracleText: "Flying\n{T}: Add one mana of any color.",
-    manaCost: { X: 7 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Dragon"],
-    power: 4,
-    toughness: 4,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "lotus-guardian-mana",
-            oracleText: "{T}: Add one mana of any color.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
     ],
 }));
 

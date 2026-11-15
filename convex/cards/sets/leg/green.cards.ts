@@ -314,31 +314,6 @@ export const emeraldDragonfly = defineCard(() => ({
     ],
 }));
 
-// Fire Sprites — Flying; "{G}, {T}: Add {R}." (CR 702.9 flying + CR 605.1a mana
-// ability — `useStack: false`, resolves immediately, no priority.)
-export const fireSprites = defineCard(() => ({
-    id: "d26fa79a-ede8-4c80-98d5-f49696f8104d",
-    rarity: "common",
-    name: "Fire Sprites",
-    oracleText: "Flying\n{G}, {T}: Add {R}.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Faerie"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "fire-sprites-mana",
-            oracleText: "{G}, {T}: Add {R}.",
-            cost: { mana: { G: 1 }, tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ R: 1 }),
-            manaProduced: { R: 1 },
-        },
-    ],
-}));
-
 // Killer Bees — Flying; "{G}: This creature gets +1/+1 until end of turn."
 // (CR 702.9 flying + CR 611.1 repeatable temporary buff.)
 export const killerBees = defineCard(() => ({

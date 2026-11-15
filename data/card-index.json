@@ -7521,7 +7521,9 @@
         "oracleId": "d3a0b660-358c-41bd-9cd2-41fbf3491b1a",
         "firstSet": "lea",
         "firstPrintId": "55fe6449-1f23-43dc-adee-d144cd505b5c",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Birnin Zana Plaza",
@@ -29033,7 +29035,9 @@
         "oracleId": "fc5e42b5-4da2-4777-828b-138c0a5d234f",
         "firstSet": "leg",
         "firstPrintId": "d26fa79a-ede8-4c80-98d5-f49696f8104d",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fire Tempest",
@@ -40587,7 +40591,9 @@
         "oracleId": "c8de43a3-ebd3-4000-b343-a6ffed11d34d",
         "firstSet": "mh2",
         "firstPrintId": "aba51852-af8f-49d8-8fb6-22d52a1742b8",
-        "firstPrintSet": "mh2"
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Iguana Parrot",
@@ -48134,7 +48140,9 @@
         "oracleId": "143d7a32-c15d-4a1f-ad81-cf1e6aa92bf3",
         "firstSet": "inv",
         "firstPrintId": "ddfc6396-5377-4ab3-9c10-8abcdeae2aa1",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Lotus Path Djinn",
@@ -55896,7 +55904,9 @@
         "oracleId": "98aa9424-5912-4bd6-9300-b3972a31d8af",
         "firstSet": "con",
         "firstPrintId": "6adfe928-1305-444d-b709-1e714544daaf",
-        "firstPrintSet": "con"
+        "firstPrintSet": "con",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Noble Panther",
@@ -82203,7 +82213,9 @@
         "oracleId": "13d4c46b-c2d6-44cc-a252-4a991d471854",
         "firstSet": "ths",
         "firstPrintId": "d40b65c1-b24d-492d-81b9-d8474ebdc08c",
-        "firstPrintSet": "ths"
+        "firstPrintSet": "ths",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sylvan Library",

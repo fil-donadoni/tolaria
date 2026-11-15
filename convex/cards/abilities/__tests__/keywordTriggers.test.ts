@@ -29,7 +29,9 @@ import { projectPublicState } from "../../../gameProjections";
 import { getCardByName, getDefinition } from "../..";
 import { getEventFieldRow } from "../../mechanicsRegistry";
 import { expandKeywordTriggers } from "../keywordTriggers";
-import { nobleHierarch } from "../../sets/con/green.cards";
+
+// Noble Hierarch lives on the registry seam (oracle-compiled), no export.
+const NOBLE_HIERARCH_ID = "6adfe928-1305-444d-b709-1e714544daaf";
 
 /** Minimal synthetic creature def carrying the given keyword, run through the
  *  expander so we can inspect the injected triggered ability. */
@@ -111,7 +113,7 @@ describe("Exalted keyword expansion (CR 702.83)", () => {
 
     it("pumps the lone attacker +1/+1 until end of turn, surviving the wire", () => {
         // Noble Hierarch (exalted) + a lone Grizzly Bears (2/2) attacking alone.
-        const hierarch = makeInstance(nobleHierarch().id, {
+        const hierarch = makeInstance(NOBLE_HIERARCH_ID, {
             id: "hierarch",
             controllerId: "p1",
             ownerId: "p1",
@@ -426,7 +428,7 @@ describe("Battle cry keyword expansion (CR 702.91)", () => {
 
 describe("Hierarch definitions carry the exalted keyword (issue #699)", () => {
     it("Noble Hierarch is a green 0/1 with exalted + a colour-choice mana ability", () => {
-        const def = getDefinition(nobleHierarch().id);
+        const def = getDefinition(NOBLE_HIERARCH_ID);
         expect(def.staticAbilities).toContain("exalted");
         expect(def.power).toBe(0);
         expect(def.toughness).toBe(1);

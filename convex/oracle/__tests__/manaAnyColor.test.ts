@@ -22,9 +22,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import { birdsOfParadise } from "../../cards/sets/lea/green.cards";
 
 import { oracleCard } from "./oracle.fixture";
 
@@ -143,13 +141,6 @@ describe("golden — the painland rider composes with the any-colour production"
                 dealsDamageToControllerOnColoredTap: 1,
             },
         ]);
-    });
-});
-
-describe("gold — the hand-written any-colour twins round-trip through their own text", () => {
-    it.each([birdsOfParadise()])("$name", (card) => {
-        const verdict = roundTripCard(card).verdict;
-        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 
