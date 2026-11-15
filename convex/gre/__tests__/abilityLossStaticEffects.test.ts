@@ -1,9 +1,11 @@
 // CR 604.1 / 611.3a / 613.1f — a non-layer `staticEffects[]` entry read off
 // a battlefield permanent (an attack restriction, a cast restriction, a
-// combat-damage prevention) applies only while the permanent HAS the ability.
-// Humility strips every creature's abilities in layer 6, so a creature's own
-// restriction or prevention stops applying; it is back the moment Humility
-// leaves.
+// combat-damage prevention, a cast permission) applies only while the
+// permanent HAS the ability. Humility strips every creature's abilities in
+// layer 6, so a creature's own restriction or prevention stops applying; it is
+// back the moment Humility leaves. Nothing shipped strips a noncreature, so the
+// enchantment and planeswalker sources run under a test suppressor that
+// reaches every permanent.
 //
 // Every board drives the suppression through the layer system
 // (`beginApplyingStaticEffects` + `recomputeContinuousEffects`), never a
@@ -20,8 +22,19 @@ import {
 } from "../state";
 import { validateAttackerEligibility } from "../combat";
 import { isCombatDamagePreventedFromSource } from "../combatDamagePrevention";
-import { castProhibitionReason } from "../../cards/castRestrictions";
-import { getCardByName } from "../../cards";
+import {
+    castProhibitionReason,
+    isCastTimingSorcerySpeedLocked,
+} from "../../cards/castRestrictions";
+import { getCardByName, getDefinition } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
+import {
+    castPermissionAltCosts,
+    hasCastPermissionFlash,
+} from "../castPermissions";
+import { getLegalActions } from "../rules";
+import { projectPublicState } from "../../gameProjections";
 import {
     makeInstance,
     makePlayer,
@@ -35,6 +48,27 @@ const ENCHANTED_BEING = getCardByName("Enchanted Being").id;
 const HOLY_STRENGTH = getCardByName("Holy Strength").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 const BOLT = getCardByName("Lightning Bolt").id;
+const ALUREN = getCardByName("Aluren").id;
+const TEFERI = getCardByName("Teferi, Time Raveler").id;
+
+/** Humility's layer-6 strip widened to every permanent but itself, so an
+ *  enchantment's or a planeswalker's static is really suppressed by the layer
+ *  system. No P/T half: only the ability loss is under test. */
+const STRIP_ALL_ID = "test-3272-strip-all-permanents";
+function stripAll(): CardDefinition {
+    return {
+        ...getDefinition(HUMILITY),
+        id: STRIP_ALL_ID,
+        name: "Probe Strip All",
+        oracleText: "All other permanents lose all abilities.",
+        staticEffects: [
+            {
+                kind: "ability-loss",
+                applies: (target, source) => target.id !== source.id,
+            },
+        ],
+    };
+}
 
 function card(
     defId: string,
@@ -67,8 +101,8 @@ function board(
     });
 }
 
-function suppress(state: GameState): void {
-    const source = card(HUMILITY, "p1", "suppressor");
+function suppress(state: GameState, suppressorId = HUMILITY): void {
+    const source = card(suppressorId, "p1", "suppressor");
     getPlayer(state, "p1").battlefield.push(source);
     beginApplyingStaticEffects(state, source);
     recomputeContinuousEffects(state);
@@ -161,5 +195,77 @@ describe("CR 613.1f — combat-damage prevention ends with ability loss (CR 615)
 
         release(state);
         expect(prevented()).toBe(true);
+    });
+});
+
+describe("CR 613.1f — cast permission ends with ability loss (CR 601.3 / 118.9)", () => {
+    it("a stripped Aluren grants neither the flash timing nor the free cast, on the wire too", () => {
+        withTemporaryDefinition(stripAll(), () => {
+            const bears = makeInstance(BEARS, {
+                id: "bears",
+                zone: "hand",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            // p2 holds priority on p1's turn with no mana: only Aluren's
+            // permission makes this cast legal at all.
+            const state = board([card(ALUREN, "p1", "aluren")], [], [bears]);
+            state.priorityPlayerId = "p2";
+            const p2 = () => getPlayer(state, "p2");
+            const wireActions = () =>
+                projectPublicState(state, 1, "p2").players[1].hand[0]
+                    .legalActions;
+            const granted = (expected: boolean) => {
+                expect(hasCastPermissionFlash(state, "p2", bears)).toBe(
+                    expected
+                );
+                expect(castPermissionAltCosts(state, "p2", bears).length).toBe(
+                    expected ? 1 : 0
+                );
+                expect(
+                    getLegalActions(state, p2(), bears).includes("cast")
+                ).toBe(expected);
+                expect(wireActions().includes("cast")).toBe(expected);
+            };
+            granted(true);
+
+            suppress(state, STRIP_ALL_ID);
+            expect(
+                onBattlefield(state, "aluren").abilitiesSuppressedBy?.length
+            ).toBeGreaterThan(0);
+            granted(false);
+
+            release(state);
+            granted(true);
+        });
+    });
+});
+
+describe("CR 613.1f — cast-timing lock ends with ability loss (CR 601.3)", () => {
+    it("a stripped Teferi, Time Raveler no longer holds its opponent to sorcery speed, on the wire too", () => {
+        withTemporaryDefinition(stripAll(), () => {
+            const state = board([card(TEFERI, "p1", "teferi")]);
+            const locked = (expected: boolean) => {
+                expect(isCastTimingSorcerySpeedLocked("p2", state)).toBe(
+                    expected
+                );
+                expect(
+                    isCastTimingSorcerySpeedLocked(
+                        "p2",
+                        projectPublicState(state, 1, "p2") as never
+                    )
+                ).toBe(expected);
+            };
+            locked(true);
+
+            suppress(state, STRIP_ALL_ID);
+            expect(
+                onBattlefield(state, "teferi").abilitiesSuppressedBy?.length
+            ).toBeGreaterThan(0);
+            locked(false);
+
+            release(state);
+            locked(true);
+        });
     });
 });
