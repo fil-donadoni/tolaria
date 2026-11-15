@@ -3133,7 +3133,64 @@ export interface EffectOpRow {
      *  § 7.3) owes such an Op no Grammar Gap row, and reds the day a Compiled
      *  Definition emits it anyway. */
     notGrammarEmittable?: string;
+    /** CR 400.7 — set ONLY on an Op that moves the object an announced Target
+     *  slot names OUT of the zone it is in: `field` is the Op field carrying
+     *  the `{ target: n }`, `from` every zone that object can be in when the
+     *  Op takes it. A zone equal to the Op's own `to` is not left (a `moveZone`
+     *  returning a graveyard card to the battlefield). The static validator
+     *  reads this, and only this, to know a later read of slot n in the same
+     *  script finds nothing (`TARGET_INFORMATION_READS`, issue #2988). */
+    removesTarget?: {
+        readonly field: string;
+        readonly from: readonly TargetZone[];
+    };
 }
+
+/** The zones an announced Target can be removed from or read in. */
+export type TargetZone =
+    | "battlefield"
+    | "stack"
+    | "graveyard"
+    | "exile"
+    | "hand";
+
+/** One reference that reads INFORMATION about the object an announced Target
+ *  slot names, out of a live zone (issue #2988). `member` is the reference's
+ *  key, `slot` where its `{ target: n }` sits (the member's own value, or its
+ *  `of`), `zones` the zones the interpreter consults. After an Op whose
+ *  `removesTarget` took that object out of one of those zones, the read
+ *  resolves to nothing and its Op is skipped (CR 608.2b), where CR 608.2h asks
+ *  for last known information — so the validator refuses the ordering. A
+ *  reference that ACTS on the slot (`destroy { target }`) is not a read, and
+ *  `$target<N>.name` is not one either: it scans every zone. */
+export interface TargetInformationRead {
+    readonly member: string;
+    readonly slot: "self" | "of";
+    readonly zones: readonly TargetZone[];
+    readonly cr: string;
+}
+
+export const TARGET_INFORMATION_READS: readonly TargetInformationRead[] = [
+    // `SpellContext.findController`: a spell's caster or a permanent's controller.
+    {
+        member: "controllerOf",
+        slot: "self",
+        zones: ["battlefield", "stack"],
+        cr: "109.5",
+    },
+    // `SpellContext.getOwnerId` for a permanent; a graveyard / hand slot reads
+    // the selection's own `playerId`, no zone.
+    { member: "ownerOf", slot: "self", zones: ["battlefield"], cr: "108.3" },
+    {
+        member: "manaValue",
+        slot: "of",
+        zones: ["battlefield", "stack"],
+        cr: "202.3",
+    },
+    { member: "counters", slot: "of", zones: ["battlefield"], cr: "122.1" },
+    { member: "escaped", slot: "of", zones: ["battlefield"], cr: "702.138b" },
+    { member: "spellKickerCount", slot: "of", zones: ["stack"], cr: "702.33d" },
+];
 
 /** Starter Op vocabulary (issue #800 — flat-sequence core). Grows freely,
  *  one orthogonal verb at a time; the structural grammar around it is frozen
@@ -3355,6 +3412,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "destroy",
         status: "implemented",
+        removesTarget: { field: "target", from: ["battlefield"] },
         cr: "701.8",
         binding: "SpellContext.destroy",
         mechanicId: "destroy",
@@ -3363,6 +3421,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "exile",
         status: "implemented",
+        removesTarget: { field: "target", from: ["battlefield"] },
         cr: "701.13",
         binding: "SpellContext.exile",
         mechanicId: "exile",
@@ -3378,6 +3437,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "exileWithAttachments",
         status: "implemented",
+        removesTarget: { field: "target", from: ["battlefield"] },
         cr: "701.13",
         binding: "SpellContext.exileWithAttachments",
         mechanicId: "exile",
@@ -3438,6 +3498,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "counter",
         status: "implemented",
+        removesTarget: { field: "target", from: ["stack"] },
         cr: "701.5a",
         binding: "SpellContext.counter",
         mechanicId: "counter",
@@ -3446,6 +3507,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "airbend",
         status: "implemented",
+        removesTarget: { field: "target", from: ["battlefield", "stack"] },
         cr: "701.65",
         binding: "SpellContext.exile / moveSpellFromStack + grantCastFromExile",
         mechanicId: "airbend",
@@ -3454,6 +3516,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "moveSpellFromStack",
         status: "implemented",
+        removesTarget: { field: "target", from: ["stack"] },
         cr: "400.7",
         binding: "SpellContext.moveSpellFromStack",
         note: 'Effect Script Op for the non-counter stack departure (issue #1205 Subtlety, issue #2605 Reprieve) — moves the target SPELL off the stack into a zone of its OWNER\'s ("return target spell to its owner\'s hand", "put target spell on the top or bottom of its owner\'s library") without countering it. Deliberately NOT a `counter` destination: a counter is shut out by "can\'t be countered" (CR 113.6g) and this is not, and nothing watching for a countered spell sees it. `destination` is REQUIRED ("hand" / "library-top" / "library-bottom") — there is no zone a non-counter move silently belongs in, unlike CR 701.6a\'s graveyard default for a counter. An ability on the stack has no card and simply vanishes (CR 113.7a); a COPY of a spell ceases to exist rather than reaching a zone (CR 707.10a). Subtlety itself stays `resolve()`: its destination is an option pick raised to a FOREIGN player mid-resolution, which no literal `destination` can express.',
@@ -3526,6 +3589,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "sacrifice",
         status: "implemented",
+        removesTarget: { field: "target", from: ["battlefield"] },
         cr: "701.21",
         binding: "SpellContext.sacrifice",
         mechanicId: "sacrifice",
@@ -3541,6 +3605,10 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "moveZone",
         status: "implemented",
+        removesTarget: {
+            field: "target",
+            from: ["battlefield", "graveyard", "exile", "hand"],
+        },
         cr: "400.7",
         binding:
             "SpellContext.moveCardById / returnToHand / returnToBattlefield / putFromLibraryOntoBattlefield / putFromHandOntoBattlefield / putLibraryCardsOnTop / putIntoLibraryFromBattlefield / tap",

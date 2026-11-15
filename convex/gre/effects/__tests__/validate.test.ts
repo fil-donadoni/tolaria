@@ -11,11 +11,15 @@ import type {
     CardType,
     EffectOp,
 } from "../../../cards/types";
-import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
+import {
+    EFFECT_OP_REGISTRY,
+    TARGET_INFORMATION_READS,
+} from "../../../cards/mechanicsRegistry";
 import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
 import { OP_EXECUTORS } from "../interpreter";
 import {
     SCHEMA_OP_NAMES,
+    schemaFieldNamesOf,
     validateEffectScript,
     validateAbilityEffectScript,
     validateAiEffectsScript,
@@ -9359,5 +9363,272 @@ describe("spellKickerCount — a targeted spell's kicker count (CR 702.33d)", ()
             })
         );
         expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
+// CR 608.2h (issue #2988) — an Op reading information about an announced
+// Target an earlier Op of the same script took out of the zone that read
+// consults. The interpreter can only skip the read (CR 608.2b), so the clause
+// silently never happens; the validator refuses the ordering instead.
+describe("reading an announced Target an earlier Op removed (CR 608.2h, issue #2988)", () => {
+    const loseLifeItsController: EffectOp = {
+        op: "loseLife",
+        player: { controllerOf: { target: 0 } },
+        amount: 3,
+    };
+    const destroyT0: EffectOp = { op: "destroy", target: { target: 0 } };
+    const removalError =
+        /Test Host \(test-host\): effects\[1\]: Op "loseLife" reads \{ controllerOf \} of announced Target 0 after Test Host \(test-host\): effects\[0\] \(Op "destroy"\) removed it from the battlefield/;
+
+    it("refuses remove-then-read at the top level, naming the card, both Ops and the Target", () => {
+        const errors = validateEffectScript(
+            host({ effects: [destroyT0, loseLifeItsController] })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(removalError);
+        expect(errors[0]).toMatch(/Bind a snapshot .* before the removal/);
+        expect(errors[0]).toMatch(/order this Op before the removing one/);
+    });
+
+    it("refuses a spell slot read after a counter (Undermine mis-ordered)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "counter", target: { target: 0 } },
+                    loseLifeItsController,
+                ],
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(
+            /Op "loseLife" reads \{ controllerOf \} of announced Target 0 .*\(Op "counter"\) removed it from the stack/
+        );
+    });
+
+    it("refuses the read nested under opponentOf and inside a value member", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    destroyT0,
+                    {
+                        op: "draw",
+                        player: { opponentOf: { controllerOf: { target: 0 } } },
+                        count: 1,
+                    },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { manaValue: { of: { target: 0 } } },
+                    },
+                ],
+            })
+        );
+        expect(errors).toHaveLength(2);
+        expect(errors[0]).toMatch(
+            /effects\[1\]: Op "draw" reads \{ controllerOf \}/
+        );
+        expect(errors[1]).toMatch(
+            /effects\[2\]: Op "gainLife" reads \{ manaValue \}/
+        );
+    });
+
+    it("refuses the shape inside an if branch, a forEach body and an optionChoice mode", () => {
+        const nested = (wrap: (body: EffectOp[]) => EffectOp) =>
+            validateEffectScript(
+                host({ effects: [wrap([destroyT0, loseLifeItsController])] })
+            );
+        const inIf = nested((then) => ({
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then,
+        }));
+        const inForEach = nested((effects) => ({
+            op: "forEach",
+            select: { set: "players" },
+            effects,
+        }));
+        const inMode = nested(
+            (effects) =>
+                ({
+                    op: "optionChoice",
+                    player: "controller",
+                    prompt: "Pick one.",
+                    modes: [{ label: "Do it", effects }],
+                }) as unknown as EffectOp
+        );
+        expect(inIf).toHaveLength(1);
+        expect(inIf[0]).toMatch(
+            /effects\[0\]: then\[1\]: Op "loseLife" reads \{ controllerOf \} of announced Target 0 after .*effects\[0\]: then\[0\] \(Op "destroy"\)/
+        );
+        expect(inForEach).toHaveLength(1);
+        expect(inForEach[0]).toMatch(
+            /effects\[0\]: effects\[1\]: Op "loseLife"/
+        );
+        expect(inMode).toHaveLength(1);
+        expect(inMode[0]).toMatch(/modes\[0\]\.effects\[1\]: Op "loseLife"/);
+    });
+
+    it("refuses the shape in a triggered- and an activated-ability script", () => {
+        const triggered = validateAbilityEffectScript(
+            { id: "etb", effects: [destroyT0, loseLifeItsController] },
+            "Test Host",
+            "PERMANENT_ENTERED"
+        );
+        const activated = validateAbilityEffectScript(
+            { id: "tap", effects: [destroyT0, loseLifeItsController] },
+            "Test Host"
+        );
+        for (const errors of [triggered, activated]) {
+            expect(errors).toHaveLength(1);
+            expect(errors[0]).toMatch(
+                /Op "loseLife" reads \{ controllerOf \} of announced Target 0 after .*\(Op "destroy"\)/
+            );
+        }
+    });
+
+    // Decision: a removal inside a branch runs on SOME paths, and on those
+    // paths a read past the construct silently skips — refused, worded "on
+    // some paths". A read on a path where the removal does not run (the
+    // sibling branch) is not.
+    it("refuses a read past a branch that removed the Target, never one in the sibling branch", () => {
+        const branchy = (after: EffectOp[]) =>
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { kickerCount: true },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [destroyT0],
+                            else: [loseLifeItsController],
+                        },
+                        ...after,
+                    ],
+                })
+            );
+        expect(branchy([])).toEqual([]);
+        const past = branchy([loseLifeItsController]);
+        expect(past).toHaveLength(1);
+        expect(past[0]).toMatch(
+            /effects\[1\]: Op "loseLife" reads \{ controllerOf \} of announced Target 0 after .*then\[0\] \(Op "destroy"\) removed it from the battlefield on some paths/
+        );
+    });
+
+    it("accepts the read ordered before the removal (Undermine)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        loseLifeItsController,
+                        { op: "counter", target: { target: 0 } },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a snapshot bound before the removal and read afterwards", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        { op: "destroy", target: { target: 0 }, bind: "$d" },
+                        {
+                            op: "loseLife",
+                            player: { ref: "$d.controller" },
+                            amount: 3,
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts an Op that merely acts on the already-removed Target", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        destroyT0,
+                        { op: "exile", target: { target: 0 } },
+                        { op: "dealDamage", amount: 2, to: { target: 0 } },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts the blink pattern: exile with a binding, return the bound object", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        { op: "exile", target: { target: 0 }, bind: "$b" },
+                        {
+                            op: "moveZone",
+                            target: { ref: "$b" },
+                            to: "battlefield",
+                        },
+                        {
+                            op: "draw",
+                            player: { ref: "$b.controller" },
+                            count: 1,
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a read whose zone the removal did not leave (a moveZone onto the battlefield)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                        },
+                        loseLifeItsController,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("derives the removing Ops and the reading references from the Mechanics Registry", () => {
+        const removing = EFFECT_OP_REGISTRY.filter((r) => r.removesTarget);
+        expect(removing.map((r) => r.op).sort()).toEqual(
+            [
+                "airbend",
+                "counter",
+                "destroy",
+                "exile",
+                "exileWithAttachments",
+                "moveSpellFromStack",
+                "moveZone",
+                "sacrifice",
+            ].sort()
+        );
+        // Each row's field is a real field of its Op's schema.
+        for (const row of removing) {
+            expect(schemaFieldNamesOf(row.op), row.op).toContain(
+                row.removesTarget!.field
+            );
+        }
+        expect(TARGET_INFORMATION_READS.map((r) => r.member).sort()).toEqual(
+            [
+                "controllerOf",
+                "counters",
+                "escaped",
+                "manaValue",
+                "ownerOf",
+                "spellKickerCount",
+            ].sort()
+        );
     });
 });
