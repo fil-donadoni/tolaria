@@ -637,6 +637,34 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
         ).toContainEqual(["source-or-each-subject", "card-dependent"]);
     });
 
+    it("a choice's literal { min, max } count range is op-covered, not a runtime amount", () => {
+        const choice = (count: unknown): EffectOp[] => [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Land" },
+                count,
+                prompt: "Search for up to two land cards",
+            } as EffectOp,
+        ];
+        const literal = planSmokeTest(choice({ min: 0, max: 2 }));
+        expect(literal.kind).toBe("skip");
+        if (literal.kind !== "skip") return;
+        expect(
+            literal.skips.map((s) => SMOKE_SKIP_CLASS[s.code])
+        ).not.toContain("card-dependent");
+
+        // A computed ceiling is still card-dependent, under its own reason.
+        const computed = planSmokeTest(choice({ min: 0, max: { X: true } }));
+        expect(computed.kind).toBe("skip");
+        if (computed.kind !== "skip") return;
+        expect(computed.skips.map((s) => SMOKE_SKIP_CLASS[s.code])).toContain(
+            "card-dependent"
+        );
+    });
+
     it("a delayedTrigger's $source capture is bookkeeping, not a card-dependent subject (CR 603.7)", () => {
         const plan = planSmokeTest(
             [

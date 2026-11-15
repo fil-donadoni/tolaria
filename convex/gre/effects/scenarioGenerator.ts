@@ -34,6 +34,8 @@ import type {
     ActivatedAbility,
     CardDefinition,
     EffectCardFilter,
+    EffectChoiceCount,
+    EffectChoiceCountRange,
     EffectCountSpec,
     EffectObjectSelector,
     EffectOp,
@@ -43,6 +45,7 @@ import type {
     TargetSelection,
     TriggeredAbility,
 } from "../../cards/types";
+import { isChoiceCountRange } from "../../cards/types";
 import type { CompiledTriggerHead } from "../../cards/compiledTriggers";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
@@ -732,6 +735,17 @@ function analyseOwnArguments(op: EffectOp, req: Requirements): void {
         }
         if (node === null || typeof node !== "object") return;
         if (key !== null && AMOUNT_KEYS.has(key)) {
+            // A `choice` count's optional `{ min, max }` range is not itself
+            // an amount: `min` is always a literal and only `max` may be
+            // computed. Read the ceiling back as the amount — a literal one
+            // sizes nothing; a computed one keeps its own named reason.
+            if (
+                op.op === "choice" &&
+                isChoiceCountRange(node as EffectChoiceCount)
+            ) {
+                walk((node as EffectChoiceCountRange).max, key);
+                return;
+            }
             // Fail-closed: a non-numeric amount is card-dependent whatever
             // its shape. `analyseValue` names the reason when it knows the
             // value; an object it does not know (it may throw on one — it is
