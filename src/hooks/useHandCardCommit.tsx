@@ -592,18 +592,16 @@ export function useHandCardCommit(
             // itself in `affordableAlts` (`castOptionAlternativeCosts` emits
             // it), so its presence is what distinguishes the two cases.
             //
-            // What it does NOT distinguish is a card where BOTH are true — a
-            // split card under a covering permission. Unreachable by
-            // construction today (the only shipped permission, Aluren, covers
-            // creature spells, and a split card with a creature half has a
-            // PERMANENT face, which is CR 709.5 and out of scope) and
-            // unmodelled if one ever ships: CR 118.9a allows one alternative
-            // cost per spell, and a permission that waives the cost carries
-            // no way to say WHICH half was announced. `announceCast` refuses
-            // such an announcement either way, so this fails closed rather
-            // than wrong. tracked-by: #3345
+            // A SPLIT card under a covering permission is the one card where
+            // BOTH are true, and the filter stays off for it: the permission's
+            // rows there are per HALF (CR 709.3, `castPermissionAltCosts` —
+            // each id names the half it casts free), so the paid halves beside
+            // them are the half-choice menu, not a forbidden printed cost.
+            // `printedCostCastUnavailable` cannot say which half a permission
+            // alone licenses; `announceCast` asks that per half (CR 709.3a).
             const permissionRestricted =
                 !printedCostAvailable &&
+                !halfChoiceOwed &&
                 affordableAlts.some((alt) => isCastPermissionAltCostId(alt.id));
             const options = permissionRestricted
                 ? affordableAlts.filter((alt) =>

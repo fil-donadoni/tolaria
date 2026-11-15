@@ -148,7 +148,10 @@ import {
     applySourceDirectives,
     abilityTargetRequirement,
 } from "./rules";
-import { castPermissionAltCosts } from "./castPermissions";
+import {
+    castPermissionAltCosts,
+    isCastPermissionAltCostId,
+} from "./castPermissions";
 // issue #2283 — the origin classification that decides whether a live
 // `pendingTarget` is the bot's own half-built announcement (hands off) or a
 // selection the engine raised at it (must answer).
@@ -259,6 +262,7 @@ import {
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
+    isFaceChoiceCastId,
     ridesManaCostReplacement,
 } from "./castMode";
 import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
@@ -3417,21 +3421,15 @@ export function enumerateCastMoves(
     // groups are all the machinery the printed branch already has, never a
     // parallel copy that can drift (the `lifeInsteadOfMana` precedent).
     //
-    // CR 709.3 / 118.9a (ADR 0121) — a SPLIT card is skipped here entirely.
-    // The rewrite below stamps the PERMISSION's id onto every Move the
-    // re-entered builder produced, and for a split card those are the two
-    // half casts: the result names a permission cast with no way to say WHICH
-    // half, which `announceCast` refuses — the #2283/#2284 freeze shape.
-    // Unreachable today (Aluren covers creature spells; a split card with a
-    // creature half has a permanent face, CR 709.5, out of scope) and
-    // unmodelled if one ever ships. tracked-by: #3345
-    const permissionMoves = (
-        offersPrintedCast(
-            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
-                undefined
-        )
-            ? castPermissionAltCosts(state, player.id, card, castFromZone)
-            : []
+    // CR 709.3 / 118.9a (ADR 0121) — for a SPLIT card each alternative is ONE
+    // half's free cast (`castPermissionAltCosts` carries the half in its id),
+    // and the re-entered builder enumerates exactly that half: its own
+    // targets, no mana. A bare permission id would name neither half.
+    const permissionMoves = castPermissionAltCosts(
+        state,
+        player.id,
+        card,
+        castFromZone
     ).flatMap((alt) =>
         enumerateCastMovesFromZone(state, player, card, {
             ...opts,
@@ -3445,12 +3443,14 @@ export function enumerateCastMoves(
     // a paid announcement outright). Enumerating the printed-cost variants here
     // would hand the executor a Move the mutation refuses — the #2283/#2284
     // bot-freeze class — so they are dropped, not merely deprioritised.
-    const permissionRequired = castPermissionRequiredFor(
-        state,
-        player.id,
-        card,
-        castFromZone
-    );
+    //
+    // CR 709.3a — a split card has no printed cast to ask this of: each half
+    // answers for itself in the independent-options loop.
+    const permissionRequired =
+        offersPrintedCast(
+            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
+                undefined
+        ) && castPermissionRequiredFor(state, player.id, card, castFromZone);
     const printedMoves = permissionRequired
         ? []
         : enumerateCastMovesFromZone(state, player, card, opts);
@@ -5027,9 +5027,12 @@ function enumerateCastMovesFromZone(
         : // CR 601.2b — "a player can't apply two alternative methods of
           // casting or two alternative costs to a single spell": an Adventure
           // never rides on a chosen alternative cost (issue #4900). A split
-          // card never gets here with one — it offers no printed cast for an
-          // alternative to replace (`offersPrintedCast`).
-          []) {
+          // card gets here with one only as a board permission's free cast of
+          // ONE half (CR 709.3), whose id names that half: choosing a half is
+          // no alternative cost, so it is the one option this pass walks.
+          isFaceChoiceCastId(def ?? undefined, chosenAltCost.id)
+          ? [chosenAltCost]
+          : []) {
         // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
         // alternative methods of casting … to a single spell", and a cast off
         // a permission that REPLACES the mana cost with life (Bolas's Citadel)
@@ -5060,6 +5063,22 @@ function enumerateCastMovesFromZone(
                   )
                 : lifeInsteadOfMana !== undefined &&
                   !ridesManaCostReplacement(def ?? undefined, alt.id)
+        ) {
+            continue;
+        }
+        // CR 601.3c / 118.9b, per half (CR 709.3a) — a half that only a board
+        // permission licenses right now is cast under it or not at all, so its
+        // paid announcement is a Move `announceCast` refuses. The free one
+        // rides its own id and passes.
+        if (
+            !isCastPermissionAltCostId(alt.id) &&
+            castPermissionRequiredFor(
+                state,
+                player.id,
+                card,
+                castFromZone,
+                alt.id
+            )
         ) {
             continue;
         }

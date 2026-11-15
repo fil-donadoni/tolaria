@@ -236,5 +236,26 @@ Fuse line off each face onto the card and refuses only halves that cannot be
 merged positionally (`fusedSplitShapeRefusal`). The out-of-scope bullet above
 is superseded.
 
+## Amendment II (issue #3345) — a free-cast permission carries the half
+
+CR 118.9a allows one alternative cost per spell, and the half choice already
+rides the one `alternativeCostId` channel, so a board permission that waives the
+mana cost (an Aluren covering a noncreature half) had no way to say which half
+it cast. The permission's id now carries it:
+`cast-permission:<permission id>@split-left:<parent>` (`gre/castPermissionAltCostId.ts`).
+
+- **One string, two readers.** A reader asking "is this a permission cast?"
+  matches the prefix as before; a face reader (`isSplitCastId`, the
+  `CAST_MODE_CENSUS` lookup) reads the face component, so the subject, the
+  stamp and the CR 709.4 revert are the paid half's.
+- **Per half, never per card** (CR 709.3a). A card with no printed cast gets
+  one free option per half the permission covers, judged on that half; the
+  bare permission id, which names neither half, is never offered.
+  `castPermissionRequiredFor` asks the announced subject too, so a half only
+  the permission licenses is refused its paid announcement.
+- **Unreached by a shipped card.** Aluren covers creature spells and
+  Dracogenesis Dragon spells; no shipped split half is either. The modal back
+  face and the Adventure under such a permission stay without a free option.
+
 [adr-0041]: 0041-worklist-driven-cross-set-card-implementation.md
 [adr-0120]: 0120-inset-spell-is-a-registered-twin-definition.md
