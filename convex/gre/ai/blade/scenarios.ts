@@ -29069,16 +29069,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 4000 },
-            note: "Issue #9796. Chosen 0/5 at 400, 1200 and 4000 iterations, every pick settled by `announcement-variant`: the two targets are outcome-equal (reward 0.75 each) and `meanMargin` already favours the attacker that stays, but `castVariantScore` ranks the variants by a 1-ply resolved margin, in which the counters on Ball Lightning read as permanent. The evaluation has no notion of a body leaving at the next end step.",
-        },
+        tier: "must",
         expect: {
             moves: [{ kind: "submit-target", target: "Grizzly Bears" }],
         },
-        note: "Issue #9694, CR 603.3d / 107.14. The attack trigger's target is chosen as it goes on the stack. Ball Lightning is sacrificed at the end step: the two +1/+1 counters and the flying counter on it are gone tonight, on the Grizzly Bears they stay.",
+        note: "Issue #9694, CR 603.3d / 107.14. The attack trigger's target is chosen as it goes on the stack. Ball Lightning is sacrificed at the end step: the two +1/+1 counters and the flying counter on it are gone tonight, on the Grizzly Bears they stay. Issue #9796: the evaluation values a body leaving at an end step as its printed body inside its combat window and nothing after (`scheduledEndStepDeparture`), so the resolved margin of the Ball Lightning variant no longer credits the counters.",
     },
     {
         label: "energy: Guide of Souls never grows the attacker sacrificed at end step",
@@ -29113,12 +29108,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 4000 },
-            note: "Issue #9796. Chosen 0/5 at 400, 1200 and 4000 iterations, every pick settled by `announcement-variant`: the two targets are outcome-equal (reward 0.75 each) and `meanMargin` already favours the attacker that stays, but `castVariantScore` ranks the variants by a 1-ply resolved margin, in which the counters on Ball Lightning read as permanent. The evaluation has no notion of a body leaving at the next end step.",
-        },
+        tier: "must",
         expect: {
             forbidden: [{ kind: "submit-target", target: "Ball Lightning" }],
         },

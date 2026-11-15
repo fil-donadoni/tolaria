@@ -153,10 +153,7 @@ export const ballLightning = defineCard(() => ({
                 "At the beginning of the end step, sacrifice this creature.",
             phase: "END_STEP",
             scope: "each",
-            // NOT DSL-migratable (ADR 0045): sacrifices the source itself; the
-            // sacrifice Op only sacrifices a choice-picked set, and this is a
-            // factory-built trigger with no `effects[]` site. Stays resolve().
-            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 }));

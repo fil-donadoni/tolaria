@@ -68,6 +68,7 @@ import {
     isDeferrableStackAbility,
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
+import { scheduledEndStepDeparture } from "./ai/doomedEntry";
 import {
     asEventualCreature,
     isCounterClockCreature,
@@ -1988,6 +1989,65 @@ function revertedShape(perm: CardInstanceState): CardInstanceState {
     return shape;
 }
 
+/** A creature's realized worth on the board: its `evaluateCreature` body,
+ *  unless it is scheduled to leave at an end step (`scheduledEndStepDeparture`,
+ *  CR 513.1a). Such a body is worth only what it does before then:
+ *
+ *   - nothing once it can no longer fight before this turn's end step
+ *     (`expiringBodyHasCombatUse`, the window an expiring animation reads);
+ *   - inside that window, its printed body and nothing added to it
+ *     (`departingBodyAdditions`): counters, grants and anthems leave with it,
+ *     so they are not lasting material, exactly as an until-end-of-turn buff
+ *     is not (ADR 0020 §2). What they add to this combat is credited when its
+ *     damage lands.
+ *
+ *  Without it an 8/3 flying Ball Lightning outvalued a 4/4 flying Grizzly
+ *  Bears as the target of the same counters, though the first is gone tonight. */
+function boardCreatureWorth(
+    state: GameState,
+    perm: CardInstanceState,
+    weights: EvalWeights,
+    pass: Layer7Pass
+): number {
+    const body = evaluateCreature(state, perm, weights.latent, pass, weights);
+    const departure = scheduledEndStepDeparture(state, perm);
+    if (departure === undefined) return body;
+    if (departure === "this-turn" && !expiringBodyHasCombatUse(state, perm)) {
+        return 0;
+    }
+    return body - departingBodyAdditions(state, perm, pass);
+}
+
+/** What `creatureValueRaw` credits a body for beyond its printed
+ *  characteristics (base P/T, the layer-6 base keyword line): its lasting
+ *  P/T modifications (CR 613.4c) and the keywords granted to it. Never
+ *  negative: a body shrunk below its printed shape keeps the lower value
+ *  `evaluateCreature` gave it. */
+function departingBodyAdditions(
+    state: GameState,
+    perm: CardInstanceState,
+    pass: Layer7Pass
+): number {
+    const pt = getEffectivePT(state, perm, { includeTemporary: false, pass });
+    const mv = manaValue(getInstanceManaCost(perm));
+    const counters = perm.counters ?? {};
+    const now = creatureValueRaw(
+        Math.max(0, pt.power),
+        Math.max(0, pt.toughness),
+        mv,
+        perm.staticAbilities,
+        counters
+    );
+    const printed = creatureValueRaw(
+        Math.max(0, perm.power ?? 0),
+        Math.max(0, perm.toughness ?? 0),
+        mv,
+        perm.baseStaticAbilities ?? perm.staticAbilities,
+        counters
+    );
+    return Math.max(0, now - printed);
+}
+
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
  *  destruction takes away (issue #3398):
@@ -2022,7 +2082,7 @@ export function permanentRealisedValue(
 ): number {
     let total = weights.permanentWeight;
     if (isCreature(perm)) {
-        total += evaluateCreature(state, perm, weights.latent, pass, weights);
+        total += boardCreatureWorth(state, perm, weights, pass);
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
     } else {
@@ -2281,13 +2341,7 @@ function playerTerms(
         // (`costModifierStandingWorth`), read once here and by the lens.
         terms.permanents += costModifierStandingWorth(state, perm, weights);
         if (fightsAsCreatureBody(state, perm)) {
-            terms.creatures += evaluateCreature(
-                state,
-                perm,
-                weights.latent,
-                pass,
-                weights
-            );
+            terms.creatures += boardCreatureWorth(state, perm, weights, pass);
         } else {
             // Non-creature, non-land beneficial permanents (a static buff
             // Enchantment like Castle, a card-advantage Artifact like Jayemdae
