@@ -24,7 +24,6 @@ import { bolassCitadel } from "../cards/sets/war/black.cards";
 import { fireball, lightningBolt } from "../cards/sets/lea/red.cards";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { island, mountain } from "../cards/sets/lea/colorless.cards";
-import { gush } from "../cards/sets/mmq/blue.cards";
 import {
     makeInstance,
     makePlayer,
@@ -38,6 +37,10 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -5,60 +5,6 @@
 import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-// Gush — "You may return two Islands you control to their owner's hand rather
-// than pay this spell's mana cost. Draw two cards." (CR 118.9 alternative cost;
-// CR 120.1 / draw.) The alternative cost is a censusless rules concept (no
-// keyword name); the resolution effect is a single already-censused `draw` Op.
-export const gush = defineCard(() => ({
-    id: "e755bbef-bf34-49c0-ae72-d70e3599de52", // MMQ 82
-    rarity: "common",
-    name: "Gush",
-    oracleText:
-        "You may return two Islands you control to their owner's hand rather than pay this spell's mana cost.\nDraw two cards.",
-    manaCost: { X: 4, U: 1 },
-    types: ["Instant"],
-    alternativeCosts: [
-        {
-            id: "return-two-islands",
-            description: "Return two Islands you control to their owner's hand",
-            permanent: {
-                action: "return",
-                count: 2,
-                filter: { subtypes: "Island" },
-            },
-        },
-    ],
-    effects: [{ op: "draw", player: "controller", count: 2 }],
-}));
-
-// Thwart — "You may return three Islands you control to their owner's hand
-// rather than pay this spell's mana cost. Counter target spell." (CR 118.9
-// alternative cost; CR 701.6a counter.) The resolution effect is a single
-// already-censused `counter` Op.
-export const thwart = defineCard(() => ({
-    id: "c12a0717-e9ea-4be3-a29f-179671ed4489", // MMQ 108
-    rarity: "uncommon",
-    name: "Thwart",
-    oracleText:
-        "You may return three Islands you control to their owner's hand rather than pay this spell's mana cost.\nCounter target spell.",
-    manaCost: { X: 2, U: 2 },
-    types: ["Instant"],
-    targetRequirement: { type: "spell", count: 1 },
-    alternativeCosts: [
-        {
-            id: "return-three-islands",
-            description:
-                "Return three Islands you control to their owner's hand",
-            permanent: {
-                action: "return",
-                count: 3,
-                filter: { subtypes: "Island" },
-            },
-        },
-    ],
-    effects: [{ op: "counter", target: { target: 0 } }],
-}));
-
 // Rishadan Cutpurse — {2}{U} 1/1 Human Pirate. "When this creature enters, each
 // opponent sacrifices a permanent of their choice unless they pay {1}." The
 // punisher shape: the opponent's cost-bearing `mayPay` (CR 118.12a — "unless"

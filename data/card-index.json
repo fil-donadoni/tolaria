@@ -19057,7 +19057,9 @@
         "oracleId": "70486bee-6ee7-41ea-b834-8caf4699302b",
         "firstSet": "nem",
         "firstPrintId": "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
-        "firstPrintSet": "nem"
+        "firstPrintSet": "nem",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dazzling Angel",
@@ -29037,7 +29039,9 @@
         "oracleId": "9dd7f27a-e862-47d7-9158-034cf4d353b8",
         "firstSet": "vis",
         "firstPrintId": "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
-        "firstPrintSet": "vis"
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Firebolt",
@@ -30259,7 +30263,9 @@
         "oracleId": "7dde4eb6-e9d7-4259-abc2-3af738e0f00f",
         "firstSet": "pcy",
         "firstPrintId": "870fb793-3107-4cb2-ba78-34fbf5c9da2f",
-        "firstPrintSet": "pcy"
+        "firstPrintSet": "pcy",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Folk Medicine",
@@ -36845,7 +36851,9 @@
         "oracleId": "16d8ee99-8ec8-429f-9ba7-818a74b6f910",
         "firstSet": "mmq",
         "firstPrintId": "e755bbef-bf34-49c0-ae72-d70e3599de52",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Gust-Skimmer",
@@ -62462,7 +62470,9 @@
         "oracleId": "d001febc-d511-4e65-a631-91dc9415056b",
         "firstSet": "all",
         "firstPrintId": "db2a5e85-6cbc-43c1-9362-4056ad017ef0",
-        "firstPrintSet": "all"
+        "firstPrintSet": "all",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Pyromancer's Assault",
@@ -85463,7 +85473,9 @@
         "oracleId": "615a149a-2869-4b18-bbbe-9ec1825049d7",
         "firstSet": "mmq",
         "firstPrintId": "c12a0717-e9ea-4be3-a29f-179671ed4489",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Tiamat's Fanatics",
