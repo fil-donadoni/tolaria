@@ -1038,33 +1038,6 @@ export const recover = defineCard(() => ({
         { op: "draw", player: "controller", count: 1 },
     ],
 }));
-
-// Scavenged Weaponry — {2}{B} Aura. "Enchant creature. When this Aura
-// enters, draw a card. Enchanted creature gets +1/+1." (CR 603.6a ETB, CR
-// 613.4c pt-buff.)
-export const scavengedWeaponry = defineCard(() => ({
-    id: "4e8072a9-2699-4c6c-9556-67d91bd67a4b", // INV 123
-    rarity: "common",
-    name: "Scavenged Weaponry",
-    oracleText:
-        "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+1.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "scavenged-weaponry-etb",
-            oracleText: "When this Aura enters, draw a card.",
-            scope: "self",
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        }),
-    ],
-    staticEffects: [
-        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 1 },
-    ],
-}));
-
 // Spreading Plague — {4}{B} Enchantment. "Whenever a creature enters,
 // destroy all other creatures that share a color with it. They can't be
 // regenerated." (CR 603.6a ETB — watching ANY creature, CR 701.8 destroy,

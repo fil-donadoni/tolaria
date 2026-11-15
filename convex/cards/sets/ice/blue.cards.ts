@@ -320,35 +320,6 @@ export const balduvianShaman = defineCard(() => ({
         }),
     ],
 }));
-// Binding Grasp — Aura granting control of the enchanted creature (CR 613.1b,
-// layer 2 control-change) plus a static +0/+1 (layer 7c) and an upkeep
-// pay-{1}{U}-or-sacrifice tax (CR 603.6a / 117.3a). The Control-Magic shape
-// with an upkeep cost rider.
-export const bindingGrasp = defineCard(() => ({
-    id: "6b086186-5fbf-4ba7-af0d-ee3ad61d27bb",
-    name: "Binding Grasp",
-    rarity: "uncommon",
-    oracleText:
-        "Enchant creature\nAt the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.\nYou control enchanted creature.\nEnchanted creature gets +0/+1.",
-    manaCost: { X: 3, U: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    staticEffects: [
-        { kind: "control-change", applies: AURA_AFFECTS_HOST },
-        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 0, toughness: 1 },
-    ],
-    triggeredAbilities: [
-        makeUpkeepPayOrElse({
-            id: "binding-grasp-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.",
-            cost: { X: 1, U: 1 },
-            prompt: "Pay {1}{U} to keep Binding Grasp?",
-            onDeclineEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
-        }),
-    ],
-}));
 // Brainstorm — "Draw three cards, then put two cards from your hand on top of
 // your library in any order." (CR 121.1 draw, CR 401.4 library top.) DSL
 // script (issue #1046): `draw` 3 then `putBack` 2 — `putBack` raises a
