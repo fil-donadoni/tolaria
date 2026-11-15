@@ -650,6 +650,13 @@ export function lowerTriggeredAbility(input: {
         input.effects.some(
             (e) => e.kind === "exchange-control" && e.resolvesIfTargetIllegal
         );
+    // CR 504.1 — "at the beginning of your draw step" fires after the
+    // turn-based draw, the draw a body's "additional cards" are counted from.
+    const ownDrawStep =
+        input.head.kind === "phase" &&
+        input.head.phase === "DRAW" &&
+        input.head.scope === "your" &&
+        input.head.phases === undefined;
     const walk = new SentenceWalk(
         new TargetSlots(anotherExcludesSource(input.head))
     );
@@ -660,6 +667,7 @@ export function lowerTriggeredAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             functionsFromGraveyard: fromGraveyard,
+            ...(ownDrawStep ? { ownDrawStep: true as const } : {}),
             ...(resolvesIfTargetsIllegal
                 ? { resolvesIfTargetsIllegal: true as const }
                 : {}),
