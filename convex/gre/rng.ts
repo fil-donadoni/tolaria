@@ -72,3 +72,28 @@ export function shuffleWithRng<T>(items: readonly T[], rng: () => number): T[] {
     }
     return copy;
 }
+
+/** Draw `k` items uniformly without replacement, in a uniform random order:
+ *  a PARTIAL Fisher–Yates that runs only the `min(k, n)` steps it needs, so the
+ *  cost scales with the draw, not with `items.length`. Shuffles `items` IN
+ *  PLACE (the caller must own it) and returns the drawn tail.
+ *
+ *  The steps are exactly `shuffleWithRng`'s, top index first, so the two agree
+ *  wherever they overlap: for `k >= n` this returns the very array
+ *  `shuffleWithRng(items, rng)` would, after consuming the same `rng` calls.
+ *  For `k < n` the last `k` positions are the ones the loop has finalised —
+ *  each step picks uniformly among the items not yet drawn — and `rng` is
+ *  called `k` times instead of `n - 1`. */
+export function sampleWithRng<T>(
+    items: T[],
+    k: number,
+    rng: () => number
+): T[] {
+    const n = items.length;
+    const steps = Math.min(Math.max(k, 0), n);
+    for (let i = n - 1; i >= n - steps && i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+    }
+    return steps === n ? items : items.slice(n - steps);
+}
