@@ -3316,6 +3316,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Grant a player additional land plays for the rest of this turn (CR 305.2 / 514.2, issue #7220 — Explore: "You may play an additional land this turn"). A thin declarative skin over the single SpellContext primitive `grantExtraLandDrops`, one execution path (ADR 0045): `player` names the grantee, `count` (a positive integer) how many more plays. Appends an entry to `state.extraLandDropsThisTurn`, read by the ONE land-drop counter `getExtraLandDrops` (`gre/rules.ts`) beside the battlefield `extraLandDrops` static (Exploration, Fastbond) — so `getLegalActions`, the during-resolution land play and the Bot\'s move enumeration inherit it with no per-site wiring. The floating twin of that static: it outlives the spell that granted it and ends at CLEANUP (CR 514.2). Additive — two grants are two plays. Does NOT lift `restrictLandPlay` (CR 101.2: the "can\'t" wins) and does not put a land onto the battlefield (CR 305.4).',
     },
     {
+        op: "grantOutsideGamePlays",
+        status: "implemented",
+        cr: "400.11b",
+        binding: "SpellContext.grantOutsideGamePlays",
+        note: 'Grant a player plays of a card they own from outside the game for the rest of this turn (CR 400.11b / 514.2, issue #9473 — Wish: "You may play a card you own from outside the game this turn"). A thin declarative skin over the single SpellContext primitive `grantOutsideGamePlays`, one execution path (ADR 0045): `player` names the grantee, `count` (a positive integer) how many plays. Accumulates on `state.outsideGamePlaysThisTurn`, read through `outsideGamePlaysRemaining` by every cast and land-play site (`getLegalActions`, the cast-source locator, the land-play resolver, the Bot\'s move enumeration — issue #9725) and spent one per play. Names no card: the player picks one from their outside-the-game pool when they play it, under normal timing and cost. Additive; cleared at CLEANUP (CR 514.2). Does NOT move the card into hand or reveal it (`bringFromOutsideGame` does both): an unplayed card stays outside the game.',
+    },
+    {
         op: "skipDrawStepThisTurn",
         status: "implemented",
         cr: "504.1, 500.8",

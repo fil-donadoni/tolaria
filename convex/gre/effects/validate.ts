@@ -4594,6 +4594,16 @@ const OP_SCHEMAS: OpSchemaTable = {
                 typeof v === "number" && Number.isInteger(v) && v >= 1,
         },
     },
+    // CR 400.11b (issue #9473) — turn-scoped plays from outside the game.
+    // `count` is a positive integer: zero grants nothing, so it would
+    // validate an inert script.
+    grantOutsideGamePlays: {
+        required: {
+            player: isPlayerRef,
+            count: (v: unknown) =>
+                typeof v === "number" && Number.isInteger(v) && v >= 1,
+        },
+    },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot per-player
     // "skip your draw step this turn" flag. `player` names whose draw step
     // to skip.

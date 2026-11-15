@@ -1,7 +1,9 @@
 /**
  * What the Bot-play sweep puts OUTSIDE THE GAME for a card that brings a card
  * in from there (CR 400.11b — the Wish cards: "You may reveal a sorcery card
- * you own from outside the game and put it into your hand").
+ * you own from outside the game and put it into your hand") or lets its
+ * controller play one from there (Wish: "You may play a card you own from
+ * outside the game this turn", issue #9473).
  *
  * A generated position has no sideboard, so the wish finds nothing and the
  * spell pays its mana to exile itself: passing is right, and the card read
@@ -23,7 +25,9 @@ import type { CardDefinition, EffectCardFilter } from "../../cards/types";
 const OUTSIDE_GAME_CANDIDATES = ["Mind Twist", "Craw Wurm"] as const;
 
 /** The filter of the controller's `bringFromOutsideGame` Op at any depth —
- *  `null` for a filterless one, `undefined` when the script has none. */
+ *  `null` for a filterless one (and for `grantOutsideGamePlays`, which names
+ *  no card: any card of the pool may be played), `undefined` when the script
+ *  has neither. */
 function outsideGameFilter(node: unknown): EffectCardFilter | null | undefined {
     if (Array.isArray(node)) {
         for (const child of node) {
@@ -36,6 +40,8 @@ function outsideGameFilter(node: unknown): EffectCardFilter | null | undefined {
     const rec = node as Record<string, unknown>;
     if (rec.op === "bringFromOutsideGame" && rec.player === "controller")
         return (rec.filter as EffectCardFilter | undefined) ?? null;
+    if (rec.op === "grantOutsideGamePlays" && rec.player === "controller")
+        return null;
     for (const child of Object.values(rec)) {
         const found = outsideGameFilter(child);
         if (found !== undefined) return found;

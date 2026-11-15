@@ -3988,6 +3988,14 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.grantExtraLandDrops(playerId, op.count);
     },
+    // CR 400.11b / 514.2 (issue #9473) — grant turn-scoped plays of a card
+    // the player owns from outside the game (Wish). Skipped when the player
+    // is gone.
+    grantOutsideGamePlays(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantOutsideGamePlays(playerId, op.count);
+    },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — arm a one-shot "skip your
     // draw step this turn" flag on `player`, consumed the next time
     // `drawStep` (`gre/phases.ts`) reaches them. Skipped when the player is

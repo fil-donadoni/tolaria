@@ -55,6 +55,11 @@
  *                 pick, the reveal and the move, because outside the game is
  *                 not a zone (CR 400.11) and no `choice`/`moveZone` pair can
  *                 name it. It produces no referent for a later frame.
+ *  - `grantOutsideGamePlays` — "You may play a card you own from outside the
+ *                 game this turn" (Wish, CR 400.11b + CR 514.2), by exact
+ *                 spelling: a turn-scoped play permission over the
+ *                 controller's outside-the-game pool, naming no card. No
+ *                 reveal, no move: the card stays outside until played.
  *  - `gainControlOfSpell` — "Gain control of target spell" and "… target
  *                 noncreature spell" (CR 112.2), by exact spelling: the narrowed
  *                 phrase is a facet beside `type: "spell"`, so only the phrases
@@ -462,6 +467,16 @@ export type FrameIR =
            * whole spelling and stay refused.
            */
           readonly frame: "grantExtraLandDrops";
+      }
+    | {
+          /**
+           * CR 400.11b + CR 514.2 — "you may play a card you own from outside
+           * the game this turn": one play of a card from the controller's
+           * outside-the-game pool until the turn ends. Another player, a
+           * count or a narrowed card type differ from the frame's whole
+           * spelling and stay refused.
+           */
+          readonly frame: "grantOutsideGamePlays";
       }
     | {
           /**
@@ -942,6 +957,10 @@ export const VERB_FRAMES: readonly {
     {
         name: "grantExtraLandDrops",
         opens: /^you may play an additional land this turn$/i,
+    },
+    {
+        name: "grantOutsideGamePlays",
+        opens: /^you may play a card you own from outside the game this turn$/i,
     },
     {
         name: "grantCastTiming",
@@ -2466,6 +2485,8 @@ function readMember(
         return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
     if (opensFrame("grantExtraLandDrops", lower))
         return { frames: [{ frame: "grantExtraLandDrops" }], referent };
+    if (opensFrame("grantOutsideGamePlays", lower))
+        return { frames: [{ frame: "grantOutsideGamePlays" }], referent };
     if (opensFrame("grantCastTiming", lower))
         return {
             frames: [{ frame: "grantCastTiming", cardType: "Sorcery" }],
