@@ -7,7 +7,6 @@
 // cost) live in colorless.ts.
 
 import { defineCard, type SpellContext } from "../../types";
-import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 export const dancingScimitar = defineCard(() => ({
     id: "1eb2e494-1414-4d1f-91d2-7cb20acdb128",
@@ -43,53 +42,6 @@ export const jandorsRing = defineCard(() => ({
             useStack: true,
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
-    ],
-}));
-
-export const brassMan = defineCard(() => ({
-    id: "1a364362-e42b-415c-9d95-b6ec7139f5e7",
-    rarity: "uncommon",
-    name: "Brass Man",
-    oracleText:
-        "Brass Man doesn't untap during your untap step.\nAt the beginning of your upkeep, you may pay {1}. If you do, untap Brass Man.",
-    manaCost: { X: 1 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Construct"],
-    power: 1,
-    toughness: 3,
-    // `does-not-untap` keyword skips the untap step for this permanent only.
-    staticAbilities: ["does-not-untap"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "brass-man-untap-option",
-            oracleText:
-                "At the beginning of your upkeep, you may pay {1}. If you do, untap Brass Man.",
-            phase: "UPKEEP",
-            scope: "your",
-            // Migrated resolve()→effects[] (ADR 0045, #842): may pay {1}; if
-            // paid, untap the source (CR 117.3a, 701.26b). A `your`-scoped
-            // phaseTrigger so the scoped player == controller.
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    cost: { X: 1 },
-                    prompt: "Pay {1} to untap Brass Man?",
-                    bind: "$paid",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$paid" },
-                    then: [
-                        {
-                            op: "tapUntap",
-                            action: "untap",
-                            target: { ref: "$source" },
-                        },
-                    ],
-                },
-            ],
-        }),
     ],
 }));
 
