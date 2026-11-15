@@ -8,7 +8,6 @@
 // capability cluster (#1066) ships its two gold cards here.
 
 import type {
-    ActivatedAbilityContext,
     Color,
     EffectOp,
     PermanentView,
@@ -1250,29 +1249,6 @@ export const smolderingTar = defineCard(() => ({
     ],
 }));
 
-// Urborg Volcano — Land. "This land enters tapped. {T}: Add {B} or {R}."
-// (CR 110.5b enters tapped; CR 605.1a choice-of-color mana ability — same
-// `manaChoices` shape as Bloodstone Cameo, this same file.)
-export const urborgVolcano = defineCard(() => ({
-    id: "c76f346c-ae34-4f5f-8e3b-6c77b0c4d530",
-    rarity: "uncommon",
-    name: "Urborg Volcano",
-    oracleText: "This land enters tapped.\n{T}: Add {B} or {R}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "urborg-volcano-tap",
-            oracleText: "{T}: Add {B} or {R}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
-            manaChoices: [{ B: 1 }, { R: 1 }],
-        },
-    ],
-}));
-
 // Vicious Kavu — {1}{B}{R} Creature — Kavu, 2/2. "Whenever this creature
 // attacks, it gets +2/+0 until end of turn." (CR 508.1 attack declaration +
 // CR 613.4c until-end-of-turn pump — the exact Rogue Kavu (`inv/red.ts`)
@@ -1911,30 +1887,6 @@ export const savageOffensive = defineCard(() => ({
                     ],
                 },
             ],
-        },
-    ],
-}));
-
-// Shivan Oasis — Land. "This land enters tapped. {T}: Add {R} or {G}."
-// (CR 110.5b enters tapped + CR 605.1a choice-of-color mana ability — the
-// exact Urborg Volcano shape, this file's BR tranche, colours swapped to
-// R/G.)
-export const shivanOasis = defineCard(() => ({
-    id: "9841f7e8-162c-44a3-96f3-af944fce15d1",
-    rarity: "uncommon",
-    name: "Shivan Oasis",
-    oracleText: "This land enters tapped.\n{T}: Add {R} or {G}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "shivan-oasis-tap",
-            oracleText: "{T}: Add {R} or {G}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
-            manaChoices: [{ R: 1 }, { G: 1 }],
         },
     ],
 }));
@@ -2949,163 +2901,6 @@ export const darigaaz = defineCard(() => ({
                     ],
                 },
             ],
-        },
-    ],
-}));
-
-// The five tri-lands — Land. "This land enters tapped. {T}: Add <its own
-// colour>. {T}, Sacrifice this land: Add <the other two colours of its
-// paired dragon>." (CR 110.5b enters tapped; CR 605.1a two chained mana
-// abilities — the first the plain Urborg Volcano/Shivan Oasis shape (this
-// file) minus the choice, the second the Coal Golem sacrifice-for-mana
-// shape, `drk/colorless.cards.ts`, with a {T} rider added alongside the
-// sacrifice, generalized from one fixed colour to two.)
-export const ancientSpring = defineCard(() => ({
-    id: "004eefa4-947b-45fc-b45c-5263bfd763bc",
-    rarity: "common",
-    name: "Ancient Spring",
-    oracleText:
-        "This land enters tapped.\n{T}: Add {U}.\n{T}, Sacrifice this land: Add {W}{B}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "ancient-spring-tap",
-            oracleText: "{T}: Add {U}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ U: 1 }),
-            manaProduced: { U: 1 },
-        },
-        {
-            id: "ancient-spring-sacrifice-mana",
-            oracleText: "{T}, Sacrifice this land: Add {W}{B}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ W: 1, B: 1 }),
-            manaProduced: { W: 1, B: 1 },
-        },
-    ],
-}));
-
-export const geothermalCrevice = defineCard(() => ({
-    id: "e744b593-13fe-4967-b492-ac02f5815e57",
-    rarity: "common",
-    name: "Geothermal Crevice",
-    oracleText:
-        "This land enters tapped.\n{T}: Add {R}.\n{T}, Sacrifice this land: Add {B}{G}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "geothermal-crevice-tap",
-            oracleText: "{T}: Add {R}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
-            manaProduced: { R: 1 },
-        },
-        {
-            id: "geothermal-crevice-sacrifice-mana",
-            oracleText: "{T}, Sacrifice this land: Add {B}{G}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ B: 1, G: 1 }),
-            manaProduced: { B: 1, G: 1 },
-        },
-    ],
-}));
-
-export const irrigationDitch = defineCard(() => ({
-    id: "977f1b44-166c-4faf-8a7b-d431707e90ce",
-    rarity: "common",
-    name: "Irrigation Ditch",
-    oracleText:
-        "This land enters tapped.\n{T}: Add {W}.\n{T}, Sacrifice this land: Add {G}{U}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "irrigation-ditch-tap",
-            oracleText: "{T}: Add {W}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
-            manaProduced: { W: 1 },
-        },
-        {
-            id: "irrigation-ditch-sacrifice-mana",
-            oracleText: "{T}, Sacrifice this land: Add {G}{U}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ G: 1, U: 1 }),
-            manaProduced: { G: 1, U: 1 },
-        },
-    ],
-}));
-
-export const sulfurVent = defineCard(() => ({
-    id: "22c66ed6-55fb-4c65-aac4-26d9cc3053b8",
-    rarity: "common",
-    name: "Sulfur Vent",
-    oracleText:
-        "This land enters tapped.\n{T}: Add {B}.\n{T}, Sacrifice this land: Add {U}{R}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "sulfur-vent-tap",
-            oracleText: "{T}: Add {B}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
-            manaProduced: { B: 1 },
-        },
-        {
-            id: "sulfur-vent-sacrifice-mana",
-            oracleText: "{T}, Sacrifice this land: Add {U}{R}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ U: 1, R: 1 }),
-            manaProduced: { U: 1, R: 1 },
-        },
-    ],
-}));
-
-export const tinderFarm = defineCard(() => ({
-    id: "989b5901-aeb0-4a48-8c53-3b0ec0e0deba",
-    rarity: "common",
-    name: "Tinder Farm",
-    oracleText:
-        "This land enters tapped.\n{T}: Add {G}.\n{T}, Sacrifice this land: Add {R}{W}.",
-    manaCost: {},
-    types: ["Land"],
-    entersTapped: true,
-    activatedAbilities: [
-        {
-            id: "tinder-farm-tap",
-            oracleText: "{T}: Add {G}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ G: 1 }),
-            manaProduced: { G: 1 },
-        },
-        {
-            id: "tinder-farm-sacrifice-mana",
-            oracleText: "{T}, Sacrifice this land: Add {R}{W}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ R: 1, W: 1 }),
-            manaProduced: { R: 1, W: 1 },
         },
     ],
 }));
