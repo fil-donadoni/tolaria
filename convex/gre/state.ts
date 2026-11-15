@@ -4117,6 +4117,7 @@ export function sendStackItemToGraveyard(
         item.zone = "exile";
         resetStackTransientState(item);
         owner.exile.push(item);
+        emitSpellExiled(state, item);
         return;
     }
     const { destination, tagCounters } = graveyardDestinationFor(
@@ -4149,6 +4150,8 @@ export function sendStackItemToGraveyard(
         shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
+        // A CR 614 graveyard-bound replacement (Rest in Peace) exiled it.
+        emitSpellExiled(state, item);
     } else {
         // CR 603.6c — a "put into a graveyard from anywhere" trigger sees a
         // spell card reaching the graveyard off the stack too (resolved,
@@ -4262,6 +4265,7 @@ function finalizeSpellResolution(
             item.zone = "exile";
             resetStackTransientState(item);
             getPlayer(state, item.ownerId).exile.push(item);
+            emitSpellExiled(state, item);
             return;
         }
         if (typeof enterDestination === "object") {
@@ -4669,6 +4673,7 @@ function finalizeSpellResolution(
             item.zone = "exile";
             resetStackTransientState(item);
             owner.exile.push(item);
+            emitSpellExiled(state, item);
             return;
         }
         // CR 608.2 / 701.24 (issue #898) — a spell that instructs "Shuffle
@@ -4715,6 +4720,7 @@ function finalizeSpellResolution(
             markReboundExiled(item);
             item.zone = "exile";
             owner.exile.push(item);
+            emitSpellExiled(state, item);
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             state.delayedTriggers = [
                 ...(state.delayedTriggers ?? []),
@@ -4747,6 +4753,7 @@ function finalizeSpellResolution(
             item.zone = "exile";
             resetStackTransientState(item);
             owner.exile.push(item);
+            emitSpellExiled(state, item);
             return;
         }
         // CR 702.27a — Buyback: if the caster paid the buyback cost as they
@@ -4817,6 +4824,7 @@ function finalizeSpellResolution(
             item.castableFromExileBy = adventureController;
             item.castFromExileNotAsAdventure = true;
             owner.exile.push(item);
+            emitSpellExiled(state, item);
             return;
         }
         sendStackItemToGraveyard(state, item);
@@ -7173,16 +7181,13 @@ export function regenerateOrDestroy(
     // zone it lands in; stamp `cause: "destroy"` + the causer so "destroyed by
     // an opponent's spell/ability"-style triggers (Karmic Justice) can gate on
     // it precisely (never confused with a sacrifice or a bare bounce).
-    const moved = removePermanentTo(
+    removePermanentTo(
         state,
         cardId,
         exileOnDeath ? "exile" : "graveyard",
         "destroy",
         opts?.causerControllerId
     );
-    // issue #1558 — the destroy landed in exile (a direct exileOnDeath
-    // request, or an implicit CR 614 graveyard-bound redirect).
-    emitCardsExiledFromBattlefield(state, moved);
     return true;
 }
 
@@ -8224,6 +8229,12 @@ export function removePermanentTo(
     // controlled leaves the battlefield this turn.
     const controller = getPlayer(state, snapshotControllerId);
     controller.permanentYouControlledLeftThisTurn = true;
+    // CR 406.2 / 603.2c — the single funnel's exile report: `toZone` is the
+    // landing zone after every redirect above (a direct exile, `exileOnLeave`,
+    // a finality counter, a CR 614 graveyard-bound replacement such as Rest in
+    // Peace), so no caller has to re-check where the permanent went. A loop
+    // that is one simultaneous event opens `withCardsExiledBatch`.
+    emitCardsExiledFromBattlefield(state, creature);
     // CR 702.26 — "until ~ leaves the battlefield" durations end here. Any
     // bundle phased out by this source (Oubliette) phases back in immediately,
     // before SBAs/triggers settle (the duration ending is a continuous effect,
@@ -8546,43 +8557,17 @@ export function exileWithAttachments(
     }
     // Exile attachments first, then the host (CR 701.13). Both fire
     // PERMANENT_LEFT — exile is a real zone change, unlike phasing.
-    // issue #1558 — the whole bundle (attachments + host) is ONE exile
-    // occurrence (CR 603.3b / 608.2i), so accumulate across the loop and emit
-    // a single batched CARDS_EXILED after, not one event per removed card.
-    const exiledEntries: {
-        cardInstanceId: string;
-        cardId?: string;
-        fromZone: "battlefield";
-        ownerId: string;
-    }[] = [];
-    for (const a of attached) {
-        const moved = removePermanentTo(state, a.id, "exile");
-        if (moved && moved.zone === "exile") {
-            exiledEntries.push({
-                cardInstanceId: moved.id,
-                cardId: (moved.card as { id?: string }).id,
-                fromZone: "battlefield",
-                ownerId: moved.ownerId,
-            });
-        }
-    }
-    const movedHost = removePermanentTo(state, targetId, "exile");
+    // The whole bundle (attachments + host) is ONE exile event (CR 603.2c):
+    // one batched CARDS_EXILED, not one per removed card.
+    const movedHost = withCardsExiledBatch(state, () => {
+        for (const a of attached) removePermanentTo(state, a.id, "exile");
+        return removePermanentTo(state, targetId, "exile");
+    });
     // CR 712.21 / 712.21e — a melded host is two cards exiled.
     const meldPartners =
         movedHost && movedHost.zone === "exile"
             ? meldGroupPartners(state, movedHost.id)
             : [];
-    for (const card of movedHost?.zone === "exile"
-        ? [movedHost, ...meldPartners]
-        : []) {
-        exiledEntries.push({
-            cardInstanceId: card.id,
-            cardId: (card.card as { id?: string }).id,
-            fromZone: "battlefield",
-            ownerId: card.ownerId,
-        });
-    }
-    emitCardsExiled(state, exiledEntries);
     const bundle: ExileReturnBundle = {
         id: allocInstanceId(state),
         sourceId: opts.sourceId,
@@ -9342,18 +9327,45 @@ export function emitCardPutIntoGraveyard(
  *  empty batch — a loop that redirected nothing to exile emits nothing. */
 export function emitCardsExiled(
     state: GameState,
-    cards: ReadonlyArray<{
-        cardInstanceId: string;
-        cardId?: string;
-        fromZone: "library" | "graveyard" | "battlefield" | "hand" | "stack";
-        ownerId: string;
-    }>
+    cards: ReadonlyArray<ExileEntry>
 ): void {
     if (cards.length === 0) return;
+    const open = openExileBatches.get(state);
+    if (open) {
+        open.push(...cards);
+        return;
+    }
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
-        { type: "CARDS_EXILED", cards },
+        { type: "CARDS_EXILED", cards: [...cards] },
     ];
+}
+
+/** One card of a `CARDS_EXILED` batch. */
+type ExileEntry = Extract<GameEvent, { type: "CARDS_EXILED" }>["cards"][number];
+
+/** The open exile batch of a state, while one simultaneous event runs inside
+ *  `withCardsExiledBatch`. A WeakMap rather than a `GameState` field, like the
+ *  library-entry batch: it lives for one synchronous call and is never
+ *  persisted, projected or replayed. */
+const openExileBatches = new WeakMap<GameState, ExileEntry[]>();
+
+/** Runs `run` as ONE exile occurrence (CR 603.2c, CR 704.3): every
+ *  `emitCardsExiled` inside it — including the one `removePermanentTo` makes
+ *  for each permanent that lands in exile — is folded into a single
+ *  `CARDS_EXILED` emitted when `run` returns. Nested calls join the outermost
+ *  batch. Opened by the callers whose loop is one simultaneous event: an SBA
+ *  pass, a multi-permanent cost or sacrifice. */
+export function withCardsExiledBatch<T>(state: GameState, run: () => T): T {
+    if (openExileBatches.has(state)) return run();
+    const batch: ExileEntry[] = [];
+    openExileBatches.set(state, batch);
+    try {
+        return run();
+    } finally {
+        openExileBatches.delete(state);
+        emitCardsExiled(state, batch);
+    }
 }
 
 /** One card of a `CARDS_PUT_INTO_LIBRARY` batch (issue #3242). */
@@ -9488,6 +9500,24 @@ export function emitCardsExiledFromBattlefield(
             ownerId: card.ownerId,
         }))
     );
+}
+
+/** Reports a spell card that just left the stack for exile (CR 406.2): a
+ *  countered or fizzled spell a replacement exiles, a resolved spell that
+ *  exiles itself (flashback, rebound, an Adventure, cipher), a permanent spell
+ *  whose entry a CR 614 replacement turned into an exile. */
+export function emitSpellExiled(
+    state: GameState,
+    item: CardInstanceState
+): void {
+    emitCardsExiled(state, [
+        {
+            cardInstanceId: item.id,
+            cardId: (item.card as { id?: string }).id,
+            fromZone: "stack",
+            ownerId: item.ownerId,
+        },
+    ]);
 }
 
 /** Emits a LIFE_LOST event for a player whose life total just dropped (CR
@@ -11217,9 +11247,26 @@ function stageReanimatedOnBattlefield(
         // CR 614 — same as the land block above: nothing entered, so nothing
         // may carry the pending line into exile (PR #3023 review, B1).
         discardEntryTypeLine(card);
+        // CR 406.2 — `card.zone` still names the zone it left; a card already
+        // in exile (a blink return) changes no zone by staying there.
+        const fromZone = card.zone;
         card.zone = "exile";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).exile.push(card);
+        if (
+            fromZone === "graveyard" ||
+            fromZone === "library" ||
+            fromZone === "hand"
+        ) {
+            emitCardsExiled(state, [
+                {
+                    cardInstanceId: card.id,
+                    cardId: (card.card as { id?: string }).id,
+                    fromZone,
+                    ownerId: card.ownerId,
+                },
+            ]);
+        }
         return false;
     }
     const owedAsEnters: AsEntersChoice[] = [
@@ -11589,20 +11636,11 @@ export function meldPermanents(
 ): CardInstanceState | null {
     // CR 701.42a "exile them" is ONE simultaneous exile: one CARDS_EXILED
     // event naming both cards (issue #1558's one-event-per-occurrence rule).
-    const exiled = [holderId, partnerId]
-        .map((id) =>
-            removePermanentTo(state, id, "exile", undefined, controllerId)
-        )
-        .filter((c): c is CardInstanceState => c?.zone === "exile");
-    emitCardsExiled(
-        state,
-        exiled.map((card) => ({
-            cardInstanceId: card.id,
-            cardId: (card.card as { id?: string }).id,
-            fromZone: "battlefield" as const,
-            ownerId: card.ownerId,
-        }))
-    );
+    withCardsExiledBatch(state, () => {
+        for (const id of [holderId, partnerId]) {
+            removePermanentTo(state, id, "exile", undefined, controllerId);
+        }
+    });
     const inExile = (id: string) => {
         for (const p of state.players) {
             const card = p.exile.find((c) => c.id === id);
@@ -15586,14 +15624,13 @@ export function buildSpellContext(
                 throw new Error("Cannot exile a player");
             // CR 712.21b — the exiling player orders a melded permanent's
             // two cards: the controller of the resolving spell or ability.
-            const moved = removePermanentTo(
+            removePermanentTo(
                 state,
                 target.id,
                 "exile",
                 undefined,
                 item.castById
             );
-            emitCardsExiledFromBattlefield(state, moved);
         },
         // CR 400.7: to return a permanent to its owner's hand. Routed through
         // removePermanentTo so aura cleanup (611.2) and transient-state reset
@@ -15602,10 +15639,7 @@ export function buildSpellContext(
         returnToHand(target: TargetSelection): void {
             if (target.type === "player")
                 throw new Error("Cannot return a player to hand");
-            const moved = removePermanentTo(state, target.id, "hand");
-            // issue #1558 — an exileOnLeave replacement can still redirect a
-            // requested bounce to exile; the actual landing zone decides.
-            emitCardsExiledFromBattlefield(state, moved);
+            removePermanentTo(state, target.id, "hand");
         },
         // CR 400.7 (issue #1726) — put a battlefield permanent into its
         // OWNER's library `positionFromTop` cards from the top (1-based;
@@ -15625,12 +15659,11 @@ export function buildSpellContext(
             if (target.type === "player")
                 throw new Error("Cannot put a player into a library");
             const moved = removePermanentTo(state, target.id, "library");
-            emitCardsExiledFromBattlefield(state, moved);
             if (!moved) return;
             const owner = getPlayer(state, moved.ownerId);
             const idx = owner.library.findIndex((c) => c.id === moved.id);
             // Not in the library: an exileOnLeave replacement redirected the
-            // departure (the emit above already handled it) — nothing to
+            // departure (the funnel reported the exile) — nothing to
             // reposition.
             if (idx === -1) return;
             const [card] = owner.library.splice(idx, 1);
@@ -16123,8 +16156,7 @@ export function buildSpellContext(
             const ownerId = found.card.ownerId;
             const returnUnder = controllerId ?? ownerId;
             const cardId = found.card.id;
-            const moved = removePermanentTo(state, cardId, "exile");
-            emitCardsExiledFromBattlefield(state, moved);
+            removePermanentTo(state, cardId, "exile");
             const exileZone = getPlayer(state, ownerId).exile;
             const idx = exileZone.findIndex((c) => c.id === cardId);
             if (idx === -1) return; // never reached exile — nothing to return
@@ -16202,18 +16234,22 @@ export function buildSpellContext(
             // CR 702.89a — one event: a host is reached before its own Aura.
             const hostOf = (id: string) =>
                 findOnBattlefield(state, id)?.card.attachedTo;
-            for (const id of attachmentsLast(ids, hostOf)) {
-                // Each victim independently gets a chance to consume a destroy
-                // replacement (CR 614, ADR 0125) or a regeneration shield
-                // (CR 614.5, 701.19a) — unless the caller opts out via
-                // `cantBeRegenerated` (CR 701.19c). issue #1054 — the
-                // resolving spell/ability's controller is the causer for
-                // every victim (Wrath of God-style mass destroy).
-                destroyWithReplacements(state, id, {
-                    ...opts,
-                    causerControllerId: ctx.controller,
-                });
-            }
+            // CR 603.2c — the same one event is one exile occurrence when a
+            // CR 614 replacement (Rest in Peace) redirects the victims.
+            withCardsExiledBatch(state, () => {
+                for (const id of attachmentsLast(ids, hostOf)) {
+                    // Each victim independently gets a chance to consume a destroy
+                    // replacement (CR 614, ADR 0125) or a regeneration shield
+                    // (CR 614.5, 701.19a) — unless the caller opts out via
+                    // `cantBeRegenerated` (CR 701.19c). issue #1054 — the
+                    // resolving spell/ability's controller is the causer for
+                    // every victim (Wrath of God-style mass destroy).
+                    destroyWithReplacements(state, id, {
+                        ...opts,
+                        causerControllerId: ctx.controller,
+                    });
+                }
+            });
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
         // (CR 704.5b: hasDrawnFromEmpty flagged by drawCard; SBA ends the game).
@@ -16819,6 +16855,7 @@ export function buildSpellContext(
                     item.zone = "exile";
                     resetStackTransientState(item);
                     owner.exile.push(item);
+                    emitSpellExiled(state, item);
                     break;
                 case "library-top":
                     item.zone = "library";
@@ -16911,14 +16948,7 @@ export function buildSpellContext(
             if (exiledInstead || destination === "exile") {
                 item.zone = "exile";
                 owner.exile.push(item);
-                emitCardsExiled(state, [
-                    {
-                        cardInstanceId: item.id,
-                        cardId: (item.card as { id?: string }).id,
-                        fromZone: "stack",
-                        ownerId: item.ownerId,
-                    },
-                ]);
+                emitSpellExiled(state, item);
                 return;
             }
             if (destination === "hand") {
@@ -20534,16 +20564,13 @@ export function buildSpellContext(
         // correct: "caused by an opponent" conditions compare it against the
         // sacrificed permanent's OWN controller, never assume it here).
         sacrifice(cardInstanceId: string): void {
-            const moved = removePermanentTo(
+            removePermanentTo(
                 state,
                 cardInstanceId,
                 "graveyard",
                 "sacrifice",
                 ctx.controller
             );
-            // issue #1558 — a CR 614 graveyard-bound replacement can redirect
-            // this sacrifice to exile (Yawgmoth's Will / Dauthi Voidwalker).
-            emitCardsExiledFromBattlefield(state, moved);
         },
         // CR 702.30a — Echo: clear the resolving trigger source's `echoPending`
         // flag once its echo cost is paid, so the trigger's intervening-if
@@ -27946,34 +27973,14 @@ export function payMayPayCost(
                 action: "return",
             });
         } else {
-            // issue #1558 — the whole sacrifice leg is ONE cost payment (CR
-            // 603.3b / 608.2i occurrence); accumulate across the loop and emit
-            // a single batched CARDS_EXILED for any victim a CR 614
-            // graveyard-bound replacement redirected to exile, rather than one
-            // event per victim.
-            const exiledEntries: {
-                cardInstanceId: string;
-                cardId?: string;
-                fromZone: "battlefield";
-                ownerId: string;
-            }[] = [];
-            for (const v of victims) {
-                const moved = removePermanentTo(
-                    state,
-                    v.id,
-                    "graveyard",
-                    "sacrifice"
-                );
-                if (moved && moved.zone === "exile") {
-                    exiledEntries.push({
-                        cardInstanceId: moved.id,
-                        cardId: (moved.card as { id?: string }).id,
-                        fromZone: "battlefield",
-                        ownerId: moved.ownerId,
-                    });
+            // The whole sacrifice leg is ONE cost payment (CR 603.2c, one
+            // event): a victim a CR 614 graveyard-bound replacement
+            // redirects to exile joins one batched CARDS_EXILED.
+            withCardsExiledBatch(state, () => {
+                for (const v of victims) {
+                    removePermanentTo(state, v.id, "graveyard", "sacrifice");
                 }
-            }
-            emitCardsExiled(state, exiledEntries);
+            });
         }
     }
     if (norm.hand) {
