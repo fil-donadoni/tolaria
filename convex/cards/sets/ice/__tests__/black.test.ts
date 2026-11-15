@@ -316,7 +316,7 @@ describe("Kjeldoran Dead (ETB sac + regenerate, CR 603.6 / 701.19)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, dead, "kjeldoran-dead-regenerate");
+        resolveActivated(state, dead, "kjeldoran-dead-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "kd")!;
         expect(live.regenerationShields ?? 0).toBeGreaterThan(0);
     });

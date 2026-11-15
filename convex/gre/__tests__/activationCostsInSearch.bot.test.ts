@@ -197,7 +197,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         const handBuilt: Move = {
             kind: "activate-ability",
             cardInstanceId: "thallid",
-            abilityId: "thallid-make-saproling",
+            abilityId: "thallid-ability",
             targets: [],
             confirmTargets: false,
             tapPlan: [],
@@ -230,7 +230,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
             activateAbilityOnState(cloneGameState(state), {
                 playerId: BOT,
                 cardInstanceId: "thallid",
-                abilityId: "thallid-make-saproling",
+                abilityId: "thallid-ability",
             })
         ).toThrow(/Not enough counters/);
     });
@@ -916,7 +916,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
                 activateAbilityOnState(cloneGameState(state), {
                     playerId: BOT,
                     cardInstanceId: "thallid",
-                    abilityId: "thallid-make-saproling",
+                    abilityId: "thallid-ability",
                 })
             ).toThrow(/Not enough counters/);
         }
@@ -929,7 +929,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
             activateAbilityOnState(cloneGameState(state), {
                 playerId: BOT,
                 cardInstanceId: "thallid",
-                abilityId: "thallid-make-saproling",
+                abilityId: "thallid-ability",
             })
         ).not.toThrow();
     });
