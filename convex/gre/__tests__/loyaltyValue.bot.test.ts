@@ -64,6 +64,9 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Narset, Parter of Veils": 6,
     // start 5, spend 2 — starting count again (issue #3236)
     "Saheeli, Sublime Artificer": 6,
+    // start 5, spend 1 — starting count again; compiled `ready` once the
+    // pump-and-grant rule read its −1 (issue #8573)
+    "Samut, Tyrant Smasher": 6,
     // start 5, spends 1/8
     "Nissa, Who Shakes the World": 9,
     // start 4, spend 5
