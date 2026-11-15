@@ -93464,6 +93464,14 @@
         "source": "compiled"
     },
     {
+        "name": "Violent Urge",
+        "scryfallId": "a47c968b-1edd-45ac-a67c-311647e7e2fc",
+        "oracleId": "0ef80a38-f464-4d1f-9e81-d4087d6ecc9b",
+        "firstSet": "dsk",
+        "firstPrintId": "a47c968b-1edd-45ac-a67c-311647e7e2fc",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Violet Pall",
         "scryfallId": "bdfd0fa3-37d2-403e-99fe-8c9e57515e9d",
         "oracleId": "bf6ea336-6a4d-4653-acdd-f09af0b9f0e3",
