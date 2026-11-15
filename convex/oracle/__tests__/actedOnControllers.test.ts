@@ -7,15 +7,12 @@
 //     inside the overload sweep, and one `forEach` over the players runs the
 //     search chain for each player who lost a creature, for up to as many
 //     basic lands as they lost.
-//  2. GOLD — the hand-written Winds round-trips.
-//  3. REFUSALS — either sentence alone, a removal other than an exile, a
+//  2. REFUSALS — either sentence alone, a removal other than an exile, a
 //     verb or noun the head does not read, a count per object, a "may".
 
 import { describe, expect, it } from "vitest";
-import { getAllRawCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import { oracleCard } from "./oracle.fixture";
 
 const EXILE = "Exile target creature you don't control.";
@@ -116,15 +113,6 @@ describe("per-controller search after an exile (CR 608.2c, CR 701.23h)", () => {
                 ],
             })
         );
-    });
-
-    it("gold: the hand-written Winds of Abandon round-trips", () => {
-        const raw = getAllRawCards().find((c) => c.name === "Winds of Abandon");
-        expect(raw).toBeDefined();
-        expect(roundTripCard(raw!).verdict).toEqual({
-            ok: true,
-            kind: "equal",
-        });
     });
 });
 

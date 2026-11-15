@@ -7,7 +7,6 @@ import {
     defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
-    PERMANENT_TYPES,
 } from "../../types";
 import {
     asEntersColorModes,
@@ -376,63 +375,6 @@ export const planeswalkersMischief = defineCard(() => ({
             // card carrying no `aiEffects` shadow, and this card is neither:
             // the shadow above already prices the whole scheduling
             // resolution, so valuing the template too would double-count.
-        },
-    ],
-}));
-
-// Rushing River — {2}{U} Instant. "Kicker—Sacrifice a land.\nReturn target
-// nonland permanent to its owner's hand. If this spell was kicked, return
-// another target nonland permanent to its owner's hand." (CR 702.33a Kicker
-// with a PERMANENT leg — a sacrifice, `KickerCost.permanent.action:
-// "sacrifice"`, ADR 0079/#1937 — the same shape as Arctic Merfolk's return
-// leg above, just the other action.) The kick is ADDITIVE (2 targets instead
-// of 1), not a widened filter, so `kickedTargetRequirement` bumps `count`
-// only — the Magma Burst / Falling Timber shape in this same set.
-//
-// The second bounce is the SECOND printed sentence, so it is written as that
-// sentence: one `moveZone` on `{ target: 1 }` behind the standard
-// `{ kickerCount: true } >= 1` gate, exactly as its two siblings write their
-// gated halves. It was a `forEach { set: "targets" }` sweep (the Distorting
-// Wake / #1083 X-multi-target shape) until issue #4133: both encodings bounce
-// 1 unkicked and 2 kicked, and the sweep was the only card in the family
-// writing ONE Op for two sentences — which read as a card whose text the
-// compiler could not reproduce (gold round-trip) rather than as the choice it
-// was.
-export const rushingRiver = defineCard(() => ({
-    id: "52ddf7bf-de9c-4657-8d5b-79869d36fa63", // PLS 30
-    rarity: "common",
-    name: "Rushing River",
-    oracleText:
-        "Kicker—Sacrifice a land. (You may sacrifice a land in addition to any other costs as you cast this spell.)\nReturn target nonland permanent to its owner's hand. If this spell was kicked, return another target nonland permanent to its owner's hand.",
-    manaCost: { X: 2, U: 1 },
-    types: ["Instant"],
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker—Sacrifice a land",
-            permanent: {
-                action: "sacrifice",
-                filter: { types: "Land" },
-                count: 1,
-            },
-        },
-    ],
-    targetRequirement: {
-        type: [...PERMANENT_TYPES],
-        count: 1,
-        excludeTypes: "Land",
-    },
-    kickedTargetRequirement: {
-        type: [...PERMANENT_TYPES],
-        count: 2,
-        excludeTypes: "Land",
-    },
-    effects: [
-        { op: "moveZone", target: { target: 0 }, to: "hand" },
-        {
-            op: "if",
-            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
-            then: [{ op: "moveZone", target: { target: 1 }, to: "hand" }],
         },
     ],
 }));

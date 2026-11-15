@@ -11,8 +11,6 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { preloadDefinitions } from "../../cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
-
-import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import type { CardDefinition } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
@@ -28,6 +26,7 @@ import {
 } from "../state";
 import { getDefinition } from "../../cards";
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 const GRAVESTORM_SPELL = "synthetic-gravestorm-spell";
 const DOUBLE_GRAVESTORM_SPELL = "synthetic-double-gravestorm-spell";
