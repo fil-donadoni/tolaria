@@ -45,6 +45,7 @@
  *  `spellMatchesCreaturePtFilter`, `spellWouldDestroyLandControlledBy`) moved
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
+import { hasKeywordAbility as hasStaticKeyword } from "./hexproofQuality";
 import { combatPartnerIds, findPermanent } from "./lookup";
 import type {
     CardType,
@@ -963,7 +964,8 @@ const combatPartnerOfDescriptor = defineFilter<string>({
  *  granted, and gone under a layer-6 "loses all abilities" (issue #2108). */
 function hasKeywordAbility(card: CardInstanceState, kw: string): boolean {
     return (
-        card.staticAbilities.includes(kw) ||
+        // CR 702.11e — looking for hexproof finds "hexproof from [quality]".
+        hasStaticKeyword(card.staticAbilities, kw) ||
         effectiveTriggeredAbilities(card).some((a) => a.keyword === kw)
     );
 }

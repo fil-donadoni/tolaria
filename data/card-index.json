@@ -32498,6 +32498,16 @@
         "source": "compiled"
     },
     {
+        "name": "General Ferrous Rokiric",
+        "scryfallId": "600dca0f-5964-45e7-86df-f16a5b4a0106",
+        "oracleId": "64c15098-f893-44f2-bf7f-162db8ab80e9",
+        "firstSet": "mh2",
+        "firstPrintId": "600dca0f-5964-45e7-86df-f16a5b4a0106",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "General Jarkeld",
         "scryfallId": "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
         "oracleId": "64df77f6-4f7e-442a-971c-8ad3f7d1c979",
@@ -33926,6 +33936,16 @@
         "firstSet": "dft",
         "firstPrintId": "ea3ac678-8b74-4865-a896-c42692c02341",
         "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Gloryscale Viashino",
+        "scryfallId": "8e02e9e6-4cff-404a-94a3-e844ef7cadee",
+        "oracleId": "d94a6e12-0197-4125-9a8c-431e42edb1da",
+        "firstSet": "arb",
+        "firstPrintId": "8e02e9e6-4cff-404a-94a3-e844ef7cadee",
+        "firstPrintSet": "arb",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -38659,6 +38679,16 @@
         "firstPrintId": "545503f8-a8c6-4518-9ad6-76e4996397fc",
         "firstPrintSet": "lci",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Hero of Precinct One",
+        "scryfallId": "87732718-1067-4e5f-a76d-409539c9ef3f",
+        "oracleId": "5a66802a-76f9-4a31-a776-24110dcfca64",
+        "firstSet": "rna",
+        "firstPrintId": "87732718-1067-4e5f-a76d-409539c9ef3f",
+        "firstPrintSet": "rna",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -47853,6 +47883,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lobber Crew",
+        "scryfallId": "b9d4aa15-a3c2-42a3-a87a-443e7dd20c04",
+        "oracleId": "84dffb4b-02d7-48e4-9a95-43f88cd52bf3",
+        "firstSet": "rtr",
+        "firstPrintId": "b9d4aa15-a3c2-42a3-a87a-443e7dd20c04",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Lobotomy",
         "scryfallId": "ee7ba92d-d327-4b1c-be40-708c5abb27df",
         "oracleId": "a7ebe748-c3de-402f-8a6e-236a6413c0f8",
@@ -48875,6 +48915,16 @@
         "firstSet": "exo",
         "firstPrintId": "04e3e38b-2191-4b92-ae5d-bb9397d24a27",
         "firstPrintSet": "exo",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mage Tower Referee",
+        "scryfallId": "1ceb704a-97a8-49f9-b799-30f001404144",
+        "oracleId": "3f27988b-0863-4cc1-8eb9-83bd0cd8561c",
+        "firstSet": "sos",
+        "firstPrintId": "1ceb704a-97a8-49f9-b799-30f001404144",
+        "firstPrintSet": "sos",
         "rarity": "common",
         "source": "compiled"
     },
@@ -55632,6 +55682,16 @@
         "firstPrintId": "dce44980-0540-4b31-9a81-35357a4382fa",
         "firstPrintSet": "chk",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Night Scythe",
+        "scryfallId": "e08d01ae-a955-411e-a6f1-91cb1b7c99e6",
+        "oracleId": "dea9741a-3360-4a17-aeea-a854e2174d25",
+        "firstSet": "40k",
+        "firstPrintId": "e08d01ae-a955-411e-a6f1-91cb1b7c99e6",
+        "firstPrintSet": "40k",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -62761,6 +62821,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Pyroconvergence",
+        "scryfallId": "6cff95b7-79eb-4796-9a01-31ff355681ab",
+        "oracleId": "8da5c156-3688-4d6e-b5c4-95c082d1b426",
+        "firstSet": "rtr",
+        "firstPrintId": "6cff95b7-79eb-4796-9a01-31ff355681ab",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Pyrogoyf",
         "scryfallId": "f60be310-4461-4b84-95f0-b2095108bd79",
         "oracleId": "7fd7457a-388d-4cca-a7cf-86b4ea922037",
@@ -63983,6 +64053,16 @@
         "firstPrintId": "4c97229f-2fc8-439a-a18b-efa09b366b70",
         "firstPrintSet": "hou",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rampaging Monument",
+        "scryfallId": "b5fbe445-a788-4624-8ecf-8bc06c3ca8f8",
+        "oracleId": "3984478b-debb-4a65-ab5b-4bc134e03d82",
+        "firstSet": "grn",
+        "firstPrintId": "b5fbe445-a788-4624-8ecf-8bc06c3ca8f8",
+        "firstPrintSet": "grn",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -86719,6 +86799,16 @@
         "firstPrintId": "72a3b17d-1e00-48e9-8402-c81bacd595a7",
         "firstPrintSet": "sos",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tome of the Guildpact",
+        "scryfallId": "95e307d4-7e5f-4f00-869e-da0e7abbf27f",
+        "oracleId": "3c7dd86d-25eb-4b24-9358-98b951248e04",
+        "firstSet": "rna",
+        "firstPrintId": "95e307d4-7e5f-4f00-869e-da0e7abbf27f",
+        "firstPrintSet": "rna",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

@@ -12,7 +12,7 @@
 //     (CR 105.2c, CR 205.2a, issue #4249) with and without a keyword and for
 //     one and for two.
 //  2. REFUSALS — the neighbours the corpus prints that this rule must not
-//     read: a coloured artifact creature token, a colourless non-artifact one,
+//     read: a colourless non-artifact creature token,
 //     a named one, two keywords, and Haunted Angel's "exile it and each other
 //     player creates".
 //  3. LOWERING invariants — what only the sentence walk can decide: which
@@ -369,14 +369,6 @@ describe("create token — refused neighbours (fail-closed)", () => {
     // what the refusal must name, so a reason that blames another word (or a
     // rule that refuses for the wrong cause) does not pass.
     it.each([
-        // Thopter Foundry — a COLOURED artifact creature token: the rule reads
-        // "artifact" only beside "colorless" (CR 105.2c), so the word left
-        // over is the one it cannot place.
-        [
-            "a coloured artifact creature token",
-            "Create a 1/1 blue Thopter artifact creature token with flying",
-            '"artifact"',
-        ],
         // Sliver Queen — "colorless" on a creature token that is not an
         // artifact is a form no fixture pins (CR 105.2c).
         [

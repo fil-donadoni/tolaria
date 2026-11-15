@@ -920,3 +920,132 @@ describe("isUntargetableByPending — protection from a creature subtype (CR 702
         expect(v.clientBars).toBe(false);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 702.11d — "hexproof from monocolored" (issue #2604): client parity
+// ─────────────────────────────────────────────────────────────────────────
+//
+// General Ferrous Rokiric can't be the target of monocolored spells or of
+// abilities from monocolored sources its controller's opponents control. Same
+// shape as the coloured-spells block above: both verdicts against ONE board,
+// the client's from `isUntargetableByPending` fed off the REAL wire projection,
+// the server's from the accepted-set function `selectTarget` calls per target.
+
+describe("CR 702.11d — client parity for hexproof from monocolored (#2604)", () => {
+    const ROKIRIC_ID = "600dca0f-5964-45e7-86df-f16a5b4a0106";
+    const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+    const LIGHTNING_BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red
+    const LIGHTNING_HELIX_ID = "1b2ecf55-c1cc-4b28-b7ce-e1b25305155e"; // R+W
+    const PRODIGAL_SORCERER_ID = "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a"; // blue
+    const WATCHWOLF_ID = "95e5828a-3e54-4b9c-9e84-21880930f2d5"; // G+W
+
+    const pending = (sourceId: string, kind?: "ability"): PendingTarget => ({
+        playerId: "p2",
+        cardInstanceId: sourceId,
+        targetType: "Creature",
+        count: { min: 1, max: 3 },
+        selected: [],
+        ...(kind ? { kind } : {}),
+    });
+
+    function board(pendingTarget: PendingTarget) {
+        const own = (
+            cardId: string,
+            id: string,
+            zone: "hand" | "battlefield"
+        ) =>
+            makeInstance(cardId, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone,
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(ROKIRIC_ID, {
+                            id: "rokiric",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(GRIZZLY_BEARS_ID, {
+                            id: "bystander",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        own(LIGHTNING_BOLT_ID, "bolt", "hand"),
+                        own(LIGHTNING_HELIX_ID, "helix", "hand"),
+                    ],
+                    battlefield: [
+                        own(PRODIGAL_SORCERER_ID, "tim", "battlefield"),
+                        own(WATCHWOLF_ID, "wolf", "battlefield"),
+                    ],
+                }),
+            ],
+            pendingTarget,
+        });
+        return { state, projected: projectPublicState(state, 1, "p2") };
+    }
+
+    function verdicts(pendingTarget: PendingTarget, targetId = "rokiric") {
+        const { state, projected } = board(pendingTarget);
+        const pt = projected.pendingTarget!;
+        const players = projected.players as unknown as Player[];
+        const candidate = players[0].battlefield.find(
+            (c) => c.id === targetId
+        )!;
+        const clientBars = isUntargetableByPending(
+            players,
+            candidate,
+            pt.cardInstanceId,
+            pt.kind,
+            (projected.stack ?? []) as unknown as StackItem[],
+            pt.playerId
+        );
+        let serverBars = false;
+        try {
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId,
+            });
+        } catch (e) {
+            serverBars = /can't be the target/i.test((e as Error).message);
+        }
+        return { clientBars, serverBars };
+    }
+
+    it("MUST — greys Rokiric for an opponent's monocolored spell, on both sides", () => {
+        const v = verdicts(pending("bolt"));
+        expect(v.serverBars).toBe(true);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("MUST — greys Rokiric for an ability from a monocolored source", () => {
+        const v = verdicts(pending("tim", "ability"));
+        expect(v.serverBars).toBe(true);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("must-NOT — Rokiric stays clickable for a multicolored spell", () => {
+        const v = verdicts(pending("helix"));
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("must-NOT — Rokiric stays clickable for an ability from a multicolored source", () => {
+        const v = verdicts(pending("wolf", "ability"));
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("must-NOT — the bystander stays clickable for the monocolored spell", () => {
+        const v = verdicts(pending("bolt"), "bystander");
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+});

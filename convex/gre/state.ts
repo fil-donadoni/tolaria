@@ -429,6 +429,7 @@ import {
     isOpponentSearchProhibited,
     playerHasShroud,
 } from "./permanentGuard";
+import { hasKeywordAbility, keywordDenotes } from "./hexproofQuality";
 import { getEffectiveBlockGraph } from "./banding";
 import {
     validateAttackerEligibility,
@@ -14293,7 +14294,10 @@ export function buildSpellContext(
             return deriveLayer6(
                 state as unknown as LayerStateView,
                 found.card as unknown as PermanentView
-            ).removedKeywords.some((r) => r.keyword === keyword);
+            ).removedKeywords.some((r) =>
+                // CR 702.11e — a removed hexproof-from is a removed hexproof.
+                keywordDenotes(r.keyword, keyword)
+            );
         },
 
         becomeCopyOf(
@@ -18662,7 +18666,8 @@ export function buildSpellContext(
         hasStaticAbility(target: TargetSelection, ability: string): boolean {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
-            return found?.card.staticAbilities.includes(ability) === true;
+            // CR 702.11e — looking for hexproof finds "hexproof from …".
+            return hasKeywordAbility(found?.card.staticAbilities, ability);
         },
 
         getStaticAbilities(target: TargetSelection): string[] {

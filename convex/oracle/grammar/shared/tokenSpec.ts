@@ -6,8 +6,8 @@
  * sentence defines (CR 111.3 — "A token doesn't have any characteristics not
  * defined by the spell or ability that created it"), so the rule reads each
  * one it will write and refuses every word it cannot place: a colour it does
- * not know, a subtype outside the creature-type list, a second keyword, an
- * artifact token that is not colorless. None of those is skipped — each is a
+ * not know, a subtype outside the creature-type list, a second keyword. None
+ * of those is skipped — each is a
  * characteristic the token would silently lack.
  *
  * ── Accepted forms ─────────────────────────────────────────────────────────
@@ -22,7 +22,10 @@
  *    "artifact creature" is the token's type list (CR 205.2a, CR 111.3 — a
  *    token has the card types its creator prints and no others): the rule
  *    reads the two together, because a colorless non-artifact creature token
- *    and a coloured artifact one are each a form no fixture pins yet.
+ *    is a form no fixture pins yet.
+ *  - `Create <count> P/T <colour>[ and <colour>] <Subtype…> artifact creature
+ *    token[s]` — the coloured artifact token (CR 205.2a): the colours of the
+ *    first form, the type list of the second.
  *  - `Create X P/T … creature tokens, where X is that <type>'s mana value`
  *    — X is CR 202.3's mana value of the object the sentence before it acted
  *    on. The referent lives in that sentence, so the rule records only the
@@ -116,7 +119,8 @@ const CREATE_FOR_EACH_NONTOKEN_DEATH =
 const KEYWORDS = keywordVocabulary();
 
 /**
- * "<colour>[ and <colour>] <Subtype>…" or "colorless <Subtype>… artifact" —
+ * "<colour>[ and <colour>] <Subtype>…[ artifact]" or "colorless <Subtype>…
+ * artifact" —
  * the words between P/T and "creature". Returns the reason as a string when a
  * word has no place.
  */
@@ -133,9 +137,16 @@ function readDescriptor(words: string): DescribedToken | string {
         colors.push(second);
         at = 3;
     }
-    const subtypes = readSubtypes(parts.slice(at));
+    // CR 205.2a + CR 111.3 — "<colour> <Subtype>… artifact creature token":
+    // a coloured token that is an artifact too (General Ferrous Rokiric's
+    // "4/4 red and white Golem artifact creature token"). The type word sits
+    // after the subtypes, exactly where the colorless form prints it.
+    const artifact = parts[parts.length - 1] === "artifact";
+    const subtypes = readSubtypes(
+        artifact ? parts.slice(at, -1) : parts.slice(at)
+    );
     if (typeof subtypes === "string") return subtypes;
-    return { colors, artifact: false, subtypes };
+    return { colors, artifact, subtypes };
 }
 
 /** CR 105.2c + CR 205.2a — "colorless <Subtype>… artifact". */
