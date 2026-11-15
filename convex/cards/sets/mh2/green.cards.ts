@@ -4,39 +4,6 @@ import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
-// Ignoble Hierarch — {G} Creature — Goblin Shaman, 0/1. "Exalted (CR 702.83) —
-// Whenever a creature you control attacks alone, that creature gets +1/+1
-// until end of turn.\n{T}: Add {B}, {R}, or {G}." The Jund-colours cousin of
-// Noble Hierarch (Vintage Cube mana dork, issue #699). Same shape as Noble
-// Hierarch: the exalted keyword expands to its triggered ability at the
-// `getDefinition` seam, and the CHOICE mana ability is a CR 605.1a mana
-// ability (useStack: false) via `manaChoices`.
-export const ignobleHierarch = defineCard(() => ({
-    id: "aba51852-af8f-49d8-8fb6-22d52a1742b8",
-    rarity: "rare",
-    name: "Ignoble Hierarch",
-    oracleText:
-        "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\n{T}: Add {B}, {R}, or {G}.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Shaman"],
-    power: 0,
-    toughness: 1,
-    staticAbilities: ["exalted"],
-    activatedAbilities: [
-        {
-            id: "ignoble-hierarch-mana",
-            oracleText: "{T}: Add {B}, {R}, or {G}.",
-            cost: { tap: true },
-            effect: (ctx) => {
-                ctx.addMana({ G: 1 });
-            },
-            useStack: false,
-            manaChoices: [{ B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
 // Endurance — {1}{G}{G} Creature — Elemental Incarnation, 3/4 (MH2, #1207).
 // "Flash. Reach. When this creature enters, up to one target player puts all
 // the cards from their graveyard on the bottom of their library in a random

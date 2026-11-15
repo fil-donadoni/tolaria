@@ -8,7 +8,6 @@
 // colorless.ts.
 
 import type {
-    ActivatedAbilityContext,
     DelayedTriggerDef,
     SpellContext,
     StaticEffectStateView,
@@ -150,32 +149,6 @@ export const berserk = defineCard(() => ({
                 if (!ctx.hasAttackedThisTurn(target)) return;
                 ctx.destroy(target);
             },
-        },
-    ],
-}));
-
-export const birdsOfParadise = defineCard(() => ({
-    id: "55fe6449-1f23-43dc-adee-d144cd505b5c",
-    rarity: "rare",
-    name: "Birds of Paradise",
-    oracleText: "Flying\n{T}: Add one mana of any color.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 0,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "birds-of-paradise-mana",
-            oracleText: "{T}: Add one mana of any color.",
-            cost: { tap: true },
-            effect: (ctx: ActivatedAbilityContext) => {
-                // Color chosen at activation time, applied by engine
-                ctx.addMana({ G: 1 });
-            },
-            useStack: false,
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
 }));
