@@ -698,6 +698,11 @@ interface Requirements {
     /** Whether a `forEach` may be planned at all. False on the nested walk of
      *  a skipped script: its Ops never run, so nothing there is proven. */
     sweepsRun: boolean;
+    /** Whether a `sacrifice` of `$source` may be modelled: true only when
+     *  that Op is the script's one reference to its source
+     *  (`soleSourceSacrifice`), since nothing can read a source the script
+     *  has already put in the graveyard. */
+    sourceSacrificeAdmitted: boolean;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -1884,12 +1889,6 @@ const SCENARIO_SKIPS = {
         code: "runtime-branch",
         reason: `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`,
     },
-    // `sacrifice` (issue #807) consumes a `choice` Op's picks binding
-    // — same skip rationale as `discard`.
-    sacrifice: {
-        code: "choice-binding",
-        reason: `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`,
-    },
     // `moveZone` (issue #839) changes an object's zone. The canned
     // generator only seeds battlefield permanents and player targets —
     // it does not model a graveyard-card target's source zone, and a
@@ -2379,6 +2378,10 @@ function isScenarioSkipped(
     return Object.prototype.hasOwnProperty.call(SCENARIO_SKIPS, op.op);
 }
 
+/** The skip a `sacrifice` the generator does not model raises. Spelled once:
+ *  `smokeSkipForm` hashes the reason, so a golden fixture's form names it. */
+const SACRIFICE_SKIP_REASON = `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
+
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
  *  kinds (no analyser branch) force a skip so a new Op cannot silently pass. */
 function analyseOp(op: EffectOp, req: Requirements): void {
@@ -2553,6 +2556,26 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.floatingManaPlayers.add(assertionPlayerId(op.player));
             return;
         }
+        case "sacrifice":
+            // CR 701.21a — "sacrifice this permanent": its controller moves the
+            // ability's own source from the battlefield to its owner's
+            // graveyard. Modelled only where the seeded source is still a
+            // permanent the caster controls and nothing else in the script
+            // reads it (`sourceSacrificeAdmitted`); every other shape (a
+            // `choice` Op's picks, an announced target, a snapshot binding) is
+            // the card's own test.
+            if (
+                req.sourceSacrificeAdmitted &&
+                op.permanents === undefined &&
+                op.target !== undefined &&
+                isSourceRef(op.target) &&
+                subjectModelled(req, op.target)
+            ) {
+                recordSubject(req, op.target);
+                return;
+            }
+            skipBecause(req, "choice-binding", SACRIFICE_SKIP_REASON);
+            return;
         case "discardAtRandom":
             // CR 701.9b — a random discard. WHICH cards go is the seeded PRNG's
             // pick, but HOW MANY is the script's count, and every card of the
@@ -4741,6 +4764,30 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
+    // CR 701.21a — sacrificing moves the permanent from the battlefield
+    // directly to its owner's graveyard. Only the ability's own source is
+    // modelled (`analyseOp`); any other shape is skipped upstream.
+    sacrifice(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "sacrifice" }>;
+        if (op.target === undefined) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        return {
+            label: `sacrifice moves source permanent ${permId} to its owner's graveyard`,
+            check: (post) => {
+                const onBf = post.players
+                    .flatMap((p) => p.battlefield)
+                    .some((c) => c.id === permId);
+                const inGy = post.players
+                    .flatMap((p) => p.graveyard)
+                    .some((c) => c.id === permId);
+                return {
+                    ok: !onBf && inGy,
+                    detail: `onBattlefield=${onBf} inGraveyard=${inGy}`,
+                };
+            },
+        };
+    },
     // `pump` (issue #840, CR 613.4c) — a fixed-amount pump on an announced
     // permanent slot is observable as an effective-P/T delta (the temporary
     // buff is active for the rest of the turn, so it reads immediately after
@@ -5515,18 +5562,81 @@ export function planSmokeTest(
     return planWith(effects, host, undefined);
 }
 
-function planWith(
+type SacrificeOp = Extract<EffectOp, { op: "sacrifice" }>;
+
+/** The script's top-level "sacrifice this permanent" Op, when it is the
+ *  script's ONLY reference to `$source`; null otherwise. Once the source is in
+ *  the graveyard a later read of it (a counter count, a subject) would see last
+ *  known information the canned prediction does not model (CR 608.2h), so the
+ *  generator models the sacrifice only where nothing else reads the source. */
+function soleSourceSacrifice(effects: readonly EffectOp[]): SacrificeOp | null {
+    const found = effects.filter(
+        (op): op is SacrificeOp =>
+            op.op === "sacrifice" &&
+            op.permanents === undefined &&
+            op.target !== undefined &&
+            isSourceRef(op.target)
+    );
+    if (found.length !== 1) return null;
+    const mentions = JSON.stringify(effects).split('"$source"').length - 1;
+    return mentions === 1 ? found[0]! : null;
+}
+
+/**
+ * "Sacrifice this permanent. If you do, <body>" (CR 608.2c — the instructions
+ * in order, the second reading the first's result): a top-level `if` whose
+ * predicate asks whether the source sacrifice bound anything at all
+ * (`boundMatchesFilter` with an empty filter, CR 608.2h's snapshot) is
+ * replaced by its `then` body. In the canned scenario the source is a
+ * permanent its controller controls, so the sacrifice always happens
+ * (CR 701.21a) and the predicate always holds; the sweep still runs the
+ * ORIGINAL script, so the interpreter's own `if` takes the branch the body's
+ * assertions describe. Any other `if` (a filter, an `else`, another binding)
+ * is left for the ordinary analysis to skip.
+ */
+function flattenSacrificeGates(
     effects: readonly EffectOp[],
+    sacrifice: SacrificeOp
+): readonly EffectOp[] {
+    const bind = sacrifice.bind;
+    if (bind === undefined) return effects;
+    const after = effects.indexOf(sacrifice);
+    return effects.flatMap((op, index) => {
+        if (index <= after || op.op !== "if" || op.else !== undefined)
+            return [op];
+        const p = op.predicate;
+        if (
+            !holdsOnlyKeys(p, ["boundMatchesFilter", "filter"]) ||
+            !("boundMatchesFilter" in p) ||
+            !holdsOnlyKeys(p.boundMatchesFilter, ["ref"]) ||
+            p.boundMatchesFilter.ref !== bind ||
+            Object.keys(p.filter).length !== 0
+        )
+            return [op];
+        return op.then;
+    });
+}
+
+function planWith(
+    authored: readonly EffectOp[],
     host: SmokeHost,
     kickerPayments: Readonly<Record<string, number>> | undefined
 ): Plan {
-    if (effects.length === 0) {
+    if (authored.length === 0) {
         return skipPlan([
             { code: "no-assertable-outcome", reason: "empty effect script" },
         ]);
     }
 
+    // The Ops analysed and asserted: the authored script with every
+    // "if you do" gate over a source sacrifice replaced by its body.
+    const sacrificed = soleSourceSacrifice(authored);
+    const effects =
+        sacrificed === null
+            ? authored
+            : flattenSacrificeGates(authored, sacrificed);
     const req = emptyRequirements(host);
+    req.sourceSacrificeAdmitted = sacrificed !== null;
     for (const op of effects) analyseOpFully(op, req);
     analyseSweepCompanions(effects, req);
 
@@ -5609,6 +5719,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sourceCounterWrites: new Set(),
         sweeps: [],
         sweepsRun: true,
+        sourceSacrificeAdmitted: false,
     };
 }
 

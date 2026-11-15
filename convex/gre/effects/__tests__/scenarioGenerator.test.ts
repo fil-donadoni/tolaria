@@ -1061,6 +1061,122 @@ describe("random discard (CR 701.9b, issue #5943)", () => {
     });
 });
 
+describe("sacrifice this permanent — if you do (CR 701.21a, issue #6423)", () => {
+    // Aang's Iceberg's shape: "Sacrifice this enchantment. If you do, <body>",
+    // with a body the sweep can assert.
+    const gated = (
+        predicate: Record<string, unknown> = {
+            boundMatchesFilter: { ref: "$sacrificed1" },
+            filter: {},
+        },
+        rest: Record<string, unknown> = {}
+    ): EffectOp[] =>
+        [
+            {
+                op: "sacrifice",
+                target: { ref: "$source" },
+                bind: "$sacrificed1",
+            },
+            {
+                op: "if",
+                predicate,
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+                ...rest,
+            },
+        ] as EffectOp[];
+    const ENCHANTMENT_HOST = abilityHost({ types: ["Enchantment"] }, true);
+    const SACRIFICE_SKIP = `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
+
+    it("plans a run asserting the sacrifice and the gated body", () => {
+        const plan = planSmokeTest(gated(), ENCHANTMENT_HOST);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.assertions.map((a) => a.label)).toEqual([
+            expect.stringContaining("sacrifice moves source permanent"),
+            expect.stringContaining("gainLife 3"),
+        ]);
+    });
+
+    it("the source goes to the graveyard and the body resolves", () => {
+        const script = gated();
+        const plan = planSmokeTest(script, ENCHANTMENT_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveOnSeededSource(plan, script, "smoke-sacrifice-source");
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("a source already gone fails both assertions", () => {
+        const script = gated();
+        const plan = planSmokeTest(script, ENCHANTMENT_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        const caster = plan.scenario.state.players.find(
+            (p) => p.id === CASTER_ID
+        )!;
+        caster.battlefield = caster.battlefield.filter(
+            (c) => c.id !== SOURCE_PERMANENT_ID
+        );
+        resolveOnSeededSource(plan, script, "smoke-sacrifice-source-gone");
+        expect(failedAssertions(plan)).toHaveLength(2);
+    });
+
+    it("a script that runs no gated body still asserts the sacrifice", () => {
+        const plan = planSmokeTest(
+            [
+                { op: "sacrifice", target: { ref: "$source" } },
+                { op: "draw", player: "controller", count: 1 },
+            ] as EffectOp[],
+            ENCHANTMENT_HOST
+        );
+        expect(plan.kind).toBe("run");
+    });
+
+    it("every shape the canned scenario cannot prove stays a card-dependent skip", () => {
+        const cases: [EffectOp[], ReturnType<typeof abilityHost>][] = [
+            // No seeded source: a spell, or a source gone at resolution.
+            [gated(), SPELL_HOST],
+            [gated(), abilityHost({ types: ["Enchantment"] }, false)],
+            // A later read of the sacrificed source.
+            [
+                [
+                    ...gated(),
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "+1/+1",
+                        count: 1,
+                        target: { ref: "$source" },
+                    },
+                ] as EffectOp[],
+                ENCHANTMENT_HOST,
+            ],
+        ];
+        for (const [script, host] of cases) {
+            const plan = planSmokeTest(script, host);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.reason)).toContain(SACRIFICE_SKIP);
+        }
+        // A predicate that asks more than "did it happen", or an else branch,
+        // stays the binding read the generator does not model.
+        for (const script of [
+            gated({
+                boundMatchesFilter: { ref: "$sacrificed1" },
+                filter: { types: ["Creature"] },
+            }),
+            gated(undefined, {
+                else: [{ op: "draw", player: "controller", count: 1 }],
+            }),
+        ]) {
+            const plan = planSmokeTest(script, ENCHANTMENT_HOST);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.reason)).toContain(
+                `Op "if" reads ref "$sacrificed1" — depends on a runtime binding`
+            );
+        }
+    });
+});
+
 describe("$source counter-count amounts (CR 608.2h, issue #5265)", () => {
     // Ratchet Bomb's shape, reduced to an amount the sweep can assert: the
     // ability reads the number of charge counters on its own source.
