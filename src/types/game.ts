@@ -80,6 +80,10 @@ export interface Player {
     /** The viewer's OWN outside-the-game holder (CR 400.11a — their
      *  sideboard), set only on the viewer's player; never another's. */
     outsideGame?: CardInstance[];
+    /** CR 400.11b — while the viewer holds an outside-game play permission,
+     *  their outside-the-game pool with each card's `legalActions` (Cast /
+     *  Play). Set only on the viewer's own player; never another's. */
+    outsideGamePlayable?: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];

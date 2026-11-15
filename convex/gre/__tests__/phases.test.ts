@@ -3199,6 +3199,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         ["cannotActivateAbilitiesThisTurn", ["p2"]],
         ["cannotPlayLandsThisTurn", ["p2"]],
         ["extraLandDropsThisTurn", [{ playerId: "p1", count: 1 }]],
+        ["outsideGamePlaysThisTurn", { p1: 1 }],
         ["spellManaSubstitutionGrants", { p1: ["any-type"] }],
         [
             "manaSubstitutionGrantsThisTurn",

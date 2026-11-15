@@ -82,7 +82,7 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { extraLandDropsOf } from "../cards/abilities/classLevels";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
-import { findOutsideGamePlayable } from "./outsideGame";
+import { findOutsideGamePlayable, outsideGamePool } from "./outsideGame";
 import {
     exileCastRoutes,
     exileRoutePrice,
@@ -1969,11 +1969,14 @@ export function getLegalActions(
     // normal timing gate, judged per announcement like every non-hand branch
     // (`anyCastAnnouncementLegal`). Owns the "cast" decision for a pool card
     // and returns, so the hand branch below never sees one.
-    if (
-        !types.includes("Land") &&
-        findOutsideGamePlayable(state, player, card.id) !== undefined
-    ) {
+    //
+    // A pool card WITHOUT the permission is no play at all (CR 400.11c — cards
+    // outside the game can't be affected): returned here too, fail-closed,
+    // so the zone-blind hand fallback below never offers it a cast.
+    if (outsideGamePool(player).some((c) => c.id === card.id)) {
         if (
+            !types.includes("Land") &&
+            findOutsideGamePlayable(state, player, card.id) !== undefined &&
             passesCastPhaseRestriction(state, card) &&
             hasPayableAdditionalCost(player, card) &&
             anyCastAnnouncementLegal(state, caster, card, {
