@@ -213,7 +213,7 @@ describe("CR 613.1f — cast permission ends with ability loss (CR 601.3 / 118.9
             state.priorityPlayerId = "p2";
             const p2 = () => getPlayer(state, "p2");
             const wireActions = () =>
-                projectPublicState(state, 1, "p2").players[1].hand[0]
+                projectPublicState(state, 1, "p2").players[1].hand[0]!
                     .legalActions;
             const granted = (expected: boolean) => {
                 expect(hasCastPermissionFlash(state, "p2", bears)).toBe(
