@@ -8192,6 +8192,7 @@
         {"id":"601.2c","line":"// CR 601.2c — deferral inside the CURRENT group rests on \"picking a","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"602.1","line":"describe(\"Elvish Farmer — sacrifice-a-Saproling lifegain (CR 602.1)\", () => {","sites":1,"status":"baseline"},
         {"id":"303.4","line":"// only attack alone.\" (CR 303.4 Aura on a creature; CR 613 layer 7c +3/+0","sites":1,"status":"baseline"},
+        {"id":"605.3b","line":"it(\"Fyndhorn Elves is a non-stack mana ability producing {G} (CR 605.3b)\", () => {","sites":1,"status":"confirmed","ruleHash":"07ca77acc153aa35"},
         {"id":"603.4","line":"// * \"if no creatures attacked this turn\" — a CR 603.4 intervening-if, so the","sites":1,"status":"baseline"},
         {"id":"702.49a","line":"* CR 702.49a — a \"Ninjutsu [cost]\" line: an activated ability usable from","sites":1,"status":"confirmed","ruleHash":"3210a80b3f428b67"},
         {"id":"113.7a","line":"// the same argument the activated branch makes above: CR 113.7a's","sites":1,"status":"baseline"},
