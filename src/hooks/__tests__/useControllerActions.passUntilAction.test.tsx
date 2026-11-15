@@ -72,6 +72,13 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     }),
 }));
 
+/** The prompt's primary action — null = no choice of the viewer's is open. */
+let mockPrimaryAction: { canConfirm: boolean; confirm: () => void } | null =
+    null;
+vi.mock("~/hooks/usePendingChoicePrimaryAction", () => ({
+    usePendingChoicePrimaryAction: () => mockPrimaryAction,
+}));
+
 import { useControllerActions } from "../useControllerActions";
 
 function player(id: string): Player {
@@ -156,6 +163,18 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         expect(slots.passUntilAction).toBe(action);
         expect(slots.primary?.key).toBe("pass");
         expect(slots.secondary).not.toContain(action);
+    });
+
+    it("Pass drops the Space keycap while a choice of the viewer's is open — Space confirms the prompt then (issue #9833)", () => {
+        mockPrimaryAction = { canConfirm: true, confirm: () => {} };
+        try {
+            const { result } = renderCtrl({});
+            const pass = result.current.actions.find((a) => a.key === "pass");
+            expect(pass).toBeDefined();
+            expect(pass?.shortcut).toBeUndefined();
+        } finally {
+            mockPrimaryAction = null;
+        }
     });
 
     it("Enter arms it through the passUntilAction mutation", async () => {

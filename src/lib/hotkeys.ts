@@ -176,7 +176,8 @@ export function matchesHotkey(
         case "scroll":
             return false;
         default:
-            return event.key.toUpperCase() === key;
+            // `key` can be absent on a synthetic keydown (Chrome autofill).
+            return event.key?.toUpperCase() === key;
     }
 }
 
