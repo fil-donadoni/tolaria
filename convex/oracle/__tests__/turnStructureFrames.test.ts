@@ -188,7 +188,7 @@ describe("turn-structure frames — golden fixtures (CR 500.7, CR 500.8, CR 614.
         );
     });
 
-    it("skip this turn's draw step behind a reflexive gate (Elfhame Sanctuary)", () => {
+    it("skip this turn's draw step gated on the choice to search (Elfhame Sanctuary, CR 118.12b)", () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Elfhame Sanctuary",
@@ -200,7 +200,7 @@ describe("turn-structure frames — golden fixtures (CR 500.7, CR 500.8, CR 614.
         );
         if (outcome.state === "unparsed")
             throw new Error(JSON.stringify(outcome.gaps));
-        expect(outcome.state).toBe("quarantine");
+        expect(outcome.state).toBe("ready");
         expect(sortKeys(outcome.definition)).toEqual(
             sortKeys({
                 name: "Elfhame Sanctuary",
@@ -249,7 +249,6 @@ describe("turn-structure frames — golden fixtures (CR 500.7, CR 500.8, CR 614.
                                         player: "controller",
                                         from: "library",
                                         to: "hand",
-                                        bind: "$did3",
                                     },
                                     {
                                         op: "libraryLook",
@@ -257,19 +256,8 @@ describe("turn-structure frames — golden fixtures (CR 500.7, CR 500.8, CR 614.
                                         player: "controller",
                                     },
                                     {
-                                        op: "if",
-                                        predicate: {
-                                            boundMatchesFilter: {
-                                                ref: "$did3",
-                                            },
-                                            filter: {},
-                                        },
-                                        then: [
-                                            {
-                                                op: "skipDrawStepThisTurn",
-                                                player: "controller",
-                                            },
-                                        ],
+                                        op: "skipDrawStepThisTurn",
+                                        player: "controller",
                                     },
                                 ],
                             },
