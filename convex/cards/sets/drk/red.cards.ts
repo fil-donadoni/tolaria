@@ -191,66 +191,6 @@ export const brothersOfFire = defineCard(() => ({
     ],
 }));
 
-// Cave People — "Whenever this creature attacks, it gets +1/-2 until end of
-// turn.\n{1}{R}{R}, {T}: Target creature gains mountainwalk until end of turn."
-// (CR 508 attack trigger applying a temporary P/T mod to itself; CR 605
-// activated ability granting the `mountainwalk` keyword to a target until EOT —
-// the Part Water grant pattern.)
-export const cavePeople = defineCard(() => ({
-    id: "72746a5d-faa1-44b7-97b5-0ef9302a3c13",
-    rarity: "uncommon",
-    name: "Cave People",
-    oracleText:
-        "Whenever this creature attacks, it gets +1/-2 until end of turn.\n{1}{R}{R}, {T}: Target creature gains mountainwalk until end of turn.",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Human"],
-    power: 1,
-    toughness: 4,
-    triggeredAbilities: [
-        {
-            id: "cave-people-attack-pump",
-            oracleText:
-                "Whenever this creature attacks, it gets +1/-2 until end of turn.",
-            event: "ATTACKERS_DECLARED",
-            matches: (event, self) =>
-                event.type === "ATTACKERS_DECLARED" &&
-                event.attackerIds.includes(self.id),
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/-2
-            // until end of turn (CR 611.2).
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: -2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-    activatedAbilities: [
-        {
-            id: "cave-people-grant-mountainwalk",
-            oracleText:
-                "{1}{R}{R}, {T}: Target creature gains mountainwalk until end of turn.",
-            cost: { tap: true, mana: { X: 1, R: 2 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant mountainwalk
-            // to the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "mountainwalk",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Eternal Flame — "Eternal Flame deals X damage to target opponent or
 // planeswalker and half X damage, rounded up, to you, where X is the number of
 // Mountains you control." (CR 120 damage; X is a board count read at resolve,

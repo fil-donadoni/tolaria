@@ -346,7 +346,7 @@ describe("Cave People — attack pump +1/-2 + grant mountainwalk (CR 508 / 702.1
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, cave, "cave-people-attack-pump", {
+        resolveTrigger(state, cave, "cave-people-trigger", {
             type: "ATTACKERS_DECLARED",
             attackingPlayerId: "p1",
             attackerIds: [cave.id],
@@ -369,7 +369,7 @@ describe("Cave People — attack pump +1/-2 + grant mountainwalk (CR 508 / 702.1
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, cave, "cave-people-grant-mountainwalk", [
+        resolveActivated(state, cave, "cave-people-ability", [
             { type: "permanent", id: ally.id },
         ]);
         const inPlay = state.players[0].battlefield.find(
