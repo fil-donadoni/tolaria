@@ -2520,6 +2520,16 @@ function permanentTargetStillMeetsRestrictions(
     return checkPermanentTargetFilters(ctx, candidate, values) === null;
 }
 
+/** The guard-side projection of a stack item as a targeting source: its
+ *  characteristics through `targetingSourceFromCard` and its controller as
+ *  `targetStillTargetableBySource` reads it (`castById` first). */
+function stackItemGuardSource(item: StackItem): GuardActionSource {
+    return guardSourceFromTargeting(
+        targetingSourceFromCard(item, isSpellStackItem(item)),
+        item.castById ?? item.controllerId
+    );
+}
+
 /** CR 608.2b, protective-KEYWORD half (issue #2942) — re-checks a still-legal
  *  target against the protective keywords it may have GAINED while the
  *  spell/ability sat on the stack: protection (CR 702.16b),
@@ -2558,17 +2568,6 @@ function permanentTargetStillMeetsRestrictions(
  *  here re-derives a requirement: it reads the TARGET's current keywords
  *  against the SOURCE's current characteristics, both live, and CR 702.16b /
  *  702.18a / 702.11b all say "spells or abilities" without qualification. */
-/** The guard-side projection of a stack item as a targeting source (CR
- *  109.5): its characteristics through `targetingSourceFromCard` and its
- *  controller as `targetStillTargetableBySource` reads it (`castById` first,
- *  CR 113.7a). */
-function stackItemGuardSource(item: StackItem): GuardActionSource {
-    return guardSourceFromTargeting(
-        targetingSourceFromCard(item, isSpellStackItem(item)),
-        item.castById ?? item.controllerId
-    );
-}
-
 function targetStillTargetableBySource(
     state: GameState,
     item: StackItem,
@@ -19037,8 +19036,8 @@ export function buildSpellContext(
         ): void {
             // CR 611.2a — "You gain hexproof from blue until end of turn": the
             // player carries the keyword until CLEANUP (CR 514.2). A second
-            // instance is redundant for targeting (CR 702.18b; a repeated
-            // hexproof bars the same sources), so a re-grant is a no-op.
+            // instance of the same keyword is redundant (CR 702.11h hexproof,
+            // CR 702.18b shroud), so a re-grant is a no-op.
             const player = state.players.find((p) => p.id === playerId);
             if (!player) return;
             const list = player.keywordsUntilEndOfTurn ?? [];

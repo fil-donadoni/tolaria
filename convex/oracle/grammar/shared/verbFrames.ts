@@ -388,12 +388,13 @@ export type FrameIR =
     | {
           /**
            * CR 611.2a — "you gain <keyword> until end of turn": the controller
-           * gains a targeting keyword for the rest of the turn — shroud
-           * (CR 702.18a), hexproof (CR 702.11c) or hexproof from a colour
-           * (CR 702.11d), "hexproof from A and from B" read as the two
-           * abilities CR 702.11f says it is. The controller only, and only
-           * until end of turn: "until your next turn" is a longer effect the
-           * Op does not hold.
+           * gains a targeting keyword for the rest of the turn.
+           * - Shroud (CR 702.18a).
+           * - Hexproof (CR 702.11c), or hexproof from a colour (CR 702.11d).
+           * - "Hexproof from A and from B", read as the two abilities
+           *   CR 702.11f says it is.
+           * The controller only, and only until end of turn: "until your next
+           * turn" is a longer effect the Op does not hold.
            */
           readonly frame: "playerKeyword";
           readonly keywords: readonly string[];

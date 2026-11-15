@@ -7,11 +7,13 @@
 //     601.2i / 202.2) and the `{ spellsCastThisTurn: { of, colors? } }`
 //     EffectValue that reads it ("if an opponent has cast a blue or black
 //     spell this turn").
-//  3. A player's keywords until end of turn — hexproof (CR 702.11c), hexproof
-//     from a colour (CR 702.11d), shroud (CR 702.18a) — granted by the
-//     `grantPlayerKeyword` Op and read at every player-target gate: the
-//     offered set (`getLegalTargets`), the accepted set
-//     (`applyOneTargetSelection`) and the CR 608.2b resolution re-check.
+//  3. A player's keywords until end of turn, granted by the
+//     `grantPlayerKeyword` Op:
+//     - hexproof (CR 702.11c), and hexproof from a colour (CR 702.11d);
+//     - shroud (CR 702.18a).
+//     They are read at every player-target gate: the offered set
+//     (`getLegalTargets`), the accepted set (`applyOneTargetSelection`) and
+//     the CR 608.2b resolution re-check.
 import { describe, expect, it } from "vitest";
 import {
     makeInstance,
@@ -170,6 +172,18 @@ describe("colours of spells cast this turn (CR 601.2i / 202.2)", () => {
             expect(ctx.getSpellsCastThisTurn("p2", ["R"])).toBe(0);
             expect(ctx.getSpellsCastThisTurn("p2")).toBe(1);
         });
+    });
+
+    it("a spell counts when it is ANY listed colour; a colourless one never does", () => {
+        const state = freshState();
+        state.players[1].spellsCastThisTurn = 3;
+        state.players[1].spellColorsCastThisTurn = [["U", "R"], [], ["G"]];
+        pushSpell(state, lightningBolt().id, "p1");
+        const ctx = buildSpellContext(state, state.stack[0]!);
+        expect(ctx.getSpellsCastThisTurn("p2", ["U", "B"])).toBe(1);
+        expect(ctx.getSpellsCastThisTurn("p2", ["W", "U", "B", "R", "G"])).toBe(
+            2
+        );
     });
 });
 
@@ -330,6 +344,40 @@ describe("grantPlayerKeyword Op — a player's keywords until end of turn (CR 61
                 targetId: "p1",
             })
         ).toThrow("Target can't be the target of spells or abilities");
+    });
+
+    it("the accepted set still takes the player's own spell under hexproof (CR 702.11c)", () => {
+        const state = granted("hexproof");
+        const bolt = makeInstance(lightningBolt().id, {
+            id: "own-bolt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].hand = [bolt];
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: bolt.id,
+            kind: "cast",
+            targetType: "any",
+            count: 1,
+            selected: [],
+        };
+        expect(() =>
+            applyOneTargetSelection(state, "p1", {
+                targetType: "player",
+                targetId: "p1",
+            })
+        ).not.toThrow("Target can't be the target of spells or abilities");
+    });
+
+    it("the player's own spell still resolves under their hexproof (CR 608.2b)", () => {
+        const state = freshState();
+        pushSpell(state, lightningBolt().id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        state.players[0].keywordsUntilEndOfTurn = ["hexproof"];
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
     });
 
     it("gained in response, it counters the spell on resolution (CR 608.2b)", () => {

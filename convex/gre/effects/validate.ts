@@ -7522,8 +7522,10 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: { player: isPlayerRef },
     },
     // CR 611.2a — "You gain shroud until end of turn". `keyword` is one the
-    // player-target gate reads: hexproof (CR 702.11c), a hexproof-from quality
-    // `parseHexproofQuality` names (CR 702.11d), or shroud (CR 702.18a).
+    // player-target gate reads:
+    // - hexproof (CR 702.11c);
+    // - hexproof from a quality `parseHexproofQuality` names (CR 702.11d);
+    // - shroud (CR 702.18a).
     grantPlayerKeyword: {
         required: { player: isPlayerRef, keyword: isPlayerKeyword },
     },
