@@ -179,6 +179,15 @@ describe("gameStates serialize round-trip", () => {
         });
     });
 
+    // CR 401.5 — the announcement window's frozen library tops outlive the
+    // save that opened it, or the next mutation would see no record.
+    it("preserves announcementLibraryTops (CR 401.5)", () => {
+        const state = freshState();
+        state.announcementLibraryTops = ["lib-a", "lib-b"];
+        const expanded = expandState(compactState(state));
+        expect(expanded.announcementLibraryTops).toEqual(["lib-a", "lib-b"]);
+    });
+
     // CR 611.2a — a "for the rest of the game" player lock outlives every save:
     // dropped by `compactState`, a reload would hand the player life gain back.
     it("preserves playerRestrictions (CR 611.2a, can't gain life)", () => {

@@ -15,6 +15,7 @@ import {
     type CompactLibraries,
 } from "./gre/serialize";
 import { actingPlayerFor, activeTurnControls } from "./gre/turnControl";
+import { syncAnnouncementWindow } from "./gre/libraryReveal";
 import { projectPublicState } from "./gameProjections";
 import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
@@ -192,6 +193,13 @@ export async function saveGameState(
             return persisted;
         });
     }
+    // CR 401.5 — open, carry or close the announcement window's frozen
+    // library tops. Read off the previous snapshot, which no action of this
+    // mutation has touched yet.
+    syncAnnouncementWindow(
+        state as GameState,
+        existing?.state as GameState | undefined
+    );
     // ADR 0047 — maintain the authoritative Expected Input at the persistence
     // seam. Every stable point flows through `saveGameState`, so recomputing
     // here keeps the persisted + projected field coherent with the settled

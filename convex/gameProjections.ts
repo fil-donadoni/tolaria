@@ -1955,6 +1955,10 @@ export function projectPublicState(
         ...state,
         seq,
         players,
+        // CR 400.2 — the announcement window's record names library cards by
+        // instance id, which a hidden zone never ships; the reveal it gates is
+        // already applied to `players[].library` above (CR 401.5).
+        announcementLibraryTops: undefined,
         stack: state.stack.map((item) =>
             projectStackItem(item, viewerId, knowers)
         ),
