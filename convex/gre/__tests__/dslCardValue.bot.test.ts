@@ -1186,3 +1186,58 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
         });
     });
 });
+
+// CR 602.1a / 118.3 — an activated ability whose whole cost is removing
+// counters from its source is activated as many times as the counters it
+// enters with pay for, all in one priority window: a Fading permanent
+// (Fading 5, CR 702.32a) pays five "remove a fade counter" activations. The
+// standing reading counts that budget; a co-cost (tap, mana) or a non-fixed
+// count keeps weight 1.
+describe("counter budget on a standing activated ability (issue #9744)", () => {
+    const script: EffectOp[] = [
+        { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+    ];
+    const enchantment = (count: number | "X", cost: Record<string, unknown>) =>
+        ({
+            id: `budget-${count}-${Object.keys(cost).join("-")}`,
+            name: "Budget Fixture",
+            rarity: "common",
+            types: ["Enchantment"],
+            manaCost: { X: 2 },
+            entersWith: { counters: [{ type: "fade", count }] },
+            activatedAbilities: [
+                {
+                    id: "budget-ability",
+                    oracleText: "",
+                    cost: {
+                        removeCounter: { type: "fade", count: 1 },
+                        ...cost,
+                    },
+                    useStack: true,
+                    effects: script,
+                },
+            ],
+        }) as unknown as CardDefinition;
+
+    it("five counters paying a one-counter cost read five activations", () => {
+        const one = dslStandingAbilityScriptValue(enchantment(1, {}));
+        const five = dslStandingAbilityScriptValue(enchantment(5, {}));
+        expect(one).toBeGreaterThan(0);
+        expect(five).toBeCloseTo(one! * 5, 9);
+    });
+
+    it("a tap co-cost paces the budget: one activation", () => {
+        const one = dslStandingAbilityScriptValue(enchantment(1, {}));
+        expect(
+            dslStandingAbilityScriptValue(enchantment(5, { tap: true }))
+        ).toBeCloseTo(one!, 9);
+    });
+
+    it("a count that is not a fixed number (X) reads one activation", () => {
+        const one = dslStandingAbilityScriptValue(enchantment(1, {}));
+        expect(dslStandingAbilityScriptValue(enchantment("X", {}))).toBeCloseTo(
+            one!,
+            9
+        );
+    });
+});
