@@ -137,6 +137,18 @@ export type CompiledTriggerCondition =
           readonly atMost: number;
       }
     /**
+     * CR 603.4 + CR 102.2 — "if an opponent controls three or more
+     * creatures": the `atLeast` count over the controller's opponents, true
+     * when one of them meets it. Trigger-site only: the static slot reads its
+     * opponent half as `opponent-controls` (`compiledStatics.ts`).
+     */
+    | {
+          readonly kind: "controls";
+          readonly player: "opponent";
+          readonly filter: PermanentFilter;
+          readonly atLeast: number;
+      }
+    /**
      * CR 305.6 / 603.4 — "if there are four or more basic land types among
      * lands THAT PLAYER controls" (Mask of Intolerance, issue #4127). The
      * player is a censused `$event` player field of the firing event
@@ -548,18 +560,8 @@ function conditionHolds(
         if (playerId === undefined || playerId === null) return false;
         return countDomain(state as never, playerId) >= condition.atLeast;
     }
-    if ("atMost" in condition) {
-        // CR 603.4 — the subject's players; "some player" for `any-player`, and the
-        // one opponent of a two-player game for `opponent` (CR 506.2). An
-        // empty list (a state view missing the controller) fails CLOSED.
-        const players = state.players.filter((p) =>
-            condition.player === "any-player"
-                ? true
-                : condition.player === "you"
-                  ? p.id === self.controllerId
-                  : p.id !== self.controllerId
-        );
-        return players.some(
+    if ("atMost" in condition)
+        return subjectPlayers(condition.player, self, state).some(
             (p) =>
                 countControlledMatching(
                     p,
@@ -568,18 +570,40 @@ function conditionHolds(
                     condition.atMost + 1
                 ) <= condition.atMost
         );
-    }
     if (condition.kind === "controls-more")
         return controlsMore(condition, event, self, state);
-    const player = state.players.find((p) => p.id === self.controllerId);
-    if (player === undefined) return false;
-    return (
-        countControlledMatching(
-            player,
-            condition.filter,
-            self,
-            condition.atLeast
-        ) >= condition.atLeast
+    return subjectPlayers(
+        "player" in condition ? condition.player : "you",
+        self,
+        state
+    ).some(
+        (p) =>
+            countControlledMatching(
+                p,
+                condition.filter,
+                self,
+                condition.atLeast
+            ) >= condition.atLeast
+    );
+}
+
+/**
+ * CR 603.4 — the players a `controls` count reads: the ability's controller
+ * (CR 109.5), each of their opponents (CR 102.2), or every player for
+ * `any-player`; the count holds when one of them meets it. An empty list (a
+ * state view missing the controller) fails CLOSED.
+ */
+function subjectPlayers(
+    subject: ControlsSubject,
+    self: PermanentView,
+    state: TriggerStateView
+): TriggerStateView["players"] {
+    return state.players.filter((p) =>
+        subject === "any-player"
+            ? true
+            : subject === "you"
+              ? p.id === self.controllerId
+              : p.id !== self.controllerId
     );
 }
 

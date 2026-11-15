@@ -48,9 +48,9 @@ export const CONDITION = "condition";
  * A condition, in the sentence's own vocabulary.
  *
  * `atLeast` rather than a bare boolean because CR 603.4 conditions count
- * ("if you control two or more Goblins"); v1 only READS the singular article,
- * but the field means the comparison rather than the phrasing, so the plural
- * rule that arrives later changes the grammar and not the IR.
+ * ("if you control two or more Goblins"); this shape is the singular
+ * article's reading, and the plural one ({@link CountedControlsIR}) keeps the
+ * same field beside the subject it names.
  */
 export type ConditionIR = {
     readonly kind: "controls";
@@ -88,6 +88,7 @@ export type ControlsAtMostIR = {
 export type TriggerConditionIR =
     | ConditionIR
     | ControlsAtMostIR
+    | CountedControlsIR
     /**
      * CR 113.6b — "if this card is in your graveyard": the ability
      * functions only from the graveyard. Not a board predicate: lowering reads
@@ -255,13 +256,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
             return comparativeControlsRule.run(clause, ctx);
         const none = clause.match(CONTROLS_NONE);
         if (none !== null) return readControlsNone(none, span, ctx);
-        const counted = countedControlsRule.run(clause, ctx);
-        if (counted.ok && counted.value.player === "you")
-            return ok({
-                kind: "controls" as const,
-                filter: counted.value.filter,
-                atLeast: counted.value.atLeast,
-            });
+        const counted = countedConditionRule.run(clause, ctx);
+        if (counted.ok) return counted;
         return controlsRule.run(clause, ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
@@ -474,7 +470,9 @@ export const comparativeControlsRule: Rule<ComparativeControlsIR> = rule(
  * more lands": the PLURAL reading of the `controls` count, the one
  * {@link ConditionIR}'s `atLeast` was shaped for. `player` is whose
  * permanents are counted — the ability's controller, or one of their
- * opponents.
+ * opponents (CR 102.2: at least one opponent meets the count). The subject
+ * stays here rather than in the filter's `controller`, which
+ * `permanentFilterFromDescriptor` refuses.
  */
 export type CountedControlsIR = {
     readonly kind: "controls-at-least";
@@ -487,22 +485,20 @@ const COUNTED_CONTROLS =
     /^(you control|an opponent controls) (\S+) or more (.+)$/;
 
 /**
- * `"you control two or more black permanents"` — a number word from two up
- * (one is the singular article's reading, {@link controlsRule}), then a
- * PLURAL descriptor with no controller clause of its own, read exactly as the
- * singular form reads its own ({@link controlledFilter}). Written once for
- * every site that prints the counted form: an activation restriction
- * (CR 602.5, issue #5258) today, a counted intervening-if when its cut lands.
+ * `"you control two or more black permanents"` — a number word from `least`
+ * up, then a PLURAL descriptor with no controller clause of its own, read
+ * exactly as the singular form reads its own ({@link controlledFilter}).
+ * Written once for every site that prints the counted form: an activation
+ * restriction (CR 602.5) and a trigger's intervening-if (CR 603.4).
  */
-export const countedControlsRule: Rule<CountedControlsIR> = rule(
-    "counted controls",
-    (span, ctx) => {
+function countedControlsRuleFrom(least: number): Rule<CountedControlsIR> {
+    return rule("counted controls", (span, ctx) => {
         const match = span.match(COUNTED_CONTROLS);
         if (match === null) return fail("not a counted controls", span);
         const atLeast = /^[a-z]+$/.test(match[2]!)
             ? readNumberWord(match[2]!)
             : null;
-        if (atLeast === null || atLeast < 2)
+        if (atLeast === null || atLeast < least)
             return fail(
                 `"${match[2]}" is not a permanent-count threshold`,
                 span
@@ -519,8 +515,20 @@ export const countedControlsRule: Rule<CountedControlsIR> = rule(
             filter: filter.value,
             atLeast,
         });
-    }
-);
+    });
+}
+
+/** CR 602.5 — from two up: "one or more" is the singular article's reading
+ *  ({@link controlsRule}), and no activation restriction prints it. */
+export const countedControlsRule: Rule<CountedControlsIR> =
+    countedControlsRuleFrom(2);
+
+/**
+ * CR 603.4 — the intervening-if prints "one or more Eggs" too: the same
+ * count as "an Egg", spelled with the plural the corpus gives it.
+ */
+const countedConditionRule: Rule<CountedControlsIR> =
+    countedControlsRuleFrom(1);
 
 /**
  * `"you control a Goblin"` — the controls clause itself, without the word that
