@@ -360,6 +360,24 @@ const CONTROLS_NONE_SUBJECTS: ReadonlyMap<
 ]);
 
 /**
+ * CR 205.3i — "Plains" is the land type spelled the same in both numbers, so
+ * the descriptor reader, which marks a noun plural by its added "s", reads
+ * "seven or more Plains" as singular. A clause that demands a plural noun
+ * accepts one whose every subtype is number-invariant; any other singular
+ * noun is still a phrase we have misread.
+ */
+const NUMBER_INVARIANT_SUBTYPES: ReadonlySet<string> = new Set(["Plains"]);
+
+function readsPlural(descriptor: DescriptorIR): boolean {
+    if (descriptor.plural === true) return true;
+    const subtypes = descriptor.subtypes ?? [];
+    return (
+        subtypes.length > 0 &&
+        subtypes.every((s) => NUMBER_INVARIANT_SUBTYPES.has(s))
+    );
+}
+
+/**
  * CR 603.4 — the zero count. "no" takes a plural noun ("no Goblins"); a
  * singular one is not how the corpus prints the clause, so it is a phrase we
  * have misread. The descriptor is read exactly as the "a Goblin" form reads
@@ -375,7 +393,7 @@ function readControlsNone(
         return fail(`"${match[1]} ${match[2]}" does not agree`, span);
     const descriptor = descriptorRule.run(match[3]!, ctx);
     if (!descriptor.ok) return descriptor;
-    if (descriptor.value.plural !== true)
+    if (!readsPlural(descriptor.value))
         return fail('"no" introduces a plural descriptor', span);
     const filter = controlledFilter(descriptor.value, span, { tapped: true });
     if (!filter.ok) return filter;
@@ -442,7 +460,7 @@ export const comparativeControlsRule: Rule<ComparativeControlsIR> = rule(
             );
         const descriptor = descriptorRule.run(match[2]!, ctx);
         if (!descriptor.ok) return descriptor;
-        if (descriptor.value.plural !== true)
+        if (!readsPlural(descriptor.value))
             return fail('"more" introduces a plural descriptor', span);
         const filter = permanentFilterFromDescriptor(descriptor.value, {
             colors: true,
@@ -505,7 +523,7 @@ function countedControlsRuleFrom(least: number): Rule<CountedControlsIR> {
             );
         const descriptor = descriptorRule.run(match[3]!, ctx);
         if (!descriptor.ok) return descriptor;
-        if (descriptor.value.plural !== true)
+        if (!readsPlural(descriptor.value))
             return fail('"or more" introduces a plural descriptor', span);
         const filter = controlledFilter(descriptor.value, span, {
             tapped: true,
