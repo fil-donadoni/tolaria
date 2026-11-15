@@ -341,8 +341,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A PREDICATE, like the Kicker {X} entry's: a reachability claim, kept
+        // out of the weight fit.
         expect: {
-            moves: [{ kind: "activate-ability", card: "Runed Arch", x: 2 }],
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "activate-ability" &&
+                move.chosenX === 2 &&
+                move.targets.length === 2,
+            describe:
+                "activates Runed Arch with X = 2 on two targets, making both Bears unblockable for the lethal attack",
         },
         note: 'CR 107.3a activation {X} reachability — the deterministic halves (every fundable X enumerated, each accepted by the server; an "X target" count sized by the announced X; mode AND X on one move under a white-only X ceiling) are in `activationPrecondition.bot.test.ts` and `modalActivationChosenX.bot.test.ts`. Issue #3688.',
     },
