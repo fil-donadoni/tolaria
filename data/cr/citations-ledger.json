@@ -7774,6 +7774,7 @@
         {"id":"120.3","line":"// CR 120.3 — the event alone cannot answer \"was that a planeswalker?\".","sites":1,"status":"baseline"},
         {"id":"702.16","line":"// Protection cycle (CR 702.16) — static keyword + temporary grantAbility","sites":1,"status":"baseline"},
         {"id":"118.3","line":"// file proves is that the leg is gated (CR 118.3), chosen rather than auto-picked","sites":1,"status":"confirmed","ruleHash":"61d0cf80a98d7f13"},
+        {"id":"612.1","line":"/** CR 612.1 — the colour words a definition's `permanent-guard` source-colour","sites":1,"status":"confirmed","ruleHash":"b9e4b68544a247f8"},
         {"id":"614.12","line":"// life paid as it entered.\" (CR 702.19 trample; CR 614.12 \"as it enters\" pay-","sites":1,"status":"baseline"},
         {"id":"602.1","line":"* `pendingActivation.tapOtherChoice` and attempts the commit (CR 602.1 /","sites":1,"status":"baseline"},
         {"id":"702.19b","line":"* in this combat damage step (CR 702.19b / CR 702.2c). The map the manual","sites":1,"status":"baseline"},
