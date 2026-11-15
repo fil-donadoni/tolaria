@@ -114,6 +114,7 @@ export function readCoinFlipSentence(
     // cards, multiplied by the flips made.
     if (
         effect.kind !== "draw" ||
+        effect.additional === true ||
         effect.player.kind !== "you" ||
         effect.count.kind !== "fixed"
     )

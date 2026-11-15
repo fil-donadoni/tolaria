@@ -136,6 +136,13 @@ export interface SiteOptions {
     /** CR 113.6b — the ability being lowered functions from the graveyard. */
     readonly functionsFromGraveyard?: boolean;
     /**
+     * CR 504.1 — the ability triggers at the beginning of its controller's
+     * draw step, after the turn-based draw: the one site where "draw N
+     * additional cards" names a draw the grammar can place. Absent = the
+     * sentence is refused.
+     */
+    readonly ownDrawStep?: true;
+    /**
      * CR 107.3f — the binding a `payVariableMana` wrote ("$paid"), set while
      * the effect that FOLLOWS the payment is lowered: there `X` is the amount
      * paid, not an announced value, so `lowerAmount` reads `{ ref }` instead of
@@ -2925,6 +2932,12 @@ function lowerSentenceBody(
             ]);
         }
         case "draw": {
+            // CR 504.1 + CR 121.1 — "additional" is relative to the draw
+            // step's turn-based draw; anywhere else it has no referent.
+            if (sentence.additional === true && site.ownDrawStep !== true)
+                return unlowerable(
+                    '"draw additional cards" outside an "at the beginning of your draw step" trigger'
+                );
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerLifeAmount(sentence.count, walk, site);
