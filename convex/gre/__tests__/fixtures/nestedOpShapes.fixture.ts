@@ -155,6 +155,21 @@ export const NESTING_SHAPES: readonly NestingShape[] = [
             otherEffect: inner,
         }),
     },
+    {
+        label: "preventDamage.whenPrevented",
+        hostOp: "preventDamage",
+        key: "whenPrevented",
+        nest: (inner) => ({
+            op: "preventDamage",
+            mode: "all-from-chosen-source",
+            source: { ref: "$chosen" },
+            to: { player: "controller" },
+            whenPrevented: {
+                oracleText: "Whenever damage is prevented this way, do it.",
+                effects: inner,
+            },
+        }),
+    },
 ];
 
 /** A marker Op, compared by IDENTITY — call once per shape for a fresh

@@ -66,19 +66,25 @@ type HoldsScript<V> =
           ? true
           : false;
 
-/** `true` when Op variant `O` carries a nested script in any field. */
-type CarriesScript<O> = true extends {
-    [K in keyof O]-?: HoldsScript<O[K]>;
-}[keyof O]
-    ? true
-    : false;
+/** `true` when Op variant `O` carries a nested script in any field.
+ *  Distributes over an Op's variants (`preventDamage`'s modes), so one
+ *  variant carrying a script makes the result `boolean`, never `false`:
+ *  `keyof` of the whole union would see only the fields EVERY mode shares. */
+type CarriesScript<O> = O extends unknown
+    ? true extends {
+          [K in keyof O]-?: HoldsScript<O[K]>;
+      }[keyof O]
+        ? true
+        : false
+    : never;
 
 /** Every Op name whose variant carries a nested Effect Script — DERIVED from
- *  the `EffectOp` union's field types, never listed by hand. */
+ *  the `EffectOp` union's field types, never listed by hand. An Op counts
+ *  when ANY of its variants does. */
 export type ScriptHostOp = {
-    [N in EffectOp["op"]]: CarriesScript<
+    [N in EffectOp["op"]]: true extends CarriesScript<
         Extract<EffectOp, { op: N }>
-    > extends true
+    >
         ? N
         : never;
 }[EffectOp["op"]];
@@ -88,9 +94,11 @@ type ScriptlessOp = Exclude<EffectOp, { op: ScriptHostOp }>;
 
 /** The fields of Op variant `O` that carry a nested script — DERIVED from its
  *  field types, like `ScriptHostOp`. */
-type ScriptFieldOf<O> = {
-    [K in keyof O]-?: true extends HoldsScript<O[K]> ? K : never;
-}[keyof O];
+type ScriptFieldOf<O> = O extends unknown
+    ? {
+          [K in keyof O]-?: true extends HoldsScript<O[K]> ? K : never;
+      }[keyof O]
+    : never;
 
 /** The FIELD NAMES each script host nests its scripts under, in the order
  *  `childOpArrays` returns them (issue #4451) — the key-level half of the one
@@ -107,6 +115,7 @@ export const SCRIPT_HOST_FIELDS = {
     delayedTrigger: ["effects"],
     reflexiveTrigger: ["effects"],
     divideIntoPiles: ["chosenEffect", "otherEffect"],
+    preventDamage: ["whenPrevented"],
 } as const satisfies {
     readonly [N in ScriptHostOp]: readonly ScriptFieldOf<
         Extract<EffectOp, { op: N }>
@@ -136,8 +145,8 @@ function noChildren(op: ScriptlessOp): readonly Script[] {
 /** Every nested Op array `op` carries. Beyond the four structural constructs
  *  (ADR 0045: `bind`/`ref`/`if`/`forEach`) this covers the Ops that also carry
  *  scripts — `optionChoice`'s modes, both coin-flip branches, `delayedTrigger`
- *  / `reflexiveTrigger` (their `effects`) and `divideIntoPiles` (both
- *  branches). Death or Glory reanimates from inside a `divideIntoPiles` branch,
+ *  / `reflexiveTrigger` (their `effects`), `divideIntoPiles` (both
+ *  branches) and `preventDamage`'s `whenPrevented` trigger body. Death or Glory reanimates from inside a `divideIntoPiles` branch,
  *  which is what a missing case costs in practice. */
 export function childOpArrays(op: EffectOp): readonly Script[] {
     switch (op.op) {
@@ -154,6 +163,11 @@ export function childOpArrays(op: EffectOp): readonly Script[] {
             return [op.effects];
         case "divideIntoPiles":
             return [op.chosenEffect, op.otherEffect];
+        case "preventDamage":
+            return op.mode === "all-from-chosen-source" &&
+                op.whenPrevented !== undefined
+                ? [op.whenPrevented.effects]
+                : [];
         default:
             return noChildren(op);
     }
@@ -165,9 +179,15 @@ export function childOpArrays(op: EffectOp): readonly Script[] {
  *  `{ target: n }` inside that body names the TRIGGER's slot `n`, never the
  *  host script's: a walker asking "is there an X anywhere in this script"
  *  descends into it through `childOpArrays` like any other list, but one that
- *  attributes Ops to the host's announced slots must not. */
-export function isTriggerBodyHost(
-    op: EffectOp
-): op is Extract<EffectOp, { op: "delayedTrigger" | "reflexiveTrigger" }> {
-    return op.op === "delayedTrigger" || op.op === "reflexiveTrigger";
+ *  attributes Ops to the host's announced slots must not. `preventDamage`'s
+ *  `whenPrevented` is the third such body: a delayed trigger created with the
+ *  shield (CR 603.7a). */
+export function isTriggerBodyHost(op: EffectOp): boolean {
+    return (
+        op.op === "delayedTrigger" ||
+        op.op === "reflexiveTrigger" ||
+        (op.op === "preventDamage" &&
+            op.mode === "all-from-chosen-source" &&
+            op.whenPrevented !== undefined)
+    );
 }

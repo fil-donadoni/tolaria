@@ -3008,6 +3008,14 @@ export type DelayedTriggerInstance = {
      *  "blocked by a creature" with no colour condition; never set on any
      *  other timing (validator-enforced). */
     blockerColors?: Color[];
+    /** CR 603.7b / 615.1a — the `this-turn-damage-prevented-this-way`
+     *  timing's source condition: the instance fires only for damage
+     *  prevented from a source having at least one of these colours ("damage
+     *  from a BLACK OR RED source is prevented this way"), read against the
+     *  `DAMAGE_PREVENTED` event's own `sourceColors`. Absent means any source;
+     *  never set on any other timing (only `preventDamage`'s `whenPrevented`
+     *  schedules that timing). */
+    preventedSourceColors?: Color[];
     /** CR 701.27f (issue #3249) — the permanent whose ability CREATED this
      *  delayed trigger (the scheduling stack item's `triggerSourceId`, else
      *  its own id — `SpellContext.sourceInstanceId`). Carried onto the fired

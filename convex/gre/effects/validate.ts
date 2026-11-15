@@ -4356,6 +4356,30 @@ const DELAYED_TIMINGS = new Set([
     "this-turn-you-attack",
 ]);
 
+/** CR 603.7b — `preventDamage`'s `whenPrevented`: the oracle text and body of
+ *  the delayed trigger, plus an optional non-empty OR-set of source colours.
+ *  The body's own Ops are checked by the nested-script passes, like a
+ *  `delayedTrigger`'s. */
+function isWhenPreventedTrigger(value: unknown): boolean {
+    if (value === null || typeof value !== "object") return false;
+    const v = value as Record<string, unknown>;
+    for (const key of Object.keys(v)) {
+        if (key !== "oracleText" && key !== "effects" && key !== "sourceColors")
+            return false;
+    }
+    if (!isNonEmptyString(v.oracleText)) return false;
+    if (!isOpList(v.effects) || (v.effects as unknown[]).length === 0)
+        return false;
+    if (v.sourceColors === undefined) return true;
+    return (
+        Array.isArray(v.sourceColors) &&
+        v.sourceColors.length > 0 &&
+        v.sourceColors.every(
+            (c) => c === "W" || c === "U" || c === "B" || c === "R" || c === "G"
+        )
+    );
+}
+
 function isDelayedTiming(value: unknown): boolean {
     return typeof value === "string" && DELAYED_TIMINGS.has(value);
 }
@@ -6537,6 +6561,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             // Divided recipient-scoped mode (issue #1955); `total` mirrors the
             // card's `divideAsChosen.total` vocabulary exactly.
             total: isDivideTotal,
+            // CR 603.7b — the delayed trigger a chosen-source shield creates
+            // with itself ("whenever damage … is prevented this way this
+            // turn"); its body is walked by the nested-script passes.
+            whenPrevented: isWhenPreventedTrigger,
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -6561,6 +6589,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     "match",
                     "combatOnly",
                     "total",
+                    "whenPrevented",
                 ]) {
                     if (!fields.includes(f) && !allowed.includes(f) && has(f)) {
                         errors.push(
@@ -6589,10 +6618,26 @@ const OP_SCHEMAS: OpSchemaTable = {
                 // CR 609.7a — the source is a bare picks ref (a `pick-source`
                 // choice's binding; its family is checked by the ordered ref
                 // pass).
-                requireFields(["source"], ["combatOnly"]);
+                requireFields(
+                    ["source"],
+                    ["combatOnly", "to", "whenPrevented"]
+                );
                 if (has("source") && !isBarePicksRef(entry.source)) {
                     errors.push(
                         'mode "all-from-chosen-source" takes `source: { ref }` naming a pick-source choice\'s picks binding'
+                    );
+                }
+                if (has("to") && !isPlayerRecipient(entry.to)) {
+                    errors.push(
+                        'mode "all-from-chosen-source" takes `to: { player }` only'
+                    );
+                }
+                // CR 615.1a — the prevented amount is read where the
+                // recipient-keyed shields are, so a shield that reports its
+                // preventions must name its recipient player.
+                if (has("whenPrevented") && !has("to")) {
+                    errors.push(
+                        "`whenPrevented` requires `to: { player }` (the shield reports what it prevents to that player)"
                     );
                 }
             } else if (entry.mode === "all-from-matching") {
@@ -9676,6 +9721,32 @@ function checkOpListRefs(
             );
         }
 
+        // Recurse into `preventDamage`'s `whenPrevented` body (CR 603.7a /
+        // 603.7b) with a FRESH, capture-free scope: it is a delayed trigger
+        // created with the shield, run at fire time with no outer binding
+        // visible. Its firing `DAMAGE_PREVENTED` event is still live then (it
+        // fires per prevented event), so the body may read `$event.<field>`
+        // off that event type alone — `$event.amount` is "that much".
+        if (
+            entry.op === "preventDamage" &&
+            entry.whenPrevented !== null &&
+            typeof entry.whenPrevented === "object" &&
+            Array.isArray(
+                (entry.whenPrevented as { effects?: unknown }).effects
+            )
+        ) {
+            checkOpListRefs(
+                (entry.whenPrevented as { effects: unknown[] }).effects,
+                (j) => `${at}: whenPrevented.effects[${j}]`,
+                errors,
+                new Map<string, BindingKind>(),
+                { eventTypes: ["DAMAGE_PREVENTED"], inDelayedBody: false },
+                // A later resolution: nothing this script removed is known
+                // there.
+                new Map()
+            );
+        }
+
         // Recurse into `divideIntoPiles`'s `chosenEffect` / `otherEffect`
         // (ADR 0053, pile division) each with a CLONED scope that additionally
         // declares that branch's own pile binding (`chosenBind` in
@@ -10217,6 +10288,30 @@ function validateOpSchema(
             validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
         });
     }
+    // Recurse into `preventDamage`'s `whenPrevented` body (CR 603.7a) — the
+    // body of a delayed trigger created with the shield, so the same contract
+    // as a `delayedTrigger` body: a FRESH script, `inForEach` resets and
+    // `inDelayed` is set (banning a nested deferred-body construct).
+    if (entry.op === "preventDamage") {
+        const body = (entry.whenPrevented as { effects?: unknown } | undefined)
+            ?.effects;
+        if (Array.isArray(body)) {
+            if (inDelayed) {
+                errors.push(
+                    `${at}: preventDamage's whenPrevented must not nest inside a delayedTrigger / reflexiveTrigger body — one deferral level per script (CR 603.7a)`
+                );
+            }
+            body.forEach((op, j) => {
+                validateOpSchema(
+                    op,
+                    `${at}: whenPrevented.effects[${j}]`,
+                    errors,
+                    false,
+                    true
+                );
+            });
+        }
+    }
     // Recurse into `divideIntoPiles`'s `chosenEffect` / `otherEffect` (ADR
     // 0053, pile division) — each is a nested Op list validated at its own
     // path, exactly like an `if` branch. `inForEach` / `inDelayed` thread
@@ -10675,8 +10770,8 @@ function containsColorsSpentToCast(node: unknown): boolean {
 /** Where a SPELL script reads `{ colorsSpentToCast: true }` (issue #7211):
  *  `spell` — in a body that resolves as the spell itself; `nested` — inside a
  *  body that resolves later as an ABILITY of its own (a `createToken` token's
- *  abilities, a `delayedTrigger`'s effects), whose stack item carries no
- *  record of the spell's mana. */
+ *  abilities, a `delayedTrigger`'s effects, a `whenPrevented` body), whose
+ *  stack item carries no record of the spell's mana. */
 function colorsSpentToCastSites(node: unknown): {
     spell: boolean;
     nested: boolean;
@@ -10696,7 +10791,8 @@ function colorsSpentToCastSites(node: unknown): {
         for (const [key, value] of Object.entries(obj)) {
             const abilityBody =
                 (obj.op === "createToken" && key === "token") ||
-                (obj.op === "delayedTrigger" && key === "effects");
+                (obj.op === "delayedTrigger" && key === "effects") ||
+                (obj.op === "preventDamage" && key === "whenPrevented");
             if (abilityBody) {
                 if (containsColorsSpentToCast(value)) found.nested = true;
             } else {

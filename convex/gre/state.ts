@@ -1599,8 +1599,31 @@ export function sourcePreventionShieldApplies(
     unpreventable: boolean = false,
     recipient?: Pick<TargetSelection, "type" | "id">
 ): boolean {
+    return (
+        findSourcePreventionShield(
+            state,
+            sourceInstanceId,
+            isCombat,
+            unpreventable,
+            recipient
+        ) !== undefined
+    );
+}
+
+/** The FIRST shield `sourcePreventionShieldApplies` would apply, so a caller
+ *  that must know WHICH shield prevented the damage (one that reports its
+ *  preventions, `preventionWatchId`) can read it. Same arguments, same order
+ *  of the list — the first matching entry is the one that applies, which is
+ *  the engine's fixed answer to CR 616.1's choice between two shields. */
+export function findSourcePreventionShield(
+    state: SourcePreventionStateView,
+    sourceInstanceId: string,
+    isCombat: boolean,
+    unpreventable: boolean = false,
+    recipient?: Pick<TargetSelection, "type" | "id">
+): SourceDamagePreventionShield | undefined {
     const shields = state.sourcePreventionShields;
-    if (!shields || shields.length === 0) return false;
+    if (!shields || shields.length === 0) return undefined;
     let live: PermanentView | undefined;
     let liveLoaded = false;
     const liveSource = (): PermanentView | undefined => {
@@ -1640,7 +1663,7 @@ export function sourcePreventionShieldApplies(
         ) {
             continue;
         }
-        if (shield.sourceIds?.includes(sourceInstanceId)) return true;
+        if (shield.sourceIds?.includes(sourceInstanceId)) return shield;
         const match = shield.match;
         if (!match) continue;
         const card = liveSource();
@@ -1652,9 +1675,9 @@ export function sourcePreventionShieldApplies(
             const colors = STATIC_EFFECT_CTX.getColors(card);
             if (!match.colors.some((c) => colors.includes(c))) continue;
         }
-        return true;
+        return shield;
     }
-    return false;
+    return undefined;
 }
 
 /** Registers a SOURCE-scoped prevention shield (CR 615), de-duplicating the
@@ -1673,6 +1696,10 @@ export function addSourcePreventionShield(
                 JSON.stringify(shield.match ?? null) &&
             (s.combatOnly ?? false) === (shield.combatOnly ?? false) &&
             s.recipientPlayerId === shield.recipientPlayerId &&
+            // CR 603.7b — a shield something listens to is its OWN entry: two
+            // "prevented this way" shields on one source each report to their
+            // own trigger, so neither may fold into the other.
+            s.preventionWatchId === shield.preventionWatchId &&
             // CR 510.1c vs CR 615 — an assignment restriction and a prevention
             // shield on the SAME creature are different entries (they diverge
             // under CR 615.12 unpreventable damage), so they must not collapse
@@ -6470,12 +6497,13 @@ export function runDamageReplacement(
                 isCombat,
                 unpreventable
             ) ||
-            sourcePreventionShieldApplies(
+            recipientKeyedSourceShieldPrevents(
                 state,
                 sourceInstanceId,
                 isCombat,
                 unpreventable,
-                target
+                target,
+                amount
             )
         )
             return null;
@@ -6532,12 +6560,13 @@ export function runDamageReplacement(
             isCombat,
             unpreventable
         ) ||
-        sourcePreventionShieldApplies(
+        recipientKeyedSourceShieldPrevents(
             state,
             sourceInstanceId,
             isCombat,
             unpreventable,
-            transient.target
+            transient.target,
+            transient.amount
         )
     )
         return residuals === undefined
@@ -6548,6 +6577,51 @@ export function runDamageReplacement(
         amount: transient.amount,
         ...(residuals === undefined ? {} : { residuals }),
     };
+}
+
+/** CR 615.1a (issue #5410) — true when a recipient-KEYED source shield ("dealt
+ *  to you by a source of your choice") prevents this event at its FINAL
+ *  recipient. A shield that reports its preventions (`preventionWatchId`,
+ *  CR 603.7b — "whenever damage … is prevented this way") also emits one
+ *  `DAMAGE_PREVENTED` for the `amount` it just stopped, which the watching
+ *  delayed trigger fires on. Nothing is emitted for a zero amount (no damage
+ *  was prevented), nor for unpreventable damage, which no shield matches
+ *  (CR 615.12). The source's colours are read NOW, as the damage is
+ *  prevented: a permanent's layer-5 colours, else the stack object's. */
+function recipientKeyedSourceShieldPrevents(
+    state: GameState,
+    sourceInstanceId: string,
+    isCombat: boolean,
+    unpreventable: boolean,
+    target: TargetSelection,
+    amount: number
+): boolean {
+    const shield = findSourcePreventionShield(
+        state,
+        sourceInstanceId,
+        isCombat,
+        unpreventable,
+        target
+    );
+    if (shield === undefined) return false;
+    if (shield.preventionWatchId !== undefined && amount > 0) {
+        const live = findOnBattlefield(state, sourceInstanceId)?.card;
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "DAMAGE_PREVENTED",
+                sourceInstanceId,
+                target,
+                amount,
+                isCombat,
+                sourceColors: live
+                    ? STATIC_EFFECT_CTX.getColors(live)
+                    : describeDamageSource(state, sourceInstanceId).colors,
+                preventionWatchId: shield.preventionWatchId,
+            },
+        ];
+    }
+    return true;
 }
 
 /** CR 615.12 / 614.9 (issue #2231) — does the TARGET of a would-be damage event
@@ -18625,8 +18699,9 @@ export function buildSpellContext(
             targetPlayerId?: string,
             inline?: DelayedTriggerInlineBody,
             watchInstanceId?: string,
-            blockerColors?: Color[]
-        ): void {
+            blockerColors?: Color[],
+            preventedSourceColors?: Color[]
+        ): string {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             const instance: DelayedTriggerInstance = {
                 id: `delayed-${state.nextDelayedSeq}`,
@@ -18644,6 +18719,9 @@ export function buildSpellContext(
                     : {}),
                 ...(watchInstanceId ? { watchInstanceId } : {}),
                 ...(blockerColors ? { blockerColors: [...blockerColors] } : {}),
+                ...(preventedSourceColors
+                    ? { preventedSourceColors: [...preventedSourceColors] }
+                    : {}),
                 ...(inline
                     ? {
                           effects: inline.effects,
@@ -18655,6 +18733,7 @@ export function buildSpellContext(
                 ...(state.delayedTriggers ?? []),
                 instance,
             ];
+            return instance.id;
         },
         // CR 603.12 — queue a REFLEXIVE triggered ability created by this
         // resolving effect. Nothing is scheduled or waited for: the item is

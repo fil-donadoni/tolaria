@@ -134,7 +134,10 @@ function reachSet(walk: Reaches): string[] {
 
 const ALL = NESTING_SHAPES.map((s) => s.label);
 const WITHOUT_TRIGGER_BODIES = ALL.filter(
-    (l) => l !== "delayedTrigger.effects" && l !== "reflexiveTrigger.effects"
+    (l) =>
+        l !== "delayedTrigger.effects" &&
+        l !== "reflexiveTrigger.effects" &&
+        l !== "preventDamage.whenPrevented"
 );
 
 describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)", () => {
@@ -186,6 +189,7 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             | "delayedTrigger"
             | "reflexiveTrigger"
             | "divideIntoPiles"
+            | "preventDamage"
         >();
         const hosts: ScriptHostOp[] = [
             "if",
@@ -195,6 +199,7 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             "delayedTrigger",
             "reflexiveTrigger",
             "divideIntoPiles",
+            "preventDamage",
         ];
         expect(new Set(NESTING_SHAPES.map((s) => s.hostOp))).toEqual(
             new Set(hosts)

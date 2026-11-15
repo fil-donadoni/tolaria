@@ -34,9 +34,13 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import {
+    dealDamageFromPermanentToPlayer,
+    flushPendingEvents,
     runDamageReplacement,
     sourcePreventionShieldApplies,
 } from "../../../../gre/state";
+import { collectTriggers } from "../../../../gre/triggers";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import {
@@ -50,6 +54,7 @@ import {
 } from "../../../../gre/layers";
 import {
     applyAllCombatDamage,
+    finalizeCleanup,
     fireDelayedTriggers,
 } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -58,6 +63,7 @@ import { preloadDefinitions } from "../../../registry";
 import { resolveCardExport } from "../../../defineCard";
 import {
     atalyaSamiteMaster as atalyaSamiteMasterExport,
+    samiteMinistration as samiteMinistrationExport,
     spiritOfResistance as spiritOfResistanceExport,
 } from "../white.cards";
 
@@ -67,6 +73,7 @@ import {
 preloadDefinitions([
     resolveCardExport(spiritOfResistanceExport)!,
     resolveCardExport(atalyaSamiteMasterExport)!,
+    resolveCardExport(samiteMinistrationExport)!,
 ]);
 
 const alabasterLeech = getDefinition("c86b45d9-aba6-4c09-8605-037754ba7fd4");
@@ -101,6 +108,10 @@ const spiritOfResistance = getDefinition(
 const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
 const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");
+const samiteMinistration = getDefinition(
+    "b1de62ed-79e6-4daf-a2ab-dc0726e1f7df"
+);
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 // ---------------------------------------------------------------------------
 // Alabaster Leech — cost-modifier (CR 601.2f), scoped to the controller's own
@@ -1788,5 +1799,226 @@ describe("Atalya, Samite Master (CR 700.2a + CR 107.3a — modal {X} activation)
                 remaining: 2,
             }),
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Samite Ministration — a this-turn, player-scoped shield on a CHOSEN source
+// (CR 609.7a / 615.1a) whose every prevention of damage from a black or red
+// source triggers a delayed "gain that much life" (CR 603.7a / 603.7b).
+// ---------------------------------------------------------------------------
+
+describe("Samite Ministration (CR 615.1a shield + CR 603.7b per-prevention delayed trigger)", () => {
+    const WATCH = "this-turn-damage-prevented-this-way";
+
+    /** p1 casts it (life 10, a white creature); p2 has a red Hill Giant and
+     *  a green Balduvian Bears, both attacking p1 unblocked. */
+    function board(): GameState {
+        return makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    life: 10,
+                    battlefield: [
+                        makeInstance(savannahLions.id, {
+                            id: "mine",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(hillGiant.id, {
+                            id: "giant",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            isAttacking: true,
+                        }),
+                        makeInstance(balduvianBears.id, {
+                            id: "bears",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            isAttacking: true,
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** Casts Samite Ministration for p1 and answers the CR 609.7a choice. */
+    function cast(state: GameState, sourceId: string): void {
+        pushSpell(state, samiteMinistration.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("pick-source");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [sourceId],
+        });
+    }
+
+    /** A noncombat hit from a p2 permanent to p1, then the trigger scan over
+     *  the events it left, its triggers put on the stack. */
+    function ping(
+        state: GameState,
+        sourceId: string,
+        amount: number,
+        unpreventable = false
+    ): StackItem[] {
+        const source = state.players[1].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        dealDamageFromPermanentToPlayer(
+            state,
+            source,
+            "p2",
+            "p1",
+            amount,
+            unpreventable
+        );
+        const items = collectTriggers(state, flushPendingEvents(state));
+        state.stack.push(...items);
+        return items;
+    }
+
+    const combat = (state: GameState, attackerIds: string[]) => {
+        state.combat = {
+            attackerIds,
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        applyAllCombatDamage(state, {});
+    };
+
+    const fired = (state: GameState) =>
+        state.stack.filter((i) => i.delayedTriggerId !== undefined);
+
+    it("CR 615.1a — prevents ALL the chosen source's damage to you, across a combat and a noncombat event", () => {
+        const state = board();
+        cast(state, "bears");
+        combat(state, ["bears"]);
+        expect(state.players[0].life).toBe(10);
+        ping(state, "bears", 2);
+        expect(state.players[0].life).toBe(10);
+        // Another source's damage is not prevented.
+        ping(state, "giant", 3);
+        expect(state.players[0].life).toBe(7);
+    });
+
+    it("CR 615.1a — the chosen source's damage to anything other than you is untouched", () => {
+        const state = board();
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "mine" },
+        ]);
+        const bolt = state.stack[0];
+        cast(state, bolt.id);
+        expect(state.stack.map((i) => i.id)).toEqual([bolt.id]);
+        resolveTopOfStack(state);
+        const mine = state.players[0].battlefield.find((c) => c.id === "mine");
+        expect(mine?.damageMarked ?? 0).toBe(3);
+        expect(collectTriggers(state, flushPendingEvents(state))).toEqual([]);
+    });
+
+    it("CR 603.7b — each prevented event from a red source triggers, gaining THAT event's amount", () => {
+        const state = board();
+        cast(state, "giant");
+        const first = ping(state, "giant", 3);
+        expect(state.players[0].life).toBe(10);
+        expect(first).toHaveLength(1);
+        combat(state, ["giant"]);
+        expect(fired(state)).toHaveLength(2);
+        // The trigger's text reaches the client.
+        const projected = projectPublicState(state, 0, "p1").stack.filter(
+            (i) => i.delayedTriggerId !== undefined
+        );
+        expect(projected).toHaveLength(2);
+        expect(projected[0].delayedOracleText).toBe(
+            "Whenever damage from a black or red source is prevented this way this turn, you gain that much life."
+        );
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        // 3 (noncombat) + 3 (Hill Giant's combat damage).
+        expect(state.players[0].life).toBe(16);
+        expect(
+            (state.delayedTriggers ?? []).filter((t) => t.timing === WATCH)
+        ).toHaveLength(1);
+    });
+
+    it("CR 603.7b — a green source's damage is prevented but triggers nothing", () => {
+        const state = board();
+        cast(state, "bears");
+        expect(ping(state, "bears", 2)).toEqual([]);
+        expect(state.players[0].life).toBe(10);
+    });
+
+    it("CR 615.6 — a source that turns black after the shield resolves triggers on its later damage", () => {
+        const state = board();
+        cast(state, "bears");
+        expect(ping(state, "bears", 2)).toEqual([]);
+        state.players[1].battlefield.find(
+            (c) => c.id === "bears"
+        )!.colorOverride = ["B"];
+        expect(ping(state, "bears", 2)).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(12);
+    });
+
+    it("CR 615.12 — unpreventable damage is neither prevented nor triggers, and the shield stays", () => {
+        const state = board();
+        cast(state, "giant");
+        expect(ping(state, "giant", 3, true)).toEqual([]);
+        expect(state.players[0].life).toBe(7);
+        expect(ping(state, "giant", 2)).toHaveLength(1);
+        expect(state.players[0].life).toBe(7);
+    });
+
+    it("CR 603.7b — damage another shield prevents was not prevented THIS way", () => {
+        const state = board();
+        // An earlier shield on the same source and recipient applies first.
+        state.sourcePreventionShields = [
+            { sourceIds: ["giant"], recipientPlayerId: "p1" },
+        ];
+        cast(state, "giant");
+        expect(state.sourcePreventionShields).toHaveLength(2);
+        expect(ping(state, "giant", 3)).toEqual([]);
+        expect(state.players[0].life).toBe(10);
+    });
+
+    it("CR 514.2 — the shield and the trigger end at cleanup", () => {
+        const state = board();
+        cast(state, "giant");
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(state.sourcePreventionShields).toBeUndefined();
+        expect(
+            (state.delayedTriggers ?? []).filter((t) => t.timing === WATCH)
+        ).toHaveLength(0);
+        expect(ping(state, "giant", 3)).toEqual([]);
+        expect(state.players[0].life).toBe(7);
+    });
+
+    it("the shield and its watch survive a storage round trip", () => {
+        const state = board();
+        cast(state, "giant");
+        const restored = expandState(
+            compactState(state) as Record<string, unknown>
+        );
+        expect(restored.sourcePreventionShields).toEqual(
+            state.sourcePreventionShields
+        );
+        expect(restored.sourcePreventionShields?.[0].preventionWatchId).toBe(
+            restored.delayedTriggers?.[0].id
+        );
+        expect(restored.delayedTriggers?.[0].preventedSourceColors).toEqual([
+            "B",
+            "R",
+        ]);
+        expect(ping(restored, "giant", 3)).toHaveLength(1);
     });
 });

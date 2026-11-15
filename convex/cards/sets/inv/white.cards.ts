@@ -1231,14 +1231,62 @@ export const rout = defineCard(() => ({
     ],
 }));
 
-// Samite Ministration — {1}{W} Instant. "Prevent all damage that would be
-// dealt to you this turn by a source of your choice. Whenever damage from a
-// black or red source is prevented this way this turn, you gain that much
-// life." tracked-by: #1331 (the "choose a source, prevent all damage from
-// it this turn" half has a resolve()-only precedent —
-// `ctx.preventNextDamageFromSource`, Circle of Protection — but the LINKED
-// "gain life equal to the amount actually prevented" has no hook: the
-// shield primitive doesn't report back the prevented amount).
+// Samite Ministration — {1}{W} Instant. CR 609.7a — "a source of your
+// choice" is chosen on resolution and never targeted: a `pick-source` choice
+// over every permanent and every spell on the stack. CR 615.1a — the shield
+// covers only the damage that source would deal to YOU, on every event this
+// turn, combat or not; its damage to anything else is untouched.
+//
+// CR 603.7a / 603.7b — the second sentence is a delayed triggered ability
+// created with the shield, with a stated duration ("this turn"), so it
+// triggers on EACH prevention, not just the first, and uses the stack. It is
+// linked to THIS shield ("prevented this way"): damage another effect
+// prevents never triggers it. The black-or-red condition is part of the
+// trigger event, read off the source's colours as the damage is prevented —
+// a source that turns red later this turn counts from then on, and damage
+// from a source of another colour is still prevented but triggers nothing.
+// Damage that can't be prevented (CR 615.12) is not prevented this way, so
+// nothing triggers. Each trigger gains the amount ITS event prevented.
+//
+// hand-tail: "Prevent all damage that would be dealt to you this turn by a source of your choice. Whenever damage from a black or red source is prevented this way this turn, you gain that much life." (#4596)
+export const samiteMinistration = defineCard(() => ({
+    id: "b1de62ed-79e6-4daf-a2ab-dc0726e1f7df", // INV 36
+    name: "Samite Ministration",
+    rarity: "uncommon",
+    oracleText:
+        "Prevent all damage that would be dealt to you this turn by a source of your choice. Whenever damage from a black or red source is prevented this way this turn, you gain that much life.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "choice",
+            kind: "pick-source",
+            player: "controller",
+            zone: "battlefield-or-stack",
+            count: 1,
+            prompt: "Choose a source.",
+            bind: "$chosen",
+        },
+        {
+            op: "preventDamage",
+            mode: "all-from-chosen-source",
+            source: { ref: "$chosen" },
+            to: { player: "controller" },
+            whenPrevented: {
+                sourceColors: ["B", "R"],
+                oracleText:
+                    "Whenever damage from a black or red source is prevented this way this turn, you gain that much life.",
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$event.amount" },
+                    },
+                ],
+            },
+        },
+    ],
+}));
 
 // Spirit of Resistance — {2}{W} Enchantment. "As long as you control a
 // permanent of each color, prevent all damage that would be dealt to you."

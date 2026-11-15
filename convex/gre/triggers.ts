@@ -953,6 +953,39 @@ export function collectTriggers(
         }
     }
 
+    // CR 603.7b / 615.1a — a `timing: "this-turn-damage-prevented-this-way"`
+    // instance watches ONE prevention shield (the one created beside it,
+    // which carries this instance's id as its `preventionWatchId`) and fires
+    // once per DAMAGE_PREVENTED event that shield emitted — each prevented
+    // event its own trigger with its own amount. The source-colour condition
+    // belongs to the trigger EVENT: damage from a source with none of
+    // `preventedSourceColors` (read off the event's colours at the moment of
+    // prevention) was still prevented, but nothing reaches the stack.
+    // Repeating — stays queued, purged at CLEANUP with its shield
+    // (phases.ts). The event rides onto the StackItem so the body reads
+    // `$event.amount`.
+    if (state.delayedTriggers?.length) {
+        for (const event of events) {
+            if (event.type !== "DAMAGE_PREVENTED") continue;
+            for (const t of state.delayedTriggers) {
+                if (t.timing !== "this-turn-damage-prevented-this-way")
+                    continue;
+                if (event.preventionWatchId !== t.id) continue;
+                const wanted = t.preventedSourceColors;
+                if (
+                    wanted !== undefined &&
+                    !wanted.some((c) => event.sourceColors.includes(c))
+                ) {
+                    continue;
+                }
+                out.push({
+                    ...buildDelayedTriggerStackItem(state, t),
+                    triggerEvent: event,
+                });
+            }
+        }
+    }
+
     // CR 508.3a / 603.7b (issue #7202, Okoye, Mighty and Adored) — a `timing:
     // "this-turn-watched-creature-attacks-monarch"` instance watches ONE
     // creature and fires on each declaration that has it attacking the monarch

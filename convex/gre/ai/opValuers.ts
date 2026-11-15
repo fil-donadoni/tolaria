@@ -3012,7 +3012,7 @@ const chooseLandType: Valuer<"chooseLandType"> = () => ZERO_OP_VALUE;
 // `forEach` + `exile`), which the script walk prices on its own.
 const vote: Valuer<"vote"> = () => ZERO_OP_VALUE;
 
-const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
+const preventDamage: Valuer<"preventDamage"> = (op, ctx, scope) => {
     if (op.mode === "next-n") {
         const { amount, scaling } = ctx.value(op.amount);
         return {
@@ -3046,7 +3046,7 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     // source — again no printed number — and is the shield the Circle of
     // Protection cycle's former `aiEffects` shadow priced through this very
     // branch (as `"all-from-source"`), so its value does not move.
-    return {
+    const shield: OpValue = {
         points: pricedFraction(
             ctx,
             "protection",
@@ -3054,6 +3054,17 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
         ),
         tags: ["protection"],
     };
+    // CR 603.7b — a shield that also triggers on its own preventions
+    // ("whenever damage … is prevented this way, you gain that much life")
+    // is worth the shield PLUS its trigger body, valued like a
+    // `delayedTrigger`'s: un-discounted, the body read on its own.
+    if (op.mode !== "all-from-chosen-source" || !op.whenPrevented) {
+        return shield;
+    }
+    return addValues(
+        shield,
+        valueEffectScript(op.whenPrevented.effects, ctx, scope)
+    );
 };
 
 /** CR 614.9 (issue #3810) — a redirect MOVES damage rather than erasing it,
