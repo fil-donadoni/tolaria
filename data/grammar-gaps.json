@@ -5011,6 +5011,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Violent Urge",
+            "issue": 8816
+        },
+        {
+            "kind": "hand-tail",
             "key": "Void",
             "issue": 4596
         },
