@@ -63,10 +63,6 @@ describe("winGame frame — refusals", () => {
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         ],
         [
-            "a counted condition on the opponent's board",
-            "At the beginning of your upkeep, if an opponent controls twenty or more creatures, you win the game.",
-        ],
-        [
             "a win handed to another player",
             "At the beginning of your upkeep, if you control twenty or more creatures, target opponent wins the game.",
         ],

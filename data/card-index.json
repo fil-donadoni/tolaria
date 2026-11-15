@@ -19732,6 +19732,16 @@
         "source": "compiled"
     },
     {
+        "name": "Defense of the Heart",
+        "scryfallId": "9e93381f-627f-41b6-b1b6-45d712a44d8e",
+        "oracleId": "e7e1b166-9267-426d-897d-24903327b48d",
+        "firstSet": "ulg",
+        "firstPrintId": "9e93381f-627f-41b6-b1b6-45d712a44d8e",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Defensive Stance",
         "scryfallId": "d0670653-d4fe-4fac-b769-d19ca4698c97",
         "oracleId": "19959b6d-eb8f-4273-94c8-65210e1998ab",
