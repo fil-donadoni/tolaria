@@ -3,79 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import {
-    CASTABLE_PERMANENT_TYPES,
-    defineCard,
-    PERMANENT_TYPES,
-} from "../../types";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { CASTABLE_PERMANENT_TYPES, defineCard } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
-import { holdsExileBundle } from "../../abilities/exileBundle";
-
-// Leyline Binding — {5}{W} Enchantment. "Flash. Domain — This spell costs {1}
-// less to cast for each basic land type among lands you control. When this
-// enchantment enters, exile target nonland permanent an opponent controls
-// until this enchantment leaves the battlefield."
-//
-// Two shipped primitives, no new engine work:
-//
-//   - The cost clause is `CardDefinition.selfCostReduction` in the
-//     `countMode: "domain"` shape (`CensusDrivenCostReduction`,
-//     `cards/types.ts`, issue #1958 — Draco / Stratadon, `pls/colorless.cards.ts`).
-//     Domain counts distinct basic land TYPES (CR 305.6 — Plains, Island,
-//     Swamp, Mountain, Forest), not permanents: three Forests are ONE, a
-//     single Tundra is TWO. Resolved by `resolveCostReductionGeneric`
-//     (`gre/state.ts`) through the same `countDomain` scan every other Domain
-//     site uses, and applied at the ONE CR 601.2f site
-//     (`getCostModifiers`/`applyCostModifiers`), so the reduction is visible to
-//     castability, payment, auto-tap and the bot alike. CR 601.2f floors the
-//     mana component at {0} and reduces only GENERIC mana, so the {W} pip
-//     survives every reduction: at Domain 5 the card costs exactly {W}, never
-//     less.
-//   - The ETB is the O-Ring shape verbatim (Banishing Light, `jou/white.cards.ts`):
-//     a real announced target (CR 603.3d) exiled host-only through the ADR
-//     0028 exile-and-return bundle keyed to `$source`, returned by the
-//     leaves-the-battlefield trigger (CR 603.7a). The bundle is keyed to the
-//     source, not to a turn, so the return still fires when this enchantment
-//     leaves in response to its own ETB trigger — the ETB resolves against a
-//     source that is already gone, exiles nothing, and the leave trigger's
-//     `holdsExileBundle` gate finds no bundle to return.
-export const leylineBinding = defineCard(() => ({
-    id: "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
-    name: "Leyline Binding",
-    rarity: "rare",
-    oracleText:
-        "Flash (You may cast this spell any time you could cast an instant.)\nDomain — This spell costs {1} less to cast for each basic land type among lands you control.\nWhen this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
-    manaCost: { X: 5, W: 1 },
-    types: ["Enchantment"],
-    staticAbilities: ["flash"],
-    selfCostReduction: {
-        costReduction: { perCount: { X: 1 }, countMode: "domain" },
-    },
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "leyline-binding-exile",
-            oracleText:
-                "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
-            scope: "self",
-            targetRequirement: {
-                type: [...PERMANENT_TYPES],
-                count: 1,
-                excludeTypes: "Land",
-                controller: "opponent",
-            },
-            effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
-        }),
-        leftTrigger({
-            id: "leyline-binding-return",
-            oracleText:
-                "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
-            scope: "self",
-            condition: holdsExileBundle,
-            effects: [{ op: "returnExiledForSource" }],
-        }),
-    ],
-}));
 
 // Serra Paragon — {2}{W}{W} Creature — Angel 3/4 (issue #1239). Every clause
 // is data over shipped seams:

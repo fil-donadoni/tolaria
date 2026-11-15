@@ -7495,7 +7495,9 @@
         "oracleId": "1ebdc091-16d5-4803-821a-ac8c4696b5bc",
         "firstSet": "ice",
         "firstPrintId": "6b086186-5fbf-4ba7-af0d-ee3ad61d27bb",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Binding the Old Gods",
@@ -46724,7 +46726,9 @@
         "oracleId": "b49642f6-20bd-468d-9dac-e578f9ac3091",
         "firstSet": "dmu",
         "firstPrintId": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
-        "firstPrintSet": "dmu"
+        "firstPrintSet": "dmu",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Leyline of Anticipation",
@@ -69891,7 +69895,9 @@
         "oracleId": "2d3010d5-5c21-4342-ad79-a737b6731230",
         "firstSet": "inv",
         "firstPrintId": "4e8072a9-2699-4c6c-9556-67d91bd67a4b",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Scavenger Drake",
