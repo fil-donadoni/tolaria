@@ -184,9 +184,9 @@ export function enteringBodyDepartureTiming(
 }
 
 /** When a body on the battlefield is scheduled to leave at an end step: at
- *  this turn's, or at a later turn's (the trigger was armed in or past its
- *  step, CR 603.7b, or it fires only on its controller's end step and this is
- *  not that player's turn). */
+ *  this turn's, or at a later turn's (this turn's end step has begun, or the
+ *  trigger fires only on its controller's end step and this is not that
+ *  player's turn). */
 export type EndStepDeparture = "this-turn" | "later";
 
 /** The steps at or past the end step: a trigger at the beginning of the end
@@ -219,40 +219,20 @@ function isSelfEndStepDeparture(ability: TriggeredAbility): boolean {
     return departs;
 }
 
-/** When `body` leaves at an end step, or `undefined` for a body nothing
- *  removes there. Two sources, both read as data:
+/** When `body` leaves at an end step through its own end-step trigger
+ *  removing itself (Ball Lightning), or `undefined` for a body nothing removes
+ *  there. Read off the abilities it has now, so one it lost (CR 613.1f) is no
+ *  departure; a trigger already fired is a stack item and is not read.
  *
- *    - a scheduled delayed trigger (CR 603.7a) whose inline body sacrifices,
- *      destroys or exiles the captured `body` at the top level (Sneak Attack, a
- *      Kiki-Jiki token), or a warp exile (CR 702.185a);
- *    - the body's own end-step trigger removing itself (Ball Lightning), read
- *      off the abilities it has now, so one it lost (CR 613.1f) is no departure.
- *
- *  A trigger already fired is a stack item and is not read. */
+ *  A scheduled delayed trigger removing a captured body (CR 603.7a: Sneak
+ *  Attack, a Kiki-Jiki token) is the same departure and is not read here yet
+ *  (tracked-by: #9846): pricing it moved the Sneak Attack lethal-swing row. */
 export function scheduledEndStepDeparture(
     state: GameState,
     body: CardInstanceState
 ): EndStepDeparture | undefined {
     let departure: EndStepDeparture | undefined;
     const atOrPastEnd = AT_OR_PAST_END_STEP.has(state.phase);
-    for (const trigger of state.delayedTriggers ?? []) {
-        let thisTurn: boolean;
-        if (trigger.timing === "next-end-step") thisTurn = !atOrPastEnd;
-        else if (trigger.timing === "next-cleanup-step") {
-            thisTurn = state.phase !== "CLEANUP";
-        } else continue;
-        // Payload keys are stored without the `$` sigil, as in
-        // `pendingBattlefieldReturns`.
-        const removes =
-            trigger.warpCardInstanceId === body.id ||
-            (!!trigger.effects &&
-                departingRefsIn(trigger.effects).some(
-                    (ref) => trigger.payload[ref.slice(1)] === body.id
-                ));
-        if (!removes) continue;
-        if (thisTurn) return "this-turn";
-        departure = "later";
-    }
     for (const ability of effectiveTriggeredAbilities(body)) {
         if (!isSelfEndStepDeparture(ability)) continue;
         const ownStep =

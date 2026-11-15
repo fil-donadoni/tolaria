@@ -346,7 +346,7 @@ function onBoard(state: GameState, name: string): CardInstanceState {
     return found;
 }
 
-describe("a body on the battlefield that leaves at an end step (CR 603.7a)", () => {
+describe("a body on the battlefield that removes itself at an end step (CR 513.1a)", () => {
     it("reads a card's own end-step sacrifice, this turn until the end step", () => {
         const state = departingBoard("PRECOMBAT_MAIN");
         expect(
@@ -359,40 +359,6 @@ describe("a body on the battlefield that leaves at an end step (CR 603.7a)", () 
         expect(
             scheduledEndStepDeparture(state, onBoard(state, "Ball Lightning"))
         ).toBe("later");
-    });
-
-    it("reads a delayed trigger that removes the body it captured", () => {
-        const state = departingBoard("PRECOMBAT_MAIN");
-        const bears = onBoard(state, "Grizzly Bears");
-        const schedule = (
-            timing: DelayedTriggerTiming,
-            effects: EffectOp[]
-        ): void => {
-            state.delayedTriggers = [
-                {
-                    id: "delayed-1",
-                    sourceCardId: bears.card.id as string,
-                    triggerId: "inline",
-                    controller: bears.controllerId,
-                    timing,
-                    payload: { it: bears.id },
-                    effects,
-                },
-            ];
-        };
-        schedule("next-end-step", [
-            { op: "sacrifice", target: { ref: "$it" } },
-        ]);
-        expect(scheduledEndStepDeparture(state, bears)).toBe("this-turn");
-        state.phase = "END_STEP";
-        expect(scheduledEndStepDeparture(state, bears)).toBe("later");
-        state.phase = "PRECOMBAT_MAIN";
-        schedule("next-upkeep", [{ op: "sacrifice", target: { ref: "$it" } }]);
-        expect(scheduledEndStepDeparture(state, bears)).toBeUndefined();
-        schedule("next-end-step", [
-            { op: "exile", target: { ref: "$it" }, bind: "$gone" },
-        ]);
-        expect(scheduledEndStepDeparture(state, bears)).toBeUndefined();
     });
 });
 
