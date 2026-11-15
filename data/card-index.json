@@ -4628,6 +4628,14 @@
         "source": "compiled"
     },
     {
+        "name": "Atalya, Samite Master",
+        "scryfallId": "90500e7a-f76d-453a-bda0-d56d3f7c7534",
+        "oracleId": "84587724-af96-4396-a0b3-1133d492d915",
+        "firstSet": "inv",
+        "firstPrintId": "90500e7a-f76d-453a-bda0-d56d3f7c7534",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Atmosphere Surgeon",
         "scryfallId": "c66988ca-29d5-45ea-8d68-c8e0e4c3ffb1",
         "oracleId": "af22ed78-7054-4f5c-84ab-2a274c3d47fb",

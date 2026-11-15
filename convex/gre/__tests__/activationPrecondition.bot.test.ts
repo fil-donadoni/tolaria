@@ -158,14 +158,14 @@ describe("hasFlexibleActivation evaluates `canActivate` (CR 602.5, issue #3441)"
     });
 });
 
-describe("a player-chosen X keeps a now-reachable ability out of the move set (CR 107.3a, issue #3441)", () => {
+describe("a player-chosen X is a move axis of a now-reachable ability (CR 107.3a, issue #3688)", () => {
     // Evaluating `canActivate` made Clockwork Beast's "{X}, {T}: … Activate
-    // only if it has fewer than seven +1/+0 counters" reachable, but the
-    // `activate-ability` move carries no `chosenX` and the mutation throws
-    // without one. The restriction HOLDS here (no counters), so the only thing
-    // keeping the move out is the chosen-X gate.
-    it("does not offer Clockwork Beast's {X} ability", () => {
-        const state = makeState({
+    // only if it has fewer than seven +1/+0 counters" reachable. The
+    // restriction HOLDS here (no counters); the activator announces X as part
+    // of activating (CR 107.3a), so the Bot offers one move per affordable X,
+    // each naming its `chosenX` — and the server accepts every one of them.
+    function beastBoard(): GameState {
+        return makeState({
             phase: "PRECOMBAT_MAIN",
             activePlayerId: "p1",
             priorityPlayerId: "p1",
@@ -184,17 +184,33 @@ describe("a player-chosen X keeps a now-reachable ability out of the move set (C
                 makePlayer("p2", {}),
             ],
         });
+    }
+
+    it("offers Clockwork Beast's {X} ability at every X the two Mountains fund", () => {
+        const state = beastBoard();
         const beast = state.players[0].battlefield[0];
         const ability = getCardByName("Clockwork Beast").activatedAbilities![0];
         expect(
             activationPreconditionViolation(state, beast, ability)
         ).toBeNull();
+        const moves = enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "activate-ability" && m.cardInstanceId === "beast"
+        );
         expect(
-            enumerateMoves(state, "p1").filter(
-                (m) =>
-                    m.kind === "activate-ability" &&
-                    m.cardInstanceId === "beast"
-            )
-        ).toHaveLength(0);
+            moves
+                .map((m) => (m.kind === "activate-ability" ? m.chosenX : -1))
+                .sort()
+        ).toEqual([0, 1, 2]);
+        for (const m of moves) {
+            if (m.kind !== "activate-ability") continue;
+            expect(() =>
+                activateAbilityOnState(beastBoard(), {
+                    playerId: "p1",
+                    cardInstanceId: "beast",
+                    abilityId: m.abilityId,
+                    chosenX: m.chosenX,
+                })
+            ).not.toThrow();
+        }
     });
 });

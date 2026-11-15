@@ -5189,6 +5189,11 @@ function enumerateCastMovesFromZone(
 // Activated abilities (conservative: tap + mana stack abilities only)
 // ---------------------------------------------------------------------------
 
+/** CR 107.3a — a backstop on the chosen-X walk in
+ *  {@link enumerateAbilityMoves}: the walk stops at the first X the payment
+ *  planner cannot fund, which on any real board comes long before this. */
+const MAX_ACTIVATION_X = 20;
+
 function enumerateAbilityMoves(
     state: GameState,
     player: PlayerState,
@@ -5272,17 +5277,6 @@ function enumerateAbilityMoves(
         // ability outright, so the bot never activated Barbarian Ring's
         // threshold ability even when the server would have accepted it.
         if (activationPreconditionViolation(state, perm, ability) !== null) {
-            continue;
-        }
-        // CR 107.3a — a player-CHOSEN X in the activation cost. The
-        // `activate-ability` move carries no `chosenX` for it, and both server
-        // paths throw "This ability requires a chosen X value" without one, so
-        // offering the move hands the bot an activation the mutation rejects.
-        // A DERIVED X (`xFromTargetSpellMv`) is priced per target below.
-        if (
-            typeof ability.cost.mana?.X === "string" &&
-            ability.cost.xFromTargetSpellMv === undefined
-        ) {
             continue;
         }
         // CR 606 (issue #2491) — a loyalty ability (planeswalker) carries a
@@ -5535,18 +5529,16 @@ function enumerateAbilityMoves(
         // `deriveXFromTargetSpellMv` + `resolveAbilityManaCost` the mutation
         // commits with.
         const hasDerivedX = ability.cost.xFromTargetSpellMv !== undefined;
-        // Mana cost: must be payable. The {T} part of the cost is not paid by
-        // the tap plan — which is exactly why the source must be BARRED from
-        // it (issue #3081): the server re-checks the source UNTAPPED when it
-        // commits the activation (CR 302.1), so a plan that spent it for mana
-        // gets the whole activation dropped at commit.
-        const manaCost: Record<string, number> =
-            ability.cost.mana && !hasDerivedX
-                ? normalizeManaCost(ability.cost.mana)
-                : {};
+        // CR 107.3a — a player-CHOSEN X in the activation cost: the activator
+        // announces it as part of activating, so the Bot enumerates it as a
+        // move axis (`chosenX`), the way the cast path enumerates an `{X}`
+        // spell. A DERIVED X (`xFromTargetSpellMv`) is priced per target below.
+        const hasChosenX =
+            typeof ability.cost.mana?.X === "string" && !hasDerivedX;
         // FEM Merseine (CR 601.2f / 202.3) — "Pay enchanted creature's mana
         // cost": fold the attached host's printed cost into the affordability
         // check so the Brain only offers the activation when it can pay.
+        let hostNorm: Record<string, number> | undefined;
         if (ability.cost.manaEqualToEnchantedCreatureCost) {
             const hostId = perm.attachedTo;
             const host = hostId
@@ -5559,33 +5551,51 @@ function enumerateAbilityMoves(
             const hostCost = (
                 hostCardId ? tryGetDefinition(hostCardId) : undefined
             )?.manaCost;
-            const hostNorm = hostCost ? normalizeManaCost(hostCost) : {};
-            for (const [sym, amt] of Object.entries(hostNorm)) {
+            hostNorm = hostCost ? normalizeManaCost(hostCost) : {};
+        }
+        const costModifiers = hasDerivedX
+            ? undefined
+            : getCostModifiers(state, perm, "ability", ability, player.id);
+        // Mana cost: must be payable. The {T} part of the cost is not paid by
+        // the tap plan — which is exactly why the source must be BARRED from
+        // it (issue #3081): the server re-checks the source UNTAPPED when it
+        // commits the activation (CR 302.1), so a plan that spent it for mana
+        // gets the whole activation dropped at commit. Priced per announced X
+        // (`undefined` for an ability with no chosen X); a restricted X
+        // (`xSpendColors`, "Spend only white mana on X") folds under its own
+        // key, so the planner never pays it with another colour.
+        const priceAt = (
+            chosenX: number | undefined
+        ): Record<string, number> => {
+            const manaCost: Record<string, number> =
+                ability.cost.mana && !hasDerivedX
+                    ? normalizeManaCost(
+                          ability.cost.mana,
+                          chosenX !== undefined ? { chosenX } : {}
+                      )
+                    : {};
+            for (const [sym, amt] of Object.entries(hostNorm ?? {})) {
                 manaCost[sym] = (manaCost[sym] ?? 0) + amt;
             }
-        }
-        // Chromatic Armor (CR 601.2f) — "{X}: … X is the number of sleight
-        // counters": fold the source's own counter count into the affordability
-        // check so the Brain only offers the activation when it can pay.
-        if (ability.cost.manaEqualToCounterCount) {
-            const have =
-                perm.counters?.[ability.cost.manaEqualToCounterCount.type] ?? 0;
-            if (have > 0) manaCost.X = (manaCost.X ?? 0) + have;
-        }
-        // CR 601.2f (ADR 0096, issue #2288) — fold the SAME cost modifiers the
-        // server charges at both `activateAbility` commit paths: the
-        // battlefield `cost-modifier` scan plus the announced ability's own
-        // `cost.selfReduction`. Until this call the enumerator read
-        // `ability.cost.mana` raw while its spell twin above already went
-        // through `getCostModifiers` — an omission, not a design: a bot that
-        // believes an ability is unaffordable never activates it, so a
-        // reduction the server honours was invisible to the search.
-        if (!hasDerivedX) {
-            applyCostModifiers(
-                manaCost,
-                getCostModifiers(state, perm, "ability", ability, player.id)
-            );
-        }
+            // Chromatic Armor (CR 601.2f) — "{X}: … X is the number of
+            // sleight counters": fold the source's own counter count into the
+            // affordability check so the Brain only offers the activation
+            // when it can pay.
+            if (ability.cost.manaEqualToCounterCount) {
+                const have =
+                    perm.counters?.[
+                        ability.cost.manaEqualToCounterCount.type
+                    ] ?? 0;
+                if (have > 0) manaCost.X = (manaCost.X ?? 0) + have;
+            }
+            // CR 601.2f (ADR 0096) — fold the SAME cost modifiers the server
+            // charges at both `activateAbility` commit paths: the battlefield
+            // `cost-modifier` scan plus the announced ability's own
+            // `cost.selfReduction`, so a reduction the server honours is
+            // visible to the search.
+            if (costModifiers) applyCostModifiers(manaCost, costModifiers);
+            return manaCost;
+        };
         // CR 602.1 (issue #3081) — the source is barred from funding its own
         // activation when the cost really taps it. An ability with no `{T}`
         // may still be funded by its own source, as before.
@@ -5642,23 +5652,50 @@ function enumerateAbilityMoves(
         // CR 701.67a — a generic-substitution leg funds part of the mana by
         // tapping, so the plan is for what the taps leave, and the taps ride
         // on the move beside it.
-        const substitution =
-            ability.cost.tapOtherFilter?.substitutesGeneric !== undefined &&
-            !hasDerivedX
-                ? planGenericSubstitution(
-                      state,
-                      player,
-                      perm,
-                      ability,
-                      manaCost,
-                      fundWithPhyrexian
-                  )
-                : null;
-        const funded = hasDerivedX
-            ? { plan: null, lifePips: undefined }
-            : (substitution?.funded ?? fundWithPhyrexian(manaCost));
-        const tapPlan = funded.plan;
-        if (!hasDerivedX && tapPlan === null) continue;
+        const fundAt = (chosenX: number | undefined) => {
+            const manaCost = priceAt(chosenX);
+            const substitution =
+                ability.cost.tapOtherFilter?.substitutesGeneric !== undefined &&
+                !hasDerivedX
+                    ? planGenericSubstitution(
+                          state,
+                          player,
+                          perm,
+                          ability,
+                          manaCost,
+                          fundWithPhyrexian
+                      )
+                    : null;
+            const funded: { plan: ManaTap[] | null; lifePips?: number } =
+                hasDerivedX
+                    ? { plan: null, lifePips: undefined }
+                    : (substitution?.funded ?? fundWithPhyrexian(manaCost));
+            return { chosenX, funded, substitution };
+        };
+        // CR 107.3a — one funding variant per announceable X. The range is
+        // `0..ceiling` where the ceiling is the first X the payment planner
+        // itself cannot fund: the activation cost is monotone in X, and
+        // `planManaPayment` is the authority the move's own `tapPlan` comes
+        // from, so no X it would refuse is emitted and no greedy model of the
+        // board's mana is duplicated here. An ability with no chosen X has
+        // the single `undefined` variant.
+        const fundingVariants: ReturnType<typeof fundAt>[] = [];
+        if (hasChosenX) {
+            for (let x = 0; x <= MAX_ACTIVATION_X; x++) {
+                const variant = fundAt(x);
+                if (variant.funded.plan === null) break;
+                fundingVariants.push(variant);
+            }
+        } else {
+            const variant = fundAt(undefined);
+            if (hasDerivedX || variant.funded.plan !== null) {
+                fundingVariants.push(variant);
+            }
+        }
+        if (fundingVariants.length === 0) continue;
+        // Largest X first: when the per-mode budget below truncates, it is
+        // the near-pointless small announcements that are dropped.
+        fundingVariants.reverse();
 
         // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one
         // variant per mode, each with its OWN target requirement — the same
@@ -5764,129 +5801,143 @@ function enumerateAbilityMoves(
         // WHICH creature a tutor engine eats is the decision the card is
         // about), so the search applies exactly what the executor submits.
         // An empty list means a leg has no legal payment: not a legal move.
-        const pickVariants = enumerateActivationCostPicks(
+        const basePickVariants = enumerateActivationCostPicks(
             state,
             player,
             perm,
             ability
-        ).map((picks) =>
-            substitution
-                ? { ...picks, tapOtherIds: substitution.tapOtherIds }
-                : picks
         );
-        if (pickVariants.length === 0) continue;
+        if (basePickVariants.length === 0) continue;
 
-        for (const {
-            chosenModeIds,
-            groups: abilityGroups,
-            groupInstances,
-        } of abilityModeVariants) {
-            // CR 601.2c via CR 602.2b — one enumerator for both shapes (issue
-            // #2870). The single-group case is `[req]`, which
-            // `enumerateTargetGroupTuples` handles identically to the old
-            // `enumerateTargetTuples` call while ALSO reporting how much of the
-            // tuple belongs to the last group — the only group whose fill level
-            // decides whether a trailing `confirmTargets` is owed. The
-            // one-branch version read `req` (the FIRST group) against the WHOLE
-            // flat tuple, so an ability with additional groups asked the wrong
-            // requirement about the wrong count.
-            // The ability-side twin of the cast path's identical guard
-            // (#2905 review, item 3): a VARIABLE-count group does not
-            // auto-advance inside the executor's one batched `selectTargets`, so
-            // only the LAST group may be one — anything else needs a confirm
-            // mid-batch the executor has no shape for, and its later picks would
-            // land back on the first group. This is the precondition
-            // `enumerateTargetGroupTuples` is written against; the site adopted
-            // that enumerator without it. Vacuous today (Oko, Thief of Crowns'
-            // −5 is the only ability with `additionalTargetRequirements` and
-            // both its groups are `count: 1`), so the Bot declines to enumerate
-            // rather than emitting an unexecutable move if one ever lands.
-            if (abilityGroups.slice(0, -1).some((g) => isVariableCount(g))) {
-                continue;
-            }
-            const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
+        for (const { chosenX, funded, substitution } of fundingVariants) {
+            const tapPlan = funded.plan;
+            const pickVariants = basePickVariants.map((picks) =>
+                substitution
+                    ? { ...picks, tapOtherIds: substitution.tapOtherIds }
+                    : picks
+            );
             for (const {
-                targets,
-                lastGroupSize,
-                lastGroupPrior,
-                modeTargetCounts,
-            } of enumerateTargetGroupTuples(
-                state,
-                player,
-                perm,
-                abilityGroups,
-                undefined,
-                chosenModeIds && groupInstances
-                    ? { count: chosenModeIds.length, groupInstances }
-                    : undefined
-            )) {
-                // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
-                // not per ability: a cheaper spell target can be affordable
-                // while a pricier one in the same tuple set is not.
-                let tupleTapPlan = tapPlan;
-                let tupleLifePips = funded.lifePips;
-                if (hasDerivedX) {
-                    const derivedX = deriveXFromTargetSpellMv(
-                        state,
-                        ability,
-                        targets
-                    );
-                    const tupleManaCost = resolveAbilityManaCost(
-                        state,
-                        perm,
-                        ability,
-                        { chosenX: derivedX }
-                    );
-                    const costForTuple: Record<string, number> = {
-                        ...(tupleManaCost ?? {}),
-                    };
-                    applyCostModifiers(
-                        costForTuple,
-                        getCostModifiers(
+                chosenModeIds,
+                groups: abilityGroups,
+                groupInstances,
+            } of abilityModeVariants) {
+                // CR 601.2c via CR 602.2b — one enumerator for both shapes (issue
+                // #2870). The single-group case is `[req]`, which
+                // `enumerateTargetGroupTuples` handles identically to the old
+                // `enumerateTargetTuples` call while ALSO reporting how much of the
+                // tuple belongs to the last group — the only group whose fill level
+                // decides whether a trailing `confirmTargets` is owed. The
+                // one-branch version read `req` (the FIRST group) against the WHOLE
+                // flat tuple, so an ability with additional groups asked the wrong
+                // requirement about the wrong count.
+                // The ability-side twin of the cast path's identical guard
+                // (#2905 review, item 3): a VARIABLE-count group does not
+                // auto-advance inside the executor's one batched `selectTargets`, so
+                // only the LAST group may be one — anything else needs a confirm
+                // mid-batch the executor has no shape for, and its later picks would
+                // land back on the first group. This is the precondition
+                // `enumerateTargetGroupTuples` is written against; the site adopted
+                // that enumerator without it. Vacuous today (Oko, Thief of Crowns'
+                // −5 is the only ability with `additionalTargetRequirements` and
+                // both its groups are `count: 1`), so the Bot declines to enumerate
+                // rather than emitting an unexecutable move if one ever lands.
+                if (
+                    abilityGroups.slice(0, -1).some((g) => isVariableCount(g))
+                ) {
+                    continue;
+                }
+                const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
+                for (const {
+                    targets,
+                    lastGroupSize,
+                    lastGroupPrior,
+                    modeTargetCounts,
+                } of enumerateTargetGroupTuples(
+                    state,
+                    player,
+                    perm,
+                    abilityGroups,
+                    // CR 107.3a — an "X target ..." count resolves against
+                    // the announced X of this funding variant.
+                    chosenX,
+                    chosenModeIds && groupInstances
+                        ? { count: chosenModeIds.length, groupInstances }
+                        : undefined
+                )) {
+                    // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
+                    // not per ability: a cheaper spell target can be affordable
+                    // while a pricier one in the same tuple set is not.
+                    let tupleTapPlan = tapPlan;
+                    let tupleLifePips = funded.lifePips;
+                    if (hasDerivedX) {
+                        const derivedX = deriveXFromTargetSpellMv(
+                            state,
+                            ability,
+                            targets
+                        );
+                        const tupleManaCost = resolveAbilityManaCost(
                             state,
                             perm,
-                            "ability",
                             ability,
-                            player.id
-                        )
-                    );
-                    const tupleFunded = fundWithPhyrexian(costForTuple);
-                    tupleTapPlan = tupleFunded.plan;
-                    tupleLifePips = tupleFunded.lifePips;
-                }
-                if (tupleTapPlan === null) continue;
-                for (const costPicks of pickVariants) {
-                    if (
-                        abilityPerModeCombination &&
-                        chosenModeIds &&
-                        !abilityModeLedger.admit(chosenModeIds)
-                    ) {
-                        continue;
+                            { chosenX: derivedX }
+                        );
+                        const costForTuple: Record<string, number> = {
+                            ...(tupleManaCost ?? {}),
+                        };
+                        applyCostModifiers(
+                            costForTuple,
+                            getCostModifiers(
+                                state,
+                                perm,
+                                "ability",
+                                ability,
+                                player.id
+                            )
+                        );
+                        const tupleFunded = fundWithPhyrexian(costForTuple);
+                        tupleTapPlan = tupleFunded.plan;
+                        tupleLifePips = tupleFunded.lifePips;
                     }
-                    moves.push({
-                        kind: "activate-ability",
-                        cardInstanceId: perm.id,
-                        abilityId: ability.id,
-                        ...(chosenModeIds ? { chosenModeIds } : {}),
-                        ...(modeTargetCounts ? { modeTargetCounts } : {}),
-                        targets,
-                        confirmTargets: announcedTargetsNeedConfirm(
-                            lastAbilityReq,
-                            lastGroupSize,
-                            undefined,
-                            announcementOf(state, player, perm, lastGroupPrior)
-                        ),
-                        tapPlan: tupleTapPlan,
-                        ...(tupleLifePips !== undefined
-                            ? { phyrexianLifePips: tupleLifePips }
-                            : {}),
-                        ...(costPicks ? { costPicks } : {}),
-                    });
-                    if (
-                        !abilityPerModeCombination &&
-                        moves.length >= MAX_COMBINATIONS
-                    )
-                        return moves;
+                    if (tupleTapPlan === null) continue;
+                    for (const costPicks of pickVariants) {
+                        if (
+                            abilityPerModeCombination &&
+                            chosenModeIds &&
+                            !abilityModeLedger.admit(chosenModeIds)
+                        ) {
+                            continue;
+                        }
+                        moves.push({
+                            kind: "activate-ability",
+                            cardInstanceId: perm.id,
+                            abilityId: ability.id,
+                            ...(chosenModeIds ? { chosenModeIds } : {}),
+                            ...(modeTargetCounts ? { modeTargetCounts } : {}),
+                            ...(chosenX !== undefined ? { chosenX } : {}),
+                            targets,
+                            confirmTargets: announcedTargetsNeedConfirm(
+                                lastAbilityReq,
+                                lastGroupSize,
+                                chosenX,
+                                announcementOf(
+                                    state,
+                                    player,
+                                    perm,
+                                    lastGroupPrior
+                                )
+                            ),
+                            tapPlan: tupleTapPlan,
+                            ...(tupleLifePips !== undefined
+                                ? { phyrexianLifePips: tupleLifePips }
+                                : {}),
+                            ...(costPicks ? { costPicks } : {}),
+                        });
+                        if (
+                            !abilityPerModeCombination &&
+                            moves.length >= MAX_COMBINATIONS
+                        )
+                            return moves;
+                    }
                 }
             }
         }
