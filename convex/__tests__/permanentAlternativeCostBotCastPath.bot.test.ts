@@ -14,9 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { announceCast, selectSacrifice, selectTargets } from "../game";
-import { fireblast } from "../cards/sets/vis/red.cards";
 import { thaliaGuardianOfThraben } from "../cards/sets/dka/white.cards";
-import { gush } from "../cards/sets/mmq/blue.cards";
 import { island, mountain } from "../cards/sets/lea/colorless.cards";
 import {
     makeInstance,
@@ -34,6 +32,13 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const fireblast = () => getDefinition("b1eb5b2c-1f02-48a6-a287-88eb189d6780");
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
 
 const GAME_ID = "game-1" as Id<"games">;
 

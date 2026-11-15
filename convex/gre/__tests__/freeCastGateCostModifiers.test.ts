@@ -42,7 +42,6 @@ import {
 } from "../state";
 import { getPlayer, type CardInstanceState, type GameState } from "../state";
 import { mountain } from "../../cards/sets/lea/index.cards";
-import { gush } from "../../cards/sets/mmq/blue.cards";
 import { figureOfDestiny } from "../../cards/sets/eve/multicolor.cards";
 import { firebolt } from "../../cards/sets/ody/red.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
@@ -58,6 +57,10 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+import { getDefinition } from "../../cards/index";
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
 
 type AnnounceArgs = {
     gameId: Id<"games">;

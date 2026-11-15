@@ -53,7 +53,6 @@ import {
     grizzlyBears,
 } from "../../cards/sets/lea/index.cards";
 import { snuffOut } from "../../cards/sets/mmq/black.cards";
-import { gush } from "../../cards/sets/mmq/blue.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
 import { planarGate } from "../../cards/sets/leg/colorless.cards";
 import { ragavanNimblePilferer } from "../../cards/sets/mh2/red.cards";
@@ -75,6 +74,10 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+import { getDefinition } from "../../cards/index";
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
 
 const returnTwoIslands: AlternativeCost = {
     id: "return-two-islands",
