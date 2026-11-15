@@ -19,7 +19,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { withTemporaryDefinition } from "../../cards/registry";
-import { getAllCards } from "../../cards";
+import { getAllCatalogueCards } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import {
     CAST_PERMISSION_ALT_COST_PREFIX,
@@ -400,10 +400,16 @@ describe("the permission is HAND-scoped (CR 302.1 / 601.3)", () => {
 // docs/findings/3284-static-effect-oracletext-is-a-reason-string-on-twelve-kinds.md
 describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)", () => {
     it("every shipped permission's `oracleText` IS one of its own card's Oracle paragraphs", () => {
-        const normalise = (text: string) => text.replace(/\s+/g, " ").trim();
+        // Reminder text in parentheses is not rules text: a compiled card
+        // keeps it on the paragraph and drops it from the permission.
+        const normalise = (text: string) =>
+            text
+                .replace(/\s*\([^)]*\)/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
         const offenders: string[] = [];
         let checked = 0;
-        for (const card of getAllCards()) {
+        for (const card of getAllCatalogueCards()) {
             for (const permission of declaredCastPermissions(card)) {
                 checked += 1;
                 const paragraphs = (card.oracleText ?? "")
@@ -434,13 +440,25 @@ describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)
     }
 
     it("`label` is what the cast-option row shows, and `oracleText` is the fallback", () => {
-        const state = board({ p1Hand: [grizzlyBears().id] });
-        // Aluren declares both, so the row shows the SHORT label.
-        expect(
-            castPermissionAltCosts(state, "p1", handCard(state, "p1")).map(
-                (a) => a.description
-            )
-        ).toEqual(["Cast with Aluren"]);
+        // The compiled Aluren carries no `label` (a picker-copy field no
+        // grammar derives), so the labelled case is a temporary definition.
+        const labelled: CardDefinition = {
+            ...aluren(),
+            staticEffects: (aluren().staticEffects ?? []).map((effect) =>
+                effect.kind === "cast-permission"
+                    ? { ...effect, label: "Cast with Aluren" }
+                    : effect
+            ),
+        };
+        withTemporaryDefinition(labelled, () => {
+            const state = board({ p1Hand: [grizzlyBears().id] });
+            // A permission declaring both shows the SHORT label.
+            expect(
+                castPermissionAltCosts(state, "p1", handCard(state, "p1")).map(
+                    (a) => a.description
+                )
+            ).toEqual(["Cast with Aluren"]);
+        });
 
         // A permission with NO label falls back to the printed sentence —
         // the behaviour every permission had before `label` existed.

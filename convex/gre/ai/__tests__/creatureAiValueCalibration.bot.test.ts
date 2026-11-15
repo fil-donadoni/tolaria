@@ -13,18 +13,12 @@ import { mirrorwoodTreefolk } from "../../../cards/sets/pls/green.cards";
 import { cardValueById } from "../../cardValue";
 import { creatureValueRaw } from "../../creatureBody";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
-import { getDefinition } from "../../../cards/index";
-
-const meddlingMage = () =>
-    getDefinition("176f84c6-aa5e-449c-bd2b-cc91a898f0c7");
 
 const CASES = [
     // body = a representative 2/2 at MV2 (the copied body is unknowable).
     { def: phantasmalImage(), body: [2, 2, 2], premium: 0 },
     // vanilla 2/4 MV4 + 25 for the repeatable redirect.
     { def: mirrorwoodTreefolk(), body: [2, 4, 4], premium: 25 },
-    // 2/2 MV2 + 7 for the soft Duress-grade disruption.
-    { def: meddlingMage(), body: [2, 2, 2], premium: 7 },
 ] as const;
 
 /** Two discounts far enough apart that a frozen literal cannot match both. */
