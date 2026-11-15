@@ -4,6 +4,13 @@ import {
     AUTO_TAP_PLAN_CAP,
     type AutoTapSource,
 } from "../autoTap";
+import { scoreAutoTapPlanPosition } from "../../game";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
+import type { CardInstanceState } from "../state";
 
 /**
  * Wall-clock PERFORMANCE assertion for the smart auto-tap solver (ADR 0034).
@@ -53,5 +60,73 @@ describe("solveSmartAutoTap — plan-cap performance (ADR 0034)", () => {
         expect(plan).toHaveLength(2);
         expect(elapsed).toBeLessThan(1000);
         expect(AUTO_TAP_PLAN_CAP).toBe(512);
+    });
+});
+
+const PLAINS = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
+
+/** A forty-card library per player plus a few graveyard cards: the position
+ *  scorer clones the WHOLE state per plan, so its cost scales with them. */
+function zone(
+    owner: string,
+    name: CardInstanceState["zone"],
+    n: number
+): CardInstanceState[] {
+    return Array.from({ length: n }, (_, i) =>
+        makeInstance(PLAINS, {
+            id: `${owner}-${name}-${i}`,
+            controllerId: owner,
+            ownerId: owner,
+            zone: name,
+        })
+    );
+}
+
+describe("solveSmartAutoTap — scored path performance (issue #9812)", () => {
+    it("pays {3}{W}{W} from ten any-colour sources through the real scorer in well under a second", () => {
+        // Ten five-option sources at the minimal 5 taps: C(10, 5) = 252 land
+        // sets, past AUTO_TAP_SCORED_PLAN_CAP, every one scored by the
+        // production `scoreAutoTapPlanPosition` (state clone + evaluate()).
+        const sources = Array.from({ length: 10 }, (_, i) =>
+            choice(`any${i}`, ["W", "U", "B", "R", "G"])
+        );
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    library: zone("p1", "library", 40),
+                    graveyard: zone("p1", "graveyard", 6),
+                }),
+                makePlayer("p2", {
+                    library: zone("p2", "library", 40),
+                    graveyard: zone("p2", "graveyard", 6),
+                }),
+            ],
+        });
+        const cost = { W: 2, X: 3 };
+        const start = Date.now();
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            cost,
+            [],
+            sources,
+            [],
+            undefined,
+            (candidate) =>
+                scoreAutoTapPlanPosition(
+                    state,
+                    "p1",
+                    EMPTY_POOL,
+                    cost,
+                    [],
+                    sources,
+                    candidate
+                )
+        );
+        const elapsed = Date.now() - start;
+        expect(plan).toHaveLength(5);
+        expect(elapsed).toBeLessThan(250);
     });
 });

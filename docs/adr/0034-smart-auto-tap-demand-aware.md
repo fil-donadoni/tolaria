@@ -113,6 +113,15 @@ combinatorics over a small board (~≤10 sources) inside the existing
 `selectManaSourcesForPayment` mutation — sub-millisecond; the cap is a safety
 backstop, effectively never hit on real boards.
 
+**Amendment (issue #9812).** The cap WAS hit on a real board: seven any-colour
+lands paying {3}{W}{W} counted every colour assignment as its own plan, and each
+paid a full state clone plus `evaluate()` in the position scorer — past the
+mutation's time limit. Plans are now collected one per class (tapped set,
+leftover pool, riders taken), which every ranking term already treats as equal,
+so the cap counts distinct plans (at most C(n, k) land sets). Scoring has its own
+bound, `AUTO_TAP_SCORED_PLAN_CAP` (64): past it, the plans leading on the
+scorer-free terms are the ones scored. The ranking order is unchanged.
+
 ### Scope
 
 Ships **unconditionally to all seats** — solo, vs-AI, 2-player, and the AI bot's
