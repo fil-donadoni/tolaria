@@ -23,13 +23,13 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## Eldrazi Ramp
 
-| Card                      | Right                                                                    | Wrong: must not                                                   | Has |
-| ------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- | --- |
-| Urza's Saga               | chapter II on and {2} spare: make the Construct this turn                | leave the mana idle and let chapter III sacrifice it for no token |     |
-| Sowing Mycospawn          | kicker affordable: kick it, fetch a land, exile the opponent's best land | point the kicked exile at its own land                            |     |
-| Malevolent Rumble         | short of threats: keep the threat among the four cards                   | keep a land over the threat with lands to spare                   |     |
-| Emrakul, the Promised End | the graveyard's card types make it castable this turn: cast it           | spend that mana on a lesser play                                  |     |
-| Dismember                 | a creature it kills that beats the Bot, no {B}: pay the life and cast it | pay the life to lethal, or aim at toughness above 5               |     |
+| Card                      | Right                                                                    | Wrong: must not                                                   | Has                                                                                                                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Urza's Saga               | chapter II on and {2} spare: make the Construct this turn                | leave the mana idle and let chapter III sacrifice it for no token | `saga: Urza's Saga makes the Construct before chapter III sacrifices it`; wrong: `saga: Urza's Saga never leaves the mana idle as chapter III resolves`                                                      |
+| Sowing Mycospawn          | kicker affordable: kick it, fetch a land, exile the opponent's best land | point the kicked exile at its own land                            | `kicker: Sowing Mycospawn is cast kicked when the kicker is affordable`; wrong: `kicker: Sowing Mycospawn's kicked exile never takes its own land`                                                           |
+| Malevolent Rumble         | short of threats: keep the threat among the four cards                   | keep a land over the threat with lands to spare                   | `look and keep: Malevolent Rumble keeps the threat when short of threats`; wrong: `look and keep: Malevolent Rumble never keeps a land over the threat with lands to spare`                                  |
+| Emrakul, the Promised End | the graveyard's card types make it castable this turn: cast it           | spend that mana on a lesser play                                  | `graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost`; wrong: `graveyard discount: Emrakul, the Promised End is not passed over for a lesser play`                      |
+| Dismember                 | a creature it kills that beats the Bot, no {B}: pay the life and cast it | pay the life to lethal, or aim at toughness above 5               | `phyrexian mana: Dismember pays life to kill the attacker that beats the Bot`; wrong: `phyrexian mana: Dismember never pays the life to lethal`, `phyrexian mana: Dismember never aims at toughness above 5` |
 
 ## Izzet Prowess
 

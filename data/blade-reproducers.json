@@ -2873,6 +2873,61 @@
         "landCount": 0,
         "libraryCount": 0
     },
+    "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 7,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 7
+            },
+            {
+                "name": "Emrakul, the Promised End",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Malevolent Rumble",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sol Ring",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Urza's Saga",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
     "graveyard engine: escapes the Black Lotus whose permanent outweighs the option": {
         "cards": [
             {
@@ -3721,6 +3776,7 @@
             }
         ]
     },
+    "look and keep: Malevolent Rumble keeps the threat when short of threats": null,
     "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
         "cards": [
             {
@@ -4293,6 +4349,7 @@
         "turn": 3,
         "libraryCount": 20
     },
+    "phyrexian mana: Dismember pays life to kill the attacker that beats the Bot": null,
     "plot: banks a plot card with mana that would otherwise empty": {
         "cards": [
             {
@@ -5079,6 +5136,7 @@
         "landCount": 0,
         "libraryCount": 0
     },
+    "saga: Urza's Saga makes the Construct before chapter III sacrifices it": null,
     "scry: bottoms two dead cards to draw off a deck of bombs": null,
     "scry: keeps two bombs on top of a deck of blanks": null,
     "self-sacrificing ETB: casts Phlage from hand for lethal": {
