@@ -31,7 +31,8 @@
 import { describe, it, expect } from "vitest";
 import type { Id } from "@convex/_generated/dataModel";
 import type { MutationCtx } from "@convex/_generated/server";
-import { getPublicState } from "@convex/game";
+import { announceCast, cancelCast, getPublicState } from "@convex/game";
+import { getLatestGameState, saveGameState } from "@convex/gameStateStore";
 import { compactState } from "@convex/gre/serialize";
 import type { GameState } from "@convex/gre/state";
 import { drawCard } from "@convex/gre/state";
@@ -41,6 +42,7 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
 import { goblinSpy } from "@convex/cards/sets/inv/red.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import {
     mountain,
     forest,
@@ -49,6 +51,7 @@ import {
 import {
     makeMutationCtx,
     gameStateSeed,
+    runMutation,
 } from "@convex/__tests__/gameMutationHarness.fixture";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import type { PublicLibrary } from "~/types/game";
@@ -97,6 +100,15 @@ async function renderedPileFor(
             state: compactState(state) as unknown as GameState,
         },
     ]);
+    return renderedPileIn(ctx, viewerId, libraryOwnerId);
+}
+
+/** {@link renderedPileFor} over the game already persisted in `ctx`. */
+async function renderedPileIn(
+    ctx: MutationCtx,
+    viewerId: string,
+    libraryOwnerId: string
+): Promise<[string | null, boolean][]> {
     const projected = await (
         getPublicState as unknown as QueryHandler
     )._handler(ctx, { gameId: GAME_ID, playerId: viewerId });
@@ -207,5 +219,86 @@ describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () 
     it("renders a card back — and does not throw — on an empty library", async () => {
         const state = spyBoard([]);
         await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
+    });
+});
+
+// CR 401.5 sentence 2 / CR 601.2i — the announcement window. The cast is
+// announced and cancelled through the real mutations, every stable point is
+// persisted by `saveGameState`, and each seat's pile is read through the real
+// query and reducer. No shipped action moves a library card while a spell is
+// parked mid-cast (CR 605.1a keeps mana abilities off the library, and every
+// library-moving cost is paid at commit), so the one hand-made step is that
+// move, persisted through the same writer.
+describe("announcement-window freeze end-to-end (CR 401.5, CR 601.2i)", () => {
+    const ARGS = { gameId: GAME_ID, playerId: "p1" };
+
+    function castableSpyBoard(): GameState {
+        const state = spyBoard([mountain().id, forest().id, island().id]);
+        const p1 = state.players[0];
+        const own = (
+            cardId: string,
+            id: string,
+            zone: "hand" | "battlefield"
+        ) =>
+            makeInstance(cardId, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone,
+            });
+        p1.hand = [own(grizzlyBears().id, "bears", "hand")];
+        // Castable, so the cast parks in its payment step.
+        p1.battlefield.push(
+            own(forest().id, "land-0", "battlefield"),
+            own(mountain().id, "land-1", "battlefield")
+        );
+        state.phase = "PRECOMBAT_MAIN";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        return state;
+    }
+
+    it("keeps a top that changed mid-cast face-down on both seats until the window closes", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameSeed(),
+            gameStateSeed(castableSpyBoard()),
+        ]);
+        await runMutation(announceCast, harness.ctx, {
+            ...ARGS,
+            cardInstanceId: "bears",
+        });
+        expect(harness.state().pendingCast).toBeDefined();
+        // An unchanged top stays revealed through the window.
+        expect((await renderedPileIn(harness.ctx, "p2", "p1"))[0]).toEqual([
+            mountain().id,
+            true,
+        ]);
+
+        // The top card leaves the library while the spell is being cast.
+        const loaded = (await getLatestGameState(harness.ctx, GAME_ID))!;
+        const moved = structuredClone(loaded.state) as GameState;
+        drawCard(moved.players[0]);
+        await saveGameState(
+            harness.ctx,
+            GAME_ID,
+            loaded.seq + 1,
+            moved,
+            loaded
+        );
+
+        for (const viewer of ["p1", "p2"]) {
+            expect(
+                (await renderedPileIn(harness.ctx, viewer, "p1"))[0]
+            ).toEqual([null, false]);
+        }
+
+        // The window closes: the new top is revealed again.
+        await runMutation(cancelCast, harness.ctx, ARGS);
+        expect(harness.state().pendingCast).toBeUndefined();
+        for (const viewer of ["p1", "p2"]) {
+            expect(
+                (await renderedPileIn(harness.ctx, viewer, "p1"))[0]
+            ).toEqual([forest().id, true]);
+        }
     });
 });

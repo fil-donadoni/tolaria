@@ -4618,6 +4618,9 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "pendingCast",
     "pendingActivation",
     "pendingCompanionPay",
+    // Rides only beside the announcement containers above, and
+    // `saveGameState` re-derives it once the rebuilt game parks again.
+    "announcementLibraryTops",
     "pendingTarget",
     "pendingChoices",
     "pendingTriggerBatch",

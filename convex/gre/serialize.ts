@@ -1405,6 +1405,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // it round-trips via the generic optional-key loop with no per-field
     // compaction, exactly like pendingCast/pendingActivation.
     "pendingCompanionPay",
+    // CR 401.5 — library top ids frozen for the open announcement window;
+    // plain strings, the generic optional-key loop.
+    "announcementLibraryTops",
     "pendingTarget",
     // CR 707.10c — stack item ids; plain strings, the generic optional-key loop.
     "queuedCopyRetargets",

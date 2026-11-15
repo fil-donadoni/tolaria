@@ -30,7 +30,7 @@
 // deliberately outside the layer system (`gre/layers.ts` models
 // characteristics only).
 
-import type { GameState } from "./state";
+import type { GameState, PlayerState } from "./state";
 import { liveStaticDefinition } from "./constants";
 import { looksAtLibraryTopOf } from "../cards/abilities/classLevels";
 
@@ -45,7 +45,8 @@ import { looksAtLibraryTopOf } from "../cards/abilities/classLevels";
  *
  *  Returns an empty set when no such permanent is on any battlefield, which is
  *  the overwhelmingly common case — callers can skip all reveal work on
- *  `size === 0`. A revealed player with an EMPTY library simply has no top card
+ *  `size === 0`. A player whose top card changed during an open announcement
+ *  window is left out (CR 401.5, {@link libraryTopFrozenOut}). A revealed player with an EMPTY library simply has no top card
  *  to expose; membership here says nothing about the library's contents. */
 export function computeLibraryTopRevealedPlayers(
     state: GameState
@@ -56,6 +57,7 @@ export function computeLibraryTopRevealedPlayers(
             // CR 613.1f — a source that lost its abilities reveals nothing.
             const scope = liveStaticDefinition(card)?.revealsLibraryTop;
             if (!scope) continue;
+            if (libraryTopFrozenOut(state, player)) continue;
             // Only scope shipped today (see `CardDefinition.revealsLibraryTop`);
             // widen here in lockstep with the union when a card needs it.
             revealed.add(player.id);
@@ -87,10 +89,83 @@ export function computeLibraryTopLookedAtPlayers(
             const def = liveStaticDefinition(card);
             const scope = def ? looksAtLibraryTopOf(def, card) : undefined;
             if (!scope) continue;
+            if (libraryTopFrozenOut(state, player)) continue;
             // Only scope shipped today (see `CardDefinition.looksAtLibraryTop`);
             // widen here in lockstep with the union when a card needs it.
             looking.add(player.id);
         }
     }
     return looking;
+}
+
+// ---------------------------------------------------------------------------
+// The announcement window (CR 401.5 sentences 2-3, CR 601.2i)
+//
+// "If the top card of the player's library changes while a spell is being
+// cast, the new top card won't be revealed and can't be looked at until the
+// spell becomes cast." Same for an ability being activated and a special
+// action being taken. The window is DERIVED from the containers the engine
+// already parks a half-announced action in — never a flag written at each
+// construction site, so a new producer cannot forget to open it. What does need
+// a record is the top card each library had BEFORE the window opened: by the
+// time a snapshot is read, a changed top has already overwritten it. That
+// record is written in one place, `syncAnnouncementWindow`, called by the sole
+// writer of the persisted snapshot (`saveGameState`): every stable point a
+// viewer can observe passes through it, and it alone holds the previous
+// snapshot to read the pre-window tops from.
+// ---------------------------------------------------------------------------
+
+/** CR 401.5 / 601.2i / 602.2 / 116 — whether a spell is being cast, an ability
+ *  activated or a special action taken: one of the announcement containers is
+ *  open. A `pendingTarget` counts only for a cast or an activation (CR 601.2c /
+ *  602.2b); a trigger's targets (CR 603.3d) and a retarget (CR 115.7 / 707.10c)
+ *  are chosen outside any announcement. Of the special actions only the
+ *  companion summon has a container; the others complete inside one call. */
+export function isAnnouncementWindowOpen(state: GameState): boolean {
+    if (state.pendingCast || state.pendingActivation) return true;
+    if (state.pendingCompanionPay) return true;
+    const kind = state.pendingTarget?.kind;
+    return (
+        state.pendingTarget !== undefined &&
+        (kind === undefined || kind === "cast" || kind === "ability")
+    );
+}
+
+/** The current top card id of every non-empty library. */
+function libraryTopIds(state: GameState): string[] {
+    return state.players.flatMap((p) =>
+        p.library.length > 0 ? [p.library[0].id] : []
+    );
+}
+
+/** CR 401.5 — `player`'s library top is hidden from every reveal and look
+ *  effect: an announcement window is open and the card on top now is not the
+ *  one that was on top when it opened. An unchanged top stays revealed; the
+ *  new top is exposed again once the window closes (the spell becomes cast,
+ *  the ability becomes activated, the special action is finished). */
+export function libraryTopFrozenOut(
+    state: GameState,
+    player: PlayerState
+): boolean {
+    const frozen = state.announcementLibraryTops;
+    if (frozen === undefined || !isAnnouncementWindowOpen(state)) return false;
+    const top = player.library[0];
+    return top !== undefined && !frozen.includes(top.id);
+}
+
+/** CR 401.5 — the one place the announcement window's record is kept: opens
+ *  it with the library tops of `previous` (the last persisted snapshot, taken
+ *  before the action that opened the window touched anything), carries it while
+ *  the window stays open, and drops it once the window closes. `previous` is
+ *  undefined for a game's first save, when no window can be open. */
+export function syncAnnouncementWindow(
+    state: GameState,
+    previous: GameState | undefined
+): void {
+    if (!isAnnouncementWindowOpen(state)) {
+        delete state.announcementLibraryTops;
+        return;
+    }
+    if (state.announcementLibraryTops !== undefined) return;
+    state.announcementLibraryTops = libraryTopIds(previous ?? state);
 }
