@@ -789,8 +789,10 @@ export const allHallowsEve = defineCard(() => ({
                                 type: "scream",
                             },
                         },
-                        op: "eq",
-                        right: 0,
+                        // "no more scream counters" — a literal is a
+                        // positive int, so zero is "fewer than one".
+                        op: "lt",
+                        right: 1,
                     },
                     then: [
                         {
