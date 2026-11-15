@@ -110,9 +110,7 @@ card whose `effects[]` uses ONLY already-exercised Ops (check
 proof is catalogue-wide and automatic:
 
 1. `validateEffectScript` static sweep (`effectScripts.test.ts`): schema,
-   refs, vocabulary, JSON purity, mutual-exclusivity, and no read of an
-   announced Target an earlier Op removed (`removesTarget` /
-   `TARGET_INFORMATION_READS`, issue #2988).
+   refs, vocabulary, JSON purity, mutual-exclusivity.
 2. The generated canned-scenario smoke test (`scenarioGenerator.ts` via
    `effectScriptSmoke.test.ts`), resolving through the real
    `resolveTopOfStack`. An un-scenarioizable script surfaces as an explicit
