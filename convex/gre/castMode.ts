@@ -83,6 +83,7 @@ import {
 } from "./modalBackCast";
 import type { CardInstanceState, GameState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
+import { faceChoiceComponent } from "./castPermissionAltCostId";
 
 /** A cast mode: an alternative cost that changes what the spell IS or what
  *  becomes of the permanent, rather than only what it costs. An alt cost that
@@ -398,13 +399,17 @@ function castModeOf(
     def: CardDefinition | undefined,
     alternativeCostId: string | undefined
 ): CastMode | undefined {
-    if (alternativeCostId === undefined) return undefined;
+    // CR 709.3 / 118.9 — a board permission's free cast of one face carries
+    // the face's id inside its own (`castPermissionAltCostId.ts`): the mode is
+    // the face's, the price the permission's.
+    const id = faceChoiceComponent(alternativeCostId);
+    if (id === undefined) return undefined;
     // Morph's synthesized id is shared by every morph card, so it is matched
     // through the helper that also proves `def` HAS a morph cost.
-    if (isMorphCastId(def, alternativeCostId)) return "morph";
+    if (isMorphCastId(def, id)) return "morph";
     for (const mode of Object.keys(CAST_MODE_CENSUS) as CastMode[]) {
         if (mode === "morph") continue;
-        if (CAST_MODE_CENSUS[mode].idOf(def) === alternativeCostId) return mode;
+        if (CAST_MODE_CENSUS[mode].idOf(def) === id) return mode;
     }
     return undefined;
 }

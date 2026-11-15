@@ -75,15 +75,39 @@ import { standDeliver } from "@convex/cards/sets/inv/multicolor.cards";
 import { hillGiant } from "@convex/cards/sets/lea/red.cards";
 import { plains, island } from "@convex/cards/sets/lea/colorless.cards";
 import { splitCastAltCostId } from "@convex/gre/splitCast";
+import { aluren } from "@convex/cards/sets/tmp/green.cards";
+import { withTemporaryDefinition } from "@convex/cards/registry";
+import type { CardDefinition } from "@convex/cards/types";
+import { composeCastPermissionAltCostId } from "@convex/gre/castPermissionAltCostId";
 
 const LEFT_ALT = splitCastAltCostId(standDeliver(), "left");
 const RIGHT_ALT = splitCastAltCostId(standDeliver(), "right");
 
+/** CR 709.3 + 118.9a — a free-cast permission over instants of mana value 1
+ *  or less: Stand ({W}) is covered, Deliver ({2}{U}) is not. Aluren's id, so
+ *  the registry's cast-permission membership finds it. No shipped permission
+ *  covers a shipped split half. */
+const PERMISSION_ID = "probe-free-cheap-instant";
+const permissionSource: CardDefinition = {
+    ...aluren(),
+    staticEffects: [
+        {
+            kind: "cast-permission",
+            id: PERMISSION_ID,
+            grantee: "controller",
+            filter: { type: "Instant", manaValueAtMost: 1 },
+            withoutPayingManaCost: true,
+            oracleText:
+                "You may cast instant spells with mana value 1 or less without paying their mana costs.",
+        },
+    ],
+};
+
 /** `me` holds Stand // Deliver with one Plains and three Islands in their own
  *  main phase — enough for EITHER half, so the two rows are a genuine choice.
  *  `them` has a Hill Giant, a legal target for both halves. Run through the
- *  REAL wire projection. */
-function projected() {
+ *  REAL wire projection. `withPermission` adds the permission source. */
+function projected(withPermission = false) {
     const state = makeState({
         players: [
             makePlayer("me", {
@@ -96,6 +120,15 @@ function projected() {
                     }),
                 ],
                 battlefield: [
+                    ...(withPermission
+                        ? [
+                              makeInstance(aluren().id, {
+                                  id: "source",
+                                  controllerId: "me",
+                                  ownerId: "me",
+                              }),
+                          ]
+                        : []),
                     makeInstance(plains().id, {
                         id: "plains-0",
                         controllerId: "me",
@@ -224,5 +257,39 @@ describe("cast-option picker for a split card (CR 709.3, ADR 0121)", () => {
         expect(announceCast.mock.calls[0][0].alternativeCostId).not.toBe(
             LEFT_ALT
         );
+    });
+
+    it("under a free-cast permission, offers the covered half free BESIDE both paid halves, and sends the half-carrying id (CR 709.3 + 118.9a)", () => {
+        withTemporaryDefinition(permissionSource, () => {
+            const p = projected(true);
+            renderCard(p);
+            fireEvent.click(el());
+
+            // The paid halves stay: the permission's CR 118.9b filter is for
+            // a printed cost, and a split card's halves are no printed cost.
+            expect(
+                screen.getAllByRole("button", {
+                    name: (accessibleName: string) =>
+                        accessibleName.startsWith("Cast Stand") ||
+                        accessibleName.startsWith("Cast Deliver"),
+                })
+            ).toHaveLength(2);
+            // CR 709.3a — one free row, for the covered half only.
+            const freeRows = screen.getAllByRole("button", {
+                name: (accessibleName: string) =>
+                    accessibleName.startsWith("Stand — ") ||
+                    accessibleName.startsWith("Deliver — "),
+            });
+            expect(freeRows).toHaveLength(1);
+            fireEvent.click(freeRows[0]);
+            expect(announceCast).toHaveBeenCalledTimes(1);
+            expect(announceCast.mock.calls[0][0]).toMatchObject({
+                cardInstanceId: "split1",
+                alternativeCostId: composeCastPermissionAltCostId(
+                    PERMISSION_ID,
+                    LEFT_ALT
+                ),
+            });
+        });
     });
 });

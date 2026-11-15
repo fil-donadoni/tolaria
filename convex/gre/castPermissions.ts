@@ -48,7 +48,8 @@
 // paid cast stays available beside it inside the caster's own sorcery window.
 
 import { liveStaticDefinition } from "./constants";
-import { declaresCastPermission } from "../cards";
+import { declaresCastPermission, tryGetDefinition } from "../cards";
+import { offersPrintedCast } from "../cards/splitCard";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -59,31 +60,28 @@ import {
     handCardMatchesFilter,
 } from "./alternativeCost";
 import type { CastFromZone } from "./castCost";
+import {
+    CAST_PERMISSION_ALT_COST_PREFIX,
+    composeCastPermissionAltCostId,
+    isCastPermissionAltCostId,
+} from "./castPermissionAltCostId";
+import { castSubjectDefinition, castSubjectView } from "./castMode";
+import { splitCastOptionsFor } from "./splitCast";
 import type {
     CardInstanceState,
     GameState,
     PlayerState,
 } from "./state/declarations";
 
-/** Namespace prefix for the `alternativeCostId` a permission's free cast is
- *  addressed by on the wire (`announceCast.alternativeCostId`,
- *  `Move.alternativeCostId`). Namespaced so a permission id can never collide
- *  with a card-declared `alternativeCosts[].id` — the two live in the same
- *  string space and are resolved by the same lookup
- *  ({@link resolveCastAlternativeCost}). */
-export const CAST_PERMISSION_ALT_COST_PREFIX = "cast-permission:";
+export { CAST_PERMISSION_ALT_COST_PREFIX, isCastPermissionAltCostId };
 
-/** `true` when `altCostId` addresses a board-granted permission's free cast
- *  rather than one of the card's own alternative costs. */
-export function isCastPermissionAltCostId(altCostId: string): boolean {
-    return altCostId.startsWith(CAST_PERMISSION_ALT_COST_PREFIX);
-}
-
-/** The `alternativeCostId` that addresses `permission`'s free cast. */
+/** The `alternativeCostId` that addresses `permission`'s free cast — of the
+ *  printed card, or (CR 709.3) of the face `faceChoiceId` announces. */
 export function castPermissionAltCostId(
-    permission: StaticCastPermission
+    permission: StaticCastPermission,
+    faceChoiceId?: string
 ): string {
-    return `${CAST_PERMISSION_ALT_COST_PREFIX}${permission.id}`;
+    return composeCastPermissionAltCostId(permission.id, faceChoiceId);
 }
 
 /** Every `cast-permission` static on EITHER battlefield that covers `casterId`
@@ -172,31 +170,56 @@ export function hasCastPermissionFlash(
  *  CR 118.9 — an alternative cost "applied to it from another effect"; the cost
  *  itself is nothing at all, which is a legal `CostLegs` (Gush's shape minus
  *  the return leg) and therefore always affordable. */
-function altCostFor(permission: StaticCastPermission): AlternativeCost {
+function altCostFor(
+    permission: StaticCastPermission,
+    face?: { id: string; name: string }
+): AlternativeCost {
+    // issue #3284 — the picker row shows the SHORT `label` when the
+    // permission declares one, and the printed Oracle sentence otherwise.
+    // The two were one field until a UI-motivated edit to `oracleText`
+    // corrupted card data (it feeds the catalogue artifact's content hash);
+    // splitting them keeps the row readable without lying about the card.
+    const label = permission.label ?? permission.oracleText;
     return {
-        id: castPermissionAltCostId(permission),
-        // issue #3284 — the picker row shows the SHORT `label` when the
-        // permission declares one, and the printed Oracle sentence otherwise.
-        // The two were one field until a UI-motivated edit to `oracleText`
-        // corrupted card data (it feeds the catalogue artifact's content hash);
-        // splitting them keeps the row readable without lying about the card.
-        description: permission.label ?? permission.oracleText,
+        id: castPermissionAltCostId(permission, face?.id),
+        // CR 709.3 — a split card's row names the half it casts, the one
+        // thing that distinguishes it from the same permission's other row.
+        description: face ? `${face.name} — ${label}` : label,
     };
 }
 
 /** The free-cast options a board permission offers `casterId` for `card`.
  *  Empty for a permission that only widens TIMING (Vedalken Orrery's shape):
  *  such a cast pays the printed cost, so it is not a cast OPTION at all — the
- *  timing gate alone lets it through. */
+ *  timing gate alone lets it through.
+ *
+ *  CR 709.3 / 709.3a — a SPLIT card has no printed cast for a free cast to
+ *  apply to: "a player chooses which half of a split card they are casting",
+ *  and "only the chosen half is evaluated to see if it can be cast". So it
+ *  gets one option per half the permission covers, each judged against that
+ *  half (`castSubjectView`) and addressed by an id carrying the half
+ *  (`castPermissionAltCostId`'s face) — never one for the card, which would
+ *  announce a free cast of neither. The fused spell (CR 702.102a) is a face
+ *  like the halves. */
 export function castPermissionAltCosts(
     state: GameState,
     casterId: string,
     card: CardInstanceState,
     castFromZone: CastFromZone = "hand"
 ): AlternativeCost[] {
-    return collectCastPermissions(state, casterId, card, castFromZone)
-        .filter((p) => p.withoutPayingManaCost === true)
-        .map(altCostFor);
+    const free = (subject: CardInstanceState) =>
+        collectCastPermissions(state, casterId, subject, castFromZone).filter(
+            (p) => p.withoutPayingManaCost === true
+        );
+    const def =
+        tryGetDefinition((card.card as { id?: string }).id ?? "") ?? undefined;
+    if (offersPrintedCast(def)) return free(card).map((p) => altCostFor(p));
+    return splitCastOptionsFor(card).flatMap((face) => {
+        const name = castSubjectDefinition(def, face.id)?.name ?? "";
+        return free(castSubjectView(card, face.id)).map((p) =>
+            altCostFor(p, { id: face.id, name })
+        );
+    });
 }
 
 /** THE cast-option list: every alternative cost `player` may announce for

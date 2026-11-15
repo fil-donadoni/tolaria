@@ -3,7 +3,9 @@
 // "A player chooses which half of a split card they are casting before putting
 // it onto the stack." That choice is announced the way every other cast choice
 // is (CR 601.2b): as an `alternativeCostId`, the ONE string that says which
-// cast option was taken. `gre/castPermissions.ts` names its five consumers as
+// cast option was taken. A board permission's free cast of a half carries the
+// half's id inside its own (`castPermissionAltCostId.ts`, CR 118.9a), so the
+// readers here see the face through it. `gre/castPermissions.ts` names its five consumers as
 // an invariant — the timing gate, the cast-option list, `announceCast`,
 // `enumerateCastMoves`, the client picker — and a second channel would
 // duplicate exactly that drift surface (the argument `adventure.ts` records
@@ -38,6 +40,7 @@ import {
 import { fusedSplitDefinitionId, hasFuse } from "../cards/fusedSplit";
 import type { AlternativeCost, CardDefinition } from "../cards/types";
 import type { CardInstanceState } from "./state/declarations";
+import { faceChoiceComponent } from "./castPermissionAltCostId";
 
 export type { SplitCastSide };
 
@@ -72,13 +75,19 @@ export function splitCastAltCostId(
 
 /** The side `altCostId` announces, or `undefined` when it addresses something
  *  other than a split half's cast. Id-shape only — {@link isSplitCastId} is
- *  the fail-closed form that also proves the card HAS that half. */
+ *  the fail-closed form that also proves the card HAS that half.
+ *
+ *  CR 709.3 / 118.9 — a board permission's free cast of one half carries the
+ *  half's id inside its own (`castPermissionAltCostId.ts`), so the half is
+ *  read off the face component: the same side whether the half is paid for or
+ *  cast free. */
 export function splitSideOfAltCostId(
     altCostId: string | undefined
 ): SplitCastSide | undefined {
-    if (altCostId === undefined) return undefined;
+    const faceId = faceChoiceComponent(altCostId);
+    if (faceId === undefined) return undefined;
     return SPLIT_CAST_SIDES.find((side) =>
-        altCostId.startsWith(SPLIT_CAST_ALT_COST_PREFIX[side])
+        faceId.startsWith(SPLIT_CAST_ALT_COST_PREFIX[side])
     );
 }
 
@@ -174,7 +183,9 @@ export function isSplitCastId(
     const side = splitSideOfAltCostId(altCostId);
     if (side === undefined || def?.splitHalves === undefined) return undefined;
     if (side === "fused" && !hasFuse(def)) return undefined;
-    return altCostId === splitCastAltCostId(def, side) ? side : undefined;
+    return faceChoiceComponent(altCostId) === splitCastAltCostId(def, side)
+        ? side
+        : undefined;
 }
 
 /** CR 709.3b — "while on the stack, only the characteristics of the half being

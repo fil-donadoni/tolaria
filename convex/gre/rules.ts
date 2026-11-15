@@ -94,6 +94,7 @@ import {
 } from "./castCost";
 import {
     castOptionAlternativeCosts,
+    castPermissionAltCosts,
     castPermissionRequired,
     hasCastPermissionFlash,
 } from "./castPermissions";
@@ -1171,18 +1172,25 @@ export function castPermissionRequiredFor(
      *  non-hand cast owes nothing and this returns `false` for it. Passed by
      *  every caller that knows its zone (`announceCast`, the Bot's
      *  enumerator); the default keeps a hand cast reading unchanged. */
-    castFromZone: CastFromZone = "hand"
+    castFromZone: CastFromZone = "hand",
+    /** CR 709.3a / 715.3a — the announced cast option. "Only the chosen half
+     *  is evaluated to see if it can be cast", so whether a permission is the
+     *  only licence for it is asked of the announced SUBJECT, exactly as the
+     *  timing gate asks (`castNeedsSorceryWindow`). Absent = the printed card,
+     *  the only answer a split card has no use for. */
+    alternativeCostId?: string
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
+    const subject = castSubjectView(card, alternativeCostId);
     return castPermissionRequired(
         state,
         casterId,
-        card,
+        subject,
         {
             otherwiseInstantSpeed:
-                hasInstantSpeed(card) ||
-                hasCastTimingFlashGrant(casterId, card, state) ||
-                hasCardSelfFlashPermission(card),
+                hasInstantSpeed(subject) ||
+                hasCastTimingFlashGrant(casterId, subject, state) ||
+                hasCardSelfFlashPermission(subject),
             inOwnSorceryWindow: isSorceryTimingFor(state, casterId),
         },
         castFromZone
@@ -2084,7 +2092,17 @@ export function getLegalActions(
         // the same seam, and the day a third such mode ships it joins the list
         // instead of adding a fourth `…CastLegal` local nobody remembers to
         // OR in.
-        const independentAlts = independentCastOptionsFor(card);
+        //
+        // CR 709.3 / 118.9 — a split half cast free under a board permission
+        // is one more such option: the half's own timing and targets, no mana
+        // (`castPermissionAltCosts` offers it only for a card with no printed
+        // cast, where the bare permission has nothing to apply to).
+        const independentAlts = [
+            ...independentCastOptionsFor(card),
+            ...(offersPrintedCast(cardDef)
+                ? []
+                : castPermissionAltCosts(state, caster.id, card)),
+        ];
         const independentCastLegal = independentAlts.some(
             (alt) =>
                 castTimingBaseLegal(state, caster.id, card, "hand", alt.id) &&
