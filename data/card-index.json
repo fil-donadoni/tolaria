@@ -34262,6 +34262,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gleam of Battle",
+        "scryfallId": "e5f0feef-1a71-4c8c-9fd1-f5cbe718a988",
+        "oracleId": "19f23d9e-0c05-4028-9c64-60b9a20020f9",
+        "firstSet": "dgm",
+        "firstPrintId": "e5f0feef-1a71-4c8c-9fd1-f5cbe718a988",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gleeful Sabotage",
         "scryfallId": "d1b7d043-5f52-4df6-8dcf-5174a5b0c9cc",
         "oracleId": "25fe48be-95c4-4011-8c60-4628fb5ecfcb",
