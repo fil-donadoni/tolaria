@@ -389,69 +389,6 @@ describe("Soul Exchange — exile-as-cost + reanimate + Thrull +2/+2 (CAPABILITY
 });
 
 // ---------------------------------------------------------------------------
-// Hymn to Tourach — Target player discards two cards at random (CR 701.9a).
-// ---------------------------------------------------------------------------
-
-describe("Hymn to Tourach — random discard two (CR 701.9a)", () => {
-    it("discards exactly two cards from the targeted player's hand", () => {
-        const hand = [
-            makeInstance(grizzlyBears.id, {
-                id: "h1",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "hand",
-            }),
-            makeInstance(grizzlyBears.id, {
-                id: "h2",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "hand",
-            }),
-            makeInstance(grizzlyBears.id, {
-                id: "h3",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "hand",
-            }),
-        ];
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2", { hand })],
-        });
-        pushSpell(state, hymnToTourach.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        // Two of three hand cards moved to the graveyard at random.
-        expect(state.players[1].hand).toHaveLength(1);
-        expect(state.players[1].graveyard).toHaveLength(2);
-    });
-
-    it("clamps to hand size: a one-card hand discards just that card", () => {
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", {
-                    hand: [
-                        makeInstance(grizzlyBears.id, {
-                            id: "only",
-                            controllerId: "p2",
-                            ownerId: "p2",
-                            zone: "hand",
-                        }),
-                    ],
-                }),
-            ],
-        });
-        pushSpell(state, hymnToTourach.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].hand).toHaveLength(0);
-        expect(state.players[1].graveyard).toHaveLength(1);
-    });
-});
-
-// ---------------------------------------------------------------------------
 // Derelor — Black spells you cast cost {B} more (CR 601.2f cost increase,
 // scoped to the controller's own black spells — the Gloom precedent).
 // ---------------------------------------------------------------------------

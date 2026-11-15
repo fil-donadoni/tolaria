@@ -73,6 +73,14 @@ const RANDOM_DISCARD_X = oracleCard({
     power: undefined,
     toughness: undefined,
 });
+const MILL_X = oracleCard({
+    name: "Mill Probe",
+    manaCost: "{X}{U}",
+    typeLine: "Sorcery",
+    oracleText: "Target player mills X cards.",
+    power: undefined,
+    toughness: undefined,
+});
 const MAY_DRAW = oracleCard({
     name: "Shoreline Salvager",
     manaCost: "{3}{B}",
@@ -221,17 +229,22 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
     });
 
     it("an op-covered Op does not hide a cast-time X in its own arguments", () => {
-        // The spell announces its X (issue #4022), but the op-covered random
-        // discard never runs in the canned scenario, so its X `count` is never
-        // exercised: the fail-closed argument walk withholds the card
-        // (issue #5943).
-        const outcome = compileCard(RANDOM_DISCARD_X);
+        // The spell announces its X (issue #4022), but the op-covered mill
+        // never runs in the canned scenario, so its X `count` is never
+        // exercised: the fail-closed argument walk withholds the card.
+        const outcome = compileCard(MILL_X);
         expect(outcome.state).toBe("quarantine");
         expect(smokeReasons(outcome)).toEqual([
-            expect.stringContaining(
-                `Op "discardAtRandom" reads a runtime "count" amount`
-            ),
+            expect.stringContaining(`Op "mill" reads a runtime "count" amount`),
         ]);
+    });
+
+    it("a random discard of an announced X runs, so it withholds nothing (CR 701.9b)", () => {
+        // The canned scenario seeds the target's hand and asserts the
+        // hand-to-graveyard delta (issue #5943): the X count is exercised.
+        const outcome = compileCard(RANDOM_DISCARD_X);
+        expect(smokeReasons(outcome)).toEqual([]);
+        expect(outcome.state).toBe("ready");
     });
 
     it("a form abstracts literals but keeps the Op's structure", () => {

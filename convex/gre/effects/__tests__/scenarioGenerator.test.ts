@@ -946,11 +946,7 @@ describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
 
     it("an op-covered Op's X amount stays card-dependent — it never runs", () => {
         const plan = planSmokeTest([
-            {
-                op: "discardAtRandom",
-                player: { target: 0 },
-                count: { X: true },
-            },
+            { op: "mill", player: { target: 0 }, count: { X: true } },
         ] as EffectOp[]);
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -981,6 +977,87 @@ describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
         ]);
         if (plan.kind !== "run") throw new Error("expected a run plan");
         expect(plan.scenario.chosenX).toBeUndefined();
+    });
+});
+
+describe("random discard (CR 701.9b, issue #5943)", () => {
+    // Mind Twist's shape: "Target player discards X cards at random."
+    const twist: EffectOp[] = [
+        { op: "discardAtRandom", player: { target: 0 }, count: { X: true } },
+    ];
+    const handOf = (plan: Extract<Plan, { kind: "run" }>, id: string) =>
+        plan.scenario.state.players.find((p) => p.id === id)!.hand;
+
+    it("seeds the discarding player's hand and sizes an announced X", () => {
+        const plan = planSmokeTest(twist);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.chosenX).toBe(4);
+        expect(handOf(plan, OPPONENT_ID)).toHaveLength(7);
+        expect(handOf(plan, CASTER_ID)).toHaveLength(0);
+        expect(plan.assertions.map((a) => a.label)).toEqual([
+            expect.stringContaining("hand 7→3"),
+        ]);
+    });
+
+    it("the discard resolves to the predicted hand and graveyard (CR 701.9a)", () => {
+        const plan = planSmokeTest(twist);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveAsSpell(plan, twist, "smoke-discard-random", true);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("a discard of the wrong count fails the assertion", () => {
+        const plan = planSmokeTest(twist);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveAsSpell(plan, twist, "smoke-discard-random-no-x", false);
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it("an activated ability's announced X runs too", () => {
+        const plan = planSmokeTest(
+            twist,
+            abilityHost({ types: ["Creature"] }, true, true)
+        );
+        expect(plan.kind).toBe("run");
+    });
+
+    it("discards in two branches of one if are not two discards", () => {
+        const plan = planSmokeTest([
+            {
+                op: "if",
+                predicate: { left: 1, op: "gt", right: 0 },
+                then: [{ op: "discardAtRandom", player: "opponent", count: 1 }],
+                else: [{ op: "discardAtRandom", player: "opponent", count: 2 }],
+            },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => SMOKE_SKIP_CLASS[s.code])).not.toContain(
+            "card-dependent"
+        );
+    });
+
+    it("a hand another Op of the script also changes is a card-dependent skip", () => {
+        for (const script of [
+            [
+                { op: "draw", player: "controller", count: 2 },
+                { op: "discardAtRandom", player: "controller", count: 1 },
+            ],
+            [
+                { op: "discardAtRandom", player: "opponent", count: 1 },
+                { op: "discardAtRandom", player: { target: 0 }, count: 1 },
+            ],
+            [
+                { op: "armGraveyardRedirect", player: "opponent" },
+                { op: "discardAtRandom", player: "opponent", count: 1 },
+            ],
+        ] as EffectOp[][]) {
+            const plan = planSmokeTest(script);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.code)).toEqual(["runtime-amount"]);
+        }
     });
 });
 

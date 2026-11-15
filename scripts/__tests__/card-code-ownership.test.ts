@@ -95,18 +95,12 @@ describe("card code ownership (issue #4489)", () => {
                 },
             ],
         });
-        const randomDiscard = card({
-            id: "t-random",
-            effects: [
-                {
-                    op: "discardAtRandom",
-                    player: { target: 0 },
-                    count: 2,
-                },
-            ],
+        const mill = card({
+            id: "t-mill",
+            effects: [{ op: "mill", player: { target: 0 }, count: 2 }],
             targetRequirement: { type: "player", count: 1 },
         });
-        const { skipped, run } = smokeCoverage([PURE, refSpell, randomDiscard]);
+        const { skipped, run } = smokeCoverage([PURE, refSpell, mill]);
         expect([...skipped.keys()]).toEqual(["t-ref"]);
         expect(skipped.get("t-ref")).toMatch(/^runtime-amount: /);
         expect([...run]).toEqual(["t-bolt"]);
