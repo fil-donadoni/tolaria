@@ -1,13 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import PrototypeSwitcher from "./prototype-controller-pod/prototype-switcher";
+import Variant0Current from "./prototype-controller-pod/variant-0-current";
+import VariantAFixedSlots from "./prototype-controller-pod/variant-a-fixed-slots";
+import VariantBGhostDock from "./prototype-controller-pod/variant-b-ghost-dock";
+import VariantCCommandRow from "./prototype-controller-pod/variant-c-command-row";
+import {
+    PROTO_SCENARIOS,
+    PROTO_VARIANTS,
+    readScenario,
+    readVariant,
+    scenarioState,
+    writeParam,
+} from "./prototype-controller-pod/proto-variants";
 import { ChevronRight } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerPodHeight } from "~/hooks/useControllerPodHeight";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
-import { selectCommandSlots } from "~/lib/controller-action-slots";
-import ActionButton from "./action-button";
-import ControllerCueBadge from "./controller-cue-badge";
 import ControllerPhasePanel from "./controller-phase-panel";
 import HotkeysLegend from "./hotkeys-legend";
 import PauseMenuButton from "./pause-menu-button";
@@ -32,20 +42,27 @@ export default function ControllerPod({
     // absent a provider. One call, at a stable position — the pod is the ONE
     // controller layout `controller.tsx` mounted this render.
     const useControllerState = useControllerActionsSource();
-    const { cue, actions, attackAllConfirm } = useControllerState();
-    // The pod lists its actions rather than arranging them into slots, but it
-    // marks the SAME one the strip and the command row put in their centre
-    // slot, so `check:ui`'s one `data-controller-primary` promise addresses
-    // every controller layout (issue #3651).
-    const slots = selectCommandSlots(actions);
-    const primaryMark = (
-        action: (typeof actions)[number]
-    ): "action" | "status" | undefined =>
-        action === slots.primary
-            ? "action"
-            : !slots.primary && action === slots.statusPill
-              ? "status"
-              : undefined;
+    const live = useControllerState();
+    const { attackAllConfirm } = live;
+    // PROTOTYPE — variant + fake-state override (prototype/controller-pod-shift).
+    const [variant, setVariant] = useState(readVariant);
+    const [scenario, setScenario] = useState(readScenario);
+    const [flipOn, setFlipOn] = useState(true);
+    useEffect(() => {
+        if (scenario !== "flip") return;
+        const t = setInterval(() => setFlipOn((v) => !v), 1500);
+        return () => clearInterval(t);
+    }, [scenario]);
+    const { cue, actions } =
+        scenario === "live"
+            ? live
+            : scenarioState(
+                  scenario === "flip"
+                      ? flipOn
+                          ? "priority"
+                          : "opponent"
+                      : scenario
+              );
     const [expanded, setExpanded] = useState(false);
     // Publishes the pod's height so the desktop stack panel anchors above it
     // (issue #6970).
@@ -66,7 +83,7 @@ export default function ControllerPod({
             // frame itself is quiet, which is the whole register. The pod is a
             // panel, not a control, so it genuinely takes the decorative
             // `--hairline` pair; the BUTTONS inside it do not (round-2 review).
-            className={`fixed bottom-32 right-4 z-hud flex w-52 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
+            className={`fixed bottom-32 right-4 z-hud flex ${variant === "C" ? "w-[17rem]" : "w-52"} flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
         >
             {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
              *  was too faint to read at a glance, so whose turn it is now reads
@@ -114,36 +131,30 @@ export default function ControllerPod({
                 />
             </button>
 
-            <ControllerCueBadge cue={cue} />
-
-            {actions.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                    {actions.map((action) =>
-                        action.pill ? (
-                            <button
-                                key={action.key}
-                                type="button"
-                                data-controller-primary={primaryMark(action)}
-                                onClick={action.onClick}
-                                disabled={action.disabled}
-                                className="rounded-sm border border-border-strong bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
-                            >
-                                {action.label}
-                            </button>
-                        ) : (
-                            <ActionButton
-                                key={action.key}
-                                onClick={action.onClick}
-                                label={action.label}
-                                tone={action.tone}
-                                disabled={action.disabled}
-                                shortcut={action.shortcut}
-                                controllerPrimary={primaryMark(action)}
-                            />
-                        )
-                    )}
-                </div>
+            {variant === "0" && <Variant0Current cue={cue} actions={actions} />}
+            {variant === "A" && (
+                <VariantAFixedSlots cue={cue} actions={actions} />
             )}
+            {variant === "B" && (
+                <VariantBGhostDock cue={cue} actions={actions} />
+            )}
+            {variant === "C" && (
+                <VariantCCommandRow cue={cue} actions={actions} />
+            )}
+            <PrototypeSwitcher
+                variants={PROTO_VARIANTS}
+                variant={variant}
+                onVariant={(k) => {
+                    writeParam("variant", k);
+                    setVariant(k as typeof variant);
+                }}
+                scenarios={PROTO_SCENARIOS}
+                scenario={scenario}
+                onScenario={(k) => {
+                    writeParam("state", k);
+                    setScenario(k as typeof scenario);
+                }}
+            />
 
             {/* Trailing control row. The bug-report trigger is its third
                 control (issue #3419) in the hotkeys legend's own treatment —
