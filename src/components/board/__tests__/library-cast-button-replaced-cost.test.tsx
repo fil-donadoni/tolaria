@@ -24,7 +24,7 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
-import { gush } from "@convex/cards/sets/mmq/blue.cards";
+import { getDefinition } from "@convex/cards";
 import { fireball } from "@convex/cards/sets/lea/red.cards";
 import { island } from "@convex/cards/sets/lea/colorless.cards";
 import { getCardByName } from "@convex/cards";
@@ -71,6 +71,9 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 
 import LibraryCastButton from "../library-cast-button";
+
+// Retired hand-written twin (ADR 0114): resolved through the registry seam.
+const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
 
 /** The viewer's own library top, as `projectPublicState` hands it to
  *  `renderCardAction`. `castManaCostReplaced` is the server-authoritative flag
