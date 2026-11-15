@@ -8198,7 +8198,6 @@
         {"id":"701.6a","line":"// pays {2}.\" (CR 701.6a counter-unless-pay, CR 117.3a may-pay, CR 114.1","sites":1,"status":"baseline"},
         {"id":"113.1","line":"it(\"is idempotent — resolving the same indefinite grant twice adds one entry (CR 113.1)\", () => {","sites":1,"status":"baseline"},
         {"id":"509.1h","line":"* the attacker(s) it was blocking still blocked (CR 509.1h): they deal no","sites":1,"status":"baseline"},
-        {"id":"508.3a","line":"// CR 508.3a — \"Whenever a creature you control attacks, IT gets …\".","sites":1,"status":"confirmed","ruleHash":"0c37b2190a85cd39"},
         {"id":"613.1f","line":"* Suppressed permanents (CR 613.1f — Humility / Blood Moon) expose none of","sites":1,"status":"baseline"},
         {"id":"613.1e","line":"// CR 613.1e / 105.3 — \"becomes a 4/4 WHITE AND BLUE","sites":1,"status":"baseline"},
         {"id":"118.8","line":"// CR 601.2b / 118.8 — carry the chosen ADDITIONAL-cost leg","sites":1,"status":"baseline"},
