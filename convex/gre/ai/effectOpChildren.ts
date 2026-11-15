@@ -146,8 +146,9 @@ function noChildren(op: ScriptlessOp): readonly Script[] {
  *  (ADR 0045: `bind`/`ref`/`if`/`forEach`) this covers the Ops that also carry
  *  scripts — `optionChoice`'s modes, both coin-flip branches, `delayedTrigger`
  *  / `reflexiveTrigger` (their `effects`), `divideIntoPiles` (both
- *  branches) and `preventDamage`'s `whenPrevented` trigger body. Death or Glory reanimates from inside a `divideIntoPiles` branch,
- *  which is what a missing case costs in practice. */
+ *  branches) and `preventDamage`'s `whenPrevented` trigger body. Death or
+ *  Glory reanimates from inside a `divideIntoPiles` branch, which is what a
+ *  missing case costs in practice. */
 export function childOpArrays(op: EffectOp): readonly Script[] {
     switch (op.op) {
         case "if":
