@@ -190,6 +190,16 @@ function bindingBoard() {
     return { state, lb };
 }
 
+/** The compiled twin's trigger ids are generated, so the test finds each
+ *  half of the card by the event it watches (registry seam, ADR 0114). */
+function triggerIdOn(event: string): string {
+    const found = leylineBinding.triggeredAbilities?.find((t) =>
+        [t.event].flat().includes(event as never)
+    );
+    expect(found).toBeDefined();
+    return found!.id;
+}
+
 function exileTriggerOnStack(
     state: GameState,
     source: CardInstanceState
@@ -199,7 +209,7 @@ function exileTriggerOnStack(
         id: "lb-etb-trig",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "leyline-binding-exile",
+        triggeredAbilityId: triggerIdOn("PERMANENT_ENTERED"),
         triggerSourceId: source.id,
         triggerEvent: ETB_EVENT,
         targets: undefined,
@@ -246,7 +256,7 @@ describe("Leyline Binding — exile until this leaves (CR 603.6a / 603.7a, ADR 0
         processPendingActionTriggers(state);
         expect(
             state.stack.some(
-                (s) => s.triggeredAbilityId === "leyline-binding-return"
+                (s) => s.triggeredAbilityId === triggerIdOn("PERMANENT_LEFT")
             )
         ).toBe(true);
         resolveTopOfStack(state);
