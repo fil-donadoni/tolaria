@@ -262,3 +262,62 @@ export const screamingNemesis = defineCard(() => ({
         }),
     ],
 }));
+
+// Violent Urge — {R} Instant. "Target creature gets +1/+0 and gains first
+// strike until end of turn. Delirium — If there are four or more card types
+// among cards in your graveyard, that creature gains double strike until end
+// of turn."
+//
+// Delirium is an ability word (CR 207.2c), no registry row. The gate is read
+// at resolution (CR 608.2) with the shared `countTypes: true` count, as Unholy
+// Heat does (`mh2/red.cards.ts`); the double-strike grant is a layer-6 keyword
+// grant on the same target (CR 613.1f) and lasts until end of turn (CR 611.2a).
+// If the target became illegal the whole spell fizzles (CR 608.2b).
+// hand-tail: Delirium — If there are four or more card types among cards in your graveyard, that creature gains double strike until end of turn. (#8816)
+export const violentUrge = defineCard(() => ({
+    id: "a47c968b-1edd-45ac-a67c-311647e7e2fc",
+    rarity: "uncommon",
+    name: "Violent Urge",
+    oracleText:
+        "Target creature gets +1/+0 and gains first strike until end of turn.\nDelirium — If there are four or more card types among cards in your graveyard, that creature gains double strike until end of turn.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: 1,
+            toughness: 0,
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "grantAbility",
+            ability: "first strike",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "if",
+            predicate: {
+                left: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        countTypes: true,
+                    },
+                },
+                op: "ge",
+                right: 4,
+            },
+            then: [
+                {
+                    op: "grantAbility",
+                    ability: "double strike",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+}));
