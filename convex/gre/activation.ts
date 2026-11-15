@@ -52,6 +52,7 @@ import { commitCast } from "./castCommit";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { exileCastPermitted, intrinsicGraveyardCastScope } from "./castCost";
 import type { CastFromZone } from "./castCost";
+import { findOutsideGamePlayable } from "./outsideGame";
 import {
     isTapLockedBySummoningSickness,
     permanentGiveUpCostLegs,
@@ -528,6 +529,11 @@ export function locateCastSource(
         instanceId
     );
     if (libraryTopCast) return { card: libraryTopCast, zone: "library" };
+    // CR 400.11b — a card the caster owns OUTSIDE the game, under an
+    // outside-game play permission. Outside the game is no zone (CR 400.11),
+    // so no branch above can name a pool card and the order is informational.
+    const outsideGameCast = findOutsideGamePlayable(state, player, instanceId);
+    if (outsideGameCast) return { card: outsideGameCast, zone: "outsideGame" };
     // CR 702.81 (issue #2358) — a card castable under RETRACE, printed or
     // granted (Wrenn and Six's emblem). Deliberately last among the GRAVEYARD
     // branches: retrace

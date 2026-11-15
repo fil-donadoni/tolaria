@@ -8,6 +8,7 @@ import PlayerGraveyard from "./player-graveyard";
 import PlayerLibrary from "./player-library";
 import PlayerExile from "./player-exile";
 import PlayerCompanion from "./player-companion";
+import PlayerOutsideGamePlays from "./player-outside-game-plays";
 import PlayerEmblems from "./player-emblems";
 import PlayerMonarchTile from "./player-monarch-tile";
 import PlayerCityBlessingTile from "./player-city-blessing-tile";
@@ -120,6 +121,7 @@ export default function BoardPiles({
                     <PlayerLibrary player={me} />
                     <PlayerExile player={me} />
                     <PlayerCompanion player={me} />
+                    <PlayerOutsideGamePlays player={me} />
                     <PlayerEmblems player={me} />
                     <PlayerMonarchTile player={me} />
                     <PlayerCityBlessingTile player={me} />

@@ -2414,8 +2414,19 @@ export type PlayerState = {
  *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
  *  library for a cast off the TOP under a cast-from-top permission
  *  (CR 601.3, Bolas's Citadel). Carried on the spell as
- *  `StackItem.castFromZone`. */
-export type CastFromZone = "hand" | "exile" | "graveyard" | "library";
+ *  `StackItem.castFromZone`.
+ *
+ *  `"outsideGame"` is the one member that names no zone — CR 400.11: "Outside
+ *  the game is not a zone." It is the origin of a card cast from its owner's
+ *  outside-the-game pool (`outsideGamePool`, `gre/outsideGame.ts`) under an
+ *  outside-game play permission (`GameState.outsideGamePlaysThisTurn`); the
+ *  card is in the game from then on (CR 400.11b). */
+export type CastFromZone =
+    | "hand"
+    | "exile"
+    | "graveyard"
+    | "library"
+    | "outsideGame";
 
 export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
     castById: string;
@@ -5763,6 +5774,17 @@ export type GameState = {
      *  Additive: two grants are two plays (CR 305.2 counts every effect).
      *  Cleared at CLEANUP (CR 514.2). */
     extraLandDropsThisTurn?: { playerId: string; count: number }[];
+    /** CR 400.11b / 514.2 — the outside-game play permissions granted this
+     *  turn ("you may play a card you own from outside the game this turn"),
+     *  keyed by grantee: how many cards that player may still play from their
+     *  outside-the-game pool (`outsideGamePool`). Written by
+     *  `SpellContext.grantOutsideGamePlay`; read by `outsideGamePlaysRemaining`
+     *  (`gre/outsideGame.ts`), the one gate every cast and land-play site asks;
+     *  spent one per play (`spendOutsideGamePlay`). The permission names no
+     *  card — the player chooses which card when they play it — so it rides
+     *  the player, never an instance. Additive: two grants are two plays.
+     *  Cleared at CLEANUP (CR 514.2). */
+    outsideGamePlaysThisTurn?: Record<string, number>;
     /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
      *  this turn"). Player ids that skip their OWN draw step the next time
      *  it is reached this turn. Armed by `SpellContext.skipDrawStepThisTurn`

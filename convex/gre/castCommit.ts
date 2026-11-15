@@ -49,6 +49,7 @@ import {
     reboundCastStackFlags,
 } from "./castCost";
 import type { CastFromZone } from "./castCost";
+import { spendOutsideGamePlay } from "./outsideGame";
 import { manaValue } from "./constants";
 import { turnFaceDown } from "./faceDown";
 import { foretoldCastStackFlags } from "./foretell";
@@ -481,6 +482,15 @@ export function commitCast(
             plan.casterId,
             plan.source.graveyardPermission
         );
+    }
+    // CR 400.11b — an ANNOUNCED cast from outside the game is licensed by the
+    // outside-game play permission and consumes one of its plays. A cast made
+    // during resolution rides the resolving effect's own permission instead.
+    if (
+        plan.source.zone === "outsideGame" &&
+        plan.placement.kind === "announce"
+    ) {
+        spendOutsideGamePlay(state, plan.casterId);
     }
     // CR 601.3 / 702.34 — remove from the zone the card is actually cast from
     // (hand, exile for Ice Cauldron's noted card, graveyard for Flashback, the

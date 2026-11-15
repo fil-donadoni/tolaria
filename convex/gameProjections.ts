@@ -30,7 +30,7 @@ import {
 } from "./gre/rules";
 import { PLACEHOLDER_CARD_ID, liveStaticDefinition } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
-import { outsideGamePool } from "./gre/outsideGame";
+import { outsideGamePlaysRemaining, outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
 import { canPlot } from "./gre/plot";
 import { canForetell } from "./gre/foretell";
@@ -346,6 +346,13 @@ export type PublicPlayer = Omit<
     /** CR 400.11a — the viewer's OWN outside-the-game holder (their
      *  sideboard), set only on the viewer's player; never another's. */
     outsideGame?: SlimCardInstance[];
+    /** CR 400.11b — while the viewer holds an outside-game play
+     *  permission ("you may play a card you own from outside the game this
+     *  turn"), every card of their outside-the-game pool (`outsideGamePool`:
+     *  the holder, then an unspent companion) with its `legalActions`, so the
+     *  board can offer Cast / Play. Set on the requester's own player only,
+     *  never through a borrowed view (CR 723.4); the opponent sees nothing. */
+    outsideGamePlayable?: SlimHandCard[];
     graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
     battlefield: SlimBattlefieldCard[];
@@ -1358,6 +1365,29 @@ function withoutOutsideGame(
     return rest;
 }
 
+/** CR 400.11b — the owner's outside-the-game pool with each card's
+ *  `legalActions`, while they hold an outside-game play permission; else
+ *  `undefined`. `getLegalActions` owns the legality (its outside-game
+ *  branches), exactly as for a hand card. */
+function projectOutsideGamePlayable(
+    state: GameState,
+    player: PlayerState,
+    allActions: boolean
+): SlimHandCard[] | undefined {
+    if (outsideGamePlaysRemaining(state, player.id) <= 0) return undefined;
+    const pool = outsideGamePool(player);
+    if (pool.length === 0) return undefined;
+    return pool.map((c) =>
+        withPrintedCastAvailability(
+            {
+                ...slimCard(c),
+                legalActions: getLegalActions(state, player, c, allActions),
+            },
+            c
+        )
+    );
+}
+
 /** The chooser's view of a pending CR 400.11b pick from outside the game: the
  *  candidates (in `candidateIds` order) that are still in the pool. */
 function projectOutsideGamePeek(
@@ -1788,6 +1818,10 @@ export function projectPublicState(
             outsideGame:
                 player.id === requesterId && player.outsideGame?.length
                     ? player.outsideGame.map(slimCard)
+                    : undefined,
+            outsideGamePlayable:
+                player.id === requesterId && !borrowedView
+                    ? projectOutsideGamePlayable(state, player, allActions)
                     : undefined,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
             // CR 702.139c (ADR 0064) — the companion slot is revealed to BOTH

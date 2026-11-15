@@ -630,7 +630,8 @@ export const scenarioStackItemValidator = v.object({
         v.union(
             v.literal("exile"),
             v.literal("graveyard"),
-            v.literal("library")
+            v.literal("library"),
+            v.literal("outsideGame")
         )
     ),
     /** `nth` for the ability's SOURCE permanent, read exactly as a target's is:
@@ -1236,7 +1237,7 @@ export type ScenarioStackItem = {
     targets?: ScenarioStackTarget[];
     x?: number;
     castOffSorceryTiming?: boolean;
-    castFromZone?: "exile" | "graveyard" | "library";
+    castFromZone?: "exile" | "graveyard" | "library" | "outsideGame";
     sourceNth?: number;
     resolution?: ScenarioResolutionCheckpoint;
 };
