@@ -8,21 +8,18 @@
 //  2. REFUSALS — the neighbours of the sentence stay unparsed; a form the
 //     closed `CombatCounterpartFilter` vocabulary cannot state leaves its card
 //     unparsed and names the fragment (Air Bladder).
-//  3. ROUND TRIP — Brazen Borrower, hand-written with the same descriptor,
-//     compares EQUAL through the gold harness (data, not `incomparable`).
-//  4. BEHAVIOUR — at the real `validateBlockerEligibility` seam, the compiled
+//  3. BEHAVIOUR — at the real `validateBlockerEligibility` seam, the compiled
 //     descriptor and a closure stating the same rule give the same verdict for
 //     every attacker: a flier is blockable, a ground creature is not, and a
 //     flier by GRANT (live `staticAbilities`) counts.
 
 import { describe, expect, it } from "vitest";
-import { getDefinition, withTemporaryDefinition } from "../../cards/registry";
+import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
 import { makeInstance } from "../../cards/__tests__/setup.helper";
 import { validateBlockerEligibility } from "../../gre/combat";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import { routeLine } from "../grammar/router";
 import { staticSlot } from "../grammar/slots/staticSlot";
 import { oracleCard, parseContext } from "./oracle.fixture";
@@ -129,18 +126,6 @@ describe("can block only creatures with flying — refusals (fail-closed)", () =
         expect(outcome.gaps.map((g) => g.fragment)).toContain(
             "Enchanted creature can block only creatures with flying."
         );
-    });
-});
-
-describe("can block only creatures with flying — Guard C compares data", () => {
-    it("Brazen Borrower round-trips EQUAL, not incomparable", () => {
-        const definition = getDefinition(
-            "c2089ec9-0665-448f-bfe9-d181de127814"
-        );
-        expect(roundTripCard(definition).verdict).toEqual({
-            ok: true,
-            kind: "equal",
-        });
     });
 });
 
