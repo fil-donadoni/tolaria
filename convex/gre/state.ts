@@ -14161,6 +14161,11 @@ export function buildSpellContext(
         // `createTokenCopy` Op to decide WHICH last-known reading applies to a
         // `{ ref: "$source" }` whose source is no longer on the battlefield.
         abilityActivatedFromGraveyard: abilityActivatedFromGraveyard(item),
+        // CR 113.6b — see `SpellContext.abilityFunctionsFromExile`.
+        abilityFunctionsFromExile:
+            item.triggeredAbilityId !== undefined &&
+            findTriggeredAbility(item, item.triggeredAbilityId)?.zone ===
+                "exile",
         // CR 108.1 — the resolving item's card definition id (ADR 0048:
         // stamped on scheduled delayed triggers so the fired trigger renders
         // its source card). Empty for synthetic items with no registry id.

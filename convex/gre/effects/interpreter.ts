@@ -9477,12 +9477,15 @@ function seedSourceBindings(ctx: SpellContext): void {
         }
         return;
     }
-    // CR 113.6b — an ability that functions from EXILE (`TriggeredAbility.zone:
-    // "exile"`) has the exiled card itself as its source: it never left the
-    // battlefield (the departure guard above answered nothing), so `$source`
-    // is that card, carried as the generic non-battlefield card selection
-    // `resolveObjectRef`'s own exile fallback produces. "Remove a counter
-    // from it" / "put it into your graveyard" then reach it declaratively.
+    // CR 113.6b — an ability that DECLARES it functions from exile
+    // (`TriggeredAbility.zone: "exile"`) has the exiled card itself as its
+    // source, so `$source` is that card, carried as the generic
+    // non-battlefield card selection `resolveObjectRef`'s own exile fallback
+    // produces. "Remove a counter from it" / "put it into your graveyard" then
+    // reach it declaratively. Gated on the declaration, never on where the
+    // card is found: a card exiled as its ability's COST (Eternalize) keeps
+    // `createTokenCopy`'s own recovery path.
+    if (!ctx.abilityFunctionsFromExile) return;
     const exileOwner = ctx.getExileCardOwner(ctx.sourceInstanceId);
     if (exileOwner !== undefined) {
         bindSnapshot(ctx, SOURCE_BINDING, {

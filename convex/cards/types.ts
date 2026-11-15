@@ -4779,6 +4779,13 @@ export interface SpellContext {
      *  (`GameState.lastKnownCopiable`, ADR 0086) for a battlefield-sourced
      *  one. False for a spell and for a triggered ability. */
     abilityActivatedFromGraveyard: boolean;
+    /** CR 113.6b — true when the resolving item is a TRIGGERED ability whose
+     *  definition DECLARES that it functions from exile
+     *  (`TriggeredAbility.zone: "exile"`). Its source is then the exiled card
+     *  itself, so `$source` is seeded from exile. A declared discriminator,
+     *  never "the source happens to be in exile": a card exiled as a COST
+     *  (Eternalize) or exiled in response is not this shape. */
+    abilityFunctionsFromExile: boolean;
     /** The card DEFINITION id of the resolving stack item (CR 108.1 — the
      *  card the spell/ability is printed on). Read by scheduling primitives
      *  that stamp their source card on persisted records — a delayed
