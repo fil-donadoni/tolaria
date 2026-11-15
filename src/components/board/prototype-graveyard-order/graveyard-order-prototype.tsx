@@ -8,7 +8,7 @@
 // DEV-only floating bar (← → keys):
 //   0  current grid (baseline)
 //   A  Rows    — wrapping rows, 30% overlap, one placeholder per hidden card
-//   B  Fan     — single row, top on the right, hidden runs collapsed
+//   B  Fan     — single row, top on the right, hidden cards as tight outlines
 //   C  Cascade — solitaire columns, name bars peek, hidden runs as strips
 import type { ReactNode } from "react";
 import type { CardInstance } from "~/types/game";
@@ -31,7 +31,7 @@ export default function GraveyardOrderPrototype({
     isShown: (c: CardInstance) => boolean;
     renderCard: (c: CardInstance) => ReactNode;
 }) {
-    const slots = buildSlots(cards, isShown, variant !== "A");
+    const slots = buildSlots(cards, isShown, variant === "C");
     if (variant === "A")
         return <VariantARows slots={slots} renderCard={renderCard} />;
     if (variant === "B")

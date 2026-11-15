@@ -4,7 +4,7 @@ import { useState } from "react";
 export const GRAVEYARD_PROTO_VARIANTS = [
     { key: "0", name: "Current grid" },
     { key: "A", name: "Rows · per-card placeholders" },
-    { key: "B", name: "Fan · collapsed runs" },
+    { key: "B", name: "Fan · outline placeholders" },
     { key: "C", name: "Cascade · run strips" },
 ];
 

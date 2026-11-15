@@ -1,16 +1,11 @@
 // PROTOTYPE — throwaway. Variant B "Fan": one horizontal row like the library
 // browse (top on the RIGHT, ADR 0026 parity), 55% overlap, opens scrolled to
-// the top end. Filter: a run of hidden cards collapses into ONE narrow
-// dashed slot carrying its count ("3 hidden").
+// the top end. Filter: one card-shaped outline per hidden card (thin
+// border, no visible fill), showing a 12% sliver instead of a card's 45%.
 import { useEffect, useRef, type ReactNode } from "react";
 import { V4_COUNT_BADGE } from "~/lib/board-chrome-v4";
 import type { CardInstance } from "~/types/game";
-import {
-    PLACEHOLDER_CLASS,
-    TILE_VAR_CLASS,
-    hiddenLabel,
-    type ProtoSlot,
-} from "./proto-model";
+import { TILE_VAR_CLASS, hiddenLabel, type ProtoSlot } from "./proto-model";
 
 export default function VariantBFan({
     slots,
@@ -36,11 +31,22 @@ export default function VariantBFan({
             </div>
             <div ref={ref} className="overflow-x-auto px-2 pt-3 pb-6">
                 <div className="mx-auto flex w-max pl-[calc(var(--tile)*0.55)]">
-                    {slots.map((s) =>
-                        s.kind === "card" ? (
+                    {slots.map((s, i) => {
+                        // Owner round 1: a hidden card is a card-shaped
+                        // outline, thin border, no visible fill. Every item
+                        // shows the strip up to the NEXT item: a real card
+                        // 45%, a hidden one only 12% — so the item AFTER a
+                        // placeholder steps in tight. The outline's fill is
+                        // the dialog surface (reads as empty, but occludes
+                        // the item below like a card would).
+                        const afterHidden = slots[i - 1]?.kind === "hidden";
+                        const ml = afterHidden
+                            ? "ml-[calc(var(--tile)*-0.88)]"
+                            : "ml-[calc(var(--tile)*-0.55)]";
+                        return s.kind === "card" ? (
                             <div
                                 key={s.key}
-                                className="relative ml-[calc(var(--tile)*-0.55)] w-(--tile) shrink-0 hover:z-30 [&>div]:w-full!"
+                                className={`relative ${ml} w-(--tile) shrink-0 hover:z-30 [&>div]:w-full!`}
                             >
                                 {renderCard(s.card)}
                                 {s.pos === 1 && (
@@ -52,20 +58,13 @@ export default function VariantBFan({
                                 )}
                             </div>
                         ) : (
-                            // Hidden run: not overlapped — it is a gap in the
-                            // fan, so the cards either side split apart.
                             <div
                                 key={s.key}
-                                className={`relative z-0 mr-[calc(var(--tile)*0.55)] flex aspect-[2/7] w-[calc(var(--tile)*0.4)] shrink-0 flex-col items-center justify-center gap-1 self-start text-center text-[10px] leading-tight ${PLACEHOLDER_CLASS}`}
-                                title={`${s.count} hidden (${hiddenLabel(s)})`}
-                            >
-                                <span className="text-sm font-bold tabular-nums">
-                                    {s.count}
-                                </span>
-                                <span>hidden</span>
-                            </div>
-                        )
-                    )}
+                                className={`relative ${ml} aspect-5/7 w-(--tile) shrink-0 self-start card-corner border border-border-strong bg-surface`}
+                                title={`Hidden: ${hiddenLabel(s)}`}
+                            />
+                        );
+                    })}
                 </div>
             </div>
         </div>
