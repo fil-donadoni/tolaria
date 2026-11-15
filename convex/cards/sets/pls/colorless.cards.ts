@@ -212,75 +212,14 @@ export const skyshipWeatherlight = defineCard(() => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLS free tranche — colourless cards (#1954, parent PRD #1935): Forsaken
-// City, Mana Cylix, Terminal Moraine. All three are already-exercised Ops
+// PLS free tranche — colourless cards (#1954, parent PRD #1935): Mana
+// Cylix, Terminal Moraine (Forsaken City retired to the compiler, issue
+// #5296). Both are already-exercised Ops
 // (`does-not-untap` self keyword + `mayPay`/`tapUntap` upkeep pattern —
 // Brass Man, arn/colorless.cards.ts; `manaChoices: ANY_SINGLE_COLOR` — Star
 // Compass, above; `choice`(search-library) + `moveZone`(tapped) + shuffle —
 // Fabled Passage, eld/colorless.cards.ts). No new Op, no `resolve()`.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Forsaken City — Land. "This land doesn't untap during your untap step. At
-// the beginning of your upkeep, you may exile a card from your hand. If you
-// do, untap this land. {T}: Add one mana of any color." Mirrors Brass Man's
-// `does-not-untap` + upkeep may-pay-to-untap shape (arn/colorless.cards.ts)
-// exactly, with a HAND leg (`{ hand: { action: "exile", requirements: [{
-// filter: {}, count: 1 }] } }`, ADR 0079 `CostLegs`) instead of a mana cost —
-// the same hand-leg shape Formidable Speaker's "you may discard a card" uses
-// (ecl/green.ts), substituting `action: "exile"` for `"discard"` (CR 701.13
-// vs 701.9).
-export const forsakenCity = defineCard(() => ({
-    id: "676703fe-bd80-413c-8704-1da5d3248b7e", // PLS 139
-    rarity: "rare",
-    name: "Forsaken City",
-    oracleText:
-        "This land doesn't untap during your untap step.\nAt the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.\n{T}: Add one mana of any color.",
-    types: ["Land"],
-    staticAbilities: ["does-not-untap"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "forsaken-city-untap-option",
-            oracleText:
-                "At the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    cost: {
-                        hand: {
-                            action: "exile",
-                            requirements: [{ filter: {}, count: 1 }],
-                        },
-                    },
-                    prompt: "Exile a card from your hand to untap Forsaken City?",
-                    bind: "$paid",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$paid" },
-                    then: [
-                        {
-                            op: "tapUntap",
-                            action: "untap",
-                            target: { ref: "$source" },
-                        },
-                    ],
-                },
-            ],
-        }),
-    ],
-    activatedAbilities: [
-        {
-            id: "forsaken-city-mana",
-            oracleText: "{T}: Add one mana of any color.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: ANY_SINGLE_COLOR,
-        },
-    ],
-}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // C3 — Domain-driven cost reduction (CR 601.2f / 702 preamble, issue #1958).
