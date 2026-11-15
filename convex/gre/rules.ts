@@ -82,6 +82,7 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { extraLandDropsOf } from "../cards/abilities/classLevels";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
+import { findOutsideGamePlayable } from "./outsideGame";
 import {
     exileCastRoutes,
     exileRoutePrice,
@@ -1480,6 +1481,11 @@ export function getLegalActions(
             (player.graveyard.some((c) => c.id === card.id) &&
                 canPlayLandsFromGraveyard(state, player)) ||
             isPlayableLibraryTopLand(state, player, card.id) ||
+            // CR 400.11b / 116.2a — a land the player owns outside the game,
+            // while they hold an outside-game play permission ("play"
+            // includes lands); the drop count and timing below apply as for
+            // any other land play (CR 305.2b).
+            findOutsideGamePlayable(state, player, card.id) !== undefined ||
             (exileGrantPermitted(state, card, casterId) &&
                 card.castableFromExileIncludesLand === true &&
                 state.players.some((p) =>
@@ -1957,6 +1963,32 @@ export function getLegalActions(
     // permission says the cast pays — life equal to the card's mana value
     // (CR 119.4, `libraryTopCastLifeCost`) when the grant replaces the mana
     // cost, else the printed mana cost.
+    // CR 400.11b — a NONLAND card the player owns outside the game, while
+    // they hold an outside-game play permission. The permission changes
+    // neither timing nor cost: the cast pays the card's mana cost under the
+    // normal timing gate, judged per announcement like every non-hand branch
+    // (`anyCastAnnouncementLegal`). Owns the "cast" decision for a pool card
+    // and returns, so the hand branch below never sees one.
+    if (
+        !types.includes("Land") &&
+        findOutsideGamePlayable(state, player, card.id) !== undefined
+    ) {
+        if (
+            passesCastPhaseRestriction(state, card) &&
+            hasPayableAdditionalCost(player, card) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "outsideGame",
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+                costOpts: flashSurchargeRequired(state, caster.id, card)
+                    ? { extraMana: flashSurchargeOf(card) }
+                    : {},
+            })
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
     const isLibraryTopCast = isCastableLibraryTopSpell(state, player, card.id);
     if (isLibraryTopCast) {
         // CR 601.3c (issue #2146) — the conditional-flash SURCHARGE, when

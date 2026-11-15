@@ -3207,6 +3207,9 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 305.2 / 514.2 — Explore's "you may play an additional land this
     // turn": an unspent play must survive into the postcombat main phase.
     "extraLandDropsThisTurn",
+    // CR 400.11b / 514.2 — "you may play a card you own from outside the
+    // game this turn": an unspent play survives into the postcombat main.
+    "outsideGamePlaysThisTurn",
     // CR 609.4b / 118.14 / 514.2 (issue #2890) — North Star's ONE-SHOT "for
     // one spell this turn, you may spend mana as though it were mana of any
     // type" grant. An UNSPENT grant is a "this turn" permission and must

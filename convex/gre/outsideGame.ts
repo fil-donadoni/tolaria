@@ -11,7 +11,7 @@
 // may fetch it; doing so spends the slot exactly as the summon special action
 // does).
 
-import type { CardInstanceState, PlayerState } from "./state";
+import type { CardInstanceState, GameState, PlayerState } from "./state";
 
 /** Every card `player` owns outside the game, in a stable order: the holder
  *  first, then the companion while its slot is unspent. A spent slot keeps
@@ -25,35 +25,98 @@ export function outsideGamePool(player: PlayerState): CardInstanceState[] {
     return pool;
 }
 
-/** CR 400.11b — "Some effects bring cards into a game from outside the game."
- *  Moves the outside-the-game card `instanceId` into `player`'s hand and
- *  returns it, or `undefined` when no such card is in `player`'s pool (CR
- *  609.3 — it is gone, the move does nothing). Taking the companion spends
- *  its slot (`used = true`) the way `summonCompanion` does, so the summon is
- *  never offered for a card already brought in. */
-export function bringIntoHandFromOutsideGame(
+/** CR 400.11b — lifts the outside-the-game card `instanceId` out of
+ *  `player`'s pool and returns it, or `undefined` when no such card is in the
+ *  pool (CR 609.3 — it is gone, the move does nothing). The caller puts it
+ *  wherever the effect or play sends it. Taking the companion spends its slot
+ *  (`used = true`) the way `summonCompanion` does, so the summon is never
+ *  offered for a card already brought in. */
+export function takeFromOutsideGame(
     player: PlayerState,
     instanceId: string
 ): CardInstanceState | undefined {
     const holder = player.outsideGame ?? [];
     const idx = holder.findIndex((c) => c.id === instanceId);
-    let card: CardInstanceState;
     if (idx >= 0) {
-        card = holder[idx]!;
+        const card = holder[idx]!;
         const rest = holder.filter((_, i) => i !== idx);
         if (rest.length > 0) player.outsideGame = rest;
         else delete player.outsideGame;
-    } else if (
+        return card;
+    }
+    if (
         player.companion &&
         !player.companion.used &&
         player.companion.instance.id === instanceId
     ) {
-        card = player.companion.instance;
         player.companion.used = true;
-    } else {
-        return undefined;
+        return player.companion.instance;
     }
+    return undefined;
+}
+
+/** CR 400.11b — "Some effects bring cards into a game from outside the game."
+ *  Moves the outside-the-game card `instanceId` into `player`'s hand and
+ *  returns it, or `undefined` when no such card is in `player`'s pool
+ *  ({@link takeFromOutsideGame}). */
+export function bringIntoHandFromOutsideGame(
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const card = takeFromOutsideGame(player, instanceId);
+    if (!card) return undefined;
     const inHand: CardInstanceState = { ...card, zone: "hand" };
     player.hand.push(inHand);
     return inHand;
+}
+
+/** CR 400.11b / 514.2 — how many cards `playerId` may still play from outside
+ *  the game this turn (`GameState.outsideGamePlaysThisTurn`). The single gate
+ *  every cast and land-play site reads: `getLegalActions`, the cast-source
+ *  locator, the land-play source resolver and the Bot's move enumeration. */
+export function outsideGamePlaysRemaining(
+    state: Pick<GameState, "outsideGamePlaysThisTurn">,
+    playerId: string
+): number {
+    return state.outsideGamePlaysThisTurn?.[playerId] ?? 0;
+}
+
+/** The outside-the-game card `instanceId` when `player` may play it right now
+ *  under an outside-game play permission — it is in their pool
+ *  ({@link outsideGamePool}) and a play remains — else `undefined`. Says
+ *  nothing about timing or cost: those are the cast / land-play gates' own. */
+export function findOutsideGamePlayable(
+    state: Pick<GameState, "outsideGamePlaysThisTurn">,
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    if (outsideGamePlaysRemaining(state, player.id) <= 0) return undefined;
+    return outsideGamePool(player).find((c) => c.id === instanceId);
+}
+
+/** CR 400.11b — grants `playerId` `count` more plays from outside the game
+ *  this turn. Additive (two grants are two plays); cleared at CLEANUP (CR
+ *  514.2). */
+export function grantOutsideGamePlays(
+    state: GameState,
+    playerId: string,
+    count: number
+): void {
+    if (count <= 0) return;
+    state.outsideGamePlaysThisTurn = {
+        ...state.outsideGamePlaysThisTurn,
+        [playerId]: outsideGamePlaysRemaining(state, playerId) + count,
+    };
+}
+
+/** Spends one of `playerId`'s outside-game plays — the permission is
+ *  "consumed by the one play it licenses". Called at the cast commit and at
+ *  the land play, never at announcement. */
+export function spendOutsideGamePlay(state: GameState, playerId: string): void {
+    const left = outsideGamePlaysRemaining(state, playerId) - 1;
+    const rest = { ...state.outsideGamePlaysThisTurn };
+    if (left > 0) rest[playerId] = left;
+    else delete rest[playerId];
+    if (Object.keys(rest).length > 0) state.outsideGamePlaysThisTurn = rest;
+    else delete state.outsideGamePlaysThisTurn;
 }

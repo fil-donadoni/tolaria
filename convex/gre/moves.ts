@@ -18,6 +18,7 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
+import { outsideGamePlaysRemaining, outsideGamePool } from "./outsideGame";
 import { isAlreadySelectedTarget } from "./targetFilters";
 import { activationEvidenceUnpayable } from "./collectEvidence";
 import { findPermanent } from "./lookup";
@@ -6885,6 +6886,27 @@ export function enumerateMoves(
         // `onlyPassIsLegal` already rules out.
         moves.push(...lifeOrDefaultMoves, ...declinedMoves);
     }
+    // CR 400.11b / 116.2a — the outside-game play permission: every card the
+    // player owns outside the game (`outsideGamePool`) while a play remains.
+    // `getLegalActions` owns legality for a pool card (its outside-game
+    // branches return before the zone-blind hand fallback); the Move's
+    // `castFromZone` tells the executors where the card comes from.
+    for (const card of outsideGamePlaysRemaining(state, player.id) > 0
+        ? outsideGamePool(player)
+        : []) {
+        const actions = getLegalActions(state, player, card);
+        if (landPlayFaces(card).length > 0 && actions.includes("play")) {
+            moves.push(...landPlayMoves(card));
+        }
+        if (!card.types.includes("Land") && actions.includes("cast")) {
+            moves.push(
+                ...enumerateCastMoves(state, player, card, {
+                    castFromZone: "outsideGame",
+                    onTruncated,
+                })
+            );
+        }
+    }
     for (const perm of player.battlefield) {
         moves.push(
             ...enumerateAbilityMoves(state, player, perm, { onTruncated })
@@ -7091,6 +7113,13 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
             isCastableLibraryTopSpell(state, player, libraryTop.id)
         ) {
             return false;
+        }
+    }
+    // Outside the game: a pool card under an outside-game play permission
+    // (CR 400.11b).
+    if (outsideGamePlaysRemaining(state, player.id) > 0) {
+        for (const card of outsideGamePool(player)) {
+            if (getLegalActions(state, player, card).length > 0) return false;
         }
     }
     // Battlefield, every player's: this player's own abilities, and the "any

@@ -14,6 +14,7 @@
 // Nothing here reads a mutation, a ctx, or the database: it is a pure function
 // of `GameState` plus the card, which is what makes the move legal to make.
 
+import { findOutsideGamePlayable } from "./outsideGame";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import type {
     AdditionalCostSpec,
@@ -648,12 +649,18 @@ export function modalBackCastLicensed(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    /** The zone the cast comes from; any other zone licenses nothing. */
-    zone: Zone,
+    /** The zone the cast comes from; any other zone licenses nothing.
+     *  `"outsideGame"` (CR 400.11, not a zone) is the outside-game play
+     *  permission's origin. */
+    zone: Zone | "outsideGame",
     casterId: string
 ): boolean {
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     if (!castableModalBackTwin(def ?? undefined)) return false;
+    // CR 712.11c — "you may play a card you own from outside the game" is a
+    // generic permission naming no face, so it reaches the back face exactly
+    // as a hand or library-top cast does.
+    if (zone === "outsideGame") return true;
     if (zone !== "graveyard") {
         return modalBackCastLicensedInZone({ ...card, zone });
     }
@@ -1291,6 +1298,13 @@ export function castSourceForSearch(
               )
             : player;
     if (!owner) return null;
+    // CR 400.11b — outside the game is no zone: the card must still be in the
+    // caster's pool with a play remaining (`findOutsideGamePlayable`).
+    if (zone === "outsideGame") {
+        return findOutsideGamePlayable(state, owner, cardInstanceId)
+            ? { owner, zone }
+            : null;
+    }
     const held =
         zone === "hand"
             ? owner.hand

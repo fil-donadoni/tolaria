@@ -99,11 +99,15 @@ function provenancePosition(zone: CastFromZone): GameState {
         id: "spell",
         controllerId: "p1",
         ownerId: "p1",
-        zone,
+        // CR 400.11 — outside the game is not a zone: the pool card is
+        // modelled as its sideboard snapshot (`outsideGame` holder), a
+        // library-zone instance like every allocated sideboard card.
+        zone: zone === "outsideGame" ? "library" : zone,
     });
     return makeState({
         players: [
             makePlayer("p1", {
+                ...(zone === "outsideGame" ? { outsideGame: [card] } : {}),
                 hand: zone === "hand" ? [card] : [],
                 exile: zone === "exile" ? [card] : [],
                 graveyard: zone === "graveyard" ? [card] : [],
@@ -118,7 +122,13 @@ function provenancePosition(zone: CastFromZone): GameState {
 }
 
 describe("Cast Commit — Cast Provenance for every zone (CR 601.2a)", () => {
-    const zones: CastFromZone[] = ["hand", "exile", "graveyard", "library"];
+    const zones: CastFromZone[] = [
+        "hand",
+        "exile",
+        "graveyard",
+        "library",
+        "outsideGame",
+    ];
     for (const zone of zones) {
         for (const placement of [
             { kind: "announce" as const },

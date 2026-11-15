@@ -214,6 +214,7 @@ import {
     reboundCastStackFlags,
 } from "./castCost";
 import type { CastFromZone } from "./castCost";
+import { spendOutsideGamePlay } from "./outsideGame";
 // CR 702.35a / 702.88a-c (issue #2983) — the reflexive cast windows' own pure
 // resolvers, so the search's accept (`commitCastInSearch`) and decline
 // (`declineCastWindowInSearch`) are the EXACT functions the mutations drive.
@@ -1795,6 +1796,9 @@ export function commitCastInSearch(
         castFromZone,
         playerId
     );
+    // CR 400.11b — the outside-game play permission is consumed by the one
+    // play it licenses.
+    if (castFromZone === "outsideGame") spendOutsideGamePlay(state, playerId);
     if (castMechanism === "permission") {
         spendGraveyardPlayPermission(
             state,

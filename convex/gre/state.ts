@@ -182,7 +182,12 @@ import {
     clearZoneCharacteristics,
     resolveZoneCharacteristics,
 } from "./zoneCharacteristics";
-import { bringIntoHandFromOutsideGame, outsideGamePool } from "./outsideGame";
+import {
+    bringIntoHandFromOutsideGame,
+    grantOutsideGamePlays,
+    outsideGamePool,
+    takeFromOutsideGame,
+} from "./outsideGame";
 import {
     ASCEND_KEYWORD,
     checkAscendCityBlessing,
@@ -18759,6 +18764,13 @@ export function buildSpellContext(
             state.extraLandDropsThisTurn = list;
         },
 
+        grantOutsideGamePlays(playerId: string, count: number): void {
+            // CR 400.11b / 514.2 — a player-wide, turn-scoped permission to
+            // play cards from outside the game; spent per play, cleared at
+            // CLEANUP.
+            grantOutsideGamePlays(state, playerId, count);
+        },
+
         skipDrawStepThisTurn(playerId: string): void {
             // CR 504.1 (issue #1097 — Elfhame Sanctuary) — mark `playerId` to
             // skip their own draw step the next time it is reached this turn.
@@ -24248,6 +24260,32 @@ export function exileFaceDownCard(
     return card;
 }
 
+/** Lifts the card a cast commits out of where it was cast from: a zone
+ *  array, or — CR 400.11b — `player`'s outside-the-game pool, the one origin
+ *  that is no zone (`takeFromOutsideGame` spends an unused companion slot).
+ *  Throws when the card is not there, exactly as the zone splice always has. */
+function takeCastCard(
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack"> | "outsideGame"
+): CardInstanceState {
+    if (from === "outsideGame") {
+        const card = takeFromOutsideGame(player, cardInstanceId);
+        if (!card) {
+            throw new Error(
+                `Card ${cardInstanceId} not found outside the game`
+            );
+        }
+        return card;
+    }
+    const sourceZone = player[ZONE_TO_FIELD[from]] as CardInstanceState[];
+    const cardIndex = sourceZone.findIndex((c) => c.id === cardInstanceId);
+    if (cardIndex === -1) {
+        throw new Error(`Card ${cardInstanceId} not found in ${from}`);
+    }
+    return sourceZone.splice(cardIndex, 1)[0]!;
+}
+
 /** Removes a card from a player zone onto the STACK and returns it.
  *
  *  CR 112.2 (issue #3000) — "a spell's controller is, by default, the player
@@ -24265,17 +24303,13 @@ export function removeFromZone(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string,
-    from: Exclude<Zone, "stack">,
+    /** The cast's origin: a zone, or `"outsideGame"` (CR 400.11 — not a
+     *  zone) for a card cast from its owner's outside-the-game pool. */
+    from: Exclude<Zone, "stack"> | "outsideGame",
     /** CR 112.2 — the player putting the card on the stack. */
     casterId: string
 ): CardInstanceState {
-    const fromField = ZONE_TO_FIELD[from];
-    const sourceZone = player[fromField] as CardInstanceState[];
-    const cardIndex = sourceZone.findIndex((c) => c.id === cardInstanceId);
-    if (cardIndex === -1) {
-        throw new Error(`Card ${cardInstanceId} not found in ${from}`);
-    }
-    const [card] = sourceZone.splice(cardIndex, 1);
+    const card = takeCastCard(player, cardInstanceId, from);
     card.zone = "stack";
     // CR 112.2 / 108.4 (issue #3000) — the card becomes a SPELL here, and a
     // spell's controller is the player who put it on the stack, never its
