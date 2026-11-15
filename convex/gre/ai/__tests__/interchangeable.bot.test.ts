@@ -57,7 +57,7 @@ function animations(state: GameState, collapsed: boolean): Move[] {
     return movesOf(state, "activate-ability", collapsed).filter(
         (m) =>
             m.kind === "activate-ability" &&
-            m.abilityId === "treetop-village-animate"
+            m.abilityId === "treetop-village-ability-2"
     );
 }
 
