@@ -987,27 +987,78 @@ export const saprolingSymbiosis = defineCard(() => ({
 }));
 
 // Thicket Elemental — "Kicker {1}{G}. When this creature enters, if it was
-// kicked, you may reveal cards from the top of your library until you
-// reveal a creature card. If you do, put that card onto the battlefield and
-// shuffle all other cards revealed this way into your library." The
-// `kickerCount`-persistence gap this comment originally cited (same root
-// cause as Benalish Emissary, `inv/white.cards.ts`) closed with
-// `CardInstanceState.wasKicked` (issue #1753) — see Benalish Emissary /
-// Verduran Emissary above, shipped off issue #1328. Thicket Elemental itself
-// stays a stub: its "reveal until a creature card" clause is not expressible
-// by the fixed-count `reveal` Op (`types.ts`), and no other primitive covers
-// an unbounded reveal-until sweep today — the nearest precedent, Cascade (CR
-// 702.85), is itself registry `status: "planned"`. Genuinely separate,
-// previously-uncaught gap; split out to its own tracked issue rather than
-// blocking the other 5 cards in #1328's slice.
-// tracked-by: #2058
-// export const thicketElemental: CardDefinition = {
-//     id: "f80a56ed-3ebb-4e20-bf6a-e27127f762e8",
-//     name: "Thicket Elemental",
-//     rarity: "rare",
-//     manaCost: { X: 3, G: 2 },
-//     types: ["Creature"],
-// };
+// kicked, you may reveal cards from the top of your library until you reveal
+// a creature card. If you do, put that card onto the battlefield and shuffle
+// all other cards revealed this way into your library."
+//
+// CR 603.4 — the intervening "if it was kicked" is the Verdeloth pair below:
+// `conditionOnSelf: additionalCostPaidCondition("kicker")` at trigger time,
+// the `additionalCostPaid` branch again at resolution. The "you may" is the
+// cost-free `mayPay` + `if` pair (Oath of Druids, `exo/green.cards.ts`), and
+// the dig is one `revealUntilMatch` with `rest: "shuffleIntoLibrary"`: the
+// creature goes onto the battlefield, the other revealed cards never leave
+// the library, which the Op shuffles once (CR 701.24a). No creature card
+// left: the whole library is revealed, nothing enters, and it is shuffled.
+// hand-tail: "When this creature enters, if it was kicked, you may reveal cards from the top of your library until you reveal a creature card. If you do, put that card onto the battlefield and shuffle all other cards revealed this way into your library." (#2058)
+export const thicketElemental = defineCard(() => ({
+    id: "f80a56ed-3ebb-4e20-bf6a-e27127f762e8",
+    name: "Thicket Elemental",
+    rarity: "rare",
+    oracleText:
+        "Kicker {1}{G} (You may pay an additional {1}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, you may reveal cards from the top of your library until you reveal a creature card. If you do, put that card onto the battlefield and shuffle all other cards revealed this way into your library.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 4,
+    toughness: 4,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{G}",
+            mana: { X: 1, G: 1 },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "thicket-elemental-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, you may reveal cards from the top of your library until you reveal a creature card. If you do, put that card onto the battlefield and shuffle all other cards revealed this way into your library.",
+            scope: "self",
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { additionalCostPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Thicket Elemental: reveal cards from the top of your library until you reveal a creature card?",
+                            bind: "$reveal",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$reveal" },
+                            then: [
+                                {
+                                    op: "revealUntilMatch",
+                                    player: "controller",
+                                    filter: { type: "Creature" },
+                                    match: "battlefield",
+                                    rest: "shuffleIntoLibrary",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+}));
 
 // Canopy Surge — "Kicker {2}. Canopy Surge deals 1 damage to each creature
 // with flying and each player. If this spell was kicked, it deals 4 damage

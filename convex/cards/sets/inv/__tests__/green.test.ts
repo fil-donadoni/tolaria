@@ -19,6 +19,9 @@ import {
     submitChoice,
 } from "../../../__tests__/setup.helper";
 import { getDefinition, registerTokenDefinition } from "../../..";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { thicketElemental as thicketElementalExport } from "../green.cards";
 import {
     beginApplyingStaticEffects,
     emitPermanentEntered,
@@ -59,6 +62,11 @@ const kavuTitan = getDefinition("2c5fb86d-1d9a-4da2-bb5b-4266faa20197");
 const restock = getDefinition("11a013ff-7c99-445a-b9e0-0fc45036f068");
 const rootingKavu = getDefinition("12c25a4c-d93a-402b-999f-0b9919123cc5");
 const tangle = getDefinition("6b37e39c-8aa4-4938-a492-7dac5de98dfb");
+// The PR head carries no `definition-index.json` row for the card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition rather than depend on the lazy catalogue source.
+preloadDefinitions([resolveCardExport(thicketElementalExport)!]);
+const thicketElemental = getDefinition("f80a56ed-3ebb-4e20-bf6a-e27127f762e8");
 const verduranEmissary = getDefinition("55f3361b-e2e7-4297-85c2-94323f90cc90");
 const wanderingStream = getDefinition("6da5cb6c-253b-44f0-98f9-d75f42c6e14b");
 const quirionElves = getDefinition("be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b");
@@ -1019,6 +1027,84 @@ describe("Verduran Emissary (single Kicker ETB — destroy target artifact, issu
         expect(
             state.players[1].battlefield.some((c) => c.id === "ve-target-3")
         ).toBe(true);
+    });
+});
+
+describe("Thicket Elemental (Kicker ETB, reveal until a creature, shuffle the rest back; CR 603.4 / 701.20a / 701.24a, issue #2058)", () => {
+    /** Thicket Elemental cast (kicked or not) over a library of two lands
+     *  above a creature above a land; resolves the creature spell, leaving
+     *  any ETB trigger on the stack. */
+    function castThicket(kicked: boolean): GameState {
+        const library = (
+            [
+                ["te-land-1", plains.id],
+                ["te-land-2", plains.id],
+                ["te-creature", kavuChameleon.id],
+                ["te-land-3", plains.id],
+            ] as const
+        ).map(([id, defId]) =>
+            makeInstance(defId, { id, ownerId: "p1", zone: "library" })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, thicketElemental.id, "p1");
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("unkicked: the ETB trigger never reaches the stack and the library is untouched (CR 603.4)", () => {
+        const state = castThicket(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "te-land-1",
+            "te-land-2",
+            "te-creature",
+            "te-land-3",
+        ]);
+    });
+
+    it("kicked + accept: the first creature card enters, the revealed lands are shuffled back into the library", () => {
+        const state = castThicket(true);
+        expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
+            "thicket-elemental-kicked",
+        ]);
+        resolveTopOfStack(state); // suspends at the cost-free "you may"
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id).sort()).toEqual(
+            [
+                "te-creature",
+                p1.battlefield.find((c) => c.card.id === thicketElemental.id)!
+                    .id,
+            ].sort()
+        );
+        expect(p1.library.map((c) => c.id).sort()).toEqual([
+            "te-land-1",
+            "te-land-2",
+            "te-land-3",
+        ]);
+        expect(p1.graveyard.map((c) => c.id)).toEqual([]);
+        for (const card of p1.library) {
+            expect(card.knownTo ?? [], `knowledge of ${card.id}`).toEqual([]);
+        }
+    });
+
+    it("kicked + decline: nothing is revealed and nothing moves", () => {
+        const state = castThicket(true);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "te-land-1",
+            "te-land-2",
+            "te-creature",
+            "te-land-3",
+        ]);
     });
 });
 

@@ -33238,6 +33238,137 @@ describe("Effect Script Op: revealUntilMatch (CR 701.20a)", () => {
     });
 });
 
+// --- revealUntilMatch `rest: "shuffleIntoLibrary"` (CR 701.24a, issue #2058) --
+// Thicket Elemental: "put that card onto the battlefield and shuffle all other
+// cards revealed this way into your library". The other revealed cards never
+// leave the library; the Op shuffles it exactly once. CR 701.20d — the shuffle
+// ends the reveal, so the knowledge CR 701.20a granted is gone.
+
+describe("Effect Script Op: revealUntilMatch rest shuffleIntoLibrary (CR 701.24a, CR 701.20a)", () => {
+    const libOf = (entries: [string, string][]) =>
+        entries.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+
+    const SHUFFLE_SCRIPT: EffectOp[] = [
+        {
+            op: "revealUntilMatch",
+            player: "controller",
+            filter: { type: "Creature" },
+            match: "battlefield",
+            rest: "shuffleIntoLibrary",
+        },
+    ];
+
+    it("the match enters, the revealed prefix stays in the library, and the library is shuffled (knowledge cleared)", () => {
+        const id = registerScript("test-op-rum-shuffle-match", SHUFFLE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["creature", BEAR_ID],
+                        ["below", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const rngBefore = state.rngCounter ?? 0;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).toEqual(["creature"]);
+        // Library size = original - 1: the prefix went back, not to a graveyard.
+        expect(p1.library.map((c) => c.id).sort()).toEqual([
+            "below",
+            "l1",
+            "l2",
+        ]);
+        const graveyard = p1.graveyard.map((c) => c.id);
+        expect(graveyard).not.toContain("l1");
+        expect(graveyard).not.toContain("l2");
+        // CR 701.20d — the revealed cards were reordered, so nobody knows them
+        // any more; without the shuffle l1/l2 would still be known to all.
+        for (const card of p1.library) {
+            expect(card.knownTo ?? [], `knowledge of ${card.id}`).toEqual([]);
+        }
+        expect(state.rngCounter ?? 0).toBeGreaterThan(rngBefore);
+    });
+
+    it("WIRE FORMAT — after the shuffle the opponent sees no card of that library face up (CR 701.20d)", () => {
+        const id = registerScript("test-op-rum-shuffle-wire", SHUFFLE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].library.count).toBe(2);
+        expect(oppView.players[0].library.known).toEqual([]);
+        // The match itself is public on the battlefield.
+        expect(oppView.players[0].battlefield.map((c) => c.id)).toEqual([
+            "creature",
+        ]);
+    });
+
+    it("NO match: nothing enters, the whole library stays and is shuffled (CR 609.3)", () => {
+        const id = registerScript(
+            "test-op-rum-shuffle-no-match",
+            SHUFFLE_SCRIPT
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["l3", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const rngBefore = state.rngCounter ?? 0;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.battlefield).toHaveLength(0);
+        expect(p1.library).toHaveLength(3);
+        for (const card of p1.library) {
+            expect(card.knownTo ?? [], `knowledge of ${card.id}`).toEqual([]);
+        }
+        expect(state.rngCounter ?? 0).toBeGreaterThan(rngBefore);
+    });
+
+    it("an EMPTY library reveals nothing, fires no reveal dialog and shuffles nothing (CR 101.3)", () => {
+        const id = registerScript("test-op-rum-shuffle-empty", SHUFFLE_SCRIPT);
+        const state = makeState({
+            players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
+        });
+        const rngBefore = state.rngCounter ?? 0;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        expect(state.rngCounter ?? 0).toBe(rngBefore);
+    });
+});
+
 // --- explore Op: the CR 701.44 keyword action -------------------------------
 // Reveal the top card of the EXPLORING PERMANENT's controller's library; a
 // land goes to their hand; anything else puts a +1/+1 counter on the exploring
