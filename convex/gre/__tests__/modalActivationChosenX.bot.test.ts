@@ -105,3 +105,46 @@ describe("modal {X} activated ability — the Bot announces mode AND X (CR 700.2
         expect(xValues(atalyaMoves(state), "gain-life")).toEqual([0, 1, 2, 3]);
     });
 });
+
+describe('an "X target" count is sized by the announced X (CR 107.3a / 601.2c, issue #3688)', () => {
+    // Runed Arch is the FIXTURE: "{X}, {T}, Sacrifice: X target creatures
+    // with power 2 or less can't be blocked this turn". Each funding variant
+    // names exactly X targets — never an X = 2 move with an empty tuple, which
+    // the executor's one batched `selectTargets` could not complete.
+    it("every Runed Arch move carries exactly chosenX targets", () => {
+        const arch = (cardId: string, id: string, controllerId = "p1") =>
+            makeInstance(cardId, {
+                id,
+                controllerId,
+                ownerId: controllerId,
+                isSummoningSick: false,
+            });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        arch(getCardByName("Runed Arch").id, "arch"),
+                        arch(getCardByName("Grizzly Bears").id, "g1"),
+                        arch(getCardByName("Grizzly Bears").id, "g2"),
+                        arch(MOUNTAIN, "r1"),
+                        arch(MOUNTAIN, "r2"),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+        const moves = enumerateMoves(state, "p1").filter(
+            (m): m is ActivateMove =>
+                m.kind === "activate-ability" && m.cardInstanceId === "arch"
+        );
+        expect([...new Set(moves.map((m) => m.chosenX))].sort()).toEqual([
+            0, 1, 2,
+        ]);
+        for (const m of moves) {
+            expect(m.targets).toHaveLength(m.chosenX ?? -1);
+        }
+    });
+});

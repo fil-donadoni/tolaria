@@ -5857,7 +5857,9 @@ function enumerateAbilityMoves(
                     player,
                     perm,
                     abilityGroups,
-                    undefined,
+                    // CR 107.3a — an "X target ..." count resolves against
+                    // the announced X of this funding variant.
+                    chosenX,
                     chosenModeIds && groupInstances
                         ? { count: chosenModeIds.length, groupInstances }
                         : undefined
@@ -5916,7 +5918,7 @@ function enumerateAbilityMoves(
                             confirmTargets: announcedTargetsNeedConfirm(
                                 lastAbilityReq,
                                 lastGroupSize,
-                                undefined,
+                                chosenX,
                                 announcementOf(
                                     state,
                                     player,

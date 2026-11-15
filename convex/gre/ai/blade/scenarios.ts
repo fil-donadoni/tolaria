@@ -288,6 +288,65 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 107.3a / 702.33a Kicker {X} reachability — the deterministic halves (enumeration, both sandboxes charging X) are in `kickerXBot.bot.test.ts`. Issue #2141.",
     },
     {
+        // ACTIVATION {X} reachability (CR 107.3a / 602.2b, issue #3688). The
+        // bot's main phase, the opponent at 4 life behind two untapped 2/2s,
+        // two Grizzly Bears, two Mountains and Runed Arch: "{X}, {T},
+        // Sacrifice: X target creatures with power 2 or less can't be blocked
+        // this turn". X = 2 on both Bears is exactly lethal on the attack; X = 1
+        // lets one Bear through for 2, and every other line deals nothing.
+        //
+        // What it guards is REACHABILITY. The enumerator used to skip every
+        // activated ability with a player-chosen `{X}` (the move carried no
+        // `chosenX`, which the mutation refuses), so the Arch was never
+        // activated at all. With the chosen-X axis (`enumerateAbilityMoves`,
+        // `moves.ts`) — its "X target" count resolved against the announced X —
+        // the X = 2 activation is a Move.
+        label: "activation {X}: Runed Arch announces X = 2 to make both Bears unblockable for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 4 life" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Runed Arch",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                })),
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            life: { opp: 4 },
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Runed Arch", x: 2 }],
+        },
+        note: 'CR 107.3a activation {X} reachability — the deterministic halves (every fundable X enumerated, each accepted by the server; an "X target" count sized by the announced X; mode AND X on one move under a white-only X ceiling) are in `activationPrecondition.bot.test.ts` and `modalActivationChosenX.bot.test.ts`. Issue #3688.',
+    },
+    {
         // "THAT PLAYER" IS NOT THE BOT (CR 702.115a, issue #4014). Two mana, one
         // cast, and two 2/2s for {1}{B} with no other difference but Ingest:
         // the keyword only ever takes a card off the player the creature hit.
