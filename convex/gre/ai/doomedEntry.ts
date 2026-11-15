@@ -24,7 +24,11 @@ import type {
 import { evaluateAttackerKeywords } from "../combatRegistry";
 import { isCreature, isTapLockedBySummoningSickness } from "../constants";
 import { effectiveTriggeredAbilities } from "../copy";
-import type { CardInstanceState, GameState } from "../state";
+import type {
+    CardInstanceState,
+    DelayedTriggerInstance,
+    GameState,
+} from "../state";
 import type { Phase } from "../types";
 
 /** The timings that fire at the next occurrence of a step, unconditionally,
@@ -219,19 +223,74 @@ function isSelfEndStepDeparture(ability: TriggeredAbility): boolean {
     return departs;
 }
 
-/** When `body` leaves at an end step through its own end-step trigger
- *  removing itself (Ball Lightning), or `undefined` for a body nothing removes
- *  there. Read off the abilities it has now, so one it lost (CR 613.1f) is no
- *  departure; a trigger already fired is a stack item and is not read.
- *
- *  A scheduled delayed trigger removing a captured body (CR 603.7a: Sneak
- *  Attack, a Kiki-Jiki token) is the same departure and is not read here yet
- *  (tracked-by: #9846): pricing it moved the Sneak Attack lethal-swing row. */
-export function scheduledEndStepDeparture(
+/** The steps a delayed trigger of `timing` has already had its chance in this
+ *  turn: the engine fires it on entering its step (CR 603.7b), so an instance
+ *  still scheduled there fires at a later turn's. Undefined for a timing this
+ *  read does not place. */
+const DELAYED_DEPARTURE_PASSED: Partial<
+    Record<DelayedTriggerTiming, ReadonlySet<Phase>>
+> = {
+    "next-end-step": AT_OR_PAST_END_STEP,
+    "next-cleanup-step": new Set<Phase>(["CLEANUP"]),
+};
+
+/** Whether the scheduled delayed trigger `trigger` removes `body` when it
+ *  fires: an inline body sacrificing, destroying or exiling a captured binding
+ *  holding `body` at its top level (CR 603.7a), or a warp exile of the
+ *  permanent the warp spell became (CR 702.185a), which is still that object
+ *  only while it carries the warp marker (CR 400.7). */
+function delayedTriggerRemoves(
+    trigger: DelayedTriggerInstance,
+    body: CardInstanceState
+): boolean {
+    if (trigger.warpCardInstanceId !== undefined) {
+        return trigger.warpCardInstanceId === body.id && !!body.warped;
+    }
+    if (!trigger.effects) return false;
+    return departingRefsIn(trigger.effects).some((ref) => {
+        // The payload stores a binding without its `$` sigil
+        // (`runDelayedTriggerBody` re-adds it at fire time).
+        const captured = trigger.payload[ref.slice(1)] ?? trigger.payload[ref];
+        return Array.isArray(captured)
+            ? captured.includes(body.id)
+            : captured === body.id;
+    });
+}
+
+/** When a scheduled delayed trigger removes `body` at an end step or a
+ *  cleanup step (Sneak Attack, a Kiki-Jiki token, a warped permanent), or
+ *  `undefined` when none does. One scoped to a player (`targetPlayerId`) fires
+ *  only in that player's turn (CR 603.7b). */
+function delayedEndStepDeparture(
     state: GameState,
     body: CardInstanceState
 ): EndStepDeparture | undefined {
     let departure: EndStepDeparture | undefined;
+    for (const trigger of state.delayedTriggers ?? []) {
+        const passed = DELAYED_DEPARTURE_PASSED[trigger.timing];
+        if (!passed || !delayedTriggerRemoves(trigger, body)) continue;
+        const thisTurn =
+            !passed.has(state.phase) &&
+            (trigger.targetPlayerId === undefined ||
+                trigger.targetPlayerId === state.activePlayerId);
+        if (thisTurn) return "this-turn";
+        departure = "later";
+    }
+    return departure;
+}
+
+/** When `body` leaves at an end step: through its own end-step trigger
+ *  removing itself (Ball Lightning), or through a scheduled delayed trigger
+ *  removing it (CR 603.7a: Sneak Attack, a Kiki-Jiki token, a warp exile), or
+ *  `undefined` for a body nothing removes there. Its own trigger is read off
+ *  the abilities it has now, so one it lost (CR 613.1f) is no departure; a
+ *  trigger already fired is a stack item and is not read. */
+export function scheduledEndStepDeparture(
+    state: GameState,
+    body: CardInstanceState
+): EndStepDeparture | undefined {
+    let departure = delayedEndStepDeparture(state, body);
+    if (departure === "this-turn") return departure;
     const atOrPastEnd = AT_OR_PAST_END_STEP.has(state.phase);
     for (const ability of effectiveTriggeredAbilities(body)) {
         if (!isSelfEndStepDeparture(ability)) continue;
