@@ -2774,8 +2774,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // permanent for a duration (CR 611.2a / 613.1f). The generator can
             // assert a grant on an announced permanent slot (it seeds a filler
             // creature there and reads its `staticAbilities` after resolution).
-            // A `$each` (or spell-site `$source`) target is not modelled — skip and let the
-            // card's own per-card test cover it.
+            // A keyword grant on `$each` reaches here only outside a planned
+            // sweep (`permanentBodyOutcome` reads the keyword back off every
+            // member); that, and a spell-site `$source`, is not modelled.
             if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
@@ -3274,7 +3275,8 @@ type SweepOutcome =
           readonly toughness: number;
       }
     | { readonly kind: "damage"; readonly amount: EffectValue }
-    | { readonly kind: "life"; readonly amount: EffectValue };
+    | { readonly kind: "life"; readonly amount: EffectValue }
+    | { readonly kind: "grant"; readonly ability: string };
 
 /** The characteristics of one seeded card; `sweepCardId` hydrates a definition
  *  from them, the only place a filter clause can read them back from. */
@@ -3407,6 +3409,16 @@ function permanentBodyOutcome(body: EffectOp): SweepOutcome | null {
                 isLiteralOrX(body.amount) &&
                 holdsOnlyKeys(body, ["to", "amount"])
                 ? { kind: "damage", amount: body.amount }
+                : null;
+        case "grantAbility":
+            // CR 613.1f — a keyword granted in layer 6 reads back off the
+            // member's `staticAbilities` the moment the sweep resolves,
+            // whatever its duration (CR 611.2a). The activated, triggered and
+            // attack-requirement legs land elsewhere and stay unplanned.
+            return isEachRef(body.target) &&
+                typeof body.ability === "string" &&
+                holdsOnlyKeys(body, ["target", "ability", "duration"])
+                ? { kind: "grant", ability: body.ability }
                 : null;
         default:
             return null;
@@ -3907,6 +3919,27 @@ function sweepCheckFor(
                     (card.damageMarked ?? 0) === (hit ? amount : 0)
                 );
             };
+        case "grant": {
+            // A hit gains the keyword it lacked; a miss keeps exactly the
+            // abilities it was seeded with (a bystander may print the keyword,
+            // `excludeAbility`'s own clause).
+            const seeded = sweepPermanent(pre, id)?.staticAbilities;
+            if (seeded === undefined) return () => false;
+            const before = [...seeded];
+            return (post, hit) => {
+                const now = sweepPermanent(post, id)?.staticAbilities;
+                if (now === undefined) return false;
+                if (hit)
+                    return (
+                        !before.includes(outcome.ability) &&
+                        now.includes(outcome.ability)
+                    );
+                return (
+                    now.length === before.length &&
+                    now.every((a, i) => a === before[i])
+                );
+            };
+        }
         case "life":
             return () => false;
     }
