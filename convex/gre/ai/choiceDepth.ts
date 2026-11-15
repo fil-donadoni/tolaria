@@ -207,6 +207,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     restrictLandPlay: false,
     restrictLifeGain: false,
     grantExtraLandDrops: false,
+    grantOutsideGamePlays: false,
     restrictCasting: false,
     restrictCombat: false,
     returnExiledForSource: false,

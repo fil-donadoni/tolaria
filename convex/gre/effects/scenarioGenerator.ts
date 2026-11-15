@@ -2509,6 +2509,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // landing in state.extraLandDropsThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantOutsideGamePlays":
+            // CR 400.11b (issue #9473) — turn-scoped plays from outside the
+            // game for a player; the deterministic outcome is the player's
+            // count growing in state.outsideGamePlaysThisTurn (asserted
+            // below).
+            analysePlayer(op.player, req, false);
+            return;
         case "skipDrawStepThisTurn":
             // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot
             // draw-step-skip flag on a player; the deterministic outcome is
@@ -4586,6 +4593,25 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: after === before + op.count,
                     detail: `drops=${after} (was ${before})`,
+                };
+            },
+        };
+    },
+    // `grantOutsideGamePlays` (CR 400.11b, issue #9473) — a deterministic
+    // same-resolution state change: the named player's plays from outside
+    // the game this turn grow by exactly `count`. Asserted directly.
+    grantOutsideGamePlays(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "grantOutsideGamePlays" }>;
+        const pid = assertionPlayerId(op.player);
+        const plays = (s: typeof pre) => s.outsideGamePlaysThisTurn?.[pid] ?? 0;
+        const before = plays(pre);
+        return {
+            label: `grantOutsideGamePlays grants player ${pid} ${op.count} play(s) from outside the game this turn`,
+            check: (post) => {
+                const after = plays(post);
+                return {
+                    ok: after === before + op.count,
+                    detail: `plays=${after} (was ${before})`,
                 };
             },
         };

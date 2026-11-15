@@ -6161,6 +6161,15 @@ function lowerFrameChain(
                     count: 1,
                 });
                 break;
+            // CR 400.11b + CR 514.2 — one play of a card the controller owns
+            // from outside the game, until CLEANUP.
+            case "grantOutsideGamePlays":
+                ops.push({
+                    op: "grantOutsideGamePlays",
+                    player: "controller",
+                    count: 1,
+                });
+                break;
             // CR 601.3b — the controller may cast spells of that card type as
             // though they had flash; the Op owns the "until your next turn"
             // boundary (`advanceTurn`).

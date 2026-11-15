@@ -18063,6 +18063,19 @@ export type EffectOp =
      *  "can't play lands" restriction (CR 101.2). Skipped when the player
      *  cannot be resolved. */
     | { op: "grantExtraLandDrops"; player: EffectPlayerRef; count: number }
+    /** CR 400.11b / 514.2 (issue #9473 — Wish's "You may play a card you own
+     *  from outside the game this turn"). A thin declarative skin over
+     *  `SpellContext.grantOutsideGamePlays`, one execution path (ADR 0045):
+     *  `player` gets `count` plays of a card they own from outside the game
+     *  for the rest of this turn, accumulated on
+     *  `state.outsideGamePlaysThisTurn` and read by every cast and land-play
+     *  site through `outsideGamePlaysRemaining` (issue #9725). Names no card:
+     *  the player picks one when they play it, under normal timing and cost
+     *  (cast, or a land play under CR 305.2). It deliberately does NOT move a
+     *  card into hand or reveal it (`bringFromOutsideGame` does both) — an
+     *  unplayed card simply stays outside the game when the grant ends at
+     *  CLEANUP (CR 514.2). Skipped when the player cannot be resolved. */
+    | { op: "grantOutsideGamePlays"; player: EffectPlayerRef; count: number }
     /** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your
      *  draw step this turn"). A thin declarative skin over
      *  `SpellContext.skipDrawStepThisTurn`, one execution path (ADR 0045):

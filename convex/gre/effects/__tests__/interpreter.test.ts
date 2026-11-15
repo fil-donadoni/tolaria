@@ -3798,6 +3798,101 @@ describe("Effect Script Op: grantExtraLandDrops (CR 305.2 / 514.2, issue #7220)"
     });
 });
 
+// New Op (issue #9473 — Wish) → full per-Op regime: the grant lands on state,
+// two grants stack, the land-play gate opens on a card from outside the game
+// (and only on one), and it survives serialization and the wire projection.
+describe("Effect Script Op: grantOutsideGamePlays (CR 400.11b / 514.2, issue #9473)", () => {
+    /** p1 holds a Forest outside the game (CR 400.11a — its sideboard). */
+    function withSideboardForest() {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    outsideGame: [
+                        makeInstance(forest().id, {
+                            id: "forest-outside",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+    const canPlayOutsideForest = (state: GameState) =>
+        getLegalActions(
+            state,
+            getPlayer(state, "p1"),
+            getPlayer(state, "p1").outsideGame![0]!
+        ).includes("play");
+
+    it("grants the controller one play from outside the game this turn", () => {
+        const id = registerScript("test-op-outside-play-ctrl", [
+            { op: "grantOutsideGamePlays", player: "controller", count: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.outsideGamePlaysThisTurn).toEqual({ p1: 1 });
+    });
+
+    it("names the opponent when the script says so", () => {
+        const id = registerScript("test-op-outside-play-opp", [
+            { op: "grantOutsideGamePlays", player: "opponent", count: 2 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.outsideGamePlaysThisTurn).toEqual({ p2: 2 });
+    });
+
+    it("is additive — two resolutions are two plays", () => {
+        const id = registerScript("test-op-outside-play-add", [
+            { op: "grantOutsideGamePlays", player: "controller", count: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.outsideGamePlaysThisTurn).toEqual({ p1: 2 });
+    });
+
+    it("opens the play of a card outside the game, without moving or revealing it", () => {
+        const id = registerScript("test-op-outside-play-legal", [
+            { op: "grantOutsideGamePlays", player: "controller", count: 1 },
+        ]);
+        const state = withSideboardForest();
+        expect(canPlayOutsideForest(state)).toBe(false);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(canPlayOutsideForest(state)).toBe(true);
+        // Not `bringFromOutsideGame`: the card stays outside the game.
+        const p1 = getPlayer(state, "p1");
+        expect(p1.outsideGame!.map((c) => c.id)).toEqual(["forest-outside"]);
+        expect(p1.hand).toEqual([]);
+    });
+
+    it("survives serialization and the wire projection", () => {
+        const id = registerScript("test-op-outside-play-wire", [
+            { op: "grantOutsideGamePlays", player: "controller", count: 1 },
+        ]);
+        const state = withSideboardForest();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            expandState(compactState(state)).outsideGamePlaysThisTurn
+        ).toEqual({ p1: 1 });
+        const me = projectPublicState(state, 1, "p1").players.find(
+            (p) => p.id === "p1"
+        )!;
+        expect(me.outsideGamePlayable?.map((c) => c.legalActions)).toEqual([
+            ["play"],
+        ]);
+    });
+});
+
 // New Op (issue #1097 — Elfhame Sanctuary) → full per-Op regime: interpreter
 // coverage of the construct combinations it participates in (controller /
 // announced player slot, idempotence), plus a wire-format assertion through

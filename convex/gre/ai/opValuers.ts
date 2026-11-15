@@ -3261,6 +3261,19 @@ const grantExtraLandDrops: Valuer<"grantExtraLandDrops"> = (op, ctx) => ({
     tags: ["ramp"],
 });
 
+// CR 400.11b — "you may play a card you own from outside the game this turn"
+// is one card the recipient chooses from a pool the valuer cannot see:
+// priced like `bringFromOutsideGame` (one card of advantage at its yield per
+// play), signed by recipient.
+const grantOutsideGamePlays: Valuer<"grantOutsideGamePlays"> = (op, ctx) => ({
+    points: priced(
+        ctx,
+        "cardAdvantage",
+        op.count * (ctx.isSelf(op.player, "self") ? 1 : -1)
+    ),
+    tags: ["cardAdvantage"],
+});
+
 const restrictCasting: Valuer<"restrictCasting"> = () => ({
     points: RESTRICT_CASTING_VALUE,
     tags: ["disruption"],
@@ -3684,6 +3697,7 @@ export const OP_VALUERS: {
     restrictLandPlay,
     restrictLifeGain,
     grantExtraLandDrops,
+    grantOutsideGamePlays,
     restrictCasting,
     grantCastTiming,
     reduceSpellCostThisTurn,
@@ -4082,6 +4096,8 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     restrictLandPlay: "harmful",
     restrictLifeGain: "harmful",
     grantExtraLandDrops: "beneficial",
+    // CR 400.11b — plays of a card the recipient owns from outside the game.
+    grantOutsideGamePlays: "beneficial",
     restrictCasting: "harmful",
     markAssignsNoCombatDamage: "harmful",
     skipNextUntap: "harmful",
