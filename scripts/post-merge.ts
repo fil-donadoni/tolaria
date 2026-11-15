@@ -9,13 +9,13 @@
  *   sync   fetch + fast-forward the primary checkout (on the MacBook
  *          `convex dev` serves the deployment from it), remove the worktree
  *          each merged PR left standing, ingest the telemetry.
- *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
+ *   sweep  hourly, on every machine: remove the issue worktrees
  *          no merge will ever clean up — PR closed unmerged, or no PR, no
  *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
  *   seed   the `seed` machine only: fast-forward again (a no-op when `sync`
  *          already did), register each merged PR's `## Preset scenario`, and
  *          `seed:preset --all` when the push changed a card set or an
- *          input of the Preset Deck 75/75 gate (issue #8453).
+ *          input of the Preset Deck 75/75 gate.
  *
  * Every step is idempotent and runs even when an earlier one failed, except a
  * seed after a failed fast-forward (`seedPlan`). The exit code is 1 when any

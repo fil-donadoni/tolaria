@@ -2,8 +2,8 @@
 /**
  * `bun run seed:preset <slug|--all> [--dry-run]` — register the 25 Premodern
  * metagame lists from `data/premodern-metagame-decks.json` AND the 10 Modern
- * ones from `data/modern-metagame-decks.json` (issue #8453) as Preset Decks
- * of their own Format (the source is the metagame file, issue #6675 — ONE
+ * ones from `data/modern-metagame-decks.json` as Preset Decks
+ * of their own Format (the source is the metagame file — ONE
  * source for Preset Decks — where an archetype also had a hand-curated Tier 1
  * list the mtgtop8 list replaces it on the same slug). A slug both files name
  * is refused: `presetDecks` is keyed by slug, and two lists on one slug would
