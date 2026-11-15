@@ -36,15 +36,15 @@ import {
     validateMinimumBlockers,
     getRequiredBlockerAssignments,
 } from "../combat";
-import {
-    goblinWarDrums,
-    merseine,
-    seasinger,
-} from "../../cards/sets/fem/index.cards";
+import { merseine, seasinger } from "../../cards/sets/fem/index.cards";
 import { trollOfKhazadDum } from "../../cards/sets/ltr/black.cards";
 import { untapStep } from "../phases";
 import { applyLandManaReplacement } from "../constants";
 import { activateAbilityOnState, resolveAbilityManaCost } from "../../game";
+import { getDefinition } from "../../cards/index";
+
+const goblinWarDrums = () =>
+    getDefinition("2a2c4e4b-e9a7-4180-927b-589514c21876");
 
 // Mirror of src/lib/ai/state-adapter.ts (kept inline so this convex-side test
 // doesn't pull the frontend module — and its @convex aliases — into the convex

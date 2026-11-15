@@ -205,6 +205,9 @@ describe("activation-restriction: mana abilities are activated abilities (CR 605
 describe("activation-restriction: exemptManaAbilities (CR 605.1a — '…unless they're mana abilities')", () => {
     const exemptTotem: CardDefinition = {
         ...getCardByName("Cursed Totem"),
+        // The compiled twin declares its lock as `compiledStaticEffects`;
+        // clear it so only the exempt variant below applies.
+        compiledStaticEffects: undefined,
         staticEffects: [
             {
                 kind: "activation-restriction",

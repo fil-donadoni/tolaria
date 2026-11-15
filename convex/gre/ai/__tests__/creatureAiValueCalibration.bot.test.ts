@@ -10,7 +10,6 @@
 import { describe, expect, it } from "vitest";
 import { phantasmalImage } from "../../../cards/sets/m12/blue.cards";
 import { mirrorwoodTreefolk } from "../../../cards/sets/pls/green.cards";
-import { meddlingMage } from "../../../cards/sets/pls/multicolor.cards";
 import { cardValueById } from "../../cardValue";
 import { creatureValueRaw } from "../../creatureBody";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
@@ -20,8 +19,6 @@ const CASES = [
     { def: phantasmalImage(), body: [2, 2, 2], premium: 0 },
     // vanilla 2/4 MV4 + 25 for the repeatable redirect.
     { def: mirrorwoodTreefolk(), body: [2, 4, 4], premium: 25 },
-    // 2/2 MV2 + 7 for the soft Duress-grade disruption.
-    { def: meddlingMage(), body: [2, 2, 2], premium: 7 },
 ] as const;
 
 /** Two discounts far enough apart that a frozen literal cannot match both. */

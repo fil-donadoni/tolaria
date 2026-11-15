@@ -12,7 +12,7 @@
 // WHEN A SLICE WIRES ITS CARDS, this guard is the thing it deletes (or narrows
 // to the legs still unwired) — it is a slice boundary, not a permanent rule.
 import { describe, it, expect } from "vitest";
-import { getAllCards } from "..";
+import { getAllCards, getAllCatalogueCards } from "..";
 import type { AsEntersChoice, CardDefinition, TokenSpec } from "../types";
 
 /** Every `asEnters` declaration reachable from a shipped card definition:
@@ -89,9 +89,9 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
         expect(wired.map((w) => w.where)).toEqual([]);
     });
 
-    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019, name/subtypes/body/payLife #2467, opponent #6484)", () => {
+    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019, name/subtypes/body/payLife #2467, opponent #6484, and the compiled catalogue's exileFromGraveyard/mayEnterWithCounters/sacrifice)", () => {
         const kinds = new Set(
-            getAllCards()
+            getAllCatalogueCards()
                 .flatMap(declaredAsEnters)
                 .flatMap((w) => w.choices.map((c) => c.kind))
         );
@@ -99,10 +99,13 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
             "body",
             "copy",
             "discard",
+            "exileFromGraveyard",
+            "mayEnterWithCounters",
             "mode",
             "name",
             "opponent",
             "payLife",
+            "sacrifice",
             "subtypes",
         ]);
     });

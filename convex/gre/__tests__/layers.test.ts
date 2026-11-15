@@ -25,15 +25,17 @@ import { tryGetDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import { checkCounterAnnihilationSBA } from "../sba";
 import {
-    castle,
-    crusade,
     lightningBolt,
     giantGrowth,
-    badMoon,
     bogWraith,
 } from "../../cards/sets/lea/index.cards";
-import { opalescence } from "../../cards/sets/uds/index.cards";
 import { checkStateBasedActions } from "../sba";
+import { getDefinition } from "../../cards/index";
+
+const castle = () => getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
+const badMoon = () => getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
+const opalescence = () => getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
 
 // ---------------------------------------------------------------------------
 // Helpers

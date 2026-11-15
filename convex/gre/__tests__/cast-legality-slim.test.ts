@@ -16,7 +16,6 @@ import {
 import {
     ankhOfMishra,
     copyArtifact,
-    crusade,
     elvishArchers,
     forest,
     grizzlyBears,
@@ -37,7 +36,6 @@ import { moxOpal } from "../../cards/sets/som/index.cards";
 import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
 import { firebolt } from "../../cards/sets/ody/index.cards";
 import { nethergoyf } from "../../cards/sets/mh3/index.cards";
-import { planarGate } from "../../cards/sets/leg/index.cards";
 import { castRawManaCost } from "../castCost";
 import {
     applyCostModifiers,
@@ -53,6 +51,9 @@ import type {
     StackItem,
 } from "../state";
 import { getDefinition } from "../../cards";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
+const planarGate = () => getDefinition("dd27f0fe-c032-4f61-9f3d-98a6d2e2c426");
 const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");
 const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");

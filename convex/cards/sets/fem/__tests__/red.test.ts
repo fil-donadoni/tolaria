@@ -80,8 +80,9 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
     it("registers all 16 red cards by id and name", () => {
         for (const def of RED_DEFS) {
             expect(getDefinition(def.id)).toBe(def);
-            expect(getCardByName(def.name)).toBe(def);
-            expect(getAllCatalogueCards()).toContain(def);
+            // A compiled twin is expanded per lookup path: compare identity by id.
+            expect(getCardByName(def.name).id).toBe(def.id);
+            expect(getAllCatalogueCards().map((c) => c.id)).toContain(def.id);
         }
     });
 });

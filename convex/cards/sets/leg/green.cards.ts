@@ -4,7 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import { defineCard, type SpellContext, type PermanentView } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
@@ -19,28 +19,6 @@ import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 // layer system (keyword grant / removal, CR 613.1a layer 6) — so they double as
 // the real cards the world-rule SBA acts on.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Concordant Crossroads — World enchantment, "All creatures have haste."
-// (CR 702.10, 613.1a layer 6 — keyword-grant to every creature, any controller.)
-export const concordantCrossroads = defineCard(() => ({
-    id: "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db",
-    rarity: "rare",
-    name: "Concordant Crossroads",
-    oracleText: "All creatures have haste.",
-    manaCost: { G: 1 },
-    types: ["Enchantment"],
-    supertypes: ["World"],
-    staticEffects: [
-        {
-            kind: "keyword-grant",
-            // Global — every creature on the battlefield, regardless of
-            // controller (CR 109.2 "all creatures").
-            applies: (target: PermanentView) =>
-                target.types.includes("Creature"),
-            keyword: "haste",
-        },
-    ],
-}));
 
 // Sylvan Library — "At the beginning of your draw step, you may draw two
 // additional cards. If you do, choose two cards in your hand drawn this turn.

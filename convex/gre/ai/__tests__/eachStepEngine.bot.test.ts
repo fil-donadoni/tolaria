@@ -36,9 +36,11 @@ import { withTemporaryDefinition } from "../../../cards/registry";
 import { forest, howlingMine } from "../../../cards/sets/lea/colorless.cards";
 import { animateArtifact } from "../../../cards/sets/lea/blue.cards";
 import { keldonTwilight } from "../../../cards/sets/pls/multicolor.cards";
-import { opalescence } from "../../../cards/sets/uds/white.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
+import { getDefinition } from "../../../cards/index";
+
+const opalescence = () => getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
 
 const MINE = howlingMine().id;
 const BEAR = grizzlyBears().id;

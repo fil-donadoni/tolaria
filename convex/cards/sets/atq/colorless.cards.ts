@@ -707,50 +707,6 @@ export const clockworkAvian = defineCard(() => ({
 // Avenger's keyword choice is deliberately authored as fixed per-keyword abilities.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Mightstone — {4} Artifact. "Attacking creatures get +1/+0." (CR 611 layer
-// 7c anthem; CR 508.1 attacking — gated on `isAttacking`.) Affects EVERY
-// attacking creature regardless of controller (no controller clause, unlike
-// Orcish Oriflamme's "you control"). Same `pt-buff` + `isAttacking` shape.
-export const mightstone = defineCard(() => ({
-    id: "b28ba599-5299-4831-a118-1712ada10ef6",
-    rarity: "uncommon",
-    name: "Mightstone",
-    oracleText: "Attacking creatures get +1/+0.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, _source, ctx) =>
-                ctx.isCreature(target) && target.isAttacking === true,
-            power: 1,
-            toughness: 0,
-        },
-    ],
-}));
-
-// Weakstone — {4} Artifact. "Attacking creatures get -1/-0." (CR 611 layer 7c;
-// CR 508.1.) Mirror of Mightstone with a negative power buff. Effective power
-// is floored at 0 by the layer reader (CR 107.1b — P/T can't be negative for
-// rules purposes, but combat damage uses the floored value).
-export const weakstone = defineCard(() => ({
-    id: "46adf48f-99d2-440e-9129-794584c1ea21",
-    rarity: "uncommon",
-    name: "Weakstone",
-    oracleText: "Attacking creatures get -1/-0.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, _source, ctx) =>
-                ctx.isCreature(target) && target.isAttacking === true,
-            power: -1,
-            toughness: 0,
-        },
-    ],
-}));
-
 // Mishra's Factory — Land (the "manland"). Three abilities:
 //  • "{T}: Add {C}." (CR 605.1a/605.3a mana ability, useStack:false.)
 //  • "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end

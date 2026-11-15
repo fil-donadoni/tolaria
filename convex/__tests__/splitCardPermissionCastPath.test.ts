@@ -14,7 +14,6 @@
 import { describe, expect, it } from "vitest";
 import { announceCast, selectTarget } from "../game";
 import { standDeliver } from "../cards/sets/inv/multicolor.cards";
-import { aluren } from "../cards/sets/tmp/green.cards";
 import { hillGiant } from "../cards/sets/lea/red.cards";
 import { plains } from "../cards/sets/lea/colorless.cards";
 import {
@@ -36,6 +35,9 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const GAME_ID = "game-1" as Id<"games">;
 const PERMISSION_ID = "probe-free-cheap-instant";

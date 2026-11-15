@@ -36,26 +36,6 @@ const GOBLIN_TOKEN: TokenSpec = {
     colors: ["R"],
 };
 
-export const goblinWarDrums = defineCard(() => ({
-    id: "2a2c4e4b-e9a7-4180-927b-589514c21876", // FEM 58a (canonical art)
-    rarity: "common",
-    name: "Goblin War Drums",
-    oracleText: "Creatures you control have menace.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "keyword-grant",
-            // CR 611 — applies to every creature the source's controller
-            // controls (the Kobold-lord anthem pattern from leg.ts).
-            applies: (target, source) =>
-                target.types.includes("Creature") &&
-                target.controllerId === source.controllerId,
-            keyword: "menace",
-        },
-    ],
-}));
-
 export const goblinGrenade = defineCard(() => ({
     id: "8837eaba-9602-4f63-9897-85583fcdcf51", // FEM 56a (canonical art)
     rarity: "common",

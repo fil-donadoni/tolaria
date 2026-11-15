@@ -42,7 +42,8 @@ import {
     removePermanentTo,
     resetBattlefieldTransientState,
 } from "../state";
-import { crusade } from "../../cards/sets/lea/index.cards";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 /** A vanilla creature with no registry entry — every effect in this file
  *  arrives as a registry entry, so no card definition is needed. */

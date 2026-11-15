@@ -3,7 +3,6 @@
 // The wire-boundary answer lives in `src/lib/ai/__tests__/owed-payment.bot.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { stoneCalendar } from "../../cards/sets/drk/colorless.cards";
 import { soulBurn } from "../../cards/sets/ice/black.cards";
 import { drainLife } from "../../cards/sets/lea/black.cards";
 import { swamp } from "../../cards/sets/lea/colorless.cards";
@@ -17,6 +16,10 @@ import { nextOwedPayment } from "../owedPayment";
 import { pickForOwedPayment } from "../paymentPicks";
 import type { GameState } from "../state";
 import { getPlayer } from "../state";
+import { getDefinition } from "../../cards/index";
+
+const stoneCalendar = () =>
+    getDefinition("a49ba1a5-33b1-40f2-9780-26139ed829d7");
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 

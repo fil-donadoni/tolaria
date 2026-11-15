@@ -26,7 +26,6 @@ import {
     tundra,
 } from "../../cards/sets/lea/index.cards";
 import { bloodMoon } from "../../cards/sets/drk/red.cards";
-import { crusade } from "../../cards/sets/lea/white.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { syncLayer6 } from "../layer6";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
@@ -34,6 +33,9 @@ import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { checkStateBasedActions } from "../sba";
 import { turnFaceDown } from "../faceDown";
+import { getDefinition } from "../../cards/index";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {

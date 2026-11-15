@@ -17,7 +17,6 @@ const BIRDS_OF_PARADISE_ID = "55fe6449-1f23-43dc-adee-d144cd505b5c";
 import {
     ancestralRecall,
     armageddon,
-    crusade,
     fireball,
     giantGrowth,
     grizzlyBears,
@@ -29,6 +28,9 @@ import {
 import { naturalOrder } from "../../cards/sets/vis/index.cards";
 import { soulExchange } from "../../cards/sets/fem/index.cards";
 import { subtlety } from "../../cards/sets/mh2/blue.cards";
+import { getDefinition } from "../../cards/index";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 // ---------------------------------------------------------------------------
 // Test helpers

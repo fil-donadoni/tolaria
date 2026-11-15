@@ -25,7 +25,9 @@ import { projectPublicState } from "../../../../gameProjections";
 import { anger } from "../red.cards";
 import { grizzlyBears } from "../../lea/green.cards";
 import { mountain, taiga } from "../../lea/colorless.cards";
-import { humility } from "../../tmp/white.cards";
+import { getDefinition } from "../../../index";
+
+const humility = () => getDefinition("a2fb7128-806b-4148-80fe-eb967f248021");
 
 function permanent(
     cardId: string,
