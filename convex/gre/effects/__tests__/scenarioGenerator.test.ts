@@ -436,6 +436,9 @@ function resolveOnSeededSource(
                 cost: {},
                 useStack: true,
                 effects,
+                ...(plan.scenario.targetKind === "permanent"
+                    ? { targetRequirement: { type: "any", count: 1 } }
+                    : {}),
             },
         ],
     });
@@ -448,7 +451,7 @@ function resolveOnSeededSource(
         }),
         castById: CASTER_ID,
         abilityId: `${hostId}-ab`,
-        targets: [],
+        targets: plan.scenario.targets,
     });
     resolveTopOfStack(plan.scenario.state);
 }
@@ -561,6 +564,89 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
             expect(failedAssertions(plan)).toEqual([]);
         }
     );
+
+    // CR 707.2 — "{X}, {T}: This land becomes a copy of target nontoken
+    // artifact you control with mana value X." (The Mycosynth Gardens): the
+    // source is seeded as the host's own kind, the slot as the filler, so the
+    // copy is observable in both directions.
+    const LAND_HOST = abilityHost(
+        { types: ["Land"], subtypes: ["Sphere"] },
+        true,
+        true
+    );
+    it.each<[string, EffectOp]>([
+        [
+            "source-becomes-target",
+            {
+                op: "becomeCopy",
+                target: { ref: "$source" },
+                source: { target: 0 },
+            },
+        ],
+        [
+            "target-becomes-source",
+            {
+                op: "becomeCopy",
+                target: { target: 0 },
+                source: { ref: "$source" },
+            },
+        ],
+    ])(
+        "a becomeCopy between $source and an announced slot (%s) executes through resolution and its declared outcome holds",
+        (name, op) => {
+            const plan = planSmokeTest([op], LAND_HOST);
+            if (plan.kind !== "run") throw new Error(plan.reason);
+            expect(plan.assertions.length).toBe(1);
+            expect(failedAssertions(plan)).not.toEqual([]);
+            resolveOnSeededSource(plan, [op], `gen-7509-${name}`);
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it.each<[string, EffectOp, ReturnType<typeof abilityHost>, string[]]>([
+        [
+            "two announced slots (the same filler on both sides)",
+            { op: "becomeCopy", target: { target: 0 }, source: { target: 1 } },
+            LAND_HOST,
+            ["op-own-tests"],
+        ],
+        [
+            "a timed copy (CR 611.2a)",
+            {
+                op: "becomeCopy",
+                target: { ref: "$source" },
+                source: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+            LAND_HOST,
+            ["op-own-tests", "source-or-each-subject"],
+        ],
+        [
+            "an except clause (CR 707.9)",
+            {
+                op: "becomeCopy",
+                target: { ref: "$source" },
+                source: { target: 0 },
+                except: { additionalTypes: ["Artifact"] },
+            },
+            LAND_HOST,
+            ["op-own-tests", "source-or-each-subject"],
+        ],
+        [
+            "a spell-site $source",
+            {
+                op: "becomeCopy",
+                target: { ref: "$source" },
+                source: { target: 0 },
+            },
+            SPELL_HOST,
+            ["op-own-tests", "source-or-each-subject"],
+        ],
+    ])("a becomeCopy with %s keeps the Op's skip", (_name, op, host, codes) => {
+        const plan = planSmokeTest([op], host);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => s.code)).toEqual(codes);
+    });
 
     it("seeds the source TAPPED when the script untaps it, so the untap is observable", () => {
         const plan = planSmokeTest(
