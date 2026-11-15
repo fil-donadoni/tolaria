@@ -51,12 +51,12 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## Domain Zoo
 
-| Card                     | Right                                             | Wrong: must not                          | Has                                                                                                         |
-| ------------------------ | ------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Leyline Binding          | two opposing threats: exile the greater one       | exile the lesser threat                  |                                                                                                             |
-| Ragavan, Nimble Pilferer | an empty opposing board: attack                   | attack into a blocker that eats it       | `attack: Ragavan attacks an empty board`; wrong: `attack: Ragavan stays home from the blocker that eats it` |
-| Tribal Flames            | domain covers the opponent's life: go to the face | aim at a creature with toughness above X |                                                                                                             |
-| Territorial Kavu         | attacking with a surplus land: discard it, draw   | discard its best spell to the same mode  |                                                                                                             |
+| Card                     | Right                                             | Wrong: must not                          | Has                                                                                                                                          |
+| ------------------------ | ------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Leyline Binding          | two opposing threats: exile the greater one       | exile the lesser threat                  | `exile trigger: Leyline Binding takes the greater of two threats`; wrong: `exile trigger: Leyline Binding never takes the lesser threat`     |
+| Ragavan, Nimble Pilferer | an empty opposing board: attack                   | attack into a blocker that eats it       | `attack: Ragavan attacks an empty board`; wrong: `attack: Ragavan stays home from the blocker that eats it`                                  |
+| Tribal Flames            | domain covers the opponent's life: go to the face | aim at a creature with toughness above X | `domain burn: Tribal Flames goes to the face when X covers the life`; wrong: `domain burn: Tribal Flames never aims at toughness above X`    |
+| Territorial Kavu         | attacking with a surplus land: discard it, draw   | discard its best spell to the same mode  | `attack trigger: Territorial Kavu loots away a surplus land`; wrong: `attack trigger: Territorial Kavu keeps its best spell out of the loot` |
 
 ## Boros Energy
 
