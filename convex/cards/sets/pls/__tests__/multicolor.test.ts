@@ -942,7 +942,7 @@ describe("Sawtooth Loon ({2}{W}{U} — draw two, put two from hand on the BOTTOM
             if (head) {
                 if (head.kind === "trigger-order") {
                     resolveTriggerOrder(state);
-                } else if (head.choiceId === "$bounce") {
+                } else if (head.choiceId === "$bounce1") {
                     submitChoice(state, ["lion-1"]);
                 } else if (head.kind === "choose-hand-card") {
                     submitChoice(state, ["hand-a", "hand-b"]);

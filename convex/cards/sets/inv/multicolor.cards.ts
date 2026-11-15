@@ -25,7 +25,6 @@ import { protectionColorModes } from "../../abilities";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { cardIsInOwnerGraveyard } from "../../graveyardOrder";
 
@@ -320,35 +319,6 @@ export const hannaShipsNavigator = defineCard(() => ({
                 controller: "you",
             },
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-        },
-    ],
-}));
-
-// Riptide Crab — {1}{W}{U} Creature — Crab, 1/3. "Vigilance. When this
-// creature dies, draw a card." (CR 702.20b vigilance, CR 700.4/603.2 dies
-// trigger, precedent Haywire Mite `bro/colorless.cards.ts` — a direct DSL
-// `triggeredAbilities[]` entry on `CREATURE_DIED` rather than the
-// `resolve()`-only `diedTrigger` factory.)
-export const riptideCrab = defineCard(() => ({
-    id: "7e42ae1d-62b4-4b19-aafc-f12bdd6fb8cc",
-    rarity: "uncommon",
-    name: "Riptide Crab",
-    oracleText: "Vigilance\nWhen this creature dies, draw a card.",
-    manaCost: { X: 1, W: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Crab"],
-    power: 1,
-    toughness: 3,
-    staticAbilities: ["vigilance"],
-    triggeredAbilities: [
-        {
-            id: "riptide-crab-dies-draw",
-            oracleText: "When this creature dies, draw a card.",
-            event: "CREATURE_DIED",
-            matches: (event, self) =>
-                event.type === "CREATURE_DIED" &&
-                event.creatureInstanceId === self.id,
-            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 }));
@@ -1338,80 +1308,6 @@ export const viciousKavu = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-// Shivan Emissary — {2}{R} Creature — Human Wizard, 1/1. "Kicker {1}{B}.
-// When this creature enters, if it was kicked, destroy target nonblack
-// creature. It can't be regenerated." (CR 702.33 Kicker, CR 603.6a ETB
-// trigger with a CR 603.3d target announcement, CR 701.19c regeneration
-// shield suppression.)
-//
-// Closed by issue #1328 (capability slice, decomposed from #1086): same
-// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.cards.ts`) —
-// see that card's comment for the full precedent chain. Uses the same
-// Waterspout Elemental (`pls/blue.cards.ts`) template: `conditionOnSelf:
-// additionalCostPaidCondition("kicker")` at check time, `if { additionalCostPaid: "kicker" }`
-// inside `effects[]` at resolution time — no `interveningIf`. The
-// resolution-time branch reads the RESOLVING STACK ITEM's own
-// `kickerPayments`, which is what still gates an ability COPY put on the
-// stack without re-running `matches` (CR 707.10) — an `interveningIf` would
-// not, and that, not blink safety, is why the pair is the template (see
-// `additionalCostPaidCondition` in `cards/abilities/triggers/shared.ts`).
-//
-// `excludeColors: "B"` on the target requirement expresses "nonblack" (Dark
-// Banishing precedent, `ice/black.cards.ts`; Annihilate, `inv/black.cards.ts` — same
-// file, BR-adjacent). `destroy`'s `cantBeRegenerated: true` is the direct
-// Op passthrough for "It can't be regenerated." (ADR 0053).
-export const shivanEmissary = defineCard(() => ({
-    id: "945c596e-492e-4cf5-857c-4ddbbdd78485", // INV 166
-    rarity: "uncommon",
-    name: "Shivan Emissary",
-    oracleText:
-        "Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker {1}{B}",
-            mana: { X: 1, B: 1 },
-        },
-    ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "shivan-emissary-kicked",
-            oracleText:
-                "When this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.",
-            scope: "self",
-            // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: additionalCostPaidCondition("kicker"),
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                excludeColors: "B",
-            },
-            effects: [
-                {
-                    op: "if",
-                    predicate: {
-                        left: { additionalCostPaid: "kicker" },
-                        op: "ge",
-                        right: 1,
-                    },
-                    then: [
-                        {
-                            op: "destroy",
-                            target: { target: 0 },
-                            cantBeRegenerated: true,
-                        },
-                    ],
-                },
-            ],
-        }),
     ],
 }));
 

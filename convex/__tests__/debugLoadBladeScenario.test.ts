@@ -363,7 +363,7 @@ describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-b
         // The `setup` step ran on the MUTATION path, not just the suite path.
         expect(loaded.stack).toHaveLength(1);
         expect(loaded.stack[0].triggeredAbilityId).toBe(
-            "phyrexian-dreadnought-etb-sacrifice"
+            "phyrexian-dreadnought-trigger"
         );
         // …and the engine-produced stack item belongs to the LIVE game's seat,
         // not the harness's discarded `p1`. This is the half `buildBladeState`

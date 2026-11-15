@@ -30,7 +30,7 @@ function resolveAttackTrigger(
         ...source,
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "xantid-swarm-attack-cast-lock",
+        triggeredAbilityId: "xantid-swarm-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "ATTACKERS_DECLARED",

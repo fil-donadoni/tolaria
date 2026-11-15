@@ -1263,7 +1263,7 @@ describe("Benalish Emissary (single Kicker ETB — destroy target land, issue #1
         resolveTrigger(
             state,
             emissary,
-            "benalish-emissary-kicked",
+            "benalish-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,
@@ -1308,7 +1308,7 @@ describe("Benalish Emissary (single Kicker ETB — destroy target land, issue #1
         resolveTrigger(
             state,
             emissary,
-            "benalish-emissary-kicked",
+            "benalish-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,
