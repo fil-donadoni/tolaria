@@ -624,6 +624,8 @@ type CompactPlayer = {
     spellsCastThisTurn?: number;
     spellTypesCastThisTurn?: PlayerState["spellTypesCastThisTurn"];
     spellsWarpedThisTurn?: number;
+    spellColorsCastThisTurn?: PlayerState["spellColorsCastThisTurn"];
+    keywordsUntilEndOfTurn?: string[];
     spellsCastThisGame?: number;
     lastDrawnCardId?: string;
     drawnThisTurn?: string[];
@@ -699,6 +701,16 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // turn must not erase.
     if (player.spellsWarpedThisTurn) {
         out.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
+    }
+    // CR 202.2 / 611.2a — the turn's cast colours and "until end of turn"
+    // player keywords: per-turn facts a save inside the turn must not erase.
+    if (player.spellColorsCastThisTurn?.length) {
+        out.spellColorsCastThisTurn = player.spellColorsCastThisTurn.map(
+            (colors) => [...colors]
+        );
+    }
+    if (player.keywordsUntilEndOfTurn?.length) {
+        out.keywordsUntilEndOfTurn = [...player.keywordsUntilEndOfTurn];
     }
     if (player.spellsCastThisGame) {
         out.spellsCastThisGame = player.spellsCastThisGame;
@@ -823,6 +835,14 @@ function expandPlayer(
     }
     if (player.spellsWarpedThisTurn !== undefined) {
         result.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
+    }
+    if (player.spellColorsCastThisTurn !== undefined) {
+        result.spellColorsCastThisTurn = player.spellColorsCastThisTurn.map(
+            (colors) => [...colors]
+        );
+    }
+    if (player.keywordsUntilEndOfTurn !== undefined) {
+        result.keywordsUntilEndOfTurn = [...player.keywordsUntilEndOfTurn];
     }
     if (player.spellsCastThisGame !== undefined) {
         result.spellsCastThisGame = player.spellsCastThisGame;
@@ -1530,6 +1550,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageCapShields",
     "playerAttackRequirements",
     "playerProtectionFromEverything",
+    // CR 611.2c / 514.2 — "Spells you control can't be countered this turn":
+    // a plain list of player ids that must reach a counterspell cast at any
+    // later stable point in the same turn.
+    "spellCounterImmunityThisTurn",
     // CR 611.2a — "for the rest of the game" player locks (can't gain life):
     // plain `{ playerId, kind }` data that must survive every save.
     "playerRestrictions",

@@ -129,7 +129,11 @@ import {
     buildBoardAbilityDemands,
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
-import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
+import {
+    isGuardedAgainst,
+    playerHasShroud,
+    playerKeywordBarsTargeting,
+} from "./gre/permanentGuard";
 import { playerHasProtectionFromEverything } from "./gre/protection";
 import { getFlashbackAdditionalCost } from "./gre/flashback";
 import { countDistinctCardTypes, hasEscape } from "./gre/escape";
@@ -10906,6 +10910,24 @@ function assertNewTargetLegal(
         // EVERYTHING bars every source, the protected player's own
         // included. Always-on gate (ADR 0068) — outside the registry.
         if (playerHasProtectionFromEverything(state, found.id)) {
+            throw new Error(
+                "Target can't be the target of spells or abilities"
+            );
+        }
+        // CR 611.2a / 702.11c / 702.18a — a keyword the player gained until
+        // end of turn. The SAME predicate and source projection
+        // `getLegalTargets` gates the offered set with; the selecting player
+        // is the source's controller (CR 702.11c — hexproof bars only an
+        // opponent's source).
+        if (
+            playerKeywordBarsTargeting(
+                found,
+                guardSourceFromTargeting(
+                    pendingTargetingSource(state, pt.cardInstanceId, pt.kind),
+                    playerId
+                )
+            )
+        ) {
             throw new Error(
                 "Target can't be the target of spells or abilities"
             );

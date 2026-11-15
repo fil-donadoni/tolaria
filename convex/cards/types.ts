@@ -7274,6 +7274,21 @@ export interface SpellContext {
      *  and sources are barred too. Idempotent per player (CR 702.16m);
      *  the grant is dropped at the START of that player's next turn. */
     setPlayerProtectionFromEverything: (playerId: string) => void;
+    /** CR 611.2a — `playerId` gains `keyword` until end of turn: `"hexproof"`
+     *  (CR 702.11c), `"hexproof from <quality>"` (CR 702.11d) or `"shroud"`
+     *  (CR 702.18a). Carried on `PlayerState.keywordsUntilEndOfTurn`, read by
+     *  every player-target gate through `playerKeywordBarsTargeting`, cleared
+     *  at CLEANUP (CR 514.2). Idempotent per keyword; no-op for an unknown
+     *  player. */
+    grantPlayerKeywordUntilEndOfTurn: (
+        playerId: string,
+        keyword: string
+    ) => void;
+    /** CR 611.2c / 101.2 — "Spells you control can't be countered this turn"
+     *  for `playerId`: every spell they control, including one cast later this
+     *  turn, ignores an instruction to counter it (`counter()` returns
+     *  `countered: false`). Cleared at CLEANUP (CR 514.2). Idempotent. */
+    grantSpellCounterImmunityThisTurn: (playerId: string) => void;
     /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
      *  an unblocked creature deals combat damage to `playerId`, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */

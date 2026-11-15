@@ -87,7 +87,10 @@ import {
     stampMeldedPermanent,
 } from "./meld";
 import { hasFlashback } from "./flashback";
-import { spellCounterImmunitySource } from "./spellCounterImmunity";
+import {
+    isSpellCounterImmuneThisTurn,
+    spellCounterImmunitySource,
+} from "./spellCounterImmunity";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { withChangelingSubtypes } from "../cards/abilities/changeling";
@@ -428,6 +431,8 @@ import {
     isOpponentCauseProhibited,
     isOpponentSearchProhibited,
     playerHasShroud,
+    playerKeywordBarsTargeting,
+    type GuardActionSource,
 } from "./permanentGuard";
 import { hasKeywordAbility, keywordDenotes } from "./hexproofQuality";
 import { getEffectiveBlockGraph } from "./banding";
@@ -2553,6 +2558,17 @@ function permanentTargetStillMeetsRestrictions(
  *  here re-derives a requirement: it reads the TARGET's current keywords
  *  against the SOURCE's current characteristics, both live, and CR 702.16b /
  *  702.18a / 702.11b all say "spells or abilities" without qualification. */
+/** The guard-side projection of a stack item as a targeting source (CR
+ *  109.5): its characteristics through `targetingSourceFromCard` and its
+ *  controller as `targetStillTargetableBySource` reads it (`castById` first,
+ *  CR 113.7a). */
+function stackItemGuardSource(item: StackItem): GuardActionSource {
+    return guardSourceFromTargeting(
+        targetingSourceFromCard(item, isSpellStackItem(item)),
+        item.castById ?? item.controllerId
+    );
+}
+
 function targetStillTargetableBySource(
     state: GameState,
     item: StackItem,
@@ -2676,13 +2692,28 @@ function isTargetStillLegal(
             if (playerHasShroud(state, target.id)) return false;
             if (playerHasProtectionFromEverything(state, target.id))
                 return false;
+            const player = state.players.find((p) => p.id === target.id);
+            // CR 608.2b + CR 611.2a — …or one who gained hexproof, hexproof
+            // from a quality or shroud until end of turn in response, read
+            // through the SAME predicate the announcement gates use. With no
+            // item there is no source to narrow by: naming the player as the
+            // controller keeps only the source-free half, shroud.
+            if (
+                player &&
+                playerKeywordBarsTargeting(
+                    player,
+                    item
+                        ? stackItemGuardSource(item)
+                        : { controllerId: player.id }
+                )
+            )
+                return false;
             // CR 608.2b (issue #2707) — …and one whose BOARD no longer
             // satisfies the resolving item's own player target filters (Oath
             // of Druids' "controls more creatures than they do", whose printed
             // ruling makes it part of the targeting requirement re-checked on
             // resolution). Gated on `item` like the permanent-kind branch: an
             // item-less caller has no requirement to reconstruct.
-            const player = state.players.find((p) => p.id === target.id);
             if (item && player) {
                 return playerTargetStillMeetsRestrictions(state, item, player);
             }
@@ -8847,6 +8878,15 @@ export function emitSpellCastEvent(
             next[type] = (next[type] ?? 0) + 1;
         }
         caster.spellTypesCastThisTurn = next;
+    }
+    // CR 202.2 — and the spell's colours as it became cast (the layer-5
+    // colours read above), one entry per spell, so "an opponent has cast a
+    // blue or black spell this turn" can be asked later in the turn.
+    if (caster) {
+        caster.spellColorsCastThisTurn = [
+            ...(caster.spellColorsCastThisTurn ?? []),
+            [...colors],
+        ];
     }
     // Lifetime per-player tally (issue #790) — same choke point, never reset.
     // Powers "the caster's first spell of the GAME" (Once Upon a Time), which
@@ -16839,6 +16879,10 @@ export function buildSpellContext(
             // battlefield at this moment rather than stamped at cast.
             if (spellCounterImmunitySource(state, found) !== undefined)
                 return { countered: false };
+            // CR 611.2a / 101.2 — …and so does a resolved spell's turn-scoped
+            // "Spells you control can't be countered this turn".
+            if (isSpellCounterImmuneThisTurn(state, found))
+                return { countered: false };
             // CR 113.7a (issue #2708) — the source PERMANENT of a countered
             // ability, read BEFORE the splice and reported to the caller so a
             // "if a permanent's ability is countered this way, destroy that
@@ -18975,6 +19019,32 @@ export function buildSpellContext(
             const list = state.playerProtectionFromEverything ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.playerProtectionFromEverything = list;
+        },
+
+        grantPlayerKeywordUntilEndOfTurn(
+            playerId: string,
+            keyword: string
+        ): void {
+            // CR 611.2a — "You gain hexproof from blue until end of turn": the
+            // player carries the keyword until CLEANUP (CR 514.2). A second
+            // instance is redundant for targeting (CR 702.18b; a repeated
+            // hexproof bars the same sources), so a re-grant is a no-op.
+            const player = state.players.find((p) => p.id === playerId);
+            if (!player) return;
+            const list = player.keywordsUntilEndOfTurn ?? [];
+            if (!list.includes(keyword)) {
+                player.keywordsUntilEndOfTurn = [...list, keyword];
+            }
+        },
+
+        grantSpellCounterImmunityThisTurn(playerId: string): void {
+            // CR 611.2c / 101.2 — "Spells you control can't be countered this
+            // turn". Idempotent per player; read by `counter()` and cleared at
+            // CLEANUP (CR 514.2).
+            const list = state.spellCounterImmunityThisTurn ?? [];
+            if (!list.includes(playerId)) {
+                state.spellCounterImmunityThisTurn = [...list, playerId];
+            }
         },
 
         grantCastTiming(playerId: string, cardTypes?: CardType[]): void {

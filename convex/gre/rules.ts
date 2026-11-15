@@ -56,6 +56,7 @@ import {
 import {
     isGuardedAgainst,
     playerHasShroud,
+    playerKeywordBarsTargeting,
     type GuardActionSource,
 } from "./permanentGuard";
 import {
@@ -4317,6 +4318,16 @@ export function getLegalTargets(
             if (
                 !ignoreTargetingRestrictions &&
                 playerHasProtectionFromEverything(state, player.id)
+            )
+                continue;
+            // CR 611.2a / 702.11c / 702.18a — a keyword the player gained until
+            // end of turn (hexproof, hexproof from a colour, shroud), narrowed
+            // by the same source projection the permanent guard reads.
+            // `selectTarget` and the resolution re-check read the SAME
+            // predicate.
+            if (
+                !ignoreTargetingRestrictions &&
+                playerKeywordBarsTargeting(player, guardSource)
             )
                 continue;
             targets.push({ type: "player", id: player.id });

@@ -54,6 +54,7 @@ export function useDivideTargets(): DivideTargetItem[] {
         combat,
         engineTurn,
         controlChangedThisTurn,
+        stackItems,
     } = useGameContext();
     // CR 302.6 / 400.7 (issue #1824) — the continuity facts a
     // `controlledSinceTurnStart` target filter is evaluated against. Must be
@@ -135,7 +136,13 @@ export function useDivideTargets(): DivideTargetItem[] {
                 !isPlayerUntargetableByPending(
                     allPlayers,
                     p.id,
-                    playerProtectionFromEverything
+                    playerProtectionFromEverything,
+                    {
+                        sourceCardInstanceId: pendingTarget.cardInstanceId,
+                        kind: pendingTarget.kind,
+                        stackItems,
+                        sourceControllerId: pendingTarget.playerId,
+                    }
                 ) &&
                 // CR 601.2c — a divided spell's targets are targets: while a
                 // target-choice requirement (Flagbearer) binds the pick, a

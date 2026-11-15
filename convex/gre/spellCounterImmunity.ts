@@ -11,6 +11,11 @@
 // so the protection lasts exactly as long as a source sits on the battlefield
 // with its abilities (CR 611.3b; a source that lost all its abilities,
 // CR 613.1f, protects nothing).
+//
+// Its SOURCE-LESS twin, `isSpellCounterImmuneThisTurn`, reads the turn-scoped
+// effect a resolved spell or ability created ("Spells you control can't be
+// countered this turn", CR 611.2a): no permanent carries it, so it lives on
+// `GameState.spellCounterImmunityThisTurn` until CLEANUP (CR 514.2).
 
 import { tryGetDefinition } from "../cards";
 import { getEffectiveColors } from "../cards/effectiveColors";
@@ -62,4 +67,21 @@ export function spellCounterImmunitySource(
         }
     }
     return undefined;
+}
+
+/** CR 611.2a / 611.2c / 101.2 — true when `spell` is covered by a turn-scoped
+ *  "Spells you control can't be countered this turn": its controller is on
+ *  `state.spellCounterImmunityThisTurn`. A rules-modifying effect (CR 611.2c),
+ *  so the set of spells is read now, not fixed when the effect began — a spell
+ *  cast after it is covered too. An ability is never covered (CR 113.9 — the
+ *  text says "spells"). */
+export function isSpellCounterImmuneThisTurn(
+    state: Pick<GameState, "spellCounterImmunityThisTurn">,
+    spell: StackItem
+): boolean {
+    if (!isSpellStackItem(spell)) return false;
+    return (
+        state.spellCounterImmunityThisTurn?.includes(spell.controllerId) ??
+        false
+    );
 }

@@ -104,6 +104,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         playerProtectionFromEverything,
         phase,
         combat,
+        stackItems,
     } = useGameContext();
     const attackChooser = useAttackTargetChooser();
     const isMe = player.id === playerId;
@@ -134,6 +135,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
             activePlayerId,
             allPlayers,
             playerProtectionFromEverything,
+            stackItems,
         });
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
