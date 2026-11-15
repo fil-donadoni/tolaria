@@ -3,11 +3,7 @@
 // Scryfall oracle text is authoritative (ADR 0004).
 
 import type { EffectOp, StaticKeywordGrant } from "../../types";
-import {
-    defineCard,
-    AURA_AFFECTS_HOST,
-    EFFECT_AFFECTS_SELF,
-} from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -767,40 +763,6 @@ export const wallop = defineCard(() => ({
         requireAbility: "flying",
     },
     effects: [{ op: "destroy", target: { target: 0 } }],
-}));
-
-// Whip Silk — {G} Enchantment — Aura, enchant creature. "Enchanted creature
-// has reach. {G}: Return this Aura to its owner's hand." (CR 702.17b reach
-// keyword grant; CR 400.7 self-bounce via `moveZone`'s `$source` snapshot
-// shape.)
-export const whipSilk = defineCard(() => ({
-    id: "10566804-fd15-4ef0-ad7d-cc979f4cc8c5",
-    rarity: "common",
-    name: "Whip Silk",
-    oracleText:
-        "Enchant creature\nEnchanted creature has reach. (It can block creatures with flying.)\n{G}: Return this Aura to its owner's hand.",
-    manaCost: { G: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    staticEffects: [
-        {
-            kind: "keyword-grant",
-            applies: AURA_AFFECTS_HOST,
-            keyword: "reach",
-        },
-    ],
-    activatedAbilities: [
-        {
-            id: "whip-silk-return",
-            oracleText: "{G}: Return this Aura to its owner's hand.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            effects: [
-                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
-            ],
-        },
-    ],
 }));
 
 // Kavu Titan — {1}{G} Creature — Kavu, 2/2. "Kicker {2}{G}. If this creature
