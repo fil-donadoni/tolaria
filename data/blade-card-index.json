@@ -838,6 +838,13 @@
             "needsSetup": false
         }
     ],
+    "Ocelot Pride": [
+        {
+            "label": "attack: Ocelot Pride attacks past no blocker that eats it",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Oko, Thief of Crowns": [
         {
             "label": "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
