@@ -1037,6 +1037,17 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // spellsCastThisTurn (CR 601.2i): the canned generator casts nothing
+    // before the spell resolves, so it cannot size a declared outcome; the
+    // value member's own interpreter test is the behavioural guarantor.
+    if ("spellsCastThisTurn" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the spells a player cast this turn — the canned generator casts nothing before resolving`
+        );
+        return;
+    }
     // nontokenCreaturesToGraveyardThisTurn (CR 700.4): the amount reads how many nontoken
     // creatures went to a player's graveyard this turn. The canned generator
     // opens a fresh turn with no deaths, so it cannot size a declared outcome;
@@ -2318,6 +2329,12 @@ const SCENARIO_SKIPS = {
     // damage — only manifest against a LATER spell or damage event.
     // Explicit skip, mirroring `becomeMonarch`; covered by the Op's
     // own interpreter tests plus The One Ring's hand-written tests.
+    // CR 611.2a — a player's until-end-of-turn keyword only manifests against
+    // a LATER spell's targeting, like the protection designation above.
+    grantPlayerKeyword: {
+        code: "op-own-tests",
+        reason: `Op "grantPlayerKeyword" grants a player keyword that only bars a later spell's targeting — covered by the Op's interpreter tests`,
+    },
     setProtectionFromEverything: {
         code: "op-own-tests",
         reason: `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`,
@@ -4181,6 +4198,7 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("lifeLostThisTurn" in value) return null; // skipped earlier
     if ("cardsDrawnThisTurn" in value) return null; // skipped earlier
+    if ("spellsCastThisTurn" in value) return null; // skipped earlier
     if ("nontokenCreaturesToGraveyardThisTurn" in value) return null; // skipped earlier
     if ("opponentsAttackedThisCombat" in value) return null; // skipped earlier
     // Seeded on the caster; any other player skipped earlier.

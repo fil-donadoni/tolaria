@@ -1543,6 +1543,8 @@ export const IGNORED_MOVER_PLAYER_KEYS = [
     "spellsCastThisGame",
     // The per-type split of spellsCastThisTurn — moves on every cast with it.
     "spellTypesCastThisTurn",
+    // …and its per-spell colour record.
+    "spellColorsCastThisTurn",
     "qualifyingActionThisTurn",
 ] as const;
 

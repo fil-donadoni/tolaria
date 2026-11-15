@@ -5949,6 +5949,16 @@ function lowerFrameChain(
                     player: "controller",
                 });
                 break;
+            // CR 611.2a / 702.11f — one Op per keyword: "hexproof from A and
+            // from B" is two separate abilities.
+            case "playerKeyword":
+                for (const keyword of frame.keywords)
+                    ops.push({
+                        op: "grantPlayerKeyword",
+                        player: "controller",
+                        keyword,
+                    });
+                break;
             // CR 500.7 — the Op fronts the LIFO extra-turn queue.
             case "extraTurn": {
                 const player = playerRef(frame.player, walk.targets, site);

@@ -338,6 +338,110 @@ describe("isPlayerUntargetableByPending — protection from everything (CR 702.1
     });
 });
 
+// CR 611.2a — keywords a player gained until end of turn ride the wire on the
+// player (`keywordsUntilEndOfTurn`); the nameplate gate narrows them by the
+// pending source exactly as the server does.
+const PLAYER_KEYWORD_BLUE_SPELL = "test-player-keyword-blue-spell-client";
+const PLAYER_KEYWORD_RED_SPELL = "test-player-keyword-red-spell-client";
+describe("isPlayerUntargetableByPending — keywords until end of turn (CR 702.11c/d, 702.18a)", () => {
+    beforeAll(() => {
+        for (const [id, manaCost] of [
+            [PLAYER_KEYWORD_BLUE_SPELL, { U: 1 }],
+            [PLAYER_KEYWORD_RED_SPELL, { R: 1 }],
+        ] as const) {
+            registerTokenDefinition({
+                id,
+                name: id,
+                rarity: "common",
+                manaCost,
+                types: ["Instant"],
+                targetRequirement: { type: "player", count: 1 },
+                effects: [],
+            });
+        }
+    });
+
+    /** p1 holds `keywords`; p2 holds the pending spell `spellId` in hand. */
+    function board(keywords: string[], spellId: string): Player[] {
+        return [
+            player({ id: "p1", keywordsUntilEndOfTurn: keywords }),
+            player({
+                id: "p2",
+                hand: [
+                    inst({
+                        id: "spell",
+                        card: { id: spellId },
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        zone: "hand",
+                        types: ["Instant"],
+                    }),
+                ],
+            }),
+        ];
+    }
+
+    const pendingFrom = (controllerId: string) => ({
+        sourceCardInstanceId: "spell",
+        kind: "cast" as const,
+        stackItems: [],
+        sourceControllerId: controllerId,
+    });
+
+    it("hexproof from blue greys the player for an opponent's blue spell only", () => {
+        expect(
+            isPlayerUntargetableByPending(
+                board(["hexproof from blue"], PLAYER_KEYWORD_BLUE_SPELL),
+                "p1",
+                undefined,
+                pendingFrom("p2")
+            )
+        ).toBe(true);
+        expect(
+            isPlayerUntargetableByPending(
+                board(["hexproof from blue"], PLAYER_KEYWORD_RED_SPELL),
+                "p1",
+                undefined,
+                pendingFrom("p2")
+            )
+        ).toBe(false);
+    });
+
+    it("hexproof leaves the player's own spell free; shroud does not", () => {
+        expect(
+            isPlayerUntargetableByPending(
+                board(["hexproof"], PLAYER_KEYWORD_RED_SPELL),
+                "p1",
+                undefined,
+                pendingFrom("p1")
+            )
+        ).toBe(false);
+        expect(
+            isPlayerUntargetableByPending(
+                board(["shroud"], PLAYER_KEYWORD_RED_SPELL),
+                "p1",
+                undefined,
+                pendingFrom("p1")
+            )
+        ).toBe(true);
+    });
+
+    it("without the pending source only shroud is read", () => {
+        expect(
+            isPlayerUntargetableByPending(
+                board(["hexproof"], PLAYER_KEYWORD_RED_SPELL),
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            isPlayerUntargetableByPending(
+                board(["shroud"], PLAYER_KEYWORD_RED_SPELL),
+                "p1"
+            )
+        ).toBe(true);
+    });
+});
+
 // CR 702.16b (issue #1120) — protection from a NON-COLOUR quality on the
 // CLIENT click gate. A protection the server enforces but the client still
 // offers as a clickable target is a bug: the player clicks, the mutation

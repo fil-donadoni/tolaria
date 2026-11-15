@@ -357,6 +357,46 @@ export function playerHasShroud(
     return playerGuardsOf(state, playerId).some((g) => g.cantBeTargeted);
 }
 
+/** The player half of a player-target gate: the id, and the keywords the
+ *  player gained until end of turn (`PlayerState.keywordsUntilEndOfTurn`). The
+ *  fat `PlayerState` and the projected wire `Player` both satisfy it. */
+export interface PlayerKeywordView {
+    id: string;
+    keywordsUntilEndOfTurn?: ReadonlyArray<string>;
+}
+
+/** True when a keyword `player` gained until end of turn bars `src` from
+ *  targeting them (CR 611.2a):
+ *
+ *  - `shroud` (CR 702.18a) — every source, the player's own included.
+ *  - `hexproof` (CR 702.11c) — a source an opponent controls.
+ *  - `hexproof from <quality>` — CR 702.11d defines the variant on a
+ *    permanent; on a player it is the same narrowing of CR 702.11c: a
+ *    [quality] spell an opponent controls, or an ability an opponent controls
+ *    from a [quality] source. `src.colors` is the spell's colours or the
+ *    ability source's, as for the permanent form above.
+ *
+ *  An unknown source controller counts as an opponent (`isOpponentSource`'s
+ *  conservative reading). Pure, so the client's nameplate gate reads it
+ *  against the projected players. */
+export function playerKeywordBarsTargeting(
+    player: PlayerKeywordView,
+    src: GuardActionSource
+): boolean {
+    const keywords = player.keywordsUntilEndOfTurn;
+    if (!keywords?.length) return false;
+    if (keywords.includes(SHROUD_KEYWORD)) return true;
+    const opponentSource =
+        src.controllerId === undefined || src.controllerId !== player.id;
+    if (!opponentSource) return false;
+    if (keywords.includes(HEXPROOF_KEYWORD)) return true;
+    const colors = src.colors ?? [];
+    return keywords.some((keyword) => {
+        const quality = parseHexproofQuality(keyword);
+        return quality !== null && hasHexproofQuality(quality, colors);
+    });
+}
+
 /** Every `player-guard` static effect currently guarding `playerId`: a scan of
  *  EVERY battlefield (a permanent either player controls can grant one), each
  *  effect's `appliesTo` resolved against its source, read live (CR 611.3a). */

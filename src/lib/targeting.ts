@@ -4,6 +4,7 @@ import type { CardInstanceState } from "@convex/gre/state";
 import {
     isGuardedAgainst,
     playerHasShroud,
+    playerKeywordBarsTargeting,
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
 import {
@@ -69,6 +70,21 @@ function toGuardState(players: Player[]): {
             battlefield: p.battlefield.map(toGuardTarget),
         })),
     };
+}
+
+/** The pending spell/ability whose target selection is in progress, as the
+ *  player-nameplate gate needs it to narrow source-relative keywords. */
+export interface PendingGuardSourceArgs {
+    sourceCardInstanceId: string;
+    kind:
+        | "cast"
+        | "ability"
+        | "copy-retarget"
+        | "retarget"
+        | "trigger"
+        | undefined;
+    stackItems: readonly StackItem[];
+    sourceControllerId: string | undefined;
 }
 
 /** Locates the spell/ability source whose target selection is in progress, so
@@ -273,7 +289,11 @@ export function isBarredByRequiredTargetChoice(
 export function isPlayerUntargetableByPending(
     players: Player[],
     candidatePlayerId: string,
-    protectedPlayerIds?: string[]
+    protectedPlayerIds?: string[],
+    /** The pending spell/ability, for the source-narrowed keywords a player
+     *  gained until end of turn (CR 702.11c hexproof, hexproof from a colour).
+     *  Omitted, only the source-free shroud is read. */
+    pending?: PendingGuardSourceArgs
 ): boolean {
     // CR 702.16b/i (issue #674, The One Ring) — protection from everything bars
     // targeting on the same unconditional terms as shroud (no controller
@@ -283,5 +303,23 @@ export function isPlayerUntargetableByPending(
     // on the wire as `GameState.playerProtectionFromEverything`, which is why
     // it arrives as a parameter instead of being read off `players`.
     if (protectedPlayerIds?.includes(candidatePlayerId)) return true;
-    return playerHasShroud(toGuardState(players), candidatePlayerId);
+    if (playerHasShroud(toGuardState(players), candidatePlayerId)) return true;
+    // CR 611.2a — a keyword the player gained until end of turn, through the
+    // SAME predicate and source projection the server's offered and accepted
+    // sets read. Without the pending source, naming the candidate as the
+    // controller keeps only the source-free half (shroud).
+    const candidate = players.find((p) => p.id === candidatePlayerId);
+    if (!candidate) return false;
+    return playerKeywordBarsTargeting(
+        candidate,
+        pending
+            ? pendingGuardSource(
+                  players,
+                  pending.stackItems,
+                  pending.sourceCardInstanceId,
+                  pending.kind,
+                  pending.sourceControllerId
+              )
+            : { controllerId: candidatePlayerId }
+    );
 }

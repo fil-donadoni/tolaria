@@ -101,6 +101,10 @@ export interface Player {
     lastDrawnCardId?: string;
     /** Abilities granted to this player by an effect (e.g. Channel). */
     grantedAbilities?: GrantedAbility[];
+    /** Keywords this player gained until end of turn (CR 611.2a — hexproof,
+     *  hexproof from a colour, shroud), read by the nameplate targeting gate.
+     *  Rides the public projection via the `...player` spread. */
+    keywordsUntilEndOfTurn?: string[];
     /** Poison counters on this player (CR 122). Absent means zero. A player
      *  with ten or more loses the game (CR 704.5c). Rides the public
      *  projection via the `...player` spread (ADR 0032). */

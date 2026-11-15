@@ -1591,17 +1591,20 @@ export function buildStateFromScenario(
     // a real, load-bearing claim here — "this seat has cast nothing yet" is
     // exactly the state Once Upon a Time's free cast needs, and on the live
     // game `debugSetupScenario` builds onto it differs from omitting the field.
-    // A seeded total has no per-type split in the spec, so the seat's
-    // `spellTypesCastThisTurn` goes with it rather than survive from the live
-    // game and disagree with the total it splits.
+    // A seeded total has no per-type split or colour record in the spec, so
+    // the seat's `spellTypesCastThisTurn` and `spellColorsCastThisTurn` go
+    // with it rather than survive from the live game and disagree with the
+    // total they split.
     if (spec.spellsCastThisTurn) {
         if (spec.spellsCastThisTurn.me !== undefined) {
             p1.spellsCastThisTurn = spec.spellsCastThisTurn.me;
             p1.spellTypesCastThisTurn = undefined;
+            p1.spellColorsCastThisTurn = undefined;
         }
         if (spec.spellsCastThisTurn.opp !== undefined) {
             p2.spellsCastThisTurn = spec.spellsCastThisTurn.opp;
             p2.spellTypesCastThisTurn = undefined;
+            p2.spellColorsCastThisTurn = undefined;
         }
     }
     if (spec.spellsCastThisGame) {

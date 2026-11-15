@@ -62,6 +62,7 @@ import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
 import type { BindingFieldName } from "./bindingFields";
 import { isManaAbilityEffectOp } from "./manaAbilityEffectOps";
 import { isSimultaneousPlayerMayPayBody } from "./simultaneousPlayers";
+import { HEXPROOF_KEYWORD, parseHexproofQuality } from "../hexproofQuality";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -1921,6 +1922,35 @@ function isCardsDrawnThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ spellsCastThisTurn: { of, colors? } }` — SHAPE of the per-turn cast
+ *  count (CR 601.2i): `of` is a PLAYER selector, family-checked as a PLAYER
+ *  position by the `keyHint === "spellsCastThisTurn"` case in
+ *  `collectRefUses`; `colors`, when present, a non-empty list of distinct
+ *  colours (CR 202.2a — the five, never colourless). */
+function isSpellsCastThisTurnValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "spellsCastThisTurn") return false;
+    const spec = (value as { spellsCastThisTurn: unknown }).spellsCastThisTurn;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of" || k === "colors")) {
+        return false;
+    }
+    if (s.colors !== undefined) {
+        if (!Array.isArray(s.colors) || s.colors.length === 0) return false;
+        if (new Set(s.colors).size !== s.colors.length) return false;
+        if (
+            !s.colors.every(
+                (c) => typeof c === "string" && DEVOTION_COLORS.has(c)
+            )
+        ) {
+            return false;
+        }
+    }
+    return isPlayerRef(s.of);
+}
+
 /** `{ nontokenCreaturesToGraveyardThisTurn: { of } }` — SHAPE of the per-turn
  *  "nontoken creatures put into a graveyard" count (CR 700.4). `of` is a
  *  PLAYER selector naming the graveyard's owner, family-checked as a PLAYER
@@ -2238,6 +2268,7 @@ function isEffectValue(value: unknown): boolean {
         isLifeGainedThisTurnValue(value) ||
         isLifeLostThisTurnValue(value) ||
         isCardsDrawnThisTurnValue(value) ||
+        isSpellsCastThisTurnValue(value) ||
         isNontokenCreaturesToGraveyardThisTurnValue(value) ||
         isOpponentsAttackedThisCombatValue(value) ||
         isSpeedValue(value) ||
@@ -2320,6 +2351,19 @@ function isPlayerRecipient(value: unknown): boolean {
         keys.length === 1 &&
         keys[0] === "player" &&
         isPlayerRef((value as { player: unknown }).player)
+    );
+}
+
+/** CR 702.11c / 702.11d / 702.18a — a keyword a player can gain that the
+ *  player-target gate (`playerKeywordBarsTargeting`) reads: plain hexproof,
+ *  hexproof from a quality `parseHexproofQuality` names (fail-closed), or
+ *  shroud. */
+function isPlayerKeyword(value: unknown): boolean {
+    if (typeof value !== "string") return false;
+    return (
+        value === HEXPROOF_KEYWORD ||
+        value === "shroud" ||
+        parseHexproofQuality(value) !== null
     );
 }
 
@@ -7477,6 +7521,14 @@ const OP_SCHEMAS: OpSchemaTable = {
     setProtectionFromEverything: {
         required: { player: isPlayerRef },
     },
+    // CR 611.2a — "You gain shroud until end of turn". `keyword` is one the
+    // player-target gate reads:
+    // - hexproof (CR 702.11c);
+    // - hexproof from a quality `parseHexproofQuality` names (CR 702.11d);
+    // - shroud (CR 702.18a).
+    grantPlayerKeyword: {
+        required: { player: isPlayerRef, keyword: isPlayerKeyword },
+    },
     // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
@@ -8021,6 +8073,15 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keyHint === "cardsDrawnThisTurn" &&
         keys.length === 1 &&
         keys[0] === "of"
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // spellsCastThisTurn — { spellsCastThisTurn: { of, colors? } } (CR
+    // 601.2i): `of` is a PLAYER position; `colors` holds no refs.
+    if (
+        keyHint === "spellsCastThisTurn" &&
+        keys.every((k) => k === "of" || k === "colors")
     ) {
         collectRefUses(obj.of, "player", out);
         return;

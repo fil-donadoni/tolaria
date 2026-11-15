@@ -33912,6 +33912,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gilded Light",
+        "scryfallId": "01b92597-cb1e-4b8f-9ee9-07b48cf1a5c6",
+        "oracleId": "f7e7b2aa-9fd2-41dd-b11e-3a233530dc83",
+        "firstSet": "scg",
+        "firstPrintId": "01b92597-cb1e-4b8f-9ee9-07b48cf1a5c6",
+        "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gilded Lotus",
         "scryfallId": "a1d5e4c8-dfd0-45bc-8000-ebfaccfefec3",
         "oracleId": "9a02a9a7-39d9-4763-85d3-747a0540b60b",
