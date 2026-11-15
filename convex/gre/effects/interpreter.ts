@@ -2864,6 +2864,25 @@ type ChoicePool = Pick<
     "zone" | "filter" | "candidates" | "superlative" | "allControllers"
 >;
 
+/** What `choiceCandidates` found, and how much of the zone it looked at.
+ *  `wholeZone` is REQUIRED on every return so that no path can be added
+ *  without answering it: `true` only when every card in the zone was
+ *  examined (a filter may still narrow which of them are pickable), `false`
+ *  for a set named some other way — announced targets, a bound or revealed
+ *  set, a fail-closed empty pool.
+ *
+ *  It is load-bearing for the LIBRARY: CR 701.23a — to search is to "look at
+ *  all cards in that zone", so a `search-library` choice sets
+ *  `PendingChoice.isSearch` (which emits `LIBRARY_SEARCHED`) only over a
+ *  `wholeZone` pool. A path narrowing a library pool to a window — a peeked
+ *  top N, a set an earlier Op supplied — is no longer a search, and must
+ *  return `false` or it fires "whenever a player searches" triggers falsely. */
+type ChoicePoolResult = {
+    available: number;
+    candidateIds?: string[];
+    wholeZone: boolean;
+};
+
 /** CR 400.2 (issue #2600) — resolves a PUBLIC-zone `candidates` set (the
  *  "from among them" shape): the ids the named picks bindings hold, in binding
  *  order, intersected with the zone's CURRENT contents and narrowed by the
@@ -2882,7 +2901,7 @@ function boundSetCandidates(
     cards: readonly (Parameters<typeof matchesCardFilter>[1] & {
         id: string;
     })[]
-): { available: number; candidateIds: string[] } {
+): ChoicePoolResult & { candidateIds: string[] } {
     const present = new Map(cards.map((c) => [c.id, c]));
     const ids: string[] = [];
     for (const selector of op.candidates ?? []) {
@@ -2894,7 +2913,7 @@ function boundSetCandidates(
             ids.push(id);
         }
     }
-    return { available: ids.length, candidateIds: ids };
+    return { available: ids.length, candidateIds: ids, wholeZone: false };
 }
 
 /** Issue #1702 — the eligible ids of a `selectAtRandom`
@@ -2966,14 +2985,14 @@ function choiceCandidates(
     ctx: SpellContext,
     op: ChoicePool,
     zoneOwnerId: string
-): { available: number; candidateIds?: string[] } {
+): ChoicePoolResult {
     // Fail closed if a script bypassed the validator: a restriction that
     // cannot be applied here must leave NO candidate, never the whole zone.
     if (
         op.superlative &&
         (op.zone !== "battlefield" || op.candidates || op.allControllers)
     ) {
-        return { available: 0, candidateIds: [] };
+        return { available: 0, candidateIds: [], wholeZone: false };
     }
     if (op.zone === "battlefield-or-stack") {
         // CR 609.7a (issue #5601) — "a source of your choice": every
@@ -2984,10 +3003,10 @@ function choiceCandidates(
         // hexproof and protection.
         const filter = toDamageSourceFilter(ctx, op.filter);
         if (filter === UNMATCHABLE_FILTER) {
-            return { available: 0, candidateIds: [] };
+            return { available: 0, candidateIds: [], wholeZone: false };
         }
         const ids = ctx.getDamageSourceChoiceIds(filter);
-        return { available: ids.length, candidateIds: ids };
+        return { available: ids.length, candidateIds: ids, wholeZone: true };
     }
     if (op.zone === "battlefield") {
         // CR 601.2c / 608.2 — `candidates` narrows the pick to specific
@@ -3009,18 +3028,22 @@ function choiceCandidates(
             // CR 608.2b — an unresolvable dynamic filter narrows the
             // candidate set to nothing (never to "unfiltered").
             if (narrowed === UNMATCHABLE_FILTER) {
-                return { available: 0, candidateIds: [] };
+                return { available: 0, candidateIds: [], wholeZone: false };
             }
             const filtered = op.filter
                 ? ids.filter((id) =>
                       ctx.getBattlefieldIds(zoneOwnerId, narrowed).includes(id)
                   )
                 : ids;
-            return { available: filtered.length, candidateIds: filtered };
+            return {
+                available: filtered.length,
+                candidateIds: filtered,
+                wholeZone: false,
+            };
         }
         const filter = toPermanentFilter(ctx, op.filter);
         if (filter === UNMATCHABLE_FILTER) {
-            return { available: 0, candidateIds: [] };
+            return { available: 0, candidateIds: [], wholeZone: false };
         }
         // CR 608.2h — a superlative narrows the pool to the permanents tied
         // for the extreme stat, decided ONCE here as the choice is raised and
@@ -3033,7 +3056,11 @@ function choiceCandidates(
                 ctx.getBattlefieldIds(zoneOwnerId, filter),
                 op.superlative
             );
-            return { available: ids.length, candidateIds: ids };
+            return {
+                available: ids.length,
+                candidateIds: ids,
+                wholeZone: true,
+            };
         }
         // `allControllers` — every battlefield counts toward the clamp, so
         // "untap up to two lands" with one land of each player's still asks
@@ -3045,6 +3072,7 @@ function choiceCandidates(
                 (n, owner) => n + ctx.getBattlefieldIds(owner, filter).length,
                 0
             ),
+            wholeZone: true,
         };
     }
     if (op.zone === "hand") {
@@ -3055,14 +3083,14 @@ function choiceCandidates(
         // `candidateIds` allow-list via the shared matcher. No filter — every
         // card in hand is eligible.
         if (!op.filter) {
-            return { available: ctx.getHandSize(zoneOwnerId) };
+            return { available: ctx.getHandSize(zoneOwnerId), wholeZone: true };
         }
         const filter = op.filter;
         const ids = ctx
             .getHandCards(zoneOwnerId)
             .filter((c) => matchesCardFilter(ctx, c, filter))
             .map((c) => c.id);
-        return { available: ids.length, candidateIds: ids };
+        return { available: ids.length, candidateIds: ids, wholeZone: true };
     }
     if (op.zone === "library") {
         // CR 701.20a / 400.2 (issue #3205, Intuition) — `candidates` on a
@@ -3094,7 +3122,11 @@ function choiceCandidates(
                     ids.push(id);
                 }
             }
-            return { available: ids.length, candidateIds: ids };
+            return {
+                available: ids.length,
+                candidateIds: ids,
+                wholeZone: false,
+            };
         }
         // A library is hidden — the submit validator has no card
         // characteristics to check a raw pick against, so a type/subtype/
@@ -3105,14 +3137,17 @@ function choiceCandidates(
         // matcher (mirrors `countSet`'s graveyard branch). No filter — every
         // card in the library is eligible (Vampiric Tutor, Entomb).
         if (!op.filter) {
-            return { available: ctx.getLibraryCards(zoneOwnerId).length };
+            return {
+                available: ctx.getLibraryCards(zoneOwnerId).length,
+                wholeZone: true,
+            };
         }
         const filter = op.filter;
         const ids = ctx
             .getLibraryCards(zoneOwnerId)
             .filter((c) => matchesCardFilter(ctx, c, filter))
             .map((c) => c.id);
-        return { available: ids.length, candidateIds: ids };
+        return { available: ids.length, candidateIds: ids, wholeZone: true };
     }
     // graveyard — a public zone: eligibility is the snapshot taken when the
     // choice is raised, carried as an explicit allow-list (the submit
@@ -3136,7 +3171,7 @@ function choiceCandidates(
                   .filter((c) => matchesCardFilter(ctx, c, op.filter!))
                   .map((c) => c.id)
             : exileCards.map((c) => c.id);
-        return { available: ids.length, candidateIds: ids };
+        return { available: ids.length, candidateIds: ids, wholeZone: true };
     }
     // graveyard — a public zone: eligibility is the snapshot taken when the
     // choice is raised, carried as an explicit allow-list (the submit
@@ -3155,7 +3190,7 @@ function choiceCandidates(
               .filter((c) => matchesCardFilter(ctx, c, op.filter!))
               .map((c) => c.id)
         : graveyardCards.map((c) => c.id);
-    return { available: ids.length, candidateIds: ids };
+    return { available: ids.length, candidateIds: ids, wholeZone: true };
 }
 
 /** CR 701.23a / 701.20a (issue #3808) — resolve a categorised library
@@ -7408,11 +7443,11 @@ export const OP_EXECUTORS: {
         // accepted), which is precisely what the sentinel exists to prevent.
         const pickFilter = toPermanentFilter(ctx, op.filter);
         if (pickFilter === UNMATCHABLE_FILTER) return;
-        const { available: poolSize, candidateIds: poolIds } = choiceCandidates(
-            ctx,
-            op,
-            zoneOwnerId
-        );
+        const {
+            available: poolSize,
+            candidateIds: poolIds,
+            wholeZone,
+        } = choiceCandidates(ctx, op, zoneOwnerId);
         // CR 701.23a / 701.20a (issue #3808) — a CATEGORISED library pick
         // ("a land card of each basic land type"; "a creature card, a land
         // card, and a noncreature, nonland card"). The categories are
@@ -7536,13 +7571,14 @@ export const OP_EXECUTORS: {
                   : {}),
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
             ...(op.allControllers ? { allControllers: true } : {}),
-            // CR 701.19a (issue #788 re-review finding 1) — this `choice` Op
-            // handler's library branch (`choiceCandidates` above) always scans
-            // the WHOLE zone via `matchesCardFilter`, never a peeked top-N
-            // window, so every DSL `kind: "search-library"` choice raised here
-            // is a genuine search. `emitLibrarySearchedEvent` gates on this
-            // flag, not on `kind` alone — see `PendingChoice.isSearch`.
-            ...(op.kind === "search-library" ? { isSearch: true } : {}),
+            // CR 701.23a — a search only over a pool that looked at the whole
+            // library: `ChoicePoolResult.wholeZone` holds the invariant, never
+            // `kind` alone (`PendingChoice.isSearch`).
+            ...(op.kind === "search-library" &&
+            op.zone === "library" &&
+            wholeZone
+                ? { isSearch: true }
+                : {}),
             // CR 701.23a / 701.20a (issue #3808) — the resolved category
             // buckets ride the PendingChoice so the submit validator, the
             // client's per-click gate and the bot's candidate generator all

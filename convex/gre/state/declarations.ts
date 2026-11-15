@@ -3983,9 +3983,9 @@ export type PendingChoice = {
      *  `candidateIds === undefined` (the latter is an implicit invariant that
      *  fails OPEN the moment a future look-pick card sets no `candidateIds`).
      *  Set explicitly at every genuine raise site — the DSL `choice` Op
-     *  (`gre/effects/interpreter.ts`, whenever `kind === "search-library"`,
-     *  since that Op's library branch always scans the WHOLE library via
-     *  `matchesCardFilter`, never a peeked window) and each genuine raw
+     *  (`gre/effects/interpreter.ts`, only over a pool whose
+     *  `ChoicePoolResult.wholeZone` says it looked at the WHOLE library,
+     *  never on `kind` alone) and each genuine raw
      *  `resolve()` search (Path to Exile, Erode, Demonic-Tutor-shaped
      *  Altar of Bone, Jester's Mask, the Transmute search). Undefined on a
      *  choice persisted before this field existed — `emitLibrarySearchedEvent`
