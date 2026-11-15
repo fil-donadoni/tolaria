@@ -1552,3 +1552,175 @@ describe("a speed amount (CR 702.179f)", () => {
         expect(plan.reason).toMatch(/speed of a player other than/);
     });
 });
+
+describe("a forced random pick moved to hand (CR 608.2c, CR 400.7)", () => {
+    // Ghoulraiser's shape: "return a Zombie card at random from your graveyard
+    // to your hand" — the pick, then the move.
+    const pickThenMove = (
+        pick: Partial<Extract<EffectOp, { op: "selectAtRandom" }>>,
+        move: Partial<Extract<EffectOp, { op: "moveZone" }>> = {}
+    ): EffectOp[] =>
+        [
+            {
+                op: "selectAtRandom",
+                zone: "graveyard",
+                count: 1,
+                bind: "$picked1",
+                ...pick,
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked1" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+                ...move,
+            },
+        ] as EffectOp[];
+
+    function resolveSpell(
+        plan: Extract<Plan, { kind: "run" }>,
+        effects: EffectOp[],
+        id: string
+    ): void {
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects,
+        });
+        plan.scenario.state.stack.push({
+            ...makeInstance(id, {
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "hand",
+            }),
+            castById: CASTER_ID,
+            targets: [],
+        });
+        resolveTopOfStack(plan.scenario.state);
+    }
+
+    const graveyardOf = (plan: Extract<Plan, { kind: "run" }>) =>
+        plan.scenario.state.players.find((p) => p.id === CASTER_ID)!.graveyard;
+
+    it.each<[string, Partial<Extract<EffectOp, { op: "selectAtRandom" }>>]>([
+        ["a subtype filter", { filter: { subtype: "Zombie" } }],
+        ["a type OR-filter", { filter: { type: ["Instant", "Sorcery"] } }],
+        ["no filter, two cards", { count: 2 }],
+    ])(
+        "with %s executes through resolution and its declared outcome holds",
+        (name, pick) => {
+            const effects = pickThenMove(pick);
+            const plan = planSmokeTest(effects);
+            if (plan.kind !== "run") throw new Error(plan.reason);
+            expect(plan.assertions.map((a) => a.label)).toEqual([
+                expect.stringMatching(/^moveZone returns/),
+            ]);
+            expect(failedAssertions(plan)).not.toEqual([]);
+            resolveSpell(plan, effects, `gen-pick-${name.replace(/\W/g, "")}`);
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it("seeds count + 1 matching cards, and a card the filter passes over", () => {
+        const plan = planSmokeTest(
+            pickThenMove({ count: 2, filter: { type: "Creature" } })
+        );
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        const pool = plan.scenario.randomPools?.["$picked1"];
+        expect(pool?.ids).toHaveLength(3);
+        expect(pool?.decoyId).toBeDefined();
+        expect(graveyardOf(plan).map((c) => c.id)).toEqual([
+            ...pool!.ids,
+            pool!.decoyId,
+        ]);
+        const unfiltered = planSmokeTest(pickThenMove({}));
+        if (unfiltered.kind !== "run") throw new Error(unfiltered.reason);
+        expect(unfiltered.scenario.randomPools?.["$picked1"]?.decoyId).toBe(
+            undefined
+        );
+    });
+
+    it("a mover that sends the picks elsewhere fails the assertion", () => {
+        const plan = planSmokeTest(pickThenMove({}));
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        resolveSpell(
+            plan,
+            pickThenMove({}, { to: "exile" }),
+            "gen-pick-wrong-zone"
+        );
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    const PICK_SKIP = ["selectAtRandom", "randomness"];
+    const MOVE_SKIP = ["moveZone", "unmodelled-object-or-zone"];
+    it.each<[string, EffectOp[], string[][]]>([
+        [
+            "a pick from the hand",
+            pickThenMove({ zone: "hand" }),
+            [PICK_SKIP, MOVE_SKIP],
+        ],
+        [
+            "a pick from an opponent's graveyard",
+            pickThenMove({ zoneOwnerId: "opponent" }),
+            [PICK_SKIP, MOVE_SKIP],
+        ],
+        [
+            "a computed count",
+            pickThenMove({ count: { X: true } }),
+            [PICK_SKIP, ["selectAtRandom", "runtime-amount"], MOVE_SKIP],
+        ],
+        [
+            "a filter on a characteristic the seeded card lacks",
+            pickThenMove({ filter: { color: "B" } }),
+            [PICK_SKIP, MOVE_SKIP],
+        ],
+        [
+            "a move onto the battlefield",
+            pickThenMove({}, { to: "battlefield", tapped: true }),
+            [PICK_SKIP, MOVE_SKIP],
+        ],
+        [
+            "a pick nothing moves",
+            [
+                pickThenMove({})[0]!,
+                { op: "draw", player: "controller", count: 1 },
+            ],
+            [PICK_SKIP],
+        ],
+        [
+            "a move of a binding no pick made",
+            [pickThenMove({})[1]!],
+            [MOVE_SKIP],
+        ],
+        [
+            "a graveyard the same script discards into",
+            [
+                ...pickThenMove({}),
+                { op: "discardAtRandom", player: "controller", count: 1 },
+            ],
+            [PICK_SKIP, MOVE_SKIP],
+        ],
+    ])("%s keeps the Ops' skips", (_name, effects, skips) => {
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => [s.op?.op, s.code])).toEqual(skips);
+    });
+
+    it("a second pick in one script keeps the Op's skip", () => {
+        const plan = planSmokeTest([
+            ...pickThenMove({}),
+            ...pickThenMove({}).map((op) =>
+                JSON.parse(JSON.stringify(op).replace(/\$picked1/g, "$picked2"))
+            ),
+        ] as EffectOp[]);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => [s.op?.op, s.code])).toEqual([
+            PICK_SKIP,
+            MOVE_SKIP,
+        ]);
+    });
+});

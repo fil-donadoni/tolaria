@@ -417,6 +417,9 @@ export interface Scenario {
     /** The seeded boards of the script's `forEach` sweeps, one row per Op;
      *  absent when it has none. Read by the `forEach` assertor. */
     sweeps?: readonly SeededSweep[];
+    /** The seeded pools of the script's forced random picks, by binding;
+     *  absent when it has none. Read by the `moveZone` assertor. */
+    randomPools?: Readonly<Record<string, SeededRandomPool>>;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -706,6 +709,8 @@ interface Requirements {
      *  (`soleSourceSacrifice`), since nothing can read a source the script
      *  has already put in the graveyard. */
     sourceSacrificeAdmitted: boolean;
+    /** The forced `selectAtRandom` picks, by binding (`analyseSelectAtRandom`). */
+    randomPicks: Map<string, RandomPick>;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -1792,15 +1797,6 @@ const SCENARIO_SKIPS = {
         code: "randomness",
         reason: `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`,
     },
-    // `selectAtRandom` (issue #1702) binds a RANDOM subset of a
-    // zone pool and moves nothing: the canned generator has no outcome to
-    // assert (the picks are a binding, not a state change) and cannot
-    // predict which cards the seeded PRNG draws — reported as an explicit
-    // skip; execution coverage is the Op's own interpreter tests.
-    selectAtRandom: {
-        code: "randomness",
-        reason: `Op "selectAtRandom" binds a random subset of a zone pool and moves nothing — covered by the Op's interpreter tests`,
-    },
     // A `lookDistribute` Op suspends resolution for a live look-distribute
     // pick (issue #984) — a canned scenario cannot submit the
     // hand/bottom choice, so the script is reported as an explicit skip;
@@ -1902,23 +1898,6 @@ const SCENARIO_SKIPS = {
     if: {
         code: "runtime-branch",
         reason: `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`,
-    },
-    // `moveZone` (issue #839) changes an object's zone. The canned
-    // generator only seeds battlefield permanents and player targets —
-    // it does not model a graveyard-card target's source zone, and a
-    // permanent target it DID seed lives on the opponent's
-    // battlefield, whereas the Op's outcome (bounce to hand,
-    // reanimate, exile-from-graveyard) depends on which zone the object
-    // starts in. The whole-zone bulk shape (issue #1279 — no `target`/
-    // `cards`) has the same problem: the generator doesn't seed a
-    // specific hand/graveyard to assert a moved-everything delta
-    // against. Rather than mis-assert, report an explicit skip for
-    // every shape; execution coverage is the card's own per-card test
-    // (the migrated resolve()-cards keep their full behavioural
-    // tests — Timetwister, Echo of Eons).
-    moveZone: {
-        code: "unmodelled-object-or-zone",
-        reason: `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`,
     },
     // `animate` (issue #1317) turns a permanent into a creature (CR
     // 208.2 / 611.1) — potentially changing its BASIC eligibility as a
@@ -2437,6 +2416,176 @@ function analyseBecomeCopy(
     recordSubject(req, op.source);
 }
 
+type SelectAtRandomOp = Extract<EffectOp, { op: "selectAtRandom" }>;
+type MoveZoneOp = Extract<EffectOp, { op: "moveZone" }>;
+
+/** The skip every `selectAtRandom` the canned run cannot force raises. Spelled
+ *  once, and never reworded: `smokeSkipForm` hashes the reason. */
+const SELECT_AT_RANDOM_SKIP = {
+    code: "randomness",
+    reason: `Op "selectAtRandom" binds a random subset of a zone pool and moves nothing — covered by the Op's interpreter tests`,
+} as const;
+
+/** The skip every `moveZone` form the canned run does not model raises — the
+ *  outcome of a bounce, a reanimation or an exile-from-graveyard depends on
+ *  the zone the object starts in, which an announced slot or a binding does
+ *  not tell the planner. Spelled once, and never reworded: `smokeSkipForm`
+ *  hashes the reason, so a golden fixture's form names it. */
+const MOVE_ZONE_SKIP = {
+    code: "unmodelled-object-or-zone",
+    reason: `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`,
+} as const;
+
+/** The literal characteristics a forced pick's pool is hydrated from — the
+ *  two `countFillerId` can build a matching card for. */
+interface RandomPickFilter {
+    readonly type?: string | string[];
+    readonly subtype?: string | string[];
+}
+
+/** A `selectAtRandom` the canned run can force, keyed in
+ *  `Requirements.randomPicks` by its binding. */
+interface RandomPick {
+    readonly op: SelectAtRandomOp;
+    readonly count: number;
+    readonly filter: RandomPickFilter;
+    /** Where the pick's skip would sit in `Requirements.skips`, so a pick that
+     *  falls back to it keeps the order the script raised its skips in. */
+    readonly skipAt: number;
+    /** The `moveZone` that moves the picked cards, and its skip position. */
+    movedBy?: { readonly op: MoveZoneOp; readonly skipAt: number };
+}
+
+/** The seeded pool of a forced pick: `count + 1` matching cards in the
+ *  caster's graveyard, plus one that does not match when the pick filters. */
+export interface SeededRandomPool {
+    readonly ids: readonly string[];
+    readonly count: number;
+    readonly decoyId?: string;
+}
+
+/** The pick's filter when a seeded card can satisfy it — literal card types
+ *  and subtypes only — or null. No filter is the empty filter. */
+function randomPickFilter(
+    filter: SelectAtRandomOp["filter"]
+): RandomPickFilter | null {
+    if (filter === undefined) return {};
+    if (!holdsOnlyKeys(filter, ["type", "subtype"])) return null;
+    const literal = (value: unknown): boolean =>
+        value === undefined ||
+        typeof value === "string" ||
+        (Array.isArray(value) &&
+            value.length > 0 &&
+            value.every((entry) => typeof entry === "string"));
+    const { type, subtype } = filter as { type?: unknown; subtype?: unknown };
+    return literal(type) && literal(subtype)
+        ? (filter as RandomPickFilter)
+        : null;
+}
+
+/**
+ * "Return a Zombie card at random from your graveyard to your hand"
+ * (Ghoulraiser): a `selectAtRandom` over the controller's graveyard whose
+ * picks a `moveZone` then moves (CR 608.2c — the pick, then the move). The
+ * canned run forces it: the graveyard is seeded with `count + 1` cards that
+ * match the filter, so whichever `count` the seeded PRNG draws, exactly that
+ * many leave and one stays — the assertion reads the counts, never which card.
+ * A card that does not match is seeded beside them when the pick filters, and
+ * must stay.
+ *
+ * Every other form keeps the Op's skip: another zone or owner, a library
+ * window, a computed count, a filter on a characteristic the seeded card does
+ * not carry, or a second pick in the same script (two pools in one graveyard).
+ * A pick nothing moves raises it too (`settleRandomPicks`): a binding is not
+ * an outcome.
+ */
+function analyseSelectAtRandom(op: SelectAtRandomOp, req: Requirements): void {
+    const filter = randomPickFilter(op.filter);
+    if (
+        op.zone !== "graveyard" ||
+        (op.zoneOwnerId !== undefined && op.zoneOwnerId !== "controller") ||
+        op.top !== undefined ||
+        typeof op.count !== "number" ||
+        op.count < 1 ||
+        filter === null ||
+        req.randomPicks.size > 0
+    ) {
+        skipBecause(
+            req,
+            SELECT_AT_RANDOM_SKIP.code,
+            SELECT_AT_RANDOM_SKIP.reason
+        );
+        return;
+    }
+    req.randomPicks.set(op.bind, {
+        op,
+        count: op.count,
+        filter,
+        skipAt: req.skips.length,
+    });
+}
+
+/** CR 400.7 — `moveZone` in the one form the canned run models: the picks of
+ *  a forced `selectAtRandom` (`analyseSelectAtRandom`) moved from the
+ *  controller's graveyard to their hand. Every other form keeps the Op's skip. */
+function analyseMoveZone(op: MoveZoneOp, req: Requirements): void {
+    const pick =
+        op.to === "hand" && "cards" in op && "ref" in op.cards
+            ? req.randomPicks.get(op.cards.ref)
+            : undefined;
+    if (
+        pick !== undefined &&
+        pick.movedBy === undefined &&
+        "cards" in op &&
+        op.from === "graveyard" &&
+        op.player === "controller" &&
+        holdsOnlyKeys(op, ["cards", "player", "from", "to"])
+    ) {
+        pick.movedBy = { op, skipAt: req.skips.length };
+        return;
+    }
+    skipBecause(req, MOVE_ZONE_SKIP.code, MOVE_ZONE_SKIP.reason);
+}
+
+/** Whether another part of the script feeds the caster's graveyard, so a
+ *  forced pick's pool is no longer the seeded one: a count set banked there, a
+ *  discard of the caster's seeded hand, a sweep over a seeded board, the
+ *  source sacrificed. */
+function graveyardFedElsewhere(req: Requirements): boolean {
+    return (
+        req.countSets.some((spec) => spec.zone === "graveyard") ||
+        req.discardingPlayers.has(CASTER_ID) ||
+        req.sweeps.length > 0 ||
+        req.sourceSacrificeAdmitted
+    );
+}
+
+/** Settles the script's forced picks once every Op is read: a pick nothing
+ *  moves, or whose graveyard another part of the script feeds, raises the
+ *  Op's skip (and its mover's) at the position it would have had. */
+function settleRandomPicks(req: Requirements): void {
+    if (req.randomPicks.size === 0) return;
+    const raised: SmokeSkip[][] = [];
+    const fed = graveyardFedElsewhere(req);
+    for (const [bind, pick] of req.randomPicks) {
+        if (pick.movedBy !== undefined && !fed) continue;
+        req.randomPicks.delete(bind);
+        raised[pick.skipAt] = [
+            ...(raised[pick.skipAt] ?? []),
+            { ...SELECT_AT_RANDOM_SKIP, op: pick.op },
+        ];
+        if (pick.movedBy === undefined) continue;
+        const at = pick.movedBy.skipAt;
+        raised[at] = [
+            ...(raised[at] ?? []),
+            { ...MOVE_ZONE_SKIP, op: pick.movedBy.op },
+        ];
+    }
+    // Later positions first, so an earlier insertion point stays valid.
+    for (let at = raised.length - 1; at >= 0; at--)
+        if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
+}
+
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
  *  kinds (no analyser branch) force a skip so a new Op cannot silently pass. */
 function analyseOp(op: EffectOp, req: Requirements): void {
@@ -2869,6 +3018,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "becomeCopy":
             analyseBecomeCopy(op, req);
             return;
+        case "selectAtRandom":
+            analyseSelectAtRandom(op, req);
+            return;
+        case "moveZone":
+            analyseMoveZone(op, req);
+            return;
         case "skipNextUntap":
             // `skipNextUntap` (PRD #795, CR 302.6/502.1) arms a one-shot
             // "doesn't untap next untap step" flag on a permanent. The
@@ -3158,7 +3313,61 @@ function analyseOp(op: EffectOp, req: Requirements): void {
 
 /** Builds the canned GameState + announced targets satisfying `req`, or the
  *  skips that say why a requirement cannot be met. */
+/** Seeds each forced pick's pool into the caster's graveyard
+ *  (`analyseSelectAtRandom`): `count + 1` cards hydrated to match the filter,
+ *  and — when the pick filters — one card of a type it does not name. */
+function seedRandomPools(
+    req: Requirements,
+    graveyard: CardInstanceState[]
+): Record<string, SeededRandomPool> | undefined {
+    if (req.randomPicks.size === 0) return undefined;
+    const pools: Record<string, SeededRandomPool> = {};
+    for (const [bind, pick] of req.randomPicks) {
+        const prefix = `gen-pick-${bind.replace(/^\$/, "")}`;
+        const pool = spawnMatching(
+            countFillerId(pick.filter),
+            CASTER_ID,
+            "graveyard",
+            pick.count + 1,
+            prefix
+        );
+        graveyard.push(...pool);
+        const decoy = randomPickDecoy(pick.filter, `${prefix}-decoy`);
+        if (decoy !== undefined) graveyard.push(decoy);
+        pools[bind] = {
+            ids: pool.map((card) => card.id),
+            count: pick.count,
+            ...(decoy === undefined ? {} : { decoyId: decoy.id }),
+        };
+    }
+    return pools;
+}
+
+/** A caster-graveyard card a filtering pick must pass over: a type the filter
+ *  does not name, with a subtype no filter names. None for an unfiltered pick —
+ *  every card is in its pool. */
+function randomPickDecoy(
+    filter: RandomPickFilter,
+    id: string
+): CardInstanceState | undefined {
+    if (filter.type === undefined && filter.subtype === undefined)
+        return undefined;
+    const named = new Set(
+        filter.type === undefined ? [] : [filter.type].flat()
+    );
+    const type = ["Land", "Artifact", "Enchantment"].find(
+        (candidate) => !named.has(candidate)
+    )!;
+    return makeInstance(countFillerId({ type, subtype: "Gen-Decoy" }), {
+        id,
+        controllerId: CASTER_ID,
+        ownerId: CASTER_ID,
+        zone: "graveyard",
+    });
+}
+
 function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
+    settleRandomPicks(req);
     if (req.skips.length > 0) return { skip: req.skips };
 
     // A permanent target lives on the OPPONENT's battlefield (so destroy/exile
@@ -3282,6 +3491,8 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         }
     }
 
+    const randomPools = seedRandomPools(req, p1Gy);
+
     // CR 113.7 — the source of an activated or triggered ability is the object
     // whose ability it is: a permanent the caster controls, untapped and past
     // summoning sickness (its cost is not what the smoke run proves). Tapped
@@ -3389,6 +3600,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             ? { controllerSpeed: SMOKE_CONTROLLER_SPEED }
             : {}),
         ...(sweeps.length === 0 ? {} : { sweeps }),
+        ...(randomPools === undefined ? {} : { randomPools }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -3862,6 +4074,7 @@ function bodySpeaksForItself(op: ForEachOp, host: SmokeHost): boolean {
     const body = emptyRequirements(SPELL_HOST);
     for (const nested of [...op.effects, ...nestedOps(op.effects, host)])
         analyseOpFully(nested, body);
+    settleRandomPicks(body);
     return body.skips.some(
         (skip) => SMOKE_SKIP_CLASS[skip.code] === "card-dependent"
     );
@@ -5132,6 +5345,41 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
+    // A forced pick moves nothing: its picks are a binding, and the `moveZone`
+    // that moves them is the one with an outcome (`analyseSelectAtRandom`).
+    selectAtRandom: () => null,
+    // CR 400.7 — the forced pick's cards leave the caster's graveyard for
+    // their hand: exactly `count` of the `count + 1` seeded matching cards,
+    // whichever the seeded PRNG drew, and never the card the filter passes
+    // over. Only the forced-pick form reaches here (`analyseMoveZone`).
+    moveZone(rawOp, scenario) {
+        const op = rawOp as MoveZoneOp;
+        if (!("cards" in op) || !("ref" in op.cards)) return null;
+        const pool = scenario.randomPools?.[op.cards.ref];
+        if (pool === undefined) return null;
+        return {
+            label: `moveZone returns ${pool.count} of ${pool.ids.length} seeded graveyard cards to hand`,
+            check: (post) => {
+                const caster = post.players.find((p) => p.id === CASTER_ID)!;
+                const inHand = pool.ids.filter((id) =>
+                    caster.hand.some((c) => c.id === id)
+                ).length;
+                const inGraveyard = pool.ids.filter((id) =>
+                    caster.graveyard.some((c) => c.id === id)
+                ).length;
+                const decoyStays =
+                    pool.decoyId === undefined ||
+                    caster.graveyard.some((c) => c.id === pool.decoyId);
+                return {
+                    ok:
+                        inHand === pool.count &&
+                        inGraveyard === pool.ids.length - pool.count &&
+                        decoyStays,
+                    detail: `${inHand} in hand (expected ${pool.count}), ${inGraveyard} still in the graveyard (expected ${pool.ids.length - pool.count}), non-matching card ${decoyStays ? "stayed" : "moved"}`,
+                };
+            },
+        };
+    },
     // `skipNextUntap` (PRD #795, CR 302.6/502.1) — a lock on an announced
     // permanent slot is observable as the one-shot `skipNextUntap` flag
     // flipping undefined→true on the seeded filler permanent. An ability's own
@@ -5780,6 +6028,7 @@ function planWith(
         const nested = emptyRequirements(SPELL_HOST);
         nested.sweepsRun = false;
         for (const op of nestedOps(effects, host)) analyseOpFully(op, nested);
+        settleRandomPicks(nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
 
@@ -5840,6 +6089,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sweeps: [],
         sweepsRun: true,
         sourceSacrificeAdmitted: false,
+        randomPicks: new Map(),
     };
 }
 
