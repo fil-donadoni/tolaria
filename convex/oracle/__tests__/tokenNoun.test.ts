@@ -255,15 +255,22 @@ describe("token group without a determiner — golden (CR 111.1)", () => {
 
 describe("token noun in a controls condition (CR 111.1)", () => {
     it.each([
-        ["if you control a token", 1],
-        ["if you control three or more tokens", 3],
-    ])("reads %s as a counted isToken gate", (span, atLeast) => {
+        [
+            "if you control a token",
+            { kind: "controls", filter: { isToken: true }, atLeast: 1 },
+        ],
+        [
+            "if you control three or more tokens",
+            {
+                kind: "controls-at-least",
+                player: "you",
+                filter: { isToken: true },
+                atLeast: 3,
+            },
+        ],
+    ])("reads %s as a counted isToken gate", (span, expected) => {
         const parsed = conditionRule.run(span, parseContext());
-        expect(parsed.ok && parsed.value).toEqual({
-            kind: "controls",
-            filter: { isToken: true },
-            atLeast,
-        });
+        expect(parsed.ok && parsed.value).toEqual(expected);
     });
 });
 
