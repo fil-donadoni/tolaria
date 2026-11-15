@@ -4616,7 +4616,7 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // name — a filter-driven reveal-and-split composition, not a new
     // SpellContext primitive).
     // CR 611.2c / 101.2 — "Spells you control can't be countered this turn"
-    // (Veil of Summer). The engine half shipped with issue #9466
+    // (Veil of Summer). The engine half is live
     // (SpellContext.grantSpellCounterImmunityThisTurn); the Op waits for the
     // Grammar Rule that emits it (issue #9836, `/new-op` site 8).
     {
