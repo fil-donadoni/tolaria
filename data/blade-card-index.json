@@ -341,6 +341,13 @@
             "needsSetup": false
         }
     ],
+    "Erhnam Djinn": [
+        {
+            "label": "look and keep: Malevolent Rumble keeps the threat when short of threats",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Etched Oracle": [
         {
             "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",
@@ -1041,11 +1048,6 @@
             "label": "life as mana: Bolas's Citadel plays the top card with life to spare",
             "tier": "must",
             "needsSetup": false
-        },
-        {
-            "label": "look and keep: Malevolent Rumble keeps the threat when short of threats",
-            "tier": "must",
-            "needsSetup": true
         }
     ],
     "Shatter": [

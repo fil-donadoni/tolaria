@@ -28434,7 +28434,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "casts Sowing Mycospawn kicked: the land fetch and the exile of an opposing land",
         },
-        note: "Issue #9690, CR 702.33a. Four Forests and an Eldrazi Temple ({C}{C} for an Eldrazi spell) pay {3}{G} plus the {1}{C} kicker: the kicked cast adds the exile of the opponent's Mishra's Factory to the same land fetch.",
+        note: "Issue #9690, CR 702.33a. Four Forests and an Eldrazi Temple ({C}{C} for a colorless Eldrazi spell; Devoid makes it one) pay {3}{G} plus the {1}{C} kicker: the kicked cast adds the exile of the opponent's Mishra's Factory to the same land fetch.",
     },
     {
         label: "kicker: Sowing Mycospawn's kicked exile never takes its own land",
@@ -28482,7 +28482,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Malevolent Rumble", owner: "me", zone: "hand" },
                 { name: "Forest", owner: "me", zone: "library", position: 1 },
                 {
-                    name: "Serra Angel",
+                    name: "Erhnam Djinn",
                     owner: "me",
                     zone: "library",
                     position: 2,
@@ -28502,9 +28502,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "resolution-choice", cards: ["Serra Angel"] }],
+            moves: [{ kind: "resolution-choice", cards: ["Erhnam Djinn"] }],
         },
-        note: "Issue #9690. No threat in hand or in play, the four revealed cards three Forests and a Serra Angel: the Angel goes to hand.",
+        note: "Issue #9690. No threat in hand or in play, the four revealed cards three Forests and an Erhnam Djinn the Forests cast next turn: the Djinn goes to hand.",
     },
     {
         label: "look and keep: Malevolent Rumble never keeps a land over the threat with lands to spare",
@@ -28519,12 +28519,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Malevolent Rumble", owner: "me", zone: "hand" },
                 { name: "Forest", owner: "me", zone: "library", position: 1 },
                 {
-                    name: "Hill Giant",
+                    name: "Craw Wurm",
                     owner: "me",
                     zone: "library",
                     position: 2,
                 },
-                { name: "Plains", owner: "me", zone: "library", position: 3 },
+                { name: "Forest", owner: "me", zone: "library", position: 3 },
                 { name: "Forest", owner: "me", zone: "library", position: 4 },
                 { name: "Forest", owner: "me", zone: "library", count: 8 },
                 { name: "Plains", owner: "opp", zone: "library", count: 8 },
@@ -28539,12 +28539,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            forbidden: [
-                { kind: "resolution-choice", cards: ["Forest"] },
-                { kind: "resolution-choice", cards: ["Plains"] },
-            ],
+            forbidden: [{ kind: "resolution-choice", cards: ["Forest"] }],
         },
-        note: "Issue #9690. Seven lands in play, the reveal two Forests, a Plains and a Hill Giant: an eighth land is the blunder.",
+        note: "Issue #9690. Seven Forests in play, the reveal three Forests and a Craw Wurm they cast next turn: an eighth land is the blunder.",
     },
     {
         label: "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost",
