@@ -330,12 +330,7 @@ describe("Brass Man (does-not-untap + pay {1} to untap on upkeep)", () => {
             ],
         });
         state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 };
-        resolveTrigger(
-            state,
-            brass,
-            "brass-man-untap-option",
-            upkeepEvent("p1")
-        );
+        resolveTrigger(state, brass, "brass-man-trigger", upkeepEvent("p1"));
         answerChoice(state, ["yes"]);
         expect(
             state.players[0].battlefield.find((c) => c.id === "brass")!.isTapped

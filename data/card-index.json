@@ -10509,7 +10509,9 @@
         "oracleId": "64f56228-7874-4465-ba58-1049083ea02f",
         "firstSet": "arn",
         "firstPrintId": "1a364362-e42b-415c-9d95-b6ec7139f5e7",
-        "firstPrintSet": "arn"
+        "firstPrintSet": "arn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Brass Secretary",
