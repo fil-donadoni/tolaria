@@ -54,6 +54,7 @@ import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { LAND_SUBTYPE_MANA } from "../constants";
 import { hasPrepareSpell } from "../prepare";
+import { presentedDefId } from "../copy";
 import { getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
 import { playerHasRestriction } from "../playerRestrictions";
@@ -2127,17 +2128,6 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`,
     },
-    // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a
-    // copy of ANOTHER runtime permanent. The generator seeds the same
-    // filler creature into every permanent slot, so a copy of one onto
-    // the other changes no observable characteristic, and a timed copy
-    // reverts only at a phase boundary the canned run never reaches.
-    // Explicit skip — covered by the Op's own interpreter + wire-format
-    // tests (per-Op regime, `.claude/rules/gre-development.md`).
-    becomeCopy: {
-        code: "op-own-tests",
-        reason: `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`,
-    },
     // CR 720.2 (issue #1199) — crowning the monarch is a GLOBAL
     // designation (`GameState.monarchId`), not a per-permanent /
     // per-player-resource outcome the canned generator's assertion
@@ -2400,6 +2390,52 @@ function isScenarioSkipped(
 /** The skip a `sacrifice` the generator does not model raises. Spelled once:
  *  `smokeSkipForm` hashes the reason, so a golden fixture's form names it. */
 const SACRIFICE_SKIP_REASON = `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
+
+/** The op-covered skip every `becomeCopy` form the canned run cannot observe
+ *  raises. Spelled once, and never reworded: `smokeSkipForm` hashes the
+ *  reason, so a golden fixture's form names it. */
+const BECOME_COPY_SKIP_REASON = `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`;
+
+/**
+ * CR 707.2 — `becomeCopy` in the one form the canned run can observe: one of
+ * its two objects is the ability's own seeded source, the other an announced
+ * permanent slot ("this land becomes a copy of target artifact"). The source is
+ * hydrated from the HOST's own kind and the slot from the generic filler, so
+ * the two present different definitions, and the copy shows at resolution as
+ * the recipient presenting the copied definition (the assertor reads it).
+ *
+ * Every other form raises the op-covered skip above, so `analyseOpFully` reads
+ * its arguments back and a `$source` the site cannot seed stays card-dependent:
+ * - two announced slots, or `$source` on both sides: the same object kind on
+ *   both, so the copy changes nothing the assertion could tell apart;
+ * - a `duration` (CR 611.2a): a timed copy records its own revert ledger, and
+ *   the boundary that ends it is a phase the canned run never reaches — the
+ *   Op's interpreter tests own it;
+ * - an `except` clause (CR 707.9): the copy's copiable values are the source's
+ *   AS MODIFIED, which the assertion would have to re-derive.
+ */
+function analyseBecomeCopy(
+    op: Extract<EffectOp, { op: "becomeCopy" }>,
+    req: Requirements
+): void {
+    const other = isSourceRef(op.target)
+        ? op.source
+        : isSourceRef(op.source)
+          ? op.target
+          : undefined;
+    if (
+        op.duration !== undefined ||
+        op.except !== undefined ||
+        seedableSource(req) === undefined ||
+        other === undefined ||
+        !("target" in other)
+    ) {
+        skipBecause(req, "op-own-tests", BECOME_COPY_SKIP_REASON);
+        return;
+    }
+    recordSubject(req, op.target);
+    recordSubject(req, op.source);
+}
 
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
  *  kinds (no analyser branch) force a skip so a new Op cannot silently pass. */
@@ -2829,6 +2865,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.sourceTapAction = op.action;
             }
             recordSubject(req, op.target);
+            return;
+        case "becomeCopy":
+            analyseBecomeCopy(op, req);
             return;
         case "skipNextUntap":
             // `skipNextUntap` (PRD #795, CR 302.6/502.1) arms a one-shot
@@ -5054,6 +5093,41 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: (perm.isTapped === true) === tapped,
                     detail: `isTapped ${perm.isTapped}, expected ${tapped}`,
+                };
+            },
+        };
+    },
+    // CR 707.2 — the recipient presents the copied object's definition (the
+    // copy overwrites `card.id`) and keeps its printed one as `copiedFrom`.
+    // Only the `$source` ⇄ announced-slot form reaches here (`analyseBecomeCopy`):
+    // the two seeded objects present different definitions, so an unapplied
+    // copy fails the check.
+    becomeCopy(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "becomeCopy" }>;
+        const recipientId = subjectPermanentId(scenario, op.target);
+        const copiedId = subjectPermanentId(scenario, op.source);
+        if (recipientId === undefined || copiedId === undefined) return null;
+        const onBattlefield = (state: GameState, id: string) =>
+            state.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === id);
+        const recipientBefore = onBattlefield(pre, recipientId);
+        const copiedBefore = onBattlefield(pre, copiedId);
+        if (!recipientBefore || !copiedBefore) return null;
+        const printed = presentedDefId(recipientBefore);
+        const expected = presentedDefId(copiedBefore);
+        if (printed === expected) return null;
+        return {
+            label: `permanent ${recipientId} becomes a copy of ${copiedId} (${printed} → ${expected})`,
+            check: (post) => {
+                const perm = onBattlefield(post, recipientId);
+                if (!perm) {
+                    return { ok: false, detail: "recipient permanent gone" };
+                }
+                const presented = presentedDefId(perm);
+                return {
+                    ok: presented === expected && perm.copiedFrom === printed,
+                    detail: `presents ${presented} (expected ${expected}), copiedFrom ${perm.copiedFrom} (expected ${printed})`,
                 };
             },
         };

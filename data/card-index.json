@@ -86288,6 +86288,16 @@
         "source": "compiled"
     },
     {
+        "name": "The Mycosynth Gardens",
+        "scryfallId": "5a931463-25f6-4e31-95b4-bb4a9388009b",
+        "oracleId": "03f5c566-825c-4c46-9c01-a2f9b1e70a13",
+        "firstSet": "one",
+        "firstPrintId": "5a931463-25f6-4e31-95b4-bb4a9388009b",
+        "firstPrintSet": "one",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "The One Ring",
         "scryfallId": "d5806e68-1054-458e-866d-1f2470f682b2",
         "oracleId": "3aa83ed2-f48b-4ce6-a614-2c54ddf50538",
