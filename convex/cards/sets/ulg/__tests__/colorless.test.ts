@@ -36,14 +36,6 @@ function runUntapStep(playerId: string, state: GameState): void {
 }
 
 describe("Grim Monolith (does-not-untap + {T}: {C}{C}{C} + {4}: untap, CR 502.1 / 605.1a)", () => {
-    it("{T}: Add {C}{C}{C} mana ability produces the declared amount", () => {
-        const ability = grimMonolith.activatedAbilities![0];
-        expect(ability.manaProduced).toEqual({ C: 3 });
-        let added: unknown;
-        ability.effect!({ addMana: (cost) => (added = cost) });
-        expect(added).toEqual({ C: 3 });
-    });
-
     // Full path through the real tap-for-mana entry point (mirrors the ICE
     // painland / atq Urza-trio harness — `tapSourceIntoPayment`), not just the
     // ability's isolated `effect` closure above.
@@ -116,7 +108,7 @@ describe("Grim Monolith (does-not-untap + {T}: {C}{C}{C} + {4}: untap, CR 502.1 
             ...monolith,
             zone: "stack",
             castById: "p1",
-            abilityId: "grim-monolith-untap",
+            abilityId: "grim-monolith-ability-2",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -306,7 +298,7 @@ describe("Treetop Village (manland animate, CR 611.1 / 613.1e / 702.19a)", () =>
             ...village,
             zone: "stack",
             castById: "p1",
-            abilityId: "treetop-village-animate",
+            abilityId: "treetop-village-ability-2",
         } as StackItem);
         resolveTopOfStack(state);
         return state;
@@ -424,7 +416,7 @@ describe("Faerie Conclave (manland animate, CR 611.1 / 613.1e / 702.9a)", () => 
             ...conclave,
             zone: "stack",
             castById: "p1",
-            abilityId: "faerie-conclave-animate",
+            abilityId: "faerie-conclave-ability-2",
         } as StackItem);
         resolveTopOfStack(state);
         return state;

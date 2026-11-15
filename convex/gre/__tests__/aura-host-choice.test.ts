@@ -26,11 +26,13 @@ import {
     mountain,
     whiteKnight,
     warpArtifact,
-    basaltMonolith,
 } from "../../cards/sets/lea/index.cards";
 import { guardianBeast } from "../../cards/sets/arn/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
+
+// Retired hand-written twin (ADR 0114): the registry row carries the id.
+const BASALT_MONOLITH_ID = "66a74c89-6f86-4ec8-af17-391cd5026054";
 
 // Issue #1119 — "enchant player" host support. No shipped card in the
 // catalogue has `subtypes: ["Aura"]` + `targetRequirement: { type: "player" }`
@@ -434,7 +436,7 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
             zone: "battlefield",
             isTapped: false,
         });
-        const monolith = makeInstance(basaltMonolith().id, {
+        const monolith = makeInstance(BASALT_MONOLITH_ID, {
             id: "monolith-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -474,7 +476,7 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
             zone: "battlefield",
             isTapped: true, // the guard is "as long as untapped"
         });
-        const monolith = makeInstance(basaltMonolith().id, {
+        const monolith = makeInstance(BASALT_MONOLITH_ID, {
             id: "monolith-1",
             controllerId: "p1",
             ownerId: "p1",
