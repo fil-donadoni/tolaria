@@ -1,8 +1,8 @@
 // Issue #5445 — `isManaBaseSacrificeCast` names a cast whose alternative cost
 // SACRIFICES the caster's lands (CR 118.9 / 701.21a), so the search keeps it
-// out of the rollout and of the tree below the root. A flashback cast is an
-// alternative-cost cast too (CR 702.34a): its "Sacrifice a Mountain" leg counts
-// (issue #9733).
+// out of the rollout and of the tree below the root (issue #9733): a
+// flashback cast pays an alternative cost too (CR 702.34a), so the land its
+// flashback cost gives up counts as well.
 
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
