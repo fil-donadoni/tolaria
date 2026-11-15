@@ -23,7 +23,7 @@ import {
     makeState,
 } from "../../../convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "../../../convex/gameProjections";
-import { hickoryWoodlot } from "../../../convex/cards/sets/mmq/colorless.cards";
+import { getDefinition } from "../../../convex/cards/registry";
 import {
     getActivatedManaMenuEntry,
     hasManaAbility,
@@ -31,6 +31,9 @@ import {
 } from "../card-utils";
 import type { CardInstance } from "../../types/game";
 import type { ManaPool } from "../../types/game";
+
+// Compiled from Oracle text (ADR 0114): the registry is the seam.
+const hickoryWoodlot = getDefinition("af7aafb7-6870-4d09-a191-70786766c459");
 
 const EMPTY_POOL: ManaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
@@ -40,7 +43,7 @@ function projectedWoodlot(counters: number): {
     card: CardInstance;
     players: { id: string; battlefield: CardInstance[] }[];
 } {
-    const land = makeInstance(hickoryWoodlot().id, {
+    const land = makeInstance(hickoryWoodlot.id, {
         id: "woodlot",
         controllerId: "p1",
         ownerId: "p1",

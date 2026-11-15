@@ -38,12 +38,15 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 import { prismaticWard } from "../../cards/sets/ice/white.cards";
-import { quirionElves } from "../../cards/sets/mir/green.cards";
+import { getDefinition } from "../../cards/registry";
 import { jihad, repentantBlacksmith } from "../../cards/sets/arn/white.cards";
 import { mijaeDjinn } from "../../cards/sets/arn/red.cards";
 import { visionCharm } from "../../cards/sets/vis/blue.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import type { CardDefinition } from "../../cards/types";
+
+// Compiled from Oracle text (ADR 0114): the registry is the seam.
+const quirionElves = getDefinition("be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b");
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -114,7 +117,7 @@ describe("CR 614.12a — the mode pick is declared on entersWith.asEnters", () =
         for (const def of [
             voiceOfAll(),
             prismaticWard(),
-            quirionElves(),
+            quirionElves,
             jihad(),
         ]) {
             expect(declaresAsEntersMode(def)).toBe(true);
@@ -165,7 +168,7 @@ describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", 
     });
 
     it("Quirion Elves reanimated produces the CHOSEN colour from its second mana ability", () => {
-        const state = withInGraveyard(quirionElves());
+        const state = withInGraveyard(quirionElves);
         reanimate(state);
         answer(state, ["U"]);
 

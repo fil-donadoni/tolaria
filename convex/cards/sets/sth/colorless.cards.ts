@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import { defineCard } from "../../types";
+import { defineCard, type ActivatedAbilityContext } from "../../types";
 
 // Volrath's Stronghold — Legendary Land. "{T}: Add {C}." plus "{1}{B}, {T}:
 // Put target creature card from your graveyard on top of your library."
