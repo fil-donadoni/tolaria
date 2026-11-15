@@ -5,6 +5,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { resetPendingGameIntents } from "~/lib/pending-intent-store";
+import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -123,6 +124,16 @@ describe("hand card `actionable` ring (issue #6917)", () => {
         fireEvent.click(root());
         expect(announceCast).not.toHaveBeenCalled();
         expect(playCard).not.toHaveBeenCalled();
+    });
+
+    it("the ringed card's root contains the ring's z-index (issue #9681)", () => {
+        // The portrait hand overlaps its cards and an untilted card (always,
+        // on touch) forms no stacking context: without containment the ring's
+        // `::after` z-index paints over the cards stacked on top of it.
+        renderCard(makeCard(["play"]));
+        expect(ring().className).toContain("card-ring-actionable");
+        expect(CARD_RING_TILE_CLASS).not.toHaveLength(0);
+        expect(root().className.split(/\s+/)).toContain(CARD_RING_TILE_CLASS);
     });
 
     it("a land play rings", () => {
