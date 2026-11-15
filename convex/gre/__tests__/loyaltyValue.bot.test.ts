@@ -68,6 +68,9 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Nissa, Who Shakes the World": 9,
     // start 4, spend 5
     "Oko, Thief of Crowns": 6,
+    // start 4, spends 2/8 — compiled, ready once a choice range stopped
+    // reading as a runtime amount (issue #5249)
+    "Sarkhan Unbroken": 9,
     // start 3, spends 2/6
     "Sorin, Lord of Innistrad": 7,
     // start 4, spends 3/8
