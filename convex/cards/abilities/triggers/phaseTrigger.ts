@@ -54,8 +54,9 @@ export interface PhaseTriggerArgs {
      *  Defaults to the battlefield; set `"graveyard"` for upkeep triggers that
      *  fire while the card sits in the graveyard (Nether Shadow, Pyre Zombie —
      *  both of whose effects move the card OUT of the graveyard, which is what
-     *  puts the ability there in the first place, CR 113.6m). */
-    zone?: "graveyard";
+     *  puts the ability there in the first place, CR 113.6m); `"exile"` for
+     *  one that ticks a card waiting in exile (All Hallow's Eve). */
+    zone?: "graveyard" | "exile";
     /** CR 603.3d (issue #1193) — announcement-time target requirement for a
      *  TARGETED phase trigger (Reya Dawnbringer's "you may return target
      *  creature card from your graveyard to the battlefield"). Forwarded

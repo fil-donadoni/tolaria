@@ -1882,6 +1882,14 @@
         "source": "compiled"
     },
     {
+        "name": "All Hallow's Eve",
+        "scryfallId": "18787a2d-6688-47e9-94bc-ccf229df823f",
+        "oracleId": "ebed900f-6de3-4ae7-9795-fae34882298d",
+        "firstSet": "leg",
+        "firstPrintId": "18787a2d-6688-47e9-94bc-ccf229df823f",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "All-Fates Stalker",
         "scryfallId": "82ae4f7b-8122-4af6-8079-888eabf1a11e",
         "oracleId": "da9ec010-8b42-4927-b602-4e96bced4e99",
