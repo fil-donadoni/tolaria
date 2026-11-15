@@ -700,6 +700,40 @@ export const maraudingKnight = defineCard(() => ({
     ],
 }));
 
+// Mourning — {1}{B} Aura. "Enchant creature. Enchanted creature gets -2/-0.
+// {B}: Return this Aura to its owner's hand." (CR 613.4c pt-buff, CR 400.7
+// return-to-hand self-bounce.)
+export const mourning = defineCard(() => ({
+    id: "4649d881-709f-4ed0-91de-744d232a82f5", // INV 111
+    rarity: "common",
+    name: "Mourning",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets -2/-0.\n{B}: Return this Aura to its owner's hand.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: -2,
+            toughness: 0,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "mourning-return",
+            oracleText: "{B}: Return this Aura to its owner's hand.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
+}));
+
 // Phyrexian Battleflies — {B} 0/1. "Flying. {B}: This creature gets +1/+0
 // until end of turn. Activate no more than twice each turn." (CR 702.9
 // flying, CR 602.5 activation cap.) The "twice" cap has no `oncePerTurn`-
@@ -1269,6 +1303,42 @@ export const urborgShambler = defineCard(() => ({
                 ctx.getColors(target).includes("B"),
             power: -1,
             toughness: -1,
+        },
+    ],
+}));
+
+// Urborg Skeleton — {B} 0/1. "Kicker {3}. {B}: Regenerate this creature. If
+// this creature was kicked, it enters with a +1/+1 counter on it." (CR
+// 702.33 Kicker, CR 122.1/614.1c ETB counter, CR 701.19/701.19 regenerate.)
+// A single `entersWith.counters` entry with `count: "kicker"` is exact here
+// (kickerCount is 0/1 for a single Kicker, matching "a +1/+1 counter" 1:1) —
+// unlike Duskwalker, no keyword grant is involved, so no proxy is needed.
+export const urborgSkeleton = defineCard(() => ({
+    id: "6e522a62-fbca-4362-9006-d4356c525704", // INV 134
+    rarity: "common",
+    name: "Urborg Skeleton",
+    oracleText:
+        "Kicker {3} (You may pay an additional {3} as you cast this spell.)\n{B}: Regenerate this creature.\nIf this creature was kicked, it enters with a +1/+1 counter on it.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton"],
+    power: 0,
+    toughness: 1,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {3}",
+            mana: { X: 3 },
+        },
+    ],
+    entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
+    activatedAbilities: [
+        {
+            id: "urborg-skeleton-regen",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 }));
