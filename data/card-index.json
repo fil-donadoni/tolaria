@@ -23288,6 +23288,16 @@
         "source": "compiled"
     },
     {
+        "name": "Duergar Hedge-Mage",
+        "scryfallId": "4d45e026-58fc-4a0c-9099-6849e5a8fa67",
+        "oracleId": "ecb2fd58-b880-4d9e-93cb-c4d2b28233c9",
+        "firstSet": "eve",
+        "firstPrintId": "4d45e026-58fc-4a0c-9099-6849e5a8fa67",
+        "firstPrintSet": "eve",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dukhara Peafowl",
         "scryfallId": "e5c54795-d555-4972-b72d-b2d2374bed9b",
         "oracleId": "abc5ac3e-f196-49df-8a9d-16df3114ffad",
@@ -25203,6 +25213,16 @@
         "firstPrintId": "ec94d440-3922-4588-bf7b-d8670f81ef4e",
         "firstPrintSet": "bro",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Emeria, the Sky Ruin",
+        "scryfallId": "fdf6016e-71e7-4339-80f9-78e9aa44c54b",
+        "oracleId": "cc999cf2-c99b-4911-8c52-6cc4a99fcc7b",
+        "firstSet": "zen",
+        "firstPrintId": "fdf6016e-71e7-4339-80f9-78e9aa44c54b",
+        "firstPrintSet": "zen",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -36979,6 +36999,16 @@
         "firstPrintId": "473d70b6-a88c-49f4-9415-19919c4468ae",
         "firstPrintSet": "leg",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Gwyllion Hedge-Mage",
+        "scryfallId": "914e6fda-808f-43fb-8024-8b8a8781a7ac",
+        "oracleId": "b89b285d-62d3-4013-b881-23f0f236337d",
+        "firstSet": "eve",
+        "firstPrintId": "914e6fda-808f-43fb-8024-8b8a8781a7ac",
+        "firstPrintSet": "eve",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
